@@ -9,11 +9,16 @@
 - Added Docker Compose for postgres, redis, minio, n8n, api, web, and nginx.
 - Added AGENTS.md.
 - Added memory-bank documentation.
+- Added PrismaService and DatabaseModule.
+- Added SupplierCategory and Supplier CRUD API.
+- Added supplier management web page for creating categories and suppliers.
 
 ## Not Done
 
+- Live database migration verification on VPS.
+- Supplier edit/delete UI.
 - Real authentication flow.
-- Prisma-backed CRUD endpoints.
 - RBAC enforcement.
-- Production deployment setup.
+- Tour Program CRUD.
+- Operation Form workflow.
 - Automated tests.

@@ -1,4 +1,5 @@
 import { BadgeCheck, Building2, CalendarDays, ClipboardList, CreditCard, Route, Users } from 'lucide-react';
+import Link from 'next/link';
 
 const nav = [
   'Dashboard van hanh',
@@ -38,7 +39,11 @@ export default function Home() {
         <div className="brand">SmartTour</div>
         <nav>
           {nav.map((item) => (
-            <a key={item} className={item === 'Dashboard van hanh' ? 'active' : ''}>{item}</a>
+            item === 'Nha cung cap' ? (
+              <Link key={item} href="/suppliers">{item}</Link>
+            ) : (
+              <a key={item} className={item === 'Dashboard van hanh' ? 'active' : ''}>{item}</a>
+            )
           ))}
         </nav>
       </aside>
@@ -75,7 +80,7 @@ export default function Home() {
             <h2>Module tiep theo</h2>
             <table>
               <tbody>
-                <tr><td>Supplier CRUD</td><td>Next</td></tr>
+                <tr><td>Supplier CRUD</td><td>In progress</td></tr>
                 <tr><td>Tour Program</td><td>Planned</td></tr>
                 <tr><td>Operation Form</td><td>Planned</td></tr>
                 <tr><td>Cost & Supplier Debt</td><td>Planned</td></tr>
