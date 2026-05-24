@@ -14,11 +14,13 @@
 - Added supplier management web page for creating categories and suppliers.
 - Added Tour Program and Itinerary Day CRUD API.
 - Added tour program web page for creating tour templates and itinerary days.
+- Added Booking CRUD API.
+- Added booking web page for creating and listing bookings from tour programs.
 
 ## Not Done
 
-- Supplier and Tour Program edit/delete UI.
-- Booking workflow.
+- Supplier, Tour Program, and Booking edit/delete UI.
+- Booking status transition UI.
 - Operation Form workflow.
 - Operation Services assignment to suppliers.
 - Operation cost and supplier payment flow.

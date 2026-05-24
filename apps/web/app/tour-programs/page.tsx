@@ -76,7 +76,7 @@ export default async function TourProgramsPage() {
           <Link href="/">Dashboard van hanh</Link>
           <Link href="/suppliers">Nha cung cap</Link>
           <Link href="/tour-programs" className="active">Tour mau</Link>
-          <a>Booking tour</a>
+          <Link href="/bookings">Booking tour</Link>
           <a>Phieu dieu hanh</a>
           <a>Chi phi tour</a>
           <a>Thanh toan NCC</a>
