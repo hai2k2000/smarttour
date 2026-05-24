@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  OPERATING
+  COMPLETED
+  CANCELLED
+}
+
+enum OperationStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  PROBLEM
+  CANCELLED
+}
+
+enum SupplierPaymentStatus {
+  DRAFT
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SupplierCategory {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  suppliers Supplier[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Supplier {
+  id             String            @id @default(uuid())
+  categoryId     String
+  category       SupplierCategory  @relation(fields: [categoryId], references: [id])
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  pricePolicy    String?
+  debtNote       String?
+  notes          String?
+  services       OperationService[]
+  paymentItems   SupplierPaymentItem[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model TourProgram {
+  id          String             @id @default(uuid())
+  code        String             @unique
+  name        String
+  route       String?
+  durationDays Int
+  description String?
+  itineraryDays TourItineraryDay[]
+  bookings    Booking[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model TourItineraryDay {
+  id            String       @id @default(uuid())
+  tourProgramId String
+  tourProgram   TourProgram  @relation(fields: [tourProgramId], references: [id])
+  dayNumber     Int
+  title         String
+  description   String?
+  services      OperationService[]
+}
+
+model Booking {
+  id            String          @id @default(uuid())
+  code          String          @unique
+  tourProgramId String
+  tourProgram   TourProgram     @relation(fields: [tourProgramId], references: [id])
+  customerName  String
+  paxCount      Int
+  startDate     DateTime
+  endDate       DateTime
+  saleOwner     String?
+  operatorOwner String?
+  status        BookingStatus   @default(DRAFT)
+  totalSellPrice Decimal        @default(0)
+  operationForm OperationForm?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model OperationForm {
+  id        String             @id @default(uuid())
+  bookingId String             @unique
+  booking   Booking            @relation(fields: [bookingId], references: [id])
+  status    OperationStatus    @default(PENDING)
+  notes     String?
+  services  OperationService[]
+  tasks     OperationTask[]
+  costs     OperationCost[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model OperationService {
+  id               String            @id @default(uuid())
+  operationFormId  String
+  operationForm    OperationForm     @relation(fields: [operationFormId], references: [id])
+  itineraryDayId   String?
+  itineraryDay     TourItineraryDay? @relation(fields: [itineraryDayId], references: [id])
+  supplierId       String?
+  supplier         Supplier?         @relation(fields: [supplierId], references: [id])
+  serviceType      String
+  serviceName      String
+  confirmationStatus String          @default("WAITING")
+  expectedCost     Decimal           @default(0)
+  actualCost       Decimal           @default(0)
+  notes            String?
+  costs            OperationCost[]
+}
+
+model OperationTask {
+  id              String          @id @default(uuid())
+  operationFormId String
+  operationForm   OperationForm   @relation(fields: [operationFormId], references: [id])
+  title           String
+  assignee        String?
+  dueDate         DateTime?
+  status          OperationStatus @default(PENDING)
+  notes           String?
+}
+
+model OperationCost {
+  id              String            @id @default(uuid())
+  operationFormId String
+  operationForm   OperationForm     @relation(fields: [operationFormId], references: [id])
+  serviceId       String?
+  service         OperationService? @relation(fields: [serviceId], references: [id])
+  costName        String
+  expectedAmount  Decimal           @default(0)
+  actualAmount    Decimal           @default(0)
+  currency        String            @default("VND")
+  invoiceNo       String?
+  notes           String?
+  paymentItems    SupplierPaymentItem[]
+}
+
+model SupplierPaymentRequest {
+  id        String                @id @default(uuid())
+  code      String                @unique
+  status    SupplierPaymentStatus @default(DRAFT)
+  requestedBy String?
+  approvedBy  String?
+  requestedAt DateTime            @default(now())
+  items     SupplierPaymentItem[]
+}
+
+model SupplierPaymentItem {
+  id         String                 @id @default(uuid())
+  requestId  String
+  request    SupplierPaymentRequest @relation(fields: [requestId], references: [id])
+  supplierId String
+  supplier   Supplier               @relation(fields: [supplierId], references: [id])
+  costId     String?
+  cost       OperationCost?         @relation(fields: [costId], references: [id])
+  amount     Decimal                @default(0)
+  notes      String?
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,16 @@
+node_modules
+.next
+dist
+build
+coverage
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.log
+.DS_Store
+.storage
+/minio-data
+/postgres-data
+/redis-data
+/n8n-data
