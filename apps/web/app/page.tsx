@@ -41,6 +41,8 @@ export default function Home() {
           {nav.map((item) => (
             item === 'Nha cung cap' ? (
               <Link key={item} href="/suppliers">{item}</Link>
+            ) : item === 'Tour mau' ? (
+              <Link key={item} href="/tour-programs">{item}</Link>
             ) : (
               <a key={item} className={item === 'Dashboard van hanh' ? 'active' : ''}>{item}</a>
             )
@@ -81,7 +83,7 @@ export default function Home() {
             <table>
               <tbody>
                 <tr><td>Supplier CRUD</td><td>In progress</td></tr>
-                <tr><td>Tour Program</td><td>Planned</td></tr>
+                <tr><td>Tour Program</td><td>In progress</td></tr>
                 <tr><td>Operation Form</td><td>Planned</td></tr>
                 <tr><td>Cost & Supplier Debt</td><td>Planned</td></tr>
               </tbody>

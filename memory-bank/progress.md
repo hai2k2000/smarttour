@@ -12,13 +12,16 @@
 - Added PrismaService and DatabaseModule.
 - Added SupplierCategory and Supplier CRUD API.
 - Added supplier management web page for creating categories and suppliers.
+- Added Tour Program and Itinerary Day CRUD API.
+- Added tour program web page for creating tour templates and itinerary days.
 
 ## Not Done
 
-- Live database migration verification on VPS.
-- Supplier edit/delete UI.
+- Supplier and Tour Program edit/delete UI.
+- Booking workflow.
+- Operation Form workflow.
+- Operation Services assignment to suppliers.
+- Operation cost and supplier payment flow.
 - Real authentication flow.
 - RBAC enforcement.
-- Tour Program CRUD.
-- Operation Form workflow.
 - Automated tests.

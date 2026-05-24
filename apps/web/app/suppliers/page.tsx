@@ -76,7 +76,7 @@ export default async function SuppliersPage() {
         <nav>
           <Link href="/">Dashboard van hanh</Link>
           <Link href="/suppliers" className="active">Nha cung cap</Link>
-          <a>Tour mau</a>
+          <Link href="/tour-programs">Tour mau</Link>
           <a>Booking tour</a>
           <a>Phieu dieu hanh</a>
           <a>Chi phi tour</a>
