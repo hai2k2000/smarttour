@@ -12,8 +12,11 @@
 ## Admin
 
 - Email: `admin@smarttour.local`
-- Current temporary password: `123456`
-- Change this after handoff in `/security`.
+- Password was rotated after initial handoff. Keep it out of git and export it when running authenticated smoke scripts:
+
+```bash
+export ADMIN_PASSWORD='current-admin-password'
+```
 
 ## Backup
 
@@ -86,6 +89,7 @@ cd /opt/smarttour
 npx prisma migrate status
 npm audit --omit=dev
 scripts/smoke-rbac-workflows.sh
+scripts/smoke-business-workflows.sh
 docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep smarttour
 docker logs --since 5m smarttour-api-1 2>&1 | grep -Ei 'error|exception|failed' || true
 docker logs --since 5m smarttour-web-preview 2>&1 | grep -Ei 'error|exception|failed' || true

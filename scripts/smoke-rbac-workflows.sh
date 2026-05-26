@@ -4,7 +4,7 @@ set -euo pipefail
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
 SITE_URL="${SITE_URL:-https://quanly.dunientravel.com}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@smarttour.local}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-123456}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin password}"
 RUN_ID="SMOKE-RBAC-$(date +%s)"
 ROLE_PASSWORD="RoleSmoke123!26"
 
