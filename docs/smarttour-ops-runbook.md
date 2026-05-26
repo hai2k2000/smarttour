@@ -90,6 +90,7 @@ npx prisma migrate status
 npm audit --omit=dev
 scripts/smoke-rbac-workflows.sh
 scripts/smoke-business-workflows.sh
+scripts/smoke-finance-reports.sh
 docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep smarttour
 docker logs --since 5m smarttour-api-1 2>&1 | grep -Ei 'error|exception|failed' || true
 docker logs --since 5m smarttour-web-preview 2>&1 | grep -Ei 'error|exception|failed' || true
@@ -100,4 +101,6 @@ Expected:
 - Prisma reports database schema up to date.
 - `npm audit --omit=dev` reports 0 vulnerabilities.
 - RBAC smoke script ends with `SMOKE_RBAC_OK`.
+- Business smoke script ends with `SMOKE_BUSINESS_OK`.
+- Finance/report smoke script ends with `SMOKE_FINANCE_REPORTS_OK`.
 - Only SmartTour web, api, postgres, redis containers are running.
