@@ -93,6 +93,7 @@ scripts/smoke-business-workflows.sh
 scripts/smoke-finance-reports.sh
 scripts/smoke-ui-pages.sh
 node scripts/smoke-ui-browser.js
+node scripts/smoke-ui-interactions.js
 docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep smarttour
 docker logs --since 5m smarttour-api-1 2>&1 | grep -Ei 'error|exception|failed' || true
 docker logs --since 5m smarttour-web-preview 2>&1 | grep -Ei 'error|exception|failed' || true
@@ -107,4 +108,5 @@ Expected:
 - Finance/report smoke script ends with `SMOKE_FINANCE_REPORTS_OK`.
 - UI route smoke script ends with `SMOKE_UI_PAGES_OK`.
 - Browser UI smoke script ends with `SMOKE_UI_BROWSER_OK`.
+- Browser interaction smoke script ends with `SMOKE_UI_INTERACTIONS_OK`.
 - Only SmartTour web, api, postgres, redis containers are running.
