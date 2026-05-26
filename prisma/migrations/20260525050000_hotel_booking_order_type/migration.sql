@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "OrderType" ADD VALUE 'HOTEL_BOOKING';
+

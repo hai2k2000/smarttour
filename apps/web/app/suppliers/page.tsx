@@ -1,6 +1,6 @@
 import { Building2, Plus, Users } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
-import Link from 'next/link';
+import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +21,11 @@ type Supplier = {
   updatedAt: string;
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store' });
+    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
     if (!response.ok) return fallback;
     return response.json();
   } catch {
@@ -37,7 +37,7 @@ async function createCategory(formData: FormData) {
   'use server';
   await fetch(`${apiBase}/api/supplier-categories`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({ name: String(formData.get('name') || '') }),
   });
   revalidatePath('/suppliers');
@@ -47,7 +47,7 @@ async function createSupplier(formData: FormData) {
   'use server';
   await fetch(`${apiBase}/api/suppliers`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({
       categoryId: String(formData.get('categoryId') || ''),
       name: String(formData.get('name') || ''),
@@ -70,28 +70,17 @@ export default async function SuppliersPage() {
   ]);
 
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">SmartTour</div>
-        <nav>
-          <Link href="/">Dashboard van hanh</Link>
-          <Link href="/suppliers" className="active">Nha cung cap</Link>
-          <Link href="/tour-programs">Tour mau</Link>
-          <Link href="/bookings">Booking tour</Link>
-          <a>Phieu dieu hanh</a>
-          <a>Chi phi tour</a>
-          <a>Thanh toan NCC</a>
-        </nav>
-      </aside>
-
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Operation master data</p>
-            <h1>Quan ly nha cung cap</h1>
-          </div>
-          <div className="user"><Users size={18} /> Operator</div>
-        </header>
+    <section className="workspace">
+      <header className="pageHeader">
+        <div>
+          <p className="eyebrow">Operation master data</p>
+          <h1>Quan ly nha cung cap</h1>
+        </div>
+        <div className="pageHeaderActions">
+          <span className="statusPill"><Users size={14} /> Operator</span>
+          <span className="statusPill statusPillNeutral">Master data</span>
+        </div>
+      </header>
 
         <section className="contentGrid suppliersGrid">
           <div className="panel">
@@ -192,7 +181,6 @@ export default async function SuppliersPage() {
             ))}
           </div>
         </section>
-      </section>
-    </main>
+    </section>
   );
 }

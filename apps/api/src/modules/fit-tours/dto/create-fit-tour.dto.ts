@@ -1,0 +1,308 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FitTourWorkflowStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+
+export class CreateFitTourDto {
+  @ApiProperty({ example: 'FIT-Q-2026-0001' })
+  @IsString()
+  @MinLength(2)
+  quoteCode!: string;
+
+  @ApiProperty({ example: 'FIT-HN-DN-001' })
+  @IsString()
+  @MinLength(2)
+  tourCode!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiProperty({ example: 'Nguyen Van A' })
+  @IsString()
+  @MinLength(2)
+  customerName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tourName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  marketGroup?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  bookingDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  adultCount?: number;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  childCount?: number;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  infantCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sellingPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  commissionPerGuest?: number;
+
+  @ApiPropertyOptional({ enum: FitTourWorkflowStatus })
+  @IsOptional()
+  @IsEnum(FitTourWorkflowStatus)
+  workflowStatus?: FitTourWorkflowStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  allowOverbooking?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  flightRoute?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tourType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  exchangeRateCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  exchangeRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  operatorOwner?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  seatCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  tourPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  discount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  adultPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  childPrice25?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  childPrice611?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  infantPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  surcharge?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  transportMode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  outboundRoute?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  outboundCarrier?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  returnRoute?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  returnCarrier?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pickupPoint?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  dropoffPoint?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  visaDeadline?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  holdUntil?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  confirmedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  closeAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  handoverGuideRequest?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  surveyDescription?: string;
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  commonCosts?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  hotelCosts?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  privateCosts?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  budgetServices?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  operationServices?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  guides?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  handoverItems?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  surveyQuestions?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  attachments?: unknown[];
+}

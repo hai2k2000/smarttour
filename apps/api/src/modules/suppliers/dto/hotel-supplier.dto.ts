@@ -1,0 +1,412 @@
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { SupplierDayType, SupplierStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
+class SupplierContactInputDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  fullName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  position?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  birthday?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
+class SupplierServiceInputDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  serviceName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ enum: SupplierDayType })
+  @IsOptional()
+  @IsEnum(SupplierDayType)
+  dayType?: SupplierDayType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  accountingPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  netPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sellingPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class SupplierAllotmentInputDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  serviceName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ enum: SupplierDayType })
+  @IsOptional()
+  @IsEnum(SupplierDayType)
+  dayType?: SupplierDayType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  allotmentQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  bookedQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lockedQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  quantityLock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  cutoffDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  netCostPerDay?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sellingPricePerDay?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  status?: string;
+}
+
+export class CreateHotelSupplierDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  supplierCode!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  taxCode?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(6)
+  phone!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  province?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  builtYear?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  rating?: number;
+
+  @ApiProperty()
+  @IsString()
+  classHotel!: string;
+
+  @ApiProperty()
+  @IsString()
+  hotelProject!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankAccountName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  market?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  link?: string;
+
+  @ApiPropertyOptional({ enum: SupplierStatus })
+  @IsOptional()
+  @IsEnum(SupplierStatus)
+  status?: SupplierStatus;
+
+  @ApiPropertyOptional({ type: [SupplierContactInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SupplierContactInputDto)
+  contacts?: SupplierContactInputDto[];
+
+  @ApiPropertyOptional({ type: [SupplierServiceInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SupplierServiceInputDto)
+  services?: SupplierServiceInputDto[];
+
+  @ApiPropertyOptional({ type: [SupplierAllotmentInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SupplierAllotmentInputDto)
+  allotments?: SupplierAllotmentInputDto[];
+}
+
+export class UpdateHotelSupplierDto extends PartialType(CreateHotelSupplierDto) {}
+
+export class UpdateSupplierStatusDto {
+  @ApiProperty({ enum: SupplierStatus })
+  @IsEnum(SupplierStatus)
+  status!: SupplierStatus;
+}
+
+export class OverrideAllotmentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  allotmentQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  bookedQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lockedQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  actor?: string;
+}
+
+export class LockAllotmentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serviceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bookingId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tourId?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  actor?: string;
+}
+
+export class ReleaseAllotmentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  actor?: string;
+}

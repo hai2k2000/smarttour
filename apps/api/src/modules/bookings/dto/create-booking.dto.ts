@@ -12,10 +12,35 @@ export class CreateBookingDto {
   @IsString()
   tourProgramId!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tourId?: string;
+
   @ApiProperty({ example: 'Doan khach Cong ty ABC' })
   @IsString()
   @MinLength(2)
   customerName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerEmail?: string;
 
   @ApiProperty({ example: 18 })
   @Type(() => Number)

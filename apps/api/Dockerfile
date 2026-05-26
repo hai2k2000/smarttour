@@ -6,7 +6,7 @@ RUN npm install
 
 FROM deps AS build
 COPY . .
-RUN npm run build -w @smarttour/api
+RUN npm run prisma:generate && npm run build -w @smarttour/api
 
 FROM node:22-alpine AS runner
 WORKDIR /app

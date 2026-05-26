@@ -1,6 +1,6 @@
 import { CalendarDays, Map, Plus, Route, Users } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
-import Link from 'next/link';
+import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,7 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store' });
+    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
     if (!response.ok) return fallback;
     return response.json();
   } catch {
@@ -38,7 +38,7 @@ async function createTourProgram(formData: FormData) {
   'use server';
   await fetch(`${apiBase}/api/tour-programs`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({
       code: String(formData.get('code') || ''),
       name: String(formData.get('name') || ''),
@@ -55,7 +55,7 @@ async function createItineraryDay(formData: FormData) {
   const tourProgramId = String(formData.get('tourProgramId') || '');
   await fetch(`${apiBase}/api/tour-programs/${tourProgramId}/itinerary-days`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({
       dayNumber: Number(formData.get('dayNumber') || 1),
       title: String(formData.get('title') || ''),
@@ -69,28 +69,17 @@ export default async function TourProgramsPage() {
   const tourPrograms = await apiGet<TourProgram[]>('/tour-programs', []);
 
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">SmartTour</div>
-        <nav>
-          <Link href="/">Dashboard van hanh</Link>
-          <Link href="/suppliers">Nha cung cap</Link>
-          <Link href="/tour-programs" className="active">Tour mau</Link>
-          <Link href="/bookings">Booking tour</Link>
-          <a>Phieu dieu hanh</a>
-          <a>Chi phi tour</a>
-          <a>Thanh toan NCC</a>
-        </nav>
-      </aside>
-
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Operation product setup</p>
-            <h1>Tour mau va lich trinh</h1>
-          </div>
-          <div className="user"><Users size={18} /> Operator</div>
-        </header>
+    <section className="workspace">
+      <header className="pageHeader">
+        <div>
+          <p className="eyebrow">Operation product setup</p>
+          <h1>Tour mau va lich trinh</h1>
+        </div>
+        <div className="pageHeaderActions">
+          <span className="statusPill"><Users size={14} /> Operator</span>
+          <span className="statusPill statusPillNeutral">Tour Core</span>
+        </div>
+      </header>
 
         <section className="contentGrid tourProgramGrid">
           <div className="panel">
@@ -180,7 +169,6 @@ export default async function TourProgramsPage() {
             <section className="panel emptyState">Chua co tour mau. Hay tao tour dau tien de tiep tuc luong booking va dieu hanh.</section>
           ) : null}
         </section>
-      </section>
-    </main>
+    </section>
   );
 }
