@@ -31,6 +31,7 @@ export class AuthService {
       throw new UnauthorizedException('Bootstrap is locked');
     }
     const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
+    const username = this.optionalUsername(dto.username) || this.usernameFromEmail(email);
     const password = this.requiredText(dto.password, 'Password is required');
     const name = this.requiredText(dto.name, 'Name is required');
     this.assertPasswordPolicy(password);
@@ -51,11 +52,13 @@ export class AuthService {
         where: { email },
         create: {
           email,
+          username,
           name,
           passwordHash: this.hashPassword(password),
           roles: { create: { roleId: role.id } },
         },
         update: {
+          username,
           name,
           passwordHash: this.hashPassword(password),
           status: 'ACTIVE',
@@ -69,10 +72,13 @@ export class AuthService {
   }
 
   async login(dto: AnyRecord, request?: { headers?: Record<string, string | string[] | undefined>; ip?: string }) {
-    const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
+    const identifier = this.requiredText(dto.username ?? dto.email, 'Username is required').toLowerCase();
     const password = this.requiredText(dto.password, 'Password is required');
-    const user = await this.prisma.user.findUnique({ where: { email }, include: this.userInclude() });
-    if (!user || user.status !== 'ACTIVE' || !this.verifyPassword(password, user.passwordHash)) throw new UnauthorizedException('Invalid email or password');
+    const user = await this.prisma.user.findFirst({
+      where: { OR: [{ username: identifier }, { email: identifier }] },
+      include: this.userInclude(),
+    });
+    if (!user || user.status !== 'ACTIVE' || !this.verifyPassword(password, user.passwordHash)) throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng');
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
       await this.audit(tx, user.id, 'LOGIN', 'User', user.id, {});
@@ -127,12 +133,13 @@ export class AuthService {
   }
 
   async listUsers() {
-    const rows = await this.prisma.user.findMany({ include: this.userInclude(), orderBy: [{ updatedAt: 'desc' }, { email: 'asc' }] });
+    const rows = await this.prisma.user.findMany({ include: this.userInclude(), orderBy: [{ updatedAt: 'desc' }, { username: 'asc' }, { email: 'asc' }] });
     return rows.map((row) => this.safeUser(row));
   }
 
   async createUser(dto: AnyRecord) {
     const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
+    const username = this.optionalUsername(dto.username) || this.usernameFromEmail(email);
     const password = this.requiredText(dto.password, 'Password is required');
     this.assertPasswordPolicy(password);
     const roleCodes = this.stringArray(dto.roleCodes);
@@ -142,6 +149,7 @@ export class AuthService {
       const user = await tx.user.create({
         data: {
           email,
+          username,
           name: this.requiredText(dto.name, 'Name is required'),
           passwordHash: this.hashPassword(password),
           branch: this.text(dto.branch),
@@ -171,6 +179,7 @@ export class AuthService {
       const user = await tx.user.update({
         where: { id },
         data: {
+          ...(dto.username !== undefined ? { username: this.optionalUsername(dto.username) } : {}),
           ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Name is required') } : {}),
           ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Status is required') } : {}),
           ...(dto.branch !== undefined ? { branch: this.text(dto.branch) } : {}),
@@ -266,7 +275,17 @@ export class AuthService {
     const roles = user.roles.map((row) => ({ code: row.role.code, name: row.role.name }));
     const permissions = Array.from(new Set(user.roles.flatMap((row) => row.role.permissions.map((permission) => permission.permission)))).sort();
     const dataScope = permissions.includes('*') || permissions.includes('data.scope.all') ? 'all' : permissions.includes('data.scope.branch') ? 'branch' : permissions.includes('data.scope.department') ? 'department' : 'none';
-    return { id: user.id, email: user.email, name: user.name, status: user.status, branch: user.branch, department: user.department, dataScope, lastLoginAt: user.lastLoginAt, roles, permissions };
+    return { id: user.id, username: user.username, email: user.email, name: user.name, status: user.status, branch: user.branch, department: user.department, dataScope, lastLoginAt: user.lastLoginAt, roles, permissions };
+  }
+
+  private optionalUsername(value: unknown) {
+    const text = this.text(value);
+    if (!text) return null;
+    return text.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  }
+
+  private usernameFromEmail(email: string) {
+    return email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '');
   }
 
   private async userIdByEmail(tx: Prisma.TransactionClient, email: string) {

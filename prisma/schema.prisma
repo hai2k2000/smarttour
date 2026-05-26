@@ -286,6 +286,7 @@ enum LedgerSourceType {
 
 model User {
   id           String        @id @default(uuid())
+  username     String?       @unique
   email        String        @unique
   name         String
   passwordHash String
@@ -300,6 +301,7 @@ model User {
   updatedAt    DateTime      @updatedAt
 
   @@index([status])
+  @@index([username])
   @@index([branch])
   @@index([department])
 }

@@ -4,7 +4,7 @@ const fs = require('fs/promises');
 const path = require('path');
 
 const site = process.env.SITE_URL || 'https://quanly.dunientravel.com';
-const email = process.env.ADMIN_EMAIL || 'admin@smarttour.local';
+const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
 const password = process.env.ADMIN_PASSWORD;
 const outDir = process.env.OUT_DIR || '/tmp/smarttour-ui-browser-smoke';
 
@@ -81,7 +81,7 @@ function isBadConsole(message) {
 
   try {
     await page.goto(site + '/login', { waitUntil: 'networkidle', timeout: 45000 });
-    await page.getByLabel(/email/i).fill(email);
+    await page.getByLabel(/tên đăng nhập|ten dang nhap|email|user/i).fill(username);
     await page.getByLabel(/mật khẩu|mat khau|password/i).fill(password);
     await Promise.all([
       page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 45000 }),

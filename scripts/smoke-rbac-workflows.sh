@@ -3,7 +3,7 @@ set -euo pipefail
 
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
 SITE_URL="${SITE_URL:-https://quanly.dunientravel.com}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@smarttour.local}"
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin password}"
 RUN_ID="SMOKE-RBAC-$(date +%s)"
 ROLE_PASSWORD="RoleSmoke123!26"
@@ -29,14 +29,14 @@ node <<NODE
 const api = '$API_URL';
 const site = '$SITE_URL';
 const run = '$RUN_ID';
-const adminEmail = '$ADMIN_EMAIL';
+const adminUsername = '$ADMIN_USERNAME';
 const adminPassword = '$ADMIN_PASSWORD';
 const rolePassword = '$ROLE_PASSWORD';
 
-async function login(email, password) {
-  const response = await fetch(api + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+async function login(username, password) {
+  const response = await fetch(api + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.token) throw new Error('Login failed for ' + email + ': ' + response.status);
+  if (!response.ok || !data.token) throw new Error('Login failed for ' + username + ': ' + response.status);
   return data.token;
 }
 
@@ -56,7 +56,7 @@ async function route(token, path) {
 }
 
 (async () => {
-  const admin = await login(adminEmail, adminPassword);
+  const admin = await login(adminUsername, adminPassword);
   const salesEmail = ('sales-' + run + '@smarttour.local').toLowerCase();
   const operationEmail = ('operation-' + run + '@smarttour.local').toLowerCase();
   const accountingEmail = ('accounting-' + run + '@smarttour.local').toLowerCase();

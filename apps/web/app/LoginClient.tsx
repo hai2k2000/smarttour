@@ -15,7 +15,7 @@ export default function LoginClient() {
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: text(formData.get('email')), password: text(formData.get('password')) }),
+      body: JSON.stringify({ username: text(formData.get('username')), password: text(formData.get('password')) }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -41,7 +41,7 @@ export default function LoginClient() {
           </div>
         </div>
         <form action={login} className="loginForm">
-          <label>Email<input name="email" type="email" required autoComplete="email" placeholder="admin@smarttour.local" /></label>
+          <label>Tên đăng nhập<input name="username" required autoComplete="username" placeholder="admin" /></label>
           <label>Mật khẩu<input name="password" type="password" required autoComplete="current-password" /></label>
           {message ? <span className="formErrors">{message}</span> : null}
           <button type="submit"><LogIn size={16} /> Đăng nhập</button>

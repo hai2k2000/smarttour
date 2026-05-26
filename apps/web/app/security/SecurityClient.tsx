@@ -19,6 +19,7 @@ type Role = {
 
 type User = {
   id: string;
+  username?: string | null;
   email: string;
   name: string;
   status: string;
@@ -118,6 +119,7 @@ export default function SecurityClient() {
 
   async function createUser(formData: FormData) {
     const payload = {
+      username: text(formData.get('username')),
       email: text(formData.get('email')),
       name: text(formData.get('name')),
       password: text(formData.get('password')),
@@ -132,6 +134,7 @@ export default function SecurityClient() {
     if (!selectedUser) return;
     const password = text(formData.get('password'));
     await put(`/api/auth/users/${selectedUser.id}`, {
+      username: text(formData.get('username')),
       name: text(formData.get('name')) || selectedUser.name,
       status: text(formData.get('status')) || selectedUser.status,
       branch: text(formData.get('branch')),
@@ -221,6 +224,7 @@ export default function SecurityClient() {
 
           <h2><Plus size={18} /> Tạo user</h2>
           <form action={createUser} className="formGrid">
+            <label>Tên đăng nhập<input name="username" required placeholder="admin" /></label>
             <label>Email<input name="email" type="email" required placeholder="user@company.com" /></label>
             <label>Họ tên<input name="name" required /></label>
             <label>Mật khẩu<input name="password" type="password" required minLength={8} /></label>
@@ -232,7 +236,8 @@ export default function SecurityClient() {
 
           <h2><Save size={18} /> Cập nhật user</h2>
           <form action={updateUser} className="formGrid">
-            <label>User<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn user</option>{users.map((user) => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
+            <label>User<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn user</option>{users.map((user) => <option key={user.id} value={user.id}>{user.username || user.email}</option>)}</select></label>
+            <label>Tên đăng nhập<input name="username" defaultValue={selectedUser?.username || ''} /></label>
             <label>Họ tên<input name="name" defaultValue={selectedUser?.name || ''} /></label>
             <label>Trạng thái<select name="status" defaultValue={selectedUser?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="LOCKED">Đã khóa</option></select></label>
             <label>Mật khẩu mới<input name="password" type="password" minLength={8} placeholder="Để trống nếu không đổi" /></label>
@@ -247,8 +252,8 @@ export default function SecurityClient() {
           <div className="sectionHeader"><h2>Danh sach user</h2><span>{users.length} dong</span></div>
           <div className="fitTableWrap">
             <table className="securityTable">
-              <thead><tr><th>Email</th><th>Ten</th><th>Role</th><th>Data scope</th><th>Chi nhánh</th><th>Phòng ban</th><th>Login gan nhat</th><th>Trạng thái</th></tr></thead>
-              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.email}</strong></td><td>{user.name}</td><td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{viStatus(user.status)}</span></td></tr>)}</tbody>
+              <thead><tr><th>User</th><th>Email</th><th>Tên</th><th>Role</th><th>Data scope</th><th>Chi nhánh</th><th>Phòng ban</th><th>Login gần nhất</th><th>Trạng thái</th></tr></thead>
+              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.username || '-'}</strong></td><td>{user.email}</td><td>{user.name}</td><td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{viStatus(user.status)}</span></td></tr>)}</tbody>
             </table>
           </div>
         </section>
