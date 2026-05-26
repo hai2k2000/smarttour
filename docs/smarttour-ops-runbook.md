@@ -17,27 +17,43 @@
 
 ## Backup
 
-Create a timestamped database backup:
+Create a compressed timestamped database backup with checksum and retention:
 
 ```bash
 cd /opt/smarttour
-mkdir -p backups
-docker exec smarttour-postgres-1 pg_dump -U smarttour -d smarttour --clean --if-exists > "backups/smarttour-$(date +%Y%m%d%H%M%S).sql"
+scripts/backup-postgres.sh
+```
+
+Default backup path: `/opt/smarttour/backups/postgres`.
+
+Default retention: 14 days. Override with `KEEP_DAYS=30 scripts/backup-postgres.sh`.
+
+Automated daily backup is installed through cron:
+
+```bash
+cat /etc/cron.d/smarttour-postgres-backup
 ```
 
 Copy the latest backup off the VPS:
 
 ```bash
-scp -P 24700 -i C:\Users\hai2k\.ssh\id_ed25519_booking_server root@103.75.185.200:/opt/smarttour/backups/smarttour-YYYYMMDDHHMMSS.sql .
+scp -P 24700 -i C:\Users\hai2k\.ssh\id_ed25519_booking_server root@103.75.185.200:/opt/smarttour/backups/postgres/smarttour-YYYYMMDDHHMMSS.sql.gz .
 ```
 
 ## Restore
 
-Restore into the running Postgres container:
+Run a restore drill into a temporary database without touching production:
 
 ```bash
 cd /opt/smarttour
-docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour < backups/smarttour-YYYYMMDDHHMMSS.sql
+scripts/restore-drill-postgres.sh
+```
+
+Restore into the production database only after a confirmed backup and downtime window:
+
+```bash
+cd /opt/smarttour
+gzip -dc backups/postgres/smarttour-YYYYMMDDHHMMSS.sql.gz | docker exec -i smarttour-postgres-1 psql -v ON_ERROR_STOP=1 -U smarttour -d smarttour
 npx prisma migrate status
 ```
 
