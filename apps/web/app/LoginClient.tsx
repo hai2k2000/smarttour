@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { LogIn, ShieldCheck } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -19,7 +19,7 @@ export default function LoginClient() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMessage(data.message || 'Đăng nhập khong thanh cong');
+      setMessage(data.message || 'Đăng nhập không thành công');
       return;
     }
     window.localStorage.setItem('smarttour.auth.token', data.token);
@@ -33,14 +33,15 @@ export default function LoginClient() {
     <section className="workspace loginPage">
       <div className="loginPanel">
         <div className="loginBrand">
-          <ShieldCheck size={28} />
+          <img src="/brand/logo-du-nien-travel.png" alt="Du Niên Travel" />
           <div>
-            <p className="eyebrow">SmartTour</p>
-            <h1>Đăng nhập he thong</h1>
+            <p className="eyebrow">Du Niên Travel SmartTour</p>
+            <h1>Đăng nhập hệ thống</h1>
+            <span>Thương hiệu du lịch dành riêng cho người cao tuổi</span>
           </div>
         </div>
         <form action={login} className="loginForm">
-          <label>Email<input name="email" type="email" required autoComplete="email" placeholder="admin@dunientravel.com" /></label>
+          <label>Email<input name="email" type="email" required autoComplete="email" placeholder="admin@smarttour.local" /></label>
           <label>Mật khẩu<input name="password" type="password" required autoComplete="current-password" /></label>
           {message ? <span className="formErrors">{message}</span> : null}
           <button type="submit"><LogIn size={16} /> Đăng nhập</button>

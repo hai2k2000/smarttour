@@ -12,7 +12,6 @@ import {
   FileCheck2,
   FileText,
   HandCoins,
-  Home,
   Landmark,
   LayoutDashboard,
   Menu,
@@ -37,7 +36,7 @@ const groups = [
   {
     title: 'Tổng quan',
     items: [
-      { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { label: 'Dashboard Du Niên', href: '/', icon: LayoutDashboard },
       { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
       { label: 'Báo cáo lãi lỗ', href: '/reports', icon: BarChart3 },
       { label: 'Báo cáo hoa hồng', href: '/commission-reports', icon: HandCoins },
@@ -216,7 +215,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className={`appShell ${collapsed ? 'sidebarCollapsed' : ''}`}>
       <aside className={`appSidebar ${open ? 'open' : ''}`}>
         <div className="appBrand">
-          <Link href="/" className="brandMark"><Home size={18} /> <span>SmartTour</span></Link>
+          <Link href="/" className="brandMark"><img src="/brand/logo-du-nien-travel.png" alt="Du Niên Travel" /><span><strong>Du Niên Travel</strong><em>SmartTour</em></span></Link>
           <div className="brandActions">
             <button className="collapseButton" onClick={toggleCollapsed} aria-label="Thu gọn thanh bên">
               {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
@@ -242,8 +241,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebarFooter">
-          <span>Workspace</span>
-          <strong>Dunien Travel</strong>
+          <span>SmartTour ERP</span>
+          <strong>Du Niên Travel</strong><small>Thương hiệu du lịch dành riêng cho người cao tuổi</small>
         </div>
       </aside>
       <div className="appFrame">
@@ -287,7 +286,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             ) : (
               <Link className="authLoginLink" href="/login">Đăng nhập</Link>
             )}
-            <span className="envPill">quanly.dunientravel.com</span>
+            <span className="envPill">Du Niên Travel</span>
             <span className="healthPill"><ShieldCheck size={15} /> Online</span>
           </div>
         </header>
