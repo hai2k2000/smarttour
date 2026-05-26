@@ -2,15 +2,16 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { OperationVoucherStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 
 @Injectable()
 export class OperationVouchersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(search?: string, status?: string) {
+  list(search?: string, status?: string, user?: RequestUser) {
     return this.prisma.operationVoucher.findMany({
-      where: {
+      where: this.scopeWhere({
         deletedAt: null,
         ...(status ? { status: status as any } : {}),
         ...(search
@@ -22,24 +23,25 @@ export class OperationVouchersService {
               ],
             }
           : {}),
-      },
+      }, user),
       include: { supplier: true, booking: true, order: true, tour: true, _count: { select: { details: true, payments: true } } },
       orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
     });
   }
 
-  async detail(id: string) {
+  async detail(id: string, user?: RequestUser) {
     const voucher = await this.prisma.operationVoucher.findFirst({
-      where: { id, deletedAt: null },
+      where: this.scopeWhere({ id, deletedAt: null }, user),
       include: this.includeAll(),
     });
     if (!voucher) throw new NotFoundException('Operation voucher not found');
     return voucher;
   }
 
-  async create(dto: CreateOperationVoucherDto) {
+  async create(dto: CreateOperationVoucherDto, user?: RequestUser) {
     this.validate(dto);
     const links = await this.resolveLinks(dto);
+    await this.ensureLinksScoped(links, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const totals = this.calculate(dto.details ?? [], 0);
@@ -72,8 +74,8 @@ export class OperationVouchersService {
     }
   }
 
-  async update(id: string, dto: UpdateOperationVoucherDto) {
-    const current = await this.detail(id);
+  async update(id: string, dto: UpdateOperationVoucherDto, user?: RequestUser) {
+    const current = await this.detail(id, user);
     this.validate({ ...current, ...dto, serviceDate: dto.serviceDate ?? current.serviceDate.toISOString() } as CreateOperationVoucherDto);
     const links = await this.resolveLinks({
       tourId: dto.tourId !== undefined ? dto.tourId : current.tourId ?? undefined,
@@ -81,6 +83,7 @@ export class OperationVouchersService {
       orderId: dto.orderId !== undefined ? dto.orderId : current.orderId ?? undefined,
       supplierId: dto.supplierId !== undefined ? dto.supplierId : current.supplierId ?? undefined,
     });
+    await this.ensureLinksScoped(links, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const detailInput = dto.details ?? current.details.map((item) => ({
@@ -122,13 +125,13 @@ export class OperationVouchersService {
     }
   }
 
-  async remove(id: string) {
-    await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    await this.detail(id, user);
     return this.prisma.operationVoucher.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async addPayment(id: string, dto: AddOperationVoucherPaymentDto) {
-    const voucher = await this.detail(id);
+  async addPayment(id: string, dto: AddOperationVoucherPaymentDto, user?: RequestUser) {
+    const voucher = await this.detail(id, user);
     if (dto.paidAmount <= 0) throw new BadRequestException('Paid amount must be greater than zero');
     if (Number(voucher.paidAmount) + dto.paidAmount > Number(voucher.totalAmount)) throw new BadRequestException('Paid amount cannot exceed total amount');
     return this.prisma.$transaction(async (tx) => {
@@ -146,8 +149,8 @@ export class OperationVouchersService {
     });
   }
 
-  async createPaymentVoucher(id: string) {
-    const voucher = await this.detail(id);
+  async createPaymentVoucher(id: string, user?: RequestUser) {
+    const voucher = await this.detail(id, user);
     const amount = Number(voucher.remainAmount);
     if (amount <= 0) throw new BadRequestException('Voucher has no remaining amount');
     return this.prisma.$transaction(async (tx) => {
@@ -208,6 +211,43 @@ export class OperationVouchersService {
       if (!supplier) throw new NotFoundException('Supplier not found');
     }
     return { bookingId, tourId, orderId };
+  }
+
+  private scopeWhere(where: Prisma.OperationVoucherWhereInput, user?: RequestUser): Prisma.OperationVoucherWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    const OR: Prisma.OperationVoucherWhereInput[] = [];
+    if (permissions.has('data.scope.branch') && user.branch) OR.push({ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } });
+    if (permissions.has('data.scope.department') && user.department) OR.push({ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } });
+    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND: [where, { OR }] };
+  }
+
+  private async ensureLinksScoped(links: { bookingId: string | null; tourId: string | null; orderId: string | null }, user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return;
+    const scoped = await this.prisma.operationVoucher.findFirst({
+      where: this.scopeWhere({ bookingId: links.bookingId || undefined, tourId: links.tourId || undefined, orderId: links.orderId || undefined }, user),
+      select: { id: true },
+    });
+    if (scoped) return;
+    const permissions = userPermissions(user);
+    const orderWhere = links.orderId ? { id: links.orderId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
+    const tourWhere = links.tourId ? { id: links.tourId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
+    const bookingWhere = links.bookingId
+      ? {
+          id: links.bookingId,
+          OR: [
+            ...(permissions.has('data.scope.branch') && user.branch ? [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] : []),
+            ...(permissions.has('data.scope.department') && user.department ? [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] : []),
+          ],
+        }
+      : undefined;
+    const [order, tour, booking] = await Promise.all([
+      orderWhere ? this.prisma.order.findFirst({ where: orderWhere, select: { id: true } }) : null,
+      tourWhere ? this.prisma.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
+      bookingWhere ? this.prisma.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
+    ]);
+    if (!order && !tour && !booking) throw new NotFoundException('Linked booking, order or tour not found');
   }
 
   private async nextFinancePaymentCode(tx: Prisma.TransactionClient) {

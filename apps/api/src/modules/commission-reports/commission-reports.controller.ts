@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CommissionReportsService } from './commission-reports.service';
 
@@ -10,25 +11,25 @@ export class CommissionReportsController {
   constructor(private readonly service: CommissionReportsService) {}
 
   @Get()
-  list(@Query() query: Record<string, string>) {
-    return this.service.list(query);
+  list(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+    return this.service.list(query, request?.user);
   }
 
   @Get('summary')
-  summary(@Query() query: Record<string, string>) {
-    return this.service.summary(query);
+  summary(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+    return this.service.summary(query, request?.user);
   }
 
   @Get('grouping/:groupBy')
-  grouping(@Param('groupBy') groupBy: string, @Query() query: Record<string, string>) {
-    return this.service.grouping(groupBy, query);
+  grouping(@Param('groupBy') groupBy: string, @Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+    return this.service.grouping(groupBy, query, request?.user);
   }
 
   @Get('export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-commission-report.csv"')
-  export(@Query() query: Record<string, string>) {
-    return this.service.exportCsv(query);
+  export(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+    return this.service.exportCsv(query, request?.user);
   }
 
   @Post('sync')
@@ -62,7 +63,7 @@ export class CommissionReportsController {
   }
 
   @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.service.detail(id);
+  detail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.service.detail(id, request?.user);
   }
 }

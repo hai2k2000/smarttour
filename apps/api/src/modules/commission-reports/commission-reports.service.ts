@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -8,21 +9,21 @@ type AnyRecord = Record<string, unknown>;
 export class CommissionReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: Record<string, string>) {
+  async list(query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
-    const where = this.where(query);
+    const where = branchDepartmentScopeWhere(this.where(query), user);
     const rows = await this.prisma.commissionEntry.findMany({
       where,
       orderBy: this.orderBy(query.sortBy),
       include: { order: true, logs: { orderBy: { createdAt: 'desc' }, take: 3 }, payments: { orderBy: { paidAt: 'desc' }, take: 3 } },
       take: this.take(query.take),
     });
-    return { rows, summary: await this.summary(query), grouping: await this.grouping(query.groupBy || 'salesOwner', query) };
+    return { rows, summary: await this.summary(query, user), grouping: await this.grouping(query.groupBy || 'salesOwner', query, user) };
   }
 
-  async summary(query: Record<string, string>) {
+  async summary(query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
-    const rows = await this.prisma.commissionEntry.findMany({ where: this.where(query) });
+    const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     const totalCommission = this.sum(rows, 'commissionAmount');
     const approvedCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.APPROVED), 'commissionAmount');
     const pendingCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.PENDING), 'commissionAmount');
@@ -43,9 +44,9 @@ export class CommissionReportsService {
     };
   }
 
-  async grouping(groupBy: string, query: Record<string, string>) {
+  async grouping(groupBy: string, query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
-    const rows = await this.prisma.commissionEntry.findMany({ where: this.where(query) });
+    const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     const keyFor = (row: (typeof rows)[number]) => {
       if (groupBy === 'department') return row.department || 'Chua co phong ban';
       if (groupBy === 'branch') return row.branch || 'Chua co chi nhanh';
@@ -68,9 +69,9 @@ export class CommissionReportsService {
     return Array.from(map.values()).sort((a, b) => b.commission - a.commission);
   }
 
-  async detail(id: string) {
-    const row = await this.prisma.commissionEntry.findUnique({
-      where: { id },
+  async detail(id: string, user?: RequestUser) {
+    const row = await this.prisma.commissionEntry.findFirst({
+      where: branchDepartmentScopeWhere({ id }, user),
       include: { order: true, logs: { orderBy: { createdAt: 'desc' } }, payments: { orderBy: { paidAt: 'desc' } } },
     });
     if (!row) throw new NotFoundException('Commission entry not found');
@@ -133,8 +134,8 @@ export class CommissionReportsService {
     return { paid: ids.length };
   }
 
-  async exportCsv(query: Record<string, string>) {
-    const { rows } = await this.list({ ...query, take: '1000' });
+  async exportCsv(query: Record<string, string>, user?: RequestUser) {
+    const { rows } = await this.list({ ...query, take: '1000' }, user);
     return this.toCsv(rows.map((row) => ({
       orderCode: row.orderCode,
       tourCode: row.tourCode,

@@ -159,6 +159,16 @@ export default function SecurityClient() {
     });
   }
 
+  async function changeOwnPassword(formData: FormData) {
+    const currentPassword = text(formData.get('currentPassword'));
+    const newPassword = text(formData.get('newPassword'));
+    if (newPassword.length < 8) {
+      setMessage('Mat khau moi can it nhat 8 ky tu');
+      return;
+    }
+    await post('/api/auth/change-password', { currentPassword, newPassword });
+  }
+
   async function post(path: string, payload: unknown) {
     await send(path, 'POST', payload);
   }
@@ -201,6 +211,13 @@ export default function SecurityClient() {
 
       <section className="contentGrid securityGrid">
         <div className="panel securityFormPanel">
+          <h2><KeyRound size={18} /> Doi mat khau cua toi</h2>
+          <form action={changeOwnPassword} className="formGrid">
+            <label>Mat khau hien tai<input name="currentPassword" type="password" required /></label>
+            <label>Mat khau moi<input name="newPassword" type="password" required minLength={8} /></label>
+            <button type="submit"><KeyRound size={16} /> Doi mat khau</button>
+          </form>
+
           <h2><Plus size={18} /> Tao user</h2>
           <form action={createUser} className="formGrid">
             <label>Email<input name="email" type="email" required placeholder="user@company.com" /></label>

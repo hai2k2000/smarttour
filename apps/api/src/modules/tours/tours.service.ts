@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateTourDto } from './dto/create-tour.dto';
 import { UpdateTourDto } from './dto/update-tour.dto';
 
@@ -28,7 +29,7 @@ const tourInclude = {
 export class ToursService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(search?: string, type?: TourType, status?: TourStatus) {
+  list(search?: string, type?: TourType, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
       ...(type ? { type } : {}),
       ...(status ? { status } : {}),
@@ -46,7 +47,7 @@ export class ToursService {
     };
 
     return this.prisma.tour.findMany({
-      where,
+      where: branchDepartmentScopeWhere(where, user),
       include: {
         order: true,
         fitTour: true,
@@ -64,13 +65,14 @@ export class ToursService {
     });
   }
 
-  async detail(id: string) {
-    const tour = await this.prisma.tour.findUnique({ where: { id }, include: tourInclude });
+  async detail(id: string, user?: RequestUser) {
+    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: tourInclude });
     if (!tour) throw new NotFoundException('Tour not found');
     return tour;
   }
 
-  async create(dto: CreateTourDto) {
+  async create(dto: CreateTourDto, user?: RequestUser) {
+    dto = applyWriteDataScope(dto, user);
     await this.ensureOrder(dto.orderId);
     try {
       return await this.prisma.tour.create({
@@ -85,8 +87,9 @@ export class ToursService {
     }
   }
 
-  async update(id: string, dto: UpdateTourDto) {
-    await this.detail(id);
+  async update(id: string, dto: UpdateTourDto, user?: RequestUser) {
+    await this.detail(id, user);
+    dto = applyWriteDataScope(dto, user);
     await this.ensureOrder(dto.orderId);
     try {
       return await this.prisma.tour.update({
@@ -102,8 +105,8 @@ export class ToursService {
     }
   }
 
-  async remove(id: string) {
-    await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    await this.detail(id, user);
     return this.prisma.tour.delete({ where: { id } });
   }
 

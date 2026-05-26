@@ -33,6 +33,11 @@ export class AuthController {
     return this.service.me(this.bearer(request.headers.authorization));
   }
 
+  @Post('change-password')
+  changePassword(@Req() request: { headers: { authorization?: string }; user?: { id: string } }, @Body() dto: Record<string, unknown>) {
+    return this.service.changePassword(request.user?.id, dto, this.bearer(request.headers.authorization));
+  }
+
   @Get('users')
   @RequirePermissions('auth.user.manage')
   users() {

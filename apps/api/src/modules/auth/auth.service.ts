@@ -33,7 +33,7 @@ export class AuthService {
     const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
     const password = this.requiredText(dto.password, 'Password is required');
     const name = this.requiredText(dto.name, 'Name is required');
-    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    this.assertPasswordPolicy(password);
     return this.prisma.$transaction(async (tx) => {
       const role = await tx.role.upsert({
         where: { code: 'super_admin' },
@@ -92,6 +92,25 @@ export class AuthService {
     return this.safeUser(session.user);
   }
 
+  async changePassword(userId: string | undefined, dto: AnyRecord, token?: string) {
+    if (!userId) throw new UnauthorizedException('Missing user');
+    const currentPassword = this.requiredText(dto.currentPassword, 'Current password is required');
+    const newPassword = this.requiredText(dto.newPassword, 'New password is required');
+    this.assertPasswordPolicy(newPassword);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !this.verifyPassword(currentPassword, user.passwordHash)) throw new UnauthorizedException('Current password is invalid');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { passwordHash: this.hashPassword(newPassword) } });
+      if (token) await tx.userSession.updateMany({ where: { userId, tokenHash: { not: this.tokenHash(token) }, revokedAt: null }, data: { revokedAt: new Date() } });
+      await this.audit(tx, userId, 'CHANGE_PASSWORD', 'User', userId, {});
+    });
+    return { ok: true };
+  }
+
+  private assertPasswordPolicy(password: string) {
+    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+  }
+
   async validateToken(token?: string | null) {
     if (!token) throw new UnauthorizedException('Missing bearer token');
     const session = await this.prisma.userSession.findFirst({
@@ -115,7 +134,7 @@ export class AuthService {
   async createUser(dto: AnyRecord) {
     const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
     const password = this.requiredText(dto.password, 'Password is required');
-    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    this.assertPasswordPolicy(password);
     const roleCodes = this.stringArray(dto.roleCodes);
     return this.prisma.$transaction(async (tx) => {
       const roles = roleCodes.length ? await tx.role.findMany({ where: { code: { in: roleCodes }, status: 'ACTIVE' } }) : [];
@@ -140,6 +159,8 @@ export class AuthService {
     const current = await this.prisma.user.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('User not found');
     const roleCodes = dto.roleCodes === undefined ? undefined : this.stringArray(dto.roleCodes);
+    const nextPassword = dto.password ? this.requiredText(dto.password, 'Password is required') : undefined;
+    if (nextPassword) this.assertPasswordPolicy(nextPassword);
     return this.prisma.$transaction(async (tx) => {
       if (roleCodes) {
         const roles = await tx.role.findMany({ where: { code: { in: roleCodes }, status: 'ACTIVE' } });
@@ -154,7 +175,7 @@ export class AuthService {
           ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Status is required') } : {}),
           ...(dto.branch !== undefined ? { branch: this.text(dto.branch) } : {}),
           ...(dto.department !== undefined ? { department: this.text(dto.department) } : {}),
-          ...(dto.password ? { passwordHash: this.hashPassword(this.requiredText(dto.password, 'Password is required')) } : {}),
+          ...(nextPassword ? { passwordHash: this.hashPassword(nextPassword) } : {}),
         },
         include: this.userInclude(),
       });
