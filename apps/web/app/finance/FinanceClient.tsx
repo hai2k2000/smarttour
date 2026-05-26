@@ -4,6 +4,7 @@ import { CheckCircle2, Download, FileText, HandCoins, Plus, ReceiptText, Refresh
 import { useEffect, useMemo, useState } from 'react';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
+import { viStatus } from '../i18n';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type Summary = { count: number; totalAmount: number; draft?: number; deposit?: number; approved?: number; pending?: number; rejected?: number };
@@ -137,10 +138,10 @@ export default function FinanceClient() {
     const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setMessage(data.message || 'Khong thuc hien duoc');
+      setMessage(data.message || 'Khong thực hiện duoc');
       return;
     }
-    setMessage('Da cap nhat du lieu tai chinh');
+    setMessage('Đã cập nhật dữ liệu tài chính');
     await load();
   }
 
@@ -158,7 +159,7 @@ export default function FinanceClient() {
     <section className="workspace financePage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Tai chinh / Ke toan</p>
+          <p className="eyebrow">Tài chính / Kế toán</p>
           <h1>Thu chi, VAT va dong tien</h1>
         </div>
         <div className="pageHeaderActions">
@@ -173,26 +174,26 @@ export default function FinanceClient() {
         <Metric label="Tong tien thu" value={money(receiptSummary.totalAmount)} />
         <Metric label="Chung tu chi" value={paymentSummary.count} />
         <Metric label="Tong tien chi" value={money(paymentSummary.totalAmount)} />
-        <Metric label="Hoa don VAT" value={invoiceSummary.count} />
-        <Metric label="Dong tien rong" value={money(cashSummary.netCashflow)} />
+        <Metric label="Hóa đơn VAT" value={invoiceSummary.count} />
+        <Metric label="Dòng tiền rong" value={money(cashSummary.netCashflow)} />
       </section>
-      <PermissionNotice allowed={canAny(['finance.receipt.view', 'finance.payment.view', 'finance.invoice.view', 'finance.cashflow.view'])} label="xem tai chinh ke toan" />
+      <PermissionNotice allowed={canAny(['finance.receipt.view', 'finance.payment.view', 'finance.invoice.view', 'finance.cashflow.view'])} label="xem tài chính ke toan" />
 
       <section className="panel financeFilters">
-        <label><Search size={15} /> Tim kiem<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Ten, SDT, email, ma chung tu, ma tour" /></label>
-        <label>Trang thai<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tat ca</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
-        <label>Phuong thuc<select value={filter.paymentMethod} onChange={(event) => setFilter({ ...filter, paymentMethod: event.target.value })}><option value="">Tat ca</option>{methods.map((method) => <option key={method}>{method}</option>)}</select></label>
-        <label>Tu ngay<input type="date" value={filter.from} onChange={(event) => setFilter({ ...filter, from: event.target.value })} /></label>
-        <label>Den ngay<input type="date" value={filter.to} onChange={(event) => setFilter({ ...filter, to: event.target.value })} /></label>
+        <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Tên, SĐT, email, mã chứng từ, mã tour" /></label>
+        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+        <label>Phuong thuc<select value={filter.paymentMethod} onChange={(event) => setFilter({ ...filter, paymentMethod: event.target.value })}><option value="">Tất cả</option>{methods.map((method) => <option key={method}>{method}</option>)}</select></label>
+        <label>Từ ngày<input type="date" value={filter.from} onChange={(event) => setFilter({ ...filter, from: event.target.value })} /></label>
+        <label>Đến ngày<input type="date" value={filter.to} onChange={(event) => setFilter({ ...filter, to: event.target.value })} /></label>
       </section>
 
       <div className="moduleTabs financeTabs">
         {[
-          ['pending', 'Phieu thu cho', ReceiptText],
-          ['receipts', 'Phieu thu', ReceiptText],
-          ['payments', 'Phieu chi', HandCoins],
-          ['invoices', 'Hoa don VAT', FileText],
-          ['cashflow', 'Dong tien', WalletCards],
+          ['pending', 'Phiếu thu chờ', ReceiptText],
+          ['receipts', 'Phiếu thu', ReceiptText],
+          ['payments', 'Phiếu chi', HandCoins],
+          ['invoices', 'Hóa đơn VAT', FileText],
+          ['cashflow', 'Dòng tiền', WalletCards],
         ].map(([key, label, Icon]) => {
           const TabIcon = Icon as typeof ReceiptText;
           return <button key={key as string} className={tab === key ? 'active' : ''} onClick={() => setTab(key as string)}><TabIcon size={16} /> {label as string}</button>;
@@ -211,29 +212,29 @@ function ReceiptsTab({ rows, onCreate, onAction, can }: { rows: Receipt[]; onCre
   return (
     <section className="contentGrid financeGrid">
       <div className="panel financeFormPanel">
-        <h2><Plus size={18} /> Tao phieu thu</h2>
+        <h2><Plus size={18} /> Tạo phieu thu</h2>
         <form action={onCreate} className="formGrid">
-          <label>Ten phieu thu<input name="receiptName" required placeholder="Thu tien tour" /></label>
+          <label>Tên phiếu thu<input name="receiptName" required placeholder="Thu tiền tour" /></label>
           <label>Loai phieu thu<select name="receiptType" defaultValue="TOUR_PAYMENT">{receiptTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
           <label>Phuong thuc<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method}>{method}</option>)}</select></label>
-          <label>Ngay thanh toan<input name="paymentDate" type="date" /></label>
+          <label>Ngay thanh toán<input name="paymentDate" type="date" /></label>
           <label>Nguoi nop<input name="payerName" /></label>
           <label>SDT<input name="payerPhone" /></label>
           <label>Email<input name="payerEmail" type="email" /></label>
           <label>Ma tour<input name="tourCode" /></label>
           <label>Ten tour<input name="tourName" /></label>
           <label>Tong tien<input name="totalAmount" type="number" min={0} defaultValue={0} /></label>
-          <label>Da thu<input name="paidBefore" type="number" min={0} defaultValue={0} /></label>
+          <label>Đã thu<input name="paidBefore" type="number" min={0} defaultValue={0} /></label>
           <label>So tien thu<input name="receiptAmount" type="number" min={0} defaultValue={0} /></label>
           <label>Chi nhanh<input name="branch" /></label>
           <label>Nhan vien<input name="assignedStaff" /></label>
           <label>Ly do<textarea name="reason" rows={3} /></label>
-          <button type="submit" disabled={!can('finance.receipt.create')}>Tao phieu thu</button>
+          <button type="submit" disabled={!can('finance.receipt.create')}>Tạo phieu thu</button>
         </form>
       </div>
       <FinanceTable title="Danh sach phieu thu" count={rows.length}>
-        <thead><tr><th>Ma</th><th>Nguoi nop</th><th>Tour</th><th>Ngay</th><th>Loai</th><th>So tien</th><th>Con thu</th><th>Trang thai</th><th></th></tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.receiptCode}</strong><span>{row.receiptName}</span></td><td>{row.payerName || '-'}<span>{row.payerPhone || ''}</span></td><td>{row.orders?.[0]?.tourCode || '-'}<span>{row.orders?.[0]?.tourName || ''}</span></td><td>{date(row.paymentDate)}</td><td>{row.receiptType}</td><td>{money(Number(row.receiptAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className="statusPill">{row.approvalStatus}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
+        <thead><tr><th>Ma</th><th>Nguoi nop</th><th>Tour</th><th>Ngay</th><th>Loai</th><th>So tien</th><th>Con thu</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.receiptCode}</strong><span>{row.receiptName}</span></td><td>{row.payerName || '-'}<span>{row.payerPhone || ''}</span></td><td>{row.orders?.[0]?.tourCode || '-'}<span>{row.orders?.[0]?.tourName || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.receiptType)}</td><td>{money(Number(row.receiptAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className="statusPill">{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
       </FinanceTable>
     </section>
   );
@@ -243,28 +244,28 @@ function PaymentsTab({ rows, onCreate, onAction, can }: { rows: Payment[]; onCre
   return (
     <section className="contentGrid financeGrid">
       <div className="panel financeFormPanel">
-        <h2><Plus size={18} /> Tao phieu chi</h2>
+        <h2><Plus size={18} /> Tạo phieu chi</h2>
         <form action={onCreate} className="formGrid">
-          <label>Ten phieu chi<input name="voucherName" placeholder="Chi thanh toan NCC" /></label>
+          <label>Tên phiếu chi<input name="voucherName" placeholder="Chi thanh toán NCC" /></label>
           <label>Loai phieu chi<select name="voucherType" defaultValue="SUPPLIER_PAYMENT">{paymentTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
           <label>Phuong thuc<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method}>{method}</option>)}</select></label>
-          <label>Ngay thanh toan<input name="paymentDate" type="date" /></label>
+          <label>Ngay thanh toán<input name="paymentDate" type="date" /></label>
           <label>Nguoi nhan<input name="receiverName" /></label>
           <label>SDT<input name="receiverPhone" /></label>
           <label>Tong tien<input name="totalAmount" type="number" min={0} defaultValue={0} /></label>
           <label>So tien chi<input name="paymentAmount" type="number" min={0} defaultValue={0} /></label>
           <label>Ten TK<input name="bankAccountName" /></label>
           <label>So TK<input name="bankAccountNumber" /></label>
-          <label>Ngan hang<input name="bankName" /></label>
+          <label>Ngân hàng<input name="bankName" /></label>
           <label>Chi nhanh<input name="branch" /></label>
           <label>Nhan vien<input name="assignedStaff" /></label>
           <label>Ly do<textarea name="reason" rows={3} /></label>
-          <button type="submit" disabled={!can('finance.payment.create')}>Tao phieu chi</button>
+          <button type="submit" disabled={!can('finance.payment.create')}>Tạo phieu chi</button>
         </form>
       </div>
       <FinanceTable title="Danh sach phieu chi" count={rows.length}>
-        <thead><tr><th>Ma</th><th>Nguoi nhan</th><th>Ngay</th><th>Loai</th><th>So tien</th><th>Con chi</th><th>Trang thai</th><th></th></tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.voucherCode}</strong><span>{row.voucherName || ''}</span></td><td>{row.receiverName || '-'}<span>{row.receiverPhone || ''}</span></td><td>{date(row.paymentDate)}</td><td>{row.voucherType}</td><td>{money(Number(row.paymentAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className="statusPill">{row.approvalStatus}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
+        <thead><tr><th>Ma</th><th>Nguoi nhan</th><th>Ngay</th><th>Loai</th><th>So tien</th><th>Còn chi</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.voucherCode}</strong><span>{row.voucherName || ''}</span></td><td>{row.receiverName || '-'}<span>{row.receiverPhone || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.voucherType)}</td><td>{money(Number(row.paymentAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className="statusPill">{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
       </FinanceTable>
     </section>
   );
@@ -274,14 +275,14 @@ function InvoicesTab({ rows, onCreate, onAction, can }: { rows: Invoice[]; onCre
   return (
     <section className="contentGrid financeGrid">
       <div className="panel financeFormPanel">
-        <h2><Plus size={18} /> Tao hoa don VAT</h2>
+        <h2><Plus size={18} /> Tạo hoa don VAT</h2>
         <form action={onCreate} className="formGrid">
           <label>Ten KH<input name="customerName" /></label>
           <label>SDT<input name="customerPhone" /></label>
           <label>Email<input name="customerEmail" type="email" /></label>
           <label>MST<input name="taxCode" /></label>
           <label>Ten don vi<input name="companyName" /></label>
-          <label>Dia chi<input name="companyAddress" /></label>
+          <label>Địa chỉ<input name="companyAddress" /></label>
           <label>Loai HD<select name="invoiceType" defaultValue="VAT"><option>VAT</option><option>NO_VAT</option><option>ADJUSTMENT</option><option>REPLACEMENT</option></select></label>
           <label>Ngay xuat<input name="issuedDate" type="date" /></label>
           <label>Ma tour<input name="tourCode" /></label>
@@ -291,13 +292,13 @@ function InvoicesTab({ rows, onCreate, onAction, can }: { rows: Invoice[]; onCre
           <label>SL<input name="quantity" type="number" min={1} defaultValue={1} /></label>
           <label>Don gia<input name="unitPrice" type="number" min={0} defaultValue={0} /></label>
           <label>VAT %<select name="taxRate" defaultValue="10"><option>0</option><option>5</option><option>8</option><option>10</option></select></label>
-          <label>Ghi chu<textarea name="note" rows={3} /></label>
-          <button type="submit" disabled={!can('finance.invoice.create')}>Tao hoa don</button>
+          <label>Ghi chú<textarea name="note" rows={3} /></label>
+          <button type="submit" disabled={!can('finance.invoice.create')}>Tạo hoa don</button>
         </form>
       </div>
       <FinanceTable title="Danh sach hoa don" count={rows.length}>
-        <thead><tr><th>Ma</th><th>Khach hang</th><th>MST/Cong ty</th><th>Tour</th><th>Ngay xuat</th><th>Gia tri</th><th>VAT</th><th>Trang thai</th><th></th></tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.invoiceCode}</strong><span>{row.invoiceNumber || ''}</span></td><td>{row.customerName || '-'}<span>{row.customerPhone || ''}</span></td><td>{row.taxCode || '-'}<span>{row.companyName || ''}</span></td><td>{row.tourCode || '-'}<span>{row.tourName || ''}</span></td><td>{date(row.issuedDate)}</td><td>{money(Number(row.totalAfterTax))}</td><td>{money(Number(row.totalTax))}</td><td><span className="statusPill">{row.approvalStatus}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
+        <thead><tr><th>Ma</th><th>Khach hang</th><th>MST/Cong ty</th><th>Tour</th><th>Ngay xuat</th><th>Gia tri</th><th>VAT</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.invoiceCode}</strong><span>{row.invoiceNumber || ''}</span></td><td>{row.customerName || '-'}<span>{row.customerPhone || ''}</span></td><td>{row.taxCode || '-'}<span>{row.companyName || ''}</span></td><td>{row.tourCode || '-'}<span>{row.tourName || ''}</span></td><td>{date(row.issuedDate)}</td><td>{money(Number(row.totalAfterTax))}</td><td>{money(Number(row.totalTax))}</td><td><span className="statusPill">{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
       </FinanceTable>
     </section>
   );
@@ -309,16 +310,16 @@ function CashflowTab({ rows, summary }: { rows: Cashflow[]; summary: { totalRece
       <aside className="panel financeSide">
         <h2>Tong hop dong tien</h2>
         <div className="summaryRows">
-          <div><span>Tong thu</span><strong>{money(summary.totalReceipt)}</strong></div>
-          <div><span>Tong chi</span><strong>{money(summary.totalPayment)}</strong></div>
+          <div><span>Tổng thu</span><strong>{money(summary.totalReceipt)}</strong></div>
+          <div><span>Tổng chi</span><strong>{money(summary.totalPayment)}</strong></div>
           <div><span>Net</span><strong>{money(summary.netCashflow)}</strong></div>
         </div>
         <h2>Theo phuong thuc</h2>
         <div className="summaryRows">{summary.byMethod.map((row) => <div key={row.method}><span>{row.method}</span><strong>{money(row.receipt - row.payment)}</strong></div>)}</div>
       </aside>
-      <FinanceTable title="Dong tien da duyet" count={rows.length}>
-        <thead><tr><th>Nguon</th><th>Loai</th><th>Ngay</th><th>Phuong thuc</th><th>So tien</th><th>Chi nhanh</th><th>Nhan vien</th><th>Ghi chu</th></tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.id}><td>{row.sourceType}</td><td><span className="statusPill">{row.entryType}</span></td><td>{date(row.paymentDate)}</td><td>{row.paymentMethod}</td><td>{money(Number(row.amount))}</td><td>{row.branch || '-'}</td><td>{row.staff || '-'}</td><td>{row.note || '-'}</td></tr>)}</tbody>
+      <FinanceTable title="Dòng tiền da duyệt" count={rows.length}>
+        <thead><tr><th>Nguon</th><th>Loai</th><th>Ngay</th><th>Phuong thuc</th><th>So tien</th><th>Chi nhanh</th><th>Nhan vien</th><th>Ghi chú</th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.id}><td>{viStatus(row.sourceType)}</td><td><span className="statusPill">{viStatus(row.entryType)}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.paymentMethod)}</td><td>{money(Number(row.amount))}</td><td>{row.branch || '-'}</td><td>{row.staff || '-'}</td><td>{row.note || '-'}</td></tr>)}</tbody>
       </FinanceTable>
     </section>
   );

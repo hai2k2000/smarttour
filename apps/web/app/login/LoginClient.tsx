@@ -19,7 +19,7 @@ export default function LoginClient() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMessage(data.message || 'Dang nhap khong thanh cong');
+      setMessage(data.message || 'Đăng nhập khong thanh cong');
       return;
     }
     window.localStorage.setItem('smarttour.auth.token', data.token);
@@ -36,14 +36,14 @@ export default function LoginClient() {
           <ShieldCheck size={28} />
           <div>
             <p className="eyebrow">SmartTour</p>
-            <h1>Dang nhap he thong</h1>
+            <h1>Đăng nhập he thong</h1>
           </div>
         </div>
         <form action={login} className="loginForm">
           <label>Email<input name="email" type="email" required autoComplete="email" placeholder="admin@dunientravel.com" /></label>
-          <label>Mat khau<input name="password" type="password" required autoComplete="current-password" /></label>
+          <label>Mật khẩu<input name="password" type="password" required autoComplete="current-password" /></label>
           {message ? <span className="formErrors">{message}</span> : null}
-          <button type="submit"><LogIn size={16} /> Dang nhap</button>
+          <button type="submit"><LogIn size={16} /> Đăng nhập</button>
         </form>
       </div>
     </section>

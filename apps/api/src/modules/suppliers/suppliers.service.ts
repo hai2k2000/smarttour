@@ -38,7 +38,7 @@ export class SuppliersService {
       return await this.prisma.supplierCategory.create({ data: { name: dto.name.trim() } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Supplier category already exists');
+        throw new ConflictException('Loại nhà cung cấp đã tồn tại');
       }
       throw error;
     }
@@ -83,7 +83,7 @@ export class SuppliersService {
         paymentItems: true,
       },
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Supplier not found');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     return supplier;
   }
 
@@ -152,7 +152,7 @@ export class SuppliersService {
       where: { id, category: { name: this.getTypeLabel(type) } },
       include: this.genericInclude(),
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Supplier not found');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     return supplier;
   }
 
@@ -171,7 +171,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Supplier code already exists');
+        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
       }
       throw error;
     }
@@ -190,7 +190,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Supplier code already exists');
+        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
       }
       throw error;
     }
@@ -278,7 +278,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Supplier code already exists');
+        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
       }
       throw error;
     }
@@ -301,7 +301,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Supplier code already exists');
+        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
       }
       throw error;
     }
@@ -486,9 +486,9 @@ export class SuppliersService {
   }
 
   private async ensureAllocationLinks(dto: LockAllotmentDto) {
-    if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Supplier service not found');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Order not found');
-    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Booking not found');
+    if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp');
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
+    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking');
     if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found');
   }
 
@@ -506,7 +506,7 @@ export class SuppliersService {
 
   private async ensureCategory(id: string) {
     const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
-    if (!category) throw new NotFoundException('Supplier category not found');
+    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
   }
 
   private async ensureCategoryByName(name: string) {
@@ -721,7 +721,7 @@ export class SuppliersService {
 
   private getTypeLabel(type: string) {
     const categoryName = SUPPLIER_TYPE_LABELS[type];
-    if (!categoryName) throw new NotFoundException('Supplier type not found');
+    if (!categoryName) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
     return categoryName;
   }
 

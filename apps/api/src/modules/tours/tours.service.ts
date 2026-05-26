@@ -146,7 +146,7 @@ export class ToursService {
     const id = this.optionalText(orderId);
     if (!id) return;
     const row = await this.prisma.order.findUnique({ where: { id }, select: { id: true } });
-    if (!row) throw new NotFoundException('Order not found');
+    if (!row) throw new NotFoundException('Không tìm thấy đơn hàng');
   }
 
   private requiredText(value?: string) {

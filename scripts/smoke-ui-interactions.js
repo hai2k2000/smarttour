@@ -76,21 +76,21 @@ async function clickIfVisible(locator) {
   try {
     await page.goto(site + '/login', { waitUntil: 'networkidle', timeout: 45000 });
     await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/mat khau|password/i).fill(password);
+    await page.getByLabel(/mật khẩu|mat khau|password/i).fill(password);
     await Promise.all([
       page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 45000 }),
-      page.getByRole('button', { name: /dang nhap|dang nh?p|login/i }).click(),
+      page.getByRole('button', { name: new RegExp('\\u0111\\u0103ng nh\\u1eadp|dang nhap|login', 'i') }).click(),
     ]);
     console.log('LOGIN_INTERACTION_OK');
 
     await run('finance tabs and search', async () => {
       await page.goto(site + '/finance', { waitUntil: 'networkidle', timeout: 45000 });
-      await visibleText(page, 'Tong quan tai chinh');
-      for (const tab of ['Phieu thu', 'Phieu chi', 'Hoa don VAT', 'Dong tien']) {
+      await visibleText(page, 'Tổng quan tài chính');
+      for (const tab of ['Phiếu thu', 'Phiếu chi', 'Hóa đơn VAT', 'Dòng tiền']) {
         await page.getByRole('button', { name: tab, exact: true }).click();
         await page.waitForTimeout(300);
       }
-      const search = page.getByPlaceholder(/Ten, SDT, email, ma chung tu, ma tour/i);
+      const search = page.getByPlaceholder(/Tên, SĐT, email, mã chứng từ, mã tour/i);
       await search.fill('SMOKE-FIN');
       await page.waitForTimeout(500);
       await search.fill('');
@@ -98,11 +98,11 @@ async function clickIfVisible(locator) {
 
     await run('operations tabs and search', async () => {
       await page.goto(site + '/operations', { waitUntil: 'networkidle', timeout: 45000 });
-      await visibleText(page, 'Van hanh tour');
-      await page.getByRole('button', { name: /Thanh toan NCC/i }).click();
+      await visibleText(page, 'Vận hành tour');
+      await page.getByRole('button', { name: /Thanh toán NCC/i }).click();
       await page.waitForTimeout(300);
-      await page.getByRole('button', { name: /Phieu dieu hanh/i }).click();
-      const search = page.getByPlaceholder(/Booking, order, tour, ma yeu cau/i);
+      await page.getByRole('button', { name: /Phiếu điều hành/i }).click();
+      const search = page.getByPlaceholder(/Booking, order, tour, mã yêu cầu/i);
       await search.fill('SMOKE-BIZ');
       await page.waitForTimeout(500);
       await search.fill('');
@@ -110,28 +110,28 @@ async function clickIfVisible(locator) {
 
     await run('operation vouchers form controls', async () => {
       await page.goto(site + '/operation-vouchers', { waitUntil: 'networkidle', timeout: 45000 });
-      await visibleText(page, 'Danh sach phieu dieu hanh dich vu');
-      await page.getByPlaceholder(/Tim ma phieu, NCC, dich vu/i).fill('SMOKE-BIZ');
+      await visibleText(page, 'Danh sách phiếu điều hành dịch vụ');
+      await page.getByPlaceholder(/Tìm mã phiếu, NCC, dịch vụ/i).fill('SMOKE-BIZ');
       await page.waitForTimeout(500);
-      await clickIfVisible(page.getByRole('button', { name: /Them dong/i }));
+      await clickIfVisible(page.getByRole('button', { name: /Thêm dòng/i }));
       await page.waitForTimeout(250);
       await clickIfVisible(page.locator('button.dangerButton.iconButton').last());
     });
 
     await run('security validation controls', async () => {
       await page.goto(site + '/security', { waitUntil: 'networkidle', timeout: 45000 });
-      await visibleText(page, 'Users, Roles va Permissions');
+      await visibleText(page, 'Người dùng, vai trò và quyền');
       const current = page.locator('input[name="currentPassword"]').first();
       const next = page.locator('input[name="newPassword"]').first();
       await current.fill('wrong-password');
       await next.fill('short');
-      await page.getByRole('button', { name: /Doi mat khau/i }).click();
+      await page.getByRole('button', { name: /Đổi mật khẩu/i }).click();
       await page.waitForTimeout(500);
     });
 
     await run('global search and navigation links', async () => {
       await page.goto(site + '/', { waitUntil: 'networkidle', timeout: 45000 });
-      const globalSearch = page.getByPlaceholder(/Tim module, order, khach hang/i);
+      const globalSearch = page.getByPlaceholder(/Tìm module, đơn hàng, khách hàng/i);
       await globalSearch.fill('finance');
       await page.waitForTimeout(300);
       await globalSearch.fill('');

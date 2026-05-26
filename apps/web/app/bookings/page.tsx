@@ -129,39 +129,39 @@ export default async function BookingsPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Booking workflow</p>
+          <p className="eyebrow">Quy trình booking</p>
           <h1>Booking tour</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><Users size={14} /> Operator</span>
-          <span className="statusPill statusPillNeutral">Tour Core</span>
+          <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill statusPillNeutral">Lõi tour</span>
         </div>
       </header>
 
         <section className="contentGrid bookingGrid">
           <div className="panel">
-            <h2><Plus size={18} /> Tao booking</h2>
+            <h2><Plus size={18} /> Tạo booking</h2>
             <form action={createBooking} className="formGrid">
-              <label>Ma booking<input name="code" placeholder="BK-2026-0001" required minLength={2} /></label>
-              <label>Tour mau<select name="tourProgramId" required><option value="">Chon tour mau</option>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
-              <label>Ten khach/doan<input name="customerName" placeholder="Cong ty ABC" required minLength={2} /></label>
+              <label>Mã booking<input name="code" placeholder="BK-2026-0001" required minLength={2} /></label>
+              <label>Tour mẫu<select name="tourProgramId" required><option value="">Chọn tour mẫu</option>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
+              <label>Tên khách/đoàn<input name="customerName" placeholder="Cong ty ABC" required minLength={2} /></label>
               <label>So khach<input name="paxCount" type="number" min={1} defaultValue={1} required /></label>
               <label>Ngay khoi hanh<input name="startDate" type="date" required /></label>
               <label>Ngay ket thuc<input name="endDate" type="date" required /></label>
               <label>Sale phu trach<input name="saleOwner" /></label>
               <label>Dieu hanh phu trach<input name="operatorOwner" /></label>
               <label>Gia ban tong<input name="totalSellPrice" type="number" min={0} defaultValue={0} /></label>
-              <button type="submit">Tao booking</button>
+              <button type="submit">Tạo booking</button>
             </form>
           </div>
 
           <div className="panel bookingSummary">
-            <h2><CalendarDays size={18} /> Tong quan</h2>
+            <h2><CalendarDays size={18} /> Tổng quan</h2>
             <div className="summaryRows">
               <div><span>Tong booking</span><strong>{bookings.length}</strong></div>
-              <div><span>Da xac nhan</span><strong>{bookings.filter((booking) => booking.status === 'CONFIRMED').length}</strong></div>
-              <div><span>Dang van hanh</span><strong>{bookings.filter((booking) => booking.status === 'OPERATING').length}</strong></div>
-              <div><span>Chua co phieu DH</span><strong>{bookings.filter((booking) => !booking.operationForm).length}</strong></div>
+              <div><span>Đã xác nhận</span><strong>{bookings.filter((booking) => booking.status === 'CONFIRMED').length}</strong></div>
+              <div><span>Đang vận hành</span><strong>{bookings.filter((booking) => booking.status === 'OPERATING').length}</strong></div>
+              <div><span>Chưa co phieu DH</span><strong>{bookings.filter((booking) => !booking.operationForm).length}</strong></div>
             </div>
           </div>
         </section>
@@ -169,7 +169,7 @@ export default async function BookingsPage() {
         <section className="panel listPanel">
           <div className="sectionHeader"><h2>Danh sach booking</h2><span>{bookings.length} booking</span></div>
           <table className="bookingTable">
-            <thead><tr><th>Ma</th><th>Khach/doan</th><th>Tour</th><th>Ngay di</th><th>Pax</th><th>Phu trach</th><th>Gia ban</th><th>Trang thai</th><th>Thao tac</th></tr></thead>
+            <thead><tr><th>Ma</th><th>Khach/doan</th><th>Tour</th><th>Ngay di</th><th>Pax</th><th>Phu trach</th><th>Gia ban</th><th>Trạng thái</th><th>Thao tac</th></tr></thead>
             <tbody>
               {bookings.map((booking) => (
                 <Fragment key={booking.id}>
@@ -184,7 +184,7 @@ export default async function BookingsPage() {
                     <td>
                       <form action={updateBookingStatus} className="inlineStatusForm">
                         <input type="hidden" name="id" value={booking.id} />
-                        <select name="status" defaultValue={booking.status} aria-label={`Trang thai ${booking.code}`}>
+                        <select name="status" defaultValue={booking.status} aria-label={`Trạng thái ${booking.code}`}>
                           {bookingStatuses.map((status) => (
                             <option value={status} key={status}>{status}</option>
                           ))}
@@ -195,7 +195,7 @@ export default async function BookingsPage() {
                     <td className="actionsCell">
                       <form action={deleteBooking}>
                         <input type="hidden" name="id" value={booking.id} />
-                        <button type="submit" className="dangerButton"><Trash2 size={14} /> Xoa</button>
+                        <button type="submit" className="dangerButton"><Trash2 size={14} /> Xóa</button>
                       </form>
                     </td>
                   </tr>
@@ -203,22 +203,22 @@ export default async function BookingsPage() {
                     <td colSpan={9}>
                       <form action={updateBooking} className="bookingEditForm">
                         <input type="hidden" name="id" value={booking.id} />
-                        <label>Ma booking<input name="code" defaultValue={booking.code} required minLength={2} /></label>
-                        <label>Tour mau<select name="tourProgramId" defaultValue={booking.tourProgram.id} required>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
-                        <label>Ten khach/doan<input name="customerName" defaultValue={booking.customerName} required minLength={2} /></label>
+                        <label>Mã booking<input name="code" defaultValue={booking.code} required minLength={2} /></label>
+                        <label>Tour mẫu<select name="tourProgramId" defaultValue={booking.tourProgram.id} required>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
+                        <label>Tên khách/đoàn<input name="customerName" defaultValue={booking.customerName} required minLength={2} /></label>
                         <label>So khach<input name="paxCount" type="number" min={1} defaultValue={booking.paxCount} required /></label>
                         <label>Ngay khoi hanh<input name="startDate" type="date" defaultValue={toDateInputValue(booking.startDate)} required /></label>
                         <label>Ngay ket thuc<input name="endDate" type="date" defaultValue={toDateInputValue(booking.endDate)} required /></label>
                         <label>Sale phu trach<input name="saleOwner" defaultValue={booking.saleOwner || ''} /></label>
                         <label>Dieu hanh phu trach<input name="operatorOwner" defaultValue={booking.operatorOwner || ''} /></label>
                         <label>Gia ban tong<input name="totalSellPrice" type="number" min={0} defaultValue={Number(booking.totalSellPrice || 0)} /></label>
-                        <button type="submit"><Save size={15} /> Luu booking</button>
+                        <button type="submit"><Save size={15} /> Lưu booking</button>
                       </form>
                     </td>
                   </tr>
                 </Fragment>
               ))}
-              {bookings.length === 0 ? (<tr><td colSpan={9}>Chua co booking. Hay tao booking tu tour mau dau tien.</td></tr>) : null}
+              {bookings.length === 0 ? (<tr><td colSpan={9}>Chưa co booking. Hay tao booking tu tour mau dau tien.</td></tr>) : null}
             </tbody>
           </table>
         </section>

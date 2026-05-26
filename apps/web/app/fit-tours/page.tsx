@@ -30,11 +30,11 @@ export default async function FitToursPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">FIT TourKit workflow</p>
-          <h1>Tour khach le FIT</h1>
+          <h1>Tour khách lẻ FIT</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><Route size={14} /> 6 buoc</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Operator</span>
+          <span className="statusPill"><Route size={14} /> 6 bước</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
 

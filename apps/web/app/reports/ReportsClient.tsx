@@ -33,27 +33,27 @@ type Filters = Record<string, string>;
 
 const reportTabs = [
   { key: 'revenue', label: 'Doanh thu' },
-  { key: 'profit', label: 'Loi nhuan' },
-  { key: 'finance', label: 'Tai chinh' },
+  { key: 'profit', label: 'Lợi nhuận' },
+  { key: 'finance', label: 'Tài chính' },
   { key: 'customer-debt', label: 'Cong no KH' },
-  { key: 'supplier-debt', label: 'Cong no NCC' },
+  { key: 'supplier-debt', label: 'Công nợ NCC' },
   { key: 'employees', label: 'Nhan vien' },
 ];
 const groupOptions = [
-  ['by-created-date', 'Ngay tao'],
+  ['by-created-date', 'Ngày tạo'],
   ['by-checkin-date', 'Ngay check-in'],
   ['by-checkout-date', 'Ngay check-out'],
-  ['by-approved-date', 'Ngay chot'],
+  ['by-approved-date', 'Ngay chốt'],
   ['by-employee', 'Nhan vien'],
   ['by-agency', 'Dai ly'],
   ['by-branch', 'Chi nhanh'],
   ['by-department', 'Phong ban'],
-  ['by-market', 'Thi truong'],
+  ['by-market', 'Thị trường'],
   ['by-type', 'Loai dich vu'],
 ];
 const typeOptions = ['', 'FIT_TOUR', 'GIT_COMBO', 'LANDTOUR', 'HOTEL_BOOKING', 'SINGLE_SERVICE', 'FLIGHT_ORDER'];
 const paymentOptions = ['', 'UNPAID', 'PARTIAL', 'PAID', 'REFUND'];
-const dateFields = [['createdAt', 'Ngay tao'], ['bookingDate', 'Ngay dat'], ['startDate', 'Check-in'], ['endDate', 'Check-out'], ['paymentDate', 'Thanh toan'], ['settledAt', 'Da chot']];
+const dateFields = [['createdAt', 'Ngày tạo'], ['bookingDate', 'Ngày đặt'], ['startDate', 'Check-in'], ['endDate', 'Check-out'], ['paymentDate', 'Thanh toán'], ['settledAt', 'Đã chốt']];
 
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
@@ -74,7 +74,7 @@ function normalizeRows(active: string, data: ReportData): MetricRow[] {
   if (active === 'customer-debt') {
     return ((data.rows || []) as any[]).map((row) => ({
       key: row.orderId,
-      label: `${row.customerName || 'Chua co ten'} - ${row.systemCode || ''}`,
+      label: `${row.customerName || 'Chưa co ten'} - ${row.systemCode || ''}`,
       orderCount: 1,
       customerCount: 1,
       revenue: row.totalRevenue || 0,
@@ -89,7 +89,7 @@ function normalizeRows(active: string, data: ReportData): MetricRow[] {
   if (active === 'supplier-debt') {
     return ((data.rows || []) as any[]).map((row) => ({
       key: row.supplierId || row.supplierName,
-      label: row.supplierName || 'Chua gan NCC',
+      label: row.supplierName || 'Chưa gan NCC',
       orderCount: row.voucherCount || 0,
       customerCount: 0,
       revenue: 0,
@@ -125,9 +125,9 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
         helper.accessor('revenue', { header: 'Doanh thu', cell: (info) => money(info.getValue()) }),
         helper.accessor('paidAmount', { header: 'Thuc thu', cell: (info) => money(info.getValue()) }),
         helper.accessor('remainingRevenue', { header: 'Con thu', cell: (info) => money(info.getValue()) }),
-        helper.accessor('cost', { header: 'Tong chi', cell: (info) => money(info.getValue()) }),
+        helper.accessor('cost', { header: 'Tổng chi', cell: (info) => money(info.getValue()) }),
         helper.accessor('paidCost', { header: 'Thuc chi', cell: (info) => money(info.getValue()) }),
-        helper.accessor('profit', { header: 'Loi nhuan', cell: (info) => money(info.getValue()) }),
+        helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => money(info.getValue()) }),
         helper.accessor('marginRate', { header: 'Ty suat', cell: (info) => percent(info.getValue()) }),
       ];
     }, []),
@@ -143,7 +143,7 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
     ]);
     if (overviewResponse.ok) setOverview(await overviewResponse.json());
     if (reportResponse.ok) setReport(await reportResponse.json());
-    setMessage('Da cap nhat bao cao theo bo loc.');
+    setMessage('Đã cập nhật bao cao theo bộ lọc.');
   }
 
   function endpointFor(tab: string, selectedGroup: string) {
@@ -175,33 +175,33 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
         <article className="metric metricTone-blue"><span>Tong doanh thu</span><strong>{money(overview.totalRevenue)}</strong></article>
         <article className="metric metricTone-green"><span>Thuc thu</span><strong>{money(overview.paidAmount)}</strong></article>
         <article className="metric metricTone-amber"><span>Con phai thu</span><strong>{money(overview.remainingRevenue)}</strong></article>
-        <article className="metric"><span>Tong chi</span><strong>{money(overview.totalCost)}</strong></article>
+        <article className="metric"><span>Tổng chi</span><strong>{money(overview.totalCost)}</strong></article>
         <article className="metric metricTone-red"><span>Con phai chi</span><strong>{money(overview.remainingCost)}</strong></article>
-        <article className="metric metricTone-green"><span>Loi nhuan</span><strong>{money(overview.profit)}</strong></article>
+        <article className="metric metricTone-green"><span>Lợi nhuận</span><strong>{money(overview.profit)}</strong></article>
         <article className="metric"><span>Tong don hang</span><strong>{overview.totalOrders || 0}</strong></article>
         <article className="metric"><span>Khach hang</span><strong>{overview.totalCustomers || 0}</strong></article>
         <article className="metric"><span>NCC con no</span><strong>{overview.supplierDebtCount || 0}</strong></article>
       </section>
 
       <section className="panel reportFilterPanel">
-        <div className="sectionHeader"><h2>Bo loc bao cao</h2><span>{message || 'Loc chung cho doanh thu, cong no, tai chinh va nhan vien'}</span></div>
+        <div className="sectionHeader"><h2>Bo loc bao cao</h2><span>{message || 'Loc chung cho doanh thu, cong no, tài chính va nhan vien'}</span></div>
         <div className="quoteFormGrid reportFilterGrid">
           <label>Tim nhanh<input value={filters.search || ''} onChange={(event) => setFilter('search', event.target.value)} /></label>
-          <label>Tu ngay<input type="date" value={filters.dateFrom || ''} onChange={(event) => setFilter('dateFrom', event.target.value)} /></label>
-          <label>Den ngay<input type="date" value={filters.dateTo || ''} onChange={(event) => setFilter('dateTo', event.target.value)} /></label>
+          <label>Từ ngày<input type="date" value={filters.dateFrom || ''} onChange={(event) => setFilter('dateFrom', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={filters.dateTo || ''} onChange={(event) => setFilter('dateTo', event.target.value)} /></label>
           <label>Loc theo ngay<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{dateFields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>Loai dich vu<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
-          <label>Thanh toan<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
+          <label>Loai dich vu<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
+          <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
           <label>Chi nhanh<input value={filters.branch || ''} onChange={(event) => setFilter('branch', event.target.value)} /></label>
           <label>Phong ban<input value={filters.department || ''} onChange={(event) => setFilter('department', event.target.value)} /></label>
           <label>Nhan vien<input value={filters.employee || ''} onChange={(event) => setFilter('employee', event.target.value)} /></label>
           <label>Dai ly<input value={filters.agency || ''} onChange={(event) => setFilter('agency', event.target.value)} /></label>
-          <label>Thi truong<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
-          <label>Trang thai chot<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tat ca</option><option value="true">Da chot</option><option value="false">Chua chot</option></select></label>
+          <label>Thị trường<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
+          <label>Trạng thái chốt<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tất cả</option><option value="true">Đã chốt</option><option value="false">Chưa chốt</option></select></label>
         </div>
         <div className="hotelFormActions reportActions">
-          <button type="button" onClick={() => load()}><Search size={17}/> Loc du lieu</button>
-          <button type="button" className="secondaryButton" onClick={() => { setFilters({ dateField: 'createdAt' }); setMessage('Da xoa bo loc.'); }}><RefreshCw size={17}/> Xoa loc</button>
+          <button type="button" onClick={() => load()}><Search size={17}/> Loc dữ liệu</button>
+          <button type="button" className="secondaryButton" onClick={() => { setFilters({ dateField: 'createdAt' }); setMessage('Đã xoa bộ lọc.'); }}><RefreshCw size={17}/> Xóa lọc</button>
           <button type="button" className="secondaryButton" onClick={exportCsv}><Download size={17}/> Export CSV</button>
         </div>
       </section>
@@ -215,7 +215,7 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
           <div className="summaryRows reportSummary">
             <div><span>Doanh thu</span><strong>{money(report.summary?.totalRevenue)}</strong></div>
             <div><span>Chi phi</span><strong>{money(report.summary?.totalCost)}</strong></div>
-            <div><span>Loi nhuan</span><strong>{money(report.summary?.profit)}</strong></div>
+            <div><span>Lợi nhuận</span><strong>{money(report.summary?.profit)}</strong></div>
             <div><span>Ty suat</span><strong>{percent(report.summary?.marginRate)}</strong></div>
           </div>
         </div>
@@ -230,7 +230,7 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
               <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
             </table>
           </div>
-        ) : <div className="tableEmptyState">Khong co du lieu bao cao phu hop bo loc.</div>}
+        ) : <div className="tableEmptyState">Khong co dữ liệu bao cao phu hop bộ lọc.</div>}
       </section>
     </div>
   );

@@ -136,7 +136,7 @@ export class TourGuidesService {
     }
     if (orderIds.length) {
       const count = await tx.order.count({ where: { id: { in: orderIds } } });
-      if (count !== orderIds.length) throw new NotFoundException('Order not found in guide schedule');
+      if (count !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng in guide schedule');
     }
   }
 

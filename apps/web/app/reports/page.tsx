@@ -29,8 +29,8 @@ export default async function ReportsPage() {
           <h1>Bao cao tong hop</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill">Quan tri</span>
-          <span className="statusPill statusPillNeutral">Tai chinh</span>
+          <span className="statusPill">Quản trị</span>
+          <span className="statusPill statusPillNeutral">Tài chính</span>
           <span className="statusPill statusPillNeutral">CSV</span>
         </div>
       </header>

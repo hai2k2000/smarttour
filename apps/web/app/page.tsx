@@ -3,26 +3,26 @@ import Link from 'next/link';
 
 const cards = [
   { label: 'Tour sap khoi hanh', value: '0', note: '7 ngay toi', icon: CalendarDays, tone: 'blue' },
-  { label: 'Tour dang van hanh', value: '0', note: 'can theo doi', icon: Route, tone: 'green' },
+  { label: 'Tour dang vận hành', value: '0', note: 'can theo doi', icon: Route, tone: 'green' },
   { label: 'Viec qua han', value: '0', note: 'operation task', icon: ClipboardList, tone: 'red' },
-  { label: 'Thanh toan cho duyet', value: '0', note: 'phieu chi NCC', icon: CreditCard, tone: 'amber' },
+  { label: 'Thanh toán cho duyệt', value: '0', note: 'phieu chi NCC', icon: CreditCard, tone: 'amber' },
   { label: 'Khach moi thang nay', value: '0', note: 'CRM', icon: Users, tone: 'indigo' },
   { label: 'Tour nguy co lo', value: '0', note: 'can doi soat', icon: AlertTriangle, tone: 'red' },
 ];
 
 const quickActions = [
-  { label: 'Tao bao gia', href: '/quotations' },
-  { label: 'Tao don FIT', href: '/orders/fit-tours' },
-  { label: 'Them khach hang', href: '/customers' },
+  { label: 'Tạo báo giá', href: '/quotations' },
+  { label: 'Tạo đơn FIT', href: '/orders/fit-tours' },
+  { label: 'Thêm khách hàng', href: '/customers' },
   { label: 'Xem cong no', href: '/reports' },
-  { label: 'Duyet hoa hong', href: '/commission-reports' },
+  { label: 'Duyet hoa hồng', href: '/commission-reports' },
 ];
 
 const operations = [
-  { step: 'Bao gia', target: 'Chot gia va SmartLink', status: 'Ready', href: '/quotations' },
-  { step: 'Don hang', target: 'Theo doi booking va dich vu', status: 'Ready', href: '/order-center' },
-  { step: 'Dieu hanh', target: 'Phieu dieu hanh, HDV, NCC', status: 'Ready', href: '/operation-vouchers' },
-  { step: 'Tai chinh', target: 'Cong no, lai lo, hoa hong', status: 'Ready', href: '/reports' },
+  { step: 'Bao gia', target: 'Chot gia va SmartLink', status: 'Sẵn sàng', href: '/quotations' },
+  { step: 'Đơn hàng', target: 'Theo doi booking va dich vu', status: 'Sẵn sàng', href: '/order-center' },
+  { step: 'Dieu hanh', target: 'Phiếu điều hành, HDV, NCC', status: 'Sẵn sàng', href: '/operation-vouchers' },
+  { step: 'Tài chính', target: 'Cong no, lai lo, hoa hồng', status: 'Sẵn sàng', href: '/reports' },
 ];
 
 export default function Home() {
@@ -31,11 +31,11 @@ export default function Home() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Travel Operations ERP</p>
-          <h1>Dashboard van hanh SmartTour</h1>
+          <h1>Dashboard vận hành SmartTour</h1>
         </div>
         <div className="pageHeaderActions">
           <Link className="secondaryButton iconTextButton" href="/reports"><TrendingUp size={16} /> Bao cao</Link>
-          <Link className="iconTextButton" href="/order-center"><BadgeCheck size={16} /> Order Center</Link>
+          <Link className="iconTextButton" href="/order-center"><BadgeCheck size={16} /> Trung tâm đơn hàng</Link>
         </div>
       </header>
 
@@ -74,7 +74,7 @@ export default function Home() {
 
         <section className="panel">
           <div className="sectionHeader">
-            <h2>Thao tac nhanh</h2>
+            <h2>Thao tác nhanh</h2>
             <span>Shortcut</span>
           </div>
           <div className="quickActionGrid">
@@ -84,16 +84,16 @@ export default function Home() {
 
         <section className="panel dashboardWide">
           <div className="sectionHeader">
-            <h2>Trang thai module</h2>
+            <h2>Trạng thái module</h2>
             <span>MVP dang chay</span>
           </div>
           <table className="dashboardTable">
             <tbody>
-              <tr><td>CRM khach hang</td><td>Master data, CSKH, opportunity</td><td><span className="statusPill">Ready</span></td></tr>
-              <tr><td>Quotation Engine</td><td>SmartLink, approve, convert order</td><td><span className="statusPill">Ready</span></td></tr>
-              <tr><td>Order Center</td><td>List, filter, settle/unlock, export</td><td><span className="statusPill">Ready</span></td></tr>
-              <tr><td>Finance Reports</td><td>Lai lo, cong no, hoa hong</td><td><span className="statusPill">Ready</span></td></tr>
-              <tr><td>Nha cung cap</td><td>Hotel, restaurant, flight, guide, transport</td><td><span className="statusPill">Ready</span></td></tr>
+              <tr><td>CRM khách hàng</td><td>Dữ liệu nền, CSKH, opportunity</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
+              <tr><td>Công cụ báo giá</td><td>SmartLink, approve, convert order</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
+              <tr><td>Trung tâm đơn hàng</td><td>List, filter, settle/unlock, export</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
+              <tr><td>Finance Reports</td><td>Lai lo, cong no, hoa hồng</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
+              <tr><td>Nhà cung cấp</td><td>Hotel, restaurant, flight, guide, transport</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
             </tbody>
           </table>
         </section>

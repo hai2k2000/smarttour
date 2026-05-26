@@ -35,103 +35,103 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 
 const groups = [
   {
-    title: 'Tong quan',
+    title: 'Tổng quan',
     items: [
       { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-      { label: 'Order Center', href: '/order-center', icon: ClipboardList },
-      { label: 'Bao cao lai lo', href: '/reports', icon: BarChart3 },
-      { label: 'Bao cao hoa hong', href: '/commission-reports', icon: HandCoins },
+      { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
+      { label: 'Báo cáo lãi lỗ', href: '/reports', icon: BarChart3 },
+      { label: 'Báo cáo hoa hồng', href: '/commission-reports', icon: HandCoins },
     ],
   },
   {
-    title: 'Ban hang',
+    title: 'Bán hàng',
     items: [
-      { label: 'CRM khach hang', href: '/customers', icon: Users },
-      { label: 'Quotation Engine', href: '/quotations', icon: Calculator },
-      { label: 'Tinh gia tour', href: '/quotes/tours', icon: FileText },
-      { label: 'Tinh gia combo', href: '/quotes/combos', icon: TicketCheck },
+      { label: 'CRM khách hàng', href: '/customers', icon: Users },
+      { label: 'Công cụ báo giá', href: '/quotations', icon: Calculator },
+      { label: 'Tính giá tour', href: '/quotes/tours', icon: FileText },
+      { label: 'Tính giá combo', href: '/quotes/combos', icon: TicketCheck },
     ],
   },
   {
-    title: 'Tai chinh / Ke toan',
+    title: 'Tài chính / Kế toán',
     items: [
-      { label: 'Tong quan tai chinh', href: '/finance', icon: WalletCards },
-      { label: 'Phieu thu cho', href: '/finance?tab=pending', icon: ReceiptText },
-      { label: 'Phieu thu', href: '/finance?tab=receipts', icon: ReceiptText },
-      { label: 'Phieu chi', href: '/finance?tab=payments', icon: HandCoins },
-      { label: 'Hoa don VAT', href: '/finance?tab=invoices', icon: FileText },
-      { label: 'Dong tien', href: '/finance?tab=cashflow', icon: BarChart3 },
+      { label: 'Tổng quan tài chính', href: '/finance', icon: WalletCards },
+      { label: 'Phiếu thu chờ', href: '/finance?tab=pending', icon: ReceiptText },
+      { label: 'Phiếu thu', href: '/finance?tab=receipts', icon: ReceiptText },
+      { label: 'Phiếu chi', href: '/finance?tab=payments', icon: HandCoins },
+      { label: 'Hóa đơn VAT', href: '/finance?tab=invoices', icon: FileText },
+      { label: 'Dòng tiền', href: '/finance?tab=cashflow', icon: BarChart3 },
     ],
   },
   {
-    title: 'Don hang',
+    title: 'Đơn hàng',
     items: [
-      { label: 'Don Tour FIT', href: '/orders/fit-tours', icon: Route },
-      { label: 'Don GIT/Combo', href: '/orders/git-combos', icon: BriefcaseBusiness },
-      { label: 'Don LandTour', href: '/orders/landtours', icon: Landmark },
-      { label: 'Booking phong KS', href: '/orders/hotel-bookings', icon: BedDouble },
-      { label: 'Booking ve MB', href: '/orders/flight-orders', icon: Plane },
-      { label: 'Dich vu le', href: '/orders/single-services', icon: ReceiptText },
+      { label: 'Đơn Tour FIT', href: '/orders/fit-tours', icon: Route },
+      { label: 'Đơn GIT/Combo', href: '/orders/git-combos', icon: BriefcaseBusiness },
+      { label: 'Đơn LandTour', href: '/orders/landtours', icon: Landmark },
+      { label: 'Booking phòng KS', href: '/orders/hotel-bookings', icon: BedDouble },
+      { label: 'Booking vé MB', href: '/orders/flight-orders', icon: Plane },
+      { label: 'Dịch vụ lẻ', href: '/orders/single-services', icon: ReceiptText },
     ],
   },
   {
-    title: 'San pham & van hanh',
+    title: 'Sản phẩm & vận hành',
     items: [
-      { label: 'Tour mau', href: '/tour-programs', icon: BookOpen },
+      { label: 'Tour mẫu', href: '/tour-programs', icon: BookOpen },
       { label: 'Booking tour', href: '/bookings', icon: FileCheck2 },
-      { label: 'Tour khach le FIT', href: '/fit-tours', icon: Route },
-      { label: 'Tour doan GIT', href: '/git-tours', icon: BriefcaseBusiness },
+      { label: 'Tour khách lẻ FIT', href: '/fit-tours', icon: Route },
+      { label: 'Tour đoàn GIT', href: '/git-tours', icon: BriefcaseBusiness },
       { label: 'LandTour / Combo', href: '/landtours', icon: Landmark },
-      { label: 'Phieu dieu hanh', href: '/operation-vouchers', icon: FileCheck2 },
-      { label: 'Van hanh tour', href: '/operations', icon: ClipboardCheck },
-      { label: 'Huong dan vien', href: '/tour-guides', icon: Users },
-      { label: 'Nha cung cap', href: '/suppliers', icon: Warehouse },
+      { label: 'Phiếu điều hành', href: '/operation-vouchers', icon: FileCheck2 },
+      { label: 'Vận hành tour', href: '/operations', icon: ClipboardCheck },
+      { label: 'Hướng dẫn viên', href: '/tour-guides', icon: Users },
+      { label: 'Nhà cung cấp', href: '/suppliers', icon: Warehouse },
     ],
   },
   {
-    title: 'He thong',
+    title: 'Hệ thống',
     items: [
-      { label: 'Phan quyen', href: '/security', icon: ShieldCheck },
+      { label: 'Phân quyền', href: '/security', icon: ShieldCheck },
     ],
   },
 ];
 
 const shortcuts = [
-  { label: 'Tao bao gia', href: '/quotations' },
-  { label: 'Tao don', href: '/order-center' },
+  { label: 'Tạo báo giá', href: '/quotations' },
+  { label: 'Tạo đơn', href: '/order-center' },
   { label: 'CRM', href: '/customers' },
 ];
 
 const workflowLinks: Record<string, { label: string; href: string }[]> = {
-  'Tong quan': [
-    { label: 'Order Center', href: '/order-center' },
-    { label: 'Bao cao lai lo', href: '/reports' },
+  'Tổng quan': [
+    { label: 'Trung tâm đơn hàng', href: '/order-center' },
+    { label: 'Báo cáo lãi lỗ', href: '/reports' },
     { label: 'Hoa hong', href: '/commission-reports' },
   ],
-  'Ban hang': [
+  'Bán hàng': [
     { label: 'CRM', href: '/customers' },
-    { label: 'Quotation', href: '/quotations' },
-    { label: 'Tinh gia tour', href: '/quotes/tours' },
-    { label: 'Tinh gia combo', href: '/quotes/combos' },
+    { label: 'Báo giá', href: '/quotations' },
+    { label: 'Tính giá tour', href: '/quotes/tours' },
+    { label: 'Tính giá combo', href: '/quotes/combos' },
   ],
-  'Tai chinh / Ke toan': [
-    { label: 'Tong quan', href: '/finance' },
-    { label: 'Thu cho', href: '/finance?tab=pending' },
-    { label: 'Phieu thu', href: '/finance?tab=receipts' },
-    { label: 'Phieu chi', href: '/finance?tab=payments' },
+  'Tài chính / Kế toán': [
+    { label: 'Tổng quan', href: '/finance' },
+    { label: 'Thu chờ', href: '/finance?tab=pending' },
+    { label: 'Phiếu thu', href: '/finance?tab=receipts' },
+    { label: 'Phiếu chi', href: '/finance?tab=payments' },
     { label: 'VAT', href: '/finance?tab=invoices' },
-    { label: 'Dong tien', href: '/finance?tab=cashflow' },
+    { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
   ],
-  'Don hang': [
+  'Đơn hàng': [
     { label: 'FIT', href: '/orders/fit-tours' },
     { label: 'GIT/Combo', href: '/orders/git-combos' },
     { label: 'LandTour', href: '/orders/landtours' },
     { label: 'Phong KS', href: '/orders/hotel-bookings' },
     { label: 'Ve MB', href: '/orders/flight-orders' },
-    { label: 'Dich vu le', href: '/orders/single-services' },
+    { label: 'Dịch vụ lẻ', href: '/orders/single-services' },
   ],
-  'San pham & van hanh': [
-    { label: 'Tour mau', href: '/tour-programs' },
+  'Sản phẩm & vận hành': [
+    { label: 'Tour mẫu', href: '/tour-programs' },
     { label: 'FIT', href: '/fit-tours' },
     { label: 'GIT', href: '/git-tours' },
     { label: 'LandTour', href: '/landtours' },
@@ -139,9 +139,9 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
     { label: 'Van hanh', href: '/operations' },
     { label: 'NCC', href: '/suppliers' },
   ],
-  'He thong': [
+  'Hệ thống': [
     { label: 'Users & Roles', href: '/security' },
-    { label: 'Dang nhap', href: '/login' },
+    { label: 'Đăng nhập', href: '/login' },
   ],
 };
 
@@ -218,10 +218,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="appBrand">
           <Link href="/" className="brandMark"><Home size={18} /> <span>SmartTour</span></Link>
           <div className="brandActions">
-            <button className="collapseButton" onClick={toggleCollapsed} aria-label="Thu gon sidebar">
+            <button className="collapseButton" onClick={toggleCollapsed} aria-label="Thu gọn thanh bên">
               {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
-            <button className="mobileClose" onClick={() => setOpen(false)} aria-label="Dong menu"><X size={18} /></button>
+            <button className="mobileClose" onClick={() => setOpen(false)} aria-label="Đóng menu"><X size={18} /></button>
           </div>
         </div>
         <nav className="appNav">
@@ -248,14 +248,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </aside>
       <div className="appFrame">
         <header className="appTopbar">
-          <button className="mobileMenu" onClick={() => setOpen(true)} aria-label="Mo menu"><Menu size={18} /></button>
+          <button className="mobileMenu" onClick={() => setOpen(true)} aria-label="Mở menu"><Menu size={18} /></button>
           <div className="routeTitle">
             <span><PageIcon size={15} /> {page.group}</span>
             <strong>{page.label}</strong>
           </div>
           <label className={`globalSearch ${searchResults.length ? 'hasResults' : ''}`}>
             <Search size={16} />
-            <input value={search} onFocus={() => setCommandOpen(true)} onChange={(event) => setSearch(event.target.value)} placeholder="Tim module, order, khach hang..." />
+            <input value={search} onFocus={() => setCommandOpen(true)} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm module, đơn hàng, khách hàng..." />
             <kbd>Ctrl K</kbd>
             {searchResults.length ? (
               <div className="searchResults">
@@ -276,7 +276,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <div className="topbarShortcuts">
               {shortcuts.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
             </div>
-            <button className="activityButton" onClick={() => setActivityOpen(true)} aria-label="Mo trung tam cong viec">
+            <button className="activityButton" onClick={() => setActivityOpen(true)} aria-label="Mở trung tâm công việc">
               <Bell size={16} />
               <span>3</span>
             </button>
@@ -285,7 +285,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 {authUser.name}
               </button>
             ) : (
-              <Link className="authLoginLink" href="/login">Dang nhap</Link>
+              <Link className="authLoginLink" href="/login">Đăng nhập</Link>
             )}
             <span className="envPill">quanly.dunientravel.com</span>
             <span className="healthPill"><ShieldCheck size={15} /> Online</span>
@@ -303,8 +303,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <section className="commandPalette" onMouseDown={(event) => event.stopPropagation()}>
             <div className="commandSearch">
               <Search size={18} />
-              <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhap ten module hoac nghiep vu..." />
-              <button onClick={() => setCommandOpen(false)} aria-label="Dong"><X size={18} /></button>
+              <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhập tên module hoặc nghiệp vụ..." />
+              <button onClick={() => setCommandOpen(false)} aria-label="Đóng"><X size={18} /></button>
             </div>
             <div className="commandBody">
               {(search.trim() ? searchResults : allItems).slice(0, 12).map((item) => {
@@ -319,8 +319,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
               })}
             </div>
             <footer className="commandFooter">
-              <span>Enter de mo module</span>
-              <span>Esc de dong</span>
+              <span>Enter để mở module</span>
+              <span>Esc để đóng</span>
             </footer>
           </section>
         </div>
@@ -331,25 +331,25 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <header>
               <div>
                 <p className="eyebrow">Workspace</p>
-                <h2>Trung tam cong viec</h2>
+                <h2>Trung tâm công việc</h2>
               </div>
-              <button onClick={() => setActivityOpen(false)} aria-label="Dong"><X size={18} /></button>
+              <button onClick={() => setActivityOpen(false)} aria-label="Đóng"><X size={18} /></button>
             </header>
             <section>
-              <h3>Can xu ly</h3>
-              <Link href="/order-center" onClick={() => setActivityOpen(false)}><strong>Don hang can doi soat</strong><span>Loc don chua thu/chi het</span></Link>
-              <Link href="/commission-reports" onClick={() => setActivityOpen(false)}><strong>Hoa hong cho duyet</strong><span>Duyet va ghi nhan phieu chi</span></Link>
-              <Link href="/reports" onClick={() => setActivityOpen(false)}><strong>Cong no khach/NCC</strong><span>Theo doi no phai thu va phai tra</span></Link>
+              <h3>Cần xử lý</h3>
+              <Link href="/order-center" onClick={() => setActivityOpen(false)}><strong>Đơn hàng can doi soat</strong><span>Lọc đơn chưa thu/chi hết</span></Link>
+              <Link href="/commission-reports" onClick={() => setActivityOpen(false)}><strong>Hoa hồng chờ duyệt</strong><span>Duyệt và ghi nhận phiếu chi</span></Link>
+              <Link href="/reports" onClick={() => setActivityOpen(false)}><strong>Công nợ khách/NCC</strong><span>Theo dõi nợ phải thu và phải trả</span></Link>
             </section>
             <section>
-              <h3>Thao tac nhanh</h3>
+              <h3>Thao tác nhanh</h3>
               <div className="activityQuick">
                 {shortcuts.map((item) => <Link key={item.href} href={item.href} onClick={() => setActivityOpen(false)}>{item.label}</Link>)}
               </div>
             </section>
             <section>
-              <h3>He thong</h3>
-              <div className="activityHealth"><ShieldCheck size={16} /><span>Domain va API dang online</span></div>
+              <h3>Hệ thống</h3>
+              <div className="activityHealth"><ShieldCheck size={16} /><span>Domain và API đang online</span></div>
             </section>
           </aside>
         </div>

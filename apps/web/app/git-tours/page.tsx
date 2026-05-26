@@ -2,6 +2,7 @@ import { BriefcaseBusiness, CircleDollarSign, Plus, Route, Users } from 'lucide-
 import { revalidatePath } from 'next/cache';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
+import { viStatus } from '../i18n';
 export const dynamic = 'force-dynamic';
 
 type GitTour = {
@@ -100,22 +101,22 @@ export default async function GitToursPage() {
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><BriefcaseBusiness size={14} /> GIT</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Operator</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
 
         <section className="contentGrid gitGrid">
           <div className="panel">
-            <h2><Plus size={18} /> Tao tour GIT</h2>
+            <h2><Plus size={18} /> Tạo tour GIT</h2>
             <form action={createGitTour} className="formGrid gitForm">
               <label>Ma he thong<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} /></label>
               <label>Ma tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} /></label>
               <label>Ma giu cho<input name="holdCode" /></label>
               <label>Ten tour<input name="name" required minLength={2} /></label>
-              <label>Lich trinh<input name="itinerarySummary" placeholder="Ha Noi - Da Nang - Hoi An" /></label>
+              <label>Lịch trình<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" /></label>
               <label>Nhom<input name="marketGroup" /></label>
-              <label>Ngay dat<input name="bookingDate" type="date" /></label>
-              <label>Ngay thanh toan<input name="paymentDueDate" type="date" /></label>
+              <label>Ngày đặt<input name="bookingDate" type="date" /></label>
+              <label>Ngay thanh toán<input name="paymentDueDate" type="date" /></label>
               <label>Ngay di<input name="startDate" type="date" /></label>
               <label>Ngay ve<input name="endDate" type="date" /></label>
               <label>Khach hang<input name="customerName" required minLength={2} /></label>
@@ -139,19 +140,19 @@ export default async function GitToursPage() {
               <label>SL chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
               <label>Don gia chi<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
               <label>VAT chi %<input name="budgetVat" type="number" min={0} defaultValue={0} /></label>
-              <label>Ghi chu<textarea name="notes" rows={3} /></label>
-              <label>File/Ghi chu file<textarea name="fileNote" rows={3} /></label>
-              <button type="submit">Tao tour GIT</button>
+              <label>Ghi chú<textarea name="notes" rows={3} /></label>
+              <label>File/Ghi chú file<textarea name="fileNote" rows={3} /></label>
+              <button type="submit">Tạo tour GIT</button>
             </form>
           </div>
 
           <div className="panel gitSummary">
-            <h2><Route size={18} /> Tong quan GIT</h2>
+            <h2><Route size={18} /> Tổng quan GIT</h2>
             <div className="summaryRows">
               <div><span>Tong GIT</span><strong>{tours.length}</strong></div>
               <div><span>Sap chay</span><strong>{tours.filter((tour) => tour.status === 'UPCOMING').length}</strong></div>
-              <div><span>Dang chay</span><strong>{tours.filter((tour) => tour.status === 'RUNNING').length}</strong></div>
-              <div><span>Chua thu het</span><strong>{tours.filter((tour) => tour.paymentStatus !== 'PAID').length}</strong></div>
+              <div><span>Đang chay</span><strong>{tours.filter((tour) => tour.status === 'RUNNING').length}</strong></div>
+              <div><span>Chưa thu het</span><strong>{tours.filter((tour) => tour.paymentStatus !== 'PAID').length}</strong></div>
             </div>
           </div>
         </section>
@@ -159,7 +160,7 @@ export default async function GitToursPage() {
         <section className="panel listPanel">
           <div className="sectionHeader"><h2>Danh sach tour GIT</h2><span>{tours.length} tour</span></div>
           <table>
-            <thead><tr><th>Ma</th><th>Tour</th><th>Khach/Dai ly</th><th>Ngay di</th><th>NVDH</th><th>Trang thai</th><th>Doanh thu</th><th>Dich vu</th></tr></thead>
+            <thead><tr><th>Ma</th><th>Tour</th><th>Khach/Dai ly</th><th>Ngay di</th><th>NVDH</th><th>Trạng thái</th><th>Doanh thu</th><th>Dich vu</th></tr></thead>
             <tbody>
               {tours.map((tour) => (
                 <tr key={tour.id}>
@@ -168,12 +169,12 @@ export default async function GitToursPage() {
                   <td>{tour.customers[0]?.name || '-'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
                   <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
                   <td>{tour.operatorOwner || '-'}</td>
-                  <td><span className="statusPill">{tour.status}</span></td>
+                  <td><span className="statusPill">{viStatus(tour.status)}</span></td>
                   <td><CircleDollarSign size={14} /> {tour._count?.revenues ?? 0}</td>
                   <td>{tour._count?.services ?? 0}</td>
                 </tr>
               ))}
-              {tours.length === 0 ? <tr><td colSpan={8}>Chua co tour GIT.</td></tr> : null}
+              {tours.length === 0 ? <tr><td colSpan={8}>Chưa co tour GIT.</td></tr> : null}
             </tbody>
           </table>
         </section>

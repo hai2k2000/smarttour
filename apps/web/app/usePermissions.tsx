@@ -37,8 +37,8 @@ export function PermissionNotice({ allowed, label }: { allowed: boolean; label: 
   if (allowed) return null;
   return (
     <section className="panel emptyState">
-      <h2>Khong co quyen truy cap</h2>
-      <p>Tai khoan hien tai chua co quyen {label}. Lien he quan tri vien de cap them permission.</p>
+      <h2>Không có quyền truy cập</h2>
+      <p>Tài khoản hiện tại chưa có quyền {label}. Liên hệ quản trị viên để cấp thêm quyền.</p>
     </section>
   );
 }

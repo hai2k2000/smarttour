@@ -193,7 +193,7 @@ export class OperationVouchersService {
     let orderId = this.text(dto.orderId);
     if (bookingId) {
       const booking = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, tourId: true, orderId: true } });
-      if (!booking) throw new NotFoundException('Booking not found');
+      if (!booking) throw new NotFoundException('Không tìm thấy booking');
       tourId = tourId ?? booking.tourId;
       orderId = orderId ?? booking.orderId;
     }
@@ -204,11 +204,11 @@ export class OperationVouchersService {
     }
     if (orderId) {
       const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     }
     if (dto.supplierId) {
       const supplier = await this.prisma.supplier.findFirst({ where: { id: dto.supplierId, deletedAt: null }, select: { id: true } });
-      if (!supplier) throw new NotFoundException('Supplier not found');
+      if (!supplier) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     }
     return { bookingId, tourId, orderId };
   }

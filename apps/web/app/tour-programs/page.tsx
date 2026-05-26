@@ -72,18 +72,18 @@ export default async function TourProgramsPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Operation product setup</p>
-          <h1>Tour mau va lich trinh</h1>
+          <p className="eyebrow">Thiết lập sản phẩm vận hành</p>
+          <h1>Tour mẫu va lich trinh</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><Users size={14} /> Operator</span>
-          <span className="statusPill statusPillNeutral">Tour Core</span>
+          <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill statusPillNeutral">Lõi tour</span>
         </div>
       </header>
 
         <section className="contentGrid tourProgramGrid">
           <div className="panel">
-            <h2><Plus size={18} /> Tao tour mau</h2>
+            <h2><Plus size={18} /> Tạo tour mau</h2>
             <form action={createTourProgram} className="formStack">
               <label>
                 Ma tour
@@ -95,7 +95,7 @@ export default async function TourProgramsPage() {
               </label>
               <label>
                 Tuyen diem
-                <input name="route" placeholder="Ha Noi - Ha Long" />
+                <input name="route" placeholder="Hà Nội - Ha Long" />
               </label>
               <label>
                 So ngay
@@ -105,17 +105,17 @@ export default async function TourProgramsPage() {
                 Mo ta
                 <textarea name="description" rows={4} />
               </label>
-              <button type="submit">Tao tour mau</button>
+              <button type="submit">Tạo tour mau</button>
             </form>
           </div>
 
           <div className="panel">
-            <h2><CalendarDays size={18} /> Them ngay lich trinh</h2>
+            <h2><CalendarDays size={18} /> Thêm ngay lich trinh</h2>
             <form action={createItineraryDay} className="formStack">
               <label>
-                Tour mau
+                Tour mẫu
                 <select name="tourProgramId" required>
-                  <option value="">Chon tour</option>
+                  <option value="">Chọn tour</option>
                   {tourPrograms.map((tour) => (
                     <option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>
                   ))}
@@ -127,13 +127,13 @@ export default async function TourProgramsPage() {
               </label>
               <label>
                 Tieu de ngay
-                <input name="title" placeholder="Ha Noi - Ha Long" required minLength={2} />
+                <input name="title" placeholder="Hà Nội - Ha Long" required minLength={2} />
               </label>
               <label>
                 Noi dung lich trinh
                 <textarea name="description" rows={5} />
               </label>
-              <button type="submit">Them ngay lich trinh</button>
+              <button type="submit">Thêm ngay lich trinh</button>
             </form>
           </div>
         </section>
@@ -148,7 +148,7 @@ export default async function TourProgramsPage() {
                 </div>
                 <strong>{tour.durationDays}N</strong>
               </div>
-              <p className="muted"><Route size={15} /> {tour.route || 'Chua co tuyen diem'}</p>
+              <p className="muted"><Route size={15} /> {tour.route || 'Chưa có tuyến điểm'}</p>
               {tour.description ? <p>{tour.description}</p> : null}
               <div className="itineraryList">
                 {tour.itineraryDays.map((day) => (
@@ -160,13 +160,13 @@ export default async function TourProgramsPage() {
                     </div>
                   </div>
                 ))}
-                {tour.itineraryDays.length === 0 ? <p className="muted"><Map size={15} /> Chua co lich trinh</p> : null}
+                {tour.itineraryDays.length === 0 ? <p className="muted"><Map size={15} /> Chưa có lịch trình</p> : null}
               </div>
               <footer>{tour._count?.bookings ?? 0} booking su dung tour nay</footer>
             </article>
           ))}
           {tourPrograms.length === 0 ? (
-            <section className="panel emptyState">Chua co tour mau. Hay tao tour dau tien de tiep tuc luong booking va dieu hanh.</section>
+            <section className="panel emptyState">Chưa có tour mẫu. Hãy tạo tour đầu tiên để tiếp tục luồng booking và điều hành.</section>
           ) : null}
         </section>
     </section>

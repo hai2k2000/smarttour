@@ -1,0 +1,124 @@
+export function viStatus(value: unknown) {
+  const key = String(value ?? '').trim();
+  if (!key) return '-';
+  return statusLabels[key] || key;
+}
+
+export function viRoleCode(value: unknown) {
+  const key = String(value ?? '').trim();
+  if (!key) return '-';
+  return roleLabels[key] || key;
+}
+
+export function viPermission(value: unknown) {
+  const key = String(value ?? '').trim();
+  if (!key) return '-';
+  return permissionLabels[key] || key;
+}
+
+const statusLabels: Record<string, string> = {
+  ACTIVE: 'Đang hoạt động',
+  INACTIVE: 'Ngừng hoạt động',
+  DRAFT: 'Nháp',
+  PENDING: 'Chờ xử lý',
+  WAITING: 'Đang chờ',
+  REQUESTED: 'Đã gửi yêu cầu',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối',
+  PAID: 'Đã thanh toán',
+  UNPAID: 'Chưa thanh toán',
+  PARTIAL: 'Thanh toán một phần',
+  CONFIRMED: 'Đã xác nhận',
+  OPERATING: 'Đang vận hành',
+  COMPLETED: 'Hoàn tất',
+  CANCELLED: 'Đã hủy',
+  CANCELED: 'Đã hủy',
+  NEW: 'Mới',
+  WON: 'Thành công',
+  LOST: 'Thất bại',
+  OPEN: 'Đang mở',
+  CLOSED: 'Đã đóng',
+  READY: 'Sẵn sàng',
+  LOCKED: 'Đã khóa',
+  RELEASED: 'Đã giải phóng',
+  STOP_SELL: 'Dừng bán',
+  COD_LOCKED: 'Khóa công nợ',
+  IN: 'Thu',
+  OUT: 'Chi',
+  CASH: 'Tiền mặt',
+  BANK_TRANSFER: 'Chủyển khoản',
+  CARD: 'Thẻ',
+  RECEIPT: 'Phiếu thu',
+  PAYMENT: 'Phiếu chi',
+  INVOICE: 'Hóa đơn',
+  ALL_DAYS: 'Tất cả ngày',
+  WEEKDAY: 'Ngày thường',
+  WEEKEND: 'Cuối tuần',
+  HOLIDAY: 'Ngày lễ',
+  PEAK: 'Cao điểm',
+  super_admin: 'Quản trị hệ thống',
+  accounting: 'Kế toán',
+  sales: 'Kinh doanh',
+  operation: 'Điều hành',
+};
+
+const roleLabels: Record<string, string> = {
+  super_admin: 'Quản trị hệ thống',
+  accounting: 'Kế toán',
+  sales: 'Kinh doanh',
+  operation: 'Điều hành',
+};
+
+const permissionLabels: Record<string, string> = {
+  '*': 'Toàn quyền hệ thống',
+  'auth.user.manage': 'Quản lý người dùng',
+  'auth.role.manage': 'Quản lý vai trò',
+  'data.scope.all': 'Xem toàn bộ dữ liệu',
+  'booking.view': 'Xem booking',
+  'booking.manage': 'Quản lý booking',
+  'commission.view': 'Xem hoa hồng',
+  'commission.manage': 'Quản lý hoa hồng',
+  'customer.view': 'Xem khách hàng',
+  'customer.manage': 'Quản lý khách hàng',
+  'finance.receipt.view': 'Xem phiếu thu',
+  'finance.receipt.create': 'Tạo phiếu thu',
+  'finance.receipt.update': 'Sửa phiếu thu',
+  'finance.receipt.delete': 'Xóa phiếu thu',
+  'finance.receipt.approve': 'Duyệt phiếu thu',
+  'finance.receipt.import': 'Nhập phiếu thu',
+  'finance.receipt.export': 'Xuất phiếu thu',
+  'finance.payment.view': 'Xem phiếu chi',
+  'finance.payment.create': 'Tạo phiếu chi',
+  'finance.payment.update': 'Sửa phiếu chi',
+  'finance.payment.delete': 'Xóa phiếu chi',
+  'finance.payment.approve': 'Duyệt phiếu chi',
+  'finance.payment.import': 'Nhập phiếu chi',
+  'finance.payment.export': 'Xuất phiếu chi',
+  'finance.invoice.view': 'Xem hóa đơn',
+  'finance.invoice.create': 'Tạo hóa đơn',
+  'finance.invoice.update': 'Sửa hóa đơn',
+  'finance.invoice.delete': 'Xóa hóa đơn',
+  'finance.invoice.approve': 'Duyệt hóa đơn',
+  'finance.invoice.export': 'Xuất hóa đơn',
+  'finance.cashflow.view': 'Xem dòng tiền',
+  'finance.cashflow.export': 'Xuất dòng tiền',
+  'guide.view': 'Xem hướng dẫn viên',
+  'guide.manage': 'Quản lý hướng dẫn viên',
+  'operation.form.view': 'Xem phiếu điều hành',
+  'operation.form.manage': 'Quản lý phiếu điều hành',
+  'operation.payment-request.view': 'Xem đề nghị thanh toán NCC',
+  'operation.payment-request.create': 'Tạo đề nghị thanh toán NCC',
+  'operation.payment-request.approve': 'Duyệt đề nghị thanh toán NCC',
+  'order.view': 'Xem đơn hàng',
+  'order.manage': 'Quản lý đơn hàng',
+  'quotation.view': 'Xem báo giá',
+  'quotation.manage': 'Quản lý báo giá',
+  'quote.view': 'Xem tính giá',
+  'quote.manage': 'Quản lý tính giá',
+  'report.view': 'Xem báo cáo',
+  'report.export': 'Xuất báo cáo',
+  'supplier.view': 'Xem nhà cung cấp',
+  'supplier.manage': 'Quản lý nhà cung cấp',
+  'tour.view': 'Xem tour',
+  'tour.manage': 'Quản lý tour',
+};

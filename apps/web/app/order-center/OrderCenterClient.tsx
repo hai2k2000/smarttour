@@ -5,6 +5,7 @@ import { Download, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { authHeaders } from '../authFetch';
 
+import { viStatus } from '../i18n';
 type Dashboard = { total: number; upcoming: number; running: number; completed: number; cancelled: number; unpaid: number; unpaidCost: number; revenue: number; cost: number; profit: number };
 type OrderRow = {
   id: string;
@@ -64,8 +65,8 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
         helper.display({ id: 'dates', header: 'Lich', cell: ({ row }) => <span>{dateOnly(row.original.startDate)}<br />{dateOnly(row.original.endDate)}</span> }),
         helper.display({ id: 'revenue', header: 'Thu', cell: ({ row }) => <span>{money(row.original.totalRevenue)}<br />Con: {money(row.original.remainingRevenue)}</span> }),
         helper.display({ id: 'cost', header: 'Chi', cell: ({ row }) => <span>{money(row.original.totalCost)}<br />Con: {money(row.original.remainingCost)}</span> }),
-        helper.accessor('profit', { header: 'Loi nhuan', cell: (info) => money(info.getValue()) }),
-        helper.display({ id: 'status', header: 'Trang thai', cell: ({ row }) => <span className={`statusPill status-${row.original.status.toLowerCase()}`}>{row.original.status}</span> }),
+        helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => money(info.getValue()) }),
+        helper.display({ id: 'status', header: 'Trạng thái', cell: ({ row }) => <span className={`statusPill status-${row.original.status.toLowerCase()}`}>{viStatus(row.original.status)}</span> }),
         helper.display({ id: 'owner', header: 'Chi nhanh / NVDH', cell: ({ row }) => <span>{row.original.branch || '-'}<br />{row.original.operatorOwner || '-'}</span> }),
       ];
     }, []),
@@ -80,7 +81,7 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
     ]);
     if (dashboardResponse.ok) setDashboard(await dashboardResponse.json());
     if (ordersResponse.ok) setOrders(await ordersResponse.json());
-    setMessage('Da cap nhat du lieu theo bo loc.');
+    setMessage('Đã cập nhật dữ liệu theo bộ lọc.');
   }
 
   function setFilter(key: string, value: string) {
@@ -97,12 +98,12 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
       <section className="metrics orderMetrics">
         <article className="metric metricTone-blue"><span>Tong don</span><strong>{dashboard.total}</strong></article>
         <article className="metric metricTone-amber"><span>Sap chay</span><strong>{dashboard.upcoming}</strong></article>
-        <article className="metric metricTone-indigo"><span>Dang chay</span><strong>{dashboard.running}</strong></article>
+        <article className="metric metricTone-indigo"><span>Đang chay</span><strong>{dashboard.running}</strong></article>
         <article className="metric metricTone-green"><span>Hoan thanh</span><strong>{dashboard.completed}</strong></article>
-        <article className="metric metricTone-red"><span>Da huy</span><strong>{dashboard.cancelled}</strong></article>
-        <article className="metric"><span>Chua thu het</span><strong>{dashboard.unpaid}</strong></article>
-        <article className="metric"><span>Chua chi het</span><strong>{dashboard.unpaidCost}</strong></article>
-        <article className="metric metricTone-green"><span>Loi nhuan</span><strong>{money(dashboard.profit)}</strong></article>
+        <article className="metric metricTone-red"><span>Đã hủy</span><strong>{dashboard.cancelled}</strong></article>
+        <article className="metric"><span>Chưa thu het</span><strong>{dashboard.unpaid}</strong></article>
+        <article className="metric"><span>Chưa chi het</span><strong>{dashboard.unpaidCost}</strong></article>
+        <article className="metric metricTone-green"><span>Lợi nhuận</span><strong>{money(dashboard.profit)}</strong></article>
       </section>
 
       <section className="panel orderFilterPanel">
@@ -113,26 +114,26 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
           <label>Ma tour<input value={filters.tourCode || ''} onChange={(event) => setFilter('tourCode', event.target.value)} /></label>
           <label>Ten tour/dich vu<input value={filters.name || ''} onChange={(event) => setFilter('name', event.target.value)} /></label>
           <label>Khach hang<input value={filters.customerName || ''} onChange={(event) => setFilter('customerName', event.target.value)} /></label>
-          <label>Dien thoai<input value={filters.customerPhone || ''} onChange={(event) => setFilter('customerPhone', event.target.value)} /></label>
-          <label>Loai don<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
-          <label>Trang thai<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
-          <label>Thanh toan<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
-          <label>Chi phi<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tat ca'}</option>)}</select></label>
+          <label>Điện thoại<input value={filters.customerPhone || ''} onChange={(event) => setFilter('customerPhone', event.target.value)} /></label>
+          <label>Loai don<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
+          <label>Trạng thái<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
+          <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
+          <label>Chi phi<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
           <label>Khoi hanh tu<input type="date" value={filters.startFrom || ''} onChange={(event) => setFilter('startFrom', event.target.value)} /></label>
           <label>Khoi hanh den<input type="date" value={filters.startTo || ''} onChange={(event) => setFilter('startTo', event.target.value)} /></label>
           <label>Ngay ve tu<input type="date" value={filters.endFrom || ''} onChange={(event) => setFilter('endFrom', event.target.value)} /></label>
           <label>Ngay ve den<input type="date" value={filters.endTo || ''} onChange={(event) => setFilter('endTo', event.target.value)} /></label>
-          <label>Thi truong<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
+          <label>Thị trường<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
           <label>Chi nhanh<input value={filters.branch || ''} onChange={(event) => setFilter('branch', event.target.value)} /></label>
           <label>Phong ban<input value={filters.department || ''} onChange={(event) => setFilter('department', event.target.value)} /></label>
           <label>Sales<input value={filters.sales || ''} onChange={(event) => setFilter('sales', event.target.value)} /></label>
           <label>Dieu hanh<input value={filters.operatorOwner || ''} onChange={(event) => setFilter('operatorOwner', event.target.value)} /></label>
-          <label>Nha cung cap<input value={filters.supplier || ''} onChange={(event) => setFilter('supplier', event.target.value)} /></label>
+          <label>Nhà cung cấp<input value={filters.supplier || ''} onChange={(event) => setFilter('supplier', event.target.value)} /></label>
           <label>Hoa hong<input value={filters.commissionStatus || ''} onChange={(event) => setFilter('commissionStatus', event.target.value)} /></label>
           <label>Nhom khach<input value={filters.customerType || ''} onChange={(event) => setFilter('customerType', event.target.value)} /></label>
         </div>
         <div className="hotelFormActions orderActions">
-          <button type="button" onClick={() => load()}><Search size={17}/> Loc du lieu</button>
+          <button type="button" onClick={() => load()}><Search size={17}/> Loc dữ liệu</button>
           <button type="button" className="secondaryButton" onClick={exportCsv}><Download size={17}/> Export CSV</button>
         </div>
       </section>
@@ -146,7 +147,7 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
               <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
             </table>
           </div>
-        ) : <div className="tableEmptyState">Khong co don hang phu hop bo loc.</div>}
+        ) : <div className="tableEmptyState">Khong co don hang phu hop bộ lọc.</div>}
       </section>
     </div>
   );

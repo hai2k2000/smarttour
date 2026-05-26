@@ -82,10 +82,10 @@ function isBadConsole(message) {
   try {
     await page.goto(site + '/login', { waitUntil: 'networkidle', timeout: 45000 });
     await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/mat khau|password/i).fill(password);
+    await page.getByLabel(/mật khẩu|mat khau|password/i).fill(password);
     await Promise.all([
       page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 45000 }),
-      page.getByRole('button', { name: /dang nhap|Ä‘Äƒng nháº­p|login/i }).click(),
+      page.getByRole('button', { name: new RegExp('\\u0111\\u0103ng nh\\u1eadp|dang nhap|login', 'i') }).click(),
     ]);
 
     const token = await page.evaluate(() => window.localStorage.getItem('smarttour.auth.token'));

@@ -46,7 +46,7 @@ export class BookingsService {
         operationForm: { include: { tasks: true, services: true, costs: true } },
       },
     });
-    if (!booking) throw new NotFoundException('Booking not found');
+    if (!booking) throw new NotFoundException('Không tìm thấy booking');
     return booking;
   }
 
@@ -111,7 +111,7 @@ export class BookingsService {
 
   private async ensureBookingLinks(dto: Partial<CreateBookingDto>) {
     if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Customer not found');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Order not found');
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
     if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found');
   }
 

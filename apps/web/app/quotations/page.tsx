@@ -27,11 +27,11 @@ export default async function QuotationsPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Bao gia hop nhat</p>
-          <h1>Quotation Engine</h1>
+          <h1>Công cụ báo giá</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><ClipboardList size={14} /> Price Engine</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Operator</span>
+          <span className="statusPill"><ClipboardList size={14} /> Công cụ giá</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
       <QuotationsClient initialDashboard={dashboard} initialQuotations={quotations} />

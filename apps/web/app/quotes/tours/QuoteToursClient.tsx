@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
 
+import { viStatus } from '../../i18n';
 type QuoteSummary = {
   id: string;
   quoteCode: string;
@@ -154,13 +155,13 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     columns: useMemo(() => {
       const helper = createColumnHelper<QuoteSummary>();
       return [
-        helper.accessor('quoteCode', { header: 'Ma bao gia' }),
+        helper.accessor('quoteCode', { header: 'Ma báo giá' }),
         helper.accessor('tourCode', { header: 'Ma tour' }),
         helper.accessor('route', { header: 'Hanh trinh', cell: (info) => info.getValue() || '-' }),
         helper.accessor('customerName', { header: 'Nguoi dat', cell: (info) => info.getValue() || '-' }),
         helper.accessor('sellingPrice', { header: 'Gia/khach', cell: (info) => money(info.getValue()) }),
-        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadQuote(row.original.id)}><Pencil size={15} /> Sua</button> }),
+        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{viStatus(info.getValue())}</span> }),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadQuote(row.original.id)}><Pencil size={15} /> Sửa</button> }),
       ];
     }, []),
     getCoreRowModel: getCoreRowModel(),
@@ -202,10 +203,10 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setMessage('Khong luu duoc bao gia tour. Kiem tra ma bao gia va truong bat buoc.');
+      setMessage('Khong luu duoc báo giá tour. Kiem tra ma báo giá va truong bat buoc.');
       return;
     }
-    setMessage(editingId ? 'Da cap nhat bao gia.' : 'Da tao bao gia.');
+    setMessage(editingId ? 'Đã cập nhật báo giá.' : 'Đã tạo báo giá.');
     reset({ ...defaultValues, quoteCode: `BG${Date.now().toString().slice(-6)}` });
     setEditingId(null);
     await reload();
@@ -213,9 +214,9 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
 
   async function action(path: string) {
     if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/quotes/tours/${editingId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify({ approvedBy: 'Operator' }) });
+    const response = await fetch(`${browserApiBase()}/api/quotes/tours/${editingId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify({ approvedBy: 'Nhân sự vận hành' }) });
     if (response.ok) {
-      setMessage(`Da cap nhat: ${path}`);
+      setMessage(`Đã cập nhật: ${path}`);
       await reload();
     }
   }
@@ -228,32 +229,32 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
 
   return (
     <div className="quotePage">
-      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem va quan ly bao gia" />
+      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem va quan ly báo giá" />
       <form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
         <section className="panel">
           <div className="sectionHeader">
-            <h2>Thong tin bao gia</h2>
+            <h2>Thong tin báo giá</h2>
             <span>{message || 'Tinh gia realtime, API tinh lai truoc khi luu'}</span>
           </div>
           <div className="quoteFormGrid">
-            <label>Ma bao gia<input {...register('quoteCode')} /></label>
+            <label>Ma báo giá<input {...register('quoteCode')} /></label>
             <label>Ma tour<input {...register('tourCode')} /></label>
             <label>Ten tour<input {...register('tourName')} /></label>
             <label>Hanh trinh<input {...register('route')} /></label>
-            <label>Thi truong<input {...register('marketGroup')} /></label>
+            <label>Thị trường<input {...register('marketGroup')} /></label>
             <label>Ty gia<input type="number" {...register('exchangeRate')} /></label>
-            <label>Ngay dat<input type="date" {...register('bookingDate')} /></label>
-            <label>Ngay thanh toan<input type="date" {...register('paymentDate')} /></label>
+            <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label>
+            <label>Ngay thanh toán<input type="date" {...register('paymentDate')} /></label>
             <label>Ngay di<input type="date" {...register('departureDate')} /></label>
             <label>Ngay ve<input type="date" {...register('returnDate')} /></label>
-            <label>Ho ten khach<input {...register('customerName')} /></label>
-            <label>Dien thoai<input {...register('customerPhone')} /></label>
+            <label>Họ tên khach<input {...register('customerName')} /></label>
+            <label>Điện thoại<input {...register('customerPhone')} /></label>
             <label>Email<input type="email" {...register('customerEmail')} /></label>
             <label>Dieu hanh<input {...register('operatorOwner')} /></label>
-            <label>Nguoi lon<input type="number" {...register('adultQty')} /></label>
-            <label>Tre em<input type="number" {...register('childQty')} /></label>
+            <label>Người lớn<input type="number" {...register('adultQty')} /></label>
+            <label>Trẻ em<input type="number" {...register('childQty')} /></label>
             <label>Tre nho<input type="number" {...register('infantQty')} /></label>
-            <label className="span2">Ghi chu khach<textarea rows={2} {...register('customerNote')} /></label>
+            <label className="span2">Ghi chú khach<textarea rows={2} {...register('customerNote')} /></label>
           </div>
         </section>
 
@@ -270,7 +271,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
               <div><span>So khach</span><strong>{totals.pax}</strong></div>
               <div><span>Gia NET/khach</span><strong>{money(totals.net)}</strong></div>
             </div>
-            <label>Loi nhuan/khach<input type="number" {...register('profit')} /></label>
+            <label>Lợi nhuận/khach<input type="number" {...register('profit')} /></label>
             <label>Hoa hong/khach<input type="number" {...register('commission')} /></label>
             <label>Giam gia<input type="number" {...register('discount')} /></label>
             <label>% tre em<input type="number" {...register('childPricePercent')} /></label>
@@ -285,16 +286,16 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
         </section>
 
         <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting || !can('quote.manage')}><Save size={17} /> Luu bao gia</button>
+          <button type="submit" disabled={isSubmitting || !can('quote.manage')}><Save size={17} /> Lưu báo giá</button>
           <button type="button" className="secondaryButton" disabled={!editingId || !can('quote.manage')} onClick={() => action('approve')}><Check size={17} /> Duyet</button>
-          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('convert')}><Copy size={17} /> Chuyen don hang</button>
-          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Dong</button>
+          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('convert')}><Copy size={17} /> Chủyen don hang</button>
+          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
         </div>
       </form>
 
       <section className="panel listPanel">
         <div className="sectionHeader">
-          <h2>Danh sach bao gia tour</h2>
+          <h2>Danh sach báo giá tour</h2>
           <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma tour, khach..." /></label>
         </div>
         <div className="fitTableWrap">
@@ -314,18 +315,18 @@ function CostRows({ register, fieldArray, setValue }: { register: UseFormRegiste
     { key: 'serviceType', label: 'Loai DV' },
     { key: 'description', label: 'Dien giai' },
     { key: 'unit', label: 'DVT' },
-    { key: 'quantity', label: 'So luong', type: 'number' },
+    { key: 'quantity', label: 'Số lượng', type: 'number' },
     { key: 'serviceCount', label: 'So luot', type: 'number' },
     { key: 'exchangeRate', label: 'Ty gia', type: 'number' },
     { key: 'unitPrice', label: 'Don gia', type: 'number' },
     { key: 'vat', label: 'VAT', type: 'number' },
-    { key: 'note', label: 'Ghi chu' },
+    { key: 'note', label: 'Ghi chú' },
   ];
   return <DynamicRows title="Chi phi tour" name="costItems" register={register} fieldArray={fieldArray} columns={columns} emptyRow={emptyCost} setValue={setValue} />;
 }
 
 function ItineraryRows({ register, fieldArray }: { register: UseFormRegister<QuoteForm>; fieldArray: UseFieldArrayReturn<QuoteForm, 'itineraries', 'id'> }) {
-  return <DynamicRows title="Lich trinh tour" name="itineraries" register={register} fieldArray={fieldArray} columns={[{ key: 'dayNo', label: 'Ngay', type: 'number' }, { key: 'title', label: 'Tieu de' }, { key: 'content', label: 'Noi dung', type: 'textarea' }]} emptyRow={emptyItinerary} />;
+  return <DynamicRows title="Lịch trình tour" name="itineraries" register={register} fieldArray={fieldArray} columns={[{ key: 'dayNo', label: 'Ngay', type: 'number' }, { key: 'title', label: 'Tieu de' }, { key: 'content', label: 'Noi dung', type: 'textarea' }]} emptyRow={emptyItinerary} />;
 }
 
 function DynamicRows<T extends ArrayName>({ title, name, register, fieldArray, columns, emptyRow, setValue }: { title: string; name: T; register: UseFormRegister<QuoteForm>; fieldArray: UseFieldArrayReturn<QuoteForm, T, 'id'>; columns: Array<{ key: string; label: string; type?: string }>; emptyRow: Record<string, unknown>; setValue?: any }) {
@@ -355,7 +356,7 @@ function DynamicRows<T extends ArrayName>({ title, name, register, fieldArray, c
             <button type="button" className="secondaryButton" onClick={() => addCommon('HOTEL')}><Plus size={16} /> Khach san</button>
             <button type="button" className="secondaryButton" onClick={() => addCommon('PRIVATE')}><Plus size={16} /> Phi rieng</button>
           </div>
-        ) : <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Them dong</button>}
+        ) : <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm dòng</button>}
       </div>
       <div className="fitTableWrap">
         <table className="fitTable quoteDynamicTable">

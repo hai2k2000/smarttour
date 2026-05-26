@@ -219,7 +219,7 @@ export class FitToursService {
     const id = this.optionalText(orderId);
     if (!id) return;
     const order = await tx.order.findUnique({ where: { id }, select: { id: true } });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {

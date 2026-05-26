@@ -46,7 +46,7 @@ export class OrdersService {
       where: branchDepartmentScopeWhere({ id, type: this.resolveType(typePath), deletedAt: null }, user),
       include: this.includeAll(),
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
   }
 
@@ -333,7 +333,7 @@ export class OrdersService {
 
   private async syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>, action: string) {
     const order = await tx.order.findUnique({ where: { id: orderId }, select: { id: true, systemCode: true } });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     const operationRows = await tx.orderOperationItem.findMany({ where: { orderId }, orderBy: { sortOrder: 'asc' }, select: { id: true, sortOrder: true } });
     for (const [index, item] of (dto.operationItems ?? []).entries()) {
       const serviceId = this.text(item.serviceId);

@@ -4,6 +4,7 @@ import { CheckCircle2, ClipboardCheck, FileCheck2, HandCoins, Plus, RefreshCcw, 
 import { useEffect, useMemo, useState } from 'react';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
+import { viStatus } from '../i18n';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type Dashboard = {
@@ -96,7 +97,7 @@ export default function OperationsClient() {
 
   async function createForm(formData: FormData) {
     const bookingId = text(formData.get('bookingId'));
-    if (!bookingId) return setMessage('Can chon booking de tao phieu dieu hanh');
+    if (!bookingId) return setMessage('Can chon booking de tao phiếu điều hành');
     await post('/api/operations/forms', {
       bookingId,
       status: text(formData.get('status')) || 'PENDING',
@@ -119,7 +120,7 @@ export default function OperationsClient() {
     const supplierId = text(formData.get('supplierId')) || selectedSupplier?.id || '';
     const costId = text(formData.get('costId')) || selectedForm?.costs?.[0]?.id || '';
     const amount = number(formData.get('amount')) || Number(selectedForm?.costs?.[0]?.actualAmount || selectedForm?.costs?.[0]?.expectedAmount || 0);
-    if (!supplierId || amount <= 0) return setMessage('Can co NCC va so tien thanh toan');
+    if (!supplierId || amount <= 0) return setMessage('Can co NCC va so tien thanh toán');
     await post('/api/operations/supplier-payment-requests', {
       requestedBy: text(formData.get('requestedBy')) || 'operation',
       items: [{ supplierId, costId, amount, notes: text(formData.get('notes')) }],
@@ -136,7 +137,7 @@ export default function OperationsClient() {
   }
 
   async function cancelForm(id: string) {
-    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operation', reason: 'Huy tu UI van hanh' });
+    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operation', reason: 'Huy tu UI vận hành' });
   }
 
   async function post(path: string, payload: unknown) {
@@ -144,10 +145,10 @@ export default function OperationsClient() {
     const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setMessage(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Khong thuc hien duoc');
+      setMessage(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Khong thực hiện duoc');
       return;
     }
-    setMessage('Da cap nhat du lieu van hanh');
+    setMessage('Đã cập nhật dữ liệu vận hành');
     await Promise.all([load(), loadStatic()]);
   }
 
@@ -155,8 +156,8 @@ export default function OperationsClient() {
     <section className="workspace operationsPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">San pham & van hanh</p>
-          <h1>Van hanh tour va thanh toan NCC</h1>
+          <p className="eyebrow">Sản phẩm & vận hành</p>
+          <h1>Vận hành tour va thanh toán NCC</h1>
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
@@ -166,35 +167,35 @@ export default function OperationsClient() {
 
       <section className="metrics operationsMetrics">
         <Metric label="Sap khoi hanh" value={dashboard.upcomingDepartures} />
-        <Metric label="Dang van hanh" value={dashboard.operatingTours} />
+        <Metric label="Đang vận hành" value={dashboard.operatingTours} />
         <Metric label="Task qua han" value={dashboard.overdueTasks} />
-        <Metric label="NCC cho xac nhan" value={dashboard.waitingSupplierConfirmations} />
-        <Metric label="YC thanh toan" value={dashboard.pendingSupplierPayments} />
+        <Metric label="NCC cho xác nhận" value={dashboard.waitingSupplierConfirmations} />
+        <Metric label="YC thanh toán" value={dashboard.pendingSupplierPayments} />
         <Metric label="Tour am loi" value={dashboard.lowMarginTours} />
       </section>
-      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage', 'operation.payment-request.view', 'operation.payment-request.create'])} label="xem van hanh tour" />
+      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage', 'operation.payment-request.view', 'operation.payment-request.create'])} label="xem vận hành tour" />
 
       <section className="panel operationsFilters">
-        <label><Search size={15} /> Tim kiem<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Booking, order, tour, ma yeu cau" /></label>
-        <label>Trang thai<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tat ca</option><option>PENDING</option><option>IN_PROGRESS</option><option>DONE</option><option>PROBLEM</option><option>CANCELLED</option><option>DRAFT</option><option>REQUESTED</option><option>APPROVED</option><option>PAID</option><option>REJECTED</option></select></label>
+        <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Booking, order, tour, mã yêu cầu" /></label>
+        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option><option>PENDING</option><option>IN_PROGRESS</option><option>DONE</option><option>PROBLEM</option><option>CANCELLED</option><option>DRAFT</option><option>REQUESTED</option><option>APPROVED</option><option>PAID</option><option>REJECTED</option></select></label>
       </section>
 
       <div className="moduleTabs operationsTabs">
-        <button className={tab === 'forms' ? 'active' : ''} onClick={() => setTab('forms')}><ClipboardCheck size={16} /> Phieu dieu hanh</button>
-        <button className={tab === 'payments' ? 'active' : ''} onClick={() => setTab('payments')}><HandCoins size={16} /> Thanh toan NCC</button>
+        <button className={tab === 'forms' ? 'active' : ''} onClick={() => setTab('forms')}><ClipboardCheck size={16} /> Phiếu điều hành</button>
+        <button className={tab === 'payments' ? 'active' : ''} onClick={() => setTab('payments')}><HandCoins size={16} /> Thanh toán NCC</button>
       </div>
 
       {tab === 'forms' ? (
         <section className="contentGrid operationsGrid">
           <div className="panel operationsFormPanel">
-            <h2><Plus size={18} /> Tao phieu dieu hanh</h2>
+            <h2><Plus size={18} /> Tạo phiếu điều hành</h2>
             <form action={createForm} className="formGrid">
-              <label>Booking<select name="bookingId" required><option value="">Chon booking</option>{bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.code} - {booking.customerName || 'Khach'}</option>)}</select></label>
-              <label>Trang thai<select name="status" defaultValue="PENDING"><option>PENDING</option><option>IN_PROGRESS</option><option>DONE</option><option>PROBLEM</option></select></label>
-              <label>NCC<select name="supplierId"><option value="">Chon NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode || supplier.name} - {supplier.name}</option>)}</select></label>
-              <label>Dich vu NCC<select name="supplierServiceId"><option value="">Chon dich vu</option>{suppliers.flatMap((supplier) => supplier.supplierServices || []).map((service) => <option key={service.id} value={service.id}>{service.sku || service.serviceName} - {service.serviceName}</option>)}</select></label>
+              <label>Booking<select name="bookingId" required><option value="">Chọn booking</option>{bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.code} - {booking.customerName || 'Khach'}</option>)}</select></label>
+              <label>Trạng thái<select name="status" defaultValue="PENDING"><option>PENDING</option><option>IN_PROGRESS</option><option>DONE</option><option>PROBLEM</option></select></label>
+              <label>NCC<select name="supplierId"><option value="">Chọn NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode || supplier.name} - {supplier.name}</option>)}</select></label>
+              <label>Dich vu NCC<select name="supplierServiceId"><option value="">Chọn dich vu</option>{suppliers.flatMap((supplier) => supplier.supplierServices || []).map((service) => <option key={service.id} value={service.id}>{service.sku || service.serviceName} - {service.serviceName}</option>)}</select></label>
               <label>Loai DV<input name="serviceType" defaultValue="HOTEL" /></label>
-              <label>Ten dich vu<input name="serviceName" defaultValue="Dich vu dieu hanh" /></label>
+              <label>Tên dịch vụ<input name="serviceName" defaultValue="Dich vu dieu hanh" /></label>
               <label>Xac nhan<select name="confirmationStatus" defaultValue="WAITING"><option>WAITING</option><option>REQUESTED</option><option>CONFIRMED</option><option>OPERATING</option><option>DONE</option></select></label>
               <label>Du kien chi<input name="expectedCost" type="number" min={0} defaultValue={0} /></label>
               <label>Thuc chi<input name="actualCost" type="number" min={0} defaultValue={0} /></label>
@@ -202,32 +203,32 @@ export default function OperationsClient() {
               <label>Task<input name="taskTitle" defaultValue="Xac nhan NCC" /></label>
               <label>Nguoi phu trach<input name="assignee" /></label>
               <label>Han task<input name="dueDate" type="date" /></label>
-              <label>Ghi chu<textarea name="notes" rows={3} /></label>
-              <button type="submit" disabled={!can('operation.form.manage')}>Tao phieu dieu hanh</button>
+              <label>Ghi chú<textarea name="notes" rows={3} /></label>
+              <button type="submit" disabled={!can('operation.form.manage')}>Tạo phiếu điều hành</button>
             </form>
           </div>
-          <OperationsTable title="Danh sach phieu dieu hanh" count={forms.length}>
-            <thead><tr><th>Booking</th><th>Order/Tour</th><th>Dich vu</th><th>Task</th><th>Chi phi</th><th>Trang thai</th><th></th></tr></thead>
-            <tbody>{forms.map((form) => <tr key={form.id}><td><strong>{form.booking?.code || form.bookingId}</strong><span>{form.booking?.customerName || ''}</span></td><td>{form.order?.systemCode || '-'}<span>{form.tour?.tourCode || ''}</span></td><td>{form.services[0]?.serviceName || '-'}<span>{form.services[0]?.supplier?.name || form.services[0]?.confirmationStatus || ''}</span></td><td>{form.tasks[0]?.title || '-'}<span>{date(form.tasks[0]?.dueDate)}</span></td><td>{money(sumCosts(form))}</td><td><span className="statusPill">{form.status}</span></td><td className="operationsActions"><button className="secondaryButton iconButton" onClick={() => { setSelectedFormId(form.id); setTab('payments'); }}><WalletCards size={16} /></button><button className="dangerButton iconButton" disabled={!can('operation.form.manage')} onClick={() => cancelForm(form.id)}><XCircle size={16} /></button></td></tr>)}</tbody>
+          <OperationsTable title="Danh sach phiếu điều hành" count={forms.length}>
+            <thead><tr><th>Booking</th><th>Order/Tour</th><th>Dich vu</th><th>Task</th><th>Chi phi</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>{forms.map((form) => <tr key={form.id}><td><strong>{form.booking?.code || form.bookingId}</strong><span>{form.booking?.customerName || ''}</span></td><td>{form.order?.systemCode || '-'}<span>{form.tour?.tourCode || ''}</span></td><td>{form.services[0]?.serviceName || '-'}<span>{form.services[0]?.supplier?.name || form.services[0]?.confirmationStatus || ''}</span></td><td>{form.tasks[0]?.title || '-'}<span>{date(form.tasks[0]?.dueDate)}</span></td><td>{money(sumCosts(form))}</td><td><span className="statusPill">{viStatus(form.status)}</span></td><td className="operationsActions"><button className="secondaryButton iconButton" onClick={() => { setSelectedFormId(form.id); setTab('payments'); }}><WalletCards size={16} /></button><button className="dangerButton iconButton" disabled={!can('operation.form.manage')} onClick={() => cancelForm(form.id)}><XCircle size={16} /></button></td></tr>)}</tbody>
           </OperationsTable>
         </section>
       ) : (
         <section className="contentGrid operationsGrid">
           <div className="panel operationsFormPanel">
-            <h2><Plus size={18} /> Tao yeu cau thanh toan NCC</h2>
+            <h2><Plus size={18} /> Tạo yeu cau thanh toán NCC</h2>
             <form action={createPaymentRequest} className="formGrid">
-              <label>Phieu dieu hanh<select value={selectedFormId} onChange={(event) => setSelectedFormId(event.target.value)}><option value="">Chon phieu dieu hanh</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dich vu'}</option>)}</select></label>
-              <label>NCC<select name="supplierId" defaultValue={selectedForm?.services?.[0]?.supplier?.id || ''}><option value="">Chon NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode || supplier.name} - {supplier.name}</option>)}</select></label>
+              <label>Phiếu điều hành<select value={selectedFormId} onChange={(event) => setSelectedFormId(event.target.value)}><option value="">Chọn phiếu điều hành</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dich vu'}</option>)}</select></label>
+              <label>NCC<select name="supplierId" defaultValue={selectedForm?.services?.[0]?.supplier?.id || ''}><option value="">Chọn NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode || supplier.name} - {supplier.name}</option>)}</select></label>
               <label>Chi phi<select name="costId" defaultValue={selectedForm?.costs?.[0]?.id || ''}><option value="">Khong gan chi phi</option>{selectedForm?.costs.map((cost) => <option key={cost.id} value={cost.id}>{cost.costName} - {money(Number(cost.actualAmount || cost.expectedAmount))}</option>)}</select></label>
               <label>So tien<input name="amount" type="number" min={0} defaultValue={Number(selectedForm?.costs?.[0]?.actualAmount || selectedForm?.costs?.[0]?.expectedAmount || 0)} /></label>
               <label>Nguoi tao<input name="requestedBy" defaultValue="operation" /></label>
-              <label>Ghi chu<textarea name="notes" rows={3} /></label>
-              <button type="submit" disabled={!can('operation.payment-request.create')}>Tao yeu cau thanh toan</button>
+              <label>Ghi chú<textarea name="notes" rows={3} /></label>
+              <button type="submit" disabled={!can('operation.payment-request.create')}>Tạo yeu cau thanh toán</button>
             </form>
           </div>
-          <OperationsTable title="Danh sach yeu cau thanh toan" count={requests.length}>
-            <thead><tr><th>Ma YC</th><th>NCC</th><th>Chi phi</th><th>So tien</th><th>Phieu chi</th><th>Trang thai</th><th></th></tr></thead>
-            <tbody>{requests.map((request) => <tr key={request.id}><td><strong>{request.code}</strong><span>{date(request.requestedAt)}</span></td><td>{request.items[0]?.supplier?.name || '-'}</td><td>{request.items[0]?.cost?.costName || '-'}<span>{request.items[0]?.notes || ''}</span></td><td>{money(totalRequest(request))}</td><td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${request.financePayment.approvalStatus} - ${money(Number(request.financePayment.paymentAmount))}` : ''}</span></td><td><span className="statusPill">{request.status}</span></td><td className="operationsActions"><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.create')} onClick={() => requestAction(request.id, 'submit')}><Send size={16} /></button><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'create-finance-payment')}><FileCheck2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => approveFinancePayment(request.financePaymentId)}><HandCoins size={16} /></button><button className="dangerButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
+          <OperationsTable title="Danh sach yeu cau thanh toán" count={requests.length}>
+            <thead><tr><th>Ma YC</th><th>NCC</th><th>Chi phi</th><th>So tien</th><th>Phiếu chi</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>{requests.map((request) => <tr key={request.id}><td><strong>{request.code}</strong><span>{date(request.requestedAt)}</span></td><td>{request.items[0]?.supplier?.name || '-'}</td><td>{request.items[0]?.cost?.costName || '-'}<span>{request.items[0]?.notes || ''}</span></td><td>{money(totalRequest(request))}</td><td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${viStatus(request.financePayment.approvalStatus)} - ${money(Number(request.financePayment.paymentAmount))}` : ''}</span></td><td><span className="statusPill">{viStatus(request.status)}</span></td><td className="operationsActions"><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.create')} onClick={() => requestAction(request.id, 'submit')}><Send size={16} /></button><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'create-finance-payment')}><FileCheck2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => approveFinancePayment(request.financePaymentId)}><HandCoins size={16} /></button><button className="dangerButton iconButton" disabled={!can('operation.payment-request.approve')} onClick={() => requestAction(request.id, 'reject')}><XCircle size={16} /></button></td></tr>)}</tbody>
           </OperationsTable>
         </section>
       )}

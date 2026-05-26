@@ -24,11 +24,11 @@ export default async function QuoteToursPage() {
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard van hanh</Link>
-          <Link href="/quotes/tours" className="active">Tinh gia tour</Link>
-          <Link href="/quotes/combos">Tinh gia combo</Link>
-          <Link href="/suppliers">Nha cung cap</Link>
-          <Link href="/fit-tours">Tour khach le FIT</Link>
+          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/quotes/tours" className="active">Tính giá tour</Link>
+          <Link href="/quotes/combos">Tính giá combo</Link>
+          <Link href="/suppliers">Nhà cung cấp</Link>
+          <Link href="/fit-tours">Tour khách lẻ FIT</Link>
           <Link href="/git-tours">Tour GIT</Link>
           <Link href="/landtours">LandTour / Combo</Link>
         </nav>
@@ -37,9 +37,9 @@ export default async function QuoteToursPage() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Bao gia</p>
-            <h1>Tinh gia tour</h1>
+            <h1>Tính giá tour</h1>
           </div>
-          <div className="user"><Calculator size={18} /> Quote Tour <Users size={18} /> Operator</div>
+          <div className="user"><Calculator size={18} /> Quote Tour <Users size={18} /> Nhân sự vận hành</div>
         </header>
         <QuoteToursClient initialQuotes={quotes} />
       </section>

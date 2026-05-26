@@ -73,41 +73,41 @@ export default async function SuppliersPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Operation master data</p>
+          <p className="eyebrow">Dữ liệu nền vận hành</p>
           <h1>Quan ly nha cung cap</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><Users size={14} /> Operator</span>
-          <span className="statusPill statusPillNeutral">Master data</span>
+          <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill statusPillNeutral">Dữ liệu nền</span>
         </div>
       </header>
 
         <section className="contentGrid suppliersGrid">
           <div className="panel">
-            <h2><Plus size={18} /> Them loai NCC</h2>
+            <h2><Plus size={18} /> Thêm loai NCC</h2>
             <form action={createCategory} className="formStack">
               <label>
                 Ten loai
                 <input name="name" placeholder="Hotel, Vehicle, Tour Guide" required minLength={2} />
               </label>
-              <button type="submit">Tao loai NCC</button>
+              <button type="submit">Tạo loại NCC</button>
             </form>
           </div>
 
           <div className="panel">
-            <h2><Building2 size={18} /> Them nha cung cap</h2>
+            <h2><Building2 size={18} /> Thêm nha cung cap</h2>
             <form action={createSupplier} className="formGrid">
               <label>
                 Loai NCC
                 <select name="categoryId" required>
-                  <option value="">Chon loai</option>
+                  <option value="">Chọn loai</option>
                   {categories.map((category) => (
                     <option value={category.id} key={category.id}>{category.name}</option>
                   ))}
                 </select>
               </label>
               <label>
-                Ten NCC
+                Tên NCC
                 <input name="name" required minLength={2} />
               </label>
               <label>
@@ -115,7 +115,7 @@ export default async function SuppliersPage() {
                 <input name="contactPerson" />
               </label>
               <label>
-                Dien thoai
+                Điện thoại
                 <input name="phone" />
               </label>
               <label>
@@ -123,7 +123,7 @@ export default async function SuppliersPage() {
                 <input name="email" type="email" />
               </label>
               <label>
-                Dia chi
+                Địa chỉ
                 <input name="address" />
               </label>
               <label>
@@ -131,28 +131,28 @@ export default async function SuppliersPage() {
                 <textarea name="pricePolicy" rows={3} />
               </label>
               <label>
-                Ghi chu cong no
+                Ghi chú cong no
                 <textarea name="debtNote" rows={3} />
               </label>
-              <button type="submit">Tao NCC</button>
+              <button type="submit">Tạo NCC</button>
             </form>
           </div>
         </section>
 
         <section className="panel listPanel">
           <div className="sectionHeader">
-            <h2>Danh sach nha cung cap</h2>
+            <h2>Danh sách nhà cung cấp</h2>
             <span>{suppliers.length} NCC</span>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Ten NCC</th>
+                <th>Tên NCC</th>
                 <th>Loai</th>
-                <th>Lien he</th>
-                <th>Dien thoai</th>
+                <th>Liên hệ</th>
+                <th>Điện thoại</th>
                 <th>Email</th>
-                <th>Dia chi</th>
+                <th>Địa chỉ</th>
               </tr>
             </thead>
             <tbody>
@@ -167,14 +167,14 @@ export default async function SuppliersPage() {
                 </tr>
               ))}
               {suppliers.length === 0 ? (
-                <tr><td colSpan={6}>Chua co nha cung cap. Hay tao loai NCC va NCC dau tien.</td></tr>
+                <tr><td colSpan={6}>Chưa co nha cung cap. Hay tao loai NCC va NCC dau tien.</td></tr>
               ) : null}
             </tbody>
           </table>
         </section>
 
         <section className="panel categoryPanel">
-          <h2>Loai nha cung cap</h2>
+          <h2>Loại nhà cung cấp</h2>
           <div className="chips">
             {categories.map((category) => (
               <span key={category.id}>{category.name} ({category._count?.suppliers ?? 0})</span>

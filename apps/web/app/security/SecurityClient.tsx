@@ -3,6 +3,7 @@
 import { CheckCircle2, KeyRound, Plus, RefreshCcw, Save, ShieldCheck, UserCog } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { viPermission, viRoleCode, viStatus } from '../i18n';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type Role = {
@@ -29,7 +30,7 @@ type User = {
   permissions: string[];
 };
 
-const commonPermissions = [
+const commonQuyền = [
   '*',
   'auth.user.manage',
   'auth.role.manage',
@@ -163,7 +164,7 @@ export default function SecurityClient() {
     const currentPassword = text(formData.get('currentPassword'));
     const newPassword = text(formData.get('newPassword'));
     if (newPassword.length < 8) {
-      setMessage('Mat khau moi can it nhat 8 ky tu');
+      setMessage('Mật khẩu mới can it nhat 8 ky tu');
       return;
     }
     await post('/api/auth/change-password', { currentPassword, newPassword });
@@ -182,10 +183,10 @@ export default function SecurityClient() {
     const response = await fetch(`${API_URL}${path}`, { method, headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMessage(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Khong cap nhat duoc');
+      setMessage(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Không cập nhật được');
       return;
     }
-    setMessage('Da cap nhat phan quyen');
+    setMessage('Đã cập nhật phân quyền');
     await load();
   }
 
@@ -193,52 +194,52 @@ export default function SecurityClient() {
     <section className="workspace securityPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">He thong</p>
-          <h1>Users, Roles va Permissions</h1>
+          <p className="eyebrow">Hệ thống</p>
+          <h1>Người dùng, vai trò và quyền</h1>
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
-          <button className="secondaryButton iconTextButton" onClick={load}><RefreshCcw size={16} /> Reload</button>
+          <button className="secondaryButton iconTextButton" onClick={load}><RefreshCcw size={16} /> Tải lại</button>
         </div>
       </header>
 
       <section className="metrics securityMetrics">
-        <Metric label="Nguoi dung" value={users.length} />
-        <Metric label="Roles" value={roles.length} />
-        <Metric label="Permissions" value={new Set(roles.flatMap((role) => role.permissions.map((item) => item.permission))).size} />
-        <Metric label="Token" value={tokenReady ? 'Ready' : 'Missing'} />
+        <Metric label="Người dùng" value={users.length} />
+        <Metric label="Vai trò" value={roles.length} />
+        <Metric label="Quyền" value={new Set(roles.flatMap((role) => role.permissions.map((item) => item.permission))).size} />
+        <Metric label="Token" value={tokenReady ? 'Sẵn sàng' : 'Chưa có'} />
       </section>
 
       <section className="contentGrid securityGrid">
         <div className="panel securityFormPanel">
-          <h2><KeyRound size={18} /> Doi mat khau cua toi</h2>
+          <h2><KeyRound size={18} /> Đổi mật khẩu của tôi</h2>
           <form action={changeOwnPassword} className="formGrid">
-            <label>Mat khau hien tai<input name="currentPassword" type="password" required /></label>
-            <label>Mat khau moi<input name="newPassword" type="password" required minLength={8} /></label>
-            <button type="submit"><KeyRound size={16} /> Doi mat khau</button>
+            <label>Mật khẩu hiện tại<input name="currentPassword" type="password" required /></label>
+            <label>Mật khẩu mới<input name="newPassword" type="password" required minLength={8} /></label>
+            <button type="submit"><KeyRound size={16} /> Đổi mật khẩu</button>
           </form>
 
-          <h2><Plus size={18} /> Tao user</h2>
+          <h2><Plus size={18} /> Tạo user</h2>
           <form action={createUser} className="formGrid">
             <label>Email<input name="email" type="email" required placeholder="user@company.com" /></label>
-            <label>Ho ten<input name="name" required /></label>
-            <label>Mat khau<input name="password" type="password" required minLength={8} /></label>
-            <label>Chi nhanh<input name="branch" /></label>
-            <label>Phong ban<input name="department" /></label>
-            <label>Roles<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))}>{roleCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-            <button type="submit"><UserCog size={16} /> Tao user</button>
+            <label>Họ tên<input name="name" required /></label>
+            <label>Mật khẩu<input name="password" type="password" required minLength={8} /></label>
+            <label>Chi nhánh<input name="branch" /></label>
+            <label>Phòng ban<input name="department" /></label>
+            <label>Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label>
+            <button type="submit"><UserCog size={16} /> Tạo user</button>
           </form>
 
-          <h2><Save size={18} /> Cap nhat user</h2>
+          <h2><Save size={18} /> Cập nhật user</h2>
           <form action={updateUser} className="formGrid">
-            <label>User<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chon user</option>{users.map((user) => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
-            <label>Ho ten<input name="name" defaultValue={selectedUser?.name || ''} /></label>
-            <label>Trang thai<select name="status" defaultValue={selectedUser?.status || 'ACTIVE'}><option>ACTIVE</option><option>INACTIVE</option><option>LOCKED</option></select></label>
-            <label>Mat khau moi<input name="password" type="password" minLength={8} placeholder="De trong neu khong doi" /></label>
-            <label>Chi nhanh<input name="branch" defaultValue={selectedUser?.branch || ''} /></label>
-            <label>Phong ban<input name="department" defaultValue={selectedUser?.department || ''} /></label>
-            <label>Roles<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))} defaultValue={selectedUser?.roles.map((role) => role.code) || []}>{roleCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-            <button type="submit"><KeyRound size={16} /> Luu user</button>
+            <label>User<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn user</option>{users.map((user) => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
+            <label>Họ tên<input name="name" defaultValue={selectedUser?.name || ''} /></label>
+            <label>Trạng thái<select name="status" defaultValue={selectedUser?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="LOCKED">Đã khóa</option></select></label>
+            <label>Mật khẩu mới<input name="password" type="password" minLength={8} placeholder="Để trống nếu không đổi" /></label>
+            <label>Chi nhánh<input name="branch" defaultValue={selectedUser?.branch || ''} /></label>
+            <label>Phòng ban<input name="department" defaultValue={selectedUser?.department || ''} /></label>
+            <label>Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))} defaultValue={selectedUser?.roles.map((role) => role.code) || []}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label>
+            <button type="submit"><KeyRound size={16} /> Lưu user</button>
           </form>
         </div>
 
@@ -246,8 +247,8 @@ export default function SecurityClient() {
           <div className="sectionHeader"><h2>Danh sach user</h2><span>{users.length} dong</span></div>
           <div className="fitTableWrap">
             <table className="securityTable">
-              <thead><tr><th>Email</th><th>Ten</th><th>Role</th><th>Data scope</th><th>Chi nhanh</th><th>Phong ban</th><th>Login gan nhat</th><th>Trang thai</th></tr></thead>
-              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.email}</strong></td><td>{user.name}</td><td>{user.roles.map((role) => role.code).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{user.status}</span></td></tr>)}</tbody>
+              <thead><tr><th>Email</th><th>Ten</th><th>Role</th><th>Data scope</th><th>Chi nhánh</th><th>Phòng ban</th><th>Login gan nhat</th><th>Trạng thái</th></tr></thead>
+              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.email}</strong></td><td>{user.name}</td><td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{viStatus(user.status)}</span></td></tr>)}</tbody>
             </table>
           </div>
         </section>
@@ -255,32 +256,32 @@ export default function SecurityClient() {
 
       <section className="contentGrid securityGrid">
         <div className="panel securityFormPanel">
-          <h2><Plus size={18} /> Tao role</h2>
+          <h2><Plus size={18} /> Tạo role</h2>
           <form action={createRole} className="formGrid">
             <label>Code<input name="code" required placeholder="finance_manager" /></label>
             <label>Ten role<input name="name" required /></label>
             <label>Mo ta<textarea name="description" rows={3} /></label>
-            <label>Permissions<textarea name="permissions" rows={8} placeholder={commonPermissions.join('\n')} /></label>
-            <button type="submit"><ShieldCheck size={16} /> Tao role</button>
+            <label>Quyền<textarea name="permissions" rows={8} placeholder={commonQuyền.join('\n')} /></label>
+            <button type="submit"><ShieldCheck size={16} /> Tạo role</button>
           </form>
 
           <h2><Save size={18} /> Cap nhat role</h2>
           <form action={updateRole} className="formGrid">
-            <label>Role<select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}><option value="">Chon role</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.code}</option>)}</select></label>
+            <label>Role<select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}><option value="">Chọn role</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.code}</option>)}</select></label>
             <label>Ten role<input name="name" defaultValue={selectedRole?.name || ''} /></label>
-            <label>Trang thai<select name="status" defaultValue={selectedRole?.status || 'ACTIVE'}><option>ACTIVE</option><option>INACTIVE</option></select></label>
+            <label>Trạng thái<select name="status" defaultValue={selectedRole?.status || 'ACTIVE'}><option>ACTIVE</option><option>INACTIVE</option></select></label>
             <label>Mo ta<textarea name="description" rows={3} defaultValue={selectedRole?.description || ''} /></label>
-            <label>Permissions<textarea name="permissions" rows={10} defaultValue={selectedRole?.permissions.map((item) => item.permission).join('\n') || ''} /></label>
-            <button type="submit"><CheckCircle2 size={16} /> Luu role</button>
+            <label>Quyền<textarea name="permissions" rows={10} defaultValue={selectedRole?.permissions.map((item) => item.permission).join('\n') || ''} /></label>
+            <button type="submit"><CheckCircle2 size={16} /> Lưu role</button>
           </form>
         </div>
 
         <section className="panel securityList">
-          <div className="sectionHeader"><h2>Roles & permissions</h2><span>{roles.length} dong</span></div>
+          <div className="sectionHeader"><h2>Vai trò & permissions</h2><span>{roles.length} dong</span></div>
           <div className="fitTableWrap">
             <table className="securityTable">
-              <thead><tr><th>Role</th><th>Mo ta</th><th>Users</th><th>Data scope</th><th>Permissions</th><th>Trang thai</th></tr></thead>
-              <tbody>{roles.map((role) => <tr key={role.id}><td><strong>{role.code}</strong><span>{role.name}</span></td><td>{role.description || '-'}</td><td>{role._count?.users || 0}</td><td><span className="statusPill">{roleScopeLabel(role)}</span></td><td><div className="permissionChips">{role.permissions.map((item) => <span key={item.id}>{item.permission}</span>)}</div></td><td><span className="statusPill">{role.status}</span></td></tr>)}</tbody>
+              <thead><tr><th>Role</th><th>Mo ta</th><th>Users</th><th>Data scope</th><th>Quyền</th><th>Trạng thái</th></tr></thead>
+              <tbody>{roles.map((role) => <tr key={role.id}><td><strong>{role.code}</strong><span>{role.name}</span></td><td>{role.description || '-'}</td><td>{role._count?.users || 0}</td><td><span className="statusPill">{roleScopeLabel(role)}</span></td><td><div className="permissionChips">{role.permissions.map((item) => <span key={item.id}>{viPermission(item.permission)}</span>)}</div></td><td><span className="statusPill">{viStatus(role.status)}</span></td></tr>)}</tbody>
             </table>
           </div>
         </section>

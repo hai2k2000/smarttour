@@ -36,25 +36,25 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard van hanh</Link>
-          <Link href="/orders/fit-tours" className={type === 'fit-tours' ? 'active' : ''}>Don Tour FIT</Link>
-          <Link href="/orders/git-combos" className={type === 'git-combos' ? 'active' : ''}>Don GIT/Combo</Link>
-          <Link href="/orders/landtours" className={type === 'landtours' ? 'active' : ''}>Don LandTour</Link>
-          <Link href="/orders/hotel-bookings" className={type === 'hotel-bookings' ? 'active' : ''}>Booking phong KS</Link>
-          <Link href="/orders/flight-orders" className={type === 'flight-orders' ? 'active' : ''}>Booking ve MB</Link>
-          <Link href="/orders/single-services" className={type === 'single-services' ? 'active' : ''}>Dich vu le</Link>
-          <Link href="/quotes/tours">Tinh gia tour</Link>
-          <Link href="/quotes/combos">Tinh gia combo</Link>
-          <Link href="/suppliers">Nha cung cap</Link>
+          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/orders/fit-tours" className={type === 'fit-tours' ? 'active' : ''}>Đơn Tour FIT</Link>
+          <Link href="/orders/git-combos" className={type === 'git-combos' ? 'active' : ''}>Đơn GIT/Combo</Link>
+          <Link href="/orders/landtours" className={type === 'landtours' ? 'active' : ''}>Đơn LandTour</Link>
+          <Link href="/orders/hotel-bookings" className={type === 'hotel-bookings' ? 'active' : ''}>Booking phòng KS</Link>
+          <Link href="/orders/flight-orders" className={type === 'flight-orders' ? 'active' : ''}>Booking vé MB</Link>
+          <Link href="/orders/single-services" className={type === 'single-services' ? 'active' : ''}>Dịch vụ lẻ</Link>
+          <Link href="/quotes/tours">Tính giá tour</Link>
+          <Link href="/quotes/combos">Tính giá combo</Link>
+          <Link href="/suppliers">Nhà cung cấp</Link>
         </nav>
       </aside>
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Don hang/LKH</p>
+            <p className="eyebrow">Đơn hàng/LKH</p>
             <h1>{config.title}</h1>
           </div>
-          <div className="user"><ClipboardList size={18} /> {config.shortTitle} <Users size={18} /> Operator</div>
+          <div className="user"><ClipboardList size={18} /> {config.shortTitle} <Users size={18} /> Nhân sự vận hành</div>
         </header>
         <OrdersClient type={type} config={config} initialOrders={orders} />
       </section>

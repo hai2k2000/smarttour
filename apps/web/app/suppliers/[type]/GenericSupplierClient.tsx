@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
 
+import { viStatus } from '../../i18n';
 export type SupplierType =
   | 'restaurants'
   | 'flights'
@@ -28,12 +29,12 @@ type SupplierConfig = { title: string; shortTitle: string; serviceTitle: string;
 
 export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
   restaurants: {
-    title: 'Nha cung cap nha hang',
+    title: 'Nhà cung cấp nha hang',
     shortTitle: 'Nha hang',
     serviceTitle: 'Danh muc thuc don',
     serviceNameLabel: 'Ten menu',
     serviceFields: [
-      { key: 'quantity', label: 'So luong', type: 'number' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
       { key: 'accountingPrice', label: 'Gia KT', type: 'number' },
       { key: 'netPrice', label: 'Gia NET', type: 'number' },
       { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
@@ -41,7 +42,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   flights: {
-    title: 'Nha cung cap ve may bay',
+    title: 'Nhà cung cấp ve may bay',
     shortTitle: 'Ve may bay',
     serviceTitle: 'Chang bay / ma ve',
     serviceNameLabel: 'Code ve',
@@ -66,12 +67,12 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   'attraction-tickets': {
-    title: 'Nha cung cap ve tham quan',
+    title: 'Nhà cung cấp ve tham quan',
     shortTitle: 'Ve tham quan',
     serviceTitle: 'Dich vu / ve tham quan',
-    serviceNameLabel: 'Ten dich vu',
+    serviceNameLabel: 'Tên dịch vụ',
     serviceFields: [
-      { key: 'quantity', label: 'So luong', type: 'number' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
       { key: 'accountingPrice', label: 'Gia KT', type: 'number' },
       { key: 'netPrice', label: 'Gia NET', type: 'number' },
       { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
@@ -79,7 +80,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   'landtour-suppliers': {
-    title: 'Nha cung cap Landtour',
+    title: 'Nhà cung cấp Landtour',
     shortTitle: 'Landtour',
     serviceTitle: 'Chuong trinh Landtour',
     serviceNameLabel: 'Ten tour',
@@ -96,12 +97,12 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
       { key: 'netPrice', label: 'Gia NET', type: 'number' },
       { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
       { key: 'childPolicy', label: 'CS tre em', type: 'textarea' },
-      { key: 'cancelPolicy', label: 'CS huy', type: 'textarea' },
-      { key: 'paymentPolicy', label: 'Thanh toan', type: 'textarea' },
+      { key: 'cancelPolicy', label: 'CS hủy', type: 'textarea' },
+      { key: 'paymentPolicy', label: 'Thanh toán', type: 'textarea' },
     ],
   },
   water: {
-    title: 'Nha cung cap nuoc suoi',
+    title: 'Nhà cung cấp nuoc suoi',
     shortTitle: 'Nuoc suoi',
     serviceTitle: 'San pham nuoc',
     serviceNameLabel: 'Ten san pham',
@@ -114,8 +115,8 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   transport: {
-    title: 'Nha cung cap van chuyen',
-    shortTitle: 'Van chuyen',
+    title: 'Nhà cung cấp van chủyen',
+    shortTitle: 'Van chủyen',
     serviceTitle: 'Dich vu xe',
     serviceNameLabel: 'Loai xe',
     serviceFields: [
@@ -146,10 +147,10 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   other: {
-    title: 'Nha cung cap chi phi khac',
+    title: 'Nhà cung cấp chi phi khac',
     shortTitle: 'Chi phi khac',
     serviceTitle: 'Dich vu phat sinh',
-    serviceNameLabel: 'Ten dich vu',
+    serviceNameLabel: 'Tên dịch vụ',
     serviceFields: [
       { key: 'unit', label: 'Don vi' },
       { key: 'netPrice', label: 'Gia NET', type: 'number' },
@@ -158,7 +159,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   villas: {
-    title: 'Nha cung cap villas',
+    title: 'Nhà cung cấp villas',
     shortTitle: 'Villas',
     serviceTitle: 'Villa / gia',
     serviceNameLabel: 'Ten villa',
@@ -175,12 +176,12 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   passport: {
-    title: 'Nha cung cap visa / ho chieu',
+    title: 'Nhà cung cấp visa / ho chieu',
     shortTitle: 'Visa',
     serviceTitle: 'Dich vu visa',
     serviceNameLabel: 'Loai ho so',
     serviceFields: [
-      { key: 'country', label: 'Quoc gia' },
+      { key: 'country', label: 'Quốc gia' },
       { key: 'documentType', label: 'Loai dich vu' },
       { key: 'processingTime', label: 'Thoi gian xu ly' },
       { key: 'requiredDocuments', label: 'Ho so can co', type: 'textarea' },
@@ -189,13 +190,13 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   guides: {
-    title: 'Huong dan vien',
+    title: 'Hướng dẫn viên',
     shortTitle: 'Tour Guide',
     serviceTitle: 'Thong tin HDV',
-    serviceNameLabel: 'Ho ten HDV',
+    serviceNameLabel: 'Họ tên HDV',
     serviceFields: [
       { key: 'birthday', label: 'Ngay sinh', type: 'date' },
-      { key: 'phone', label: 'Dien thoai' },
+      { key: 'phone', label: 'Điện thoại' },
       { key: 'email', label: 'Email' },
       { key: 'idNumber', label: 'CCCD' },
       { key: 'guideCardNumber', label: 'The HDV' },
@@ -212,11 +213,11 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceFields: [
       { key: 'seriesCode', label: 'Ma series' },
       { key: 'route', label: 'Hanh trinh' },
-      { key: 'quantity', label: 'So luong', type: 'number' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
       { key: 'netPrice', label: 'Gia NET', type: 'number' },
       { key: 'depositDeadline', label: 'Han coc', type: 'date' },
       { key: 'nameDeadline', label: 'Han vao ten', type: 'date' },
-      { key: 'fullPaymentDeadline', label: 'Han thanh toan', type: 'date' },
+      { key: 'fullPaymentDeadline', label: 'Han thanh toán', type: 'date' },
     ],
   },
 };
@@ -375,13 +376,13 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
     return [
       helper.display({ id: 'check', header: '', cell: () => <input type="checkbox" aria-label="select supplier" /> }),
       helper.display({ id: 'info', header: 'Thong tin', cell: ({ row }) => <div><strong>{row.original.supplierCode || '-'}</strong><br />{row.original.name}<br /><span className="mutedText">{row.original.taxCode || '-'}</span></div> }),
-      helper.accessor('phone', { header: 'Dien thoai', cell: (info) => info.getValue() || '-' }),
+      helper.accessor('phone', { header: 'Điện thoại', cell: (info) => info.getValue() || '-' }),
       helper.accessor('email', { header: 'Email', cell: (info) => info.getValue() || '-' }),
       helper.accessor('province', { header: 'Tinh thanh', cell: (info) => info.getValue() || '-' }),
-      helper.display({ id: 'count', header: 'So luong', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
+      helper.display({ id: 'count', header: 'Số lượng', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
       helper.display({ id: 'debt', header: 'Cong no', cell: () => '0' }),
-      helper.accessor('status', { header: 'Tinh trang', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-      helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => startEdit(row.original)}><Pencil size={15} /> Sua</button> }),
+      helper.accessor('status', { header: 'Tình trạng', cell: (info) => <span className="statusPill">{viStatus(info.getValue())}</span> }),
+      helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => startEdit(row.original)}><Pencil size={15} /> Sửa</button> }),
     ];
   }, []);
   const table = useReactTable({ data: filtered, columns, getCoreRowModel: getCoreRowModel() });
@@ -407,7 +408,7 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
       setMessage('Khong luu duoc NCC. Kiem tra ma NCC va truong bat buoc.');
       return;
     }
-    setMessage(editingId ? 'Da cap nhat NCC.' : 'Da tao NCC.');
+    setMessage(editingId ? 'Đã cập nhật NCC.' : 'Đã tạo NCC.');
     setEditingId(null);
     reset(defaultValues);
     await reload();
@@ -431,27 +432,27 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
       <form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm">
         <section className="panel">
           <div className="sectionHeader">
-            <h2>{editingId ? `Cap nhat ${config.shortTitle}` : `Tao ${config.shortTitle}`}</h2>
+            <h2>{editingId ? `Cap nhat ${config.shortTitle}` : `Tạo ${config.shortTitle}`}</h2>
             <span>{message || 'Thong tin nha cung cap'}</span>
           </div>
           <div className="hotelFormGrid">
-            <label>Ma NCC<input {...register('supplierCode')} /></label>
-            <label>Ten NCC<input {...register('name')} /></label>
-            <label>Ma so thue<input {...register('taxCode')} /></label>
-            <label>Dien thoai<input {...register('phone')} /></label>
+            <label>Mã NCC<input {...register('supplierCode')} /></label>
+            <label>Tên NCC<input {...register('name')} /></label>
+            <label>Mã số thuế<input {...register('taxCode')} /></label>
+            <label>Điện thoại<input {...register('phone')} /></label>
             <label>Email<input type="email" {...register('email')} /></label>
             <label>Tinh/Thanh<input {...register('province')} /></label>
             <label>Website<input {...register('website')} /></label>
             <label>Link<input {...register('link')} /></label>
             <label>Rating<input type="number" min="0" max="5" {...register('rating')} /></label>
-            <label>Thi truong<input {...register('market')} /></label>
-            <label>Trang thai<select {...register('status')}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
-            <label>Ten tai khoan<input {...register('bankAccountName')} /></label>
-            <label>So tai khoan<input {...register('bankAccountNumber')} /></label>
-            <label>Ngan hang<input {...register('bankName')} /></label>
-            <label className="span2">Dia chi<input {...register('address')} /></label>
-            <label className="span2">Ghi chu<textarea rows={3} {...register('notes')} /></label>
-            <label className="fileDrop"><FileUp size={18} /> File dinh kem se noi tiep vao module upload<input type="file" multiple /></label>
+            <label>Thị trường<input {...register('market')} /></label>
+            <label>Trạng thái<select {...register('status')}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
+            <label>Tên tài khoản<input {...register('bankAccountName')} /></label>
+            <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
+            <label>Ngân hàng<input {...register('bankName')} /></label>
+            <label className="span2">Địa chỉ<input {...register('address')} /></label>
+            <label className="span2">Ghi chú<textarea rows={3} {...register('notes')} /></label>
+            <label className="fileDrop"><FileUp size={18} /> File đính kèm sẽ được nối tiếp vào module upload<input type="file" multiple /></label>
           </div>
         </section>
 
@@ -459,22 +460,22 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
         <ServiceRows config={config} register={register} fieldArray={services} />
 
         <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting || !can('supplier.manage')}><Save size={17} /> Luu</button>
-          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Dong</button>
+          <button type="submit" disabled={isSubmitting || !can('supplier.manage')}><Save size={17} /> Lưu</button>
+          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
         </div>
       </form>
 
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sach {config.shortTitle}</h2>
-          <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, ten, SDT, email..." /></label>
+          <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, tên, SĐT, email..." /></label>
         </div>
         <div className="fitTableWrap">
           <table className="fitTable hotelListTable">
             <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-              {filtered.length === 0 ? <tr><td colSpan={9}>Chua co du lieu.</td></tr> : null}
+              {filtered.length === 0 ? <tr><td colSpan={9}>Chưa co dữ liệu.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -491,10 +492,10 @@ function ContactRows({ register, fieldArray }: { register: UseFormRegister<Suppl
       register={register}
       fieldArray={fieldArray}
       columns={[
-        { key: 'fullName', label: 'Ho ten' },
+        { key: 'fullName', label: 'Họ tên' },
         { key: 'position', label: 'Chuc vu' },
         { key: 'birthday', label: 'Ngay sinh', type: 'date' },
-        { key: 'phone', label: 'Dien thoai' },
+        { key: 'phone', label: 'Điện thoại' },
         { key: 'email', label: 'Email' },
       ]}
       emptyRow={emptyContact}
@@ -513,7 +514,7 @@ function ServiceRows({ config, register, fieldArray }: { config: SupplierConfig;
         { key: 'sku', label: 'SKU' },
         { key: 'serviceName', label: config.serviceNameLabel },
         ...config.serviceFields,
-        { key: 'note', label: 'Ghi chu' },
+        { key: 'note', label: 'Ghi chú' },
       ]}
       emptyRow={emptyService}
     />
@@ -551,7 +552,7 @@ function DynamicRows<T extends ArrayName>({
     <section className="fitTableBlock">
       <div className="sectionHeader">
         <h2>{title}</h2>
-        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Them dong</button>
+        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm dòng</button>
       </div>
       <div className="fitTableWrap">
         <table className="fitTable hotelDynamicTable">

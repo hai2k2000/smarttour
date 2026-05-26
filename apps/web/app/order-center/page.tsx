@@ -26,11 +26,11 @@ export default async function OrderCenterPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Trung tam don hang</p>
-          <h1>Order Center</h1>
+          <h1>Trung tâm đơn hàng</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill">Tat ca don hang</span>
-          <span className="statusPill statusPillNeutral">Operator</span>
+          <span className="statusPill">Tất cả đơn hàng</span>
+          <span className="statusPill statusPillNeutral">Nhân sự vận hành</span>
         </div>
       </header>
       <OrderCenterClient initialDashboard={dashboard} initialOrders={orders} />

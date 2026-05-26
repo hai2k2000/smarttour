@@ -56,7 +56,7 @@ export class OperationsService {
 
   async formDetail(id: string, user?: RequestUser) {
     const row = await this.prisma.operationForm.findFirst({ where: this.formScopeWhere({ id }, user), include: this.formInclude() });
-    if (!row) throw new NotFoundException('Operation form not found');
+    if (!row) throw new NotFoundException('Không tìm thấy phiếu điều hành');
     return row;
   }
 
@@ -80,7 +80,7 @@ export class OperationsService {
         return tx.operationForm.findUniqueOrThrow({ where: { id: form.id }, include: this.formInclude() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Operation form already exists for this booking');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Booking này đã có phiếu điều hành');
       throw error;
     }
   }
@@ -135,7 +135,7 @@ export class OperationsService {
 
   async paymentRequestDetail(id: string, user?: RequestUser) {
     const row = await this.prisma.supplierPaymentRequest.findFirst({ where: this.paymentRequestScopeWhere({ id }, user), include: this.paymentRequestInclude() });
-    if (!row) throw new NotFoundException('Supplier payment request not found');
+    if (!row) throw new NotFoundException('Không tìm thấy đề nghị thanh toán nhà cung cấp');
     return row;
   }
 
@@ -196,8 +196,8 @@ export class OperationsService {
     const actor = this.text(dto.actor) || this.text(dto.approvedBy) || 'operation';
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: true } });
-      if (!request) throw new NotFoundException('Supplier payment request not found');
-      if (request.status === SupplierPaymentStatus.PAID) throw new BadRequestException('Paid request cannot be approved again');
+      if (!request) throw new NotFoundException('Không tìm thấy đề nghị thanh toán nhà cung cấp');
+      if (request.status === SupplierPaymentStatus.PAID) throw new BadRequestException('Đề nghị đã thanh toán không thể duyệt lại');
       const approved = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: 'APPROVED', approvedBy: actor }, include: this.paymentRequestInclude() });
       for (const item of request.items) {
         await tx.supplierLedgerEntry.upsert({
@@ -236,9 +236,9 @@ export class OperationsService {
     const actor = this.text(dto.actor) || 'operation';
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: { include: { supplier: true, cost: { include: { operationForm: true } } } }, financePayment: true } });
-      if (!request) throw new NotFoundException('Supplier payment request not found');
+      if (!request) throw new NotFoundException('Không tìm thấy đề nghị thanh toán nhà cung cấp');
       if (request.financePaymentId) return tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestInclude() });
-      if (request.status !== SupplierPaymentStatus.APPROVED) throw new BadRequestException('Only approved requests can create finance payment');
+      if (request.status !== SupplierPaymentStatus.APPROVED) throw new BadRequestException('Chỉ đề nghị đã duyệt mới được tạo phiếu chi tài chính');
       const total = request.items.reduce((sum, item) => sum + Number(item.amount), 0);
       if (total <= 0) throw new BadRequestException('Payment amount must be greater than zero');
       const supplierIds = Array.from(new Set(request.items.map((item) => item.supplierId)));
@@ -280,8 +280,8 @@ export class OperationsService {
     const actor = this.text(dto.actor) || this.text(dto.approvedBy) || 'operation';
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.supplierPaymentRequest.findUnique({ where: { id } });
-      if (!current) throw new NotFoundException('Supplier payment request not found');
-      if (current.status === SupplierPaymentStatus.PAID && status !== SupplierPaymentStatus.PAID) throw new BadRequestException('Paid request status cannot be changed');
+      if (!current) throw new NotFoundException('Không tìm thấy đề nghị thanh toán nhà cung cấp');
+      if (current.status === SupplierPaymentStatus.PAID && status !== SupplierPaymentStatus.PAID) throw new BadRequestException('Không thể đổi trạng thái đề nghị đã thanh toán');
       const request = await tx.supplierPaymentRequest.update({
         where: { id },
         data: { status, ...(status === SupplierPaymentStatus.REQUESTED ? { requestedBy: actor, requestedAt: new Date() } : {}), ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: actor } : {}) },
@@ -311,7 +311,7 @@ export class OperationsService {
     let orderId = input.orderId ?? null;
     let tourId = input.tourId ?? null;
     const booking = await this.prisma.booking.findUnique({ where: { id: input.bookingId }, select: { id: true, orderId: true, tourId: true } });
-    if (!booking) throw new NotFoundException('Booking not found');
+    if (!booking) throw new NotFoundException('Không tìm thấy booking');
     orderId = orderId ?? booking.orderId;
     tourId = tourId ?? booking.tourId;
     if (tourId) {
@@ -321,7 +321,7 @@ export class OperationsService {
     }
     if (orderId) {
       const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     }
     return { orderId, tourId };
   }
@@ -329,11 +329,11 @@ export class OperationsService {
   private async validatePaymentItems(items: Array<{ supplierId: string; costId?: string | null; amount: number; notes?: string | null }>) {
     const supplierIds = Array.from(new Set(items.map((item) => item.supplierId)));
     const suppliers = await this.prisma.supplier.findMany({ where: { id: { in: supplierIds }, deletedAt: null }, select: { id: true } });
-    if (suppliers.length !== supplierIds.length) throw new NotFoundException('Supplier not found');
+    if (suppliers.length !== supplierIds.length) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     const costIds = Array.from(new Set(items.map((item) => item.costId).filter((id): id is string => Boolean(id))));
     if (costIds.length) {
       const costs = await this.prisma.operationCost.findMany({ where: { id: { in: costIds } }, select: { id: true } });
-      if (costs.length !== costIds.length) throw new NotFoundException('Operation cost not found');
+      if (costs.length !== costIds.length) throw new NotFoundException('Không tìm thấy chi phí vận hành');
     }
   }
 
@@ -430,7 +430,7 @@ export class OperationsService {
       },
       select: { id: true },
     });
-    if (!booking) throw new NotFoundException('Booking not found');
+    if (!booking) throw new NotFoundException('Không tìm thấy booking');
   }
 
   private async ensurePaymentItemsScoped(items: Array<{ costId?: string | null }>, user?: RequestUser) {
@@ -438,7 +438,7 @@ export class OperationsService {
     const costIds = Array.from(new Set(items.map((item) => item.costId).filter((id): id is string => Boolean(id))));
     if (!costIds.length) throw new BadRequestException('costId is required for scoped supplier payment requests');
     const count = await this.prisma.operationCost.count({ where: { id: { in: costIds }, operationForm: this.formScopeWhere({}, user) } });
-    if (count !== costIds.length) throw new NotFoundException('Operation cost not found');
+    if (count !== costIds.length) throw new NotFoundException('Không tìm thấy chi phí vận hành');
   }
 
   private formInclude() {

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
+import { viStatus } from '../i18n';
 type Dashboard = { total: number; totalValue: number; pending: number; approved: number; converted: number; expired: number };
 type QuotationSummary = { id: string; quoteCode: string; productType: string; customerName: string | null; customerPhone: string | null; route: string | null; totalSelling: string; sellingPerPax: string; status: string; smartLinkToken: string | null; _count?: { items: number; logs: number } };
 
@@ -70,7 +71,7 @@ const quotationSchema = z.object({
 
 type QuotationForm = z.infer<typeof quotationSchema>;
 const emptyItem = { serviceType: 'Khach san', supplierId: '', serviceId: '', supplierName: '', serviceName: '', unit: '', quantity: 1, paxCount: 1, nightCount: 1, netPrice: 0, vat: 0, markupAmount: 0, markupPercent: 0, note: '' };
-const defaultValues: QuotationForm = { quoteCode: `QTE${Date.now().toString().slice(-6)}`, productType: 'FIT', customerCode: '', customerName: '', customerPhone: '', customerEmail: '', salesOwner: 'Sales', operatorOwner: 'Operator', branch: '', department: '', marketGroup: '', productCategory: '', route: '', paxAdult: 1, paxChild: 0, paxInfant: 0, currency: 'VND', exchangeRate: 1, createdDate: '', expiredDate: '', expectedPaymentDate: '', departureDate: '', returnDate: '', approvalLevel: 1, status: 'DRAFT', childPricePercent: 75, infantPricePercent: 20, smartLinkEnabled: false, language: 'VI', terms: '', note: '', items: [{ ...emptyItem }] };
+const defaultValues: QuotationForm = { quoteCode: `QTE${Date.now().toString().slice(-6)}`, productType: 'FIT', customerCode: '', customerName: '', customerPhone: '', customerEmail: '', salesOwner: 'Sales', operatorOwner: 'Nhân sự vận hành', branch: '', department: '', marketGroup: '', productCategory: '', route: '', paxAdult: 1, paxChild: 0, paxInfant: 0, currency: 'VND', exchangeRate: 1, createdDate: '', expiredDate: '', expectedPaymentDate: '', departureDate: '', returnDate: '', approvalLevel: 1, status: 'DRAFT', childPricePercent: 75, infantPricePercent: 20, smartLinkEnabled: false, language: 'VI', terms: '', note: '', items: [{ ...emptyItem }] };
 
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
@@ -115,8 +116,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
         helper.accessor('route', { header: 'San pham / Hanh trinh', cell: (info) => info.getValue() || '-' }),
         helper.accessor('totalSelling', { header: 'Tong gia tri', cell: (info) => money(info.getValue()) }),
         helper.accessor('sellingPerPax', { header: 'Gia/khach', cell: (info) => money(info.getValue()) }),
-        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadQuotation(row.original.id)}><Pencil size={15}/> Sua</button> }),
+        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{viStatus(info.getValue())}</span> }),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadQuotation(row.original.id)}><Pencil size={15}/> Sửa</button> }),
       ];
     }, []),
     getCoreRowModel: getCoreRowModel(),
@@ -138,14 +139,14 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   async function onSubmit(data: QuotationForm) {
     const payload = { ...data, items: data.items.filter((item) => item.serviceName || item.netPrice > 0) };
     const response = await fetch(`${browserApiBase()}/api/quotations${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
-    if (!response.ok) { setMessage('Khong luu duoc bao gia hop nhat. Kiem tra ma bao gia va dong dich vu.'); return; }
-    setMessage(editingId ? 'Da cap nhat bao gia.' : 'Da tao bao gia.');
+    if (!response.ok) { setMessage('Khong luu duoc báo giá hop nhat. Kiem tra ma báo giá va dong dich vu.'); return; }
+    setMessage(editingId ? 'Đã cập nhật báo giá.' : 'Đã tạo báo giá.');
     setEditingId(null); reset({ ...defaultValues, quoteCode: `QTE${Date.now().toString().slice(-6)}` }); await reload();
   }
-  async function action(path: string, method = 'POST', body: Record<string, unknown> = { actor: 'Operator' }) {
+  async function action(path: string, method = 'POST', body: Record<string, unknown> = { actor: 'Nhân sự vận hành' }) {
     if (!editingId) return;
     const response = await fetch(`${browserApiBase()}/api/quotations/${editingId}/${path}`, { method, headers: authJsonHeaders(), body: JSON.stringify(body) });
-    if (response.ok) { setMessage(`Da thuc hien ${path}`); await loadQuotation(editingId); await reload(); }
+    if (response.ok) { setMessage(`Đã thực hiện ${path}`); await loadQuotation(editingId); await reload(); }
   }
   function closeForm() { setEditingId(null); setMessage(''); reset({ ...defaultValues, quoteCode: `QTE${Date.now().toString().slice(-6)}` }); }
 
@@ -153,39 +154,39 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
     <div className="orderPage">
       <PermissionNotice allowed={canAny(['quotation.view', 'quotation.manage'])} label="xem va quan ly quotation" />
       <section className="metrics">
-        <article className="metric"><span>Tong bao gia</span><strong>{dashboard.total}</strong></article>
+        <article className="metric"><span>Tong báo giá</span><strong>{dashboard.total}</strong></article>
         <article className="metric"><span>Tong gia tri</span><strong>{money(dashboard.totalValue)}</strong></article>
-        <article className="metric"><span>Cho duyet</span><strong>{dashboard.pending}</strong></article>
-        <article className="metric"><span>Da duyet</span><strong>{dashboard.approved}</strong></article>
-        <article className="metric"><span>Da chuyen don</span><strong>{dashboard.converted}</strong></article>
+        <article className="metric"><span>Chờ duyệt</span><strong>{dashboard.pending}</strong></article>
+        <article className="metric"><span>Đã duyệt</span><strong>{dashboard.approved}</strong></article>
+        <article className="metric"><span>Đã chủyển đơn</span><strong>{dashboard.converted}</strong></article>
         <article className="metric"><span>Het han</span><strong>{dashboard.expired}</strong></article>
       </section>
       <form onSubmit={handleSubmit(onSubmit)} className="orderForm">
         <section className="orderWorkArea">
           <div className="orderMain">
             <section className="panel">
-              <div className="sectionHeader"><h2>Quotation Engine</h2><span>{message || 'Bao gia hop nhat cho FIT/GIT/LandTour/Combo/Booking/Visa/Service'}</span></div>
+              <div className="sectionHeader"><h2>Công cụ báo giá</h2><span>{message || 'Bao gia hop nhat cho FIT/GIT/LandTour/Combo/Booking/Visa/Service'}</span></div>
               <div className="quoteFormGrid">
-                <label>Ma bao gia<input {...register('quoteCode')} /></label><label>Loai san pham<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Ma khach<input {...register('customerCode')} /></label><label>Ten khach<input {...register('customerName')} /></label><label>Dien thoai<input {...register('customerPhone')} /></label>
+                <label>Ma báo giá<input {...register('quoteCode')} /></label><label>Loai san pham<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Ma khach<input {...register('customerCode')} /></label><label>Ten khach<input {...register('customerName')} /></label><label>Điện thoại<input {...register('customerPhone')} /></label>
                 <label>Email<input type="email" {...register('customerEmail')} /></label><label>Sales<input {...register('salesOwner')} /></label><label>Dieu hanh<input {...register('operatorOwner')} /></label><label>Chi nhanh<input {...register('branch')} /></label><label>Phong ban<input {...register('department')} /></label>
-                <label>Thi truong<input {...register('marketGroup')} /></label><label>Loai hinh<input {...register('productCategory')} /></label><label>Hanh trinh / San pham<input {...register('route')} /></label><label>Ngay tao<input type="date" {...register('createdDate')} /></label><label>Het han<input type="date" {...register('expiredDate')} /></label>
-                <label>Ngay thanh toan DK<input type="date" {...register('expectedPaymentDate')} /></label><label>Ngay di<input type="date" {...register('departureDate')} /></label><label>Ngay ve<input type="date" {...register('returnDate')} /></label><label>Nguoi lon<input type="number" {...register('paxAdult')} /></label><label>Tre em<input type="number" {...register('paxChild')} /></label>
-                <label>Em be<input type="number" {...register('paxInfant')} /></label><label>Duyet cap<select {...register('approvalLevel')}><option value="0">Khong duyet</option><option value="1">1 cap</option><option value="2">2 cap</option></select></label><label>Ngon ngu<select {...register('language')}><option value="VI">VI</option><option value="EN">EN</option></select></label><label className="span2">Dieu khoan<textarea rows={2} {...register('terms')} /></label>
+                <label>Thị trường<input {...register('marketGroup')} /></label><label>Loai hinh<input {...register('productCategory')} /></label><label>Hanh trinh / San pham<input {...register('route')} /></label><label>Ngày tạo<input type="date" {...register('createdDate')} /></label><label>Het han<input type="date" {...register('expiredDate')} /></label>
+                <label>Ngay thanh toán DK<input type="date" {...register('expectedPaymentDate')} /></label><label>Ngay di<input type="date" {...register('departureDate')} /></label><label>Ngay ve<input type="date" {...register('returnDate')} /></label><label>Người lớn<input type="number" {...register('paxAdult')} /></label><label>Trẻ em<input type="number" {...register('paxChild')} /></label>
+                <label>Em be<input type="number" {...register('paxInfant')} /></label><label>Duyet cap<select {...register('approvalLevel')}><option value="0">Khong duyệt</option><option value="1">1 cap</option><option value="2">2 cap</option></select></label><label>Ngon ngu<select {...register('language')}><option value="VI">VI</option><option value="EN">EN</option></select></label><label className="span2">Dieu khoan<textarea rows={2} {...register('terms')} /></label>
               </div>
             </section>
             <section className="fitTableBlock">
-              <div className="sectionHeader"><h2>Dich vu bao gia</h2><button type="button" className="secondaryButton" onClick={() => items.append({ ...emptyItem })}><Plus size={16}/> Them dong</button></div>
+              <div className="sectionHeader"><h2>Dich vu báo giá</h2><button type="button" className="secondaryButton" onClick={() => items.append({ ...emptyItem })}><Plus size={16}/> Thêm dòng</button></div>
               <div className="fitTableWrap"><table className="fitTable orderDynamicTable"><thead><tr><th>STT</th><th>Loai DV</th><th>NCC</th><th>Dich vu</th><th>DVT</th><th>SL</th><th>Dem</th><th>NET</th><th>VAT%</th><th>Markup</th><th>Markup%</th><th>Thanh tien</th><th /></tr></thead><tbody>{items.fields.map((field, index) => <tr key={field.id}><td>{index + 1}</td><td><select {...register(`items.${index}.serviceType`)}>{services.map((s) => <option key={s} value={s}>{s}</option>)}</select></td><td><input {...register(`items.${index}.supplierName`)} /></td><td><input {...register(`items.${index}.serviceName`)} /></td><td><input {...register(`items.${index}.unit`)} /></td><td><input type="number" {...register(`items.${index}.quantity`)} /></td><td><input type="number" {...register(`items.${index}.nightCount`)} /></td><td><input type="number" {...register(`items.${index}.netPrice`)} /></td><td><input type="number" {...register(`items.${index}.vat`)} /></td><td><input type="number" {...register(`items.${index}.markupAmount`)} /></td><td><input type="number" {...register(`items.${index}.markupPercent`)} /></td><td>{money(itemCost(values.items?.[index] || {}) + itemMarkup(values.items?.[index] || {}))}</td><td><button type="button" className="dangerButton iconButton" onClick={() => items.remove(index)}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div>
             </section>
           </div>
           <aside className="panel quoteSummaryBox">
-            <h2>Price Engine</h2>
+            <h2>Công cụ giá</h2>
             <div className="summaryRows"><div><span>Total cost</span><strong>{money(totals.totalCost)}</strong></div><div><span>Markup</span><strong>{money(totals.totalMarkup)}</strong></div><div><span>Total selling</span><strong>{money(totals.totalSelling)}</strong></div><div><span>Pax</span><strong>{totals.pax}</strong></div><div><span>Cost/pax</span><strong>{money(totals.costPerPax)}</strong></div><div><span>Selling/pax</span><strong>{money(totals.sellingPerPax)}</strong></div><div><span>Margin</span><strong>{totals.margin.toFixed(1)}%</strong></div></div>
           </aside>
         </section>
-        <div className="hotelFormActions"><button type="submit" disabled={isSubmitting || !can('quotation.manage')}><Save size={17}/> Luu</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('submit')}><Send size={17}/> Gui duyet</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('approve')}><Check size={17}/> Duyet</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('smartlink', 'PATCH', { enabled: true })}><LinkIcon size={17}/> SmartLink</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('convert')}><Copy size={17}/> Chuyen don</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Dong</button></div>
+        <div className="hotelFormActions"><button type="submit" disabled={isSubmitting || !can('quotation.manage')}><Save size={17}/> Lưu</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('submit')}><Send size={17}/> Gui duyệt</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('approve')}><Check size={17}/> Duyet</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('smartlink', 'PATCH', { enabled: true })}><LinkIcon size={17}/> SmartLink</button><button type="button" className="secondaryButton" disabled={!editingId || !can('quotation.manage')} onClick={() => action('convert')}><Copy size={17}/> Chủyen don</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
       </form>
-      <section className="panel listPanel"><div className="sectionHeader"><h2>Danh sach bao gia hop nhat</h2><label className="searchBox"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, khach, san pham..." /></label></div><div className="fitTableWrap"><table className="fitTable orderListTable"><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div></section>
+      <section className="panel listPanel"><div className="sectionHeader"><h2>Danh sach báo giá hop nhat</h2><label className="searchBox"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, khach, san pham..." /></label></div><div className="fitTableWrap"><table className="fitTable orderListTable"><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div></section>
     </div>
   );
 }

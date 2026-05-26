@@ -117,11 +117,11 @@ export default function CustomersClient() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setMessage(data.message || 'Khong luu duoc khach hang');
+      setMessage(data.message || 'Khong luu duoc khách hàng');
       return;
     }
     setForm(blank);
-    setMessage('Da luu khach hang');
+    setMessage('Đã lưu khách hàng');
     await load();
   }
 
@@ -147,7 +147,7 @@ export default function CustomersClient() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">CRM Core</p>
-          <h1>Data khach hang</h1>
+          <h1>Data khách hàng</h1>
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
@@ -164,29 +164,29 @@ export default function CustomersClient() {
         <Metric label="Doanh thu" value={money(dashboard.totalRevenue)} />
         <Metric label="Cong no" value={money(dashboard.totalDebt)} />
       </section>
-      <PermissionNotice allowed={canAny(['customer.view', 'customer.manage'])} label="xem va quan ly CRM khach hang" />
+      <PermissionNotice allowed={canAny(['customer.view', 'customer.manage'])} label="xem va quan ly CRM khách hàng" />
 
       <section className="panel customerFilters">
         <label><Search size={15} /> Tim kiem<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ten, SDT, email, ma khach" /></label>
         <label>NV phu trach<input value={filter.owner} onChange={(event) => setFilter({ ...filter, owner: event.target.value })} /></label>
-        <label>Thi truong<input value={filter.market} onChange={(event) => setFilter({ ...filter, market: event.target.value })} /></label>
+        <label>Thị trường<input value={filter.market} onChange={(event) => setFilter({ ...filter, market: event.target.value })} /></label>
         <label>Chi nhanh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
-        <label>Tag<select value={filter.tagId} onChange={(event) => setFilter({ ...filter, tagId: event.target.value })}><option value="">Tat ca</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
+        <label>Tag<select value={filter.tagId} onChange={(event) => setFilter({ ...filter, tagId: event.target.value })}><option value="">Tất cả</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
         <button className="secondaryButton iconTextButton" onClick={exportCsv}><Download size={16} /> CSV</button>
       </section>
 
       <section className="contentGrid customerGrid">
         <form className="panel customerForm" onSubmit={submit}>
-          <div className="sectionHeader"><h2><UserRoundCheck size={18} /> Ho so khach hang</h2><span>{message}</span></div>
+          <div className="sectionHeader"><h2><UserRoundCheck size={18} /> Ho so khách hàng</h2><span>{message}</span></div>
           <div className="customerFormGrid">
             <label>Loai ho so<select value={form.kind} onChange={(event) => change('kind', event.target.value)}><option value="INDIVIDUAL">Ca nhan / CTV</option><option value="BUSINESS">Doanh nghiep / doi tac</option></select></label>
-            <label>Loai khach<select value={form.typeId} onChange={(event) => change('typeId', event.target.value)}><option value="">Chua chon</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-            <label>Ho ten / Ten giao dich<input required value={form.fullName} onChange={(event) => change('fullName', event.target.value)} /></label>
+            <label>Loai khach<select value={form.typeId} onChange={(event) => change('typeId', event.target.value)}><option value="">Chưa chon</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
+            <label>Họ tên / Ten giao dich<input required value={form.fullName} onChange={(event) => change('fullName', event.target.value)} /></label>
             <label>SDT<input required value={form.phone} onChange={(event) => change('phone', event.target.value)} /></label>
             <label>Email<input value={form.email} onChange={(event) => change('email', event.target.value)} /></label>
             <label>Gioi tinh<input value={form.gender} onChange={(event) => change('gender', event.target.value)} /></label>
             <label>Nguon<input value={form.source} onChange={(event) => change('source', event.target.value)} /></label>
-            <label>Thi truong<input value={form.market} onChange={(event) => change('market', event.target.value)} /></label>
+            <label>Thị trường<input value={form.market} onChange={(event) => change('market', event.target.value)} /></label>
             <label>Nhom<input value={form.groupName} onChange={(event) => change('groupName', event.target.value)} /></label>
             <label>Chien dich<select value={form.campaignId} onChange={(event) => change('campaignId', event.target.value)}><option value="">Khong gan</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
             <label>NV phu trach<input value={form.owner} onChange={(event) => change('owner', event.target.value)} /></label>
@@ -194,8 +194,8 @@ export default function CustomersClient() {
             <label>Phong ban<input value={form.department} onChange={(event) => change('department', event.target.value)} /></label>
             <label>Tinh thanh<input value={form.province} onChange={(event) => change('province', event.target.value)} /></label>
             <label>Cong ty<input value={form.companyName} onChange={(event) => change('companyName', event.target.value)} /></label>
-            <label>Ma so thue<input value={form.taxCode} onChange={(event) => change('taxCode', event.target.value)} /></label>
-            <label className="span2">Dia chi<textarea value={form.address} onChange={(event) => change('address', event.target.value)} /></label>
+            <label>Mã số thuế<input value={form.taxCode} onChange={(event) => change('taxCode', event.target.value)} /></label>
+            <label className="span2">Địa chỉ<textarea value={form.address} onChange={(event) => change('address', event.target.value)} /></label>
             <label className="span2">Binh luan moi nhat<textarea value={form.latestComment} onChange={(event) => change('latestComment', event.target.value)} /></label>
           </div>
           <div className="tagPicker">
@@ -208,7 +208,7 @@ export default function CustomersClient() {
             <label>Lich CSKH<input type="datetime-local" value={form.careTasks[0].scheduledAt} onChange={(event) => setForm({ ...form, careTasks: [{ ...form.careTasks[0], scheduledAt: event.target.value }] })} /></label>
             <label>Co hoi<input value={form.opportunities[0].title} onChange={(event) => setForm({ ...form, opportunities: [{ ...form.opportunities[0], title: event.target.value }] })} /></label>
           </div>
-          <button className="iconTextButton" disabled={!can('customer.manage')}><Save size={16} /> Luu khach hang</button>
+          <button className="iconTextButton" disabled={!can('customer.manage')}><Save size={16} /> Lưu khách hàng</button>
         </form>
 
         <section className="panel customerList">
@@ -236,7 +236,7 @@ export default function CustomersClient() {
               <div className="summaryRows">
                 <div><span>SDT</span><strong>{selected.phone}</strong></div>
                 <div><span>Bao gia</span><strong>{selected.related?.quotes.length || 0}</strong></div>
-                <div><span>Don hang</span><strong>{selected.related?.orders.length || 0}</strong></div>
+                <div><span>Đơn hàng</span><strong>{selected.related?.orders.length || 0}</strong></div>
                 <div><span>Cong no</span><strong>{money(selected.related?.debts.receivableDebt || 0)}</strong></div>
               </div>
               <h2>Timeline</h2>

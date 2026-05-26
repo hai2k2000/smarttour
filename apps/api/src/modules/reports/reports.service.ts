@@ -83,7 +83,7 @@ export class ReportsService {
       where: branchDepartmentScopeWhere({ id: orderId, deletedAt: null }, user),
       include: { logs: { orderBy: { createdAt: 'desc' } }, salesItems: true, operationItems: { include: { supplier: true } } },
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
   }
 

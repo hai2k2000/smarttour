@@ -24,11 +24,11 @@ export default async function OperationVouchersPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Dieu hanh Tour</p>
-          <h1>Phieu dieu hanh dich vu</h1>
+          <h1>Phiếu điều hành dich vu</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><ClipboardList size={14} /> Cong no NCC</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Operator</span>
+          <span className="statusPill"><ClipboardList size={14} /> Công nợ NCC</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
       <OperationVouchersClient initialVouchers={vouchers} />
