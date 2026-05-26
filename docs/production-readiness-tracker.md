@@ -80,6 +80,7 @@ Status: `done`
 Health script:
 
 - `scripts/healthcheck.sh`
+- `/etc/cron.d/smarttour-healthcheck`
 
 Open decision: external alerting target for failures.
 
@@ -91,7 +92,12 @@ Automated audit:
 
 - `scripts/security-audit.sh`
 
-Open decision: whether DB/Redis host ports must stay publicly exposed for external tools.
+Completed hardening:
+
+- Postgres and Redis host ports are bound to `127.0.0.1`.
+- Obvious development placeholder secrets were removed from `.env`.
+
+Open decision: whether API port `4000` should remain public or be routed only through the domain/proxy.
 
 ## 10. Technical Cleanup
 

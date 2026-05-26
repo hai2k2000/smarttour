@@ -27,22 +27,33 @@ else
   failures=$((failures + 1))
 fi
 
-if grep -Eq '123456|password|changeme|secret' .env; then
-  echo "WARN_ENV possible weak placeholder string in .env"
+if grep -Eq '=(123456|password|changeme|secret|smarttour_dev_password|smarttour_dev_secret)$' .env; then
+  echo "FAIL_ENV weak placeholder secret found"
+  failures=$((failures + 1))
 else
-  echo "OK_ENV no obvious placeholder secret"
+  echo "OK_ENV no obvious weak placeholder secret"
 fi
 
 if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(postgres|redis).*0\.0\.0\.0'; then
-  echo "WARN_PORTS Postgres/Redis are published on all interfaces; confirm this is intentional or firewall-restricted"
+  echo "FAIL_PORTS Postgres/Redis are published on all interfaces"
+  failures=$((failures + 1))
+elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(postgres|redis).*127\.0\.0\.1'; then
+  echo "OK_PORTS Postgres/Redis bound to localhost"
 else
-  echo "OK_PORTS database/cache not exposed on all interfaces"
+  echo "WARN_PORTS Postgres/Redis publish state could not be confirmed"
 fi
 
 if [[ -f /etc/cron.d/smarttour-postgres-backup ]]; then
   echo "OK_BACKUP_CRON installed"
 else
   echo "FAIL_BACKUP_CRON missing"
+  failures=$((failures + 1))
+fi
+
+if [[ -f /etc/cron.d/smarttour-healthcheck ]]; then
+  echo "OK_HEALTH_CRON installed"
+else
+  echo "FAIL_HEALTH_CRON missing"
   failures=$((failures + 1))
 fi
 

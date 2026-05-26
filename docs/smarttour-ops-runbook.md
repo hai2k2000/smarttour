@@ -37,6 +37,13 @@ Automated daily backup is installed through cron:
 cat /etc/cron.d/smarttour-postgres-backup
 ```
 
+Healthcheck is installed through cron:
+
+```bash
+cat /etc/cron.d/smarttour-healthcheck
+tail -100 /var/log/smarttour-healthcheck.log
+```
+
 Copy the latest backup off the VPS:
 
 ```bash
@@ -127,3 +134,9 @@ For a one-command preview deploy:
 cd /opt/smarttour
 scripts/deploy-preview.sh
 ```
+
+## Production Network Notes
+
+- Postgres host port `5433` is bound to `127.0.0.1`.
+- Redis host port `6380` is bound to `127.0.0.1`.
+- API port `4000` and web preview port `3001` remain public because the current frontend and domain setup use them.
