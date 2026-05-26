@@ -5,12 +5,16 @@ COPY apps/web/package*.json apps/web/
 RUN npm install
 
 FROM deps AS build
+ARG NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY . .
 RUN npm run build -w @smarttour/web
 
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ARG NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /app/apps/web/public ./apps/web/public

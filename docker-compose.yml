@@ -45,7 +45,7 @@ services:
       DATABASE_URL: postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/smarttour?schema=public
       REDIS_URL: redis://redis:6379
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     depends_on:
       - postgres
       - redis
@@ -54,11 +54,13 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://quanly.dunientravel.com}
     env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: http://api:4000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://quanly.dunientravel.com}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
 

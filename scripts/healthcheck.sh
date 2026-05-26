@@ -9,6 +9,15 @@ cd "$REPO_DIR"
 
 failures=0
 
+notify_failure() {
+  local message="$1"
+  if [[ -n "${HEALTHCHECK_WEBHOOK_URL:-}" ]]; then
+    curl -fsS -X POST "$HEALTHCHECK_WEBHOOK_URL" \
+      -H 'Content-Type: application/json' \
+      --data "{\"text\":\"$message\"}" >/dev/null || true
+  fi
+}
+
 check_http() {
   local name="$1"
   local url="$2"
@@ -40,6 +49,7 @@ check_container smarttour-redis-1
 
 check_http site "$SITE_URL/"
 check_http login "$SITE_URL/login"
+check_http api_domain "$SITE_URL/api/auth/me" 401
 check_http api_login_bad "$API_URL/auth/login" 404
 
 docker exec smarttour-postgres-1 pg_isready -U smarttour -d smarttour >/dev/null && echo "OK_POSTGRES pg_isready" || { echo "FAIL_POSTGRES pg_isready"; failures=$((failures + 1)); }
@@ -67,8 +77,16 @@ else
   echo "OK_LOG web"
 fi
 
+if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1).*0\.0\.0\.0'; then
+  echo "FAIL_PORTS SmartTour containers expose host ports on all interfaces"
+  failures=$((failures + 1))
+else
+  echo "OK_PORTS SmartTour host ports are localhost-bound"
+fi
+
 if [[ "$failures" -gt 0 ]]; then
   echo "HEALTHCHECK_FAILED failures=$failures"
+  notify_failure "SmartTour healthcheck failed on $(hostname): failures=$failures"
   exit 1
 fi
 

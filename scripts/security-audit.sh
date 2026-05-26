@@ -34,13 +34,13 @@ else
   echo "OK_ENV no obvious weak placeholder secret"
 fi
 
-if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(postgres|redis).*0\.0\.0\.0'; then
-  echo "FAIL_PORTS Postgres/Redis are published on all interfaces"
+if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1).*0\.0\.0\.0'; then
+  echo "FAIL_PORTS SmartTour containers are published on all interfaces"
   failures=$((failures + 1))
-elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(postgres|redis).*127\.0\.0\.1'; then
-  echo "OK_PORTS Postgres/Redis bound to localhost"
+elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1).*127\.0\.0\.1'; then
+  echo "OK_PORTS SmartTour host ports bound to localhost"
 else
-  echo "WARN_PORTS Postgres/Redis publish state could not be confirmed"
+  echo "WARN_PORTS SmartTour publish state could not be confirmed"
 fi
 
 if [[ -f /etc/cron.d/smarttour-postgres-backup ]]; then

@@ -44,10 +44,22 @@ cat /etc/cron.d/smarttour-healthcheck
 tail -100 /var/log/smarttour-healthcheck.log
 ```
 
+Optional external alerting:
+
+```bash
+HEALTHCHECK_WEBHOOK_URL='https://example.com/webhook' scripts/healthcheck.sh
+```
+
 Copy the latest backup off the VPS:
 
 ```bash
 scp -P 24700 -i C:\Users\hai2k\.ssh\id_ed25519_booking_server root@103.75.185.200:/opt/smarttour/backups/postgres/smarttour-YYYYMMDDHHMMSS.sql.gz .
+```
+
+Sync latest backup to another host:
+
+```bash
+BACKUP_REMOTE_TARGET='user@backup-host:/srv/smarttour-backups' scripts/sync-latest-backup.sh
 ```
 
 ## Restore
@@ -86,7 +98,7 @@ cd /opt/smarttour
 npm run build --workspace @smarttour/web
 docker compose build web
 docker rm -f smarttour-web-preview || true
-docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_URL=http://103.75.185.200:4000 -p 3001:3000 smarttour-web:latest
+docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com -p 127.0.0.1:3001:3000 smarttour-web:latest
 ```
 
 ## Verification
@@ -125,6 +137,9 @@ Use these tracking docs before go-live:
 
 - `docs/production-readiness-tracker.md`
 - `docs/qa-workflow-checklist.md`
+- `docs/go-live-checklist.md`
+- `docs/real-user-rollout.md`
+- `docs/rollback-runbook.md`
 
 ## Deploy Script
 
@@ -137,6 +152,8 @@ scripts/deploy-preview.sh
 
 ## Production Network Notes
 
+- Web preview host port `3001` is bound to `127.0.0.1`.
+- API host port `4000` is bound to `127.0.0.1`.
 - Postgres host port `5433` is bound to `127.0.0.1`.
 - Redis host port `6380` is bound to `127.0.0.1`.
-- API port `4000` and web preview port `3001` remain public because the current frontend and domain setup use them.
+- Public traffic should enter through nginx on `443` for `https://quanly.dunientravel.com`.

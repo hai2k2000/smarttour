@@ -8,7 +8,7 @@
 
 ## 1. Real Workflow Testing
 
-Status: `ready-for-manual`
+Status: `done`
 
 Automated coverage:
 
@@ -63,6 +63,11 @@ Automated backup and restore drill:
 
 Open decision: choose off-VPS backup storage target.
 
+Tooling is ready:
+
+- `scripts/sync-latest-backup.sh`
+- `npm run ops:backup-sync`
+
 ## 7. CI/CD and Deploy Standardization
 
 Status: `done`
@@ -84,6 +89,10 @@ Health script:
 
 Open decision: external alerting target for failures.
 
+Tooling is ready:
+
+- `HEALTHCHECK_WEBHOOK_URL` for webhook alerts.
+
 ## 9. Production Security
 
 Status: `ready-for-manual`
@@ -97,7 +106,11 @@ Completed hardening:
 - Postgres and Redis host ports are bound to `127.0.0.1`.
 - Obvious development placeholder secrets were removed from `.env`.
 
-Open decision: whether API port `4000` should remain public or be routed only through the domain/proxy.
+Completed hardening:
+
+- API port `4000` is bound to `127.0.0.1`.
+- Web preview port `3001` is bound to `127.0.0.1`.
+- Public traffic enters through nginx on HTTPS.
 
 ## 10. Technical Cleanup
 

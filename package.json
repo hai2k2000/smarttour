@@ -26,6 +26,7 @@
     "ops:health": "scripts/healthcheck.sh",
     "ops:security": "scripts/security-audit.sh",
     "ops:backup": "scripts/backup-postgres.sh",
+    "ops:backup-sync": "scripts/sync-latest-backup.sh",
     "ops:restore-drill": "scripts/restore-drill-postgres.sh",
     "deploy:preview": "scripts/deploy-preview.sh",
     "verify:deploy": "npx prisma migrate status && npm audit --omit=dev && npm run smoke:all && npm run ops:health && npm run ops:security"
