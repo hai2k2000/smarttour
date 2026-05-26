@@ -91,6 +91,7 @@ npm audit --omit=dev
 scripts/smoke-rbac-workflows.sh
 scripts/smoke-business-workflows.sh
 scripts/smoke-finance-reports.sh
+scripts/smoke-ui-pages.sh
 docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep smarttour
 docker logs --since 5m smarttour-api-1 2>&1 | grep -Ei 'error|exception|failed' || true
 docker logs --since 5m smarttour-web-preview 2>&1 | grep -Ei 'error|exception|failed' || true
@@ -103,4 +104,5 @@ Expected:
 - RBAC smoke script ends with `SMOKE_RBAC_OK`.
 - Business smoke script ends with `SMOKE_BUSINESS_OK`.
 - Finance/report smoke script ends with `SMOKE_FINANCE_REPORTS_OK`.
+- UI route smoke script ends with `SMOKE_UI_PAGES_OK`.
 - Only SmartTour web, api, postgres, redis containers are running.
