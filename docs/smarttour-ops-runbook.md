@@ -86,14 +86,12 @@ docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_UR
 
 ```bash
 cd /opt/smarttour
+export ADMIN_PASSWORD='current-admin-password'
 npx prisma migrate status
 npm audit --omit=dev
-scripts/smoke-rbac-workflows.sh
-scripts/smoke-business-workflows.sh
-scripts/smoke-finance-reports.sh
-scripts/smoke-ui-pages.sh
-node scripts/smoke-ui-browser.js
-node scripts/smoke-ui-interactions.js
+npm run smoke:all
+npm run ops:health
+npm run ops:security
 docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep smarttour
 docker logs --since 5m smarttour-api-1 2>&1 | grep -Ei 'error|exception|failed' || true
 docker logs --since 5m smarttour-web-preview 2>&1 | grep -Ei 'error|exception|failed' || true
@@ -109,4 +107,23 @@ Expected:
 - UI route smoke script ends with `SMOKE_UI_PAGES_OK`.
 - Browser UI smoke script ends with `SMOKE_UI_BROWSER_OK`.
 - Browser interaction smoke script ends with `SMOKE_UI_INTERACTIONS_OK`.
+- Export smoke script ends with `SMOKE_EXPORTS_OK`.
+- Healthcheck ends with `HEALTHCHECK_OK`.
+- Security audit ends with `SECURITY_AUDIT_OK`.
 - Only SmartTour web, api, postgres, redis containers are running.
+
+## Readiness
+
+Use these tracking docs before go-live:
+
+- `docs/production-readiness-tracker.md`
+- `docs/qa-workflow-checklist.md`
+
+## Deploy Script
+
+For a one-command preview deploy:
+
+```bash
+cd /opt/smarttour
+scripts/deploy-preview.sh
+```
