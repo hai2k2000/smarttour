@@ -1,5 +1,6 @@
-import { CalendarDays, Map, Plus, Route, Users } from 'lucide-react';
+import { CalendarDays, Map, Plus, Route, Save, Trash2, Users } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
+import { Fragment } from 'react';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -26,12 +27,10 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
-    if (!response.ok) return fallback;
-    return response.json();
-  } catch {
-    return fallback;
-  }
+    const res = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
+    if (!res.ok) return fallback;
+    return res.json();
+  } catch { return fallback; }
 }
 
 async function createTourProgram(formData: FormData) {
@@ -47,6 +46,32 @@ async function createTourProgram(formData: FormData) {
       description: String(formData.get('description') || ''),
     }),
   });
+  revalidatePath('/tour-programs');
+}
+
+async function updateTourProgram(formData: FormData) {
+  'use server';
+  const id = String(formData.get('id') || '');
+  if (!id) return;
+  await fetch(`${apiBase}/api/tour-programs/${id}`, {
+    method: 'PATCH',
+    headers: await serverAuthJsonHeaders(),
+    body: JSON.stringify({
+      code: String(formData.get('code') || ''),
+      name: String(formData.get('name') || ''),
+      route: String(formData.get('route') || ''),
+      durationDays: Number(formData.get('durationDays') || 1),
+      description: String(formData.get('description') || ''),
+    }),
+  });
+  revalidatePath('/tour-programs');
+}
+
+async function deleteTourProgram(formData: FormData) {
+  'use server';
+  const id = String(formData.get('id') || '');
+  if (!id) return;
+  await fetch(`${apiBase}/api/tour-programs/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
   revalidatePath('/tour-programs');
 }
 
@@ -73,7 +98,7 @@ export default async function TourProgramsPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Thiết lập sản phẩm vận hành</p>
-          <h1>Tour mẫu va lich trinh</h1>
+          <h1>Tour mẫu và lịch trình</h1>
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
@@ -81,94 +106,99 @@ export default async function TourProgramsPage() {
         </div>
       </header>
 
-        <section className="contentGrid tourProgramGrid">
-          <div className="panel">
-            <h2><Plus size={18} /> Tạo tour mau</h2>
-            <form action={createTourProgram} className="formStack">
-              <label>
-                Ma tour
-                <input name="code" placeholder="HL-3N2D" required minLength={2} />
-              </label>
-              <label>
-                Ten tour
-                <input name="name" placeholder="Ha Long 3 ngay 2 dem" required minLength={2} />
-              </label>
-              <label>
-                Tuyen diem
-                <input name="route" placeholder="Hà Nội - Ha Long" />
-              </label>
-              <label>
-                So ngay
-                <input name="durationDays" type="number" min={1} defaultValue={3} required />
-              </label>
-              <label>
-                Mo ta
-                <textarea name="description" rows={4} />
-              </label>
-              <button type="submit">Tạo tour mau</button>
-            </form>
-          </div>
+      <section className="contentGrid tourProgramGrid">
+        <div className="panel">
+          <h2><Plus size={18} /> Tạo tour mẫu</h2>
+          <form action={createTourProgram} className="formStack">
+            <label>Mã tour<input name="code" placeholder="HL-3N2D" required minLength={2} /></label>
+            <label>Tên tour<input name="name" placeholder="Hạ Long 3 ngày 2 đêm" required minLength={2} /></label>
+            <label>Tuyến điểm<input name="route" placeholder="Hà Nội - Hạ Long" /></label>
+            <label>Số ngày<input name="durationDays" type="number" min={1} defaultValue={3} required /></label>
+            <label>Mô tả<textarea name="description" rows={3} /></label>
+            <button type="submit">Tạo tour mẫu</button>
+          </form>
+        </div>
 
-          <div className="panel">
-            <h2><CalendarDays size={18} /> Thêm ngay lich trinh</h2>
-            <form action={createItineraryDay} className="formStack">
-              <label>
-                Tour mẫu
-                <select name="tourProgramId" required>
-                  <option value="">Chọn tour</option>
-                  {tourPrograms.map((tour) => (
-                    <option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Ngay thu
-                <input name="dayNumber" type="number" min={1} defaultValue={1} required />
-              </label>
-              <label>
-                Tieu de ngay
-                <input name="title" placeholder="Hà Nội - Ha Long" required minLength={2} />
-              </label>
-              <label>
-                Noi dung lich trinh
-                <textarea name="description" rows={5} />
-              </label>
-              <button type="submit">Thêm ngay lich trinh</button>
-            </form>
-          </div>
-        </section>
-
-        <section className="tourCards">
-          {tourPrograms.map((tour) => (
-            <article className="panel tourCard" key={tour.id}>
-              <div className="tourCardHeader">
-                <div>
-                  <span className="codeBadge">{tour.code}</span>
-                  <h2>{tour.name}</h2>
-                </div>
-                <strong>{tour.durationDays}N</strong>
-              </div>
-              <p className="muted"><Route size={15} /> {tour.route || 'Chưa có tuyến điểm'}</p>
-              {tour.description ? <p>{tour.description}</p> : null}
-              <div className="itineraryList">
-                {tour.itineraryDays.map((day) => (
-                  <div key={day.id} className="itineraryItem">
-                    <span>Ngay {day.dayNumber}</span>
-                    <div>
-                      <strong>{day.title}</strong>
-                      {day.description ? <p>{day.description}</p> : null}
-                    </div>
-                  </div>
+        <div className="panel">
+          <h2><CalendarDays size={18} /> Thêm ngày lịch trình</h2>
+          <form action={createItineraryDay} className="formStack">
+            <label>Tour mẫu
+              <select name="tourProgramId" required>
+                <option value="">Chọn tour</option>
+                {tourPrograms.map((t) => (
+                  <option value={t.id} key={t.id}>{t.code} — {t.name}</option>
                 ))}
-                {tour.itineraryDays.length === 0 ? <p className="muted"><Map size={15} /> Chưa có lịch trình</p> : null}
-              </div>
-              <footer>{tour._count?.bookings ?? 0} booking su dung tour nay</footer>
-            </article>
-          ))}
-          {tourPrograms.length === 0 ? (
-            <section className="panel emptyState">Chưa có tour mẫu. Hãy tạo tour đầu tiên để tiếp tục luồng booking và điều hành.</section>
-          ) : null}
-        </section>
+              </select>
+            </label>
+            <label>Ngày thứ<input name="dayNumber" type="number" min={1} defaultValue={1} required /></label>
+            <label>Tiêu đề ngày<input name="title" placeholder="Hà Nội - Hạ Long" required minLength={2} /></label>
+            <label>Nội dung lịch trình<textarea name="description" rows={4} /></label>
+            <button type="submit">Thêm ngày lịch trình</button>
+          </form>
+        </div>
+      </section>
+
+      <section className="panel listPanel">
+        <div className="sectionHeader">
+          <h2>Danh sách tour mẫu</h2>
+          <span>{tourPrograms.length} tour</span>
+        </div>
+        {tourPrograms.length === 0 ? (
+          <div className="tableEmptyState"><Map size={20} /> Chưa có tour mẫu. Hãy tạo tour đầu tiên để tiếp tục luồng booking và điều hành.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Mã</th><th>Tên tour</th><th>Tuyến điểm</th><th>Số ngày</th><th>Lịch trình</th><th>Booking</th><th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tourPrograms.map((tour) => (
+                <Fragment key={tour.id}>
+                  <tr>
+                    <td><span className="codeBadge">{tour.code}</span></td>
+                    <td>
+                      <strong>{tour.name}</strong>
+                      {tour.description ? <><br /><span className="mutedText">{tour.description}</span></> : null}
+                    </td>
+                    <td>{tour.route ? <><Route size={13} /> {tour.route}</> : <span className="mutedText">—</span>}</td>
+                    <td>{tour.durationDays}N</td>
+                    <td>
+                      {tour.itineraryDays.length > 0 ? (
+                        <div className="chips">
+                          {tour.itineraryDays.map((d) => (
+                            <span key={d.id}>Ngày {d.dayNumber}: {d.title}</span>
+                          ))}
+                        </div>
+                      ) : <span className="mutedText">Chưa có lịch trình</span>}
+                    </td>
+                    <td>{tour._count?.bookings ?? 0} booking</td>
+                    <td className="actionsCell">
+                      <form action={deleteTourProgram} style={{ display: 'inline' }}>
+                        <input type="hidden" name="id" value={tour.id} />
+                        <button type="submit" className="dangerButton" title="Xóa tour mẫu"><Trash2 size={14} /></button>
+                      </form>
+                    </td>
+                  </tr>
+                  <tr className="bookingEditRow">
+                    <td colSpan={7}>
+                      <form action={updateTourProgram} className="bookingEditForm">
+                        <input type="hidden" name="id" value={tour.id} />
+                        <label>Mã tour<input name="code" defaultValue={tour.code} required minLength={2} /></label>
+                        <label>Tên tour<input name="name" defaultValue={tour.name} required minLength={2} /></label>
+                        <label>Tuyến điểm<input name="route" defaultValue={tour.route || ''} /></label>
+                        <label>Số ngày<input name="durationDays" type="number" min={1} defaultValue={tour.durationDays} required /></label>
+                        <label>Mô tả<textarea name="description" defaultValue={tour.description || ''} rows={2} /></label>
+                        <button type="submit"><Save size={14} /> Lưu</button>
+                      </form>
+                    </td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </section>
   );
 }

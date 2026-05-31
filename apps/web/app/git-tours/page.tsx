@@ -1,8 +1,9 @@
-import { BriefcaseBusiness, CircleDollarSign, Plus, Route, Users } from 'lucide-react';
+import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
+import { Fragment } from 'react';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
-
 import { viStatus } from '../i18n';
+
 export const dynamic = 'force-dynamic';
 
 type GitTour = {
@@ -25,12 +26,10 @@ const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
-    if (!response.ok) return fallback;
-    return response.json();
-  } catch {
-    return fallback;
-  }
+    const res = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
+    if (!res.ok) return fallback;
+    return res.json();
+  } catch { return fallback; }
 }
 
 async function createGitTour(formData: FormData) {
@@ -62,32 +61,41 @@ async function createGitTour(formData: FormData) {
       exchangeRateCode: String(formData.get('exchangeRateCode') || 'VND'),
       exchangeRate: Number(formData.get('exchangeRate') || 1),
       notes: String(formData.get('notes') || ''),
-      fileNote: String(formData.get('fileNote') || ''),
-      revenues: [
-        {
-          description: String(formData.get('revenueDescription') || 'Doanh thu tour'),
-          quantity: Number(formData.get('revenueQuantity') || 1),
-          unitPrice: Number(formData.get('revenueUnitPrice') || 0),
-          vat: Number(formData.get('revenueVat') || 0),
-        },
-      ],
-      budgetServices: [
-        {
-          serviceType: String(formData.get('budgetServiceType') || 'Dich vu'),
-          description: String(formData.get('budgetDescription') || ''),
-          quantity: Number(formData.get('budgetQuantity') || 1),
-          unitPrice: Number(formData.get('budgetUnitPrice') || 0),
-          vat: Number(formData.get('budgetVat') || 0),
-        },
-      ],
+      revenues: [{ description: String(formData.get('revenueDescription') || 'Doanh thu tour'), quantity: Number(formData.get('revenueQuantity') || 1), unitPrice: Number(formData.get('revenueUnitPrice') || 0), vat: Number(formData.get('revenueVat') || 0) }],
+      budgetServices: [{ serviceType: String(formData.get('budgetServiceType') || 'Dịch vụ'), description: String(formData.get('budgetDescription') || ''), quantity: Number(formData.get('budgetQuantity') || 1), unitPrice: Number(formData.get('budgetUnitPrice') || 0), vat: Number(formData.get('budgetVat') || 0) }],
     }),
   });
   revalidatePath('/git-tours');
 }
 
-function formatDate(value: string | null) {
-  return value ? dateFormatter.format(new Date(value)) : '-';
+async function updateGitTourStatus(formData: FormData) {
+  'use server';
+  const id = String(formData.get('id') || '');
+  if (!id) return;
+  await fetch(`${apiBase}/api/git-tours/${id}`, {
+    method: 'PATCH',
+    headers: await serverAuthJsonHeaders(),
+    body: JSON.stringify({ status: String(formData.get('status') || '') }),
+  });
+  revalidatePath('/git-tours');
 }
+
+async function deleteGitTour(formData: FormData) {
+  'use server';
+  const id = String(formData.get('id') || '');
+  if (!id) return;
+  await fetch(`${apiBase}/api/git-tours/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
+  revalidatePath('/git-tours');
+}
+
+function formatDate(v: string | null) { return v ? dateFormatter.format(new Date(v)) : '—'; }
+
+function statusClass(s: string) {
+  const m: Record<string, string> = { DRAFT: 'status-draft', UPCOMING: 'status-upcoming', RUNNING: 'status-running', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' };
+  return m[s] || '';
+}
+
+const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED'];
 
 export default async function GitToursPage() {
   const tours = await apiGet<GitTour[]>('/git-tours', []);
@@ -97,7 +105,7 @@ export default async function GitToursPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">GIT Tour core workflow</p>
-          <h1>Tour doan thiet ke rieng</h1>
+          <h1>Tour đoàn thiết kế riêng</h1>
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><BriefcaseBusiness size={14} /> GIT</span>
@@ -105,79 +113,101 @@ export default async function GitToursPage() {
         </div>
       </header>
 
-        <section className="contentGrid gitGrid">
-          <div className="panel">
-            <h2><Plus size={18} /> Tạo tour GIT</h2>
-            <form action={createGitTour} className="formGrid gitForm">
-              <label>Ma he thong<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} /></label>
-              <label>Ma tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} /></label>
-              <label>Ma giu cho<input name="holdCode" /></label>
-              <label>Ten tour<input name="name" required minLength={2} /></label>
-              <label>Lịch trình<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" /></label>
-              <label>Nhom<input name="marketGroup" /></label>
-              <label>Ngày đặt<input name="bookingDate" type="date" /></label>
-              <label>Ngay thanh toán<input name="paymentDueDate" type="date" /></label>
-              <label>Ngay di<input name="startDate" type="date" /></label>
-              <label>Ngay ve<input name="endDate" type="date" /></label>
-              <label>Khach hang<input name="customerName" required minLength={2} /></label>
-              <label>Dai ly<input name="agentName" /></label>
-              <label>NVDH<input name="operatorOwner" /></label>
-              <label>CTV<input name="collaborator" /></label>
-              <label>Chi nhanh<input name="branch" /></label>
-              <label>Phong ban<input name="department" /></label>
-              <label>Nguon khach<input name="customerSource" /></label>
-              <label>Hoa hong %<input name="commissionRate" type="number" min={0} defaultValue={0} /></label>
-              <label>Hoa don<input name="invoiceStatus" /></label>
-              <label>TK<input name="accountCode" /></label>
-              <label>Ty gia<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
-              <label>Gia tri ty gia<input name="exchangeRate" type="number" min={0} defaultValue={1} /></label>
-              <label>Noi dung doanh thu<input name="revenueDescription" defaultValue="Gia tour tron goi" /></label>
-              <label>SL thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
-              <label>Don gia thu<input name="revenueUnitPrice" type="number" min={0} defaultValue={0} /></label>
-              <label>VAT thu %<input name="revenueVat" type="number" min={0} defaultValue={0} /></label>
-              <label>Dich vu Sales<input name="budgetServiceType" defaultValue="Hotel" /></label>
-              <label>Dien giai chi<input name="budgetDescription" /></label>
-              <label>SL chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
-              <label>Don gia chi<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
-              <label>VAT chi %<input name="budgetVat" type="number" min={0} defaultValue={0} /></label>
-              <label>Ghi chú<textarea name="notes" rows={3} /></label>
-              <label>File/Ghi chú file<textarea name="fileNote" rows={3} /></label>
-              <button type="submit">Tạo tour GIT</button>
-            </form>
-          </div>
+      <section className="contentGrid gitGrid">
+        <div className="panel">
+          <h2><Plus size={18} /> Tạo tour GIT</h2>
+          <form action={createGitTour} className="formGrid gitForm">
+            <label>Mã hệ thống<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} /></label>
+            <label>Mã tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} /></label>
+            <label>Mã giữ chỗ<input name="holdCode" /></label>
+            <label>Tên tour<input name="name" required minLength={2} /></label>
+            <label>Lịch trình<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" /></label>
+            <label>Nhóm<input name="marketGroup" /></label>
+            <label>Ngày đặt<input name="bookingDate" type="date" /></label>
+            <label>Ngày thanh toán<input name="paymentDueDate" type="date" /></label>
+            <label>Ngày đi<input name="startDate" type="date" /></label>
+            <label>Ngày về<input name="endDate" type="date" /></label>
+            <label>Khách hàng<input name="customerName" required minLength={2} /></label>
+            <label>Đại lý<input name="agentName" /></label>
+            <label>NVDH<input name="operatorOwner" /></label>
+            <label>CTV<input name="collaborator" /></label>
+            <label>Chi nhánh<input name="branch" /></label>
+            <label>Phòng ban<input name="department" /></label>
+            <label>Nguồn khách<input name="customerSource" /></label>
+            <label>Hoa hồng %<input name="commissionRate" type="number" min={0} defaultValue={0} /></label>
+            <label>Hóa đơn<input name="invoiceStatus" /></label>
+            <label>TK<input name="accountCode" /></label>
+            <label>Tỷ giá<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
+            <label>Giá trị tỷ giá<input name="exchangeRate" type="number" min={0} defaultValue={1} /></label>
+            <label>Nội dung doanh thu<input name="revenueDescription" defaultValue="Giá tour trọn gói" /></label>
+            <label>SL thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Đơn giá thu<input name="revenueUnitPrice" type="number" min={0} defaultValue={0} /></label>
+            <label>VAT thu %<input name="revenueVat" type="number" min={0} defaultValue={0} /></label>
+            <label>Dịch vụ Sales<input name="budgetServiceType" defaultValue="Hotel" /></label>
+            <label>Diễn giải chi<input name="budgetDescription" /></label>
+            <label>SL chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Đơn giá chi<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
+            <label>VAT chi %<input name="budgetVat" type="number" min={0} defaultValue={0} /></label>
+            <label>Ghi chú<textarea name="notes" rows={2} /></label>
+            <button type="submit">Tạo tour GIT</button>
+          </form>
+        </div>
 
-          <div className="panel gitSummary">
-            <h2><Route size={18} /> Tổng quan GIT</h2>
-            <div className="summaryRows">
-              <div><span>Tong GIT</span><strong>{tours.length}</strong></div>
-              <div><span>Sap chay</span><strong>{tours.filter((tour) => tour.status === 'UPCOMING').length}</strong></div>
-              <div><span>Đang chay</span><strong>{tours.filter((tour) => tour.status === 'RUNNING').length}</strong></div>
-              <div><span>Chưa thu het</span><strong>{tours.filter((tour) => tour.paymentStatus !== 'PAID').length}</strong></div>
-            </div>
+        <div className="panel gitSummary">
+          <h2>Tổng quan GIT</h2>
+          <div className="summaryRows">
+            <div><span>Tổng GIT</span><strong>{tours.length}</strong></div>
+            <div><span>Sắp chạy</span><strong>{tours.filter((t) => t.status === 'UPCOMING').length}</strong></div>
+            <div><span>Đang chạy</span><strong>{tours.filter((t) => t.status === 'RUNNING').length}</strong></div>
+            <div><span>Chưa thu hết</span><strong>{tours.filter((t) => t.paymentStatus !== 'PAID').length}</strong></div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="panel listPanel">
-          <div className="sectionHeader"><h2>Danh sach tour GIT</h2><span>{tours.length} tour</span></div>
+      <section className="panel listPanel">
+        <div className="sectionHeader">
+          <h2>Danh sách tour GIT</h2>
+          <span>{tours.length} tour</span>
+        </div>
+        {tours.length === 0 ? (
+          <div className="tableEmptyState"><BriefcaseBusiness size={20} /> Chưa có tour GIT nào.</div>
+        ) : (
           <table>
-            <thead><tr><th>Ma</th><th>Tour</th><th>Khach/Dai ly</th><th>Ngay di</th><th>NVDH</th><th>Trạng thái</th><th>Doanh thu</th><th>Dich vu</th></tr></thead>
+            <thead>
+              <tr><th>Mã</th><th>Tour</th><th>Khách / Đại lý</th><th>Ngày đi</th><th>NVDH</th><th>Trạng thái</th><th>DT / DV</th><th>Thao tác</th></tr>
+            </thead>
             <tbody>
               {tours.map((tour) => (
-                <tr key={tour.id}>
-                  <td>{tour.systemCode}<br /><span className="mutedText">{tour.tourCode}</span></td>
-                  <td>{tour.name || '-'}</td>
-                  <td>{tour.customers[0]?.name || '-'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
-                  <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
-                  <td>{tour.operatorOwner || '-'}</td>
-                  <td><span className="statusPill">{viStatus(tour.status)}</span></td>
-                  <td><CircleDollarSign size={14} /> {tour._count?.revenues ?? 0}</td>
-                  <td>{tour._count?.services ?? 0}</td>
-                </tr>
+                <Fragment key={tour.id}>
+                  <tr>
+                    <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
+                    <td><strong>{tour.name || '—'}</strong></td>
+                    <td>{tour.customers[0]?.name || '—'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
+                    <td>{formatDate(tour.startDate)} — {formatDate(tour.endDate)}</td>
+                    <td>{tour.operatorOwner || '—'}</td>
+                    <td>
+                      <form action={updateGitTourStatus} className="inlineStatusForm">
+                        <input type="hidden" name="id" value={tour.id} />
+                        <select name="status" defaultValue={tour.status} aria-label="Trạng thái">
+                          {tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}
+                        </select>
+                        <button type="submit" className="secondaryButton">Cập nhật</button>
+                      </form>
+                    </td>
+                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} / {tour._count?.services ?? 0} DV</td>
+                    <td className="actionsCell">
+                      <form action={deleteGitTour} style={{ display: 'inline' }}>
+                        <input type="hidden" name="id" value={tour.id} />
+                        <button type="submit" className="dangerButton" title="Xóa tour GIT"><Trash2 size={14} /></button>
+                      </form>
+                    </td>
+                  </tr>
+                </Fragment>
               ))}
-              {tours.length === 0 ? <tr><td colSpan={8}>Chưa co tour GIT.</td></tr> : null}
             </tbody>
           </table>
-        </section>
+        )}
+      </section>
     </section>
   );
 }
