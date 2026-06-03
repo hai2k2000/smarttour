@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { authEnforceEnabled } from '../../config/runtime-env';
+import { authEnforceEnabled, smartTourEnvironment } from '../../config/runtime-env';
 import { AuthService } from './auth.service';
 import { PERMISSIONS_KEY, PUBLIC_ROUTE_KEY } from './permissions.decorator';
 
@@ -14,7 +14,11 @@ export class AuthGuard implements CanActivate {
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [context.getHandler(), context.getClass()]) || [];
     const request = context.switchToHttp().getRequest();
     const token = this.bearer(request.headers?.authorization) || this.cookie(request.headers?.cookie);
+    const env = smartTourEnvironment();
     const enforce = authEnforceEnabled();
+    if ((env === 'production' || env === 'staging') && !enforce) {
+      throw new UnauthorizedException('Auth enforcement must be enabled in this environment');
+    }
     if (!token && !enforce) return true;
     const session = await this.authService.validateToken(token);
     request.user = session.user;

@@ -65,6 +65,14 @@ async function run() {
   }
   assert(rejected, 'production with enforce=false should fail config validation');
 
+  rejected = false;
+  try {
+    await new AuthGuard(reflector(), authService()).canActivate(context());
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, 'production guard should fail closed when enforce=false');
+
   process.env.SMARTTOUR_AUTH_ENFORCE = 'true';
   rejected = false;
   try {
