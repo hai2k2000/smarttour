@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
+import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
@@ -315,7 +316,7 @@ export class FinanceService {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!current) throw new NotFoundException('Payment not found');
       if (current.approvalStatus === FinanceApprovalStatus.APPROVED) {
-        await this.reconcileApprovedPayment(tx, current);
+        await reconcileApprovedPayment(tx, current);
         return current;
       }
       const payment = await tx.financePayment.update({
@@ -386,7 +387,7 @@ export class FinanceService {
         });
       }
       if (payment.orderId) await applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
-      await this.reconcileApprovedPayment(tx, payment);
+      await reconcileApprovedPayment(tx, payment);
       await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) });
       return payment;
     });
@@ -418,7 +419,7 @@ export class FinanceService {
         await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
       }
       if (payment.orderId) await applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
-      await this.reconcileCancelledPayment(tx, payment);
+      await reconcileCancelledPayment(tx, payment);
       await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id });
       return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
     });
@@ -870,36 +871,6 @@ export class FinanceService {
         sortOrder: index,
       };
     });
-  }
-
-  private async reconcileApprovedPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null; paymentAmount: Prisma.Decimal }) {
-    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'PAID' } });
-    if (!payment.operationVoucherId) return;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-    if (!voucher) return;
-    const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
-    if (existing) return;
-    const amount = Math.min(Number(payment.paymentAmount), Number(voucher.remainAmount));
-    if (amount <= 0) return;
-    await tx.operationVoucherPayment.create({
-      data: { voucherId: voucher.id, paymentVoucherId: payment.id, paidAmount: amount, paymentDate: new Date(), note: 'Duyet phieu chi tai chinh' },
-    });
-    const paidAmount = Number(voucher.paidAmount) + amount;
-    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
-    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : 'PARTIAL' } });
-  }
-
-  private async reconcileCancelledPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null }) {
-    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'APPROVED', financePaymentId: null } });
-    if (!payment.operationVoucherId) return;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-    if (!voucher) return;
-    const reconciled = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
-    if (!reconciled) return;
-    await tx.operationVoucherPayment.delete({ where: { id: reconciled.id } });
-    const paidAmount = Math.max(Number(voucher.paidAmount) - Number(reconciled.paidAmount), 0);
-    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
-    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'PENDING' } });
   }
 
   private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
