@@ -1,6 +1,21 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CreateOrderDto } from './dto/order.dto';
+
+@Injectable()
+export class OrderAllotmentService {
+  syncHotelLocks(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>, action: string) {
+    return syncHotelAllotmentLocks(tx, orderId, dto, action);
+  }
+
+  releaseAutoLocks(tx: Prisma.TransactionClient, orderId: string, action: string) {
+    return releaseAutoAllotmentLocks(tx, orderId, action);
+  }
+
+  confirmAutoLocks(tx: Prisma.TransactionClient, orderId: string, action: string) {
+    return confirmAutoAllotmentLocks(tx, orderId, action);
+  }
+}
 
 export async function syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>, action: string) {
   const order = await tx.order.findUnique({ where: { id: orderId }, select: { id: true, systemCode: true } });

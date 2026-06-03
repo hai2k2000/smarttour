@@ -1,6 +1,14 @@
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CreateOrderDto } from './dto/order.dto';
 import { operationAmount, salesAmount } from './order-calculator';
+
+@Injectable()
+export class OrderChildrenSyncService {
+  replace(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>) {
+    return replaceOrderChildren(tx, orderId, dto);
+  }
+}
 
 export async function replaceOrderChildren(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>) {
   if (dto.guides) {

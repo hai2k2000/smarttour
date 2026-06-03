@@ -3,11 +3,11 @@ import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
-import { releaseAutoAllotmentLocks, syncHotelAllotmentLocks } from './order-allotment-sync';
-import { replaceOrderChildren } from './order-children-sync';
-import { withCustomerSnapshot } from './order-customer-snapshot';
+import { OrderAllotmentService } from './order-allotment-sync';
+import { OrderChildrenSyncService } from './order-children-sync';
+import { OrderCustomerSnapshotService } from './order-customer-snapshot';
 import { calculateOrderTotals } from './order-calculator';
-import { applyOrderStatus, assertOrderEditable, assertOrderNotSettled, settleOrder, unlockSettledOrder } from './order-lifecycle';
+import { OrderLifecycleService } from './order-lifecycle';
 
 const ORDER_TYPES: Record<string, OrderType> = {
   'fit-tours': 'FIT_TOUR',
@@ -20,7 +20,23 @@ const ORDER_TYPES: Record<string, OrderType> = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly lifecycle: OrderLifecycleService;
+  private readonly children: OrderChildrenSyncService;
+  private readonly allotments: OrderAllotmentService;
+  private readonly customerSnapshot: OrderCustomerSnapshotService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    lifecycle?: OrderLifecycleService,
+    children?: OrderChildrenSyncService,
+    allotments?: OrderAllotmentService,
+    customerSnapshot?: OrderCustomerSnapshotService,
+  ) {
+    this.allotments = allotments ?? new OrderAllotmentService();
+    this.lifecycle = lifecycle ?? new OrderLifecycleService(this.allotments);
+    this.children = children ?? new OrderChildrenSyncService();
+    this.customerSnapshot = customerSnapshot ?? new OrderCustomerSnapshotService();
+  }
 
   private listSelect() {
     return {
@@ -93,7 +109,7 @@ export class OrdersService {
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = await withCustomerSnapshot(tx, dto);
+        const orderDto = await this.customerSnapshot.withSnapshot(tx, dto);
         const order = await tx.order.create({
           data: {
             type,
@@ -101,8 +117,8 @@ export class OrdersService {
             ...calculateOrderTotals(orderDto),
           } as Prisma.OrderCreateInput,
         });
-        await replaceOrderChildren(tx, order.id, orderDto);
-        if (type === 'HOTEL_BOOKING') await syncHotelAllotmentLocks(tx, order.id, orderDto, 'CREATE');
+        await this.children.replace(tx, order.id, orderDto);
+        if (type === 'HOTEL_BOOKING') await this.allotments.syncHotelLocks(tx, order.id, orderDto, 'CREATE');
         await tx.orderLog.create({ data: { orderId: order.id, action: 'CREATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
         return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.includeAll() });
       });
@@ -117,11 +133,11 @@ export class OrdersService {
   async update(typePath: string, id: string, dto: UpdateOrderDto, user?: RequestUser) {
     const current = await this.detail(typePath, id, user);
     dto = applyWriteDataScope(dto as UpdateOrderDto & { department?: string | null }, user) as UpdateOrderDto;
-    assertOrderEditable(current);
+    this.lifecycle.assertEditable(current);
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = await withCustomerSnapshot(tx, dto);
+        const orderDto = await this.customerSnapshot.withSnapshot(tx, dto);
         const merged = {
           ...current,
           ...orderDto,
@@ -157,10 +173,10 @@ export class OrdersService {
             ...calculateOrderTotals(merged),
           } as Prisma.OrderUpdateInput,
         });
-        await replaceOrderChildren(tx, id, orderDto);
+        await this.children.replace(tx, id, orderDto);
         if (current.type === 'HOTEL_BOOKING' && orderDto.operationItems) {
-          await releaseAutoAllotmentLocks(tx, id, 'UPDATE_RELEASE');
-          await syncHotelAllotmentLocks(tx, id, merged, 'UPDATE_LOCK');
+          await this.allotments.releaseAutoLocks(tx, id, 'UPDATE_RELEASE');
+          await this.allotments.syncHotelLocks(tx, id, merged, 'UPDATE_LOCK');
         }
         await tx.orderLog.create({ data: { orderId: id, action: 'UPDATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
         return tx.order.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
@@ -175,9 +191,9 @@ export class OrdersService {
 
   async remove(typePath: string, id: string, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
-    assertOrderNotSettled(order, 'deleted');
+    this.lifecycle.assertNotSettled(order, 'deleted');
     return this.prisma.$transaction(async (tx) => {
-      if (order.type === 'HOTEL_BOOKING') await releaseAutoAllotmentLocks(tx, id, 'DELETE_RELEASE');
+      if (order.type === 'HOTEL_BOOKING') await this.allotments.releaseAutoLocks(tx, id, 'DELETE_RELEASE');
       await tx.orderLog.create({ data: { orderId: id, action: 'DELETE', oldValue: { status: order.status } } });
       return tx.order.update({ where: { id }, data: { deletedAt: new Date() } });
     });
@@ -186,7 +202,7 @@ export class OrdersService {
   async updateStatus(typePath: string, id: string, status: OrderStatus, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return applyOrderStatus(tx, order, status, this.includeAll());
+      return this.lifecycle.applyStatus(tx, order, status, this.includeAll());
     });
   }
 
@@ -256,14 +272,14 @@ export class OrdersService {
   async settle(typePath: string, id: string, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return settleOrder(tx, order);
+      return this.lifecycle.settle(tx, order);
     });
   }
 
   async unlock(typePath: string, id: string, dto: UnlockOrderDto, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return unlockSettledOrder(tx, order, dto);
+      return this.lifecycle.unlock(tx, order, dto);
     });
   }
 

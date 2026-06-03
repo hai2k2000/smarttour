@@ -1,6 +1,13 @@
-import { NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CreateOrderDto } from './dto/order.dto';
+
+@Injectable()
+export class OrderCustomerSnapshotService {
+  withSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
+    return withCustomerSnapshot(tx, dto);
+  }
+}
 
 export async function withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
   const customerId = text(dto.customerId);
