@@ -31,6 +31,10 @@ const { FinanceService } = require('./apps/api/dist/modules/finance/finance.serv
 const { GitToursService } = require('./apps/api/dist/modules/git-tours/git-tours.service');
 const { LandToursService } = require('./apps/api/dist/modules/landtours/landtours.service');
 const { FitToursService } = require('./apps/api/dist/modules/fit-tours/fit-tours.service');
+const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
+const { SuppliersService } = require('./apps/api/dist/modules/suppliers/suppliers.service');
+const { TourGuidesService } = require('./apps/api/dist/modules/tour-guides/tour-guides.service');
 
 function role(...permissions) {
   return { role: { permissions: permissions.map((permission) => ({ permission })) } };
@@ -63,18 +67,33 @@ async function main() {
   const gitTours = new GitToursService(prisma);
   const landTours = new LandToursService(prisma);
   const fitTours = new FitToursService(prisma);
+  const bookings = new BookingsService(prisma);
+  const operationVouchers = new OperationVouchersService(prisma);
+  const suppliers = new SuppliersService(prisma, {});
+  const tourGuides = new TourGuidesService(prisma, {});
   const run = 'SCOPE-' + Date.now();
 
   const branchUser = user('BR-A', 'DEP-A', 'data.scope.branch');
   const departmentUser = user('BR-X', 'DEP-B', 'data.scope.department');
   const noScopeUser = user('BR-A', 'DEP-A', 'tour.view');
   const allUser = user(null, null, 'data.scope.all');
+  const missingBranchUser = user(null, 'DEP-A', 'data.scope.branch');
+  const missingDepartmentUser = user('BR-A', null, 'data.scope.department');
 
   const customerA = await prisma.customer.create({
     data: { code: run + '-CA', fullName: 'Customer A', phone: '090' + String(Date.now()).slice(-7), branch: 'BR-A', department: 'DEP-A' },
   });
   const customerB = await prisma.customer.create({
     data: { code: run + '-CB', fullName: 'Customer B', phone: '091' + String(Date.now()).slice(-7), branch: 'BR-B', department: 'DEP-B' },
+  });
+  const tourProgram = await prisma.tourProgram.create({
+    data: { code: run + '-TP', name: 'Scoped Program', route: 'HAN-DAD', durationDays: 3 },
+  });
+  const orderA = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-A', name: 'Order A', branch: 'BR-A', department: 'DEP-A', customerId: customerA.id },
+  });
+  const orderB = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-B', name: 'Order B', branch: 'BR-B', department: 'DEP-B', customerId: customerB.id },
   });
 
   const invoiceA = await finance.createInvoice({
@@ -101,6 +120,99 @@ async function main() {
   await rejects(() => finance.invoiceDetail(invoiceB.id, branchUser), 'branch user should not read other branch invoice');
   await rejects(() => finance.createInvoice({ invoiceCode: run + '-INV-NOLINK', items: [{ itemName: 'No link', quantity: 1, unitPrice: 1 }] }, branchUser), 'scoped invoice write should require scoped link');
   await rejects(() => finance.createInvoice({ invoiceCode: run + '-INV-OTHER', customerId: customerB.id, items: [{ itemName: 'Other', quantity: 1, unitPrice: 1 }] }, branchUser), 'scoped invoice write should reject other branch customer');
+  await rejects(() => finance.createInvoice({ invoiceCode: run + '-INV-MISSING-BRANCH', customerId: customerA.id, items: [{ itemName: 'Missing branch', quantity: 1, unitPrice: 1 }] }, missingBranchUser), 'branch scoped finance write should reject user without branch');
+  await rejects(() => finance.createInvoice({ invoiceCode: run + '-INV-MISSING-DEPT', customerId: customerA.id, items: [{ itemName: 'Missing department', quantity: 1, unitPrice: 1 }] }, missingDepartmentUser), 'department scoped finance write should reject user without department');
+
+  const bookingA = await bookings.create({
+    code: run + '-BK-A',
+    tourProgramId: tourProgram.id,
+    customerId: customerA.id,
+    customerName: customerA.fullName,
+    paxCount: 2,
+    startDate: '2026-12-03',
+    endDate: '2026-12-05',
+  }, branchUser);
+  await bookings.create({
+    code: run + '-BK-B',
+    tourProgramId: tourProgram.id,
+    customerId: customerB.id,
+    customerName: customerB.fullName,
+    paxCount: 2,
+    startDate: '2026-12-04',
+    endDate: '2026-12-06',
+  }, allUser);
+  assert((await bookings.list(run, undefined, undefined, branchUser)).map((row) => row.id).join(',') === bookingA.id, 'branch user should only list scoped bookings');
+  await rejects(() => bookings.create({ code: run + '-BK-NOLINK', tourProgramId: tourProgram.id, customerName: 'No Link', paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, branchUser), 'branch scoped booking write should require scoped link');
+  await rejects(() => bookings.create({ code: run + '-BK-OTHER', tourProgramId: tourProgram.id, customerId: customerB.id, customerName: customerB.fullName, paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, branchUser), 'branch scoped booking write should reject other branch customer');
+  await rejects(() => bookings.create({ code: run + '-BK-NOSCOPE', tourProgramId: tourProgram.id, customerId: customerA.id, customerName: customerA.fullName, paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, noScopeUser), 'booking write should reject users without data scope');
+
+  const voucherA = await operationVouchers.create({
+    voucherCode: run + '-VCH-A',
+    orderId: orderA.id,
+    supplierName: 'Supplier A',
+    serviceType: 'HOTEL',
+    serviceName: 'Hotel A',
+    serviceDate: '2026-12-03',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 100, vat: 0 }],
+  }, branchUser);
+  await operationVouchers.create({
+    voucherCode: run + '-VCH-B',
+    orderId: orderB.id,
+    supplierName: 'Supplier B',
+    serviceType: 'HOTEL',
+    serviceName: 'Hotel B',
+    serviceDate: '2026-12-03',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 200, vat: 0 }],
+  }, allUser);
+  assert((await operationVouchers.list(run, undefined, branchUser)).map((row) => row.id).join(',') === voucherA.id, 'branch user should only list scoped operation vouchers');
+  await rejects(() => operationVouchers.create({ voucherCode: run + '-VCH-NOLINK', supplierName: 'Supplier', serviceType: 'HOTEL', serviceName: 'Hotel', serviceDate: '2026-12-03', details: [{ serviceName: 'Room', quantity: 1, netPrice: 100, vat: 0 }] }, branchUser), 'scoped operation voucher write should require order, tour or booking');
+  await rejects(() => operationVouchers.create({ voucherCode: run + '-VCH-OTHER', orderId: orderB.id, supplierName: 'Supplier', serviceType: 'HOTEL', serviceName: 'Hotel', serviceDate: '2026-12-03', details: [{ serviceName: 'Room', quantity: 1, netPrice: 100, vat: 0 }] }, branchUser), 'scoped operation voucher write should reject other branch order');
+  const requestPayment = await operationVouchers.createPaymentVoucher(voucherA.id, branchUser);
+  assert(requestPayment.financePayments[0]?.branch === 'BR-A', 'operation voucher finance payment should inherit branch scope');
+
+  const supplierCategory = await prisma.supplierCategory.create({ data: { name: run + '-Hotel' } });
+  const supplier = await prisma.supplier.create({ data: { categoryId: supplierCategory.id, supplierCode: run + '-SUP', name: 'Scoped Supplier' } });
+  const allotment = await prisma.supplierAllotment.create({
+    data: { supplierId: supplier.id, serviceName: 'Scoped Room', allotmentQty: 10, status: 'ACTIVE' },
+  });
+  const scopedLock = await suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, branchUser);
+  assert(scopedLock.allocation.orderId === orderA.id, 'branch user should lock allotment against scoped order');
+  await suppliers.confirmAllotmentAllocation(scopedLock.allocation.id, { note: 'confirm scoped' }, branchUser);
+  const otherLock = await suppliers.lockAllotment(allotment.id, { orderId: orderB.id, quantity: 1, actor: 'scope-test' }, allUser);
+  await rejects(() => suppliers.lockAllotment(allotment.id, { quantity: 1, actor: 'scope-test' }, branchUser), 'scoped allotment lock should require order, booking or tour');
+  await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderB.id, quantity: 1, actor: 'scope-test' }, branchUser), 'scoped allotment lock should reject other branch order');
+  await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, missingBranchUser), 'branch scoped allotment lock should reject user without branch');
+  await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, missingDepartmentUser), 'department scoped allotment lock should reject user without department');
+  await rejects(() => suppliers.releaseAllotmentAllocation(otherLock.allocation.id, { note: 'release other' }, branchUser), 'scoped allotment release should reject other branch allocation');
+
+  const guideA = await tourGuides.create({
+    guideCode: run + '-GUIDE-A',
+    fullName: 'Guide A',
+    phone: '098' + String(Date.now()).slice(-7),
+    schedules: [{ orderId: orderA.id, title: 'Scoped order', startDate: '2026-12-07', endDate: '2026-12-08' }],
+  }, branchUser);
+  assert(guideA.schedules[0]?.orderId === orderA.id, 'branch user should create guide schedule for scoped order');
+  await rejects(() => tourGuides.create({
+    guideCode: run + '-GUIDE-OTHER',
+    fullName: 'Guide Other',
+    phone: '097' + String(Date.now()).slice(-7),
+    schedules: [{ orderId: orderB.id, title: 'Other order', startDate: '2026-12-09', endDate: '2026-12-10' }],
+  }, branchUser), 'scoped guide schedule should reject other branch order');
+  await rejects(() => tourGuides.create({
+    guideCode: run + '-GUIDE-MISSING-BR',
+    fullName: 'Guide Missing Branch',
+    phone: '096' + String(Date.now()).slice(-7),
+    schedules: [{ orderId: orderA.id, title: 'Missing branch', startDate: '2026-12-11', endDate: '2026-12-12' }],
+  }, missingBranchUser), 'branch scoped guide schedule should reject user without branch');
+  await rejects(() => tourGuides.create({
+    guideCode: run + '-GUIDE-MISSING-DEP',
+    fullName: 'Guide Missing Department',
+    phone: '095' + String(Date.now()).slice(-7),
+    schedules: [{ orderId: orderA.id, title: 'Missing department', startDate: '2026-12-13', endDate: '2026-12-14' }],
+  }, missingDepartmentUser), 'department scoped guide schedule should reject user without department');
+  await rejects(() => tourGuides.update(guideA.id, {
+    schedules: [{ orderId: orderB.id, title: 'Move other', startDate: '2026-12-15', endDate: '2026-12-16' }],
+  }, branchUser), 'scoped guide schedule update should reject other branch order');
 
   const gitA = await gitTours.create({
     systemCode: run + '-GIT-A',

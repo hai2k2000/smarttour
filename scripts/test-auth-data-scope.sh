@@ -56,6 +56,9 @@ async function main() {
   const mixedUser = user('BR-A', 'DEP-A', 'data.scope.branch', 'data.scope.department');
   const allUser = user(null, null, 'data.scope.all');
   const noScopeUser = user(null, null, 'customer.manage');
+  const missingBranchUser = user(null, 'DEP-A', 'data.scope.branch');
+  const missingDepartmentUser = user('BR-A', null, 'data.scope.department');
+  const missingMixedUser = user('BR-A', null, 'data.scope.branch', 'data.scope.department');
 
   assert(userPermissions(mixedUser).has('data.scope.branch'), 'permissions should flatten user roles');
   assert(hasUnrestrictedDataScope(allUser), 'data.scope.all should be unrestricted');
@@ -72,6 +75,15 @@ async function main() {
   const deniedWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, noScopeUser);
   assert(deniedWhere.AND?.[1]?.id === '__no_data_scope__', 'missing scope should deny reads');
 
+  const missingBranchWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, missingBranchUser);
+  assert(missingBranchWhere.AND?.[1]?.id === '__no_data_scope__', 'missing branch value should deny branch-scoped reads');
+
+  const missingDepartmentWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, missingDepartmentUser);
+  assert(missingDepartmentWhere.AND?.[1]?.id === '__no_data_scope__', 'missing department value should deny department-scoped reads');
+
+  const missingMixedWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, missingMixedUser);
+  assert(missingMixedWhere.AND?.[1]?.id === '__no_data_scope__', 'missing one mixed scope value should deny mixed scoped reads');
+
   const branchWrite = applyWriteDataScope({ name: 'A' }, branchUser);
   assert(branchWrite.branch === 'BR-A', 'branch scoped write should inject branch');
 
@@ -79,6 +91,10 @@ async function main() {
   assert(departmentWrite.department === 'DEP-A', 'department scoped write should inject department');
 
   await rejects(() => applyWriteDataScope({ branch: 'BR-B' }, branchUser), 'branch scoped write should reject other branch');
+  await rejects(() => applyWriteDataScope({ name: 'A' }, noScopeUser), 'scoped write should reject users without data scope permission');
+  await rejects(() => applyWriteDataScope({ name: 'A' }, missingBranchUser), 'branch scoped write should reject users without branch');
+  await rejects(() => applyWriteDataScope({ name: 'A' }, missingDepartmentUser), 'department scoped write should reject users without department');
+  await rejects(() => applyWriteDataScope({ name: 'A' }, missingMixedUser), 'mixed scoped write should reject users missing one scoped value');
 
   const unrestricted = applyWriteDataScope({ branch: 'BR-X' }, allUser);
   assert(unrestricted.branch === 'BR-X', 'unrestricted user should keep submitted branch');

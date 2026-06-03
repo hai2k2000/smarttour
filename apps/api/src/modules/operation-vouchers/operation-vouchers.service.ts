@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { OperationVoucherStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 
 @Injectable()
@@ -165,7 +165,7 @@ export class OperationVouchersService {
     if (Number(voucher.paidAmount) + dto.paidAmount > Number(voucher.totalAmount)) throw new BadRequestException('Paid amount cannot exceed total amount');
     return this.prisma.$transaction(async (tx) => {
       if (dto.paymentVoucherId) {
-        const payment = await tx.financePayment.findUnique({ where: { id: dto.paymentVoucherId }, select: { id: true } });
+        const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id: dto.paymentVoucherId }, user), select: { id: true } });
         if (!payment) throw new NotFoundException('Finance payment not found');
       }
       await tx.operationVoucherPayment.create({
@@ -182,9 +182,11 @@ export class OperationVouchersService {
     const voucher = await this.detail(id, user);
     const amount = Number(voucher.remainAmount);
     if (amount <= 0) throw new BadRequestException('Voucher has no remaining amount');
+    const scopedPayment = applyWriteDataScope({ branch: undefined, department: undefined }, user);
     return this.prisma.$transaction(async (tx) => {
       const financePayment = await tx.financePayment.create({
         data: {
+          ...scopedPayment,
           voucherCode: await this.nextFinancePaymentCode(tx),
           voucherName: `Chi ${voucher.voucherCode}`,
           voucherType: 'SUPPLIER_PAYMENT',
@@ -245,6 +247,7 @@ export class OperationVouchersService {
   private scopeWhere(where: Prisma.OperationVoucherWhereInput, user?: RequestUser): Prisma.OperationVoucherWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
+    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
     const OR: Prisma.OperationVoucherWhereInput[] = [];
     if (permissions.has('data.scope.branch') && user.branch) OR.push({ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } });
     if (permissions.has('data.scope.department') && user.department) OR.push({ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } });
@@ -254,6 +257,10 @@ export class OperationVouchersService {
 
   private async ensureLinksScoped(links: { bookingId: string | null; tourId: string | null; orderId: string | null }, user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
+    if (!links.bookingId && !links.tourId && !links.orderId) {
+      throw new BadRequestException('bookingId, orderId or tourId is required for scoped operation voucher writes');
+    }
     const scoped = await this.prisma.operationVoucher.findFirst({
       where: this.scopeWhere({ bookingId: links.bookingId || undefined, tourId: links.tourId || undefined, orderId: links.orderId || undefined }, user),
       select: { id: true },
@@ -277,6 +284,10 @@ export class OperationVouchersService {
       bookingWhere ? this.prisma.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
     ]);
     if (!order && !tour && !booking) throw new NotFoundException('Linked booking, order or tour not found');
+  }
+
+  private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
+    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
   private async nextFinancePaymentCode(tx: Prisma.TransactionClient) {

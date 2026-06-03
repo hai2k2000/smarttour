@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 @Injectable()
@@ -34,11 +35,11 @@ export class TourGuidesService {
     return guide;
   }
 
-  async create(dto: CreateTourGuideDto) {
+  async create(dto: CreateTourGuideDto, user?: RequestUser) {
     this.validateSchedules(dto.schedules ?? []);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.validateScheduleLinks(tx, dto.schedules ?? []);
+        await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
         const guide = await tx.guideProfile.create({ data: this.toGuideData(dto) as Prisma.GuideProfileCreateInput });
         await this.replaceChildren(tx, guide.id, dto);
         return tx.guideProfile.findUniqueOrThrow({ where: { id: guide.id }, include: this.includeAll() });
@@ -49,12 +50,12 @@ export class TourGuidesService {
     }
   }
 
-  async update(id: string, dto: UpdateTourGuideDto) {
+  async update(id: string, dto: UpdateTourGuideDto, user?: RequestUser) {
     await this.detail(id);
     if (dto.schedules) this.validateSchedules(dto.schedules);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.validateScheduleLinks(tx, dto.schedules ?? []);
+        await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
         await tx.guideProfile.update({ where: { id }, data: this.toGuideData(dto) as Prisma.GuideProfileUpdateInput });
         await this.replaceChildren(tx, id, dto);
         return tx.guideProfile.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
@@ -127,17 +128,23 @@ export class TourGuidesService {
     }
   }
 
-  private async validateScheduleLinks(tx: Prisma.TransactionClient, schedules: Array<{ tourId?: string; orderId?: string }>) {
+  private async validateScheduleLinks(tx: Prisma.TransactionClient, schedules: Array<{ tourId?: string; orderId?: string }>, user?: RequestUser) {
     const tourIds = [...new Set(schedules.map((item) => this.text(item.tourId)).filter((id): id is string => Boolean(id)))];
     const orderIds = [...new Set(schedules.map((item) => this.text(item.orderId)).filter((id): id is string => Boolean(id)))];
+    if (tourIds.length || orderIds.length) this.assertScopedScheduleWrite(user);
     if (tourIds.length) {
-      const count = await tx.tour.count({ where: { id: { in: tourIds } } });
+      const count = await tx.tour.count({ where: branchDepartmentScopeWhere({ id: { in: tourIds } }, user) });
       if (count !== tourIds.length) throw new NotFoundException('Tour not found in guide schedule');
     }
     if (orderIds.length) {
-      const count = await tx.order.count({ where: { id: { in: orderIds } } });
+      const count = await tx.order.count({ where: branchDepartmentScopeWhere({ id: { in: orderIds } }, user) });
       if (count !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng in guide schedule');
     }
+  }
+
+  private assertScopedScheduleWrite(user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
   }
 
   private includeAll() {

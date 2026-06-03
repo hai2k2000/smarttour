@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -391,12 +392,12 @@ export class SuppliersService {
     });
   }
 
-  async lockAllotment(id: string, dto: LockAllotmentDto) {
+  async lockAllotment(id: string, dto: LockAllotmentDto, user?: RequestUser) {
     const quantity = dto.quantity ?? 1;
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('Allotment not found');
     if (current.status !== 'ACTIVE') throw new BadRequestException('Allotment is not active');
-    await this.ensureAllocationLinks(dto);
+    await this.ensureAllocationLinks(dto, user);
     if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
       throw new BadRequestException('Service does not match allotment');
     }
@@ -432,17 +433,18 @@ export class SuppliersService {
     });
   }
 
-  async confirmAllotmentAllocation(id: string, dto: ReleaseAllotmentDto) {
-    return this.changeAllotmentAllocation(id, 'CONFIRMED', dto);
+  async confirmAllotmentAllocation(id: string, dto: ReleaseAllotmentDto, user?: RequestUser) {
+    return this.changeAllotmentAllocation(id, 'CONFIRMED', dto, user);
   }
 
-  async releaseAllotmentAllocation(id: string, dto: ReleaseAllotmentDto) {
-    return this.changeAllotmentAllocation(id, 'RELEASED', dto);
+  async releaseAllotmentAllocation(id: string, dto: ReleaseAllotmentDto, user?: RequestUser) {
+    return this.changeAllotmentAllocation(id, 'RELEASED', dto, user);
   }
 
-  private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto) {
+  private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto, user?: RequestUser) {
     const allocation = await this.prisma.supplierAllotmentAllocation.findUnique({ where: { id }, include: { allotment: true } });
     if (!allocation) throw new NotFoundException('Allotment allocation not found');
+    await this.ensureAllocationScoped(allocation, user);
     if (allocation.status === nextStatus) return allocation;
     if (!['LOCKED', 'CONFIRMED'].includes(allocation.status)) {
       throw new BadRequestException('Allocation cannot be changed from current status');
@@ -485,23 +487,55 @@ export class SuppliersService {
     });
   }
 
-  private async ensureAllocationLinks(dto: LockAllotmentDto) {
+  private async ensureAllocationLinks(dto: LockAllotmentDto, user?: RequestUser) {
+    if (this.requiresScopedOperationalLink(user) && !dto.orderId && !dto.bookingId && !dto.tourId) {
+      throw new BadRequestException('orderId, bookingId or tourId is required for scoped allotment writes');
+    }
     if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
-    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking');
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found');
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
+    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking', user);
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found', user);
   }
 
-  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string) {
+  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string, user?: RequestUser) {
     const row =
       model === 'supplierService'
         ? await this.prisma.supplierService.findUnique({ where: { id }, select: { id: true } })
         : model === 'order'
-          ? await this.prisma.order.findUnique({ where: { id }, select: { id: true } })
+          ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
           : model === 'booking'
-            ? await this.prisma.booking.findUnique({ where: { id }, select: { id: true } })
-            : await this.prisma.tour.findUnique({ where: { id }, select: { id: true } });
+            ? await this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id }, user), select: { id: true } })
+            : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
     if (!row) throw new NotFoundException(message);
+  }
+
+  private async ensureAllocationScoped(
+    allocation: { orderId: string | null; bookingId: string | null; tourId: string | null },
+    user?: RequestUser,
+  ) {
+    if (!this.requiresScopedOperationalLink(user)) return;
+    const [order, booking, tour] = await Promise.all([
+      allocation.orderId ? this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id: allocation.orderId }, user), select: { id: true } }) : null,
+      allocation.bookingId ? this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id: allocation.bookingId }, user), select: { id: true } }) : null,
+      allocation.tourId ? this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: allocation.tourId }, user), select: { id: true } }) : null,
+    ]);
+    if (!order && !booking && !tour) throw new NotFoundException('Allotment allocation not found');
+  }
+
+  private requiresScopedOperationalLink(user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return false;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
+    return true;
+  }
+
+  private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    const OR: Prisma.BookingWhereInput[] = [];
+    if (permissions.has('data.scope.branch') && user.branch) OR.push({ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
+    if (permissions.has('data.scope.department') && user.department) OR.push({ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } });
+    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND: [where, { OR }] };
   }
 
   private async ensureCategory(id: string) {

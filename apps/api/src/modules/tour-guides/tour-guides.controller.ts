@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 import { TourGuidesService } from './tour-guides.service';
@@ -22,14 +23,14 @@ export class TourGuidesController {
 
   @Post()
   @RequirePermissions('guide.manage')
-  create(@Body() dto: CreateTourGuideDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateTourGuideDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.create(dto, request?.user);
   }
 
   @Put(':id')
   @RequirePermissions('guide.manage')
-  update(@Param('id') id: string, @Body() dto: UpdateTourGuideDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateTourGuideDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.update(id, dto, request?.user);
   }
 
   @Delete(':id')

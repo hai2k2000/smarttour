@@ -25,8 +25,8 @@ export class BookingsController {
 
   @Post()
   @RequirePermissions('booking.manage')
-  create(@Body() dto: CreateBookingDto) {
-    return this.bookingsService.create(dto);
+  create(@Body() dto: CreateBookingDto, @Req() request?: { user?: RequestUser }) {
+    return this.bookingsService.create(dto, request?.user);
   }
 
   @Patch(':id')

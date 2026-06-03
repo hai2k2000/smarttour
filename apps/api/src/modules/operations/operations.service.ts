@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, SupplierPaymentStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -10,17 +10,17 @@ type AnyRecord = Record<string, unknown>;
 export class OperationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard() {
+  async getDashboard(user?: RequestUser) {
     const now = new Date();
     const next14 = new Date(now);
     next14.setDate(next14.getDate() + 14);
     const [upcomingDepartures, operatingTours, overdueTasks, waitingSupplierConfirmations, pendingSupplierPayments, lowMarginTours] = await Promise.all([
-      this.prisma.order.count({ where: { deletedAt: null, startDate: { gte: now, lte: next14 }, status: { in: ['UPCOMING', 'RUNNING'] as never[] } } }),
-      this.prisma.tour.count({ where: { status: { in: ['RUNNING'] as never[] } } }),
-      this.prisma.operationTask.count({ where: { dueDate: { lt: now }, status: { notIn: ['DONE', 'CANCELLED'] as never[] } } }),
-      this.prisma.operationService.count({ where: { confirmationStatus: { in: ['WAITING', 'PENDING'] } } }),
-      this.prisma.supplierPaymentRequest.count({ where: { status: { in: ['REQUESTED', 'APPROVED'] } } }),
-      this.prisma.order.count({ where: { deletedAt: null, totalRevenue: { gt: 0 }, profit: { lt: 0 } } }),
+      this.prisma.order.count({ where: branchDepartmentScopeWhere({ deletedAt: null, startDate: { gte: now, lte: next14 }, status: { in: ['UPCOMING', 'RUNNING'] as never[] } }, user) }),
+      this.prisma.tour.count({ where: branchDepartmentScopeWhere({ status: { in: ['RUNNING'] as never[] } }, user) }),
+      this.prisma.operationTask.count({ where: { dueDate: { lt: now }, status: { notIn: ['DONE', 'CANCELLED'] as never[] }, operationForm: this.formScopeWhere({}, user) } }),
+      this.prisma.operationService.count({ where: { confirmationStatus: { in: ['WAITING', 'PENDING'] }, operationForm: this.formScopeWhere({}, user) } }),
+      this.prisma.supplierPaymentRequest.count({ where: this.paymentRequestScopeWhere({ status: { in: ['REQUESTED', 'APPROVED'] } }, user) }),
+      this.prisma.order.count({ where: branchDepartmentScopeWhere({ deletedAt: null, totalRevenue: { gt: 0 }, profit: { lt: 0 } }, user) }),
     ]);
     return { upcomingDepartures, operatingTours, overdueTasks, waitingSupplierConfirmations, pendingSupplierPayments, lowMarginTours };
   }
@@ -234,6 +234,7 @@ export class OperationsService {
   async createFinancePaymentForRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
     const actor = this.text(dto.actor) || 'operation';
+    const scopedPayment = applyWriteDataScope({ branch: this.text(dto.branch), department: this.text(dto.department) }, user);
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: { include: { supplier: true, cost: { include: { operationForm: true } } } }, financePayment: true } });
       if (!request) throw new NotFoundException('Không tìm thấy đề nghị thanh toán nhà cung cấp');
@@ -246,7 +247,8 @@ export class OperationsService {
       const firstCostForm = request.items.find((item) => item.cost?.operationForm)?.cost?.operationForm;
       const payment = await tx.financePayment.create({
         data: {
-          voucherCode: await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', new Date(), this.text(dto.branch)),
+          voucherCode: await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', new Date(), scopedPayment.branch),
+          ...scopedPayment,
           voucherName: 'Chi NCC',
           voucherType: 'SUPPLIER_PAYMENT',
           paymentDate: this.date(dto.paymentDate),
@@ -404,6 +406,7 @@ export class OperationsService {
   private formScopeWhere(where: Prisma.OperationFormWhereInput, user?: RequestUser): Prisma.OperationFormWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
+    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
     const OR: Prisma.OperationFormWhereInput[] = [];
     if (permissions.has('data.scope.branch') && user.branch) OR.push({ booking: { customer: { branch: user.branch } } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
     if (permissions.has('data.scope.department') && user.department) OR.push({ booking: { customer: { department: user.department } } }, { order: { department: user.department } }, { tour: { department: user.department } });
@@ -414,6 +417,7 @@ export class OperationsService {
   private paymentRequestScopeWhere(where: Prisma.SupplierPaymentRequestWhereInput, user?: RequestUser): Prisma.SupplierPaymentRequestWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
+    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
     const OR: Prisma.SupplierPaymentRequestWhereInput[] = [];
     if (permissions.has('data.scope.branch') && user.branch) OR.push({ financePayment: { branch: user.branch } }, { items: { some: { cost: { operationForm: this.formScopeWhere({}, user) } } } });
     if (permissions.has('data.scope.department') && user.department) OR.push({ financePayment: { department: user.department } }, { items: { some: { cost: { operationForm: this.formScopeWhere({}, user) } } } });
@@ -423,6 +427,7 @@ export class OperationsService {
 
   private async ensureBookingScoped(bookingId: string, user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
     const row = await this.prisma.operationForm.findFirst({ where: this.formScopeWhere({ bookingId }, user), select: { id: true } });
     if (row) return;
     const booking = await this.prisma.booking.findFirst({
@@ -440,6 +445,7 @@ export class OperationsService {
 
   private async ensurePaymentItemsScoped(items: Array<{ costId?: string | null }>, user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
     const costIds = Array.from(new Set(items.map((item) => item.costId).filter((id): id is string => Boolean(id))));
     if (!costIds.length) throw new BadRequestException('costId is required for scoped supplier payment requests');
     const count = await this.prisma.operationCost.count({ where: { id: { in: costIds }, operationForm: this.formScopeWhere({}, user) } });
@@ -462,6 +468,10 @@ export class OperationsService {
       financePayment: true,
       items: { include: { supplier: true, cost: { include: { operationForm: { include: { booking: true, order: true, tour: true } } } } }, orderBy: { id: 'asc' } },
     } satisfies Prisma.SupplierPaymentRequestInclude;
+  }
+
+  private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
+    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
   private async nextCode(tx: Prisma.TransactionClient, scope: string, prefix: string, date: Date | null, branch?: string | null) {

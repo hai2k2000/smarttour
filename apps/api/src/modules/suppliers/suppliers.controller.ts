@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -103,20 +104,20 @@ export class SuppliersController {
 
   @Post('hotel-allotments/:id/lock')
   @RequirePermissions('supplier.manage')
-  lockAllotment(@Param('id') id: string, @Body() dto: LockAllotmentDto) {
-    return this.suppliersService.lockAllotment(id, dto);
+  lockAllotment(@Param('id') id: string, @Body() dto: LockAllotmentDto, @Req() request?: { user?: RequestUser }) {
+    return this.suppliersService.lockAllotment(id, dto, request?.user);
   }
 
   @Post('hotel-allotment-allocations/:id/confirm')
   @RequirePermissions('supplier.manage')
-  confirmAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto) {
-    return this.suppliersService.confirmAllotmentAllocation(id, dto);
+  confirmAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request?: { user?: RequestUser }) {
+    return this.suppliersService.confirmAllotmentAllocation(id, dto, request?.user);
   }
 
   @Post('hotel-allotment-allocations/:id/release')
   @RequirePermissions('supplier.manage')
-  releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto) {
-    return this.suppliersService.releaseAllotmentAllocation(id, dto);
+  releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request?: { user?: RequestUser }) {
+    return this.suppliersService.releaseAllotmentAllocation(id, dto, request?.user);
   }
 
   @Get(':type')

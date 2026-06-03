@@ -11,8 +11,8 @@ export class OperationsController {
 
   @Get('dashboard')
   @RequirePermissions('operation.form.view')
-  dashboard() {
-    return this.operationsService.getDashboard();
+  dashboard(@Req() request?: { user?: RequestUser }) {
+    return this.operationsService.getDashboard(request?.user);
   }
 
   @Get('modules')

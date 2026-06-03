@@ -20,6 +20,10 @@ Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking 
 
 ## Latest Session Notes
 
+- Hardened backend branch/department data-scope enforcement:
+  - Shared read/write helper behavior now denies scoped users missing required branch/department values and rejects no-scope writes.
+  - Extended scoped link checks across Bookings, Operations, Operation Vouchers, Supplier allotment allocations, and Tour Guide schedules.
+  - Added focused branch/department tests in scripts/test-auth-data-scope.sh and scripts/test-data-scope-module-flows.sh; verified DATA_SCOPE_AUDIT_OK, API Docker build, and both focused test scripts.
 - Booking screen now exposes inline status updates, quick edit rows, and delete actions using the existing Booking PATCH/DELETE API.
 - API Docker build now regenerates Prisma Client for Alpine with `linux-musl-openssl-3.0.x`, fixing the container startup error found during verification.
 - Booking API smoke test passed: create, edit, status update, and delete all worked against Docker Postgres.

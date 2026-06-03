@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 
@@ -78,9 +78,9 @@ export class BookingsService {
     return booking;
   }
 
-  async create(dto: CreateBookingDto) {
+  async create(dto: CreateBookingDto, user?: RequestUser) {
     await this.ensureTourProgram(dto.tourProgramId);
-    await this.ensureBookingLinks(dto);
+    await this.ensureBookingLinks(dto, user, true);
     this.ensureDateRange(dto.startDate, dto.endDate);
     try {
       return await this.prisma.booking.create({
@@ -98,7 +98,7 @@ export class BookingsService {
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
     await this.detail(id, user);
     if (dto.tourProgramId) await this.ensureTourProgram(dto.tourProgramId);
-    await this.ensureBookingLinks(dto);
+    await this.ensureBookingLinks(dto, user, false);
     if (dto.startDate || dto.endDate) {
       const current = await this.prisma.booking.findUniqueOrThrow({ where: { id } });
       this.ensureDateRange(dto.startDate ?? current.startDate.toISOString(), dto.endDate ?? current.endDate.toISOString());
@@ -125,6 +125,7 @@ export class BookingsService {
   private scopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
+    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
     const OR: Prisma.BookingWhereInput[] = [];
     if (permissions.has('data.scope.branch') && user.branch) OR.push({ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
     if (permissions.has('data.scope.department') && user.department) OR.push({ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } });
@@ -137,20 +138,32 @@ export class BookingsService {
     if (!tourProgram) throw new NotFoundException('Tour program not found');
   }
 
-  private async ensureBookingLinks(dto: Partial<CreateBookingDto>) {
-    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Customer not found');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found');
+  private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
+    if (this.requiresScopedLink(user) && requireScopedLink && !dto.customerId && !dto.orderId && !dto.tourId) {
+      throw new BadRequestException('customerId, orderId or tourId is required for scoped booking writes');
+    }
+    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Customer not found', user);
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found', user);
   }
 
-  private async ensureExists(model: 'customer' | 'order' | 'tour', id: string, message: string) {
+  private async ensureExists(model: 'customer' | 'order' | 'tour', id: string, message: string, user?: RequestUser) {
     const row =
       model === 'customer'
-        ? await this.prisma.customer.findUnique({ where: { id }, select: { id: true } })
+        ? await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
         : model === 'order'
-          ? await this.prisma.order.findUnique({ where: { id }, select: { id: true } })
-          : await this.prisma.tour.findUnique({ where: { id }, select: { id: true } });
+          ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
+          : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
     if (!row) throw new NotFoundException(message);
+  }
+
+  private requiresScopedLink(user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return false;
+    return true;
+  }
+
+  private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
+    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
   private ensureDateRange(startDate: string, endDate: string) {

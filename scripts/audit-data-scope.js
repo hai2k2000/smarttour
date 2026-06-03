@@ -8,25 +8,45 @@ const checks = [
   { file: 'apps/api/src/modules/orders/orders.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/order-center/order-center.service.ts', must: ['branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/quotations/quotations.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
-  { file: 'apps/api/src/modules/bookings/bookings.service.ts', must: ['RequestUser', 'scopeWhere'] },
+  { file: 'apps/api/src/modules/bookings/bookings.service.ts', must: ['RequestUser', 'scopeWhere', 'branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/finance/finance.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope', 'invoiceScopeWhere', 'assertInvoiceWriteScope'] },
   { file: 'apps/api/src/modules/fit-tours/fit-tours.service.ts', must: ['RequestUser', 'fitTourScopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/git-tours/git-tours.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/landtours/landtours.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
-  { file: 'apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts', must: ['RequestUser', 'scopeWhere'] },
-  { file: 'apps/api/src/modules/operations/operations.service.ts', must: ['RequestUser', 'formScopeWhere', 'paymentRequestScopeWhere'] },
+  { file: 'apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts', must: ['RequestUser', 'scopeWhere', 'applyWriteDataScope', 'branchDepartmentScopeWhere'] },
+  { file: 'apps/api/src/modules/operations/operations.service.ts', must: ['RequestUser', 'formScopeWhere', 'paymentRequestScopeWhere', 'applyWriteDataScope', 'branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/reports/reports.service.ts', must: ['branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts', must: ['branchDepartmentScopeWhere'] },
 ];
 
 const controllerChecks = [
+  'apps/api/src/modules/bookings/bookings.controller.ts',
   'apps/api/src/modules/finance/finance.controller.ts',
   'apps/api/src/modules/fit-tours/fit-tours.controller.ts',
   'apps/api/src/modules/git-tours/git-tours.controller.ts',
   'apps/api/src/modules/landtours/landtours.controller.ts',
+  'apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts',
+  'apps/api/src/modules/operations/operations.controller.ts',
+  'apps/api/src/modules/suppliers/suppliers.controller.ts',
+  'apps/api/src/modules/tour-guides/tour-guides.controller.ts',
 ];
 
 const schemaScopeGaps = [
+  {
+    file: 'apps/api/src/modules/suppliers/suppliers.service.ts',
+    reason: 'Supplier, SupplierService, and SupplierAllotment are global catalog models without branch/department fields; allotment allocation writes are scoped through linked order/booking/tour records',
+    must: ['listSuppliers', 'listTypedSuppliers', 'listHotelSuppliers', 'lockAllotment', 'RequestUser', 'branchDepartmentScopeWhere', 'applyWriteDataScope', 'bookingScopeWhere'],
+  },
+  {
+    file: 'apps/api/src/modules/tour-guides/tour-guides.service.ts',
+    reason: 'GuideProfile is a global guide catalog model without branch/department fields; guide schedule writes are scoped through linked Tour/Order records',
+    must: ['list(search', 'validateScheduleLinks', 'RequestUser', 'branchDepartmentScopeWhere', 'applyWriteDataScope'],
+  },
+  {
+    file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
+    reason: 'TourProgram and TourItineraryDay are reusable program templates without branch/department fields',
+    must: ['list(search', 'createItineraryDay'],
+  },
   {
     file: 'apps/api/src/modules/quotes/quotes.service.ts',
     reason: 'TourQuote has customerId but no branch/department field; QuoteCombo has no customer/branch link',

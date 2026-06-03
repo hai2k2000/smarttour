@@ -238,6 +238,8 @@
 - Applied migration on VPS; Prisma status is up to date with 24 migrations.
 - Rebuilt/restarted `smarttour-web-preview`; smoke-tested 20 key routes through the domain.
 - Authenticated RBAC smoke-tested temporary sales/accounting/operation users and cleaned them up. Guard behavior passed; operation form empty-payload path currently reaches service and returns 500, so validation hardening remains before global enforcement.
+- Hardened branch/department data-scope enforcement across backend helpers and scoped write flows, including Booking links, Operation dashboards/forms/payment requests, Operation Voucher linked payments, Supplier allotment allocations, and Tour Guide schedule links.
+- Added focused data-scope tests for branch, department, missing branch/department, no-scope writes, and linked module flows; verified scripts/test-auth-data-scope.sh and scripts/test-data-scope-module-flows.sh.
 
 ## Not Done
 

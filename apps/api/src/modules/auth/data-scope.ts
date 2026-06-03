@@ -6,6 +6,7 @@ export type RequestUser = Prisma.UserGetPayload<{
 }>;
 
 type ScopeFields = { branch?: string | null; department?: string | null };
+type DataScopeRequirement = 'branch' | 'department';
 
 export function userPermissions(user?: RequestUser | null) {
   return new Set(user?.roles.flatMap((row) => row.role.permissions.map((permission) => permission.permission)) || []);
@@ -19,16 +20,20 @@ export function hasUnrestrictedDataScope(user?: RequestUser | null) {
 export function branchDepartmentScopeWhere<T extends object>(where: T, user?: RequestUser | null): T {
   if (!user || hasUnrestrictedDataScope(user)) return where;
   const permissions = userPermissions(user);
+  const requirements = scopedRequirements(permissions);
+  if (!requirements.length || hasMissingScopeValue(user, requirements)) return noDataScopeWhere(where);
   const OR: ScopeFields[] = [];
   if (permissions.has('data.scope.branch') && user.branch) OR.push({ branch: user.branch });
   if (permissions.has('data.scope.department') && user.department) OR.push({ department: user.department });
-  if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] } as T;
+  if (!OR.length) return noDataScopeWhere(where);
   return { AND: [where, { OR }] } as T;
 }
 
 export function applyWriteDataScope<T extends ScopeFields>(dto: T, user?: RequestUser | null): T {
   if (!user || hasUnrestrictedDataScope(user)) return dto;
   const permissions = userPermissions(user);
+  const requirements = scopedRequirements(permissions);
+  if (!requirements.length) throw new BadRequestException('User data scope is required for scoped writes');
   const scoped = { ...dto };
   if (permissions.has('data.scope.branch')) {
     if (!user.branch) throw new BadRequestException('User branch is required for branch scoped writes');
@@ -41,4 +46,19 @@ export function applyWriteDataScope<T extends ScopeFields>(dto: T, user?: Reques
     scoped.department = user.department;
   }
   return scoped;
+}
+
+function scopedRequirements(permissions: Set<string>): DataScopeRequirement[] {
+  const requirements: DataScopeRequirement[] = [];
+  if (permissions.has('data.scope.branch')) requirements.push('branch');
+  if (permissions.has('data.scope.department')) requirements.push('department');
+  return requirements;
+}
+
+function hasMissingScopeValue(user: RequestUser, requirements: DataScopeRequirement[]) {
+  return requirements.some((requirement) => !user[requirement]);
+}
+
+function noDataScopeWhere<T extends object>(where: T): T {
+  return { AND: [where, { id: '__no_data_scope__' }] } as T;
 }
