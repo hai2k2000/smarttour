@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CustomersService } from './customers.service';
 
 @ApiTags('customers')
@@ -54,8 +55,8 @@ export class CustomersController {
 
   @Post('bulk-tag')
   @RequirePermissions('customer.manage')
-  bulkTag(@Body() dto: Record<string, unknown>) {
-    return this.service.bulkTag(dto);
+  bulkTag(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.bulkTag(dto, request.user);
   }
 
   @Post('bulk-update')
@@ -78,8 +79,8 @@ export class CustomersController {
 
   @Post('import')
   @RequirePermissions('customer.manage')
-  importRows(@Body() dto: Record<string, unknown>) {
-    return this.service.importRows(dto);
+  importRows(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.importRows(dto, request.user);
   }
 
   @Get('export')
@@ -92,7 +93,7 @@ export class CustomersController {
 
   @Post(':id/files')
   @RequirePermissions('customer.manage')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   addFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
@@ -133,14 +134,14 @@ export class CustomersController {
 
   @Post(':id/merge')
   @RequirePermissions('customer.manage')
-  merge(@Param('id') targetId: string, @Body() dto: Record<string, unknown>) {
-    return this.service.merge(targetId, dto);
+  merge(@Param('id') targetId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.merge(targetId, dto, request.user);
   }
 
   @Post(':id/transfer-owner')
   @RequirePermissions('customer.manage')
-  transferOwner(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.transferOwner(id, dto);
+  transferOwner(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.transferOwner(id, dto, request.user);
   }
 
   @Post(':id/comments')
@@ -185,12 +186,6 @@ export class CustomersController {
     return this.service.quotes(id, request.user);
   }
 
-  @Get(':id/contracts')
-  @RequirePermissions('customer.view')
-  contracts() {
-    return { rows: [] };
-  }
-
   @Get(':id/debts')
   @RequirePermissions('customer.view')
   debts(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
@@ -199,19 +194,19 @@ export class CustomersController {
 
   @Get(':id/timeline')
   @RequirePermissions('customer.view')
-  timeline(@Param('id') id: string) {
-    return this.service.timeline(id);
+  timeline(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
+    return this.service.timeline(id, request.user, query);
   }
 
   @Get(':id/care-history')
   @RequirePermissions('customer.view')
-  careHistory(@Param('id') id: string) {
-    return this.service.careHistory(id);
+  careHistory(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
+    return this.service.careHistory(id, request.user, query);
   }
 
   @Get(':id/opportunities')
   @RequirePermissions('customer.view')
-  opportunities(@Param('id') id: string) {
-    return this.service.opportunities(id);
+  opportunities(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
+    return this.service.opportunities(id, request.user, query);
   }
 }

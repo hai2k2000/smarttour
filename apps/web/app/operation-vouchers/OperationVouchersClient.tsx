@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
@@ -6,10 +6,7 @@ import { CreditCard, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../authFetch';
-import { PermissionNotice, usePermissions } from '../usePermissions';
 
-import { viStatus } from '../i18n';
 type VoucherSummary = {
   id: string;
   voucherCode: string;
@@ -45,7 +42,7 @@ const voucherSchema = z.object({
   serviceDate: z.string().min(1),
   paymentDeadline: z.string().default(''),
   note: z.string().default(''),
-  createdBy: z.string().default('Nhân sự vận hành'),
+  createdBy: z.string().default('Operator'),
   details: z.array(detailSchema).default([]),
   paymentAmount: z.coerce.number().default(0),
 });
@@ -63,7 +60,7 @@ const defaultValues: VoucherForm = {
   serviceDate: '',
   paymentDeadline: '',
   note: '',
-  createdBy: 'Nhân sự vận hành',
+  createdBy: 'Operator',
   details: [{ ...emptyDetail }],
   paymentAmount: 0,
 };
@@ -82,11 +79,11 @@ function lineAmount(item: { quantity?: number; netPrice?: number; vat?: number }
 }
 
 export default function OperationVouchersClient({ initialVouchers }: { initialVouchers: VoucherSummary[] }) {
-  const { can, canAny } = usePermissions();
   const [vouchers, setVouchers] = useState(initialVouchers);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
   const { register, control, handleSubmit, reset, formState: { isSubmitting } } = useForm<VoucherForm>({ resolver: zodResolver(voucherSchema) as any, defaultValues });
   const detailArray = useFieldArray({ control, name: 'details' });
   const values = useWatch({ control });
@@ -105,23 +102,24 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
         helper.display({ id: 'supplier', header: 'NCC / Dich vu', cell: ({ row }) => <span>{row.original.supplierName || '-'}<br />{row.original.serviceName}</span> }),
         helper.display({ id: 'dates', header: 'Ngay DV / han chi', cell: ({ row }) => <span>{dateOnly(row.original.serviceDate)}<br />{dateOnly(row.original.paymentDeadline) || '-'}</span> }),
         helper.display({ id: 'money', header: 'Cong no', cell: ({ row }) => <span>Tong: {money(row.original.totalAmount)}<br />Con: {money(row.original.remainAmount)}</span> }),
-        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{viStatus(info.getValue())}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadVoucher(row.original.id)}><Pencil size={15}/> Sửa</button> }),
+        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadVoucher(row.original.id)}><Pencil size={15}/> Sua</button> }),
       ];
     }, []),
     getCoreRowModel: getCoreRowModel(),
   });
 
   async function reload() {
-    const response = await fetch(`${browserApiBase()}/api/operation-vouchers`, { cache: 'no-store', headers: authHeaders() });
+    const response = await fetch(`${browserApiBase()}/api/operation-vouchers`, { cache: 'no-store' });
     if (response.ok) setVouchers(await response.json());
   }
 
   async function loadVoucher(id: string) {
-    const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${id}`, { headers: authHeaders() });
+    const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${id}`);
     if (!response.ok) return;
     const voucher = await response.json();
     setEditingId(id);
+    setFormOpen(true);
     reset({
       ...defaultValues,
       ...voucher,
@@ -130,23 +128,21 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
       details: voucher.details?.length ? voucher.details.map((item: any) => ({ ...item, quantity: Number(item.quantity), netPrice: Number(item.netPrice), vat: Number(item.vat) })) : [{ ...emptyDetail }],
       paymentAmount: Number(voucher.remainAmount || 0),
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function onSubmit(data: VoucherForm) {
     const payload = { ...data, details: data.details.filter((item) => item.serviceName || item.netPrice > 0) };
     const response = await fetch(`${browserApiBase()}/api/operation-vouchers${editingId ? `/${editingId}` : ''}`, {
       method: editingId ? 'PUT' : 'POST',
-      headers: authJsonHeaders(),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
       setMessage('Khong luu duoc phieu. Kiem tra ma phieu, ngay dich vu va tong tien.');
       return;
     }
-    setMessage(editingId ? 'Đã cập nhật phiếu điều hành.' : 'Đã tạo phiếu điều hành.');
-    setEditingId(null);
-    reset({ ...defaultValues, voucherCode: `PDH${Date.now().toString().slice(-6)}` });
+    setMessage(editingId ? 'Da cap nhat phieu dieu hanh.' : 'Da tao phieu dieu hanh.');
+    setEditingId(null); setFormOpen(false); reset({ ...defaultValues, voucherCode: `PDH${Date.now().toString().slice(-6)}` });
     await reload();
   }
 
@@ -154,11 +150,11 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
     if (!editingId || !values.paymentAmount) return;
     const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${editingId}/payment`, {
       method: 'POST',
-      headers: authJsonHeaders(),
-      body: JSON.stringify({ paidAmount: Number(values.paymentAmount), paymentDate: new Date().toISOString(), note: 'Cap nhat thanh toán tu man hinh dieu hanh' }),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ paidAmount: Number(values.paymentAmount), paymentDate: new Date().toISOString(), note: 'Cap nhat thanh toan tu man hinh dieu hanh' }),
     });
     if (response.ok) {
-      setMessage('Đã ghi nhận thanh toán.');
+      setMessage('Da ghi nhan thanh toan.');
       await loadVoucher(editingId);
       await reload();
     }
@@ -166,35 +162,42 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
 
   function closeForm() {
     setEditingId(null);
+    setFormOpen(false);
     setMessage('');
     reset({ ...defaultValues, voucherCode: `PDH${Date.now().toString().slice(-6)}` });
   }
 
+  function openCreate() {
+    setEditingId(null);
+    setMessage('');
+    reset({ ...defaultValues, voucherCode: `PDH${Date.now().toString().slice(-6)}` });
+    setFormOpen(true);
+  }
+
   return (
     <div className="orderPage">
-      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage'])} label="xem phiếu điều hành dich vu" />
-      <form onSubmit={handleSubmit(onSubmit)} className="orderForm">
+      {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="orderForm">
         <section className="orderWorkArea">
           <div className="orderMain">
             <section className="panel">
-              <div className="sectionHeader"><h2>Thong tin phiếu điều hành</h2><span>{message || 'Theo doi chi phi dich vu va cong no NCC'}</span></div>
+              <div className="sectionHeader"><h2>Thong tin phieu dieu hanh</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><span>{message || 'Theo doi chi phi dich vu va cong no NCC'}</span></div>
               <div className="quoteFormGrid">
                 <label>Ma phieu<input {...register('voucherCode')} /></label>
-                <label>Nhà cung cấp<input {...register('supplierName')} /></label>
+                <label>Nha cung cap<input {...register('supplierName')} /></label>
                 <label>Loai dich vu<input {...register('serviceType')} /></label>
-                <label>Tên dịch vụ<input {...register('serviceName')} /></label>
+                <label>Ten dich vu<input {...register('serviceName')} /></label>
                 <label>Ngay dich vu<input type="date" {...register('serviceDate')} /></label>
-                <label>Han thanh toán<input type="date" {...register('paymentDeadline')} /></label>
+                <label>Han thanh toan<input type="date" {...register('paymentDeadline')} /></label>
                 <label>Tour ID<input {...register('tourId')} /></label>
                 <label>Booking ID<input {...register('bookingId')} /></label>
-                <label className="span2">Ghi chú<textarea rows={2} {...register('note')} /></label>
+                <label className="span2">Ghi chu<textarea rows={2} {...register('note')} /></label>
               </div>
             </section>
             <section className="fitTableBlock">
-              <div className="sectionHeader"><h2>Chi tiet dich vu</h2><button type="button" className="secondaryButton" onClick={() => detailArray.append({ ...emptyDetail })}><Plus size={16}/> Thêm dòng</button></div>
+              <div className="sectionHeader"><h2>Chi tiet dich vu</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><button type="button" className="secondaryButton" onClick={() => detailArray.append({ ...emptyDetail })}><Plus size={16}/> Them dong</button></div>
               <div className="fitTableWrap">
                 <table className="fitTable orderDynamicTable">
-                  <thead><tr><th>STT</th><th>SKU</th><th>Dich vu</th><th>SL</th><th>DVT</th><th>Gia NET</th><th>VAT %</th><th>Thanh tien</th><th>Ghi chú</th><th /></tr></thead>
+                  <thead><tr><th>STT</th><th>SKU</th><th>Dich vu</th><th>SL</th><th>DVT</th><th>Gia NET</th><th>VAT %</th><th>Thanh tien</th><th>Ghi chu</th><th /></tr></thead>
                   <tbody>
                     {detailArray.fields.map((field, index) => (
                       <tr key={field.id}>
@@ -218,16 +221,16 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
           <aside className="panel quoteSummaryBox">
             <h2>Tong hop chi</h2>
             <div className="summaryRows">
-              <div><span>Tổng chi</span><strong>{money(total)}</strong></div>
-              <div><span>Thanh toán them</span><input type="number" {...register('paymentAmount')} /></div>
+              <div><span>Tong chi</span><strong>{money(total)}</strong></div>
+              <div><span>Thanh toan them</span><input type="number" {...register('paymentAmount')} /></div>
             </div>
-            <button type="button" className="secondaryButton iconTextButton" disabled={!editingId} onClick={addPayment}><CreditCard size={16}/> Ghi nhan thanh toán</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!editingId} onClick={addPayment}><CreditCard size={16}/> Ghi nhan thanh toan</button>
           </aside>
         </section>
-        <div className="hotelFormActions"><button type="submit" disabled={isSubmitting || !can('operation.form.manage')}><Save size={17}/> Lưu phieu</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
-      </form>
+        <div className="hotelFormActions"><button type="submit" disabled={isSubmitting}><Save size={17}/> Luu phieu</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Dong</button></div>
+      </form></div></div> : null}
       <section className="panel listPanel">
-        <div className="sectionHeader"><h2>Danh sách phiếu điều hành dịch vụ</h2><label className="searchBox"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã phiếu, NCC, dịch vụ..." /></label></div>
+        <div className="sectionHeader"><h2>Danh sach phieu dieu hanh dich vu</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><label className="searchBox"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma phieu, NCC, dich vu..." /></label></div>
         <div className="fitTableWrap"><table className="fitTable orderListTable"><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div>
       </section>
     </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
@@ -6,10 +6,7 @@ import { Copy, Eye, Pencil, Plus, Save, Search, ShoppingCart, Trash2, X } from '
 import { useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../../authFetch';
-import { PermissionNotice, usePermissions } from '../../usePermissions';
 
-import { viStatus } from '../../i18n';
 type Supplier = { id: string; name: string; supplierServices?: { id: string; serviceName: string; netPrice: string }[] };
 type ComboSummary = { id: string; comboCode: string; comboType: string; adultComboPrice: string; totalNetPricePerPax: string; status: string; _count?: { items: number } };
 
@@ -49,11 +46,11 @@ function money(value: unknown) {
 }
 
 export default function QuoteCombosClient({ initialCombos, suppliers }: { initialCombos: ComboSummary[]; suppliers: Supplier[] }) {
-  const { can, canAny } = usePermissions();
   const [combos, setCombos] = useState(initialCombos);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
   const { register, control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<ComboForm>({
     resolver: zodResolver(comboSchema) as any,
     defaultValues,
@@ -88,23 +85,24 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
         helper.accessor('totalNetPricePerPax', { header: 'NET/khach', cell: (info) => money(info.getValue()) }),
         helper.accessor('adultComboPrice', { header: 'Gia nguoi lon', cell: (info) => money(info.getValue()) }),
         helper.display({ id: 'count', header: 'Dich vu', cell: ({ row }) => row.original._count?.items ?? 0 }),
-        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{viStatus(info.getValue())}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadCombo(row.original.id)}><Pencil size={15} /> Sửa</button> }),
+        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadCombo(row.original.id)}><Pencil size={15} /> Sua</button> }),
       ];
     }, []),
     getCoreRowModel: getCoreRowModel(),
   });
 
   async function reload() {
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos`, { cache: 'no-store', headers: authHeaders() });
+    const response = await fetch(`${browserApiBase()}/api/quotes/combos`, { cache: 'no-store' });
     if (response.ok) setCombos(await response.json());
   }
 
   async function loadCombo(id: string) {
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`, { headers: authHeaders() });
+    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`);
     if (!response.ok) return;
     const combo = await response.json();
     setEditingId(id);
+    setFormOpen(true);
     reset({
       comboCode: combo.comboCode,
       comboType: combo.comboType,
@@ -113,45 +111,50 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
       childPricePercent: Number(combo.childPricePercent || 75),
       items: combo.items?.length ? combo.items.map((item: any) => ({ supplierId: item.supplierId || '', serviceId: item.serviceId || '', serviceName: item.serviceName || '', checkIn: item.checkIn?.slice(0, 10) || '', netPricePerService: Number(item.netPricePerService || 0), nightCount: Number(item.nightCount || 1), paxCount: Number(item.paxCount || 1) })) : [{ ...emptyItem }],
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function onSubmit(data: ComboForm) {
     const payload = { ...data, items: data.items.filter((item) => item.serviceName && item.netPricePerService >= 0) };
     const response = await fetch(`${browserApiBase()}/api/quotes/combos${editingId ? `/${editingId}` : ''}`, {
       method: editingId ? 'PUT' : 'POST',
-      headers: authJsonHeaders(),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
       setMessage('Khong luu duoc combo. Kiem tra ma combo va dong dich vu.');
       return;
     }
-    setMessage(editingId ? 'Đã cập nhật combo.' : 'Đã tạo combo.');
-    setEditingId(null);
-    reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
+    setMessage(editingId ? 'Da cap nhat combo.' : 'Da tao combo.');
+    setEditingId(null); setFormOpen(false); reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
     await reload();
   }
 
   async function action(path: string) {
     if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${editingId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${editingId}/${path}`, { method: 'POST' });
     if (response.ok) {
-      setMessage(`Đã cập nhật combo: ${path}`);
+      setMessage(`Da cap nhat combo: ${path}`);
       await reload();
     }
   }
 
   function closeForm() {
     setEditingId(null);
+    setFormOpen(false);
     setMessage('');
     reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
   }
 
+  function openCreate() {
+    setEditingId(null);
+    setMessage('');
+    reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
+    setFormOpen(true);
+  }
+
   return (
     <div className="quotePage">
-      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem va quan ly combo quote" />
-      <form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
+      {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
         <section className="quoteComboShell">
           <div className="quoteComboMain">
             <section className="panel">
@@ -166,8 +169,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
             </section>
             <ComboRows register={register} fieldArray={items} suppliers={suppliers} serviceOptions={serviceOptions} setValue={setValue} />
             <section className="panel">
-              <h2>Ghi chú</h2>
-              <textarea rows={5} {...register('note')} placeholder="Dieu kien ap dung, chinh sach hoan hủy, phu thu cuoi tuan..." />
+              <h2>Ghi chu</h2>
+              <textarea rows={5} {...register('note')} placeholder="Dieu kien ap dung, chinh sach hoan huy, phu thu cuoi tuan..." />
             </section>
           </div>
           <aside className="panel quoteSummaryBox">
@@ -175,7 +178,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
             <div className="summaryRows">
               <div><span>Tong NET/nguoi</span><strong>{money(totals.totalNet)}</strong></div>
             </div>
-            <label>Lợi nhuận/nguoi<input type="number" {...register('profitPerPax')} /></label>
+            <label>Loi nhuan/nguoi<input type="number" {...register('profitPerPax')} /></label>
             <div className="summaryRows">
               <div><span>Gia combo nguoi lon</span><strong>{money(totals.adult)}</strong></div>
             </div>
@@ -187,16 +190,16 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
           </aside>
         </section>
         <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting || !can('quote.manage')}><Save size={17} /> Tạo báo giá</button>
-          <button type="button" className="secondaryButton" disabled={!editingId || !can('quote.manage')} onClick={() => action('create-order')}><ShoppingCart size={17} /> Tạo đơn hang</button>
-          <button type="button" className="secondaryButton" disabled={!editingId || !can('quote.manage')} onClick={() => action('create-quote')}><Copy size={17} /> Chot báo giá</button>
-          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
+          <button type="submit" disabled={isSubmitting}><Save size={17} /> Tao bao gia</button>
+          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('create-order')}><ShoppingCart size={17} /> Tao don hang</button>
+          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('create-quote')}><Copy size={17} /> Chot bao gia</button>
+          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Dong</button>
         </div>
-      </form>
-
+      </form></div></div> : null}
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sach combo</h2>
+          <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Them moi</button>
           <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma combo..." /></label>
         </div>
         <div className="fitTableWrap">
@@ -217,7 +220,7 @@ function ComboRows({ register, fieldArray, suppliers, serviceOptions, setValue }
       const helper = createColumnHelper<FieldArrayWithId<ComboForm, 'items', 'id'>>();
       return [
         helper.display({ id: 'stt', header: 'STT', cell: ({ row }) => row.index + 1 }),
-        helper.display({ id: 'supplierId', header: 'NCC', cell: ({ row }) => <select {...register(`items.${row.index}.supplierId`)}><option value="">Chọn NCC</option>{suppliers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select> }),
+        helper.display({ id: 'supplierId', header: 'NCC', cell: ({ row }) => <select {...register(`items.${row.index}.supplierId`)}><option value="">Chon NCC</option>{suppliers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select> }),
         helper.display({ id: 'serviceId', header: 'Dich vu', cell: ({ row }) => <select {...register(`items.${row.index}.serviceId`)} onChange={(event) => {
           const service = serviceOptions.find((item) => item.id === event.target.value);
           setValue(`items.${row.index}.serviceId`, event.target.value);
@@ -226,9 +229,9 @@ function ComboRows({ register, fieldArray, suppliers, serviceOptions, setValue }
             setValue(`items.${row.index}.serviceName`, service.serviceName);
             setValue(`items.${row.index}.netPricePerService`, Number(service.netPrice || 0));
           }
-        }}><option value="">Nhập tay/chon dich vu</option>{serviceOptions.map((item) => <option value={item.id} key={item.id}>{item.supplierName} - {item.serviceName}</option>)}</select> }),
+        }}><option value="">Nhap tay/chon dich vu</option>{serviceOptions.map((item) => <option value={item.id} key={item.id}>{item.supplierName} - {item.serviceName}</option>)}</select> }),
         ...[
-          { key: 'serviceName', label: 'Tên dịch vụ' },
+          { key: 'serviceName', label: 'Ten dich vu' },
           { key: 'checkIn', label: 'Check In', type: 'date' },
           { key: 'netPricePerService', label: 'Gia NET/DV', type: 'number' },
           { key: 'nightCount', label: 'So dem', type: 'number' },
@@ -243,7 +246,7 @@ function ComboRows({ register, fieldArray, suppliers, serviceOptions, setValue }
     <section className="fitTableBlock">
       <div className="sectionHeader">
         <h2>Dich vu combo</h2>
-        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyItem })}><Plus size={16} /> Thêm dich vu</button>
+        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyItem })}><Plus size={16} /> Them dich vu</button>
       </div>
       <div className="fitTableWrap">
         <table className="fitTable quoteComboTable">

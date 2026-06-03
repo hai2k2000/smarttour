@@ -1,13 +1,13 @@
 ﻿'use client';
 
 import { LogIn } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function LoginClient() {
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState('');
 
   async function login(formData: FormData) {
@@ -24,20 +24,20 @@ export default function LoginClient() {
     }
     window.localStorage.setItem('smarttour.auth.token', data.token);
     window.localStorage.setItem('smarttour.auth.user', JSON.stringify(data.user));
-    document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${60 * 60 * 24 * 14}; samesite=lax`;
-    router.push('/');
-    router.refresh();
+    document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${60 * 60 * 24 * 14}; SameSite=Lax`;
+    const nextPath = searchParams.get('next') || '/';
+    window.location.assign(nextPath.startsWith('/') ? nextPath : '/');
   }
 
   return (
     <section className="workspace loginPage">
       <div className="loginPanel">
         <div className="loginBrand">
-          <img src="/brand/logo-du-nien-travel.png" alt="Du Niên Travel" />
+          <span className="loginTextLogo">AI</span>
           <div>
-            <p className="eyebrow">Du Niên Travel SmartTour</p>
+            <p className="eyebrow">AI Tour Operations</p>
             <h1>Đăng nhập hệ thống</h1>
-            <span>Thương hiệu du lịch dành riêng cho người cao tuổi</span>
+            <span>Nền tảng quản lý bán hàng, tour và vận hành</span>
           </div>
         </div>
         <form action={login} className="loginForm">

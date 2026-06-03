@@ -1,33 +1,42 @@
 'use client';
 
-import { Download, Eye, Plus, RefreshCcw, Save, Search, Tags, UserRoundCheck } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Download, Eye, FileUp, Plus, RefreshCcw, Save, Search, Tags, Trash2, UserRoundCheck } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type Option = { id: string; name: string; code?: string; color?: string; isActive?: boolean };
+type CustomerFile = { id: string; fileName: string; fileUrl: string; fileType?: string | null };
+type MessageState = { type: 'success' | 'warning' | 'error' | 'info'; text: string } | null;
 type Customer = {
   id: string;
   code: string;
   fullName: string;
   phone: string;
-  email?: string;
+  email?: string | null;
   kind: string;
-  source?: string;
-  market?: string;
-  owner?: string;
-  branch?: string;
-  department?: string;
-  latestComment?: string;
-  type?: Option;
-  campaign?: Option;
+  status?: string;
+  source?: string | null;
+  market?: string | null;
+  owner?: string | null;
+  branch?: string | null;
+  department?: string | null;
+  latestComment?: string | null;
+  type?: Option | null;
+  campaign?: Option | null;
   tags: { tag: Option }[];
-  contacts: { id: string; fullName: string; position?: string; phone?: string; email?: string }[];
-  careTasks: { id: string; channel: string; status: string; result?: string; scheduledAt?: string }[];
+  contacts: { id: string; fullName: string; position?: string | null; phone?: string | null; email?: string | null }[];
+  careTasks: { id: string; channel: string; status: string; result?: string | null; scheduledAt?: string | null }[];
   opportunities: { id: string; title: string; stage: string; value: string; probability: string; expectedRevenue: string }[];
-  related?: { orders: unknown[]; quotes: unknown[]; debts: { receivableDebt: number }; timeline: { createdAt: string; title: string; eventType: string }[] };
+  files: CustomerFile[];
+  related?: {
+    orders: unknown[];
+    quotes: unknown[];
+    debts: { receivableDebt: number };
+    timeline: { createdAt: string; title: string; eventType: string }[];
+  };
 };
 
 type Dashboard = {
@@ -40,50 +49,92 @@ type Dashboard = {
   totalDebt: number;
 };
 
-const emptyDashboard: Dashboard = { totalCustomers: 0, newToday: 0, newThisMonth: 0, oneTimeCustomers: 0, repeatCustomers: 0, totalRevenue: 0, totalDebt: 0 };
-const blank = {
-  kind: 'INDIVIDUAL',
-  fullName: '',
-  phone: '',
-  email: '',
-  typeId: '',
-  source: '',
-  market: '',
-  groupName: '',
-  campaignId: '',
-  owner: '',
-  branch: '',
-  department: '',
-  province: '',
-  gender: '',
-  companyName: '',
-  taxCode: '',
-  website: '',
-  address: '',
-  latestComment: '',
-  tagIds: [] as string[],
-  contacts: [{ fullName: '', position: '', phone: '', email: '', note: '', isPrimary: true }],
-  careTasks: [{ channel: 'PHONE', status: 'PENDING', result: '', scheduledAt: '', owner: '', note: '' }],
-  opportunities: [{ title: '', stage: 'NEW', value: 0, probability: 20, owner: '', note: '' }],
+const emptyDashboard: Dashboard = {
+  totalCustomers: 0,
+  newToday: 0,
+  newThisMonth: 0,
+  oneTimeCustomers: 0,
+  repeatCustomers: 0,
+  totalRevenue: 0,
+  totalDebt: 0,
 };
+
+function createBlank() {
+  return {
+    kind: 'INDIVIDUAL',
+    fullName: '',
+    phone: '',
+    email: '',
+    typeId: '',
+    source: '',
+    market: '',
+    groupName: '',
+    campaignId: '',
+    owner: '',
+    branch: '',
+    department: '',
+    province: '',
+    gender: '',
+    companyName: '',
+    taxCode: '',
+    website: '',
+    address: '',
+    latestComment: '',
+    tagIds: [] as string[],
+    contacts: [{ fullName: '', position: '', phone: '', email: '', note: '', isPrimary: true }],
+    careTasks: [{ channel: 'PHONE', status: 'PENDING', result: '', scheduledAt: '', owner: '', note: '' }],
+    opportunities: [{ title: '', stage: 'NEW', value: 0, probability: 20, owner: '', note: '' }],
+  };
+}
+
+const messageClass = {
+  success: 'statusPillSuccess',
+  warning: 'statusPillWarning',
+  error: 'statusPillError',
+  info: 'statusPillNeutral',
+} as const;
 
 export default function CustomersClient() {
   const { can, canAny } = usePermissions();
+  const canView = canAny(['customer.view', 'customer.manage']);
+  const canManage = can('customer.manage');
   const [rows, setRows] = useState<Customer[]>([]);
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [types, setTypes] = useState<Option[]>([]);
   const [tags, setTags] = useState<Option[]>([]);
   const [campaigns, setCampaigns] = useState<Option[]>([]);
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState(createBlank);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState({ owner: '', market: '', branch: '', tagId: '' });
-  const [message, setMessage] = useState('');
+  const [filter, setFilter] = useState({
+    owner: '',
+    market: '',
+    branch: '',
+    department: '',
+    source: '',
+    typeId: '',
+    campaignId: '',
+    tagId: '',
+    status: '',
+    createdFrom: '',
+    createdTo: '',
+  });
+  const [message, setMessage] = useState<MessageState>(null);
+  const [modal, setModal] = useState<'create' | 'detail' | null>(null);
+  const [createFiles, setCreateFiles] = useState<File[]>([]);
+  const [detailFileInputKey, setDetailFileInputKey] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailRequestRef = useRef(0);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    Object.entries(filter).forEach(([key, value]) => value && params.set(key, value));
+    if (search.trim()) params.set('search', search.trim());
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
     return params.toString();
   }, [filter, search]);
 
@@ -92,46 +143,163 @@ export default function CustomersClient() {
   }, [query]);
 
   async function load() {
-    const response = await fetch(`${API_URL}/api/customers?${query}`, { cache: 'no-store', headers: authHeaders() });
-    const data = await response.json();
-    setRows(data.rows || []);
-    setDashboard(data.dashboard || emptyDashboard);
-    setTypes(data.types || []);
-    setTags(data.tags || []);
-    setCampaigns(data.campaigns || []);
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/customers${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được danh sách khách hàng'));
+      const data = await response.json();
+      setRows(Array.isArray(data.rows) ? data.rows : []);
+      setDashboard(data.dashboard || emptyDashboard);
+      setTypes(Array.isArray(data.types) ? data.types : []);
+      setTags(Array.isArray(data.tags) ? data.tags : []);
+      setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Không tải được dữ liệu khách hàng. Kiểm tra kết nối mạng hoặc đăng nhập lại.') });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setMessage('');
-    const payload = {
-      ...form,
-      contacts: form.contacts.filter((row) => row.fullName),
-      careTasks: form.careTasks.filter((row) => row.channel && row.scheduledAt),
-      opportunities: form.opportunities.filter((row) => row.title),
-    };
-    const response = await fetch(`${API_URL}/api/customers`, {
-      method: 'POST',
-      headers: authJsonHeaders(),
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setMessage(data.message || 'Khong luu duoc khách hàng');
+    if (!canManage) {
+      setMessage({ type: 'error', text: 'Bạn chưa có quyền customer.manage để tạo khách hàng.' });
       return;
     }
-    setForm(blank);
-    setMessage('Đã lưu khách hàng');
-    await load();
+    setSaving(true);
+    setMessage(null);
+    const payload = {
+      ...form,
+      contacts: form.contacts.filter((row) => row.fullName.trim()),
+      careTasks: form.careTasks.filter((row) => row.channel && row.scheduledAt),
+      opportunities: form.opportunities.filter((row) => row.title.trim()),
+    };
+
+    let saved: Customer;
+    try {
+      const response = await fetch(`${API_URL}/api/customers`, {
+        method: 'POST',
+        headers: authJsonHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(await responseMessage(response, 'Không lưu được khách hàng'));
+      saved = await response.json();
+    } catch (error) {
+      setMessage({ type: 'error', text: `Không lưu được khách hàng: ${errorText(error, 'lỗi không xác định')}` });
+      setSaving(false);
+      return;
+    }
+
+    try {
+      await uploadFiles(saved.id, createFiles);
+      setForm(createBlank());
+      setCreateFiles([]);
+      setModal(null);
+      setMessage({ type: 'success', text: 'Đã lưu khách hàng' });
+      await load();
+    } catch (error) {
+      setModal(null);
+      setMessage({
+        type: 'warning',
+        text: `Đã lưu hồ sơ khách hàng, nhưng upload tài liệu thất bại: ${errorText(error, 'lỗi không xác định')}. Hồ sơ được giữ lại; mở chi tiết để tải lại tài liệu.`,
+      });
+      await load();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function openDetail(id: string) {
-    const response = await fetch(`${API_URL}/api/customers/${id}`, { cache: 'no-store', headers: authHeaders() });
-    setSelected(await response.json());
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
+    setDetailLoading(true);
+    setSelected(null);
+    setModal('detail');
+    try {
+      const response = await fetch(`${API_URL}/api/customers/${id}`, { cache: 'no-store', headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được chi tiết khách hàng'));
+      const data = await response.json();
+      if (detailRequestRef.current !== requestId) return;
+      setSelected(data);
+      setDetailFileInputKey((value) => value + 1);
+    } catch (error) {
+      if (detailRequestRef.current !== requestId) return;
+      setMessage({ type: 'error', text: errorText(error, 'Không tải được chi tiết khách hàng') });
+      setModal(null);
+    } finally {
+      if (detailRequestRef.current === requestId) setDetailLoading(false);
+    }
+  }
+
+  async function uploadFiles(customerId: string, files: File[]) {
+    for (const file of files) {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch(`${API_URL}/api/customers/${customerId}/files`, { method: 'POST', headers: authHeaders(), body });
+      if (!response.ok) throw new Error(`${file.name}: ${await responseMessage(response, 'upload file thất bại')}`);
+    }
+  }
+
+  async function uploadDetailFiles(files: FileList | null) {
+    if (!selected || !files?.length) return;
+    const customerId = selected.id;
+    try {
+      await uploadFiles(customerId, Array.from(files));
+      if (selected?.id === customerId) await openDetail(customerId);
+      setMessage({ type: 'success', text: 'Đã upload tài liệu khách hàng' });
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Upload file thất bại') });
+      setDetailFileInputKey((value) => value + 1);
+    }
+  }
+
+  async function removeFile(customerId: string, fileId: string) {
+    const response = await fetch(`${API_URL}/api/customers/${customerId}/files/${fileId}`, { method: 'DELETE', headers: authHeaders() });
+    if (!response.ok) {
+      setMessage({ type: 'error', text: await responseMessage(response, 'Không xóa được tài liệu khách hàng') });
+      return;
+    }
+    if (selected?.id === customerId) await openDetail(customerId);
+    setMessage({ type: 'success', text: 'Đã xóa tài liệu khách hàng' });
+  }
+
+  function openCreate() {
+    setForm(createBlank());
+    setCreateFiles([]);
+    setModal('create');
+  }
+
+  function closeModal() {
+    detailRequestRef.current += 1;
+    setCreateFiles([]);
+    setSelected(null);
+    setDetailLoading(false);
+    setModal(null);
   }
 
   function change(key: string, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePrimaryContact(key: string, value: string) {
+    setForm((current) => {
+      const contact = current.contacts[0] || createBlank().contacts[0];
+      return { ...current, contacts: [{ ...contact, [key]: value }] };
+    });
+  }
+
+  function updateCareTask(key: string, value: string) {
+    setForm((current) => {
+      const task = current.careTasks[0] || createBlank().careTasks[0];
+      return { ...current, careTasks: [{ ...task, [key]: value }] };
+    });
+  }
+
+  function updateOpportunity(key: string, value: string | number) {
+    setForm((current) => {
+      const opportunity = current.opportunities[0] || createBlank().opportunities[0];
+      return { ...current, opportunities: [{ ...opportunity, [key]: value }] };
+    });
   }
 
   function toggleTag(id: string) {
@@ -139,112 +307,212 @@ export default function CustomersClient() {
   }
 
   async function exportCsv() {
-    window.location.href = `${API_URL}/api/customers/export?${query}`;
+    if (!canView) {
+      setMessage({ type: 'error', text: 'Bạn chưa có quyền xem CRM khách hàng để export CSV.' });
+      return;
+    }
+    setExporting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/customers/export${query ? `?${query}` : ''}`, { headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseMessage(response, 'Không export được CSV'));
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'smarttour-customers.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setMessage({ type: 'success', text: 'Đã export CSV khách hàng' });
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Không export được CSV') });
+    } finally {
+      setExporting(false);
+    }
   }
+
+  const primaryContact = form.contacts[0];
+  const firstCareTask = form.careTasks[0];
+  const firstOpportunity = form.opportunities[0];
+  const disabledManageTitle = canManage ? undefined : 'Bạn chưa có quyền customer.manage';
 
   return (
     <section className="workspace customerPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">CRM Core</p>
-          <h1>Data khách hàng</h1>
+          <p className="eyebrow">CRM</p>
+          <h1>Dữ liệu khách hàng</h1>
         </div>
         <div className="pageHeaderActions">
-          {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
-          <button className="secondaryButton iconTextButton" onClick={load}><RefreshCcw size={16} /> Tai lai</button>
+          {message ? <span className={`statusPill ${messageClass[message.type]}`}>{message.text}</span> : null}
+          {!canManage ? <span className="permissionHint">Action quản lý đang bị vô hiệu vì thiếu quyền customer.manage.</span> : null}
+          <button className="iconTextButton" disabled={!canManage || saving} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo khách hàng</button>
+          <button className="secondaryButton iconTextButton" disabled={loading} onClick={load}><RefreshCcw size={16} /> {loading ? 'Đang tải...' : 'Tải lại'}</button>
         </div>
       </header>
 
       <section className="metrics customerMetrics">
-        <Metric label="Tong khach" value={dashboard.totalCustomers} />
-        <Metric label="Moi hom nay" value={dashboard.newToday} />
-        <Metric label="Moi thang nay" value={dashboard.newThisMonth} />
-        <Metric label="Mua 1 lan" value={dashboard.oneTimeCustomers} />
-        <Metric label="Mua lai" value={dashboard.repeatCustomers} />
+        <Metric label="Tổng khách" value={dashboard.totalCustomers} />
+        <Metric label="Mới hôm nay" value={dashboard.newToday} />
+        <Metric label="Mới tháng này" value={dashboard.newThisMonth} />
+        <Metric label="Mua 1 lần" value={dashboard.oneTimeCustomers} />
+        <Metric label="Mua lại" value={dashboard.repeatCustomers} />
         <Metric label="Doanh thu" value={money(dashboard.totalRevenue)} />
-        <Metric label="Cong no" value={money(dashboard.totalDebt)} />
+        <Metric label="Công nợ" value={money(dashboard.totalDebt)} />
       </section>
-      <PermissionNotice allowed={canAny(['customer.view', 'customer.manage'])} label="xem va quan ly CRM khách hàng" />
+      <PermissionNotice allowed={canView} label="xem và quản lý CRM khách hàng" />
 
       <section className="panel customerFilters">
-        <label><Search size={15} /> Tim kiem<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ten, SDT, email, ma khach" /></label>
-        <label>NV phu trach<input value={filter.owner} onChange={(event) => setFilter({ ...filter, owner: event.target.value })} /></label>
+        <label className="customerSearchFilter"><Search size={15} /> Tìm kiếm<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên, SĐT, email, mã khách" /></label>
+        <label>NV phụ trách<input value={filter.owner} onChange={(event) => setFilter({ ...filter, owner: event.target.value })} /></label>
         <label>Thị trường<input value={filter.market} onChange={(event) => setFilter({ ...filter, market: event.target.value })} /></label>
-        <label>Chi nhanh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
+        <label>Chi nhánh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
+        <label>Phòng ban<input value={filter.department} onChange={(event) => setFilter({ ...filter, department: event.target.value })} /></label>
+        <label>Nguồn<input value={filter.source} onChange={(event) => setFilter({ ...filter, source: event.target.value })} /></label>
+        <label>Loại khách<select value={filter.typeId} onChange={(event) => setFilter({ ...filter, typeId: event.target.value })}><option value="">Tất cả</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
+        <label>Chiến dịch<select value={filter.campaignId} onChange={(event) => setFilter({ ...filter, campaignId: event.target.value })}><option value="">Tất cả</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
         <label>Tag<select value={filter.tagId} onChange={(event) => setFilter({ ...filter, tagId: event.target.value })}><option value="">Tất cả</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
-        <button className="secondaryButton iconTextButton" onClick={exportCsv}><Download size={16} /> CSV</button>
+        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Đang hoạt động</option><option value="ACTIVE">Hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="MERGED">Đã gộp</option><option value="ALL">Tất cả</option></select></label>
+        <label>Tạo từ<input type="date" value={filter.createdFrom} onChange={(event) => setFilter({ ...filter, createdFrom: event.target.value })} /></label>
+        <label>Tạo đến<input type="date" value={filter.createdTo} onChange={(event) => setFilter({ ...filter, createdTo: event.target.value })} /></label>
+        <button className="secondaryButton iconTextButton" disabled={exporting || !canView} onClick={exportCsv}><Download size={16} /> {exporting ? 'Đang export...' : 'CSV'}</button>
       </section>
 
-      <section className="contentGrid customerGrid">
-        <form className="panel customerForm" onSubmit={submit}>
-          <div className="sectionHeader"><h2><UserRoundCheck size={18} /> Ho so khách hàng</h2><span>{message}</span></div>
-          <div className="customerFormGrid">
-            <label>Loai ho so<select value={form.kind} onChange={(event) => change('kind', event.target.value)}><option value="INDIVIDUAL">Ca nhan / CTV</option><option value="BUSINESS">Doanh nghiep / doi tac</option></select></label>
-            <label>Loai khach<select value={form.typeId} onChange={(event) => change('typeId', event.target.value)}><option value="">Chưa chon</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-            <label>Họ tên / Ten giao dich<input required value={form.fullName} onChange={(event) => change('fullName', event.target.value)} /></label>
-            <label>SDT<input required value={form.phone} onChange={(event) => change('phone', event.target.value)} /></label>
-            <label>Email<input value={form.email} onChange={(event) => change('email', event.target.value)} /></label>
-            <label>Gioi tinh<input value={form.gender} onChange={(event) => change('gender', event.target.value)} /></label>
-            <label>Nguon<input value={form.source} onChange={(event) => change('source', event.target.value)} /></label>
-            <label>Thị trường<input value={form.market} onChange={(event) => change('market', event.target.value)} /></label>
-            <label>Nhom<input value={form.groupName} onChange={(event) => change('groupName', event.target.value)} /></label>
-            <label>Chien dich<select value={form.campaignId} onChange={(event) => change('campaignId', event.target.value)}><option value="">Khong gan</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
-            <label>NV phu trach<input value={form.owner} onChange={(event) => change('owner', event.target.value)} /></label>
-            <label>Chi nhanh<input value={form.branch} onChange={(event) => change('branch', event.target.value)} /></label>
-            <label>Phong ban<input value={form.department} onChange={(event) => change('department', event.target.value)} /></label>
-            <label>Tinh thanh<input value={form.province} onChange={(event) => change('province', event.target.value)} /></label>
-            <label>Cong ty<input value={form.companyName} onChange={(event) => change('companyName', event.target.value)} /></label>
-            <label>Mã số thuế<input value={form.taxCode} onChange={(event) => change('taxCode', event.target.value)} /></label>
-            <label className="span2">Địa chỉ<textarea value={form.address} onChange={(event) => change('address', event.target.value)} /></label>
-            <label className="span2">Binh luan moi nhat<textarea value={form.latestComment} onChange={(event) => change('latestComment', event.target.value)} /></label>
-          </div>
-          <div className="tagPicker">
-            <strong><Tags size={16} /> Tag</strong>
-            {tags.map((tag) => <button type="button" key={tag.id} className={form.tagIds.includes(tag.id) ? 'active' : ''} onClick={() => toggleTag(tag.id)}>{tag.name}</button>)}
-          </div>
-          <div className="customerMiniGrid">
-            <label>Nguoi lien he<input value={form.contacts[0].fullName} onChange={(event) => setForm({ ...form, contacts: [{ ...form.contacts[0], fullName: event.target.value }] })} /></label>
-            <label>Chuc vu<input value={form.contacts[0].position} onChange={(event) => setForm({ ...form, contacts: [{ ...form.contacts[0], position: event.target.value }] })} /></label>
-            <label>Lich CSKH<input type="datetime-local" value={form.careTasks[0].scheduledAt} onChange={(event) => setForm({ ...form, careTasks: [{ ...form.careTasks[0], scheduledAt: event.target.value }] })} /></label>
-            <label>Co hoi<input value={form.opportunities[0].title} onChange={(event) => setForm({ ...form, opportunities: [{ ...form.opportunities[0], title: event.target.value }] })} /></label>
-          </div>
-          <button className="iconTextButton" disabled={!can('customer.manage')}><Save size={16} /> Lưu khách hàng</button>
-        </form>
+      {modal === 'create' ? (
+        <div className="modalOverlay" role="presentation">
+          <form className="modalPanel modalPanelWide customerForm" role="dialog" aria-modal="true" aria-labelledby="customer-create-title" onSubmit={submit}>
+            <header>
+              <h2 id="customer-create-title"><UserRoundCheck size={18} /> Hồ sơ khách hàng</h2>
+              <button type="button" className="secondaryButton iconTextButton" onClick={closeModal}>Đóng</button>
+            </header>
 
-        <section className="panel customerList">
-          <div className="sectionHeader"><h2>Danh sach</h2><span>{rows.length} khach</span></div>
-          <div className="fitTableWrap">
-            <table className="customerTable">
-              <thead><tr><th>Ma</th><th>Khach hang</th><th>Phan loai</th><th>Owner</th><th>Tag</th><th></th></tr></thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.code}</td>
-                    <td><strong>{row.fullName}</strong><span>{row.phone} {row.email ? `- ${row.email}` : ''}</span></td>
-                    <td>{row.type?.name || row.kind}<span>{row.source || row.market || ''}</span></td>
-                    <td>{row.owner || '-'}<span>{row.branch || row.department || ''}</span></td>
-                    <td><div className="miniTags">{row.tags.map((tag) => <span key={tag.tag.id}>{tag.tag.name}</span>)}</div></td>
-                    <td><button className="secondaryButton iconButton" onClick={() => openDetail(row.id)}><Eye size={16} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {selected && (
-            <aside className="customerDetail">
-              <div className="sectionHeader"><h2>{selected.fullName}</h2><span>{selected.code}</span></div>
-              <div className="summaryRows">
-                <div><span>SDT</span><strong>{selected.phone}</strong></div>
-                <div><span>Bao gia</span><strong>{selected.related?.quotes.length || 0}</strong></div>
-                <div><span>Đơn hàng</span><strong>{selected.related?.orders.length || 0}</strong></div>
-                <div><span>Cong no</span><strong>{money(selected.related?.debts.receivableDebt || 0)}</strong></div>
+            <section className="customerFormSection">
+              <h3>Thông tin cơ bản</h3>
+              <div className="customerFormGrid">
+                <label>Loại hồ sơ<select value={form.kind} onChange={(event) => change('kind', event.target.value)}><option value="INDIVIDUAL">Cá nhân / CTV</option><option value="BUSINESS">Doanh nghiệp / đối tác</option></select></label>
+                <label>Loại khách<select value={form.typeId} onChange={(event) => change('typeId', event.target.value)}><option value="">Chưa chọn</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
+                <label>Họ tên / Tên giao dịch<input required value={form.fullName} onChange={(event) => change('fullName', event.target.value)} /></label>
+                <label>SĐT<input required value={form.phone} onChange={(event) => change('phone', event.target.value)} /></label>
+                <label>Email<input value={form.email} onChange={(event) => change('email', event.target.value)} /></label>
+                <label>Giới tính<input value={form.gender} onChange={(event) => change('gender', event.target.value)} /></label>
+                <label>Tỉnh thành<input value={form.province} onChange={(event) => change('province', event.target.value)} /></label>
+                <label>Nhóm khách<input value={form.groupName} onChange={(event) => change('groupName', event.target.value)} /></label>
               </div>
-              <h2>Timeline</h2>
-              <div className="timelineList">{(selected.related?.timeline || []).map((item) => <p key={`${item.createdAt}-${item.title}`}><b>{item.eventType}</b> {item.title}</p>)}</div>
-            </aside>
-          )}
-        </section>
+            </section>
+
+            <section className="customerFormSection">
+              <h3>Doanh nghiệp</h3>
+              <div className="customerFormGrid">
+                <label>Công ty<input value={form.companyName} onChange={(event) => change('companyName', event.target.value)} /></label>
+                <label>Mã số thuế<input value={form.taxCode} onChange={(event) => change('taxCode', event.target.value)} /></label>
+                <label>Website<input value={form.website} onChange={(event) => change('website', event.target.value)} /></label>
+                <label className="span2">Địa chỉ<textarea value={form.address} onChange={(event) => change('address', event.target.value)} /></label>
+              </div>
+            </section>
+
+            <section className="customerFormSection">
+              <h3>Liên hệ</h3>
+              <div className="customerMiniGrid">
+                <label>Người liên hệ<input value={primaryContact.fullName} onChange={(event) => updatePrimaryContact('fullName', event.target.value)} /></label>
+                <label>Chức vụ<input value={primaryContact.position} onChange={(event) => updatePrimaryContact('position', event.target.value)} /></label>
+                <label>SĐT liên hệ<input value={primaryContact.phone} onChange={(event) => updatePrimaryContact('phone', event.target.value)} /></label>
+                <label>Email liên hệ<input value={primaryContact.email} onChange={(event) => updatePrimaryContact('email', event.target.value)} /></label>
+                <label>Lịch CSKH<input type="datetime-local" value={firstCareTask.scheduledAt} onChange={(event) => updateCareTask('scheduledAt', event.target.value)} /></label>
+                <label>Kênh CSKH<input value={firstCareTask.channel} onChange={(event) => updateCareTask('channel', event.target.value)} /></label>
+                <label>Owner CSKH<input value={firstCareTask.owner} onChange={(event) => updateCareTask('owner', event.target.value)} /></label>
+                <label>Cơ hội<input value={firstOpportunity.title} onChange={(event) => updateOpportunity('title', event.target.value)} /></label>
+                <label>Giá trị cơ hội<input type="number" min="0" value={firstOpportunity.value} onChange={(event) => updateOpportunity('value', Number(event.target.value))} /></label>
+                <label>Xác suất (%)<input type="number" min="0" max="100" value={firstOpportunity.probability} onChange={(event) => updateOpportunity('probability', Number(event.target.value))} /></label>
+              </div>
+            </section>
+
+            <section className="customerFormSection">
+              <h3>Tags / campaign / owner</h3>
+              <div className="customerFormGrid">
+                <label>Chiến dịch<select value={form.campaignId} onChange={(event) => change('campaignId', event.target.value)}><option value="">Không gắn</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+                <label>NV phụ trách<input value={form.owner} onChange={(event) => change('owner', event.target.value)} /></label>
+                <label>Chi nhánh<input value={form.branch} onChange={(event) => change('branch', event.target.value)} /></label>
+                <label>Phòng ban<input value={form.department} onChange={(event) => change('department', event.target.value)} /></label>
+                <label>Nguồn<input value={form.source} onChange={(event) => change('source', event.target.value)} /></label>
+                <label>Thị trường<input value={form.market} onChange={(event) => change('market', event.target.value)} /></label>
+              </div>
+              <div className="tagPicker">
+                <strong><Tags size={16} /> Tag</strong>
+                {tags.length ? tags.map((tag) => <button type="button" key={tag.id} className={form.tagIds.includes(tag.id) ? 'active' : ''} onClick={() => toggleTag(tag.id)}>{tag.name}</button>) : <span className="mutedText">Chưa có tag đang hoạt động.</span>}
+              </div>
+            </section>
+
+            <section className="customerFormSection">
+              <h3>Ghi chú</h3>
+              <label>Bình luận mới nhất<textarea value={form.latestComment} onChange={(event) => change('latestComment', event.target.value)} /></label>
+              <label className="fileDrop"><FileUp size={16} /> {createFiles.length ? `Đã chọn ${createFiles.length} file` : 'Chọn tài liệu khách hàng'}<input type="file" multiple onChange={(event) => setCreateFiles(Array.from(event.target.files || []))} /></label>
+            </section>
+
+            <div className="modalActions">
+              {!canManage ? <span className="permissionHint">Bạn chưa có quyền customer.manage nên không thể lưu hồ sơ.</span> : null}
+              <button type="button" className="secondaryButton" onClick={closeModal}>Hủy</button>
+              <button className="iconTextButton" disabled={!canManage || saving} title={disabledManageTitle}><Save size={16} /> {saving ? 'Đang lưu...' : 'Lưu khách hàng'}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      <section className="panel customerList">
+        <div className="sectionHeader"><h2>Danh sách</h2><div className="sectionActions"><span>{rows.length} khách</span><button className="iconTextButton" disabled={!canManage} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo mới</button></div></div>
+        <div className="fitTableWrap">
+          <table className="customerTable">
+            <thead><tr><th>Mã</th><th>Khách hàng</th><th>Phân loại</th><th>Phụ trách</th><th>Tag</th><th>Thao tác</th></tr></thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.code}</td>
+                  <td className="customerNameCell"><strong>{row.fullName}</strong><span>{row.phone}{row.email ? ` - ${row.email}` : ''}</span></td>
+                  <td>{row.type?.name || row.kind}<span>{row.source || row.market || row.status || ''}</span></td>
+                  <td>{row.owner || '-'}<span>{row.branch || row.department || ''}</span></td>
+                  <td><div className="miniTags">{row.tags.map((tag) => <span key={tag.tag.id}>{tag.tag.name}</span>)}</div></td>
+                  <td><button className="secondaryButton iconButton" onClick={() => void openDetail(row.id)} aria-label={`Xem ${row.fullName}`}><Eye size={16} /></button></td>
+                </tr>
+              ))}
+              {!rows.length ? <tr><td className="customerEmptyCell" colSpan={6}>{loading ? 'Đang tải dữ liệu khách hàng...' : 'Chưa có khách hàng phù hợp với bộ lọc.'}</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
       </section>
+
+      {modal === 'detail' ? (
+        <div className="modalOverlay" role="presentation">
+          <aside className="modalPanel customerDetail" role="dialog" aria-modal="true" aria-labelledby="customer-detail-title">
+            <header><h2 id="customer-detail-title">{selected?.fullName || 'Chi tiết khách hàng'}</h2><button type="button" className="secondaryButton iconTextButton" onClick={closeModal}>Đóng</button></header>
+            {detailLoading && !selected ? <p className="mutedText">Đang tải chi tiết khách hàng...</p> : null}
+            {selected ? (
+              <>
+                <div className="summaryRows">
+                  <div><span>SĐT</span><strong>{selected.phone}</strong></div>
+                  <div><span>Báo giá</span><strong>{selected.related?.quotes.length || 0}</strong></div>
+                  <div><span>Đơn hàng</span><strong>{selected.related?.orders.length || 0}</strong></div>
+                  <div><span>Công nợ</span><strong>{money(selected.related?.debts.receivableDebt || 0)}</strong></div>
+                </div>
+                <h2>Tài liệu</h2>
+                <label className="fileDrop"><FileUp size={16} /> Upload tài liệu<input key={detailFileInputKey} type="file" multiple disabled={!canManage} onChange={(event) => void uploadDetailFiles(event.target.files)} /></label>
+                {!canManage ? <span className="permissionHint">Thiếu quyền customer.manage nên không thể upload hoặc xóa tài liệu.</span> : null}
+                {selected.files?.length ? (
+                  <div className="supplierFiles">
+                    {selected.files.map((file) => (
+                      <span key={file.id}>
+                        <a href={`${API_URL}${file.fileUrl}`} target="_blank" rel="noreferrer">{file.fileName}</a>
+                        <button type="button" className="iconButton dangerButton" disabled={!canManage} title={disabledManageTitle} onClick={() => void removeFile(selected.id, file.id)} aria-label={`Xóa ${file.fileName}`}><Trash2 size={14} /></button>
+                      </span>
+                    ))}
+                  </div>
+                ) : <p className="mutedText">Chưa có tài liệu.</p>}
+                <h2>Dòng thời gian</h2>
+                <div className="timelineList">{(selected.related?.timeline || []).map((item) => <p key={`${item.createdAt}-${item.title}`}><b>{item.eventType}</b> {item.title}</p>)}</div>
+              </>
+            ) : null}
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -254,5 +522,21 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 }
 
 function money(value: number) {
-  return new Intl.NumberFormat('vi-VN').format(value);
+  return new Intl.NumberFormat('vi-VN').format(Number(value || 0));
+}
+
+async function responseMessage(response: Response, fallback: string) {
+  try {
+    const data = await response.json();
+    const message = data?.message;
+    if (Array.isArray(message)) return message.join(', ');
+    if (typeof message === 'string' && message.trim()) return message;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function errorText(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
 }

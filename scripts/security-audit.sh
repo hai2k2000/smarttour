@@ -27,17 +27,17 @@ else
   failures=$((failures + 1))
 fi
 
-if grep -Eq '=(123456|password|changeme|secret|smarttour_dev_password|smarttour_dev_secret)$' .env; then
+if grep -Eiq '=(123456|password|change[_-]?me(_before_deploy)?|secret|smarttour_dev_password|smarttour_dev_secret)$' .env; then
   echo "FAIL_ENV weak placeholder secret found"
   failures=$((failures + 1))
 else
   echo "OK_ENV no obvious weak placeholder secret"
 fi
 
-if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1).*0\.0\.0\.0'; then
+if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1|minio-1|n8n-1|nginx-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS SmartTour containers are published on all interfaces"
   failures=$((failures + 1))
-elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1).*127\.0\.0\.1'; then
+elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|api-1|postgres-1|redis-1|minio-1|n8n-1|nginx-1).*127\.0\.0\.1'; then
   echo "OK_PORTS SmartTour host ports bound to localhost"
 else
   echo "WARN_PORTS SmartTour publish state could not be confirmed"

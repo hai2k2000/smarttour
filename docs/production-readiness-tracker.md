@@ -35,6 +35,10 @@ Automated coverage validates core branch/department scope for RBAC, customer/quo
 
 Manual owner task: validate dashboards and aggregate reports with production-like data in multiple branches/departments.
 
+Completed implementation: Finance debt APIs now return grouped customer/supplier balances with aging buckets and trace entries. Permission-protected manual ledger adjustments are available for accounting and super-admin roles.
+Completed implementation: Finance payment approval now reconciles linked supplier payment requests and operation vouchers idempotently; pending Finance vouchers no longer mark operational records as paid.
+Completed implementation: Operations, Operation Vouchers, and Finance screens now expose linked reconciliation states and lifecycle-aware actions. Finance cancellation reopens operational balances, reverses linked Order totals, and is covered by cancellation/idempotency smoke tests.
+
 ## 4. Real Users and Roles
 
 Status: `ready-for-manual`
@@ -45,9 +49,13 @@ Manual owner task: create named users for the real team and confirm menu/action/
 
 ## 5. Import/Export Files
 
-Status: `ready-for-manual`
+Status: `open`
 
 Automated coverage validates CSV endpoints respond and include expected smoke data.
+
+Completed implementation: Finance receipt/payment CSV import now parses multipart files or JSON rows, validates rows, and writes drafts transactionally. Supplier, FIT, tour guide, Customer, Finance receipt/payment attachments, and Finance invoice multi-file documents use private MinIO storage.
+
+Open implementation: native XLSX workbook import/export remains open. `exceljs@4.4.0` was evaluated and removed because its transitive dependency tree introduced moderate audit findings.
 
 Manual owner task: open exports in Excel and confirm encoding, money, and date formatting.
 
@@ -105,6 +113,8 @@ Completed hardening:
 
 - Postgres and Redis host ports are bound to `127.0.0.1`.
 - Obvious development placeholder secrets were removed from `.env`.
+- MinIO ports `9000/9001` are bound to `127.0.0.1`.
+- MinIO health and stronger placeholder-secret detection are included in the automated audits.
 
 Completed hardening:
 
@@ -119,4 +129,5 @@ Status: `done`
 Smoke commands are normalized in `package.json`:
 
 - `npm run smoke:all`
+- `npm run smoke:files`
 - `npm run verify:deploy`

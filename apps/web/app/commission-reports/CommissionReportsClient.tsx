@@ -79,7 +79,7 @@ export default function CommissionReportsClient() {
     const response = await fetch(`${API_URL}/api/commission-reports/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setMessage(data.message || 'Khong thực hiện duoc');
+      setMessage(data.message || 'Không thực hiện được');
       return;
     }
     setMessage('Đã cập nhật hoa hồng');
@@ -100,38 +100,38 @@ export default function CommissionReportsClient() {
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
-          <button className="secondaryButton iconTextButton" disabled={!can('commission.manage')} onClick={sync}><RefreshCcw size={16} /> Sync Order</button>
+          <button className="secondaryButton iconTextButton" disabled={!can('commission.manage')} onClick={sync}><RefreshCcw size={16} /> Đồng bộ đơn hàng</button>
           <button className="secondaryButton iconTextButton" onClick={() => { window.location.href = `${API_URL}/api/commission-reports/export?${query}`; }}><Download size={16} /> CSV</button>
         </div>
       </header>
 
       <section className="metrics commissionMetrics">
-        <Metric label="Tong hoa hồng" value={money(summary.totalCommission)} />
+        <Metric label="Tổng hoa hồng" value={money(summary.totalCommission)} />
         <Metric label="Đã duyệt" value={money(summary.approvedCommission)} />
         <Metric label="Chờ duyệt" value={money(summary.pendingCommission)} />
         <Metric label="Đã chi" value={money(summary.paidCommission)} />
         <Metric label="Chưa chi" value={money(summary.unpaidCommission)} />
         <Metric label="Booking" value={summary.bookingCount} />
       </section>
-      <PermissionNotice allowed={canAny(['commission.view', 'commission.manage'])} label="xem bao cao hoa hồng" />
+      <PermissionNotice allowed={canAny(['commission.view', 'commission.manage'])} label="xem báo cáo hoa hồng" />
 
       <section className="panel commissionFilters">
-        <label><Search size={15} /> Tim kiem<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Ma don, tour, khach, sales" /></label>
+        <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Mã đơn, tour, khách, sales" /></label>
         <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option><option value="PENDING">Chờ duyệt</option><option value="APPROVED">Đã duyệt</option><option value="REJECTED">Từ chối</option><option value="REVOKED">Thu hồi</option></select></label>
         <label>Thanh toán<select value={filter.paymentStatus} onChange={(event) => setFilter({ ...filter, paymentStatus: event.target.value })}><option value="">Tất cả</option><option value="UNPAID">Chưa chi</option><option value="PARTIAL">Chi một phần</option><option value="PAID">Đã chi</option></select></label>
-        <label>San pham<select value={filter.productType} onChange={(event) => setFilter({ ...filter, productType: event.target.value })}><option value="">Tất cả</option><option value="FIT_TOUR">FIT</option><option value="GIT_COMBO">GIT/Combo</option><option value="LANDTOUR">LandTour</option><option value="HOTEL_BOOKING">Booking phong</option><option value="FLIGHT_ORDER">Ve may bay</option><option value="SINGLE_SERVICE">Dịch vụ lẻ</option></select></label>
+        <label>Sản phẩm<select value={filter.productType} onChange={(event) => setFilter({ ...filter, productType: event.target.value })}><option value="">Tất cả</option><option value="FIT_TOUR">FIT</option><option value="GIT_COMBO">GIT/Combo</option><option value="LANDTOUR">LandTour</option><option value="HOTEL_BOOKING">Booking phòng</option><option value="FLIGHT_ORDER">Vé máy bay</option><option value="SINGLE_SERVICE">Dịch vụ lẻ</option></select></label>
         <label>Sales<input value={filter.employee} onChange={(event) => setFilter({ ...filter, employee: event.target.value })} /></label>
-        <label>Phong ban<input value={filter.department} onChange={(event) => setFilter({ ...filter, department: event.target.value })} /></label>
-        <label>Chi nhanh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
-        <label>Group<select value={filter.groupBy} onChange={(event) => setFilter({ ...filter, groupBy: event.target.value })}><option value="salesOwner">Nhan vien</option><option value="team">Nhom</option><option value="department">Phong ban</option><option value="branch">Chi nhanh</option><option value="market">Thị trường</option></select></label>
+        <label>Phòng ban<input value={filter.department} onChange={(event) => setFilter({ ...filter, department: event.target.value })} /></label>
+        <label>Chi nhánh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
+        <label>Group<select value={filter.groupBy} onChange={(event) => setFilter({ ...filter, groupBy: event.target.value })}><option value="salesOwner">Nhân viên</option><option value="team">Nhóm</option><option value="department">Phòng ban</option><option value="branch">Chi nhánh</option><option value="market">Thị trường</option></select></label>
       </section>
 
       <section className="contentGrid commissionGrid">
         <section className="panel">
-          <div className="sectionHeader"><h2>Danh sach hoa hồng</h2><span>{rows.length} dong</span></div>
+          <div className="sectionHeader"><h2>Danh sách hoa hồng</h2><span>{rows.length} dòng</span></div>
           <div className="fitTableWrap">
             <table className="commissionTable">
-              <thead><tr><th>Đơn hàng</th><th>Khach</th><th>Sales</th><th>Cot moc</th><th>Doanh thu</th><th>Lợi nhuận</th><th>%</th><th>Hoa hong</th><th>Trạng thái</th><th></th></tr></thead>
+              <thead><tr><th>Đơn hàng</th><th>Khách</th><th>Sales</th><th>Cột mốc</th><th>Doanh thu</th><th>Lợi nhuận</th><th>%</th><th>Hoa hồng</th><th>Trạng thái</th><th></th></tr></thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
@@ -142,7 +142,7 @@ export default function CommissionReportsClient() {
                     <td>{money(Number(row.revenue))}</td>
                     <td>{money(Number(row.profit))}</td>
                     <td>{Number(row.ratePercent).toFixed(2)}</td>
-                    <td><strong>{money(Number(row.commissionAmount))}</strong><span>Con {money(Number(row.remainingAmount))}</span></td>
+                    <td><strong>{money(Number(row.commissionAmount))}</strong><span>Còn {money(Number(row.remainingAmount))}</span></td>
                     <td><span className="statusPill">{viStatus(row.status)}</span><span>{viStatus(row.paymentStatus)}</span></td>
                     <td className="commissionActions">
                       <button className="secondaryButton iconButton" onClick={() => setSelected(row)}><Eye size={16} /></button>
@@ -158,7 +158,7 @@ export default function CommissionReportsClient() {
         </section>
 
         <aside className="panel commissionSide">
-          <h2>Tong hop</h2>
+          <h2>Tổng hợp</h2>
           <div className="summaryRows">
             {grouping.slice(0, 8).map((row) => (
               <div key={row.key}><span>{row.key}</span><strong>{money(row.commission)}</strong></div>
@@ -168,8 +168,8 @@ export default function CommissionReportsClient() {
             <>
               <h2>Chi tiet</h2>
               <div className="summaryRows">
-                <div><span>Cong thuc</span><strong>{selected.formula || '-'}</strong></div>
-                <div><span>Hoa hong</span><strong>{money(Number(selected.commissionAmount))}</strong></div>
+                <div><span>Công thức</span><strong>{selected.formula || '-'}</strong></div>
+                <div><span>Hoa hồng</span><strong>{money(Number(selected.commissionAmount))}</strong></div>
                 <div><span>Đã chi</span><strong>{money(Number(selected.paidAmount))}</strong></div>
               </div>
               <div className="timelineList">

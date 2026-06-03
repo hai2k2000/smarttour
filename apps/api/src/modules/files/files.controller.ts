@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Post, Query, Req, R
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { FilesService } from './files.service';
+import { fileUploadInterceptorOptions, FilesService } from './files.service';
 
 @ApiTags('files')
 @Controller('files')
@@ -12,7 +12,7 @@ export class FilesController {
   @Post('upload')
   @RequirePermissions('file.manage')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   upload(
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Body('scope') scope: string | undefined,

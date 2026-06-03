@@ -6,8 +6,6 @@ import { ChevronLeft, ChevronRight, Copy, FileUp, Plus, Save, Trash2 } from 'luc
 import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../authFetch';
-import { PermissionNotice, usePermissions } from '../usePermissions';
 
 type Supplier = { id: string; name: string };
 type FitTourSummary = { id: string; quoteCode: string; tourCode: string; customerName: string };
@@ -15,12 +13,12 @@ type FitTourSummary = { id: string; quoteCode: string; tourCode: string; custome
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
 const workflowSteps = [
-  { key: 'PRICING', label: 'Tinh gia' },
-  { key: 'TOUR_INFO', label: 'Thong tin Tour' },
-  { key: 'BUDGET', label: 'Du toan dich vu' },
-  { key: 'OPERATION', label: 'Dieu hanh dich vu' },
-  { key: 'HANDOVER', label: 'Phieu ban giao' },
-  { key: 'SURVEY', label: 'Phieu danh gia' },
+  { key: 'PRICING', label: 'Tính giá' },
+  { key: 'TOUR_INFO', label: 'Thông tin Tour' },
+  { key: 'BUDGET', label: 'Dự toán dịch vụ' },
+  { key: 'OPERATION', label: 'Điều hành dịch vụ' },
+  { key: 'HANDOVER', label: 'Phiếu bàn giao' },
+  { key: 'SURVEY', label: 'Phiếu đánh giá dịch vụ' },
 ] as const;
 
 const serviceStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'];
@@ -98,7 +96,7 @@ const fitTourSchema = z.object({
   confirmedAt: z.string().default(''),
   allowOverbooking: z.boolean().default(false),
   closeAt: z.string().default(''),
-  handoverGuideRequest: z.string().default('1. Liên hệ khach truoc tour.\n2. Tạo nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.'),
+  handoverGuideRequest: z.string().default('1. Lien he khach truoc tour.\n2. Tao nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.'),
   surveyDescription: z.string().default(''),
   commonCosts: z.array(costLineSchema).default([]),
   hotelCosts: z.array(costLineSchema).default([]),
@@ -186,7 +184,7 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     confirmedAt: '',
     allowOverbooking: false,
     closeAt: '',
-    handoverGuideRequest: '1. Liên hệ khach truoc tour.\n2. Tạo nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.',
+    handoverGuideRequest: '1. Lien he khach truoc tour.\n2. Tao nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.',
     surveyDescription: '',
     commonCosts: [{ ...emptyCost, serviceType: 'Xe', unit: 'goi' }],
     hotelCosts: [{ ...emptyCost, serviceType: 'Khach san', unit: 'phong', paxPerRoom: 2 }],
@@ -203,11 +201,11 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     ],
     surveyQuestions: [
       { question: 'Chat luong chuong trinh tour', notes: '' },
-      { question: 'Phương tiện van chủyen', notes: '' },
+      { question: 'Phuong tien van chuyen', notes: '' },
       { question: 'Chat luong do an', notes: '' },
       { question: 'Thai do nhan vien tu van', notes: '' },
       { question: 'Chat luong khach san', notes: '' },
-      { question: 'Hướng dẫn viên', notes: '' },
+      { question: 'Huong dan vien', notes: '' },
       { question: 'Cong tac to chuc', notes: '' },
       { question: 'Muc do hai long chung', notes: '' },
     ],
@@ -227,10 +225,9 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   };
 }
 
-export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplier[]; tours: FitTourSummary[] }) {
-  const { can, canAny } = usePermissions();
+export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: { suppliers: Supplier[]; tours: FitTourSummary[]; initialTourId?: string }) {
   const [activeStep, setActiveStep] = useState(0);
-  const [saveState, setSaveState] = useState('Chưa luu');
+  const [saveState, setSaveState] = useState('Chua luu');
   const [selectedTourId, setSelectedTourId] = useState('');
   const form = useForm<FitTourForm>({
     resolver: zodResolver(fitTourSchema) as never,
@@ -250,6 +247,10 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
     surveyQuestions: useFieldArray({ control, name: 'surveyQuestions' }),
     attachments: useFieldArray({ control, name: 'attachments' }),
   };
+
+  useEffect(() => {
+    void loadTour(initialTourId);
+  }, [initialTourId]);
 
   const values = watch();
   const totalPax = Math.max(1, number(values.adultCount) + number(values.childCount) + number(values.infantCount));
@@ -281,11 +282,11 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
     const timeout = setTimeout(async () => {
       const current = getValues();
       if (!formState.isDirty || current.quoteCode.length < 2 || current.tourCode.length < 2 || current.customerName.length < 2) return;
-      setSaveState('Đang autosave...');
+      setSaveState('Dang autosave...');
       try {
         const saved = await saveTour(current);
         if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
-        setSaveState(`Đã autosave ${new Date().toLocaleTimeString('vi-VN')}`);
+        setSaveState(`Da autosave ${new Date().toLocaleTimeString('vi-VN')}`);
       } catch {
         setSaveState('Autosave loi');
       }
@@ -294,11 +295,10 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
   }, [values, formState.isDirty, getValues, setValue]);
 
   async function saveTour(data: FitTourForm) {
-    if (!can('tour.manage')) throw new Error('Missing permission');
     const url = data.id ? `${apiBase}/api/fit-tours/${data.id}` : `${apiBase}/api/fit-tours`;
     const response = await fetch(url, {
       method: data.id ? 'PUT' : 'POST',
-      headers: authJsonHeaders(),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(await response.text());
@@ -306,10 +306,10 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
   }
 
   async function submit(data: FitTourForm) {
-    setSaveState('Đang luu...');
+    setSaveState('Dang luu...');
     const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key });
     reset(toFormDefaults(saved), { keepDirty: false });
-    setSaveState('Đã lưu');
+    setSaveState('Da luu');
   }
 
   async function loadTour(id: string) {
@@ -318,7 +318,7 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
       reset(toFormDefaults());
       return;
     }
-    const response = await fetch(`${apiBase}/api/fit-tours/${id}`, { headers: authHeaders() });
+    const response = await fetch(`${apiBase}/api/fit-tours/${id}`);
     if (response.ok) reset(toFormDefaults(await response.json()));
   }
 
@@ -327,7 +327,7 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
     if (!id) return;
     const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
       method: 'POST',
-      headers: authJsonHeaders(),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sourceTourId: selectedTourId || undefined }),
     });
     if (response.ok) reset(toFormDefaults(await response.json()));
@@ -338,7 +338,7 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
     if (!id) return;
     const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
       method: 'POST',
-      headers: authJsonHeaders(),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sourceTourId: selectedTourId || undefined }),
     });
     if (response.ok) reset(toFormDefaults(await response.json()));
@@ -351,7 +351,6 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
 
   return (
     <form onSubmit={handleSubmit(submit)} className="fitWizard">
-      <PermissionNotice allowed={canAny(['tour.view', 'tour.manage'])} label="xem va quan ly FIT tour" />
       <section className="fitToolbar">
         <div className="fitSteps">
           {workflowSteps.map((step, index) => (
@@ -361,12 +360,12 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
           ))}
         </div>
         <div className="fitActions">
-          <select value={selectedTourId} onChange={(event) => loadTour(event.target.value)} aria-label="Chọn FIT tour">
+          <select value={selectedTourId} onChange={(event) => loadTour(event.target.value)} aria-label="Chon FIT tour">
             <option value="">Tour FIT moi</option>
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>
           <span>{saveState}</span>
-          <button type="submit" disabled={!can('tour.manage')}><Save size={15} /> Lưu</button>
+          <button type="submit"><Save size={15} /> Luu</button>
         </div>
       </section>
 
@@ -376,26 +375,26 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
             ['Tong phi chung', money(totalCommonCost)],
             ['Tong phi rieng', money(totalPrivateCost)],
             ['Gia NET / khach', money(netPerGuest)],
-            ['Lợi nhuận / khach', money(profitPerGuest)],
+            ['Loi nhuan / khach', money(profitPerGuest)],
             ['Hoa hong / khach', money(number(values.commissionPerGuest))],
-            ['Gia co hoa hồng', money(priceWithCommission)],
+            ['Gia co hoa hong', money(priceWithCommission)],
           ]} />
           <div className="fitFormGrid">
-            <Field label="Ma báo giá" name="quoteCode" register={register} required />
+            <Field label="Ma bao gia" name="quoteCode" register={register} required />
             <Field label="Ma tour" name="tourCode" register={register} required />
             <Field label="Nhom thi truong" name="marketGroup" register={register} as="select" options={['Noi dia', 'Inbound', 'Outbound', 'Corporate']} />
-            <Field label="Ngày đặt" name="bookingDate" register={register} type="date" />
+            <Field label="Ngay dat" name="bookingDate" register={register} type="date" />
             <Field label="Khoi di" name="startDate" register={register} type="date" />
             <Field label="Ngay ve" name="endDate" register={register} type="date" />
-            <Field label="Họ tên khach" name="customerName" register={register} required />
-            <Field label="Điện thoại" name="phone" register={register} />
+            <Field label="Ho ten khach" name="customerName" register={register} required />
+            <Field label="Dien thoai" name="phone" register={register} />
             <Field label="Email" name="email" register={register} type="email" />
-            <Field label="Người lớn" name="adultCount" register={register} type="number" />
-            <Field label="Trẻ em" name="childCount" register={register} type="number" />
+            <Field label="Nguoi lon" name="adultCount" register={register} type="number" />
+            <Field label="Tre em" name="childCount" register={register} type="number" />
             <Field label="Em be" name="infantCount" register={register} type="number" />
             <Field label="Gia ban / khach" name="sellingPrice" register={register} type="number" />
             <Field label="Hoa hong / khach" name="commissionPerGuest" register={register} type="number" />
-            <label className="span2">Ghi chú<textarea {...register('notes')} rows={4} /></label>
+            <label className="span2">Ghi chu<textarea {...register('notes')} rows={4} /></label>
             <label className="fileDrop"><FileUp size={16} /> File dinh kem<input type="file" multiple onChange={(event) => addFiles(event.target.files)} /></label>
           </div>
           <EditableTable title="Chi phi chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append(emptyCost)} remove={arrays.commonCosts.remove} columns={costColumns} />
@@ -424,13 +423,13 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
             <Field label="Gia tre em 6-11" name="childPrice611" register={register} type="number" />
             <Field label="Gia em be" name="infantPrice" register={register} type="number" />
             <Field label="Phu thu tren tour" name="surcharge" register={register} type="number" />
-            <Field label="Phương tiện" name="transportMode" register={register} />
+            <Field label="Phuong tien" name="transportMode" register={register} />
             <Field label="Hanh trinh di" name="outboundRoute" register={register} />
             <Field label="Hang di" name="outboundCarrier" register={register} />
             <Field label="Hanh trinh ve" name="returnRoute" register={register} />
             <Field label="Hang ve" name="returnCarrier" register={register} />
-            <Field label="Điểm đón" name="pickupPoint" register={register} />
-            <Field label="Điểm trả" name="dropoffPoint" register={register} />
+            <Field label="Diem don" name="pickupPoint" register={register} />
+            <Field label="Diem tra" name="dropoffPoint" register={register} />
             <Field label="Han xin visa" name="visaDeadline" register={register} type="date" />
             <Field label="Thoi gian giu cho" name="holdUntil" register={register} type="date" />
             <Field label="Thoi gian nhan cho" name="confirmedAt" register={register} type="date" />
@@ -444,9 +443,9 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
       {activeStep === 2 ? (
         <section className="fitStep">
           <SummaryCards items={[
-            ['Tổng thu du kien', money(budgetRevenue)],
-            ['Tổng chi du kien', money(budgetCost)],
-            ['Lợi nhuận du kien', money(budgetProfit)],
+            ['Tong thu du kien', money(budgetRevenue)],
+            ['Tong chi du kien', money(budgetCost)],
+            ['Loi nhuan du kien', money(budgetProfit)],
             ['Ty suat loi nhuan', `${budgetRevenue ? Math.round((budgetProfit / budgetRevenue) * 1000) / 10 : 0}%`],
           ]} />
           <div className="copyBar"><button type="button" onClick={copyBudget}><Copy size={15} /> Copy du toan</button></div>
@@ -457,9 +456,9 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
       {activeStep === 3 ? (
         <section className="fitStep">
           <SummaryCards items={[
-            ['Tổng chi', money(operationCost)],
-            ['Lợi nhuận du kien', money(budgetProfit)],
-            ['Lợi nhuận thuc te', money(budgetRevenue - operationCost)],
+            ['Tong chi', money(operationCost)],
+            ['Loi nhuan du kien', money(budgetProfit)],
+            ['Loi nhuan thuc te', money(budgetRevenue - operationCost)],
           ]} />
           <div className="copyBar"><button type="button" onClick={copyOperation}><Copy size={15} /> Copy dieu hanh tu du toan</button></div>
           <EditableTable title="Dieu hanh dich vu" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append(emptyService)} remove={arrays.operationServices.remove} columns={operationColumns} suppliers={suppliers} />
@@ -468,7 +467,7 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
 
       {activeStep === 4 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Diem don', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
           <label>Yeu cau huong dan vien<textarea {...register('handoverGuideRequest')} rows={8} /></label>
           <EditableTable title="Vat dung va qua tang" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={arrays.handoverItems.remove} columns={handoverColumns} />
         </section>
@@ -476,7 +475,7 @@ export default function FitTourWizard({ suppliers, tours }: { suppliers: Supplie
 
       {activeStep === 5 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Diem don', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
           <label>Mo ta chung<textarea {...register('surveyDescription')} rows={5} /></label>
           <EditableTable title="Cau hoi khao sat" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
         </section>
@@ -517,14 +516,14 @@ function EditableTable({ title, name, fields, register, append, remove, columns,
     columnHelper.display({
       id: 'actions',
       header: '',
-      cell: ({ row }) => <button type="button" className="iconButton dangerButton" onClick={() => remove(row.index)} aria-label="Xóa dòng"><Trash2 size={14} /></button>,
+      cell: ({ row }) => <button type="button" className="iconButton dangerButton" onClick={() => remove(row.index)} aria-label="Xoa dong"><Trash2 size={14} /></button>,
     }),
   ], [columnHelper, columns, name, register, remove, suppliers]);
   const table = useReactTable({ data: fields, columns: tableColumns, getCoreRowModel: getCoreRowModel() });
 
   return (
     <section className="fitTableBlock">
-      <div className="sectionHeader"><h2>{title}</h2><button type="button" onClick={append}><Plus size={15} /> Thêm dòng</button></div>
+      <div className="sectionHeader"><h2>{title}</h2><button type="button" onClick={append}><Plus size={15} /> Them dong</button></div>
       <div className="fitTableWrap">
         <table className="fitTable">
           <thead>{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}>{headerGroup.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
@@ -538,7 +537,7 @@ function EditableTable({ title, name, fields, register, append, remove, columns,
 function TableInput({ name, rowIndex, column, register, suppliers }: { name: ArrayName; rowIndex: number; column: ColumnSpec; register: UseFormRegister<FitTourForm>; suppliers: Supplier[] }) {
   const fieldName = `${name}.${rowIndex}.${column.key}` as never;
   if (column.type === 'supplier') {
-    return <select {...register(fieldName)}><option value="">Chọn NCC</option>{suppliers.map((supplier) => <option value={supplier.id} key={supplier.id}>{supplier.name}</option>)}</select>;
+    return <select {...register(fieldName)}><option value="">Chon NCC</option>{suppliers.map((supplier) => <option value={supplier.id} key={supplier.id}>{supplier.name}</option>)}</select>;
   }
   if (column.type === 'status') {
     return <select {...register(fieldName)}>{serviceStatuses.map((status) => <option value={status} key={status}>{status}</option>)}</select>;
@@ -553,14 +552,14 @@ const costColumns: ColumnSpec[] = [
   { key: 'serviceType', label: 'Loai dich vu' },
   { key: 'description', label: 'Dien giai' },
   { key: 'unit', label: 'Don vi tinh' },
-  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'quantity', label: 'So luong', type: 'number' },
   { key: 'times', label: 'So lan', type: 'number' },
   { key: 'currency', label: 'Ngoai te' },
   { key: 'exchangeRate', label: 'Ty gia', type: 'number' },
   { key: 'unitPrice', label: 'Don gia', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
   { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const hotelColumns: ColumnSpec[] = [
@@ -574,46 +573,46 @@ const hotelColumns: ColumnSpec[] = [
   { key: 'unitPrice', label: 'Don gia', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
   { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const budgetColumns: ColumnSpec[] = [
   { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'supplierId', label: 'Nhà cung cấp', type: 'supplier' },
+  { key: 'supplierId', label: 'Nha cung cap', type: 'supplier' },
   { key: 'description', label: 'Dien giai' },
-  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'quantity', label: 'So luong', type: 'number' },
   { key: 'unitPrice', label: 'Don gia', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
   { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const operationColumns: ColumnSpec[] = [
   { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'supplierId', label: 'Nhà cung cấp', type: 'supplier' },
+  { key: 'supplierId', label: 'Nha cung cap', type: 'supplier' },
   { key: 'bookingCode', label: 'Booking code' },
-  { key: 'quantity', label: 'Số lượng', type: 'number' },
-  { key: 'confirmedUnitPrice', label: 'Gia xác nhận', type: 'number' },
+  { key: 'quantity', label: 'So luong', type: 'number' },
+  { key: 'confirmedUnitPrice', label: 'Gia xac nhan', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
   { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'status', label: 'Trạng thái', type: 'status' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'status', label: 'Trang thai', type: 'status' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const guideColumns: ColumnSpec[] = [
   { key: 'name', label: 'Ten' },
-  { key: 'phone', label: 'Điện thoại' },
+  { key: 'phone', label: 'Dien thoai' },
   { key: 'guideType', label: 'Loai guide' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const handoverColumns: ColumnSpec[] = [
   { key: 'itemName', label: 'Tai lieu ban giao' },
-  { key: 'quantity', label: 'Số lượng', type: 'number' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'quantity', label: 'So luong', type: 'number' },
+  { key: 'notes', label: 'Ghi chu' },
 ];
 
 const surveyColumns: ColumnSpec[] = [
   { key: 'question', label: 'Cau hoi' },
-  { key: 'notes', label: 'Ghi chú' },
+  { key: 'notes', label: 'Ghi chu' },
 ];

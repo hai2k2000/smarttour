@@ -26,7 +26,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
     return (
       <main className="shell">
         <aside className="sidebar"><div className="brand">SmartTour</div></aside>
-        <section className="workspace"><h1>Loai don hang khong ton tai</h1></section>
+        <section className="workspace"><h1>Loại don hang khong ton tai</h1></section>
       </main>
     );
   }
@@ -36,7 +36,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/">Tổng quan vận hành</Link>
           <Link href="/orders/fit-tours" className={type === 'fit-tours' ? 'active' : ''}>Đơn Tour FIT</Link>
           <Link href="/orders/git-combos" className={type === 'git-combos' ? 'active' : ''}>Đơn GIT/Combo</Link>
           <Link href="/orders/landtours" className={type === 'landtours' ? 'active' : ''}>Đơn LandTour</Link>

@@ -26,7 +26,7 @@ export default async function QuotationsPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Bao gia hop nhat</p>
+          <p className="eyebrow">Báo giá hợp nhất</p>
           <h1>Công cụ báo giá</h1>
         </div>
         <div className="pageHeaderActions">

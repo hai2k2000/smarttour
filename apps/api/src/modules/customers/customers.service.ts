@@ -11,10 +11,10 @@ const customerInclude = {
   campaign: true,
   tags: { include: { tag: true } },
   contacts: { orderBy: { createdAt: 'asc' as const } },
-  careTasks: { orderBy: { scheduledAt: 'desc' as const } },
+  careTasks: { orderBy: { scheduledAt: 'desc' as const }, take: 20 },
   comments: { orderBy: { createdAt: 'desc' as const }, take: 5 },
   callLogs: { orderBy: { calledAt: 'desc' as const }, take: 5 },
-  opportunities: { orderBy: { createdAt: 'desc' as const } },
+  opportunities: { orderBy: { createdAt: 'desc' as const }, take: 20 },
   files: { orderBy: { createdAt: 'desc' as const } },
 };
 
@@ -69,30 +69,52 @@ export class CustomersService {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const [customers, orders] = await Promise.all([
-      this.prisma.customer.findMany({ where, select: { id: true, phone: true, email: true, fullName: true, createdAt: true } }),
-      this.prisma.order.findMany({ where: { deletedAt: null }, select: { customerId: true, customerPhone: true, customerEmail: true, customerName: true, totalRevenue: true, paidAmount: true } }),
+    const [customers, totalCustomers, newToday, newThisMonth] = await Promise.all([
+      this.prisma.customer.findMany({ where, select: { id: true, phone: true, email: true, fullName: true } }),
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.count({ where: { AND: [where, { createdAt: { gte: today } }] } }),
+      this.prisma.customer.count({ where: { AND: [where, { createdAt: { gte: monthStart } }] } }),
     ]);
-    const keys = customers.map((customer) => this.customerKey(customer));
+    const customerKeyMap = new Map<string, string>();
+    const customerIds: string[] = [];
+    const phones: string[] = [];
+    const emails: string[] = [];
+    const names: string[] = [];
+    for (const customer of customers) {
+      customerIds.push(customer.id);
+      if (customer.phone) phones.push(customer.phone);
+      if (customer.email) emails.push(customer.email);
+      if (customer.fullName) names.push(customer.fullName);
+      for (const key of this.customerKeys(customer)) customerKeyMap.set(key, customer.id);
+    }
+    const orders = customerKeyMap.size
+      ? await this.prisma.order.findMany({
+          where: branchDepartmentScopeWhere({
+            deletedAt: null,
+            OR: this.customerMatchConditions(customerIds, phones, emails, names),
+          }, user),
+          select: { customerId: true, customerPhone: true, customerEmail: true, customerName: true, totalRevenue: true, paidAmount: true },
+        })
+      : [];
     const orderCounts = new Map<string, number>();
     let totalRevenue = 0;
     let totalDebt = 0;
     for (const order of orders) {
-      const key = this.orderKey(order);
-      orderCounts.set(key, (orderCounts.get(key) ?? 0) + 1);
-      if (keys.includes(key)) {
+      const matchedCustomerIds = new Set(this.orderKeys(order).map((key) => customerKeyMap.get(key)).filter((id): id is string => !!id));
+      if (matchedCustomerIds.size) {
         const revenue = Number(order.totalRevenue ?? 0);
         const paid = Number(order.paidAmount ?? 0);
         totalRevenue += revenue;
         totalDebt += Math.max(revenue - paid, 0);
       }
+      for (const customerId of matchedCustomerIds) orderCounts.set(customerId, (orderCounts.get(customerId) ?? 0) + 1);
     }
-    const oneTime = keys.filter((key) => (orderCounts.get(key) ?? 0) === 1).length;
-    const repeat = keys.filter((key) => (orderCounts.get(key) ?? 0) > 1).length;
+    const oneTime = customers.filter((customer) => (orderCounts.get(customer.id) ?? 0) === 1).length;
+    const repeat = customers.filter((customer) => (orderCounts.get(customer.id) ?? 0) > 1).length;
     return {
-      totalCustomers: customers.length,
-      newToday: customers.filter((customer) => customer.createdAt >= today).length,
-      newThisMonth: customers.filter((customer) => customer.createdAt >= monthStart).length,
+      totalCustomers,
+      newToday,
+      newThisMonth,
       oneTimeCustomers: oneTime,
       repeatCustomers: repeat,
       totalRevenue,
@@ -140,13 +162,15 @@ export class CustomersService {
     });
   }
 
-  async bulkTag(dto: AnyRecord) {
+  async bulkTag(dto: AnyRecord, user?: RequestUser) {
     const customerIds = this.stringArray(dto.customerIds);
     const tagIds = this.stringArray(dto.tagIds);
     if (!customerIds.length || !tagIds.length) throw new BadRequestException('customerIds and tagIds are required');
-    const data = customerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId })));
+    const scopedCustomerIds = await this.scopedCustomerIds(customerIds, user);
+    await this.assertTagsExist(tagIds);
+    const data = scopedCustomerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId })));
     await this.prisma.customerTagMap.createMany({ data, skipDuplicates: true });
-    return { affectedCustomers: customerIds.length, tagCount: tagIds.length };
+    return { affectedCustomers: scopedCustomerIds.length, tagCount: tagIds.length };
   }
 
   async bulkUpdate(dto: AnyRecord, user?: RequestUser) {
@@ -155,19 +179,22 @@ export class CustomersService {
     const data: Prisma.CustomerUncheckedUpdateInput = {};
     if (dto.owner !== undefined) data.owner = this.text(dto.owner);
     if (dto.groupName !== undefined) data.groupName = this.text(dto.groupName);
-    const scopedDto = applyWriteDataScope({ branch: this.text(dto.branch), department: this.text(dto.department) }, user);
-    if (dto.branch !== undefined || scopedDto.branch !== undefined) data.branch = scopedDto.branch;
-    if (dto.department !== undefined || scopedDto.department !== undefined) data.department = scopedDto.department;
-    if (!Object.keys(data).length && !this.stringArray(dto.tagIds).length) throw new BadRequestException('No bulk update fields provided');
+    if (dto.branch !== undefined) data.branch = applyWriteDataScope({ branch: this.text(dto.branch) }, user).branch;
+    if (dto.department !== undefined) data.department = applyWriteDataScope({ department: this.text(dto.department) }, user).department;
+    const tagIds = this.stringArray(dto.tagIds);
+    if (!Object.keys(data).length && !tagIds.length) throw new BadRequestException('No bulk update fields provided');
+    const scopedCustomerIds = await this.scopedCustomerIds(customerIds, user);
+    if (tagIds.length) await this.assertTagsExist(tagIds);
+    const actor = this.text(dto.actor) || this.actorName(user);
+    const note = this.text(dto.note);
     await this.prisma.$transaction(async (tx) => {
-      if (Object.keys(data).length) await tx.customer.updateMany({ where: branchDepartmentScopeWhere({ id: { in: customerIds } }, user), data });
-      const tagIds = this.stringArray(dto.tagIds);
-      if (tagIds.length) await tx.customerTagMap.createMany({ data: customerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId }))), skipDuplicates: true });
+      if (Object.keys(data).length) await tx.customer.updateMany({ where: { id: { in: scopedCustomerIds } }, data });
+      if (tagIds.length) await tx.customerTagMap.createMany({ data: scopedCustomerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId }))), skipDuplicates: true });
       await tx.customerTimeline.createMany({
-        data: customerIds.map((customerId) => ({ customerId, eventType: 'BULK_UPDATE', title: 'Cap nhat hang loat', actor: this.text(dto.actor), content: this.text(dto.note) })),
+        data: scopedCustomerIds.map((customerId) => ({ customerId, eventType: 'BULK_UPDATE', title: 'Cap nhat hang loat', actor, content: note })),
       });
     });
-    return { affectedCustomers: customerIds.length };
+    return { affectedCustomers: scopedCustomerIds.length };
   }
 
   campaigns() {
@@ -193,7 +220,7 @@ export class CustomersService {
   async detail(id: string, user?: RequestUser) {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: customerInclude });
     if (!customer) throw new NotFoundException('Customer not found');
-    const [orders, quotes, debts, timeline] = await Promise.all([this.orders(id, user), this.quotes(id, user), this.debts(id, user), this.timeline(id)]);
+    const [orders, quotes, debts, timeline] = await Promise.all([this.orders(id, user), this.quotes(id, user), this.debts(id, user), this.timeline(id, user)]);
     return { ...customer, related: { orders: orders.rows, quotes: quotes.rows, debts, timeline: timeline.rows } };
   }
 
@@ -225,17 +252,7 @@ export class CustomersService {
       await this.filesService.removeIfPresent(objectKey);
       return deleted;
     } catch (error) {
-      await this.prisma.customerFile.create({
-        data: {
-          id: deleted.id,
-          customerId: deleted.customerId,
-          fileName: deleted.fileName,
-          fileUrl: deleted.fileUrl,
-          fileType: deleted.fileType,
-          uploadedBy: deleted.uploadedBy,
-          createdAt: deleted.createdAt,
-        },
-      }).catch(() => undefined);
+      await this.restoreDeletedFileMetadata(deleted);
       throw error;
     }
   }
@@ -244,6 +261,7 @@ export class CustomersService {
     dto = applyWriteDataScope(dto, user);
     const phone = this.required(dto.phone, 'phone');
     await this.assertPhoneUnique(phone);
+    await this.assertCustomerReferences(dto);
     return this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.create({
         data: {
@@ -271,13 +289,34 @@ export class CustomersService {
     dto = applyWriteDataScope(dto, user);
     const nextPhone = dto.phone !== undefined ? this.required(dto.phone, 'phone') : existing.phone;
     if (nextPhone !== existing.phone) await this.assertPhoneUnique(nextPhone, id);
+    await this.assertCustomerReferences(dto);
     return this.prisma.$transaction(async (tx) => {
-      await tx.customerContact.deleteMany({ where: { customerId: id } });
-      await tx.customerTagMap.deleteMany({ where: { customerId: id } });
-      if (dto.contacts !== undefined) await tx.customerContact.createMany({ data: this.contacts(dto.contacts).map((row) => ({ ...row, customerId: id })) });
-      if (dto.tagIds !== undefined) await tx.customerTagMap.createMany({ data: this.stringArray(dto.tagIds).map((tagId) => ({ customerId: id, tagId })), skipDuplicates: true });
-      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'UPDATE', title: 'Cap nhat khach hang', actor: this.text(dto.owner) } });
-      const customer = await tx.customer.update({ where: { id }, data: { ...this.customerData(dto), phone: nextPhone } as Prisma.CustomerUncheckedUpdateInput, include: customerInclude });
+      if (dto.contacts !== undefined) {
+        await tx.customerContact.deleteMany({ where: { customerId: id } });
+        await tx.customerContact.createMany({ data: this.contacts(dto.contacts).map((row) => ({ ...row, customerId: id })) });
+      }
+      if (dto.tagIds !== undefined) {
+        await tx.customerTagMap.deleteMany({ where: { customerId: id } });
+        await tx.customerTagMap.createMany({ data: this.stringArray(dto.tagIds).map((tagId) => ({ customerId: id, tagId })), skipDuplicates: true });
+      }
+      if (dto.careTasks !== undefined) {
+        await tx.customerCareTask.deleteMany({ where: { customerId: id } });
+        await tx.customerCareTask.createMany({ data: this.careTasks(dto.careTasks).map((row) => ({ ...row, customerId: id })) });
+      }
+      if (dto.comments !== undefined) {
+        await tx.customerComment.deleteMany({ where: { customerId: id } });
+        await tx.customerComment.createMany({ data: this.comments(dto.comments).map((row) => ({ ...row, customerId: id })) });
+      }
+      if (dto.callLogs !== undefined) {
+        await tx.customerCallLog.deleteMany({ where: { customerId: id } });
+        await tx.customerCallLog.createMany({ data: this.callLogs(dto.callLogs).map((row) => ({ ...row, customerId: id })) });
+      }
+      if (dto.opportunities !== undefined) {
+        await tx.customerOpportunity.deleteMany({ where: { customerId: id } });
+        await tx.customerOpportunity.createMany({ data: this.opportunitiesInput(dto.opportunities).map((row) => ({ ...row, customerId: id })) });
+      }
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'UPDATE', title: 'Cap nhat khach hang', actor: this.text(dto.actor) || this.actorName(user) || this.text(dto.owner), content: this.text(dto.note) } });
+      const customer = await tx.customer.update({ where: { id }, data: { ...this.customerUpdateData(dto), phone: nextPhone } as Prisma.CustomerUncheckedUpdateInput, include: customerInclude });
       await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName);
       return customer;
     });
@@ -286,43 +325,67 @@ export class CustomersService {
   async remove(id: string, user?: RequestUser) {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
     if (!customer) throw new NotFoundException('Customer not found');
-    const [orderCount, quoteCount] = await Promise.all([
-      this.prisma.order.count({ where: { OR: [{ customerId: id }, { customerPhone: customer.phone }] } }),
-      this.prisma.quotation.count({ where: { OR: [{ customerId: id }, { customerPhone: customer.phone }] } }),
+    const customerWhere = this.customerRelationWhere(customer);
+    const [orderCount, quotationCount, tourQuoteCount, bookingCount, tourCustomerCount, fitTourCount, ledgerCount, receiptCount, invoiceCount] = await Promise.all([
+      this.prisma.order.count({ where: customerWhere.order }),
+      this.prisma.quotation.count({ where: customerWhere.quotation }),
+      this.prisma.tourQuote.count({ where: customerWhere.tourQuote }),
+      this.prisma.booking.count({ where: customerWhere.booking }),
+      this.prisma.tourCustomer.count({ where: customerWhere.tourCustomer }),
+      this.prisma.fitTour.count({ where: customerWhere.fitTour }),
+      this.prisma.customerLedgerEntry.count({ where: { customerId: id } }),
+      this.prisma.financeReceipt.count({ where: { customerId: id, deletedAt: null } }),
+      this.prisma.financeInvoice.count({ where: { customerId: id, deletedAt: null } }),
     ]);
-    if (orderCount || quoteCount) throw new BadRequestException('Khong xoa khach hang da phat sinh bao gia hoac don hang');
+    if (orderCount || quotationCount || tourQuoteCount || bookingCount || tourCustomerCount || fitTourCount || ledgerCount || receiptCount || invoiceCount) throw new BadRequestException('Khong xoa khach hang da phat sinh bao gia, don hang, booking, tour, cong no hoac chung tu tai chinh');
     await this.prisma.customer.delete({ where: { id } });
     return { deleted: true };
   }
 
-  async merge(targetId: string, dto: AnyRecord) {
+  async merge(targetId: string, dto: AnyRecord, user?: RequestUser) {
     const sourceId = this.required(dto.sourceId, 'sourceId');
     if (sourceId === targetId) throw new BadRequestException('sourceId must be different from target customer');
     const [target, source] = await Promise.all([
-      this.prisma.customer.findUnique({ where: { id: targetId } }),
-      this.prisma.customer.findUnique({ where: { id: sourceId } }),
+      this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: targetId }, user) }),
+      this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: sourceId }, user) }),
     ]);
     if (!target || !source) throw new NotFoundException('Customer not found');
-    await this.prisma.$transaction([
-      this.prisma.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.customerCareTask.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.customerComment.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.customerCallLog.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.customerOpportunity.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.customerTimeline.create({ data: { customerId: targetId, eventType: 'MERGE', title: `Merge ${source.code}`, content: this.text(dto.note) } }),
-      this.prisma.customer.update({ where: { id: sourceId }, data: { status: CustomerStatus.MERGED, mergedIntoId: targetId, owner: this.text(dto.transferOwner) || source.owner } }),
-      this.prisma.order.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.quotation.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-      this.prisma.tourQuote.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } }),
-    ]);
-    return this.detail(targetId);
+    const actor = this.text(dto.actor) || this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerCareTask.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerComment.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerCallLog.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerOpportunity.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerFile.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerTagMap.createMany({ data: (await tx.customerTagMap.findMany({ where: { customerId: sourceId }, select: { tagId: true } })).map((row) => ({ customerId: targetId, tagId: row.tagId })), skipDuplicates: true });
+      await tx.customerTagMap.deleteMany({ where: { customerId: sourceId } });
+      await tx.customerTimeline.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerTimeline.create({ data: { customerId: targetId, eventType: 'MERGE', title: `Merge ${source.code}`, content: this.text(dto.note), actor } });
+      await tx.customer.update({ where: { id: sourceId }, data: { status: CustomerStatus.MERGED, mergedIntoId: targetId, owner: this.text(dto.transferOwner) || source.owner } });
+      await tx.order.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.booking.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.quotation.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.tourQuote.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.tourCustomer.updateMany({ where: { crmCustomerId: sourceId }, data: { crmCustomerId: targetId } });
+      await tx.fitTour.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.financeReceipt.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.financeInvoice.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.financeCashflowEntry.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.customerLedgerEntry.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+    });
+    return this.detail(targetId, user);
   }
 
-  async transferOwner(id: string, dto: AnyRecord) {
+  async transferOwner(id: string, dto: AnyRecord, user?: RequestUser) {
+    await this.getCustomer(id, user);
     const owner = this.required(dto.owner, 'owner');
-    await this.prisma.customer.update({ where: { id }, data: { owner } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'TRANSFER_OWNER', title: 'Chuyen nhan vien phu trach', content: this.text(dto.reason), actor: this.text(dto.actor) } });
-    return this.detail(id);
+    const actor = this.text(dto.actor) || this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customer.update({ where: { id }, data: { owner } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'TRANSFER_OWNER', title: 'Chuyen nhan vien phu trach', content: this.text(dto.reason) || this.text(dto.note), actor, metadata: { owner } } });
+    });
+    return this.detail(id, user);
   }
 
   async addComment(id: string, dto: AnyRecord, user?: RequestUser) {
@@ -330,32 +393,34 @@ export class CustomersService {
     const comment = await this.prisma.customerComment.create({ data: { ...this.comments([dto])[0], customerId: id } });
     await this.prisma.customer.update({ where: { id }, data: { latestComment: comment.content } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'COMMENT', title: 'Them binh luan', content: comment.content, actor: comment.createdBy } });
-    return this.detail(id);
+    return this.detail(id, user);
   }
 
   async addCareTask(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const task = await this.prisma.customerCareTask.create({ data: { ...this.careTasks([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor: task.owner } });
-    return this.detail(id);
+    return this.detail(id, user);
   }
 
   async addCallLog(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const call = await this.prisma.customerCallLog.create({ data: { ...this.callLogs([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor: call.caller } });
-    return this.detail(id);
+    return this.detail(id, user);
   }
 
   async addOpportunity(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const opportunity = await this.prisma.customerOpportunity.create({ data: { ...this.opportunitiesInput([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor: opportunity.owner } });
-    return this.detail(id);
+    return this.detail(id, user);
   }
 
   async updateCareTask(id: string, taskId: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
+    const existing = await this.prisma.customerCareTask.findFirst({ where: { id: taskId, customerId: id } });
+    if (!existing) throw new NotFoundException('Care task not found');
     const task = await this.prisma.customerCareTask.update({
       where: { id: taskId },
       data: {
@@ -365,14 +430,14 @@ export class CustomersService {
         ...(dto.note !== undefined ? { note: this.text(dto.note) } : {}),
       },
     });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor: task.owner } });
-    return this.detail(id);
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor: this.text(dto.actor) || this.actorName(user) || task.owner } });
+    return this.detail(id, user);
   }
 
   async orders(id: string, user?: RequestUser) {
     const customer = await this.getCustomer(id, user);
     const rows = await this.prisma.order.findMany({
-      where: branchDepartmentScopeWhere({ deletedAt: null, OR: [{ customerId: id }, { customerPhone: customer.phone }, { customerEmail: customer.email ?? undefined }, { customerName: customer.fullName }] }, user),
+      where: branchDepartmentScopeWhere({ deletedAt: null, OR: this.customerOrderOr(customer) }, user),
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -382,8 +447,8 @@ export class CustomersService {
   async quotes(id: string, user?: RequestUser) {
     const customer = await this.getCustomer(id, user);
     const [quotations, tourQuotes] = await Promise.all([
-      this.prisma.quotation.findMany({ where: { OR: [{ customerId: id }, { customerPhone: customer.phone }, { customerEmail: customer.email ?? undefined }, { customerName: customer.fullName }] }, orderBy: { createdAt: 'desc' }, take: 100 }),
-      this.prisma.tourQuote.findMany({ where: { OR: [{ customerId: id }, { customerPhone: customer.phone }, { customerEmail: customer.email ?? undefined }, { customerName: customer.fullName }] }, orderBy: { createdAt: 'desc' }, take: 100 }),
+      this.prisma.quotation.findMany({ where: branchDepartmentScopeWhere({ OR: this.customerQuotationOr(customer) }, user), orderBy: { createdAt: 'desc' }, take: 100 }),
+      this.prisma.tourQuote.findMany({ where: { OR: this.customerTourQuoteOr(customer) }, orderBy: { createdAt: 'desc' }, take: 100 }),
     ]);
     return { rows: [...quotations.map((row) => ({ ...row, source: 'quotation' })), ...tourQuotes.map((row) => ({ ...row, source: 'tour-quote' }))] };
   }
@@ -395,35 +460,71 @@ export class CustomersService {
     return { totalRevenue, paidAmount, receivableDebt: Math.max(totalRevenue - paidAmount, 0), rows };
   }
 
-  timeline(id: string) {
-    return this.prisma.customerTimeline.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take: 100 }).then((rows) => ({ rows }));
+  async timeline(id: string, user?: RequestUser, query: Record<string, string> = {}) {
+    await this.getCustomer(id, user);
+    const take = this.take(query.take || '100');
+    const skip = this.skip(query.skip);
+    const [rows, total] = await Promise.all([
+      this.prisma.customerTimeline.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.customerTimeline.count({ where: { customerId: id } }),
+    ]);
+    return { rows, pagination: { take, skip, total } };
   }
 
-  careHistory(id: string) {
-    return this.prisma.customerCareTask.findMany({ where: { customerId: id }, orderBy: { scheduledAt: 'desc' }, take: 100 }).then((rows) => ({ rows }));
+  async careHistory(id: string, user?: RequestUser, query: Record<string, string> = {}) {
+    await this.getCustomer(id, user);
+    const take = this.take(query.take || '100');
+    const skip = this.skip(query.skip);
+    const [rows, total] = await Promise.all([
+      this.prisma.customerCareTask.findMany({ where: { customerId: id }, orderBy: { scheduledAt: 'desc' }, take, skip }),
+      this.prisma.customerCareTask.count({ where: { customerId: id } }),
+    ]);
+    return { rows, pagination: { take, skip, total } };
   }
 
-  opportunities(id: string) {
-    return this.prisma.customerOpportunity.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' } }).then((rows) => ({ rows }));
+  async opportunities(id: string, user?: RequestUser, query: Record<string, string> = {}) {
+    await this.getCustomer(id, user);
+    const take = this.take(query.take || '100');
+    const skip = this.skip(query.skip);
+    const [rows, total] = await Promise.all([
+      this.prisma.customerOpportunity.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.customerOpportunity.count({ where: { customerId: id } }),
+    ]);
+    return { rows, pagination: { take, skip, total } };
   }
 
-  async importRows(dto: AnyRecord) {
-    const rows = Array.isArray(dto.rows) ? dto.rows.filter((row): row is AnyRecord => !!row && typeof row === 'object') : [];
+  async importRows(dto: AnyRecord, user?: RequestUser) {
+    if (!Array.isArray(dto.rows)) throw new BadRequestException('rows must be an array');
     let created = 0;
-    const errors: string[] = [];
-    for (const row of rows) {
+    const errors: Array<{ row: number; key: string; message: string }> = [];
+    for (const [index, row] of dto.rows.entries()) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        errors.push({ row: index + 1, key: `row-${index + 1}`, message: 'Row must be an object' });
+        continue;
+      }
+      const record = row as AnyRecord;
       try {
-        await this.create(row);
+        await this.create(record, user);
         created += 1;
       } catch (error) {
-        errors.push(`${this.text(row.phone) || this.text(row.fullName) || 'row'}: ${error instanceof Error ? error.message : 'failed'}`);
+        errors.push({
+          row: index + 1,
+          key: this.text(record.phone) || this.text(record.fullName) || `row-${index + 1}`,
+          message: error instanceof Error ? error.message : 'failed',
+        });
       }
     }
     return { created, failed: errors.length, errors };
   }
 
   async exportCsv(query: Record<string, string>, user?: RequestUser) {
-    const { rows } = await this.list({ ...query, take: '1000' }, user);
+    const where = branchDepartmentScopeWhere(this.customerWhere(query), user);
+    const rows = await this.prisma.customer.findMany({
+      where,
+      select: this.listSelect(),
+      orderBy: { createdAt: 'desc' },
+      take: this.take(query.take || '1000'),
+    });
     return this.toCsv(rows.map((row) => ({
       code: row.code,
       fullName: row.fullName,
@@ -436,11 +537,18 @@ export class CustomersService {
       branch: row.branch,
       department: row.department,
       tags: row.tags.map((tag) => tag.tag.name).join('; '),
-    })));
+    })), ['code', 'fullName', 'phone', 'email', 'type', 'source', 'market', 'owner', 'branch', 'department', 'tags']);
   }
 
   private customerWhere(query: Record<string, string>): Prisma.CustomerWhereInput {
-    const where: Prisma.CustomerWhereInput = { status: query.status === 'MERGED' ? CustomerStatus.MERGED : { not: CustomerStatus.MERGED } };
+    const where: Prisma.CustomerWhereInput = {};
+    const requestedStatus = this.text(query.status);
+    if (requestedStatus && requestedStatus !== 'ALL') {
+      if (!Object.values(CustomerStatus).includes(requestedStatus as CustomerStatus)) throw new BadRequestException('Invalid customer status filter');
+      where.status = requestedStatus as CustomerStatus;
+    } else if (!requestedStatus) {
+      where.status = { not: CustomerStatus.MERGED };
+    }
     if (query.search) {
       where.OR = [
         { fullName: { contains: query.search, mode: 'insensitive' } },
@@ -450,9 +558,10 @@ export class CustomersService {
         { code: { contains: query.search, mode: 'insensitive' } },
       ];
     }
-    for (const field of ['branch', 'department', 'owner', 'market', 'province', 'gender', 'source', 'groupName', 'createdBy', 'collaborator'] as const) {
+    for (const field of ['branch', 'department', 'owner', 'market', 'province', 'gender', 'source', 'groupName', 'createdBy', 'collaborator', 'agencyType', 'companyName', 'taxCode', 'email', 'phone'] as const) {
       if (query[field]) where[field] = { contains: query[field], mode: 'insensitive' };
     }
+    if (query.kind) where.kind = query.kind;
     if (query.typeId) where.typeId = query.typeId;
     if (query.campaignId) where.campaignId = query.campaignId;
     if (query.tagId) where.tags = { some: { tagId: query.tagId } };
@@ -493,23 +602,194 @@ export class CustomersService {
     };
   }
 
-  private async assertPhoneUnique(phone: string, excludeId?: string) {
-    const [customer, order, quotation, quote, tourCustomer] = await Promise.all([
-      this.prisma.customer.findFirst({ where: { phone, ...(excludeId ? { id: { not: excludeId } } : {}) } }),
-      this.prisma.order.findFirst({ where: { customerPhone: phone } }),
-      this.prisma.quotation.findFirst({ where: { customerPhone: phone } }),
-      this.prisma.tourQuote.findFirst({ where: { customerPhone: phone } }),
-      this.prisma.tourCustomer.findFirst({ where: { phone } }),
+  private customerUpdateData(dto: AnyRecord): AnyRecord {
+    const data: AnyRecord = {};
+    const setters: Record<string, () => unknown> = {
+      status: () => this.status(dto.status),
+      typeId: () => this.text(dto.typeId),
+      kind: () => this.text(dto.kind) || 'INDIVIDUAL',
+      fullName: () => this.required(dto.fullName, 'fullName'),
+      gender: () => this.text(dto.gender),
+      dateOfBirth: () => this.date(dto.dateOfBirth),
+      email: () => this.text(dto.email),
+      facebookUrl: () => this.text(dto.facebookUrl),
+      zaloUrl: () => this.text(dto.zaloUrl),
+      address: () => this.text(dto.address),
+      province: () => this.text(dto.province),
+      country: () => this.text(dto.country),
+      taxCode: () => this.text(dto.taxCode),
+      companyName: () => this.text(dto.companyName),
+      tradingName: () => this.text(dto.tradingName),
+      website: () => this.text(dto.website),
+      companyAddress: () => this.text(dto.companyAddress),
+      source: () => this.text(dto.source),
+      market: () => this.text(dto.market),
+      groupName: () => this.text(dto.groupName),
+      campaignId: () => this.text(dto.campaignId),
+      createdBy: () => this.text(dto.createdBy),
+      owner: () => this.text(dto.owner),
+      branch: () => this.text(dto.branch),
+      department: () => this.text(dto.department),
+      agencyType: () => this.text(dto.agencyType),
+      collaborator: () => this.text(dto.collaborator),
+      latestComment: () => this.text(dto.latestComment),
+    };
+    for (const [field, setter] of Object.entries(setters)) {
+      if (dto[field] !== undefined) data[field] = setter();
+    }
+    return data;
+  }
+
+  private async assertCustomerReferences(dto: AnyRecord) {
+    const typeId = this.text(dto.typeId);
+    const campaignId = this.text(dto.campaignId);
+    const tagIds = this.stringArray(dto.tagIds);
+    const [type, campaign] = await Promise.all([
+      typeId ? this.prisma.customerTypeConfig.findFirst({ where: { id: typeId, isActive: true }, select: { id: true } }) : null,
+      campaignId ? this.prisma.customerCampaign.findUnique({ where: { id: campaignId }, select: { id: true } }) : null,
     ]);
-    if (customer || order || quotation || quote || tourCustomer) throw new BadRequestException('So dien thoai da ton tai trong CRM, lead/bao gia/don hang hoac du lieu khach cu');
+    if (typeId && !type) throw new BadRequestException('Customer type not found or inactive');
+    if (campaignId && !campaign) throw new BadRequestException('Customer campaign not found');
+    if (tagIds.length) await this.assertTagsExist(tagIds);
+  }
+
+  private async assertTagsExist(tagIds: string[]) {
+    const uniqueTagIds = Array.from(new Set(tagIds));
+    const count = await this.prisma.customerTag.count({ where: { id: { in: uniqueTagIds }, isActive: true } });
+    if (count !== uniqueTagIds.length) throw new BadRequestException('One or more customer tags were not found or inactive');
+  }
+
+  private async scopedCustomerIds(customerIds: string[], user?: RequestUser) {
+    const uniqueCustomerIds = Array.from(new Set(customerIds));
+    const rows = await this.prisma.customer.findMany({
+      where: branchDepartmentScopeWhere({ id: { in: uniqueCustomerIds } }, user),
+      select: { id: true },
+    });
+    if (rows.length !== uniqueCustomerIds.length) throw new BadRequestException('Cannot update customers outside your data scope');
+    return rows.map((row) => row.id);
+  }
+
+  private async restoreDeletedFileMetadata(file: { id: string; customerId: string; fileName: string; fileUrl: string; fileType: string | null; uploadedBy: string | null; createdAt: Date }) {
+    try {
+      await this.prisma.customerFile.create({
+        data: {
+          id: file.id,
+          customerId: file.customerId,
+          fileName: file.fileName,
+          fileUrl: file.fileUrl,
+          fileType: file.fileType,
+          uploadedBy: file.uploadedBy,
+          createdAt: file.createdAt,
+        },
+      });
+    } catch {
+      throw new BadRequestException('Xoa object storage that bai va khong khoi phuc duoc metadata file');
+    }
+  }
+
+  private customerRelationWhere(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }) {
+    return {
+      order: { OR: this.customerOrderOr(customer) } satisfies Prisma.OrderWhereInput,
+      quotation: { OR: this.customerQuotationOr(customer) } satisfies Prisma.QuotationWhereInput,
+      tourQuote: { OR: this.customerTourQuoteOr(customer) } satisfies Prisma.TourQuoteWhereInput,
+      booking: { OR: this.customerBookingOr(customer) } satisfies Prisma.BookingWhereInput,
+      tourCustomer: { OR: this.customerTourCustomerOr(customer) } satisfies Prisma.TourCustomerWhereInput,
+      fitTour: { OR: this.customerFitTourOr(customer) } satisfies Prisma.FitTourWhereInput,
+    };
+  }
+
+  private customerOrderOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.OrderWhereInput[] {
+    return [
+      { customerId: customer.id },
+      ...(customer.phone ? [{ customerPhone: customer.phone }] : []),
+      ...(customer.email ? [{ customerEmail: customer.email }] : []),
+      ...(customer.fullName ? [{ customerName: customer.fullName }] : []),
+    ];
+  }
+
+  private customerQuotationOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.QuotationWhereInput[] {
+    return [
+      { customerId: customer.id },
+      ...(customer.phone ? [{ customerPhone: customer.phone }] : []),
+      ...(customer.email ? [{ customerEmail: customer.email }] : []),
+      ...(customer.fullName ? [{ customerName: customer.fullName }] : []),
+    ];
+  }
+
+  private customerTourQuoteOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.TourQuoteWhereInput[] {
+    return [
+      { customerId: customer.id },
+      ...(customer.phone ? [{ customerPhone: customer.phone }] : []),
+      ...(customer.email ? [{ customerEmail: customer.email }] : []),
+      ...(customer.fullName ? [{ customerName: customer.fullName }] : []),
+    ];
+  }
+
+  private customerBookingOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.BookingWhereInput[] {
+    return [
+      { customerId: customer.id },
+      ...(customer.phone ? [{ customerPhone: customer.phone }] : []),
+      ...(customer.email ? [{ customerEmail: customer.email }] : []),
+      ...(customer.fullName ? [{ customerName: customer.fullName }] : []),
+    ];
+  }
+
+  private customerTourCustomerOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.TourCustomerWhereInput[] {
+    return [
+      { crmCustomerId: customer.id },
+      ...(customer.phone ? [{ phone: customer.phone }] : []),
+      ...(customer.email ? [{ email: customer.email }] : []),
+      ...(customer.fullName ? [{ name: customer.fullName }] : []),
+    ];
+  }
+
+  private customerFitTourOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.FitTourWhereInput[] {
+    return [
+      { customerId: customer.id },
+      ...(customer.phone ? [{ phone: customer.phone }] : []),
+      ...(customer.email ? [{ email: customer.email }] : []),
+      ...(customer.fullName ? [{ customerName: customer.fullName }] : []),
+    ];
+  }
+
+  private customerMatchConditions(customerIds: string[], phones: string[], emails: string[], names: string[]): Prisma.OrderWhereInput[] {
+    return [
+      ...(customerIds.length ? [{ customerId: { in: customerIds } }] : []),
+      ...(phones.length ? [{ customerPhone: { in: phones } }] : []),
+      ...(emails.length ? [{ customerEmail: { in: emails } }] : []),
+      ...(names.length ? [{ customerName: { in: names } }] : []),
+    ];
+  }
+
+  private async assertPhoneUnique(phone: string, excludeId?: string) {
+    const [customer, order, quotation, quote, booking, tourCustomer, fitTour, receipt, invoice] = await Promise.all([
+      this.prisma.customer.findFirst({ where: { phone, ...(excludeId ? { id: { not: excludeId } } : {}) } }),
+      this.prisma.order.findFirst({ where: { customerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.quotation.findFirst({ where: { customerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.tourQuote.findFirst({ where: { customerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.booking.findFirst({ where: { customerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.tourCustomer.findFirst({ where: { phone, AND: this.linkedCrmCustomerIdAnd(excludeId) } }),
+      this.prisma.fitTour.findFirst({ where: { phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.financeReceipt.findFirst({ where: { payerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+      this.prisma.financeInvoice.findFirst({ where: { customerPhone: phone, AND: this.linkedCustomerIdAnd(excludeId) } }),
+    ]);
+    if (customer || order || quotation || quote || booking || tourCustomer || fitTour || receipt || invoice) throw new BadRequestException('So dien thoai da ton tai trong CRM hoac da duoc gan voi du lieu nghiep vu cua khach hang khac');
   }
 
   private async linkExistingData(tx: Prisma.TransactionClient, customerId: string, phone: string, email: string | null, fullName: string) {
-    const ors = [{ customerPhone: phone }, ...(email ? [{ customerEmail: email }] : []), { customerName: fullName }];
+    const customerOr = [{ customerPhone: phone }, ...(email ? [{ customerEmail: email }] : []), { customerName: fullName }];
+    const tourCustomerOr = [{ phone }, ...(email ? [{ email }] : []), { name: fullName }];
+    const fitTourOr = [{ phone }, ...(email ? [{ email }] : []), { customerName: fullName }];
+    const receiptOr = [{ payerPhone: phone }, ...(email ? [{ payerEmail: email }] : []), { payerName: fullName }];
     await Promise.all([
-      tx.order.updateMany({ where: { customerId: null, OR: ors }, data: { customerId } }),
-      tx.quotation.updateMany({ where: { customerId: null, OR: ors }, data: { customerId } }),
-      tx.tourQuote.updateMany({ where: { customerId: null, OR: ors }, data: { customerId } }),
+      tx.order.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.quotation.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.tourQuote.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.booking.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.tourCustomer.updateMany({ where: { crmCustomerId: null, OR: tourCustomerOr }, data: { crmCustomerId: customerId } }),
+      tx.fitTour.updateMany({ where: { customerId: null, OR: fitTourOr }, data: { customerId } }),
+      tx.financeReceipt.updateMany({ where: { customerId: null, OR: receiptOr }, data: { customerId } }),
+      tx.financeInvoice.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
     ]);
   }
 
@@ -548,12 +828,39 @@ export class CustomersService {
     return `CUS-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  private customerKey(customer: { id?: string | null; phone?: string | null; email?: string | null; fullName?: string | null }) {
-    return customer.id || customer.phone || customer.email || customer.fullName || '';
+  private customerKeys(customer: { id?: string | null; phone?: string | null; email?: string | null; fullName?: string | null }) {
+    return [
+      this.matchKey('id', customer.id),
+      this.matchKey('phone', customer.phone),
+      this.matchKey('email', customer.email),
+      this.matchKey('name', customer.fullName),
+    ].filter((key): key is string => !!key);
   }
 
-  private orderKey(order: { customerId?: string | null; customerPhone?: string | null; customerEmail?: string | null; customerName?: string | null }) {
-    return order.customerId || order.customerPhone || order.customerEmail || order.customerName || '';
+  private orderKeys(order: { customerId?: string | null; customerPhone?: string | null; customerEmail?: string | null; customerName?: string | null }) {
+    return [
+      this.matchKey('id', order.customerId),
+      this.matchKey('phone', order.customerPhone),
+      this.matchKey('email', order.customerEmail),
+      this.matchKey('name', order.customerName),
+    ].filter((key): key is string => !!key);
+  }
+
+  private matchKey(prefix: string, value?: string | null) {
+    const text = value?.trim();
+    return text ? `${prefix}:${prefix === 'id' || prefix === 'phone' ? text : text.toLowerCase()}` : undefined;
+  }
+
+  private linkedCustomerIdAnd(excludeId?: string) {
+    return excludeId ? [{ customerId: { not: null } }, { customerId: { not: excludeId } }] : [{ customerId: { not: null } }];
+  }
+
+  private linkedCrmCustomerIdAnd(excludeId?: string) {
+    return excludeId ? [{ crmCustomerId: { not: null } }, { crmCustomerId: { not: excludeId } }] : [{ crmCustomerId: { not: null } }];
+  }
+
+  private actorName(user?: RequestUser) {
+    return user?.name || user?.username || user?.email;
   }
 
   private array(value: unknown): AnyRecord[] {
@@ -576,9 +883,15 @@ export class CustomersService {
   }
 
   private date(value: unknown) {
-    if (!value || typeof value !== 'string') return undefined;
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException('Date is invalid');
+      return value;
+    }
+    if (typeof value !== 'string') throw new BadRequestException('Date must be a string');
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`Date is invalid: ${value}`);
+    return date;
   }
 
   private decimal(value: unknown) {
@@ -603,13 +916,16 @@ export class CustomersService {
     return Math.min(Math.max(this.int(value) || 50, 1), 1000);
   }
 
+  private skip(value: unknown) {
+    return Math.max(this.int(value), 0);
+  }
+
   private slug(value: string) {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
   }
 
-  private toCsv(rows: AnyRecord[]) {
-    const headers = Object.keys(rows[0] ?? { empty: '' });
+  private toCsv(rows: AnyRecord[], headers: string[]) {
     const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    return [headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\n');
+    return `\uFEFF${[headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\r\n')}`;
   }
 }

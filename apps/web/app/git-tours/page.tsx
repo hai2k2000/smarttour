@@ -1,6 +1,5 @@
-import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users } from 'lucide-react';
+﻿import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
-import { Fragment } from 'react';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
 
@@ -108,14 +107,14 @@ export default async function GitToursPage() {
           <h1>Tour đoàn thiết kế riêng</h1>
         </div>
         <div className="pageHeaderActions">
+          <a className="secondaryButton iconTextButton" href="#create-git-tour"><Plus size={16} /> Thêm tour GIT</a>
           <span className="statusPill"><BriefcaseBusiness size={14} /> GIT</span>
           <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
 
-      <section className="contentGrid gitGrid">
-        <div className="panel">
-          <h2><Plus size={18} /> Tạo tour GIT</h2>
+      <section id="create-git-tour" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader">
+          <h2><Plus size={18} /> Tạo tour GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
           <form action={createGitTour} className="formGrid gitForm">
             <label>Mã hệ thống<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} /></label>
             <label>Mã tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} /></label>
@@ -151,18 +150,7 @@ export default async function GitToursPage() {
             <label>Ghi chú<textarea name="notes" rows={2} /></label>
             <button type="submit">Tạo tour GIT</button>
           </form>
-        </div>
-
-        <div className="panel gitSummary">
-          <h2>Tổng quan GIT</h2>
-          <div className="summaryRows">
-            <div><span>Tổng GIT</span><strong>{tours.length}</strong></div>
-            <div><span>Sắp chạy</span><strong>{tours.filter((t) => t.status === 'UPCOMING').length}</strong></div>
-            <div><span>Đang chạy</span><strong>{tours.filter((t) => t.status === 'RUNNING').length}</strong></div>
-            <div><span>Chưa thu hết</span><strong>{tours.filter((t) => t.paymentStatus !== 'PAID').length}</strong></div>
-          </div>
-        </div>
-      </section>
+        </div></section>
 
       <section className="panel listPanel">
         <div className="sectionHeader">
@@ -178,36 +166,38 @@ export default async function GitToursPage() {
             </thead>
             <tbody>
               {tours.map((tour) => (
-                <Fragment key={tour.id}>
-                  <tr>
+                <tr key={tour.id}>
                     <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
                     <td><strong>{tour.name || '—'}</strong></td>
                     <td>{tour.customers[0]?.name || '—'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
                     <td>{formatDate(tour.startDate)} — {formatDate(tour.endDate)}</td>
                     <td>{tour.operatorOwner || '—'}</td>
                     <td>
-                      <form action={updateGitTourStatus} className="inlineStatusForm">
-                        <input type="hidden" name="id" value={tour.id} />
-                        <select name="status" defaultValue={tour.status} aria-label="Trạng thái">
-                          {tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}
-                        </select>
-                        <button type="submit" className="secondaryButton">Cập nhật</button>
-                      </form>
+                      <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
                     </td>
                     <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} / {tour._count?.services ?? 0} DV</td>
-                    <td className="actionsCell">
-                      <form action={deleteGitTour} style={{ display: 'inline' }}>
+                    <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><form action={deleteGitTour}>
                         <input type="hidden" name="id" value={tour.id} />
                         <button type="submit" className="dangerButton" title="Xóa tour GIT"><Trash2 size={14} /></button>
-                      </form>
-                    </td>
-                  </tr>
-                </Fragment>
+                      </form></div></td></tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
+      {tours.map((tour) => (
+        <section id={`status-${tour.id}`} className="hashModal" key={`status-${tour.id}`}>
+          <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
+          <div className="hashModalPanel">
+            <div className="hashModalHeader"><h2>Cập nhật trạng thái GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
+            <form action={updateGitTourStatus} className="formStack">
+              <input type="hidden" name="id" value={tour.id} />
+              <label>Trạng thái<select name="status" defaultValue={tour.status}>{tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
+              <button type="submit"><Save size={15} /> Cập nhật</button>
+            </form>
+          </div>
+        </section>
+      ))}
     </section>
   );
 }

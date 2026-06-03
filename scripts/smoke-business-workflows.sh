@@ -9,7 +9,21 @@ RUN_ID="SMOKE-BIZ-$(date +%s)"
 
 cleanup() {
   docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour >/dev/null <<SQL || true
+DELETE FROM "AuditLog" WHERE "entityId" IN (
+  SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%'
+  UNION SELECT id FROM "FinancePayment" WHERE "reversalOfId" IN (SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%')
+);
+DELETE FROM "FinanceCashflowEntry" WHERE "paymentId" IN (
+  SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%'
+  UNION SELECT id FROM "FinancePayment" WHERE "reversalOfId" IN (SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%')
+);
+DELETE FROM "SupplierLedgerEntry" WHERE "paymentId" IN (
+  SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%'
+  UNION SELECT id FROM "FinancePayment" WHERE "reversalOfId" IN (SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%')
+);
 DELETE FROM "OperationVoucherPayment" WHERE "voucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%');
+DELETE FROM "FinancePayment" WHERE "reversalOfId" IN (SELECT id FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%');
+DELETE FROM "FinancePayment" WHERE "voucherName" LIKE '%${RUN_ID}%' OR "operationVoucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%') OR id IN (SELECT "financePaymentId" FROM "SupplierPaymentRequest" WHERE code LIKE '${RUN_ID}%' AND "financePaymentId" IS NOT NULL);
 DELETE FROM "OperationVoucherDetail" WHERE "voucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%');
 DELETE FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%';
 DELETE FROM "SupplierLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%';
@@ -112,6 +126,16 @@ async function route(token, path) {
   });
   await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/submit', { actor: 'business-smoke' });
   await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/approve', { actor: 'business-smoke' });
+  const requestWithPendingPayment = await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/create-finance-payment', { actor: 'business-smoke' });
+  if (requestWithPendingPayment.status !== 'APPROVED' || requestWithPendingPayment.financePayment?.approvalStatus !== 'PENDING') throw new Error('Supplier payment request was marked paid before finance approval');
+  await request(token, 'POST', '/finance/payments/' + requestWithPendingPayment.financePaymentId + '/approve', { actor: 'business-smoke' });
+  const paidPaymentRequest = await request(token, 'GET', '/operations/supplier-payment-requests/' + paymentRequest.id);
+  if (paidPaymentRequest.status !== 'PAID') throw new Error('Supplier payment request was not reconciled after finance approval');
+  await request(token, 'POST', '/finance/payments/' + requestWithPendingPayment.financePaymentId + '/cancel', { actor: 'business-smoke', reason: run + ' cancel supplier request payment' });
+  const reopenedPaymentRequest = await request(token, 'GET', '/operations/supplier-payment-requests/' + paymentRequest.id);
+  if (reopenedPaymentRequest.status !== 'APPROVED' || reopenedPaymentRequest.financePaymentId) throw new Error('Supplier payment request was not reopened after finance payment cancellation');
+  const replacementRequestPayment = await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/create-finance-payment', { actor: 'business-smoke' });
+  await request(token, 'POST', '/finance/payments/' + replacementRequestPayment.financePaymentId + '/approve', { actor: 'business-smoke' });
 
   const voucher = await request(token, 'POST', '/operation-vouchers', {
     voucherCode: run + '-VCH',
@@ -126,10 +150,29 @@ async function route(token, path) {
     details: [{ serviceName: 'Lunch', quantity: 2, unit: 'pax', netPrice: 250000, vat: 0 }],
   });
   await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/payment', { paidAmount: 100000, paymentDate: '2026-07-26', note: run + ' partial payment' });
+  const voucherWithPendingPayment = await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/create-payment-voucher');
+  const voucherFinancePayment = voucherWithPendingPayment.financePayments?.find((payment) => payment.approvalStatus === 'PENDING');
+  if (!voucherFinancePayment || Number(voucherWithPendingPayment.remainAmount) !== 400000) throw new Error('Operation voucher was reconciled before finance approval');
+  await request(token, 'POST', '/finance/payments/' + voucherFinancePayment.id + '/approve', { actor: 'business-smoke' });
+  const paidVoucher = await request(token, 'GET', '/operation-vouchers/' + voucher.id);
+  if (paidVoucher.status !== 'PAID' || Number(paidVoucher.remainAmount) !== 0 || !paidVoucher.payments?.some((payment) => payment.paymentVoucherId === voucherFinancePayment.id)) throw new Error('Operation voucher was not reconciled after finance approval');
+  await request(token, 'POST', '/finance/payments/' + voucherFinancePayment.id + '/cancel', { actor: 'business-smoke', reason: run + ' cancel operation voucher payment' });
+  const reopenedVoucher = await request(token, 'GET', '/operation-vouchers/' + voucher.id);
+  if (reopenedVoucher.status !== 'PARTIAL' || Number(reopenedVoucher.remainAmount) !== 400000 || reopenedVoucher.payments?.some((payment) => payment.paymentVoucherId === voucherFinancePayment.id)) throw new Error('Operation voucher was not reopened after finance payment cancellation');
+  const replacementVoucher = await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/create-payment-voucher');
+  const replacementVoucherFinancePayment = replacementVoucher.financePayments?.find((payment) => payment.approvalStatus === 'PENDING');
+  if (!replacementVoucherFinancePayment) throw new Error('Operation voucher could not create a replacement finance payment after cancellation');
+  await request(token, 'POST', '/finance/payments/' + replacementVoucherFinancePayment.id + '/approve', { actor: 'business-smoke' });
+  await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/create-payment-voucher', undefined, [400]);
 
   await request(token, 'GET', '/operations/forms?search=' + encodeURIComponent(run));
-  await request(token, 'GET', '/operations/supplier-payment-requests?search=' + encodeURIComponent(run));
-  await request(token, 'GET', '/operation-vouchers?search=' + encodeURIComponent(run));
+  const paymentRequestList = await request(token, 'GET', '/operations/supplier-payment-requests?search=' + encodeURIComponent(run));
+  if (!paymentRequestList.some((item) => item.id === paymentRequest.id && item.status === 'PAID' && item.financePayment?.approvalStatus === 'APPROVED')) throw new Error('Supplier payment request list is missing reconciliation state');
+  const voucherList = await request(token, 'GET', '/operation-vouchers?search=' + encodeURIComponent(run));
+  if (!voucherList.some((item) => item.id === voucher.id && item.status === 'PAID' && item.financePayments?.some((payment) => payment.id === replacementVoucherFinancePayment.id && payment.approvalStatus === 'APPROVED'))) throw new Error('Operation voucher list is missing finance payment reconciliation state');
+  const financePaymentList = await request(token, 'GET', '/finance/payments?take=200');
+  if (!financePaymentList.rows?.some((item) => item.id === replacementRequestPayment.financePaymentId && item.supplierPaymentRequests?.some((request) => request.code === paymentRequest.code && request.status === 'PAID'))) throw new Error('Finance payment list is missing supplier request reconciliation link');
+  if (!financePaymentList.rows?.some((item) => item.id === replacementVoucherFinancePayment.id && item.operationVoucher?.voucherCode === voucher.voucherCode && item.operationVoucher.status === 'PAID')) throw new Error('Finance payment list is missing operation voucher reconciliation link');
 
   for (const path of ['/customers', '/bookings', '/operations', '/operation-vouchers', '/suppliers/restaurants', '/finance']) await route(token, path);
   console.log('SMOKE_BUSINESS_OK');

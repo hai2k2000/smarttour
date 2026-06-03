@@ -36,7 +36,7 @@ export default async function SupplierTypePage({ params }: { params: Promise<{ t
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/">Tổng quan vận hành</Link>
           <Link href="/suppliers">Nhà cung cấp</Link>
           <Link href="/suppliers/hotels">NCC khách sạn</Link>
           <Link href="/suppliers/restaurants" className={type === 'restaurants' ? 'active' : ''}>NCC nhà hàng</Link>

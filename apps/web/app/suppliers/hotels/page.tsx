@@ -25,7 +25,7 @@ export default async function HotelSuppliersPage() {
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/">Tổng quan vận hành</Link>
           <Link href="/suppliers">Nhà cung cấp</Link>
           <Link href="/suppliers/hotels" className="active">NCC khách sạn</Link>
           <Link href="/tour-programs">Tour mẫu</Link>
@@ -39,10 +39,10 @@ export default async function HotelSuppliersPage() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Supplier hotel form</p>
-            <h1>Nhà cung cấp khach san</h1>
+            <p className="eyebrow">Hồ sơ nhà cung cấp khách sạn</p>
+            <h1>Nhà cung cấp khách san</h1>
           </div>
-          <div className="user"><Building2 size={18} /> Hotel <Users size={18} /> Nhân sự vận hành</div>
+          <div className="user"><Building2 size={18} /> Khách sạn <Users size={18} /> Nhân sự vận hành</div>
         </header>
 
         <HotelSuppliersClient initialHotels={hotels} />

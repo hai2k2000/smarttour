@@ -36,7 +36,7 @@ export default async function QuoteCombosPage() {
       <aside className="sidebar">
         <div className="brand">SmartTour</div>
         <nav>
-          <Link href="/">Dashboard vận hành</Link>
+          <Link href="/">Tổng quan vận hành</Link>
           <Link href="/quotes/tours">Tính giá tour</Link>
           <Link href="/quotes/combos" className="active">Tính giá combo</Link>
           <Link href="/suppliers">Nhà cung cấp</Link>
@@ -46,10 +46,10 @@ export default async function QuoteCombosPage() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Bao gia</p>
-            <h1>Gia combo</h1>
+            <p className="eyebrow">Báo giá</p>
+            <h1>Giá combo</h1>
           </div>
-          <div className="user"><Calculator size={18} /> Quote Combo <Users size={18} /> Nhân sự vận hành</div>
+          <div className="user"><Calculator size={18} /> Báo giá combo <Users size={18} /> Nhân sự vận hành</div>
         </header>
         <QuoteCombosClient initialCombos={combos} suppliers={suppliers} />
       </section>

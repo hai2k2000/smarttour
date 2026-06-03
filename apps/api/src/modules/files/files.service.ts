@@ -21,11 +21,40 @@ export type StoredFileUpload = {
 
 const deniedExtensions = new Set(['.bat', '.cmd', '.com', '.exe', '.htm', '.html', '.js', '.mjs', '.cjs', '.ps1', '.sh', '.svg']);
 const deniedMimeTypes = new Set(['image/svg+xml', 'text/html', 'text/javascript', 'application/javascript']);
+const defaultMaxBytes = 10 * 1024 * 1024;
+
+export function fileUploadMaxBytes() {
+  const configured = Number(process.env.FILE_UPLOAD_MAX_BYTES || defaultMaxBytes);
+  return Number.isFinite(configured) && configured > 0 ? configured : defaultMaxBytes;
+}
+
+export function assertAllowedUpload(file: Pick<UploadFile, 'originalname' | 'mimetype'>) {
+  const extension = extname(file.originalname).toLowerCase();
+  const mimeType = (file.mimetype || 'application/octet-stream').toLowerCase();
+  if (deniedExtensions.has(extension) || deniedMimeTypes.has(mimeType)) {
+    throw new BadRequestException('Loại file không được phép tải lên');
+  }
+}
+
+export function fileUploadInterceptorOptions() {
+  const maxBytes = fileUploadMaxBytes();
+  return {
+    limits: { fileSize: maxBytes },
+    fileFilter: (_request: unknown, file: Pick<UploadFile, 'originalname' | 'mimetype'>, callback: (error: Error | null, acceptFile: boolean) => void) => {
+      try {
+        assertAllowedUpload(file);
+        callback(null, true);
+      } catch (error) {
+        callback(error as Error, false);
+      }
+    },
+  };
+}
 
 @Injectable()
 export class FilesService {
   private readonly bucket = process.env.MINIO_BUCKET || 'smarttour';
-  private readonly maxBytes = Number(process.env.FILE_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
+  private readonly maxBytes = fileUploadMaxBytes();
   private readonly client: Client;
 
   constructor() {
@@ -42,7 +71,7 @@ export class FilesService {
   async upload(file: UploadFile | undefined, rawScope?: string, actorId?: string): Promise<StoredFileUpload> {
     if (!file?.buffer || !Buffer.isBuffer(file.buffer)) throw new BadRequestException('Cần chọn file để tải lên');
     if (!file.size || file.size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${this.maxBytes} bytes`);
-    this.assertAllowed(file);
+    assertAllowedUpload(file);
     await this.ensureBucket();
 
     const scope = this.safeScope(rawScope);
@@ -114,13 +143,6 @@ export class FilesService {
       await this.client.makeBucket(this.bucket);
     } catch (error) {
       if (!(await this.client.bucketExists(this.bucket))) throw error;
-    }
-  }
-
-  private assertAllowed(file: UploadFile) {
-    const extension = extname(file.originalname).toLowerCase();
-    if (deniedExtensions.has(extension) || deniedMimeTypes.has(file.mimetype.toLowerCase())) {
-      throw new BadRequestException('Loại file không được phép tải lên');
     }
   }
 

@@ -102,6 +102,7 @@ const permissionLabels: Record<string, string> = {
   'finance.invoice.export': 'Xuất hóa đơn',
   'finance.cashflow.view': 'Xem dòng tiền',
   'finance.cashflow.export': 'Xuất dòng tiền',
+  'finance.debt.adjust': 'Điều chỉnh công nợ',
   'guide.view': 'Xem hướng dẫn viên',
   'guide.manage': 'Quản lý hướng dẫn viên',
   'operation.form.view': 'Xem phiếu điều hành',

@@ -1,18 +1,10 @@
-import { CalendarDays, CircleDollarSign, Plus, Save, Trash2, Users } from 'lucide-react';
+﻿import { CircleDollarSign, Pencil, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
-import Link from 'next/link';
-import { Fragment } from 'react';
 import { serverAuthHeaders, serverAuthJsonHeaders } from './serverAuth';
 
 export const dynamic = 'force-dynamic';
 
-type TourProgram = {
-  id: string;
-  code: string;
-  name: string;
-  durationDays: number;
-};
-
+type TourProgram = { id: string; code: string; name: string; durationDays: number };
 type Booking = {
   id: string;
   code: string;
@@ -28,7 +20,7 @@ type Booking = {
   operationForm: { id: string; status: string } | null;
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const moneyFormatter = new Intl.NumberFormat('vi-VN');
 const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 const bookingStatuses = ['DRAFT', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'];
@@ -38,25 +30,18 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
     const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
     if (!response.ok) return fallback;
     return response.json();
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 
 async function createBooking(formData: FormData) {
   'use server';
   await fetch(`${apiBase}/api/bookings`, {
-    method: 'POST',
-    headers: await serverAuthJsonHeaders(),
+    method: 'POST', headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({
-      code: String(formData.get('code') || ''),
-      tourProgramId: String(formData.get('tourProgramId') || ''),
-      customerName: String(formData.get('customerName') || ''),
-      paxCount: Number(formData.get('paxCount') || 1),
-      startDate: String(formData.get('startDate') || ''),
-      endDate: String(formData.get('endDate') || ''),
-      saleOwner: String(formData.get('saleOwner') || ''),
-      operatorOwner: String(formData.get('operatorOwner') || ''),
+      code: String(formData.get('code') || ''), tourProgramId: String(formData.get('tourProgramId') || ''),
+      customerName: String(formData.get('customerName') || ''), paxCount: Number(formData.get('paxCount') || 1),
+      startDate: String(formData.get('startDate') || ''), endDate: String(formData.get('endDate') || ''),
+      saleOwner: String(formData.get('saleOwner') || ''), operatorOwner: String(formData.get('operatorOwner') || ''),
       totalSellPrice: Number(formData.get('totalSellPrice') || 0),
     }),
   });
@@ -67,19 +52,13 @@ async function updateBooking(formData: FormData) {
   'use server';
   const id = String(formData.get('id') || '');
   if (!id) return;
-
   await fetch(`${apiBase}/api/bookings/${id}`, {
-    method: 'PATCH',
-    headers: await serverAuthJsonHeaders(),
+    method: 'PATCH', headers: await serverAuthJsonHeaders(),
     body: JSON.stringify({
-      code: String(formData.get('code') || ''),
-      tourProgramId: String(formData.get('tourProgramId') || ''),
-      customerName: String(formData.get('customerName') || ''),
-      paxCount: Number(formData.get('paxCount') || 1),
-      startDate: String(formData.get('startDate') || ''),
-      endDate: String(formData.get('endDate') || ''),
-      saleOwner: String(formData.get('saleOwner') || ''),
-      operatorOwner: String(formData.get('operatorOwner') || ''),
+      code: String(formData.get('code') || ''), tourProgramId: String(formData.get('tourProgramId') || ''),
+      customerName: String(formData.get('customerName') || ''), paxCount: Number(formData.get('paxCount') || 1),
+      startDate: String(formData.get('startDate') || ''), endDate: String(formData.get('endDate') || ''),
+      saleOwner: String(formData.get('saleOwner') || ''), operatorOwner: String(formData.get('operatorOwner') || ''),
       totalSellPrice: Number(formData.get('totalSellPrice') || 0),
     }),
   });
@@ -90,12 +69,7 @@ async function updateBookingStatus(formData: FormData) {
   'use server';
   const id = String(formData.get('id') || '');
   if (!id) return;
-
-  await fetch(`${apiBase}/api/bookings/${id}`, {
-    method: 'PATCH',
-    headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({ status: String(formData.get('status') || 'DRAFT') }),
-  });
+  await fetch(`${apiBase}/api/bookings/${id}`, { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify({ status: String(formData.get('status') || 'DRAFT') }) });
   revalidatePath('/bookings');
 }
 
@@ -103,138 +77,65 @@ async function deleteBooking(formData: FormData) {
   'use server';
   const id = String(formData.get('id') || '');
   if (!id) return;
-
   await fetch(`${apiBase}/api/bookings/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
   revalidatePath('/bookings');
 }
 
-function formatDate(value: string) {
-  return dateFormatter.format(new Date(value));
-}
+function formatDate(value: string) { return dateFormatter.format(new Date(value)); }
+function formatMoney(value: string) { return moneyFormatter.format(Number(value || 0)); }
+function toDateInputValue(value: string) { return new Date(value).toISOString().slice(0, 10); }
 
-function formatMoney(value: string) {
-  return moneyFormatter.format(Number(value || 0));
-}
-
-function toDateInputValue(value: string) {
-  return new Date(value).toISOString().slice(0, 10);
+function BookingForm({ tourPrograms, booking }: { tourPrograms: TourProgram[]; booking?: Booking }) {
+  return (
+    <form action={booking ? updateBooking : createBooking} className="bookingEditForm">
+      {booking ? <input type="hidden" name="id" value={booking.id} /> : null}
+      <label>Mã booking<input name="code" defaultValue={booking?.code || ''} placeholder="BK-2026-0001" required minLength={2} /></label>
+      <label>Tour mẫu<select name="tourProgramId" defaultValue={booking?.tourProgram.id || ''} required><option value="">Chọn tour mẫu</option>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
+      <label>Tên khách/đoàn<input name="customerName" defaultValue={booking?.customerName || ''} placeholder="Công ty ABC" required minLength={2} /></label>
+      <label>Số khách<input name="paxCount" type="number" min={1} defaultValue={booking?.paxCount || 1} required /></label>
+      <label>Ngày khởi hành<input name="startDate" type="date" defaultValue={booking ? toDateInputValue(booking.startDate) : ''} required /></label>
+      <label>Ngày kết thúc<input name="endDate" type="date" defaultValue={booking ? toDateInputValue(booking.endDate) : ''} required /></label>
+      <label>Sale phụ trách<input name="saleOwner" defaultValue={booking?.saleOwner || ''} /></label>
+      <label>Điều hành phụ trách<input name="operatorOwner" defaultValue={booking?.operatorOwner || ''} /></label>
+      <label>Giá bán tổng<input name="totalSellPrice" type="number" min={0} defaultValue={Number(booking?.totalSellPrice || 0)} /></label>
+      <button type="submit"><Save size={15} /> {booking ? 'Lưu booking' : 'Tạo booking'}</button>
+    </form>
+  );
 }
 
 export default async function BookingsPage() {
-  const [tourPrograms, bookings] = await Promise.all([
-    apiGet<TourProgram[]>('/tour-programs', []),
-    apiGet<Booking[]>('/bookings', []),
-  ]);
-
+  const [tourPrograms, bookings] = await Promise.all([apiGet<TourProgram[]>('/tour-programs', []), apiGet<Booking[]>('/bookings', [])]);
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">SmartTour</div>
-        <nav>
-          <Link href="/">Dashboard vận hành</Link>
-          <Link href="/suppliers">Nhà cung cấp</Link>
-          <Link href="/tour-programs">Tour mẫu</Link>
-          <Link href="/bookings" className="active">Booking tour</Link>
-          <a>Phiếu điều hành</a>
-          <a>Chi phi tour</a>
-          <a>Thanh toán NCC</a>
-        </nav>
-      </aside>
+    <section className="workspace">
+      <header className="pageHeader">
+        <div><p className="eyebrow">Quy trình booking</p><h1>Booking tour</h1></div>
+        <div className="pageHeaderActions"><a className="secondaryButton iconTextButton" href="#create-booking"><Plus size={16} /> Thêm booking</a><span className="statusPill"><Users size={14} /> Nhân sự vận hành</span></div>
+      </header>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Quy trình booking</p>
-            <h1>Booking tour</h1>
-          </div>
-          <div className="user"><Users size={18} /> Nhân sự vận hành</div>
-        </header>
-
-        <section className="contentGrid bookingGrid">
-          <div className="panel">
-            <h2><Plus size={18} /> Tạo booking</h2>
-            <form action={createBooking} className="formGrid">
-              <label>Mã booking<input name="code" placeholder="BK-2026-0001" required minLength={2} /></label>
-              <label>Tour mẫu<select name="tourProgramId" required><option value="">Chọn tour mẫu</option>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
-              <label>Tên khách/đoàn<input name="customerName" placeholder="Cong ty ABC" required minLength={2} /></label>
-              <label>So khach<input name="paxCount" type="number" min={1} defaultValue={1} required /></label>
-              <label>Ngay khoi hanh<input name="startDate" type="date" required /></label>
-              <label>Ngay ket thuc<input name="endDate" type="date" required /></label>
-              <label>Sale phu trach<input name="saleOwner" /></label>
-              <label>Dieu hanh phu trach<input name="operatorOwner" /></label>
-              <label>Gia ban tong<input name="totalSellPrice" type="number" min={0} defaultValue={0} /></label>
-              <button type="submit">Tạo booking</button>
-            </form>
-          </div>
-
-          <div className="panel bookingSummary">
-            <h2><CalendarDays size={18} /> Tổng quan</h2>
-            <div className="summaryRows">
-              <div><span>Tong booking</span><strong>{bookings.length}</strong></div>
-              <div><span>Đã xác nhận</span><strong>{bookings.filter((booking) => booking.status === 'CONFIRMED').length}</strong></div>
-              <div><span>Đang vận hành</span><strong>{bookings.filter((booking) => booking.status === 'OPERATING').length}</strong></div>
-              <div><span>Chưa co phieu DH</span><strong>{bookings.filter((booking) => !booking.operationForm).length}</strong></div>
-            </div>
-          </div>
-        </section>
-
-        <section className="panel listPanel">
-          <div className="sectionHeader"><h2>Danh sach booking</h2><span>{bookings.length} booking</span></div>
-          <table className="bookingTable">
-            <thead><tr><th>Ma</th><th>Khach/doan</th><th>Tour</th><th>Ngay di</th><th>Pax</th><th>Phu trach</th><th>Gia ban</th><th>Trạng thái</th><th>Thao tac</th></tr></thead>
-            <tbody>
-              {bookings.map((booking) => (
-                <Fragment key={booking.id}>
-                  <tr>
-                    <td>{booking.code}</td>
-                    <td>{booking.customerName}</td>
-                    <td>{booking.tourProgram.code}</td>
-                    <td>{formatDate(booking.startDate)} - {formatDate(booking.endDate)}</td>
-                    <td>{booking.paxCount}</td>
-                    <td>{booking.operatorOwner || booking.saleOwner || '-'}</td>
-                    <td><CircleDollarSign size={14} /> {formatMoney(booking.totalSellPrice)}</td>
-                    <td>
-                      <form action={updateBookingStatus} className="inlineStatusForm">
-                        <input type="hidden" name="id" value={booking.id} />
-                        <select name="status" defaultValue={booking.status} aria-label={`Trạng thái ${booking.code}`}>
-                          {bookingStatuses.map((status) => (
-                            <option value={status} key={status}>{status}</option>
-                          ))}
-                        </select>
-                        <button type="submit" className="secondaryButton">Cap nhat</button>
-                      </form>
-                    </td>
-                    <td className="actionsCell">
-                      <form action={deleteBooking}>
-                        <input type="hidden" name="id" value={booking.id} />
-                        <button type="submit" className="dangerButton"><Trash2 size={14} /> Xóa</button>
-                      </form>
-                    </td>
-                  </tr>
-                  <tr className="bookingEditRow">
-                    <td colSpan={9}>
-                      <form action={updateBooking} className="bookingEditForm">
-                        <input type="hidden" name="id" value={booking.id} />
-                        <label>Mã booking<input name="code" defaultValue={booking.code} required minLength={2} /></label>
-                        <label>Tour mẫu<select name="tourProgramId" defaultValue={booking.tourProgram.id} required>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
-                        <label>Tên khách/đoàn<input name="customerName" defaultValue={booking.customerName} required minLength={2} /></label>
-                        <label>So khach<input name="paxCount" type="number" min={1} defaultValue={booking.paxCount} required /></label>
-                        <label>Ngay khoi hanh<input name="startDate" type="date" defaultValue={toDateInputValue(booking.startDate)} required /></label>
-                        <label>Ngay ket thuc<input name="endDate" type="date" defaultValue={toDateInputValue(booking.endDate)} required /></label>
-                        <label>Sale phu trach<input name="saleOwner" defaultValue={booking.saleOwner || ''} /></label>
-                        <label>Dieu hanh phu trach<input name="operatorOwner" defaultValue={booking.operatorOwner || ''} /></label>
-                        <label>Gia ban tong<input name="totalSellPrice" type="number" min={0} defaultValue={Number(booking.totalSellPrice || 0)} /></label>
-                        <button type="submit"><Save size={15} /> Lưu booking</button>
-                      </form>
-                    </td>
-                  </tr>
-                </Fragment>
-              ))}
-              {bookings.length === 0 ? (<tr><td colSpan={9}>Chưa co booking. Hay tao booking tu tour mau dau tien.</td></tr>) : null}
-            </tbody>
-          </table>
-        </section>
+      <section className="panel listPanel">
+        <div className="sectionHeader"><h2>Danh sách booking</h2><span>{bookings.length} booking</span></div>
+        <table className="bookingTable">
+          <thead><tr><th>Mã</th><th>Khách/đoàn</th><th>Tour</th><th>Ngày đi</th><th>Pax</th><th>Phụ trách</th><th>Giá bán</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+          <tbody>
+            {bookings.map((booking) => (
+              <tr key={booking.id}>
+                <td>{booking.code}</td><td>{booking.customerName}</td><td>{booking.tourProgram.code}</td><td>{formatDate(booking.startDate)} - {formatDate(booking.endDate)}</td><td>{booking.paxCount}</td><td>{booking.operatorOwner || booking.saleOwner || '-'}</td><td><CircleDollarSign size={14} /> {formatMoney(booking.totalSellPrice)}</td>
+                <td><span className={`statusBadge status-${booking.status.toLowerCase()}`}>{booking.status}</span></td>
+                <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${booking.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><a className="secondaryButton iconButton" href={`#edit-${booking.id}`} title="Sửa booking"><Pencil size={14} /></a><form action={deleteBooking}><input type="hidden" name="id" value={booking.id} /><button type="submit" className="dangerButton" title="Xóa booking"><Trash2 size={14} /></button></form></div></td>
+              </tr>
+            ))}
+            {bookings.length === 0 ? (<tr><td colSpan={9}>Chưa có booking. Hãy tạo booking từ popup thêm mới.</td></tr>) : null}
+          </tbody>
+        </table>
       </section>
-    </main>
+
+      <section id="create-booking" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader"><h2><Plus size={18} /> Tạo booking</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><BookingForm tourPrograms={tourPrograms} /></div></section>
+      {bookings.map((booking) => (
+        <section id={`edit-${booking.id}`} className="hashModal" key={`edit-${booking.id}`}><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader"><h2><Pencil size={18} /> Sửa booking</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><BookingForm tourPrograms={tourPrograms} booking={booking} /></div></section>
+      ))}
+      {bookings.map((booking) => (
+        <section id={`status-${booking.id}`} className="hashModal" key={`status-${booking.id}`}><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel"><div className="hashModalHeader"><h2>Cập nhật trạng thái</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><form action={updateBookingStatus} className="formStack"><input type="hidden" name="id" value={booking.id} /><label>Trạng thái<select name="status" defaultValue={booking.status}>{bookingStatuses.map((status) => (<option value={status} key={status}>{status}</option>))}</select></label><button type="submit"><Save size={15} /> Cập nhật</button></form></div></section>
+      ))}
+    </section>
   );
 }

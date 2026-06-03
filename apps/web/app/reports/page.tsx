@@ -26,7 +26,7 @@ export default async function ReportsPage() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Reporting & Analytics</p>
-          <h1>Bao cao tong hop</h1>
+          <h1>Báo cáo tổng hợp</h1>
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill">Quản trị</span>

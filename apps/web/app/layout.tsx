@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import AppShell from './AppShell';
 
 export const metadata = {
-  title: 'Du Niên Travel | SmartTour',
-  description: 'Hệ thống quản lý vận hành tour của Du Niên Travel',
+  title: 'AI Tour | Operations',
+  description: 'Hệ thống quản lý bán hàng, tour và vận hành của AI Tour',
   icons: {
     icon: '/favicon-32x32.png',
     shortcut: '/favicon-32x32.png',

@@ -16,7 +16,7 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-export default async function TourGuidesPage() {
+export default async function TourHDVsPage() {
   const guides = await apiGet('/tour-guides', []);
 
   return (
@@ -31,7 +31,7 @@ export default async function TourGuidesPage() {
           <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
-      <TourGuidesClient initialGuides={guides} />
+      <TourGuidesClient initialHDVs={guides} />
     </section>
   );
 }

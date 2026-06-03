@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { CheckCircle2, KeyRound, Plus, RefreshCcw, Save, ShieldCheck, UserCog } from 'lucide-react';
+import { CheckCircle2, KeyRound, Plus, RefreshCcw, Save, ShieldCheck, UserCog, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { viPermission, viRoleCode, viStatus } from '../i18n';
@@ -38,6 +38,7 @@ const commonQuyền = [
   'data.scope.all',
   'data.scope.branch',
   'data.scope.department',
+  'file.manage',
   'booking.view',
   'booking.manage',
   'tour.view',
@@ -81,6 +82,7 @@ const commonQuyền = [
   'finance.invoice.export',
   'finance.cashflow.view',
   'finance.cashflow.export',
+  'finance.debt.adjust',
   'operation.form.view',
   'operation.form.manage',
   'operation.payment-request.view',
@@ -95,6 +97,7 @@ export default function SecurityClient() {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [message, setMessage] = useState('');
   const [tokenReady, setTokenReady] = useState(false);
+  const [activeModal, setActiveModal] = useState<'password' | 'createUser' | 'updateUser' | 'createRole' | 'updateRole' | null>(null);
 
   const selectedUser = users.find((user) => user.id === selectedUserId);
   const selectedRole = roles.find((role) => role.id === selectedRoleId);
@@ -109,7 +112,7 @@ export default function SecurityClient() {
     setMessage('');
     const [userData, roleData] = await Promise.all([getJson('/api/auth/users'), getJson('/api/auth/roles')]);
     if (userData.error || roleData.error) {
-      setMessage('Can dang nhap tai khoan co quyen auth.user.manage/auth.role.manage');
+      setMessage('Cần đăng nhập tài khoản có quyền auth.user.manage/auth.role.manage');
       return;
     }
     setUsers(Array.isArray(userData) ? userData : []);
@@ -168,7 +171,7 @@ export default function SecurityClient() {
     const currentPassword = text(formData.get('currentPassword'));
     const newPassword = text(formData.get('newPassword'));
     if (newPassword.length < 8) {
-      setMessage('Mật khẩu mới can it nhat 8 ky tu');
+      setMessage('Mật khẩu mới cần ít nhất 8 ký tự');
       return;
     }
     await post('/api/auth/change-password', { currentPassword, newPassword });
@@ -203,7 +206,7 @@ export default function SecurityClient() {
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
-          <button className="secondaryButton iconTextButton" onClick={load}><RefreshCcw size={16} /> Tải lại</button>
+          <button className="secondaryButton iconTextButton" onClick={() => setActiveModal('createUser')}><Plus size={16} /> Thêm user</button><button className="secondaryButton iconTextButton" onClick={() => setActiveModal('createRole')}><ShieldCheck size={16} /> Thêm role</button><button className="secondaryButton iconTextButton" onClick={() => setActiveModal('password')}><KeyRound size={16} /> Đổi mật khẩu</button><button className="secondaryButton iconTextButton" onClick={load}><RefreshCcw size={16} /> Tải lại</button>
         </div>
       </header>
 
@@ -223,7 +226,7 @@ export default function SecurityClient() {
             <button type="submit"><KeyRound size={16} /> Đổi mật khẩu</button>
           </form>
 
-          <h2><Plus size={18} /> Tạo user</h2>
+          <h2><Plus size={18} /> Tạo tài khoản</h2>
           <form action={createUser} className="formGrid">
             <label>Tên đăng nhập<input name="username" required placeholder="admin" /></label>
             <label>Email<input name="email" type="email" required placeholder="user@company.com" /></label>
@@ -232,12 +235,12 @@ export default function SecurityClient() {
             <label>Chi nhánh<input name="branch" /></label>
             <label>Phòng ban<input name="department" /></label>
             <label>Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label>
-            <button type="submit"><UserCog size={16} /> Tạo user</button>
+            <button type="submit"><UserCog size={16} /> Tạo tài khoản</button>
           </form>
 
-          <h2><Save size={18} /> Cập nhật user</h2>
+          <h2><Save size={18} /> Cập nhật tài khoản</h2>
           <form action={updateUser} className="formGrid">
-            <label>User<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn user</option>{users.map((user) => <option key={user.id} value={user.id}>{user.username || user.email}</option>)}</select></label>
+            <label>Tài khoản<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn tài khoản</option>{users.map((user) => <option key={user.id} value={user.id}>{user.username || user.email}</option>)}</select></label>
             <label>Tên đăng nhập<input name="username" defaultValue={selectedUser?.username || ''} /></label>
             <label>Họ tên<input name="name" defaultValue={selectedUser?.name || ''} /></label>
             <label>Trạng thái<select name="status" defaultValue={selectedUser?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="LOCKED">Đã khóa</option></select></label>
@@ -245,16 +248,16 @@ export default function SecurityClient() {
             <label>Chi nhánh<input name="branch" defaultValue={selectedUser?.branch || ''} /></label>
             <label>Phòng ban<input name="department" defaultValue={selectedUser?.department || ''} /></label>
             <label>Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))} defaultValue={selectedUser?.roles.map((role) => role.code) || []}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label>
-            <button type="submit"><KeyRound size={16} /> Lưu user</button>
+            <button type="submit"><KeyRound size={16} /> Lưu tài khoản</button>
           </form>
         </div>
 
         <section className="panel securityList">
-          <div className="sectionHeader"><h2>Danh sach user</h2><span>{users.length} dong</span></div>
+          <div className="sectionHeader"><h2>Danh sách tài khoản</h2><span>{users.length} dòng</span></div>
           <div className="fitTableWrap">
             <table className="securityTable">
-              <thead><tr><th>User</th><th>Email</th><th>Tên</th><th>Role</th><th>Data scope</th><th>Chi nhánh</th><th>Phòng ban</th><th>Login gần nhất</th><th>Trạng thái</th></tr></thead>
-              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.username || '-'}</strong></td><td>{user.email}</td><td>{user.name}</td><td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{viStatus(user.status)}</span></td></tr>)}</tbody>
+              <thead><tr><th>Tài khoản</th><th>Email</th><th>Tên</th><th>Vai trò</th><th>Phạm vi dữ liệu</th><th>Chi nhánh</th><th>Phòng ban</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+              <tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.username || '-'}</strong></td><td>{user.email}</td><td>{user.name}</td><td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || '-'}</td><td><span className="statusPill">{scopeLabel(user)}</span></td><td>{user.branch || '-'}</td><td>{user.department || '-'}</td><td>{date(user.lastLoginAt)}</td><td><span className="statusPill">{viStatus(user.status)}</span></td><td><button type="button" className="secondaryButton iconButton" onClick={() => { setSelectedUserId(user.id); setActiveModal('updateUser'); }}><Save size={14} /></button></td></tr>)}</tbody>
             </table>
           </div>
         </section>
@@ -262,36 +265,49 @@ export default function SecurityClient() {
 
       <section className="contentGrid securityGrid">
         <div className="panel securityFormPanel">
-          <h2><Plus size={18} /> Tạo role</h2>
+          <h2><Plus size={18} /> Tạo vai trò</h2>
           <form action={createRole} className="formGrid">
             <label>Code<input name="code" required placeholder="finance_manager" /></label>
-            <label>Ten role<input name="name" required /></label>
-            <label>Mo ta<textarea name="description" rows={3} /></label>
+            <label>Tên vai trò<input name="name" required /></label>
+            <label>Mô tả<textarea name="description" rows={3} /></label>
             <label>Quyền<textarea name="permissions" rows={8} placeholder={commonQuyền.join('\n')} /></label>
-            <button type="submit"><ShieldCheck size={16} /> Tạo role</button>
+            <button type="submit"><ShieldCheck size={16} /> Tạo vai trò</button>
           </form>
 
-          <h2><Save size={18} /> Cap nhat role</h2>
+          <h2><Save size={18} /> Cập nhật vai trò</h2>
           <form action={updateRole} className="formGrid">
-            <label>Role<select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}><option value="">Chọn role</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.code}</option>)}</select></label>
-            <label>Ten role<input name="name" defaultValue={selectedRole?.name || ''} /></label>
+            <label>Vai trò<select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}><option value="">Chọn vai trò</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.code}</option>)}</select></label>
+            <label>Tên vai trò<input name="name" defaultValue={selectedRole?.name || ''} /></label>
             <label>Trạng thái<select name="status" defaultValue={selectedRole?.status || 'ACTIVE'}><option>ACTIVE</option><option>INACTIVE</option></select></label>
-            <label>Mo ta<textarea name="description" rows={3} defaultValue={selectedRole?.description || ''} /></label>
+            <label>Mô tả<textarea name="description" rows={3} defaultValue={selectedRole?.description || ''} /></label>
             <label>Quyền<textarea name="permissions" rows={10} defaultValue={selectedRole?.permissions.map((item) => item.permission).join('\n') || ''} /></label>
-            <button type="submit"><CheckCircle2 size={16} /> Lưu role</button>
+            <button type="submit"><CheckCircle2 size={16} /> Lưu vai trò</button>
           </form>
         </div>
 
         <section className="panel securityList">
-          <div className="sectionHeader"><h2>Vai trò & permissions</h2><span>{roles.length} dong</span></div>
+          <div className="sectionHeader"><h2>Vai trò & quyền</h2><span>{roles.length} dòng</span></div>
           <div className="fitTableWrap">
             <table className="securityTable">
-              <thead><tr><th>Role</th><th>Mo ta</th><th>Users</th><th>Data scope</th><th>Quyền</th><th>Trạng thái</th></tr></thead>
-              <tbody>{roles.map((role) => <tr key={role.id}><td><strong>{role.code}</strong><span>{role.name}</span></td><td>{role.description || '-'}</td><td>{role._count?.users || 0}</td><td><span className="statusPill">{roleScopeLabel(role)}</span></td><td><div className="permissionChips">{role.permissions.map((item) => <span key={item.id}>{viPermission(item.permission)}</span>)}</div></td><td><span className="statusPill">{viStatus(role.status)}</span></td></tr>)}</tbody>
+              <thead><tr><th>Vai trò</th><th>Mô tả</th><th>Người dùng</th><th>Phạm vi dữ liệu</th><th>Quyền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+              <tbody>{roles.map((role) => <tr key={role.id}><td><strong>{role.code}</strong><span>{role.name}</span></td><td>{role.description || '-'}</td><td>{role._count?.users || 0}</td><td><span className="statusPill">{roleScopeLabel(role)}</span></td><td><div className="permissionChips">{role.permissions.map((item) => <span key={item.id}>{viPermission(item.permission)}</span>)}</div></td><td><span className="statusPill">{viStatus(role.status)}</span></td><td><button type="button" className="secondaryButton iconButton" onClick={() => { setSelectedRoleId(role.id); setActiveModal('updateRole'); }}><Save size={14} /></button></td></tr>)}</tbody>
             </table>
           </div>
         </section>
       </section>
+      {activeModal ? <div className="modalOverlay" role="dialog" aria-modal="true">
+        <div className="modalPanel">
+          <div className="modalHeader">
+            <h2>{activeModal === 'password' ? 'Đổi mật khẩu' : activeModal === 'createUser' ? 'Tạo tài khoản' : activeModal === 'updateUser' ? 'Cập nhật tài khoản' : activeModal === 'createRole' ? 'Tạo vai trò' : 'Cập nhật vai trò'}</h2>
+            <button type="button" className="secondaryButton iconButton" onClick={() => setActiveModal(null)}><X size={16} /></button>
+          </div>
+          {activeModal === 'password' ? <form action={changeOwnPassword} className="modalFormGrid"><label>Mật khẩu hiện tại<input name="currentPassword" type="password" required /></label><label>Mật khẩu mới<input name="newPassword" type="password" required minLength={8} /></label><div className="modalActions"><button type="submit"><KeyRound size={16} /> Đổi mật khẩu</button></div></form> : null}
+          {activeModal === 'createUser' ? <form action={createUser} className="modalFormGrid"><label>Tên đăng nhập<input name="username" required placeholder="admin" /></label><label>Email<input name="email" type="email" required placeholder="user@company.com" /></label><label>Họ tên<input name="name" required /></label><label>Mật khẩu<input name="password" type="password" required minLength={8} /></label><label>Chi nhánh<input name="branch" /></label><label>Phòng ban<input name="department" /></label><label className="span2">Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label><div className="modalActions"><button type="submit"><UserCog size={16} /> Tạo tài khoản</button></div></form> : null}
+          {activeModal === 'updateUser' ? <form action={updateUser} className="modalFormGrid"><label>Tài khoản<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Chọn tài khoản</option>{users.map((user) => <option key={user.id} value={user.id}>{user.username || user.email}</option>)}</select></label><label>Tên đăng nhập<input name="username" defaultValue={selectedUser?.username || ''} /></label><label>Họ tên<input name="name" defaultValue={selectedUser?.name || ''} /></label><label>Trạng thái<select name="status" defaultValue={selectedUser?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngưng hoạt động</option><option value="LOCKED">Đã khóa</option></select></label><label>Mật khẩu mới<input name="password" type="password" minLength={8} placeholder="Để trống nếu không đổi" /></label><label>Chi nhánh<input name="branch" defaultValue={selectedUser?.branch || ''} /></label><label>Phòng ban<input name="department" defaultValue={selectedUser?.department || ''} /></label><label>Vai trò<select name="roleCodes" multiple size={Math.min(6, Math.max(3, roleCodes.length))} defaultValue={selectedUser?.roles.map((role) => role.code) || []}>{roleCodes.map((code) => <option key={code} value={code}>{viRoleCode(code)}</option>)}</select></label><div className="modalActions"><button type="submit"><KeyRound size={16} /> Lưu tài khoản</button></div></form> : null}
+          {activeModal === 'createRole' ? <form action={createRole} className="modalFormGrid"><label>Code<input name="code" required placeholder="finance_manager" /></label><label>Tên vai trò<input name="name" required /></label><label className="span2">Mô tả<textarea name="description" rows={3} /></label><label className="span2">Quyền<textarea name="permissions" rows={8} placeholder={commonQuyền.join('\n')} /></label><div className="modalActions"><button type="submit"><ShieldCheck size={16} /> Tạo vai trò</button></div></form> : null}
+          {activeModal === 'updateRole' ? <form action={updateRole} className="modalFormGrid"><label>Vai trò<select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}><option value="">Chọn vai trò</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.code}</option>)}</select></label><label>Tên vai trò<input name="name" defaultValue={selectedRole?.name || ''} /></label><label>Trạng thái<select name="status" defaultValue={selectedRole?.status || 'ACTIVE'}><option>ACTIVE</option><option>INACTIVE</option></select></label><label className="span2">Mô tả<textarea name="description" rows={3} defaultValue={selectedRole?.description || ''} /></label><label className="span2">Quyền<textarea name="permissions" rows={10} defaultValue={selectedRole?.permissions.map((item) => item.permission).join('\n') || ''} /></label><div className="modalActions"><button type="submit"><CheckCircle2 size={16} /> Lưu vai trò</button></div></form> : null}
+        </div>
+      </div> : null}
     </section>
   );
 }
@@ -302,17 +318,17 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 
 function scopeLabel(user: User) {
   if (user.dataScope) return user.dataScope;
-  if (user.permissions.includes('*') || user.permissions.includes('data.scope.all')) return 'all';
-  if (user.permissions.includes('data.scope.branch')) return 'branch';
-  if (user.permissions.includes('data.scope.department')) return 'department';
+  if (user.permissions.includes('*') || user.permissions.includes('data.scope.all')) return 'Tất cả';
+  if (user.permissions.includes('data.scope.branch')) return 'Theo chi nhánh';
+  if (user.permissions.includes('data.scope.department')) return 'Theo phòng ban';
   return 'none';
 }
 
 function roleScopeLabel(role: Role) {
   const permissions = role.permissions.map((item) => item.permission);
-  if (permissions.includes('*') || permissions.includes('data.scope.all')) return 'all';
-  if (permissions.includes('data.scope.branch')) return 'branch';
-  if (permissions.includes('data.scope.department')) return 'department';
+  if (permissions.includes('*') || permissions.includes('data.scope.all')) return 'Tất cả';
+  if (permissions.includes('data.scope.branch')) return 'Theo chi nhánh';
+  if (permissions.includes('data.scope.department')) return 'Theo phòng ban';
   return 'none';
 }
 

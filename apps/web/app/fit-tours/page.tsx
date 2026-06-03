@@ -1,17 +1,31 @@
 import { Route, Users } from 'lucide-react';
-import { serverAuthHeaders } from '../serverAuth';
-import FitTourWizard from './FitTourWizard';
+import FitToursClient from './FitToursClient';
 
 export const dynamic = 'force-dynamic';
 
 type Supplier = { id: string; name: string };
-type FitTourSummary = { id: string; quoteCode: string; tourCode: string; customerName: string };
+type FitTourSummary = {
+  id: string;
+  quoteCode: string;
+  tourCode: string;
+  tourName?: string | null;
+  customerName: string;
+  phone?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  adultCount?: number | null;
+  childCount?: number | null;
+  infantCount?: number | null;
+  sellingPrice?: string | number | null;
+  workflowStatus?: string | null;
+  _count?: { commonCosts: number; hotelCosts: number; privateCosts: number; budgetServices: number; operationServices: number };
+};
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
+    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store' });
     if (!response.ok) return fallback;
     return response.json();
   } catch {
@@ -34,11 +48,11 @@ export default async function FitToursPage() {
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><Route size={14} /> 6 bước</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Operator</span>
         </div>
       </header>
 
-      <FitTourWizard suppliers={suppliers} tours={tours} />
+      <FitToursClient suppliers={suppliers} tours={tours} />
     </section>
   );
 }

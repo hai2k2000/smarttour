@@ -23,8 +23,8 @@ export default async function OperationVouchersPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Dieu hanh Tour</p>
-          <h1>Phiếu điều hành dich vu</h1>
+          <p className="eyebrow">Điều hành Tour</p>
+          <h1>Phiếu điều hành dịch vụ</h1>
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><ClipboardList size={14} /> Công nợ NCC</span>

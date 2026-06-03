@@ -9,6 +9,13 @@ RUN_ID="SMOKE-FIN-$(date +%s)"
 
 cleanup() {
   docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour >/dev/null <<SQL || true
+DELETE FROM "AuditLog" WHERE "entityId" IN (
+  SELECT id FROM "CustomerLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%'
+  UNION SELECT id FROM "SupplierLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%'
+  UNION SELECT id FROM "FinanceInvoice" WHERE "invoiceCode" LIKE '${RUN_ID}%'
+  UNION SELECT id FROM "FinanceReceipt" WHERE "receiptCode" LIKE '${RUN_ID}%'
+  UNION SELECT id FROM "FinancePayment" WHERE "voucherCode" LIKE '${RUN_ID}%'
+);
 DELETE FROM "FinanceCashflowEntry" WHERE "receiptId" IN (SELECT id FROM "FinanceReceipt" WHERE "receiptCode" LIKE '${RUN_ID}%') OR "paymentId" IN (SELECT id FROM "FinancePayment" WHERE "voucherCode" LIKE '${RUN_ID}%');
 DELETE FROM "CustomerLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%';
 DELETE FROM "SupplierLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%';
@@ -137,6 +144,20 @@ function contains(data, needle) {
     items: [{ itemName: 'Tour service', unit: 'package', quantity: 1, unitPrice: 1000000, taxRate: 8 }],
   });
   await request(token, 'POST', '/finance/invoices/' + invoice.id + '/approve', { actor: 'finance-smoke' });
+  const customerAdjustment = await request(token, 'POST', '/finance/debt/customers/' + customer.id + '/adjustments', {
+    direction: 'INCREASE',
+    amount: 1200000,
+    dueDate: '2026-01-01',
+    documentCode: run + '-CUS-ADJ',
+    description: run + ' customer debt adjustment',
+  });
+  const supplierAdjustment = await request(token, 'POST', '/finance/debt/suppliers/' + supplier.id + '/adjustments', {
+    direction: 'INCREASE',
+    amount: 500000,
+    dueDate: '2026-01-01',
+    documentCode: run + '-SUP-ADJ',
+    description: run + ' supplier debt adjustment',
+  });
 
   const receipts = await request(token, 'GET', '/finance/receipts?search=' + encodeURIComponent(run));
   if (!contains(receipts, run + '-RCPT')) throw new Error('Receipt list missing smoke receipt');
@@ -148,9 +169,13 @@ function contains(data, needle) {
   const cashflow = await request(token, 'GET', '/finance/cashflow?branch=FIN-BR&department=FIN-DEP');
   if (!contains(cashflow, receipt.id) || !contains(cashflow, payment.id)) throw new Error('Cashflow missing approved receipt/payment');
   const customerDebt = await request(token, 'GET', '/finance/debt/customers?customerId=' + customer.id);
-  if (!contains(customerDebt, invoice.id) || !contains(customerDebt, receipt.id)) throw new Error('Customer debt missing ledger entries');
+  if (!contains(customerDebt, invoice.id) || !contains(customerDebt, receipt.id) || !contains(customerDebt, customerAdjustment.id)) throw new Error('Customer debt missing ledger entries');
+  if (customerDebt.rows?.[0]?.id !== customer.id || !customerDebt.rows?.[0]?.aging || !Array.isArray(customerDebt.entries)) throw new Error('Customer debt grouping contract is invalid');
+  if (!(customerDebt.rows[0].aging.overdueTotal > 0)) throw new Error('Customer debt aging did not expose overdue amount');
   const supplierDebt = await request(token, 'GET', '/finance/debt/suppliers?supplierId=' + supplier.id);
-  if (!contains(supplierDebt, payment.id)) throw new Error('Supplier debt missing ledger entry');
+  if (!contains(supplierDebt, payment.id) || !contains(supplierDebt, supplierAdjustment.id)) throw new Error('Supplier debt missing ledger entry');
+  if (supplierDebt.rows?.[0]?.id !== supplier.id || !supplierDebt.rows?.[0]?.aging || !Array.isArray(supplierDebt.entries)) throw new Error('Supplier debt grouping contract is invalid');
+  if (!(supplierDebt.rows[0].aging.overdueTotal > 0)) throw new Error('Supplier debt aging did not expose overdue amount');
 
   await request(token, 'GET', '/reports/overview?branch=FIN-BR');
   await request(token, 'GET', '/reports/business-summary?branch=FIN-BR');
