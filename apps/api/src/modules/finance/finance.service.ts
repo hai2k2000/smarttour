@@ -10,15 +10,196 @@ import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanR
 import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
+import { FinanceCashflowService } from './finance-cashflow.service';
+import { FinanceInvoiceService } from './finance-invoice.service';
+import { FinanceLedgerService } from './finance-ledger.service';
+import { FinancePaymentService } from './finance-payment.service';
+import { FinanceReceiptService } from './finance-receipt.service';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
+  private readonly receipts: FinanceReceiptService;
+  private readonly payments: FinancePaymentService;
+  private readonly invoices: FinanceInvoiceService;
+  private readonly ledger: FinanceLedgerService;
+  private readonly cashflowDomain: FinanceCashflowService;
 
-  async listReceipts(query: Record<string, string>, user?: RequestUser) {
+  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {
+    this.receipts = new FinanceReceiptService(this);
+    this.payments = new FinancePaymentService(this);
+    this.invoices = new FinanceInvoiceService(this);
+    this.ledger = new FinanceLedgerService(this);
+    this.cashflowDomain = new FinanceCashflowService(this);
+  }
+
+  listReceipts(query: Record<string, string>, user?: RequestUser) {
+    return this.receipts.list(query, user);
+  }
+
+  receiptDetail(id: string, user?: RequestUser) {
+    return this.receipts.detail(id, user);
+  }
+
+  uploadReceiptFile(id: string, file: ImportFile | undefined, actorId?: string, user?: RequestUser) {
+    return this.receipts.uploadFile(id, file, actorId, user);
+  }
+
+  deleteReceiptFile(id: string, user?: RequestUser) {
+    return this.receipts.deleteFile(id, user);
+  }
+
+  createReceipt(dto: AnyRecord, user?: RequestUser) {
+    return this.receipts.create(dto, user);
+  }
+
+  updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.receipts.update(id, dto, user);
+  }
+
+  deleteReceipt(id: string, user?: RequestUser) {
+    return this.receipts.delete(id, user);
+  }
+
+  approveReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.receipts.approve(id, dto, user);
+  }
+
+  rejectReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.receipts.reject(id, dto, user);
+  }
+
+  cancelReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.receipts.cancel(id, dto, user);
+  }
+
+  listPayments(query: Record<string, string>, user?: RequestUser) {
+    return this.payments.list(query, user);
+  }
+
+  paymentDetail(id: string, user?: RequestUser) {
+    return this.payments.detail(id, user);
+  }
+
+  uploadPaymentFile(id: string, file: ImportFile | undefined, actorId?: string, user?: RequestUser) {
+    return this.payments.uploadFile(id, file, actorId, user);
+  }
+
+  deletePaymentFile(id: string, user?: RequestUser) {
+    return this.payments.deleteFile(id, user);
+  }
+
+  createPayment(dto: AnyRecord, user?: RequestUser) {
+    return this.payments.create(dto, user);
+  }
+
+  updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.payments.update(id, dto, user);
+  }
+
+  deletePayment(id: string, user?: RequestUser) {
+    return this.payments.delete(id, user);
+  }
+
+  approvePayment(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.payments.approve(id, dto, user);
+  }
+
+  rejectPayment(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.payments.reject(id, dto, user);
+  }
+
+  cancelPayment(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.payments.cancel(id, dto, user);
+  }
+
+  listInvoices(query: Record<string, string>, user?: RequestUser) {
+    return this.invoices.list(query, user);
+  }
+
+  invoiceDetail(id: string, user?: RequestUser) {
+    return this.invoices.detail(id, user);
+  }
+
+  uploadInvoiceFile(id: string, file: ImportFile | undefined, actorId?: string, user?: RequestUser) {
+    return this.invoices.uploadFile(id, file, actorId, user);
+  }
+
+  deleteInvoiceFile(id: string, fileId: string, user?: RequestUser) {
+    return this.invoices.deleteFile(id, fileId, user);
+  }
+
+  createInvoice(dto: AnyRecord, user?: RequestUser) {
+    return this.invoices.create(dto, user);
+  }
+
+  updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.invoices.update(id, dto, user);
+  }
+
+  deleteInvoice(id: string, user?: RequestUser) {
+    return this.invoices.delete(id, user);
+  }
+
+  approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.invoices.approve(id, dto, user);
+  }
+
+  rejectInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.invoices.reject(id, dto, user);
+  }
+
+  cancelInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+    return this.invoices.cancel(id, dto, user);
+  }
+
+  cashflow(query: Record<string, string>, user?: RequestUser) {
+    return this.cashflowDomain.list(query, user);
+  }
+
+  exportReceipts(query: Record<string, string>, user?: RequestUser) {
+    return this.receipts.export(query, user);
+  }
+
+  exportPayments(query: Record<string, string>, user?: RequestUser) {
+    return this.payments.export(query, user);
+  }
+
+  exportInvoices(query: Record<string, string>, user?: RequestUser) {
+    return this.invoices.export(query, user);
+  }
+
+  exportCashflow(query: Record<string, string>, user?: RequestUser) {
+    return this.cashflowDomain.export(query, user);
+  }
+
+  customerDebt(query: Record<string, string>, user?: RequestUser) {
+    return this.ledger.customerDebt(query, user);
+  }
+
+  supplierDebt(query: Record<string, string>, user?: RequestUser) {
+    return this.ledger.supplierDebt(query, user);
+  }
+
+  createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
+    return this.ledger.createCustomerAdjustment(customerId, dto, user);
+  }
+
+  createSupplierDebtAdjustment(supplierId: string, dto: AnyRecord, user?: RequestUser) {
+    return this.ledger.createSupplierAdjustment(supplierId, dto, user);
+  }
+
+  importReceipts(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+    return this.receipts.import(dto, file, user);
+  }
+
+  importPayments(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+    return this.payments.import(dto, file, user);
+  }
+
+  async listReceiptsCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
     const rows = await this.prisma.financeReceipt.findMany({
       where,
@@ -30,13 +211,13 @@ export class FinanceService {
     return { rows, summary: receiptSummary(summaryRows) };
   }
 
-  async receiptDetail(id: string, user?: RequestUser) {
+  async receiptDetailCore(id: string, user?: RequestUser) {
     const row = await this.prisma.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true, cashflowEntries: true } });
     if (!row) throw new NotFoundException('Receipt not found');
     return row;
   }
 
-  async uploadReceiptFile(
+  async uploadReceiptFileCore(
     id: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     actorId?: string,
@@ -55,14 +236,14 @@ export class FinanceService {
     }
   }
 
-  async deleteReceiptFile(id: string, user?: RequestUser) {
+  async deleteReceiptFileCore(id: string, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     const objectKey = this.objectKey(current.attachmentUrl);
     if (objectKey) await this.filesService.remove(objectKey);
     return this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
   }
 
-  async createReceipt(dto: AnyRecord, user?: RequestUser) {
+  async createReceiptCore(dto: AnyRecord, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
     return this.prisma.$transaction(async (tx) => {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
@@ -72,7 +253,7 @@ export class FinanceService {
     });
   }
 
-  async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+  async updateReceiptCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     dto = applyWriteDataScope(dto, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) {
@@ -90,13 +271,13 @@ export class FinanceService {
     });
   }
 
-  async deleteReceipt(id: string, user?: RequestUser) {
+  async deleteReceiptCore(id: string, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED) throw new BadRequestException('Approved receipt cannot be deleted');
     return this.prisma.financeReceipt.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async approveReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+  async approveReceiptCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
@@ -118,11 +299,11 @@ export class FinanceService {
     });
   }
 
-  async rejectReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+  async rejectReceiptCore(id: string, dto: AnyRecord, user?: RequestUser) {
     return this.changeReceiptStatus(id, 'REJECTED', dto, user, 'Receipt');
   }
 
-  async cancelReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
+  async cancelReceiptCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Cancel approved receipt';
     return this.prisma.$transaction(async (tx) => {
@@ -165,7 +346,7 @@ export class FinanceService {
     });
   }
 
-  async listPayments(query: Record<string, string>, user?: RequestUser) {
+  async listPaymentsCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
     const rows = await this.prisma.financePayment.findMany({
       where,
@@ -180,7 +361,7 @@ export class FinanceService {
     return { rows, summary: paymentSummary(summaryRows) };
   }
 
-  async paymentDetail(id: string, user?: RequestUser) {
+  async paymentDetailCore(id: string, user?: RequestUser) {
     const row = await this.prisma.financePayment.findFirst({
       where: branchDepartmentScopeWhere({ id, deletedAt: null }, user),
       include: {
@@ -193,7 +374,7 @@ export class FinanceService {
     return row;
   }
 
-  async uploadPaymentFile(
+  async uploadPaymentFileCore(
     id: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     actorId?: string,
@@ -212,14 +393,14 @@ export class FinanceService {
     }
   }
 
-  async deletePaymentFile(id: string, user?: RequestUser) {
+  async deletePaymentFileCore(id: string, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     const objectKey = this.objectKey(current.attachmentUrl);
     if (objectKey) await this.filesService.remove(objectKey);
     return this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
   }
 
-  async createPayment(dto: AnyRecord, user?: RequestUser) {
+  async createPaymentCore(dto: AnyRecord, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
@@ -229,7 +410,7 @@ export class FinanceService {
     });
   }
 
-  async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
+  async updatePaymentCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     dto = applyWriteDataScope(dto, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) {
@@ -242,13 +423,13 @@ export class FinanceService {
     });
   }
 
-  async deletePayment(id: string, user?: RequestUser) {
+  async deletePaymentCore(id: string, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED) throw new BadRequestException('Approved payment cannot be deleted');
     return this.prisma.financePayment.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async approvePayment(id: string, dto: AnyRecord, user?: RequestUser) {
+  async approvePaymentCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
@@ -299,11 +480,11 @@ export class FinanceService {
     });
   }
 
-  async rejectPayment(id: string, dto: AnyRecord, user?: RequestUser) {
+  async rejectPaymentCore(id: string, dto: AnyRecord, user?: RequestUser) {
     return this.changePaymentStatus(id, 'REJECTED', dto, user, 'Payment');
   }
 
-  async cancelPayment(id: string, dto: AnyRecord, user?: RequestUser) {
+  async cancelPaymentCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Cancel approved payment';
     return this.prisma.$transaction(async (tx) => {
@@ -328,7 +509,7 @@ export class FinanceService {
     });
   }
 
-  async listInvoices(query: Record<string, string>, user?: RequestUser) {
+  async listInvoicesCore(query: Record<string, string>, user?: RequestUser) {
     const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
     const rows = await this.prisma.financeInvoice.findMany({
       where,
@@ -340,13 +521,13 @@ export class FinanceService {
     return { rows, summary: invoiceSummary(summaryRows) };
   }
 
-  async invoiceDetail(id: string, user?: RequestUser) {
+  async invoiceDetailCore(id: string, user?: RequestUser) {
     const row = await this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), include: { items: true, files: true } });
     if (!row) throw new NotFoundException('Invoice not found');
     return row;
   }
 
-  async uploadInvoiceFile(
+  async uploadInvoiceFileCore(
     id: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     actorId?: string,
@@ -363,7 +544,7 @@ export class FinanceService {
     }
   }
 
-  async deleteInvoiceFile(id: string, fileId: string) {
+  async deleteInvoiceFileCore(id: string, fileId: string) {
     await this.invoiceDetail(id);
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Invoice file not found');
@@ -372,7 +553,7 @@ export class FinanceService {
     return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
   }
 
-  async createInvoice(dto: AnyRecord, user?: RequestUser) {
+  async createInvoiceCore(dto: AnyRecord, user?: RequestUser) {
     return this.prisma.$transaction(async (tx) => {
       await this.assertInvoiceWriteScope(tx, dto, user);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
@@ -383,7 +564,7 @@ export class FinanceService {
     });
   }
 
-  async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+  async updateInvoiceCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.invoiceDetail(id, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) throw new BadRequestException('Approved invoice amount cannot be edited');
     return this.prisma.$transaction(async (tx) => {
@@ -395,13 +576,13 @@ export class FinanceService {
     });
   }
 
-  async deleteInvoice(id: string, user?: RequestUser) {
+  async deleteInvoiceCore(id: string, user?: RequestUser) {
     const current = await this.invoiceDetail(id, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED) throw new BadRequestException('Approved invoice cannot be deleted');
     return this.prisma.financeInvoice.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+  async approveInvoiceCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id }, user) });
@@ -415,7 +596,7 @@ export class FinanceService {
     });
   }
 
-  async rejectInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+  async rejectInvoiceCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id }, user) });
@@ -427,7 +608,7 @@ export class FinanceService {
     });
   }
 
-  async cancelInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+  async cancelInvoiceCore(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Cancel approved invoice';
     return this.prisma.$transaction(async (tx) => {
@@ -446,7 +627,7 @@ export class FinanceService {
     });
   }
 
-  async cashflow(query: Record<string, string>, user?: RequestUser) {
+  async cashflowCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
     const rows = await this.prisma.financeCashflowEntry.findMany({ where, orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
     const totalReceipt = rows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
@@ -461,27 +642,27 @@ export class FinanceService {
     return { rows, summary: { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment, byMethod: Array.from(byMethod.values()) } };
   }
 
-  async exportReceipts(query: Record<string, string>, user?: RequestUser) {
+  async exportReceiptsCore(query: Record<string, string>, user?: RequestUser) {
     const { rows } = await this.listReceipts({ ...query, take: '1000' }, user);
     return this.csv(rows, ['receiptCode', 'receiptName', 'receiptType', 'paymentDate', 'paymentMethod', 'payerName', 'payerPhone', 'totalAmount', 'paidBefore', 'receiptAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
   }
 
-  async exportPayments(query: Record<string, string>, user?: RequestUser) {
+  async exportPaymentsCore(query: Record<string, string>, user?: RequestUser) {
     const { rows } = await this.listPayments({ ...query, take: '1000' }, user);
     return this.csv(rows, ['voucherCode', 'voucherName', 'voucherType', 'paymentDate', 'paymentMethod', 'receiverName', 'receiverPhone', 'totalAmount', 'paymentAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
   }
 
-  async exportInvoices(query: Record<string, string>, user?: RequestUser) {
+  async exportInvoicesCore(query: Record<string, string>, user?: RequestUser) {
     const { rows } = await this.listInvoices({ ...query, take: '1000' }, user);
     return this.csv(rows, ['invoiceCode', 'invoiceNumber', 'customerName', 'taxCode', 'companyName', 'tourCode', 'tourName', 'issuedDate', 'totalBeforeTax', 'totalTax', 'totalAfterTax', 'invoiceType', 'taxAuthorityCode', 'approvalStatus']);
   }
 
-  async exportCashflow(query: Record<string, string>, user?: RequestUser) {
+  async exportCashflowCore(query: Record<string, string>, user?: RequestUser) {
     const { rows } = await this.cashflow({ ...query, take: '2000' }, user);
     return this.csv(rows, ['sourceType', 'entryType', 'amount', 'paymentMethod', 'paymentDate', 'branch', 'department', 'staff', 'orderId', 'supplierId', 'customerId', 'note']);
   }
 
-  async customerDebt(query: Record<string, string>, user?: RequestUser) {
+  async customerDebtCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
@@ -500,7 +681,7 @@ export class FinanceService {
     return { rows: this.customerDebtRows(entries), entries, summary: this.ledgerSummary(entries) };
   }
 
-  async supplierDebt(query: Record<string, string>, user?: RequestUser) {
+  async supplierDebtCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere<Prisma.SupplierLedgerEntryWhereInput>({
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
@@ -519,7 +700,7 @@ export class FinanceService {
     return { rows: this.supplierDebtRows(entries), entries, summary: this.supplierLedgerSummary(entries) };
   }
 
-  async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
+  async createCustomerDebtAdjustmentCore(customerId: string, dto: AnyRecord, user?: RequestUser) {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: customerId, mergedIntoId: null }, user), select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
@@ -550,7 +731,7 @@ export class FinanceService {
     });
   }
 
-  async createSupplierDebtAdjustment(supplierId: string, dto: AnyRecord, user?: RequestUser) {
+  async createSupplierDebtAdjustmentCore(supplierId: string, dto: AnyRecord, user?: RequestUser) {
     const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } });
     if (!supplier) throw new NotFoundException('Supplier not found');
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
@@ -581,7 +762,7 @@ export class FinanceService {
     });
   }
 
-  async importReceipts(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+  async importReceiptsCore(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     const rows = this.financeImportRows(dto, file).map((row, index) => this.validateReceiptImportRow(row, index + 2));
     await this.assertImportCodesAvailable('receipts', rows, 'receiptCode');
     return this.prisma.$transaction(async (tx) => {
@@ -597,7 +778,7 @@ export class FinanceService {
     });
   }
 
-  async importPayments(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+  async importPaymentsCore(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     const rows = this.financeImportRows(dto, file).map((row, index) => this.validatePaymentImportRow(row, index + 2));
     await this.assertImportCodesAvailable('payments', rows, 'voucherCode');
     return this.prisma.$transaction(async (tx) => {
