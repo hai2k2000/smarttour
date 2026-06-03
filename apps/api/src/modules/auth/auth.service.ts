@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from 'crypto';
+import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { AuthSessionService } from './auth-session.service';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -23,7 +24,7 @@ const DEFAULT_PERMISSIONS = [
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly sessions: AuthSessionService) {}
 
   async bootstrap(dto: AnyRecord, request?: { headers?: Record<string, string | string[] | undefined>; ip?: string }) {
     const userCount = await this.prisma.user.count();
@@ -68,7 +69,7 @@ export class AuthService {
         include: this.userInclude(),
       });
       await this.audit(tx, user.id, 'BOOTSTRAP', 'User', user.id, { email });
-      return this.issueSession(tx, user.id, request);
+      return this.sessionResponse(tx, user.id, request);
     });
   }
 
@@ -83,13 +84,13 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
       await this.audit(tx, user.id, 'LOGIN', 'User', user.id, {});
-      return this.issueSession(tx, user.id, request);
+      return this.sessionResponse(tx, user.id, request);
     });
   }
 
   async logout(token?: string, actorId?: string) {
     if (!token) return { ok: true };
-    await this.prisma.userSession.updateMany({ where: { tokenHash: this.tokenHash(token), revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.sessions.revokeToken(token);
     if (actorId) await this.prisma.auditLog.create({ data: { actorId, action: 'LOGOUT', entity: 'User', entityId: actorId } });
     return { ok: true };
   }
@@ -108,7 +109,7 @@ export class AuthService {
     if (!user || !this.verifyPassword(currentPassword, user.passwordHash)) throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash: this.hashPassword(newPassword) } });
-      if (token) await tx.userSession.updateMany({ where: { userId, tokenHash: { not: this.tokenHash(token) }, revokedAt: null }, data: { revokedAt: new Date() } });
+      await this.sessions.revokeOtherUserSessions(userId, token, tx);
       await this.audit(tx, userId, 'CHANGE_PASSWORD', 'User', userId, {});
     });
     return { ok: true };
@@ -119,13 +120,7 @@ export class AuthService {
   }
 
   async validateToken(token?: string | null) {
-    if (!token) throw new UnauthorizedException('Thiếu token đăng nhập');
-    const session = await this.prisma.userSession.findFirst({
-      where: { tokenHash: this.tokenHash(token), revokedAt: null, expiresAt: { gt: new Date() } },
-      include: { user: { include: this.userInclude() } },
-    });
-    if (!session || session.user.status !== 'ACTIVE') throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
-    return session;
+    return this.sessions.validateToken(token, { user: { include: this.userInclude() } });
   }
 
   hasPermissions(user: { roles?: Array<{ role?: { permissions?: Array<{ permission: string }> } }> }, required: string[]) {
@@ -232,19 +227,8 @@ export class AuthService {
     });
   }
 
-  private async issueSession(tx: Prisma.TransactionClient, userId: string, request?: { headers?: Record<string, string | string[] | undefined>; ip?: string }) {
-    const token = `${randomBytes(32).toString('base64url')}.${randomBytes(32).toString('base64url')}`;
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + Number(process.env.SMARTTOUR_SESSION_DAYS || 14));
-    await tx.userSession.create({
-      data: {
-        userId,
-        tokenHash: this.tokenHash(token),
-        expiresAt,
-        userAgent: this.header(request, 'user-agent'),
-        ipAddress: request?.ip,
-      },
-    });
+  private async sessionResponse(tx: Prisma.TransactionClient, userId: string, request?: { headers?: Record<string, string | string[] | undefined>; ip?: string }) {
+    const { token, expiresAt } = await this.sessions.issueSession(tx, userId, request);
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, include: this.userInclude() });
     return { token, expiresAt, user: this.safeUser(user) };
   }
@@ -262,10 +246,6 @@ export class AuthService {
     const candidate = pbkdf2Sync(password, salt, Number(iterations), 32, 'sha256');
     const expected = Buffer.from(hash, 'base64url');
     return expected.length === candidate.length && timingSafeEqual(expected, candidate);
-  }
-
-  private tokenHash(token: string) {
-    return createHash('sha256').update(token).digest('hex');
   }
 
   private userInclude() {
@@ -296,11 +276,6 @@ export class AuthService {
 
   private async audit(tx: Prisma.TransactionClient, actorId: string | undefined, action: string, entity: string, entityId: string, metadata?: unknown) {
     await tx.auditLog.create({ data: { actorId, action, entity, entityId, metadata: metadata === undefined ? undefined : (metadata as Prisma.InputJsonValue) } });
-  }
-
-  private header(request: { headers?: Record<string, string | string[] | undefined> } | undefined, name: string) {
-    const value = request?.headers?.[name];
-    return Array.isArray(value) ? value.join(', ') : value;
   }
 
   private stringArray(value: unknown) {
