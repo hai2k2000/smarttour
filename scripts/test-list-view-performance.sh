@@ -36,6 +36,9 @@ const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.s
 const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
 const { FinanceService } = require('./apps/api/dist/modules/finance/finance.service');
 const { CommissionReportsService } = require('./apps/api/dist/modules/commission-reports/commission-reports.service');
+const { CustomersService } = require('./apps/api/dist/modules/customers/customers.service');
+const { ToursService } = require('./apps/api/dist/modules/tours/tours.service');
+const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -63,6 +66,26 @@ async function main() {
   const tourProgram = await prisma.tourProgram.create({
     data: { code: run + '-TP', name: 'List Perf Program', route: 'Ha Noi - Ha Long', durationDays: 3 },
   });
+  await prisma.customer.createMany({
+    data: Array.from({ length: rows }, (_, index) => ({
+      code: `${run}-CUS-${index}`,
+      fullName: `List Perf Customer ${index}`,
+      phone: `097${String(Date.now()).slice(-4)}${String(index).padStart(4, '0')}`,
+      email: `${run.toLowerCase()}-${index}@smarttour.local`,
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      owner: 'sales-a',
+    })),
+  });
+  await prisma.tourProgram.createMany({
+    data: Array.from({ length: rows }, (_, index) => ({
+      code: `${run}-TP-${index}`,
+      name: `List Perf Program ${index}`,
+      route: 'Ha Noi - Ha Long',
+      durationDays: 3,
+      description: 'Perf program list row',
+    })),
+  });
   const supplierCategory = await prisma.supplierCategory.create({ data: { name: run + '-SUP-CAT' } });
   const supplier = await prisma.supplier.create({
     data: { categoryId: supplierCategory.id, supplierCode: run + '-SUP', name: 'List Perf Supplier', status: 'ACTIVE' },
@@ -89,6 +112,21 @@ async function main() {
       members: { create: { fullName: `Guest ${index}` } },
     },
   })));
+
+  await prisma.tour.createMany({
+    data: orders.map((order, index) => ({
+      type: 'FIT',
+      systemCode: `${run}-TOUR-SYS-${index}`,
+      orderId: order.id,
+      tourCode: `${run}-T-${index}`,
+      name: `Perf Tour ${index}`,
+      status: 'UPCOMING',
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      startDate: new Date('2027-01-01'),
+      endDate: new Date('2027-01-03'),
+    })),
+  });
 
   await prisma.booking.createMany({
     data: orders.map((order, index) => ({
@@ -160,9 +198,21 @@ async function main() {
   const vouchersService = new OperationVouchersService(prisma);
   const financeService = new FinanceService(prisma, {});
   const commissionService = new CommissionReportsService(prisma);
+  const customersService = new CustomersService(prisma, {});
+  const toursService = new ToursService(prisma);
+  const tourProgramsService = new TourProgramsService(prisma);
 
   const orderRows = await timed('orders.list', () => ordersService.list('fit-tours', run), maxMs);
   assert(orderRows[0]._count && !orderRows[0].salesItems, 'orders list should not include child arrays');
+
+  const customerResult = await timed('customers.list', () => customersService.list({ search: run, take: String(rows) }), maxMs);
+  assert(customerResult.rows[0]._count && !customerResult.rows[0].contacts, 'customers list should not include contact/task arrays');
+
+  const tourRows = await timed('tours.list', () => toursService.list(run), maxMs);
+  assert(tourRows[0]._count && !tourRows[0].services, 'tours list should not include deep service arrays');
+
+  const tourProgramRows = await timed('tourPrograms.list', () => tourProgramsService.list(run), maxMs);
+  assert(tourProgramRows[0]._count && !tourProgramRows[0].itineraryDays[0]?.description, 'tour program list should only include itinerary preview fields');
 
   const bookingRows = await timed('bookings.list', () => bookingsService.list(run), maxMs);
   assert(bookingRows[0].tourProgram && !bookingRows[0].tourProgram.itineraryDays, 'bookings list should not include itinerary days');

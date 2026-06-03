@@ -10,6 +10,21 @@ import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 export class TourProgramsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listSelect() {
+    return {
+      id: true,
+      code: true,
+      name: true,
+      route: true,
+      durationDays: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+      itineraryDays: { orderBy: { dayNumber: 'asc' as const }, select: { id: true, dayNumber: true, title: true } },
+      _count: { select: { bookings: true } },
+    } satisfies Prisma.TourProgramSelect;
+  }
+
   list(search?: string) {
     const where: Prisma.TourProgramWhereInput = search
       ? {
@@ -23,10 +38,7 @@ export class TourProgramsService {
 
     return this.prisma.tourProgram.findMany({
       where,
-      include: {
-        itineraryDays: { orderBy: { dayNumber: 'asc' } },
-        _count: { select: { bookings: true } },
-      },
+      select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }],
     });
   }

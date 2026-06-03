@@ -4,6 +4,27 @@ const path = require('path');
 const root = process.cwd();
 const checks = [
   {
+    file: 'apps/api/src/modules/tours/tours.service.ts',
+    sectionStart: 'list(search?: string',
+    sectionEnd: 'async detail',
+    must: ['private listSelect()', 'select: this.listSelect()'],
+    forbidden: ['include: {\n        order: true', 'fitTour: true,'],
+  },
+  {
+    file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
+    sectionStart: 'list(search?: string',
+    sectionEnd: 'async detail',
+    must: ['private listSelect()', 'select: this.listSelect()'],
+    forbidden: ['itineraryDays: { orderBy: { dayNumber: \'asc\' } }'],
+  },
+  {
+    file: 'apps/api/src/modules/customers/customers.service.ts',
+    sectionStart: 'async list(query',
+    sectionEnd: 'async dashboard',
+    must: ['private listSelect()', 'select: this.listSelect()'],
+    forbidden: ['include: customerInclude'],
+  },
+  {
     file: 'apps/api/src/modules/bookings/bookings.service.ts',
     sectionStart: 'list(search?: string',
     sectionEnd: 'async detail',

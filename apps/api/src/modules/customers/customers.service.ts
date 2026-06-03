@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CustomerStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { FilesService } from '../files/files.service';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -14,18 +15,43 @@ const customerInclude = {
   comments: { orderBy: { createdAt: 'desc' as const }, take: 5 },
   callLogs: { orderBy: { calledAt: 'desc' as const }, take: 5 },
   opportunities: { orderBy: { createdAt: 'desc' as const } },
+  files: { orderBy: { createdAt: 'desc' as const } },
 };
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
+
+  private listSelect() {
+    return {
+      id: true,
+      code: true,
+      fullName: true,
+      phone: true,
+      email: true,
+      kind: true,
+      status: true,
+      source: true,
+      market: true,
+      owner: true,
+      branch: true,
+      department: true,
+      latestComment: true,
+      createdAt: true,
+      updatedAt: true,
+      type: { select: { id: true, code: true, name: true } },
+      campaign: { select: { id: true, code: true, name: true, isActive: true } },
+      tags: { select: { tag: { select: { id: true, name: true, color: true } } } },
+      _count: { select: { contacts: true, careTasks: true, comments: true, callLogs: true, opportunities: true } },
+    } satisfies Prisma.CustomerSelect;
+  }
 
   async list(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.customerWhere(query), user);
     const [rows, total, dashboard, types, tags, campaigns] = await Promise.all([
       this.prisma.customer.findMany({
         where,
-        include: customerInclude,
+        select: this.listSelect(),
         orderBy: { createdAt: 'desc' },
         take: this.take(query.take),
       }),
@@ -169,6 +195,33 @@ export class CustomersService {
     if (!customer) throw new NotFoundException('Customer not found');
     const [orders, quotes, debts, timeline] = await Promise.all([this.orders(id, user), this.quotes(id, user), this.debts(id, user), this.timeline(id)]);
     return { ...customer, related: { orders: orders.rows, quotes: quotes.rows, debts, timeline: timeline.rows } };
+  }
+
+  async addFile(
+    id: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+    user?: RequestUser,
+  ) {
+    await this.getCustomer(id, user);
+    const upload = await this.filesService.upload(file, `customers/${id}`, actorId);
+    try {
+      return await this.prisma.customerFile.create({
+        data: { customerId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+      });
+    } catch (error) {
+      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async deleteFile(id: string, fileId: string, user?: RequestUser) {
+    await this.getCustomer(id, user);
+    const file = await this.prisma.customerFile.findFirst({ where: { id: fileId, customerId: id } });
+    if (!file) throw new NotFoundException('Customer file not found');
+    const objectKey = this.objectKey(file.fileUrl);
+    if (objectKey) await this.filesService.remove(objectKey);
+    return this.prisma.customerFile.delete({ where: { id: fileId } });
   }
 
   async create(dto: AnyRecord, user?: RequestUser) {
@@ -532,6 +585,10 @@ export class CustomersService {
 
   private take(value: unknown) {
     return Math.min(Math.max(this.int(value) || 50, 1), 1000);
+  }
+
+  private objectKey(fileUrl?: string | null) {
+    return fileUrl ? new URL(fileUrl, 'http://smarttour.local').searchParams.get('key') : null;
   }
 
   private slug(value: string) {

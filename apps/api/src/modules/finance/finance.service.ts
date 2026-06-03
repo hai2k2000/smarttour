@@ -486,7 +486,17 @@ export class FinanceService {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const entries = await this.prisma.customerLedgerEntry.findMany({ where, include: { customer: true, order: true, receipt: true, invoice: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
+    const entries = await this.prisma.customerLedgerEntry.findMany({
+      where,
+      include: {
+        customer: { select: { id: true, code: true, fullName: true, phone: true } },
+        order: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+        receipt: { select: { id: true, receiptCode: true, receiptName: true } },
+        invoice: { select: { id: true, invoiceCode: true, invoiceNumber: true } },
+      },
+      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+      take: this.take(query.take),
+    });
     return { rows: this.customerDebtRows(entries), entries, summary: this.ledgerSummary(entries) };
   }
 
@@ -495,7 +505,17 @@ export class FinanceService {
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const entries = await this.prisma.supplierLedgerEntry.findMany({ where, include: { supplier: true, order: true, operationVoucher: true, payment: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
+    const entries = await this.prisma.supplierLedgerEntry.findMany({
+      where,
+      include: {
+        supplier: { select: { id: true, supplierCode: true, name: true, phone: true } },
+        order: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+        operationVoucher: { select: { id: true, voucherCode: true, serviceName: true, status: true } },
+        payment: { select: { id: true, voucherCode: true, voucherName: true } },
+      },
+      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+      take: this.take(query.take),
+    });
     return { rows: this.supplierDebtRows(entries), entries, summary: this.supplierLedgerSummary(entries) };
   }
 

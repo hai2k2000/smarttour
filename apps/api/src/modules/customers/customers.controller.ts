@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -87,6 +88,23 @@ export class CustomersController {
   @Header('Content-Disposition', 'attachment; filename="smarttour-customers.csv"')
   export(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
     return this.service.exportCsv(query, request.user);
+  }
+
+  @Post(':id/files')
+  @RequirePermissions('customer.manage')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  addFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.service.addFile(id, file, request.user?.id, request.user);
+  }
+
+  @Delete(':id/files/:fileId')
+  @RequirePermissions('customer.manage')
+  removeFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request: { user?: RequestUser }) {
+    return this.service.deleteFile(id, fileId, request.user);
   }
 
   @Get(':id')

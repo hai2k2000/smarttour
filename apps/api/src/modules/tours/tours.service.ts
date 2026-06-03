@@ -29,6 +29,43 @@ const tourInclude = {
 export class ToursService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listSelect() {
+    return {
+      id: true,
+      type: true,
+      status: true,
+      paymentStatus: true,
+      workflowStep: true,
+      systemCode: true,
+      orderId: true,
+      tourCode: true,
+      name: true,
+      marketGroup: true,
+      productType: true,
+      bookingDate: true,
+      paymentDueDate: true,
+      startDate: true,
+      endDate: true,
+      createdBy: true,
+      operatorOwner: true,
+      branch: true,
+      department: true,
+      route: true,
+      updatedAt: true,
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      fitTour: { select: { id: true, quoteCode: true, tourCode: true, customerName: true, workflowStatus: true } },
+      _count: {
+        select: {
+          customers: true,
+          services: true,
+          revenues: true,
+          costs: true,
+          attachments: true,
+        },
+      },
+    } satisfies Prisma.TourSelect;
+  }
+
   list(search?: string, type?: TourType, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
       ...(type ? { type } : {}),
@@ -48,19 +85,7 @@ export class ToursService {
 
     return this.prisma.tour.findMany({
       where: branchDepartmentScopeWhere(where, user),
-      include: {
-        order: true,
-        fitTour: true,
-        _count: {
-          select: {
-            customers: true,
-            services: true,
-            revenues: true,
-            costs: true,
-            attachments: true,
-          },
-        },
-      },
+      select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
   }
