@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { createInvoiceReversalCustomerLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
 import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
@@ -133,37 +134,7 @@ export class FinanceService {
           note: receipt.reason,
         },
       });
-      if (customerId) {
-        await tx.customerLedgerEntry.upsert({
-          where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_RECEIPT', sourceId: id, entryType: 'CREDIT' } },
-          create: {
-            customerId,
-            receiptId: id,
-            orderId: receipt.orders.find((line) => line.orderId)?.orderId,
-            sourceType: 'FINANCE_RECEIPT',
-            sourceId: id,
-            entryType: 'CREDIT',
-            creditAmount: receipt.receiptAmount,
-            documentCode: receipt.receiptCode,
-            documentDate: receipt.paymentDate || new Date(),
-            branch: receipt.branch,
-            department: receipt.department,
-            staff: receipt.assignedStaff,
-            description: receipt.reason || receipt.receiptName,
-            createdBy: actor,
-          },
-          update: {
-            customerId,
-            creditAmount: receipt.receiptAmount,
-            documentCode: receipt.receiptCode,
-            documentDate: receipt.paymentDate || new Date(),
-            branch: receipt.branch,
-            department: receipt.department,
-            staff: receipt.assignedStaff,
-            description: receipt.reason || receipt.receiptName,
-          },
-        });
-      }
+      await upsertReceiptCustomerLedger(tx, receipt, customerId, actor);
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, Number(line.amount));
       }
@@ -213,12 +184,7 @@ export class FinanceService {
         data: { sourceType: 'RECEIPT_REVERSAL', sourceId: reversal.id, entryType: 'PAYMENT', amount: receipt.receiptAmount, paymentMethod: receipt.paymentMethod, paymentDate: new Date(), branch: receipt.branch, department: receipt.department, staff: actor, customerId: receipt.customerId, receiptId: reversal.id, note: reason },
       });
       const customerId = await resolveReceiptCustomer(tx, receipt);
-      if (customerId) {
-        const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_RECEIPT', sourceId: id, entryType: 'CREDIT' } } });
-        await tx.customerLedgerEntry.create({
-          data: { customerId, receiptId: reversal.id, sourceType: 'FINANCE_RECEIPT', sourceId: reversal.id, entryType: 'REVERSAL', debitAmount: receipt.receiptAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor },
-        });
-      }
+      await createReceiptReversalCustomerLedger(tx, receipt, reversal.id, customerId, reversalCode, reason, actor);
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, -Number(line.amount));
       }
@@ -499,31 +465,7 @@ export class FinanceService {
       if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
       const customerId = await resolveInvoiceCustomer(tx, invoice);
-      if (customerId) {
-        await tx.customerLedgerEntry.upsert({
-          where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } },
-          create: {
-            customerId,
-            invoiceId: id,
-            orderId: invoice.orderId,
-            sourceType: 'FINANCE_INVOICE',
-            sourceId: id,
-            entryType: 'DEBIT',
-            debitAmount: invoice.totalAfterTax,
-            documentCode: invoice.invoiceNumber || invoice.invoiceCode,
-            documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
-            description: invoice.note || invoice.companyName || invoice.customerName,
-            createdBy: actor,
-          },
-          update: {
-            customerId,
-            debitAmount: invoice.totalAfterTax,
-            documentCode: invoice.invoiceNumber || invoice.invoiceCode,
-            documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
-            description: invoice.note || invoice.companyName || invoice.customerName,
-          },
-        });
-      }
+      await upsertInvoiceCustomerLedger(tx, invoice, customerId, actor);
       await this.audit(tx, 'APPROVE', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
       return invoice;
     });
@@ -552,10 +494,7 @@ export class FinanceService {
       });
       await tx.financeInvoice.update({ where: { id }, data: { status: 'CANCELLED', approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
       const customerId = await resolveInvoiceCustomer(tx, invoice);
-      if (customerId) {
-        const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } } });
-        await tx.customerLedgerEntry.create({ data: { customerId, invoiceId: reversal.id, orderId: invoice.orderId, sourceType: 'FINANCE_INVOICE', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: invoice.totalAfterTax, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
-      }
+      await createInvoiceReversalCustomerLedger(tx, invoice, reversal.id, customerId, reversalCode, reason, actor);
       await this.audit(tx, 'CANCEL', 'FinanceInvoice', id, { actor, reason, reversalId: reversal.id });
       return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
     });
