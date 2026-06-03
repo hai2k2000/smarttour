@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { FinanceApprovalStatus, FinanceCashflowEntryType, FinanceInvoiceStatus, OrderCostStatus, OrderPaymentStatus, Prisma } from '@prisma/client';
+import { FinanceApprovalStatus, FinanceCashflowEntryType, FinanceInvoiceStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
@@ -102,7 +103,7 @@ export class FinanceService {
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
         include: { orders: true },
       });
-      const customerId = await this.resolveReceiptCustomer(tx, receipt);
+      const customerId = await resolveReceiptCustomer(tx, receipt);
       await tx.financeCashflowEntry.upsert({
         where: { sourceType_sourceId: { sourceType: 'RECEIPT', sourceId: id } },
         create: {
@@ -163,7 +164,7 @@ export class FinanceService {
         });
       }
       for (const line of receipt.orders) {
-        if (line.orderId) await this.applyOrderReceipt(tx, line.orderId, Number(line.amount));
+        if (line.orderId) await applyOrderReceipt(tx, line.orderId, Number(line.amount));
       }
       await this.audit(tx, 'APPROVE', 'FinanceReceipt', id, { actor, note: this.text(dto.note) });
       return receipt;
@@ -210,7 +211,7 @@ export class FinanceService {
       await tx.financeCashflowEntry.create({
         data: { sourceType: 'RECEIPT_REVERSAL', sourceId: reversal.id, entryType: 'PAYMENT', amount: receipt.receiptAmount, paymentMethod: receipt.paymentMethod, paymentDate: new Date(), branch: receipt.branch, department: receipt.department, staff: actor, customerId: receipt.customerId, receiptId: reversal.id, note: reason },
       });
-      const customerId = await this.resolveReceiptCustomer(tx, receipt);
+      const customerId = await resolveReceiptCustomer(tx, receipt);
       if (customerId) {
         const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_RECEIPT', sourceId: id, entryType: 'CREDIT' } } });
         await tx.customerLedgerEntry.create({
@@ -218,7 +219,7 @@ export class FinanceService {
         });
       }
       for (const line of receipt.orders) {
-        if (line.orderId) await this.applyOrderReceipt(tx, line.orderId, -Number(line.amount));
+        if (line.orderId) await applyOrderReceipt(tx, line.orderId, -Number(line.amount));
       }
       await this.audit(tx, 'CANCEL', 'FinanceReceipt', id, { actor, reason, reversalId: reversal.id });
       return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
@@ -321,7 +322,7 @@ export class FinanceService {
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
       });
-      const supplierId = await this.resolvePaymentSupplier(tx, payment);
+      const supplierId = await resolvePaymentSupplier(tx, payment);
       await tx.financeCashflowEntry.upsert({
         where: { sourceType_sourceId: { sourceType: 'PAYMENT', sourceId: id } },
         create: {
@@ -384,7 +385,7 @@ export class FinanceService {
           },
         });
       }
-      if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
+      if (payment.orderId) await applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
       await this.reconcileApprovedPayment(tx, payment);
       await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) });
       return payment;
@@ -411,12 +412,12 @@ export class FinanceService {
       await tx.financeCashflowEntry.create({
         data: { sourceType: 'PAYMENT_REVERSAL', sourceId: reversal.id, entryType: 'RECEIPT', amount: payment.paymentAmount, paymentMethod: payment.paymentMethod, paymentDate: new Date(), branch: payment.branch, department: payment.department, staff: actor, orderId: payment.orderId, supplierId: payment.supplierId, paymentId: reversal.id, note: reason },
       });
-      const supplierId = await this.resolvePaymentSupplier(tx, payment);
+      const supplierId = await resolvePaymentSupplier(tx, payment);
       if (supplierId) {
         const original = await tx.supplierLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } } });
         await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
       }
-      if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
+      if (payment.orderId) await applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
       await this.reconcileCancelledPayment(tx, payment);
       await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id });
       return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
@@ -496,7 +497,7 @@ export class FinanceService {
       if (!current) throw new NotFoundException('Invoice not found');
       if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
-      const customerId = await this.resolveInvoiceCustomer(tx, invoice);
+      const customerId = await resolveInvoiceCustomer(tx, invoice);
       if (customerId) {
         await tx.customerLedgerEntry.upsert({
           where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } },
@@ -549,7 +550,7 @@ export class FinanceService {
         data: { invoiceCode: reversalCode, systemCode: invoice.systemCode, orderId: invoice.orderId, receiptId: invoice.receiptId, customerId: invoice.customerId, customerName: invoice.customerName, customerPhone: invoice.customerPhone, customerEmail: invoice.customerEmail, invoiceType: 'ADJUSTMENT', issuedDate: new Date(), totalBeforeTax: invoice.totalBeforeTax, totalTax: invoice.totalTax, totalAfterTax: invoice.totalAfterTax, amountInWords: invoice.amountInWords, status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), reversalOfId: id, note: reason, createdBy: actor },
       });
       await tx.financeInvoice.update({ where: { id }, data: { status: 'CANCELLED', approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      const customerId = await this.resolveInvoiceCustomer(tx, invoice);
+      const customerId = await resolveInvoiceCustomer(tx, invoice);
       if (customerId) {
         const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } } });
         await tx.customerLedgerEntry.create({ data: { customerId, invoiceId: reversal.id, orderId: invoice.orderId, sourceType: 'FINANCE_INVOICE', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: invoice.totalAfterTax, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
@@ -871,37 +872,6 @@ export class FinanceService {
     });
   }
 
-  private async applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) return;
-    const paidAmount = Math.max(Number(order.paidAmount) + amount, 0);
-    const remainingRevenue = Math.max(Number(order.totalRevenue) - paidAmount, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidAmount, remainingRevenue, paymentStatus: remainingRevenue <= 0 ? OrderPaymentStatus.PAID : paidAmount > 0 ? OrderPaymentStatus.PARTIAL : OrderPaymentStatus.UNPAID } });
-  }
-
-  private async applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) return;
-    const paidCost = Math.max(Number(order.paidCost) + amount, 0);
-    const remainingCost = Math.max(Number(order.totalCost) - paidCost, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidCost, remainingCost, costStatus: remainingCost <= 0 ? OrderCostStatus.PAID : paidCost > 0 ? OrderCostStatus.PARTIAL : OrderCostStatus.PENDING } });
-  }
-
-  private async resolveReceiptCustomer(tx: Prisma.TransactionClient, receipt: { customerId: string | null; orders: { orderId: string | null }[] }) {
-    if (receipt.customerId) return receipt.customerId;
-    const orderId = receipt.orders.find((line) => line.orderId)?.orderId;
-    if (!orderId) return null;
-    const order = await tx.order.findUnique({ where: { id: orderId }, select: { customerId: true } });
-    return order?.customerId || null;
-  }
-
-  private async resolvePaymentSupplier(tx: Prisma.TransactionClient, payment: { supplierId: string | null; operationVoucherId: string | null }) {
-    if (payment.supplierId) return payment.supplierId;
-    if (!payment.operationVoucherId) return null;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId }, select: { supplierId: true } });
-    return voucher?.supplierId || null;
-  }
-
   private async reconcileApprovedPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null; paymentAmount: Prisma.Decimal }) {
     await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'PAID' } });
     if (!payment.operationVoucherId) return;
@@ -930,13 +900,6 @@ export class FinanceService {
     const paidAmount = Math.max(Number(voucher.paidAmount) - Number(reconciled.paidAmount), 0);
     const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
     await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'PENDING' } });
-  }
-
-  private async resolveInvoiceCustomer(tx: Prisma.TransactionClient, invoice: { customerId: string | null; orderId: string | null }) {
-    if (invoice.customerId) return invoice.customerId;
-    if (!invoice.orderId) return null;
-    const order = await tx.order.findUnique({ where: { id: invoice.orderId }, select: { customerId: true } });
-    return order?.customerId || null;
   }
 
   private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
