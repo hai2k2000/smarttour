@@ -10,6 +10,15 @@ type UploadFile = {
   buffer: Buffer;
 };
 
+export type StoredFileUpload = {
+  bucket: string;
+  objectKey: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+};
+
 const deniedExtensions = new Set(['.bat', '.cmd', '.com', '.exe', '.htm', '.html', '.js', '.mjs', '.cjs', '.ps1', '.sh', '.svg']);
 const deniedMimeTypes = new Set(['image/svg+xml', 'text/html', 'text/javascript', 'application/javascript']);
 
@@ -30,7 +39,7 @@ export class FilesService {
     });
   }
 
-  async upload(file: UploadFile | undefined, rawScope?: string, actorId?: string) {
+  async upload(file: UploadFile | undefined, rawScope?: string, actorId?: string): Promise<StoredFileUpload> {
     if (!file?.buffer || !Buffer.isBuffer(file.buffer)) throw new BadRequestException('Cần chọn file để tải lên');
     if (!file.size || file.size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${this.maxBytes} bytes`);
     this.assertAllowed(file);
@@ -78,6 +87,25 @@ export class FilesService {
     const key = this.requiredObjectKey(objectKey);
     await this.client.removeObject(this.bucket, key);
     return { deleted: true, objectKey: key };
+  }
+
+  async removeIfPresent(objectKey?: string | null) {
+    if (!objectKey) return { deleted: false, objectKey: null };
+    return this.remove(objectKey);
+  }
+
+  async removeQuietly(objectKey?: string | null) {
+    if (!objectKey) return;
+    await this.remove(objectKey).catch(() => undefined);
+  }
+
+  objectKeyFromUrl(fileUrl?: string | null) {
+    if (!fileUrl) return null;
+    try {
+      return new URL(fileUrl, 'http://smarttour.local').searchParams.get('key');
+    } catch {
+      return null;
+    }
   }
 
   private async ensureBucket() {

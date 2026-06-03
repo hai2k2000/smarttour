@@ -961,6 +961,7 @@ model FinanceInvoice {
   reversals          FinanceInvoice[]      @relation("FinanceInvoiceReversal")
   deletedAt          DateTime?
   items              FinanceInvoiceItem[]
+  files              FinanceInvoiceFile[]
   customerLedger     CustomerLedgerEntry[]
   createdBy          String?
   createdAt          DateTime              @default(now())
@@ -992,6 +993,19 @@ model FinanceInvoiceItem {
   sortOrder       Int            @default(0)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  @@index([invoiceId])
+}
+
+model FinanceInvoiceFile {
+  id         String         @id @default(uuid())
+  invoiceId  String
+  invoice    FinanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileType   String?
+  uploadedBy String?
+  createdAt  DateTime       @default(now())
 
   @@index([invoiceId])
 }
@@ -1750,6 +1764,7 @@ model Customer {
   comments        CustomerComment[]
   callLogs        CustomerCallLog[]
   opportunities   CustomerOpportunity[]
+  files           CustomerFile[]
   orders          Order[]
   bookings        Booking[]
   tourCustomers   TourCustomer[]
@@ -1771,6 +1786,19 @@ model Customer {
   @@index([market])
   @@index([campaignId])
   @@index([createdAt])
+}
+
+model CustomerFile {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileType   String?
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 model CustomerTagMap {

@@ -2,11 +2,12 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { FilesService } from '../files/files.service';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 @Injectable()
 export class TourGuidesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
   list(search?: string, status?: string) {
     return this.prisma.guideProfile.findMany({
@@ -33,6 +34,54 @@ export class TourGuidesService {
     const guide = await this.prisma.guideProfile.findFirst({ where: { id, deletedAt: null }, include: this.includeAll() });
     if (!guide) throw new NotFoundException('Tour guide not found');
     return guide;
+  }
+
+  async addFile(
+    guideId: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+  ) {
+    await this.detail(guideId);
+    const upload = await this.filesService.upload(file, `tour-guides/${guideId}`, actorId);
+    try {
+      return await this.prisma.guideFile.create({
+        data: {
+          guideId,
+          fileName: upload.fileName,
+          fileUrl: upload.url,
+          fileType: upload.mimeType,
+          uploadedBy: actorId,
+        },
+      });
+    } catch (error) {
+      await this.filesService.removeQuietly(upload.objectKey);
+      throw error;
+    }
+  }
+
+  async deleteFile(guideId: string, fileId: string) {
+    await this.detail(guideId);
+    const file = await this.prisma.guideFile.findFirst({ where: { id: fileId, guideId } });
+    if (!file) throw new NotFoundException('Không tìm thấy file HDV');
+    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+    const deleted = await this.prisma.guideFile.delete({ where: { id: file.id } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return deleted;
+    } catch (error) {
+      await this.prisma.guideFile.create({
+        data: {
+          id: deleted.id,
+          guideId: deleted.guideId,
+          fileName: deleted.fileName,
+          fileUrl: deleted.fileUrl,
+          fileType: deleted.fileType,
+          uploadedBy: deleted.uploadedBy,
+          createdAt: deleted.createdAt,
+        },
+      }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async create(dto: CreateTourGuideDto, user?: RequestUser) {

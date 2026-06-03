@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
@@ -19,6 +20,23 @@ export class TourGuidesController {
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.service.detail(id);
+  }
+
+  @Post(':id/files')
+  @RequirePermissions('guide.manage')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  addFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: { id?: string } },
+  ) {
+    return this.service.addFile(id, file, request.user?.id);
+  }
+
+  @Delete(':id/files/:fileId')
+  @RequirePermissions('guide.manage')
+  removeFile(@Param('id') id: string, @Param('fileId') fileId: string) {
+    return this.service.deleteFile(id, fileId);
   }
 
   @Post()

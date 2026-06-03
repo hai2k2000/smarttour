@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -39,6 +40,23 @@ export class FinanceController {
   @RequirePermissions('finance.receipt.view')
   receipt(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.service.receiptDetail(id, request.user);
+  }
+
+  @Post('receipts/:id/file')
+  @RequirePermissions('finance.receipt.update')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadReceiptFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.service.uploadReceiptFile(id, file, request.user?.id, request.user);
+  }
+
+  @Delete('receipts/:id/file')
+  @RequirePermissions('finance.receipt.update')
+  deleteReceiptFile(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.service.deleteReceiptFile(id, request.user);
   }
 
   @Put('receipts/:id')
@@ -103,6 +121,23 @@ export class FinanceController {
     return this.service.paymentDetail(id, request.user);
   }
 
+  @Post('payments/:id/file')
+  @RequirePermissions('finance.payment.update')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadPaymentFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.service.uploadPaymentFile(id, file, request.user?.id, request.user);
+  }
+
+  @Delete('payments/:id/file')
+  @RequirePermissions('finance.payment.update')
+  deletePaymentFile(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.service.deletePaymentFile(id, request.user);
+  }
+
   @Put('payments/:id')
   @RequirePermissions('finance.payment.update')
   updatePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
@@ -157,6 +192,23 @@ export class FinanceController {
   @RequirePermissions('finance.invoice.view')
   invoice(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.service.invoiceDetail(id, request.user);
+  }
+
+  @Post('invoices/:id/files')
+  @RequirePermissions('finance.invoice.update')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadInvoiceFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.service.uploadInvoiceFile(id, file, request.user?.id, request.user);
+  }
+
+  @Delete('invoices/:id/files/:fileId')
+  @RequirePermissions('finance.invoice.update')
+  deleteInvoiceFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request: { user?: RequestUser }) {
+    return this.service.deleteInvoiceFile(id, fileId, request.user);
   }
 
   @Put('invoices/:id')

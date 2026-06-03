@@ -210,7 +210,7 @@ export class CustomersService {
         data: { customerId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
       });
     } catch (error) {
-      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      await this.filesService.removeQuietly(upload.objectKey);
       throw error;
     }
   }
@@ -219,9 +219,25 @@ export class CustomersService {
     await this.getCustomer(id, user);
     const file = await this.prisma.customerFile.findFirst({ where: { id: fileId, customerId: id } });
     if (!file) throw new NotFoundException('Customer file not found');
-    const objectKey = this.objectKey(file.fileUrl);
-    if (objectKey) await this.filesService.remove(objectKey);
-    return this.prisma.customerFile.delete({ where: { id: fileId } });
+    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+    const deleted = await this.prisma.customerFile.delete({ where: { id: fileId } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return deleted;
+    } catch (error) {
+      await this.prisma.customerFile.create({
+        data: {
+          id: deleted.id,
+          customerId: deleted.customerId,
+          fileName: deleted.fileName,
+          fileUrl: deleted.fileUrl,
+          fileType: deleted.fileType,
+          uploadedBy: deleted.uploadedBy,
+          createdAt: deleted.createdAt,
+        },
+      }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async create(dto: AnyRecord, user?: RequestUser) {
@@ -585,10 +601,6 @@ export class CustomersService {
 
   private take(value: unknown) {
     return Math.min(Math.max(this.int(value) || 50, 1), 1000);
-  }
-
-  private objectKey(fileUrl?: string | null) {
-    return fileUrl ? new URL(fileUrl, 'http://smarttour.local').searchParams.get('key') : null;
   }
 
   private slug(value: string) {

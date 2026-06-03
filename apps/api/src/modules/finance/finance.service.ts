@@ -231,20 +231,29 @@ export class FinanceService {
     const upload = await this.filesService.upload(file, `finance/receipts/${id}`, actorId);
     try {
       const updated = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
-      const previousKey = this.objectKey(current.attachmentUrl);
-      if (previousKey && previousKey !== upload.objectKey) await this.filesService.remove(previousKey).catch(() => undefined);
+      const previousKey = this.filesService.objectKeyFromUrl(current.attachmentUrl);
+      if (previousKey && previousKey !== upload.objectKey) await this.filesService.removeQuietly(previousKey);
       return updated;
     } catch (error) {
-      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      await this.filesService.removeQuietly(upload.objectKey);
       throw error;
     }
   }
 
   async deleteReceiptFileCore(id: string, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
-    const objectKey = this.objectKey(current.attachmentUrl);
-    if (objectKey) await this.filesService.remove(objectKey);
-    return this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const objectKey = this.filesService.objectKeyFromUrl(current.attachmentUrl);
+    const updated = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return updated;
+    } catch (error) {
+      await this.prisma.financeReceipt.update({
+        where: { id },
+        data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl },
+      }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async createReceiptCore(dto: AnyRecord, user?: RequestUser) {
@@ -392,20 +401,29 @@ export class FinanceService {
     const upload = await this.filesService.upload(file, `finance/payments/${id}`, actorId);
     try {
       const updated = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
-      const previousKey = this.objectKey(current.attachmentUrl);
-      if (previousKey && previousKey !== upload.objectKey) await this.filesService.remove(previousKey).catch(() => undefined);
+      const previousKey = this.filesService.objectKeyFromUrl(current.attachmentUrl);
+      if (previousKey && previousKey !== upload.objectKey) await this.filesService.removeQuietly(previousKey);
       return updated;
     } catch (error) {
-      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      await this.filesService.removeQuietly(upload.objectKey);
       throw error;
     }
   }
 
   async deletePaymentFileCore(id: string, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
-    const objectKey = this.objectKey(current.attachmentUrl);
-    if (objectKey) await this.filesService.remove(objectKey);
-    return this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const objectKey = this.filesService.objectKeyFromUrl(current.attachmentUrl);
+    const updated = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return updated;
+    } catch (error) {
+      await this.prisma.financePayment.update({
+        where: { id },
+        data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl },
+      }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async createPaymentCore(dto: AnyRecord, user?: RequestUser) {
@@ -551,7 +569,7 @@ export class FinanceService {
         data: { invoiceId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
       });
     } catch (error) {
-      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      await this.filesService.removeQuietly(upload.objectKey);
       throw error;
     }
   }
@@ -560,9 +578,25 @@ export class FinanceService {
     await this.invoiceDetail(id, user);
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Invoice file not found');
-    const objectKey = this.objectKey(file.fileUrl);
-    if (objectKey) await this.filesService.remove(objectKey);
-    return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
+    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+    const deleted = await this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return deleted;
+    } catch (error) {
+      await this.prisma.financeInvoiceFile.create({
+        data: {
+          id: deleted.id,
+          invoiceId: deleted.invoiceId,
+          fileName: deleted.fileName,
+          fileUrl: deleted.fileUrl,
+          fileType: deleted.fileType,
+          uploadedBy: deleted.uploadedBy,
+          createdAt: deleted.createdAt,
+        },
+      }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async createInvoiceCore(dto: AnyRecord, user?: RequestUser) {
@@ -813,10 +847,6 @@ export class FinanceService {
 
   async importPlaceholder(type: 'receipts' | 'payments', dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     return type === 'receipts' ? this.importReceipts(dto, file, user) : this.importPayments(dto, file, user);
-  }
-
-  private objectKey(fileUrl?: string | null) {
-    return fileUrl ? new URL(fileUrl, 'http://smarttour.local').searchParams.get('key') : null;
   }
 
   private receiptData(dto: AnyRecord): Prisma.FinanceReceiptUncheckedCreateInput {

@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { RequestUser } from '../auth/data-scope';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { RequestUser } from '../auth/data-scope';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -118,6 +119,23 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request?: { user?: RequestUser }) {
     return this.suppliersService.releaseAllotmentAllocation(id, dto, request?.user);
+  }
+
+  @Post(':id/files')
+  @RequirePermissions('supplier.manage')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  addFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: { id?: string } },
+  ) {
+    return this.suppliersService.addSupplierFile(id, file, request.user?.id);
+  }
+
+  @Delete(':id/files/:fileId')
+  @RequirePermissions('supplier.manage')
+  removeFile(@Param('id') id: string, @Param('fileId') fileId: string) {
+    return this.suppliersService.deleteSupplierFile(id, fileId);
   }
 
   @Get(':type')

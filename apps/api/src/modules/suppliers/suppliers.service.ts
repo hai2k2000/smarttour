@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { FilesService } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -25,7 +26,7 @@ const SUPPLIER_TYPE_LABELS: Record<string, string> = {
 
 @Injectable()
 export class SuppliersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
   listCategories() {
     return this.prisma.supplierCategory.findMany({
@@ -119,6 +120,55 @@ export class SuppliersService {
       include: { category: true, hotelProfile: true },
     });
   }
+
+  async addSupplierFile(
+    supplierId: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+  ) {
+    await this.getSupplier(supplierId);
+    const upload = await this.filesService.upload(file, `suppliers/${supplierId}`, actorId);
+    try {
+      return await this.prisma.supplierFile.create({
+        data: {
+          supplierId,
+          fileName: upload.fileName,
+          fileUrl: upload.url,
+          fileType: upload.mimeType,
+          uploadedBy: actorId,
+        },
+      });
+    } catch (error) {
+      await this.filesService.removeQuietly(upload.objectKey);
+      throw error;
+    }
+  }
+
+  async deleteSupplierFile(supplierId: string, fileId: string) {
+    await this.getSupplier(supplierId);
+    const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId } });
+    if (!file) throw new NotFoundException('Không tìm thấy file nhà cung cấp');
+    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+    const deleted = await this.prisma.supplierFile.delete({ where: { id: file.id } });
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return deleted;
+    } catch (error) {
+      await this.prisma.supplierFile.create({
+        data: {
+          id: deleted.id,
+          supplierId: deleted.supplierId,
+          fileName: deleted.fileName,
+          fileUrl: deleted.fileUrl,
+          fileType: deleted.fileType,
+          uploadedBy: deleted.uploadedBy,
+          createdAt: deleted.createdAt,
+        },
+      }).catch(() => undefined);
+      throw error;
+    }
+  }
+
 
   async listTypedSuppliers(type: string, query: { search?: string; province?: string; status?: SupplierStatus; market?: string }) {
     const categoryName = this.getTypeLabel(type);
