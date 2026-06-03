@@ -1,14 +1,15 @@
 import { AlertTriangle, BadgeCheck, CalendarDays, ClipboardList, CreditCard, Route, TrendingUp, Users } from 'lucide-react';
 import Link from 'next/link';
+import { MetricCard, Panel, StatusBadge } from './ui';
 
 const cards = [
   { label: 'Tour sắp khởi hành', value: '0', note: '7 ngày tới', icon: CalendarDays, tone: 'blue' },
-  { label: 'Tour dang vận hành', value: '0', note: 'cần theo dõi', icon: Route, tone: 'green' },
-  { label: 'Việc quá hạn', value: '0', note: 'operation task', icon: ClipboardList, tone: 'red' },
-  { label: 'Thanh toán cho duyệt', value: '0', note: 'phiếu chi NCC', icon: CreditCard, tone: 'amber' },
+  { label: 'Tour đang vận hành', value: '0', note: 'cần theo dõi', icon: Route, tone: 'green' },
+  { label: 'Việc quá hạn', value: '0', note: 'việc điều hành', icon: ClipboardList, tone: 'red' },
+  { label: 'Thanh toán chờ duyệt', value: '0', note: 'phiếu chi NCC', icon: CreditCard, tone: 'amber' },
   { label: 'Khách mới tháng này', value: '0', note: 'CRM', icon: Users, tone: 'indigo' },
   { label: 'Tour nguy cơ lỗ', value: '0', note: 'cần đối soát', icon: AlertTriangle, tone: 'red' },
-];
+] as const;
 
 const quickActions = [
   { label: 'Tạo báo giá', href: '/quotations' },
@@ -30,8 +31,8 @@ export default function Home() {
     <div className="dashboardPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Du Niên Travel SmartTour</p>
-          <h1>Dashboard vận hành Du Niên Travel</h1>
+          <p className="eyebrow">AI Tour Operations</p>
+          <h1>Tổng quan vận hành AI Tour</h1>
         </div>
         <div className="pageHeaderActions">
           <Link className="secondaryButton iconTextButton" href="/reports"><TrendingUp size={16} /> Báo cáo</Link>
@@ -40,26 +41,14 @@ export default function Home() {
       </header>
 
       <section className="metrics dashboardMetrics">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <article className={`metric metricTone-${card.tone}`} key={card.label}>
-              <div className="metricTop">
-                <div className="metricIcon"><Icon size={18} /></div>
-                <span>{card.note}</span>
-              </div>
-              <span>{card.label}</span>
-              <strong>{card.value}</strong>
-            </article>
-          );
-        })}
+        {cards.map((card) => <MetricCard key={card.label} {...card} />)}
       </section>
 
       <section className="dashboardGrid">
-        <section className="panel">
+        <Panel>
           <div className="sectionHeader">
             <h2>Luồng xử lý chính</h2>
-            <span>Operation core</span>
+            <span>Luồng vận hành</span>
           </div>
           <div className="processList">
             {operations.map((item) => (
@@ -70,33 +59,33 @@ export default function Home() {
               </Link>
             ))}
           </div>
-        </section>
+        </Panel>
 
-        <section className="panel">
+        <Panel>
           <div className="sectionHeader">
             <h2>Thao tác nhanh</h2>
-            <span>Shortcut</span>
+            <span>Thao tác nhanh</span>
           </div>
           <div className="quickActionGrid">
             {quickActions.map((item) => <Link href={item.href} key={item.href}>{item.label}</Link>)}
           </div>
-        </section>
+        </Panel>
 
-        <section className="panel dashboardWide">
+        <Panel className="dashboardWide">
           <div className="sectionHeader">
             <h2>Trạng thái module</h2>
             <span>Đang chạy production</span>
           </div>
           <table className="dashboardTable">
             <tbody>
-              <tr><td>CRM khách hàng</td><td>Dữ liệu nền, CSKH, opportunity</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
-              <tr><td>Công cụ báo giá</td><td>SmartLink, approve, convert order</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
-              <tr><td>Trung tâm đơn hàng</td><td>List, filter, settle/unlock, export</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
-              <tr><td>Báo cáo tài chính</td><td>Lãi lỗ, công nợ, hoa hồng</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
-              <tr><td>Nhà cung cấp</td><td>Hotel, restaurant, flight, guide, transport</td><td><span className="statusPill">Sẵn sàng</span></td></tr>
+              <tr><td>CRM khách hàng</td><td>Dữ liệu nền, chăm sóc khách hàng, cơ hội bán hàng</td><td><StatusBadge>Sẵn sàng</StatusBadge></td></tr>
+              <tr><td>Công cụ báo giá</td><td>SmartLink, duyệt báo giá, chuyển thành đơn</td><td><StatusBadge>Sẵn sàng</StatusBadge></td></tr>
+              <tr><td>Trung tâm đơn hàng</td><td>Danh sách, lọc, quyết toán/mở khóa, xuất dữ liệu</td><td><StatusBadge>Sẵn sàng</StatusBadge></td></tr>
+              <tr><td>Báo cáo tài chính</td><td>Lãi lỗ, công nợ, hoa hồng</td><td><StatusBadge>Sẵn sàng</StatusBadge></td></tr>
+              <tr><td>Nhà cung cấp</td><td>Khách sạn, nhà hàng, vé máy bay, hướng dẫn viên, vận chuyển</td><td><StatusBadge>Sẵn sàng</StatusBadge></td></tr>
             </tbody>
           </table>
-        </section>
+        </Panel>
       </section>
     </div>
   );

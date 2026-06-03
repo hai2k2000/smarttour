@@ -307,8 +307,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 {accountOpen ? (
                   <div className="accountMenu" role="menu">
                     <div className="accountMenuHeader">
+                      <small>Tài khoản</small>
                       <strong>{authUser.name}</strong>
                       <span>{authUser.email}</span>
+                      <em>Phiên đăng nhập đang hoạt động</em>
                     </div>
                     <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
                       <Settings size={16} />
@@ -318,7 +320,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                       <ShieldCheck size={16} />
                       <span>Phân quyền vai trò</span>
                     </Link>
-                    <button type="button" role="menuitem" onClick={logout}>
+                    <button type="button" role="menuitem" className="accountLogoutButton" onClick={logout}>
                       <LogOut size={16} />
                       <span>Đăng xuất</span>
                     </button>

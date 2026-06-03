@@ -93,16 +93,19 @@ a { color: inherit; }
 .activityButton:hover { background: var(--dn-green-soft); color: var(--dn-primary); border-color: #bfe3b8; }
 .activityButton span { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dn-orange); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800; border: 2px solid #fff; }
 .authUserButton, .authLoginLink { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; border: 1px solid var(--dn-border); background: #fff; color: #276c72; padding: 7px 11px; font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.authUserButton span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 .authUserButton:hover, .authLoginLink:hover { color: var(--dn-primary); border-color: #bfe3b8; background: var(--dn-green-soft); }
 .accountMenuWrap { position: relative; }
-.accountMenu { position: absolute; right: 0; top: calc(100% + 8px); width: min(260px, 86vw); z-index: 35; display: grid; gap: 4px; padding: 8px; background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; box-shadow: 0 18px 42px rgba(15, 23, 42, .14); }
+.accountMenu { position: absolute; right: 0; top: calc(100% + 8px); width: min(292px, 86vw); z-index: 35; display: grid; gap: 4px; padding: 8px; background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; box-shadow: 0 18px 42px rgba(15, 23, 42, .14); }
 .accountMenuHeader { display: grid; gap: 3px; padding: 9px 10px 10px; border-bottom: 1px solid #e3efd9; margin-bottom: 4px; }
+.accountMenuHeader small { color: #4b6b3d; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .accountMenuHeader strong { color: var(--dn-text); font-size: 13px; }
 .accountMenuHeader span { color: var(--dn-muted); font-size: 12px; overflow-wrap: anywhere; }
+.accountMenuHeader em { width: fit-content; margin-top: 4px; padding: 4px 7px; border-radius: 999px; background: var(--dn-green-soft); color: var(--dn-primary); font-size: 11px; font-style: normal; font-weight: 800; }
 .accountMenu a, .accountMenu button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 7px; border: 0; background: transparent; color: #164c52; text-align: left; text-decoration: none; font-size: 13px; font-weight: 700; }
 .accountMenu a:hover, .accountMenu button:hover { background: var(--dn-green-soft); color: var(--dn-primary); }
-.accountMenu button:last-child { color: #b42318; }
-.accountMenu button:last-child:hover { background: #fff1f0; color: #b42318; }
+.accountMenu .accountLogoutButton { color: #b42318; border-top: 1px solid #f1d6d3; border-radius: 0 0 7px 7px; margin-top: 3px; }
+.accountMenu .accountLogoutButton:hover { background: #fff1f0; color: #b42318; }
 .activityOverlay { position: fixed; inset: 0; z-index: 45; background: rgba(15, 23, 42, .26); display: flex; justify-content: flex-end; }
 .activityDrawer { width: min(420px, 100vw); min-height: 100vh; background: #fff; border-left: 1px solid var(--dn-border); box-shadow: -20px 0 48px rgba(15, 23, 42, .18); padding: 16px; display: grid; align-content: start; gap: 14px; }
 .activityDrawer header { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e3efd9; }
@@ -241,7 +244,7 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
   padding: 0;
 }
 .emptyState { color: var(--dn-muted); }
-.emptyState, .tableEmptyState { min-height: 96px; display: grid; place-items: center; border: 1px dashed var(--dn-border); border-radius: 8px; background: var(--dn-surface-soft); color: var(--dn-muted); font-weight: 700; text-align: center; padding: 18px; }
+.emptyState, .tableEmptyState, .uiEmptyState { min-height: 96px; display: grid; place-items: center; border: 1px dashed var(--dn-border); border-radius: 8px; background: var(--dn-surface-soft); color: var(--dn-muted); font-weight: 700; text-align: center; padding: 18px; }
 .loadingBar { height: 4px; overflow: hidden; border-radius: 999px; background: #eef8ea; position: relative; }
 .loadingBar::after { content: ""; position: absolute; inset: 0; width: 42%; background: var(--dn-primary); border-radius: inherit; animation: loadingSlide 1.2s ease-in-out infinite; }
 @keyframes loadingSlide { 0% { transform: translateX(-120%); } 100% { transform: translateX(260%); } }
@@ -253,7 +256,7 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .summaryRows div { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #e3efd9; padding-top: 10px; }
 .summaryRows span { color: var(--dn-muted); }
 .summaryRows strong { color: var(--dn-primary); font-size: 22px; }
-.statusPill { display: inline-flex; border-radius: 999px; background: var(--dn-green-soft); color: var(--dn-primary); padding: 5px 8px; font-size: 12px; font-weight: 700; }
+.statusPill, .uiStatusBadge { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; background: var(--dn-green-soft); color: var(--dn-primary); padding: 5px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .statusPillNeutral { background: #f1f5f9; color: #4b6b3d; }
 .status-draft { background: #f1f5f9; color: #4b6b3d; }
 .status-pending, .status-requested { background: #fef3c7; color: #9a5b00; }
@@ -566,7 +569,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .appShell, .appFrame, .appMain, .workspace, .panel, .contentGrid, .fitWizard, .orderWorkspace, .reportWorkspace, .customerPage, .financePage, .operationsPage, .securityPage, .commissionPage, .quotePage { min-width: 0; }
 .workspace, .dashboardPage, .orderPage, .reportWorkspace, .customerPage, .financePage, .operationsPage, .securityPage, .commissionPage, .quotePage, .hotelSupplierPage, .fitWizard { max-width: 100%; }
 .appMain { width: 100%; }
-.panel { padding: 14px; overflow: hidden; }
+.panel, .uiPanel, .uiTableBlock { padding: 14px; overflow: hidden; }
 .pageHeader, .sectionHeader, .topbar, .hotelFormActions, .fitActions, .wizardFooter, .financeActions, .operationsActions, .commissionActions, .pageHeaderActions { flex-wrap: wrap; min-width: 0; }
 .pageHeader > *, .sectionHeader > *, .topbar > *, .hotelFormActions > *, .fitActions > *, .wizardFooter > * { min-width: 0; }
 .sectionHeader { align-items: flex-start; }
@@ -577,7 +580,7 @@ button, .iconTextButton, .secondaryButton, .dangerButton { min-height: 38px; lin
 input, select, textarea { min-width: 0; max-width: 100%; }
 label { min-width: 0; }
 .metrics, .dashboardMetrics, .orderMetrics, .reportMetrics, .customerMetrics, .commissionMetrics, .financeMetrics, .operationsMetrics, .securityMetrics, .reportSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; }
-.metric { min-width: 0; min-height: 96px; padding: 13px; }
+.metric, .uiMetricCard { min-width: 0; min-height: 96px; padding: 13px; }
 .metric strong { font-size: clamp(20px, 2vw, 26px); line-height: 1.12; }
 .dashboardMetrics { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .dashboardMetrics .metric { min-height: 132px; padding: 18px; }
@@ -586,7 +589,9 @@ label { min-width: 0; }
   .dashboardMetrics { grid-template-columns: repeat(3, minmax(260px, 1fr)); }
 }
 .contentGrid, .dashboardGrid, .bookingGrid, .gitGrid, .landGrid, .customerGrid, .commissionGrid, .financeGrid, .financeCashGrid, .operationsGrid, .securityGrid, .quoteWorkArea, .quoteComboShell, .orderWorkArea { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; align-items: start; }
-.formGrid, .hotelFormGrid, .fitFormGrid, .gitForm, .landForm, .quoteFormGrid, .customerFormGrid, .customerMiniGrid, .financeFormPanel .formGrid, .operationsFormPanel .formGrid, .securityFormPanel .formGrid, .orderFilterGrid, .reportFilterGrid, .financeFilters, .operationsFilters, .customerFilters, .commissionFilters, .quoteComboTop, .reportControls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; align-items: end; }
+.formGrid, .hotelFormGrid, .fitFormGrid, .gitForm, .landForm, .quoteFormGrid, .customerFormGrid, .customerMiniGrid, .financeFormPanel .formGrid, .operationsFormPanel .formGrid, .securityFormPanel .formGrid, .orderFilterGrid, .reportFilterGrid, .financeFilters, .operationsFilters, .customerFilters, .commissionFilters, .quoteComboTop, .reportControls, .filterToolbar, .uiFilterToolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; align-items: end; }
+.tableBlock, .uiTableBlock { background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.uiMetricCard, .uiPanel, .uiTableBlock, .uiFilterToolbar, .uiEmptyState, .uiStatusBadge { transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease, color .16s ease; }
 .formGrid label, .hotelFormGrid label, .fitFormGrid label, .quoteFormGrid label, .customerFormGrid label { min-width: 0; }
 .formGrid .span2, .hotelFormGrid .span2, .fitFormGrid .span2, .quoteFormGrid .span2, .customerFormGrid .span2, .hotelFormGrid .fileDrop { grid-column: span 2; }
 .fitToolbar { grid-template-columns: minmax(0, 1fr); }
