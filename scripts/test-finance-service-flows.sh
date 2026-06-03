@@ -111,6 +111,24 @@ async function main() {
   assert(cancelledReceipt.approvalStatus === 'CANCELLED' && cancelledReceipt.reversals.length === 1, 'receipt should cancel with reversal');
   await rejects(() => finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' }), 'double cancel receipt should be blocked');
 
+  const rejectedReceiptDraft = await finance.createReceipt({
+    receiptCode: run + '-RCPT-REJECT',
+    receiptName: 'Receipt Reject Flow',
+    receiptType: 'TOUR_PAYMENT',
+    paymentDate: '2026-11-02',
+    paymentMethod: 'BANK_TRANSFER',
+    customerId: customer.id,
+    payerName: customer.fullName,
+    totalAmount: 100,
+    paidBefore: 0,
+    receiptAmount: 100,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const rejectedReceipt = await finance.rejectReceipt(rejectedReceiptDraft.id, { actor: 'finance-test', note: 'reject receipt' });
+  assert(rejectedReceipt.approvalStatus === 'REJECTED', 'receipt should reject');
+  await rejects(() => finance.approveReceipt(rejectedReceiptDraft.id, { actor: 'finance-test' }), 'rejected receipt should not approve');
+
   const payment = await finance.createPayment({
     voucherCode: run + '-PAY',
     voucherName: 'Payment Flow',
@@ -138,6 +156,23 @@ async function main() {
   assert(amount(voucherAfter.paidAmount) === 0 && amount(voucherAfter.remainAmount) === 1000 && voucherAfter.status === 'PENDING', 'payment cancel should undo voucher reconcile');
   await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be blocked');
 
+  const rejectedPaymentDraft = await finance.createPayment({
+    voucherCode: run + '-PAY-REJECT',
+    voucherName: 'Payment Reject Flow',
+    voucherType: 'SUPPLIER_PAYMENT',
+    paymentDate: '2026-11-03',
+    paymentMethod: 'BANK_TRANSFER',
+    supplierId: supplier.id,
+    receiverName: supplier.name,
+    totalAmount: 100,
+    paymentAmount: 100,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const rejectedPayment = await finance.rejectPayment(rejectedPaymentDraft.id, { actor: 'finance-test', note: 'reject payment' });
+  assert(rejectedPayment.approvalStatus === 'REJECTED', 'payment should reject');
+  await rejects(() => finance.approvePayment(rejectedPaymentDraft.id, { actor: 'finance-test' }), 'rejected payment should not approve');
+
   const invoice = await finance.createInvoice({
     invoiceCode: run + '-INV',
     systemCode: run + '-SYS',
@@ -155,6 +190,19 @@ async function main() {
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
   await rejects(() => finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' }), 'double cancel invoice should be blocked');
+
+  const rejectedInvoiceDraft = await finance.createInvoice({
+    invoiceCode: run + '-INV-REJECT',
+    systemCode: run + '-SYS-REJECT',
+    customerId: customer.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    issuedDate: '2026-11-04',
+    items: [{ itemName: 'Reject invoice service', unit: 'pax', quantity: 1, unitPrice: 100, taxRate: 10 }],
+  });
+  const rejectedInvoice = await finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test', note: 'reject invoice' });
+  assert(rejectedInvoice.approvalStatus === 'REJECTED', 'invoice should reject');
+  await rejects(() => finance.approveInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not approve');
 
   const receiptImportCsv = [
     'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch',
