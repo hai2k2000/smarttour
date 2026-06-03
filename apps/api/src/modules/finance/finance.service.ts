@@ -204,11 +204,14 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
     const rows = await this.prisma.financeReceipt.findMany({
       where,
-      include: { orders: true },
+      select: this.receiptListSelect(),
       orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
       take: this.take(query.take),
     });
-    const summaryRows = await this.prisma.financeReceipt.findMany({ where });
+    const summaryRows = await this.prisma.financeReceipt.findMany({
+      where,
+      select: { receiptAmount: true, approvalStatus: true, receiptType: true },
+    });
     return { rows, summary: receiptSummary(summaryRows) };
   }
 
@@ -355,14 +358,14 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
     const rows = await this.prisma.financePayment.findMany({
       where,
-      include: {
-        operationVoucher: { select: { voucherCode: true, status: true } },
-        supplierPaymentRequests: { select: { code: true, status: true } },
-      },
+      select: this.paymentListSelect(),
       orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
       take: this.take(query.take),
     });
-    const summaryRows = await this.prisma.financePayment.findMany({ where });
+    const summaryRows = await this.prisma.financePayment.findMany({
+      where,
+      select: { paymentAmount: true, approvalStatus: true },
+    });
     return { rows, summary: paymentSummary(summaryRows) };
   }
 
@@ -522,7 +525,10 @@ export class FinanceService {
       orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }],
       take: this.take(query.take),
     });
-    const summaryRows = await this.prisma.financeInvoice.findMany({ where });
+    const summaryRows = await this.prisma.financeInvoice.findMany({
+      where,
+      select: { totalAfterTax: true, approvalStatus: true },
+    });
     return { rows, summary: invoiceSummary(summaryRows) };
   }
 
@@ -635,7 +641,12 @@ export class FinanceService {
 
   async cashflowCore(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
-    const rows = await this.prisma.financeCashflowEntry.findMany({ where, orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
+    const rows = await this.prisma.financeCashflowEntry.findMany({
+      where,
+      select: this.cashflowListSelect(),
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+      take: this.take(query.take),
+    });
     const totalReceipt = rows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
     const totalPayment = rows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
     const byMethod = rows.reduce((map, row) => {
@@ -1032,6 +1043,102 @@ export class FinanceService {
     };
   }
 
+  private receiptListSelect() {
+    return {
+      id: true,
+      receiptCode: true,
+      receiptName: true,
+      receiptType: true,
+      documentDate: true,
+      transferDate: true,
+      paymentDate: true,
+      paymentMethod: true,
+      customerId: true,
+      payerName: true,
+      payerPhone: true,
+      payerEmail: true,
+      payerAddress: true,
+      reason: true,
+      partnerName: true,
+      note: true,
+      totalAmount: true,
+      paidBefore: true,
+      receiptAmount: true,
+      remainingAmount: true,
+      approvalStatus: true,
+      lockedAt: true,
+      branch: true,
+      department: true,
+      assignedStaff: true,
+      approvedBy: true,
+      approvedAt: true,
+      cancelledBy: true,
+      cancelledAt: true,
+      cancelReason: true,
+      reversalOfId: true,
+      collectorSupplier: true,
+      follower: true,
+      tourCreator: true,
+      attachmentName: true,
+      attachmentUrl: true,
+      deletedAt: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+      orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } },
+    } satisfies Prisma.FinanceReceiptSelect;
+  }
+
+  private paymentListSelect() {
+    return {
+      id: true,
+      voucherCode: true,
+      voucherName: true,
+      voucherType: true,
+      documentDate: true,
+      transferDate: true,
+      paymentDate: true,
+      paymentMethod: true,
+      supplierId: true,
+      operationVoucherId: true,
+      orderId: true,
+      receiverName: true,
+      receiverPhone: true,
+      receiverEmail: true,
+      receiverAddress: true,
+      reason: true,
+      partnerName: true,
+      note: true,
+      totalAmount: true,
+      paymentAmount: true,
+      remainingAmount: true,
+      bankAccountName: true,
+      bankAccountNumber: true,
+      bankName: true,
+      isSupplierDeposit: true,
+      approvalStatus: true,
+      lockedAt: true,
+      branch: true,
+      department: true,
+      assignedStaff: true,
+      approvedBy: true,
+      approvedAt: true,
+      cancelledBy: true,
+      cancelledAt: true,
+      cancelReason: true,
+      reversalOfId: true,
+      follower: true,
+      attachmentName: true,
+      attachmentUrl: true,
+      deletedAt: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+      operationVoucher: { select: { id: true, voucherCode: true, serviceName: true, status: true } },
+      supplierPaymentRequests: { select: { id: true, code: true, status: true } },
+    } satisfies Prisma.FinancePaymentSelect;
+  }
+
   private invoiceListSelect() {
     return {
       id: true,
@@ -1106,6 +1213,28 @@ export class FinanceService {
       ...(query.staff ? { staff: { contains: query.staff, mode: 'insensitive' } } : {}),
       ...this.dateRange('paymentDate', query.from, query.to),
     };
+  }
+
+  private cashflowListSelect() {
+    return {
+      id: true,
+      sourceType: true,
+      sourceId: true,
+      entryType: true,
+      amount: true,
+      paymentMethod: true,
+      paymentDate: true,
+      branch: true,
+      department: true,
+      staff: true,
+      orderId: true,
+      supplierId: true,
+      customerId: true,
+      note: true,
+      receiptId: true,
+      paymentId: true,
+      createdAt: true,
+    } satisfies Prisma.FinanceCashflowEntrySelect;
   }
 
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata: unknown) {

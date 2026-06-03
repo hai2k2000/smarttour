@@ -47,10 +47,31 @@ const checks = [
   },
   {
     file: 'apps/api/src/modules/finance/finance.service.ts',
+    sectionStart: 'async listReceiptsCore',
+    sectionEnd: 'async receiptDetailCore',
+    must: ['private receiptListSelect()', 'select: this.receiptListSelect()'],
+    forbidden: ['include: { orders: true }', 'cashflowEntries: true', 'customerLedger: true'],
+  },
+  {
+    file: 'apps/api/src/modules/finance/finance.service.ts',
+    sectionStart: 'async listPaymentsCore',
+    sectionEnd: 'async paymentDetailCore',
+    must: ['private paymentListSelect()', 'select: this.paymentListSelect()'],
+    forbidden: ['include: {\n        operationVoucher', 'cashflowEntries: true', 'supplierLedger: true', 'operationVoucherPayments: true'],
+  },
+  {
+    file: 'apps/api/src/modules/finance/finance.service.ts',
     sectionStart: 'async listInvoices',
     sectionEnd: 'async invoiceDetail',
     must: ['private invoiceListSelect()', 'select: this.invoiceListSelect()'],
     forbidden: ['include: { items: true, files: true }, orderBy'],
+  },
+  {
+    file: 'apps/api/src/modules/finance/finance.service.ts',
+    sectionStart: 'async cashflowCore',
+    sectionEnd: 'async exportReceiptsCore',
+    must: ['private cashflowListSelect()', 'select: this.cashflowListSelect()'],
+    forbidden: ['include:', 'order: true', 'supplier: true', 'customer: true'],
   },
   {
     file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts',

@@ -144,8 +144,8 @@ async function main() {
     })),
   });
 
-  await prisma.operationVoucher.createMany({
-    data: orders.map((order, index) => ({
+  const vouchers = await Promise.all(orders.map((order, index) => prisma.operationVoucher.create({
+    data: {
       voucherCode: `${run}-VCH-${index}`,
       orderId: order.id,
       supplierId: supplier.id,
@@ -156,8 +156,8 @@ async function main() {
       totalAmount: 100,
       remainAmount: 100,
       status: 'PENDING',
-    })),
-  });
+    },
+  })));
 
   await prisma.financeInvoice.createMany({
     data: orders.map((order, index) => ({
@@ -171,6 +171,84 @@ async function main() {
       totalBeforeTax: 100,
       totalTax: 10,
       totalAfterTax: 110,
+    })),
+  });
+
+  const receipts = await Promise.all(orders.map((order, index) => prisma.financeReceipt.create({
+    data: {
+      receiptCode: `${run}-REC-${index}`,
+      receiptName: `Perf Receipt ${index}`,
+      receiptType: index % 5 === 0 ? 'DEPOSIT' : 'TOUR_PAYMENT',
+      paymentDate: new Date('2027-01-05'),
+      paymentMethod: 'BANK_TRANSFER',
+      customerId: customer.id,
+      payerName: customer.fullName,
+      payerPhone: customer.phone,
+      totalAmount: 100 + index,
+      paidBefore: 0,
+      receiptAmount: 100 + index,
+      remainingAmount: 0,
+      approvalStatus: index % 3 === 0 ? 'APPROVED' : 'DRAFT',
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      assignedStaff: 'sales-a',
+      orders: {
+        create: {
+          orderId: order.id,
+          orderCode: order.systemCode,
+          tourCode: order.tourCode,
+          tourName: order.name,
+          amount: 100 + index,
+        },
+      },
+    },
+  })));
+
+  const payments = await Promise.all(orders.map((order, index) => prisma.financePayment.create({
+    data: {
+      voucherCode: `${run}-PAY-${index}`,
+      voucherName: `Perf Payment ${index}`,
+      voucherType: 'SUPPLIER_PAYMENT',
+      paymentDate: new Date('2027-01-06'),
+      paymentMethod: 'BANK_TRANSFER',
+      supplierId: supplier.id,
+      operationVoucherId: vouchers[index].id,
+      orderId: order.id,
+      receiverName: supplier.name,
+      totalAmount: 80 + index,
+      paymentAmount: 80 + index,
+      remainingAmount: 0,
+      approvalStatus: index % 4 === 0 ? 'APPROVED' : 'DRAFT',
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      assignedStaff: 'ops-a',
+    },
+  })));
+
+  await prisma.supplierPaymentRequest.createMany({
+    data: payments.map((payment, index) => ({
+      code: `${run}-SPR-${index}`,
+      status: 'REQUESTED',
+      financePaymentId: payment.id,
+      requestedBy: 'ops-a',
+    })),
+  });
+
+  await prisma.financeCashflowEntry.createMany({
+    data: receipts.map((receipt, index) => ({
+      sourceType: 'FINANCE_RECEIPT',
+      sourceId: receipt.id,
+      receiptId: receipt.id,
+      entryType: 'RECEIPT',
+      amount: 100 + index,
+      paymentMethod: 'BANK_TRANSFER',
+      paymentDate: new Date('2027-01-05'),
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      staff: 'sales-a',
+      orderId: orders[index].id,
+      customerId: customer.id,
+      note: `Perf receipt cashflow ${index}`,
     })),
   });
 
@@ -222,6 +300,19 @@ async function main() {
 
   const invoiceResult = await timed('finance.listInvoices', () => financeService.listInvoices({ search: run, take: String(rows) }), maxMs);
   assert(!invoiceResult.rows[0].items && !invoiceResult.rows[0].files, 'invoice list should not include items/files');
+
+  const receiptResult = await timed('finance.listReceipts', () => financeService.listReceipts({ search: run, take: String(rows) }), maxMs);
+  const receiptLine = receiptResult.rows[0].orders[0];
+  assert(receiptLine && !('receiptId' in receiptLine) && !('createdAt' in receiptLine) && !receiptResult.rows[0].cashflowEntries, 'receipt list should only include lightweight order lines');
+
+  const paymentResult = await timed('finance.listPayments', () => financeService.listPayments({ search: run, take: String(rows) }), maxMs);
+  const paymentRow = paymentResult.rows[0];
+  const paymentRequest = paymentRow.supplierPaymentRequests[0];
+  assert(paymentRow.operationVoucher && !paymentRow.cashflowEntries && !paymentRow.supplierLedger && !paymentRow.operationVoucherPayments, 'payment list should not include payment detail arrays');
+  assert(paymentRequest && !('items' in paymentRequest), 'payment list should only include supplier payment request previews');
+
+  const cashflowResult = await timed('finance.cashflow', () => financeService.cashflow({ branch: 'PERF-BR', take: String(rows) }), maxMs);
+  assert(cashflowResult.rows[0] && !cashflowResult.rows[0].order && !cashflowResult.rows[0].supplier && !cashflowResult.rows[0].customer, 'cashflow list should not include related entities');
 
   const commissionResult = await timed('commissionReports.list', () => commissionService.list({ search: run, take: String(rows) }), maxMs);
   assert(commissionResult.rows[0].logs.length <= 1 && commissionResult.rows[0].payments.length <= 1, 'commission list should only include latest log/payment previews');
