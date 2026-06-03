@@ -22,15 +22,15 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - smarttour_minio:/data
 
   n8n:
     image: n8nio/n8n:latest
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     volumes:
       - smarttour_n8n:/home/node/.n8n
     environment:
@@ -44,11 +44,18 @@ services:
     environment:
       DATABASE_URL: postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/smarttour?schema=public
       REDIS_URL: redis://redis:6379
+      SMARTTOUR_AUTH_ENFORCE: ${SMARTTOUR_AUTH_ENFORCE:-true}
+      SMARTTOUR_BOOTSTRAP_KEY: ${SMARTTOUR_BOOTSTRAP_KEY:-}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-smarttour}
     ports:
       - "127.0.0.1:4000:4000"
     depends_on:
       - postgres
       - redis
+      - minio
 
   web:
     build:
@@ -67,9 +74,11 @@ services:
   nginx:
     image: nginx:1.27-alpine
     ports:
-      - "8080:80"
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - web
       - api

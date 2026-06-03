@@ -18,6 +18,7 @@ const DEFAULT_PERMISSIONS = [
   'order.manage',
   'supplier.manage',
   'customer.manage',
+  'file.manage',
 ];
 
 @Injectable()
@@ -28,12 +29,12 @@ export class AuthService {
     const userCount = await this.prisma.user.count();
     const bootstrapKey = process.env.SMARTTOUR_BOOTSTRAP_KEY;
     if (userCount > 0 && (!bootstrapKey || this.text(dto.bootstrapKey) !== bootstrapKey)) {
-      throw new UnauthorizedException('Bootstrap is locked');
+      throw new UnauthorizedException('Bootstrap đã bị khóa');
     }
-    const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
+    const email = this.requiredText(dto.email, 'Cần nhập email').toLowerCase();
     const username = this.optionalUsername(dto.username) || this.usernameFromEmail(email);
-    const password = this.requiredText(dto.password, 'Password is required');
-    const name = this.requiredText(dto.name, 'Name is required');
+    const password = this.requiredText(dto.password, 'Cần nhập mật khẩu');
+    const name = this.requiredText(dto.name, 'Cần nhập họ tên');
     this.assertPasswordPolicy(password);
     return this.prisma.$transaction(async (tx) => {
       const role = await tx.role.upsert({
@@ -42,7 +43,7 @@ export class AuthService {
           id: 'role_super_admin',
           code: 'super_admin',
           name: 'Super Admin',
-          description: 'Full SmartTour administration access',
+          description: 'Toàn quyền quản trị SmartTour',
           isSystem: true,
           permissions: { create: DEFAULT_PERMISSIONS.map((permission) => ({ permission })) },
         },
@@ -72,8 +73,8 @@ export class AuthService {
   }
 
   async login(dto: AnyRecord, request?: { headers?: Record<string, string | string[] | undefined>; ip?: string }) {
-    const identifier = this.requiredText(dto.username ?? dto.email, 'Username is required').toLowerCase();
-    const password = this.requiredText(dto.password, 'Password is required');
+    const identifier = this.requiredText(dto.username ?? dto.email, 'Cần nhập tên đăng nhập').toLowerCase();
+    const password = this.requiredText(dto.password, 'Cần nhập mật khẩu');
     const user = await this.prisma.user.findFirst({
       where: { OR: [{ username: identifier }, { email: identifier }] },
       include: this.userInclude(),
@@ -99,12 +100,12 @@ export class AuthService {
   }
 
   async changePassword(userId: string | undefined, dto: AnyRecord, token?: string) {
-    if (!userId) throw new UnauthorizedException('Missing user');
-    const currentPassword = this.requiredText(dto.currentPassword, 'Current password is required');
-    const newPassword = this.requiredText(dto.newPassword, 'New password is required');
+    if (!userId) throw new UnauthorizedException('Thiếu thông tin người dùng');
+    const currentPassword = this.requiredText(dto.currentPassword, 'Cần nhập mật khẩu hiện tại');
+    const newPassword = this.requiredText(dto.newPassword, 'Cần nhập mật khẩu mới');
     this.assertPasswordPolicy(newPassword);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !this.verifyPassword(currentPassword, user.passwordHash)) throw new UnauthorizedException('Current password is invalid');
+    if (!user || !this.verifyPassword(currentPassword, user.passwordHash)) throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash: this.hashPassword(newPassword) } });
       if (token) await tx.userSession.updateMany({ where: { userId, tokenHash: { not: this.tokenHash(token) }, revokedAt: null }, data: { revokedAt: new Date() } });
@@ -114,16 +115,16 @@ export class AuthService {
   }
 
   private assertPasswordPolicy(password: string) {
-    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    if (password.length < 8) throw new BadRequestException('Mật khẩu phải có ít nhất 8 ký tự');
   }
 
   async validateToken(token?: string | null) {
-    if (!token) throw new UnauthorizedException('Missing bearer token');
+    if (!token) throw new UnauthorizedException('Thiếu token đăng nhập');
     const session = await this.prisma.userSession.findFirst({
       where: { tokenHash: this.tokenHash(token), revokedAt: null, expiresAt: { gt: new Date() } },
       include: { user: { include: this.userInclude() } },
     });
-    if (!session || session.user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid session');
+    if (!session || session.user.status !== 'ACTIVE') throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
     return session;
   }
 
@@ -138,19 +139,19 @@ export class AuthService {
   }
 
   async createUser(dto: AnyRecord) {
-    const email = this.requiredText(dto.email, 'Email is required').toLowerCase();
+    const email = this.requiredText(dto.email, 'Cần nhập email').toLowerCase();
     const username = this.optionalUsername(dto.username) || this.usernameFromEmail(email);
-    const password = this.requiredText(dto.password, 'Password is required');
+    const password = this.requiredText(dto.password, 'Cần nhập mật khẩu');
     this.assertPasswordPolicy(password);
     const roleCodes = this.stringArray(dto.roleCodes);
     return this.prisma.$transaction(async (tx) => {
       const roles = roleCodes.length ? await tx.role.findMany({ where: { code: { in: roleCodes }, status: 'ACTIVE' } }) : [];
-      if (roleCodes.length !== roles.length) throw new NotFoundException('Role not found');
+      if (roleCodes.length !== roles.length) throw new NotFoundException('Không tìm thấy vai trò');
       const user = await tx.user.create({
         data: {
           email,
           username,
-          name: this.requiredText(dto.name, 'Name is required'),
+          name: this.requiredText(dto.name, 'Cần nhập họ tên'),
           passwordHash: this.hashPassword(password),
           branch: this.text(dto.branch),
           department: this.text(dto.department),
@@ -165,14 +166,14 @@ export class AuthService {
 
   async updateUser(id: string, dto: AnyRecord) {
     const current = await this.prisma.user.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException('User not found');
+    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
     const roleCodes = dto.roleCodes === undefined ? undefined : this.stringArray(dto.roleCodes);
-    const nextPassword = dto.password ? this.requiredText(dto.password, 'Password is required') : undefined;
+    const nextPassword = dto.password ? this.requiredText(dto.password, 'Cần nhập mật khẩu') : undefined;
     if (nextPassword) this.assertPasswordPolicy(nextPassword);
     return this.prisma.$transaction(async (tx) => {
       if (roleCodes) {
         const roles = await tx.role.findMany({ where: { code: { in: roleCodes }, status: 'ACTIVE' } });
-        if (roleCodes.length !== roles.length) throw new NotFoundException('Role not found');
+        if (roleCodes.length !== roles.length) throw new NotFoundException('Không tìm thấy vai trò');
         await tx.userRole.deleteMany({ where: { userId: id } });
         if (roles.length) await tx.userRole.createMany({ data: roles.map((role) => ({ userId: id, roleId: role.id })) });
       }
@@ -180,8 +181,8 @@ export class AuthService {
         where: { id },
         data: {
           ...(dto.username !== undefined ? { username: this.optionalUsername(dto.username) } : {}),
-          ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Name is required') } : {}),
-          ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Status is required') } : {}),
+          ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Cần nhập họ tên') } : {}),
+          ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Cần nhập trạng thái') } : {}),
           ...(dto.branch !== undefined ? { branch: this.text(dto.branch) } : {}),
           ...(dto.department !== undefined ? { department: this.text(dto.department) } : {}),
           ...(nextPassword ? { passwordHash: this.hashPassword(nextPassword) } : {}),
@@ -201,8 +202,8 @@ export class AuthService {
     const permissions = this.stringArray(dto.permissions);
     return this.prisma.role.create({
       data: {
-        code: this.requiredText(dto.code, 'Code is required'),
-        name: this.requiredText(dto.name, 'Name is required'),
+        code: this.requiredText(dto.code, 'Cần nhập mã'),
+        name: this.requiredText(dto.name, 'Cần nhập họ tên'),
         description: this.text(dto.description),
         permissions: { create: permissions.map((permission) => ({ permission })) },
       },
@@ -212,7 +213,7 @@ export class AuthService {
 
   async updateRole(id: string, dto: AnyRecord) {
     const role = await this.prisma.role.findUnique({ where: { id } });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role) throw new NotFoundException('Không tìm thấy vai trò');
     const permissions = dto.permissions === undefined ? undefined : this.stringArray(dto.permissions);
     return this.prisma.$transaction(async (tx) => {
       if (permissions) {
@@ -222,9 +223,9 @@ export class AuthService {
       return tx.role.update({
         where: { id },
         data: {
-          ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Name is required') } : {}),
+          ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Cần nhập họ tên') } : {}),
           ...(dto.description !== undefined ? { description: this.text(dto.description) } : {}),
-          ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Status is required') } : {}),
+          ...(dto.status !== undefined ? { status: this.requiredText(dto.status, 'Cần nhập trạng thái') } : {}),
         },
         include: { permissions: true },
       });

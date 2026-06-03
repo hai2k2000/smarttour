@@ -24,18 +24,18 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Req() request: { headers: { authorization?: string }; user?: { id: string } }) {
-    return this.service.logout(this.bearer(request.headers.authorization), request.user?.id);
+  logout(@Req() request: { headers: { authorization?: string; cookie?: string | string[] }; user?: { id: string } }) {
+    return this.service.logout(this.token(request.headers), request.user?.id);
   }
 
   @Get('me')
-  me(@Req() request: { headers: { authorization?: string } }) {
-    return this.service.me(this.bearer(request.headers.authorization));
+  me(@Req() request: { headers: { authorization?: string; cookie?: string | string[] } }) {
+    return this.service.me(this.token(request.headers));
   }
 
   @Post('change-password')
-  changePassword(@Req() request: { headers: { authorization?: string }; user?: { id: string } }, @Body() dto: Record<string, unknown>) {
-    return this.service.changePassword(request.user?.id, dto, this.bearer(request.headers.authorization));
+  changePassword(@Req() request: { headers: { authorization?: string; cookie?: string | string[] }; user?: { id: string } }, @Body() dto: Record<string, unknown>) {
+    return this.service.changePassword(request.user?.id, dto, this.token(request.headers));
   }
 
   @Get('users')
@@ -78,5 +78,15 @@ export class AuthController {
     if (!value) return undefined;
     const [type, token] = value.split(' ');
     return type?.toLowerCase() === 'bearer' && token ? token : undefined;
+  }
+
+  private token(headers: { authorization?: string; cookie?: string | string[] }) {
+    return this.bearer(headers.authorization) || this.cookie(headers.cookie);
+  }
+
+  private cookie(value?: string | string[]) {
+    const header = Array.isArray(value) ? value.join(';') : value;
+    const cookie = header?.split(';').map((item) => item.trim()).find((item) => item.startsWith('smarttour.auth.token='));
+    return cookie ? decodeURIComponent(cookie.slice('smarttour.auth.token='.length)) : undefined;
   }
 }
