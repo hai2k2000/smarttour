@@ -3,10 +3,11 @@ import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
-import { confirmAutoAllotmentLocks, releaseAutoAllotmentLocks, syncHotelAllotmentLocks } from './order-allotment-sync';
+import { releaseAutoAllotmentLocks, syncHotelAllotmentLocks } from './order-allotment-sync';
 import { replaceOrderChildren } from './order-children-sync';
 import { withCustomerSnapshot } from './order-customer-snapshot';
 import { calculateOrderTotals } from './order-calculator';
+import { applyOrderStatus, assertOrderEditable, assertOrderNotSettled, settleOrder, unlockSettledOrder } from './order-lifecycle';
 
 const ORDER_TYPES: Record<string, OrderType> = {
   'fit-tours': 'FIT_TOUR',
@@ -84,7 +85,7 @@ export class OrdersService {
   async update(typePath: string, id: string, dto: UpdateOrderDto, user?: RequestUser) {
     const current = await this.detail(typePath, id, user);
     dto = applyWriteDataScope(dto as UpdateOrderDto & { department?: string | null }, user) as UpdateOrderDto;
-    if (current.settledAt) throw new BadRequestException('Settled order cannot be edited');
+    assertOrderEditable(current);
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -142,7 +143,7 @@ export class OrdersService {
 
   async remove(typePath: string, id: string, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
-    if (order.settledAt) throw new BadRequestException('Settled order cannot be deleted');
+    assertOrderNotSettled(order, 'deleted');
     return this.prisma.$transaction(async (tx) => {
       if (order.type === 'HOTEL_BOOKING') await releaseAutoAllotmentLocks(tx, id, 'DELETE_RELEASE');
       await tx.orderLog.create({ data: { orderId: id, action: 'DELETE', oldValue: { status: order.status } } });
@@ -153,13 +154,7 @@ export class OrdersService {
   async updateStatus(typePath: string, id: string, status: OrderStatus, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      if (order.type === 'HOTEL_BOOKING') {
-        if (status === 'CANCELLED') await releaseAutoAllotmentLocks(tx, id, 'STATUS_CANCEL_RELEASE');
-        if (['RUNNING', 'COMPLETED', 'SETTLED'].includes(status)) await confirmAutoAllotmentLocks(tx, id, 'STATUS_CONFIRM');
-      }
-      const updated = await tx.order.update({ where: { id }, data: { status }, include: this.includeAll() });
-      await tx.orderLog.create({ data: { orderId: id, action: 'STATUS', oldValue: { status: order.status }, newValue: { status } } });
-      return updated;
+      return applyOrderStatus(tx, order, status, this.includeAll());
     });
   }
 
@@ -177,7 +172,7 @@ export class OrdersService {
       paymentDate: order.paymentDate?.toISOString(),
       startDate: order.startDate?.toISOString(),
       endDate: order.endDate?.toISOString(),
-      status: order.status,
+      status: order.settledAt ? 'COMPLETED' : order.status,
       tourCategory: order.tourCategory ?? undefined,
       currency: order.currency,
       exchangeRate: Number(order.exchangeRate),
@@ -227,29 +222,16 @@ export class OrdersService {
   }
 
   async settle(typePath: string, id: string, user?: RequestUser) {
-    await this.detail(typePath, id, user);
+    const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.update({ where: { id }, data: { status: 'SETTLED', settledAt: new Date() } });
-      await tx.orderLog.create({ data: { orderId: id, action: 'SETTLE', newValue: { settledAt: order.settledAt } } });
-      return order;
+      return settleOrder(tx, order);
     });
   }
 
   async unlock(typePath: string, id: string, dto: UnlockOrderDto, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
-    if (!order.settledAt) throw new BadRequestException('Order is not settled');
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({ where: { id }, data: { settledAt: null, status: 'COMPLETED' } });
-      await tx.orderLog.create({
-        data: {
-          orderId: id,
-          userId: this.text(dto.actor),
-          action: 'UNLOCK_SETTLEMENT',
-          oldValue: { settledAt: order.settledAt, status: order.status },
-          newValue: { settledAt: null, status: 'COMPLETED', reason: dto.reason },
-        },
-      });
-      return updated;
+      return unlockSettledOrder(tx, order, dto);
     });
   }
 
