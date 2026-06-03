@@ -12,7 +12,8 @@
   --dn-border: #d9e9d3;
 }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--dn-cream); color: var(--dn-text); }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; font-synthesis-weight: none; background: var(--dn-cream); color: var(--dn-text); }
 a { color: inherit; }
 .appShell { min-height: 100vh; display: grid; grid-template-columns: 286px minmax(0, 1fr); background: var(--dn-cream); }
 .appShell.sidebarCollapsed { grid-template-columns: 76px minmax(0, 1fr); }
@@ -20,13 +21,28 @@ a { color: inherit; }
 .appBrand { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #2f6971; }
 .brandMark { color: #fff; font-size: 18px; font-weight: 800; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; letter-spacing: 0; min-width: 0; }
 .brandMark img { width: 42px; height: 42px; object-fit: contain; border-radius: 8px; background: #fff; padding: 3px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.textLogo {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #fff;
+  color: #173f44;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12);
+}
 .brandMark span { display: grid; gap: 1px; min-width: 0; }
 .brandMark strong { font-size: 15px; line-height: 1.05; }
 .brandMark em { font-style: normal; font-size: 11px; color: var(--dn-green); font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .brandActions { display: inline-flex; align-items: center; gap: 6px; }
 .collapseButton { display: inline-flex; align-items: center; justify-content: center; padding: 7px; min-width: 32px; background: #24575e; border: 1px solid #2f6971; color: #eef8ea; }
 .collapseButton:hover { background: #276c72; }
-.sidebarCollapsed .brandMark span, .sidebarCollapsed .navGroup h2, .sidebarCollapsed .navGroup a span, .sidebarCollapsed .sidebarFooter { display: none; }
+.sidebarCollapsed .brandMark span:not(.textLogo), .sidebarCollapsed .navGroup h2, .sidebarCollapsed .navGroup a span, .sidebarCollapsed .sidebarFooter { display: none; }
+.sidebarCollapsed .brandMark .textLogo { display: grid; }
 .sidebarCollapsed .appBrand { justify-content: center; padding: 14px 8px; }
 .sidebarCollapsed .brandActions { display: none; }
 .sidebarCollapsed .appNav { padding: 16px 10px; }
@@ -42,7 +58,7 @@ a { color: inherit; }
 .sidebarFooter span { color: #b9d8b2; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
 .sidebarFooter strong { color: #fff; font-size: 13px; }
 .sidebarFooter small { color: #d7efd1; font-size: 11px; line-height: 1.35; }
-.appFrame { min-width: 0; display: grid; grid-template-rows: 64px auto minmax(0, 1fr); }
+.appFrame { min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
 .appTopbar { height: 64px; display: flex; align-items: center; gap: 14px; justify-content: space-between; background: rgba(255,255,255,.92); border-bottom: 1px solid var(--dn-border); padding: 0 22px; position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
 .routeTitle { min-width: 180px; display: grid; gap: 3px; }
 .routeTitle span { color: var(--dn-muted); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
@@ -74,8 +90,17 @@ a { color: inherit; }
 .activityButton { min-width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; position: relative; background: #fff; color: #276c72; border: 1px solid var(--dn-border); border-radius: 999px; }
 .activityButton:hover { background: var(--dn-green-soft); color: var(--dn-primary); border-color: #bfe3b8; }
 .activityButton span { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dn-orange); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800; border: 2px solid #fff; }
-.authUserButton, .authLoginLink { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--dn-border); background: #fff; color: #276c72; padding: 7px 11px; font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.authUserButton, .authLoginLink { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; border: 1px solid var(--dn-border); background: #fff; color: #276c72; padding: 7px 11px; font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
 .authUserButton:hover, .authLoginLink:hover { color: var(--dn-primary); border-color: #bfe3b8; background: var(--dn-green-soft); }
+.accountMenuWrap { position: relative; }
+.accountMenu { position: absolute; right: 0; top: calc(100% + 8px); width: min(260px, 86vw); z-index: 35; display: grid; gap: 4px; padding: 8px; background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; box-shadow: 0 18px 42px rgba(15, 23, 42, .14); }
+.accountMenuHeader { display: grid; gap: 3px; padding: 9px 10px 10px; border-bottom: 1px solid #e3efd9; margin-bottom: 4px; }
+.accountMenuHeader strong { color: var(--dn-text); font-size: 13px; }
+.accountMenuHeader span { color: var(--dn-muted); font-size: 12px; overflow-wrap: anywhere; }
+.accountMenu a, .accountMenu button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 7px; border: 0; background: transparent; color: #164c52; text-align: left; text-decoration: none; font-size: 13px; font-weight: 700; }
+.accountMenu a:hover, .accountMenu button:hover { background: var(--dn-green-soft); color: var(--dn-primary); }
+.accountMenu button:last-child { color: #b42318; }
+.accountMenu button:last-child:hover { background: #fff1f0; color: #b42318; }
 .activityOverlay { position: fixed; inset: 0; z-index: 45; background: rgba(15, 23, 42, .26); display: flex; justify-content: flex-end; }
 .activityDrawer { width: min(420px, 100vw); min-height: 100vh; background: #fff; border-left: 1px solid var(--dn-border); box-shadow: -20px 0 48px rgba(15, 23, 42, .18); padding: 16px; display: grid; align-content: start; gap: 14px; }
 .activityDrawer header { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e3efd9; }
@@ -192,6 +217,25 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .itineraryItem span { color: var(--dn-primary); font-weight: 700; font-size: 13px; }
 .itineraryItem p { margin: 6px 0 0; color: #4b6b3d; line-height: 1.5; }
 .tourCard footer { color: var(--dn-muted); border-top: 1px solid #e3efd9; padding-top: 10px; font-size: 13px; }
+.tourProgramActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.tourEditRow {
+  display: none;
+}
+.tourEditRow:target {
+  display: table-row;
+}
+.tourProgramActions .iconButton,
+.tourProgramActions .dangerButton {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
 .emptyState { color: var(--dn-muted); }
 .emptyState, .tableEmptyState { min-height: 96px; display: grid; place-items: center; border: 1px dashed var(--dn-border); border-radius: 8px; background: var(--dn-surface-soft); color: var(--dn-muted); font-weight: 700; text-align: center; padding: 18px; }
 .loadingBar { height: 4px; overflow: hidden; border-radius: 999px; background: #eef8ea; position: relative; }
@@ -208,6 +252,11 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .statusPill { display: inline-flex; border-radius: 999px; background: var(--dn-green-soft); color: var(--dn-primary); padding: 5px 8px; font-size: 12px; font-weight: 700; }
 .statusPillNeutral { background: #f1f5f9; color: #4b6b3d; }
 .status-draft { background: #f1f5f9; color: #4b6b3d; }
+.status-pending, .status-requested { background: #fef3c7; color: #9a5b00; }
+.status-approved { background: #e0e7ff; color: #4338ca; }
+.status-paid { background: var(--dn-green-soft); color: var(--dn-primary); }
+.status-partial { background: #ffedd5; color: #9a3412; }
+.status-rejected { background: #fee2e2; color: #b20000; }
 .status-upcoming { background: #fef3c7; color: var(--dn-orange); }
 .status-running { background: #e0e7ff; color: #4338ca; }
 .status-completed, .status-settled { background: var(--dn-green-soft); color: var(--dn-primary); }
@@ -429,7 +478,22 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .loginPage { min-height: calc(100vh - 140px); display: grid; place-items: center; }
 .loginPanel { width: min(460px, 100%); background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; padding: 22px; box-shadow: 0 14px 34px rgba(15, 23, 42, .08); display: grid; gap: 18px; }
 .loginBrand img { width: 82px; height: 64px; object-fit: contain; border-radius: 10px; background: #fff; padding: 5px; border: 1px solid var(--dn-border); }
+.loginTextLogo {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #173f44;
+  color: #fff;
+  border: 1px solid #2f6971;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
 .loginBrand span { color: var(--dn-muted); font-size: 13px; line-height: 1.45; }
+.loginBrand .loginTextLogo { color: #fff; line-height: 1; }
 .loginBrand { display: flex; align-items: center; gap: 12px; }
 .loginBrand svg { color: var(--dn-primary); }
 .loginBrand h1 { font-size: 24px; }
@@ -475,5 +539,650 @@ select[multiple] { min-height: 92px; }
 .operationsTable td span { display: block; color: var(--dn-muted); font-size: 12px; margin-top: 5px; }
 .operationsTable td:last-child { color: inherit; font-weight: inherit; }
 .operationsActions { min-width: 150px; display: flex; gap: 6px; justify-content: flex-end; }
+.reconciliationCard { display: grid; gap: 10px; border-top: 1px solid #e3efd9; padding-top: 12px; }
+.reconciliationCard h3 { margin: 0; color: var(--dn-primary); font-size: 15px; }
+.reconciliationTimeline { display: grid; gap: 8px; }
+.reconciliationTimeline div { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--dn-border); border-radius: 7px; padding: 9px; background: var(--dn-surface-soft); }
+.reconciliationTimeline span { color: var(--dn-muted); font-size: 12px; }
+.reconciliationActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.reconciliationDetails { display: grid; gap: 12px; }
 @media (max-width: 1500px) { .operationsMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .operationsGrid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .operationsMetrics, .operationsFilters, .operationsFormPanel .formGrid { grid-template-columns: 1fr; } }
+
+
+/* Vietnamese typography polish */
+button, input, select, textarea { font-family: inherit; }
+button, .iconTextButton, .navGroup a, .moduleStrip a, .topbarShortcuts a, .authUserButton, .authLoginLink, label, th { font-weight: 600; }
+h1, h2, h3, strong, b, th, label, button, .metric strong { font-synthesis: none; }
+.eyebrow, .navGroup h2, .sidebarFooter span, .activityDrawer h3 { letter-spacing: .04em; }
+
+
+/* Layout hardening for production screens */
+html, body { max-width: 100%; overflow-x: hidden; }
+.appShell, .appFrame, .appMain, .workspace, .panel, .contentGrid, .fitWizard, .orderWorkspace, .reportWorkspace, .customerPage, .financePage, .operationsPage, .securityPage, .commissionPage, .quotePage { min-width: 0; }
+.workspace, .dashboardPage, .orderPage, .reportWorkspace, .customerPage, .financePage, .operationsPage, .securityPage, .commissionPage, .quotePage, .hotelSupplierPage, .fitWizard { max-width: 100%; }
+.appMain { width: 100%; }
+.panel { padding: 14px; overflow: hidden; }
+.pageHeader, .sectionHeader, .topbar, .hotelFormActions, .fitActions, .wizardFooter, .financeActions, .operationsActions, .commissionActions, .pageHeaderActions { flex-wrap: wrap; min-width: 0; }
+.pageHeader > *, .sectionHeader > *, .topbar > *, .hotelFormActions > *, .fitActions > *, .wizardFooter > * { min-width: 0; }
+.sectionHeader { align-items: flex-start; }
+.sectionHeader h2, .pageHeader h1, h1, h2 { overflow-wrap: anywhere; line-height: 1.18; }
+.sectionHeader span { text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+button, .iconTextButton, .secondaryButton, .dangerButton { min-height: 38px; line-height: 1.25; white-space: normal; }
+.iconButton { min-height: 34px; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+label { min-width: 0; }
+.metrics, .dashboardMetrics, .orderMetrics, .reportMetrics, .customerMetrics, .commissionMetrics, .financeMetrics, .operationsMetrics, .securityMetrics, .reportSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; }
+.metric { min-width: 0; min-height: 96px; padding: 13px; }
+.metric strong { font-size: clamp(20px, 2vw, 26px); line-height: 1.12; }
+.contentGrid, .dashboardGrid, .bookingGrid, .gitGrid, .landGrid, .customerGrid, .commissionGrid, .financeGrid, .financeCashGrid, .operationsGrid, .securityGrid, .quoteWorkArea, .quoteComboShell, .orderWorkArea { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; align-items: start; }
+.formGrid, .hotelFormGrid, .fitFormGrid, .gitForm, .landForm, .quoteFormGrid, .customerFormGrid, .customerMiniGrid, .financeFormPanel .formGrid, .operationsFormPanel .formGrid, .securityFormPanel .formGrid, .orderFilterGrid, .reportFilterGrid, .financeFilters, .operationsFilters, .customerFilters, .commissionFilters, .quoteComboTop, .reportControls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; align-items: end; }
+.formGrid label, .hotelFormGrid label, .fitFormGrid label, .quoteFormGrid label, .customerFormGrid label { min-width: 0; }
+.formGrid .span2, .hotelFormGrid .span2, .fitFormGrid .span2, .quoteFormGrid .span2, .customerFormGrid .span2, .hotelFormGrid .fileDrop { grid-column: span 2; }
+.fitToolbar { grid-template-columns: minmax(0, 1fr); }
+.fitSteps { align-items: stretch; }
+.fitSteps button { flex: 1 1 150px; justify-content: flex-start; min-width: 0; }
+.fitActions { justify-content: flex-start; }
+.fitActions select { min-width: min(100%, 220px); }
+.summaryRows div { min-width: 0; align-items: baseline; }
+.summaryRows strong { overflow-wrap: anywhere; text-align: right; }
+.searchBox { width: min(100%, 420px); max-width: none; margin-left: 0; }
+.searchBox input { min-width: 0; }
+.fitTableWrap, .listPanel, .categoryPanel { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.fitTable, .hotelDynamicTable, .hotelListTable, .quoteDynamicTable, .quoteListTable, .quoteComboTable, .orderDynamicTable, .orderListTable, .reportTable, .customerTable, .commissionTable, .financeTable, .operationsTable, .securityTable { width: max-content; max-width: none; }
+.fitTable th, .fitTable td, .financeTable th, .financeTable td, .operationsTable th, .operationsTable td, .securityTable th, .securityTable td { line-height: 1.35; }
+.fitTable td, .hotelDynamicTable td, .quoteDynamicTable td, .quoteComboTable td, .orderDynamicTable td { min-width: 112px; }
+.permissionChips { min-width: min(360px, 70vw); }
+.topbarActions { flex-wrap: wrap; }
+.globalSearch { min-width: 220px; }
+.moduleStrip { scrollbar-width: thin; }
+.financeSide, .commissionSide, .quoteSummaryBox { position: static; }
+@media (min-width: 1500px) {
+  .financeGrid, .operationsGrid { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
+  .securityGrid, .customerGrid, .commissionGrid { grid-template-columns: minmax(360px, 480px) minmax(0, 1fr); }
+  .quoteWorkArea, .quoteComboShell, .orderWorkArea { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+@media (max-width: 1100px) {
+  .appTopbar { height: auto; min-height: 64px; padding-block: 10px; flex-wrap: wrap; }
+  .routeTitle { min-width: 0; flex: 1 1 180px; }
+  .globalSearch { order: 3; flex-basis: 100%; max-width: none; }
+  .moduleStrip { padding-inline: 14px; }
+}
+@media (max-width: 760px) {
+  .appMain { padding: 12px; }
+  .panel { padding: 12px; }
+  .metrics, .dashboardMetrics, .orderMetrics, .reportMetrics, .customerMetrics, .commissionMetrics, .financeMetrics, .operationsMetrics, .securityMetrics, .reportSummary, .contentGrid, .dashboardGrid, .bookingGrid, .gitGrid, .landGrid, .customerGrid, .commissionGrid, .financeGrid, .financeCashGrid, .operationsGrid, .securityGrid, .quoteWorkArea, .quoteComboShell, .orderWorkArea, .formGrid, .hotelFormGrid, .fitFormGrid, .gitForm, .landForm, .quoteFormGrid, .customerFormGrid, .customerMiniGrid, .orderFilterGrid, .reportFilterGrid, .financeFilters, .operationsFilters, .customerFilters, .commissionFilters, .quoteComboTop, .reportControls { grid-template-columns: 1fr; }
+  .formGrid .span2, .hotelFormGrid .span2, .fitFormGrid .span2, .quoteFormGrid .span2, .customerFormGrid .span2, .hotelFormGrid .fileDrop { grid-column: auto; }
+  .topbarActions { width: 100%; justify-content: flex-start; }
+  .loginBrand { align-items: flex-start; }
+}
+
+
+/* Nested legacy shell cleanup */
+.appMain > .shell { min-height: 0; display: block; width: 100%; max-width: 100%; }
+.appMain > .shell > .sidebar { display: none; }
+.appMain > .shell > .workspace { padding: 0; width: 100%; max-width: 100%; }
+.fitSteps button { flex: 0 1 auto; max-width: 100%; }
+.fitToolbar, .orderWorkArea, .quoteWorkArea, .quoteComboShell, .hotelSupplierPage, .orderForm, .quoteForm, .hotelSupplierForm { overflow: hidden; }
+.fitTableBlock, .listPanel, .categoryPanel { min-width: 0; }
+.fitTableWrap { border: 1px solid #e3efd9; border-radius: 7px; }
+.fitTableWrap > table { margin: 0; }
+@media (max-width: 760px) {
+  .fitSteps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fitSteps button { justify-content: flex-start; }
+}
+
+/* Quotation/order form viewport containment */
+.orderPage,
+.orderPage .orderForm,
+.orderPage .orderMain,
+.orderPage .fitTableBlock,
+.orderPage .listPanel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.orderPage .orderWorkArea {
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 18vw, 320px);
+  overflow: visible;
+}
+
+.orderPage .quoteSummaryBox {
+  align-self: start;
+  min-width: 0;
+}
+
+.orderPage .quoteSummaryBox .summaryRows strong {
+  font-size: clamp(18px, 1.35vw, 22px);
+}
+
+.orderPage .fitTableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.orderPage .orderDynamicTable {
+  width: max(100%, 1080px);
+  min-width: 1080px;
+  table-layout: fixed;
+}
+
+.orderPage .orderDynamicTable th,
+.orderPage .orderDynamicTable td {
+  min-width: 0;
+}
+
+.orderPage .orderDynamicTable th:nth-child(1),
+.orderPage .orderDynamicTable td:nth-child(1) { width: 48px; }
+.orderPage .orderDynamicTable th:nth-child(2),
+.orderPage .orderDynamicTable td:nth-child(2) { width: 120px; }
+.orderPage .orderDynamicTable th:nth-child(3),
+.orderPage .orderDynamicTable td:nth-child(3),
+.orderPage .orderDynamicTable th:nth-child(4),
+.orderPage .orderDynamicTable td:nth-child(4) { width: 150px; }
+.orderPage .orderDynamicTable th:nth-child(5),
+.orderPage .orderDynamicTable td:nth-child(5) { width: 86px; }
+.orderPage .orderDynamicTable th:nth-child(n+6):nth-child(-n+11),
+.orderPage .orderDynamicTable td:nth-child(n+6):nth-child(-n+11) { width: 90px; }
+.orderPage .orderDynamicTable th:nth-child(12),
+.orderPage .orderDynamicTable td:nth-child(12) { width: 112px; }
+.orderPage .orderDynamicTable th:nth-child(13),
+.orderPage .orderDynamicTable td:nth-child(13) { width: 52px; }
+
+.orderPage .orderDynamicTable input,
+.orderPage .orderDynamicTable select {
+  min-width: 0;
+  width: 100%;
+}
+
+.orderPage .orderListTable {
+  width: max(100%, 980px);
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.orderPage .hotelFormActions {
+  width: 100%;
+  justify-content: flex-end;
+  overflow: visible;
+}
+
+@media (max-width: 1700px) {
+  .orderPage .orderWorkArea { grid-template-columns: 1fr; }
+}
+
+/* List-first modal workflow */
+.sectionActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.sectionActions span {
+  color: var(--dn-muted);
+  font-weight: 600;
+}
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .45);
+}
+.modalPanel {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--dn-border);
+  border-radius: 10px;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+}
+.modalPanelWide {
+  width: min(1180px, calc(100vw - 32px));
+}
+.modalPanel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e3efd9;
+}
+.modalPanel header h2 {
+  margin: 0;
+  line-height: 1.2;
+}
+.modalFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.modalFormGrid label {
+  min-width: 0;
+}
+.modalFormGrid .span2 {
+  grid-column: span 2;
+}
+.modalActions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e3efd9;
+}
+.hashModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  padding: 18px;
+  align-items: center;
+  justify-content: center;
+}
+.hashModal:target {
+  display: flex;
+}
+.hashModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 42, 43, 0.42);
+}
+.hashModalPanel {
+  position: relative;
+  width: min(960px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fffef7;
+  border: 1px solid #cfe5c5;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(13, 64, 66, 0.22);
+  padding: 18px;
+}
+.hashModalWide {
+  width: min(1180px, calc(100vw - 32px));
+}
+.fitTourWizardModal {
+  width: min(1600px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+}
+.fitTourWizardModal .fitWizard {
+  gap: 16px;
+}
+.fitTourWizardModal .fitToolbar {
+  position: sticky;
+  top: -18px;
+  z-index: 2;
+  background: #fffef7;
+  border-bottom: 1px solid #e3efd9;
+  padding-bottom: 12px;
+}
+.fitTourWizardModal .fitSteps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+}
+.fitTourWizardModal .fitSteps button {
+  position: relative;
+  min-height: 38px;
+  justify-content: center;
+  border-radius: 0;
+  border-color: #d1d5db;
+  background: #d7d7d7;
+  color: #344054;
+  padding: 8px 20px;
+}
+.fitTourWizardModal .fitSteps button:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 0;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  border-top: 19px solid transparent;
+  border-bottom: 19px solid transparent;
+  border-left: 14px solid #d7d7d7;
+}
+.fitTourWizardModal .fitSteps button.active {
+  background: #2497e8;
+  border-color: #2497e8;
+}
+.fitTourWizardModal .fitSteps button.active::after {
+  border-left-color: #2497e8;
+}
+.fitTourWizardModal .fitSteps span {
+  display: inline;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 800;
+}
+.fitTourWizardModal .fitActions {
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+.fitTourWizardModal .wizardFooter {
+  position: sticky;
+  bottom: -18px;
+  z-index: 2;
+  background: #fffef7;
+  border-top: 1px solid #e3efd9;
+  padding-top: 12px;
+}
+.tourWorkflowModal {
+  width: min(1600px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+}
+.tourWorkflowModal .fitToolbar {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  background: #fff;
+  border-bottom: 1px solid #e3efd9;
+  padding-bottom: 12px;
+}
+.tourWorkflowModal .fitSteps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+}
+.tourWorkflowModal .fitSteps button {
+  position: relative;
+  min-height: 38px;
+  justify-content: center;
+  border-radius: 0;
+  border-color: #d1d5db;
+  background: #d7d7d7;
+  color: #344054;
+  padding: 8px 20px;
+}
+.tourWorkflowModal .fitSteps button:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 0;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  border-top: 19px solid transparent;
+  border-bottom: 19px solid transparent;
+  border-left: 14px solid #d7d7d7;
+}
+.tourWorkflowModal .fitSteps button.active {
+  background: #2497e8;
+  border-color: #2497e8;
+  color: #fff;
+}
+.tourWorkflowModal .fitSteps button.active::after {
+  border-left-color: #2497e8;
+}
+.tourWorkflowModal .fitSteps span {
+  display: inline;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 800;
+}
+.tourWorkflowModal .fitActions {
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+.hashModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.hashModalHeader h2 {
+  margin: 0;
+}
+.hashModal .formGrid,
+.hashModal .formStack,
+.hashModal .bookingEditForm {
+  margin: 0;
+}
+.listOnlyActions,
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sectionHeader .listOnlyActions {
+  margin-left: auto;
+}
+.rowActions .iconButton,
+.rowActions .dangerButton,
+.tourProgramActions .iconButton,
+.tourProgramActions .dangerButton {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.securityPage .securityFormPanel {
+  display: none;
+}
+.securityPage .securityGrid {
+  grid-template-columns: 1fr;
+}
+.cashflowStack {
+  display: grid;
+  gap: 14px;
+}
+.supplierFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.supplierFiles span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.supplierFiles a {
+  color: var(--dn-green);
+  font-size: 13px;
+  font-weight: 700;
+}
+.financeInvoiceFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.financeInvoiceFiles span,
+.financeFilePicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.financeInvoiceFiles a {
+  color: var(--dn-green);
+  font-size: 12px;
+  font-weight: 700;
+}
+.financeFilePicker {
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  .modalOverlay {
+    align-items: start;
+    padding: 10px;
+  }
+  .modalPanel {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    padding: 12px;
+    border-radius: 8px;
+  }
+  .modalFormGrid .span2 {
+    grid-column: auto;
+  }
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+}
+
+/* Production fix: quotations must fit the app viewport without page-level horizontal drift. */
+.orderPage {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.orderPage .metrics {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.orderPage .orderWorkArea {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.orderPage .quoteSummaryBox {
+  position: static;
+  order: -1;
+  padding: 12px 14px;
+}
+
+.orderPage .quoteSummaryBox h2 {
+  margin-bottom: 8px;
+}
+
+.orderPage .quoteSummaryBox .summaryRows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px 14px;
+}
+
+.orderPage .quoteSummaryBox .summaryRows div {
+  min-height: 42px;
+  padding-top: 0;
+  border-top: 0;
+  border-left: 1px solid #e3efd9;
+  padding-left: 10px;
+}
+
+.orderPage .quoteSummaryBox .summaryRows span {
+  font-size: 12px;
+}
+
+.orderPage .quoteSummaryBox .summaryRows strong {
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.orderPage .fitTableBlock,
+.orderPage .listPanel {
+  overflow: hidden;
+}
+
+.orderPage .fitTableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.orderPage .orderDynamicTable {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.orderPage .orderDynamicTable th,
+.orderPage .orderDynamicTable td {
+  padding: 8px 6px;
+  min-width: 0;
+}
+
+.orderPage .orderDynamicTable th:nth-child(1),
+.orderPage .orderDynamicTable td:nth-child(1) { width: 42px; }
+.orderPage .orderDynamicTable th:nth-child(2),
+.orderPage .orderDynamicTable td:nth-child(2) { width: 112px; }
+.orderPage .orderDynamicTable th:nth-child(3),
+.orderPage .orderDynamicTable td:nth-child(3),
+.orderPage .orderDynamicTable th:nth-child(4),
+.orderPage .orderDynamicTable td:nth-child(4) { width: 136px; }
+.orderPage .orderDynamicTable th:nth-child(5),
+.orderPage .orderDynamicTable td:nth-child(5) { width: 74px; }
+.orderPage .orderDynamicTable th:nth-child(6),
+.orderPage .orderDynamicTable td:nth-child(6),
+.orderPage .orderDynamicTable th:nth-child(7),
+.orderPage .orderDynamicTable td:nth-child(7),
+.orderPage .orderDynamicTable th:nth-child(8),
+.orderPage .orderDynamicTable td:nth-child(8),
+.orderPage .orderDynamicTable th:nth-child(9),
+.orderPage .orderDynamicTable td:nth-child(9),
+.orderPage .orderDynamicTable th:nth-child(10),
+.orderPage .orderDynamicTable td:nth-child(10),
+.orderPage .orderDynamicTable th:nth-child(11),
+.orderPage .orderDynamicTable td:nth-child(11) { width: 78px; }
+.orderPage .orderDynamicTable th:nth-child(12),
+.orderPage .orderDynamicTable td:nth-child(12) { width: 92px; }
+.orderPage .orderDynamicTable th:nth-child(13),
+.orderPage .orderDynamicTable td:nth-child(13) { width: 44px; }
+
+.orderPage .orderDynamicTable input,
+.orderPage .orderDynamicTable select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 7px;
+  font-size: 13px;
+}
+
+.orderPage .orderDynamicTable .iconButton {
+  width: 34px;
+  min-width: 34px;
+  padding: 7px;
+}
+
+.orderPage .orderListTable {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.orderPage .hotelFormActions {
+  width: 100%;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 1200px) {
+  .orderPage .fitTableWrap {
+    overflow-x: auto;
+  }
+
+  .orderPage .orderDynamicTable {
+    width: 1080px;
+    min-width: 1080px;
+  }
+}

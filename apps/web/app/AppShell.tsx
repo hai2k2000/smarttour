@@ -7,6 +7,7 @@ import {
   BookOpen,
   BriefcaseBusiness,
   Calculator,
+  ChevronDown,
   ClipboardList,
   ClipboardCheck,
   FileCheck2,
@@ -14,6 +15,7 @@ import {
   HandCoins,
   Landmark,
   LayoutDashboard,
+  LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,8 +23,10 @@ import {
   ReceiptText,
   Route,
   Search,
+  Settings,
   ShieldCheck,
   TicketCheck,
+  UserCircle,
   Users,
   Warehouse,
   WalletCards,
@@ -36,7 +40,7 @@ const groups = [
   {
     title: 'Tổng quan',
     items: [
-      { label: 'Dashboard Du Niên', href: '/', icon: LayoutDashboard },
+      { label: 'Tổng quan AI Tour', href: '/', icon: LayoutDashboard },
       { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
       { label: 'Báo cáo lãi lỗ', href: '/reports', icon: BarChart3 },
       { label: 'Báo cáo hoa hồng', href: '/commission-reports', icon: HandCoins },
@@ -56,7 +60,7 @@ const groups = [
     items: [
       { label: 'Tổng quan tài chính', href: '/finance', icon: WalletCards },
       { label: 'Phiếu thu chờ', href: '/finance?tab=pending', icon: ReceiptText },
-      { label: 'Phiếu thu', href: '/finance?tab=receipts', icon: ReceiptText },
+      { label: 'Phiếu thu', href: '/finance', icon: ReceiptText },
       { label: 'Phiếu chi', href: '/finance?tab=payments', icon: HandCoins },
       { label: 'Hóa đơn VAT', href: '/finance?tab=invoices', icon: FileText },
       { label: 'Dòng tiền', href: '/finance?tab=cashflow', icon: BarChart3 },
@@ -105,7 +109,7 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
   'Tổng quan': [
     { label: 'Trung tâm đơn hàng', href: '/order-center' },
     { label: 'Báo cáo lãi lỗ', href: '/reports' },
-    { label: 'Hoa hong', href: '/commission-reports' },
+    { label: 'Hoa hồng', href: '/commission-reports' },
   ],
   'Bán hàng': [
     { label: 'CRM', href: '/customers' },
@@ -116,7 +120,7 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
   'Tài chính / Kế toán': [
     { label: 'Tổng quan', href: '/finance' },
     { label: 'Thu chờ', href: '/finance?tab=pending' },
-    { label: 'Phiếu thu', href: '/finance?tab=receipts' },
+    { label: 'Phiếu thu', href: '/finance' },
     { label: 'Phiếu chi', href: '/finance?tab=payments' },
     { label: 'VAT', href: '/finance?tab=invoices' },
     { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
@@ -134,12 +138,12 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
     { label: 'FIT', href: '/fit-tours' },
     { label: 'GIT', href: '/git-tours' },
     { label: 'LandTour', href: '/landtours' },
-    { label: 'Dieu hanh', href: '/operation-vouchers' },
-    { label: 'Van hanh', href: '/operations' },
+    { label: 'Điều hành', href: '/operation-vouchers' },
+    { label: 'Vận hành', href: '/operations' },
     { label: 'NCC', href: '/suppliers' },
   ],
   'Hệ thống': [
-    { label: 'Users & Roles', href: '/security' },
+    { label: 'Người dùng & vai trò', href: '/security' },
     { label: 'Đăng nhập', href: '/login' },
   ],
 };
@@ -157,6 +161,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
   const page = currentPage(pathname);
@@ -186,7 +191,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         event.preventDefault();
         setCommandOpen(true);
       }
-      if (event.key === 'Escape') setCommandOpen(false);
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        setAccountOpen(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -206,6 +214,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     window.localStorage.removeItem('smarttour.auth.user');
     document.cookie = 'smarttour.auth.token=; path=/; max-age=0; samesite=lax';
     setAuthUser(null);
+    setAccountOpen(false);
     if (token) {
       void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
     }
@@ -215,7 +224,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className={`appShell ${collapsed ? 'sidebarCollapsed' : ''}`}>
       <aside className={`appSidebar ${open ? 'open' : ''}`}>
         <div className="appBrand">
-          <Link href="/" className="brandMark"><img src="/brand/logo-du-nien-travel.png" alt="Du Niên Travel" /><span><strong>Du Niên Travel</strong><em>SmartTour</em></span></Link>
+          <Link href="/" className="brandMark"><span className="textLogo">AI</span><span><strong>AI Tour</strong><em>Operations</em></span></Link>
           <div className="brandActions">
             <button className="collapseButton" onClick={toggleCollapsed} aria-label="Thu gọn thanh bên">
               {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
@@ -229,9 +238,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <h2>{group.title}</h2>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
-                  <Link key={item.href} href={item.href} className={active ? 'active' : ''} onClick={() => setOpen(false)}>
+                  <Link key={item.href} href={item.href} prefetch={false} className={active ? 'active' : ''} onClick={() => setOpen(false)}>
                     <Icon size={16} />
                     <span>{item.label}</span>
                   </Link>
@@ -241,8 +250,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebarFooter">
-          <span>SmartTour ERP</span>
-          <strong>Du Niên Travel</strong><small>Thương hiệu du lịch dành riêng cho người cao tuổi</small>
+          <span>AI Tour</span>
+          <strong>Travel Operations</strong><small>Quản lý bán hàng, tour và vận hành</small>
         </div>
       </aside>
       <div className="appFrame">
@@ -261,7 +270,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 {searchResults.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <Link key={item.href} href={item.href} onClick={() => setSearch('')}>
+                    <Link key={item.href} href={item.href} prefetch={false} onClick={() => setSearch('')}>
                       <Icon size={16} />
                       <span>{item.label}</span>
                       <em>{item.group}</em>
@@ -273,26 +282,50 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </label>
           <div className="topbarActions">
             <div className="topbarShortcuts">
-              {shortcuts.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
+              {shortcuts.map((item) => <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>)}
             </div>
             <button className="activityButton" onClick={() => setActivityOpen(true)} aria-label="Mở trung tâm công việc">
               <Bell size={16} />
               <span>3</span>
             </button>
             {authUser ? (
-              <button className="authUserButton" onClick={logout} title={authUser.email}>
-                {authUser.name}
-              </button>
+              <div className="accountMenuWrap">
+                <button className="authUserButton" onClick={() => setAccountOpen((current) => !current)} title={authUser.email} aria-expanded={accountOpen} aria-haspopup="menu">
+                  <UserCircle size={16} />
+                  <span>{authUser.name}</span>
+                  <ChevronDown size={14} />
+                </button>
+                {accountOpen ? (
+                  <div className="accountMenu" role="menu">
+                    <div className="accountMenuHeader">
+                      <strong>{authUser.name}</strong>
+                      <span>{authUser.email}</span>
+                    </div>
+                    <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
+                      <Settings size={16} />
+                      <span>Quản trị tài khoản</span>
+                    </Link>
+                    <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
+                      <ShieldCheck size={16} />
+                      <span>Phân quyền vai trò</span>
+                    </Link>
+                    <button type="button" role="menuitem" onClick={logout}>
+                      <LogOut size={16} />
+                      <span>Đăng xuất</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <Link className="authLoginLink" href="/login">Đăng nhập</Link>
             )}
-            <span className="envPill">Du Niên Travel</span>
+            <span className="envPill">AI Tour</span>
             <span className="healthPill"><ShieldCheck size={15} /> Online</span>
           </div>
         </header>
         <div className="moduleStrip">
           {relatedLinks.map((item) => (
-            <Link key={item.href} href={item.href} className={pathname === item.href || pathname.startsWith(`${item.href}/`) ? 'active' : ''}>{item.label}</Link>
+            <Link key={item.href} href={item.href} prefetch={false} className={pathname === item.href || pathname.startsWith(`${item.href}/`) ? 'active' : ''}>{item.label}</Link>
           ))}
         </div>
         <main className="appMain">{children}</main>
@@ -309,7 +342,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               {(search.trim() ? searchResults : allItems).slice(0, 12).map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href} onClick={() => { setSearch(''); setCommandOpen(false); }}>
+                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => { setSearch(''); setCommandOpen(false); }}>
                     <Icon size={18} />
                     <span>{item.label}</span>
                     <em>{item.group}</em>

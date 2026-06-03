@@ -247,14 +247,14 @@ export class OperationsService {
       const payment = await tx.financePayment.create({
         data: {
           voucherCode: await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', new Date(), this.text(dto.branch)),
-          voucherName: `Chi NCC ${request.code}`,
+          voucherName: 'Chi NCC',
           voucherType: 'SUPPLIER_PAYMENT',
           paymentDate: this.date(dto.paymentDate),
           paymentMethod: (this.text(dto.paymentMethod) || 'BANK_TRANSFER') as never,
           supplierId: supplierIds.length === 1 ? supplierIds[0] : null,
           orderId: firstCostForm?.orderId ?? null,
           receiverName: supplierIds.length === 1 ? firstSupplier?.name : 'Nhieu nha cung cap',
-          reason: this.text(dto.reason) || `Thanh toan yeu cau ${request.code}`,
+          reason: this.text(dto.reason) || 'Thanh toan yeu cau',
           totalAmount: total,
           paymentAmount: total,
           remainingAmount: 0,
@@ -262,7 +262,12 @@ export class OperationsService {
           createdBy: actor,
         },
       });
-      const updated = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: 'PAID', financePaymentId: payment.id }, include: this.paymentRequestInclude() });
+      const linked = await tx.supplierPaymentRequest.updateMany({ where: { id, financePaymentId: null }, data: { financePaymentId: payment.id } });
+      if (!linked.count) {
+        await tx.financePayment.delete({ where: { id: payment.id } });
+        return tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestInclude() });
+      }
+      const updated = await tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestInclude() });
       await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id });
       return updated;
     });
@@ -345,7 +350,7 @@ export class OperationsService {
         supplierId: this.text(item.supplierId),
         supplierServiceId: this.text(item.supplierServiceId),
         serviceType: this.requiredText(item.serviceType, 'serviceType is required'),
-        serviceName: this.requiredText(item.serviceName, 'serviceName is required'),
+        serviceName: this.requiredText(item.serviceName, 'Cần nhập tên dịch vụ'),
         confirmationStatus: this.text(item.confirmationStatus) || 'WAITING',
         expectedCost: this.number(item.expectedCost),
         actualCost: this.number(item.actualCost),
@@ -372,7 +377,7 @@ export class OperationsService {
       const item = this.record(raw);
       return {
         serviceId: this.text(item.serviceId),
-        costName: this.requiredText(item.costName, 'costName is required'),
+        costName: this.requiredText(item.costName, 'Cần nhập tên chi phí'),
         expectedAmount: this.number(item.expectedAmount),
         actualAmount: this.number(item.actualAmount),
         currency: this.text(item.currency) || 'VND',
