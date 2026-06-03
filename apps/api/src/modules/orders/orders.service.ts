@@ -3,7 +3,8 @@ import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
-import { calculateOrderTotals, operationAmount, salesAmount } from './order-calculator';
+import { replaceOrderChildren } from './order-children-sync';
+import { calculateOrderTotals } from './order-calculator';
 
 const ORDER_TYPES: Record<string, OrderType> = {
   'fit-tours': 'FIT_TOUR',
@@ -65,7 +66,7 @@ export class OrdersService {
             ...calculateOrderTotals(orderDto),
           } as Prisma.OrderCreateInput,
         });
-        await this.replaceChildren(tx, order.id, orderDto);
+        await replaceOrderChildren(tx, order.id, orderDto);
         if (type === 'HOTEL_BOOKING') await this.syncHotelAllotmentLocks(tx, order.id, orderDto, 'CREATE');
         await tx.orderLog.create({ data: { orderId: order.id, action: 'CREATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
         return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.includeAll() });
@@ -121,7 +122,7 @@ export class OrdersService {
             ...calculateOrderTotals(merged),
           } as Prisma.OrderUpdateInput,
         });
-        await this.replaceChildren(tx, id, orderDto);
+        await replaceOrderChildren(tx, id, orderDto);
         if (current.type === 'HOTEL_BOOKING' && orderDto.operationItems) {
           await this.releaseAutoAllotmentLocks(tx, id, 'UPDATE_RELEASE');
           await this.syncHotelAllotmentLocks(tx, id, merged, 'UPDATE_LOCK');
@@ -248,41 +249,6 @@ export class OrdersService {
       });
       return updated;
     });
-  }
-
-  private async replaceChildren(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>) {
-    if (dto.guides) {
-      await tx.orderGuide.deleteMany({ where: { orderId } });
-      await tx.orderGuide.createMany({ data: dto.guides.filter((i) => i.guideName || i.guideId).map((i) => ({ orderId, guideId: this.text(i.guideId), guideName: this.text(i.guideName), phone: this.text(i.phone), language: this.text(i.language), note: this.text(i.note) })) });
-    }
-    if (dto.salesItems) {
-      await tx.orderSalesItem.deleteMany({ where: { orderId } });
-      await tx.orderSalesItem.createMany({ data: dto.salesItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), description: this.text(i.description), quantity: i.quantity ?? 1, serviceCount: i.serviceCount ?? 1, unitPrice: i.unitPrice ?? 0, vat: i.vat ?? 0, amount: salesAmount(i), note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.operationItems) {
-      await tx.orderOperationItem.deleteMany({ where: { orderId } });
-      await tx.orderOperationItem.createMany({ data: dto.operationItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), bookingCode: this.text(i.bookingCode), serviceDate: this.date(i.serviceDate), quantity: i.quantity ?? 1, netPrice: i.netPrice ?? 0, vat: i.vat ?? 0, amount: operationAmount(i), status: i.status ?? 'WAITING', note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.members) {
-      await tx.orderMember.deleteMany({ where: { orderId } });
-      await tx.orderMember.createMany({ data: dto.members.filter((i) => i.fullName?.trim()).map((i, index) => ({ orderId, fullName: i.fullName.trim(), gender: this.text(i.gender), birthday: this.date(i.birthday), phone: this.text(i.phone), email: this.text(i.email), identityNumber: this.text(i.identityNumber), issuedDate: this.date(i.issuedDate), nationality: this.text(i.nationality), passengerType: this.text(i.passengerType), note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.itineraries) {
-      await tx.orderItinerary.deleteMany({ where: { orderId } });
-      await tx.orderItinerary.createMany({ data: dto.itineraries.filter((i) => i.title || i.content).map((i, index) => ({ orderId, dayNo: i.dayNo, title: this.text(i.title), content: this.text(i.content), period: this.text(i.period), destination: this.text(i.destination), meals: this.text(i.meals), hotel: this.text(i.hotel), restaurant: this.text(i.restaurant), services: this.text(i.services), note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.handoverItems) {
-      await tx.orderHandoverItem.deleteMany({ where: { orderId } });
-      await tx.orderHandoverItem.createMany({ data: dto.handoverItems.filter((i) => i.itemName?.trim()).map((i, index) => ({ orderId, itemName: i.itemName.trim(), quantity: i.quantity ?? 1, note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.surveyQuestions) {
-      await tx.orderSurveyQuestion.deleteMany({ where: { orderId } });
-      await tx.orderSurveyQuestion.createMany({ data: dto.surveyQuestions.filter((i) => i.question?.trim()).map((i, index) => ({ orderId, question: i.question.trim(), note: this.text(i.note), sortOrder: index })) });
-    }
-    if (dto.terms) {
-      await tx.orderTerm.deleteMany({ where: { orderId } });
-      await tx.orderTerm.createMany({ data: dto.terms.map((i) => ({ orderId, language: i.language || 'VN', terms: this.text(i.terms), notes: this.text(i.notes) })) });
-    }
   }
 
   private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
