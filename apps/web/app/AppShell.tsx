@@ -15,6 +15,7 @@ import {
   HandCoins,
   Landmark,
   LayoutDashboard,
+  LogIn,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -33,8 +34,8 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { ReactNode, Suspense, useEffect, useMemo, useState } from 'react';
 
 const groups = [
   {
@@ -60,10 +61,11 @@ const groups = [
     items: [
       { label: 'Tổng quan tài chính', href: '/finance', icon: WalletCards },
       { label: 'Phiếu thu chờ', href: '/finance?tab=pending', icon: ReceiptText },
-      { label: 'Phiếu thu', href: '/finance', icon: ReceiptText },
+      { label: 'Phiếu thu', href: '/finance?tab=receipts', icon: ReceiptText },
       { label: 'Phiếu chi', href: '/finance?tab=payments', icon: HandCoins },
       { label: 'Hóa đơn VAT', href: '/finance?tab=invoices', icon: FileText },
       { label: 'Dòng tiền', href: '/finance?tab=cashflow', icon: BarChart3 },
+      { label: 'Công nợ', href: '/finance?tab=debt', icon: WalletCards },
     ],
   },
   {
@@ -120,10 +122,11 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
   'Tài chính / Kế toán': [
     { label: 'Tổng quan', href: '/finance' },
     { label: 'Thu chờ', href: '/finance?tab=pending' },
-    { label: 'Phiếu thu', href: '/finance' },
+    { label: 'Phiếu thu', href: '/finance?tab=receipts' },
     { label: 'Phiếu chi', href: '/finance?tab=payments' },
     { label: 'VAT', href: '/finance?tab=invoices' },
     { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
+    { label: 'Công nợ', href: '/finance?tab=debt' },
   ],
   'Đơn hàng': [
     { label: 'FIT', href: '/orders/fit-tours' },
@@ -148,41 +151,103 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
   ],
 };
 
-function currentPage(pathname: string) {
-  const items = groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title })));
+type SearchReader = Pick<URLSearchParams, 'get'>;
+type ShellItem = (typeof groups)[number]['items'][number] & { group: string };
+
+function normalizePath(value: string) {
+  const [rawPath] = value.split('?');
+  const path = rawPath.replace(/\/+$/, '');
+  return path || '/';
+}
+
+function routeParts(href: string) {
+  const [rawPath, rawQuery = ''] = href.split('?');
+  return { path: normalizePath(rawPath || '/'), params: new URLSearchParams(rawQuery) };
+}
+
+function paramsEntries(params: URLSearchParams) {
+  return Array.from(params.entries());
+}
+
+function paramsMatch(params: URLSearchParams, current: SearchReader) {
+  return paramsEntries(params).every(([key, value]) => current.get(key) === value);
+}
+
+function pathMatches(currentPathname: string, itemPath: string) {
+  const currentPath = normalizePath(currentPathname);
+  return itemPath === '/' ? currentPath === '/' : currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+}
+
+function isRouteActive(href: string, pathname: string, searchParams: SearchReader, peerItems: { href: string }[] = []) {
+  const route = routeParts(href);
+  if (!pathMatches(pathname, route.path)) return false;
+
+  const hasQuery = paramsEntries(route.params).length > 0;
+  if (hasQuery) return paramsMatch(route.params, searchParams);
+
+  const hasActiveQueryPeer = peerItems.some((item) => {
+    if (item.href === href) return false;
+    const peerRoute = routeParts(item.href);
+    return peerRoute.path === route.path && paramsEntries(peerRoute.params).length > 0 && paramsMatch(peerRoute.params, searchParams);
+  });
+  return !hasActiveQueryPeer;
+}
+
+function currentPage(pathname: string, searchParams: SearchReader, items: ShellItem[]) {
   return items
-    .filter((item) => item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))
-    .sort((a, b) => b.href.length - a.href.length)[0] || items[0];
+    .filter((item) => isRouteActive(item.href, pathname, searchParams, items))
+    .sort((a, b) => b.href.length - a.href.length)[0] || items
+    .filter((item) => pathMatches(pathname, routeParts(item.href).path))
+    .sort((a, b) => routeParts(b.href).path.length - routeParts(a.href).path.length)[0] || items[0];
+}
+
+function initialsFor(name?: string, email?: string) {
+  const source = (name || email || 'AI').trim();
+  const words = source.split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : source.slice(0, 2)).toUpperCase();
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<div className="appShellFallback" />}>
+      <AppShellContent>{children}</AppShellContent>
+    </Suspense>
+  );
+}
+
+function AppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [quickSearch, setQuickSearch] = useState('');
-  const [commandSearch, setCommandSearch] = useState('');
+  const [quickSearch, setQuickSearch] = useState({ query: '', focused: false });
+  const [commandPalette, setCommandPalette] = useState({ open: false, query: '' });
   const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
-  const page = currentPage(pathname);
+  const allItems = useMemo(() => groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title }))), []);
+  const page = currentPage(pathname, searchParams, allItems);
   const PageIcon = page.icon;
   const relatedLinks = workflowLinks[page.group] || [];
-  const allItems = useMemo(() => groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title }))), []);
+  const authName = authUser?.name?.trim() || 'Người dùng';
+  const authEmail = authUser?.email?.trim() || 'Phiên đăng nhập đang hoạt động';
+  const authInitials = initialsFor(authName, authEmail);
+  const currentPathWithQuery = `${pathname}${searchKey ? `?${searchKey}` : ''}`;
   const quickSearchResults = useMemo(() => {
-    const keyword = quickSearch.trim().toLowerCase();
+    const keyword = quickSearch.query.trim().toLowerCase();
     if (!keyword) return [];
     return allItems
       .filter((item) => `${item.label} ${item.group} ${item.href}`.toLowerCase().includes(keyword))
       .slice(0, 8);
-  }, [allItems, quickSearch]);
+  }, [allItems, quickSearch.query]);
   const commandSearchResults = useMemo(() => {
-    const keyword = commandSearch.trim().toLowerCase();
+    const keyword = commandPalette.query.trim().toLowerCase();
     if (!keyword) return allItems.slice(0, 12);
     return allItems
       .filter((item) => `${item.label} ${item.group} ${item.href}`.toLowerCase().includes(keyword))
       .slice(0, 12);
-  }, [allItems, commandSearch]);
+  }, [allItems, commandPalette.query]);
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem('smarttour.sidebar.collapsed') === 'true');
@@ -197,17 +262,34 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const handler = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        setCommandSearch('');
-        setCommandOpen(true);
+        setQuickSearch((current) => ({ ...current, focused: false }));
+        setCommandPalette({ open: true, query: '' });
       }
       if (event.key === 'Escape') {
-        setCommandOpen(false);
+        setQuickSearch((current) => ({ ...current, focused: false }));
+        setCommandPalette((current) => ({ ...current, open: false }));
         setAccountOpen(false);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  useEffect(() => {
+    setOpen(false);
+    setAccountOpen(false);
+    setActivityOpen(false);
+    setQuickSearch((current) => ({ ...current, focused: false }));
+  }, [pathname, searchKey]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.body.style.overflow;
+    if (window.matchMedia('(max-width: 1100px)').matches) document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -225,13 +307,20 @@ export default function AppShell({ children }: { children: ReactNode }) {
     setAuthUser(null);
     setAccountOpen(false);
     if (token) {
-      void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
+      void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true }).catch(() => undefined);
     }
+    window.location.assign('/login');
+  }
+
+  function openCommandPalette() {
+    setQuickSearch((current) => ({ ...current, focused: false }));
+    setCommandPalette({ open: true, query: '' });
   }
 
   return (
     <div className={`appShell ${collapsed ? 'sidebarCollapsed' : ''}`}>
-      <aside className={`appSidebar ${open ? 'open' : ''}`}>
+      {open ? <button type="button" className="sidebarScrim" aria-label="Đóng menu" onClick={() => setOpen(false)} /> : null}
+      <aside className={`appSidebar ${open ? 'open' : ''}`} aria-label="Điều hướng chính">
         <div className="appBrand">
           <Link href="/" className="brandMark"><span className="textLogo">AI</span><span><strong>AI Tour</strong><em>Operations</em></span></Link>
           <div className="brandActions">
@@ -247,7 +336,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <h2>{group.title}</h2>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = isRouteActive(item.href, pathname, searchParams, group.items);
                 return (
                   <Link key={item.href} href={item.href} prefetch={false} className={active ? 'active' : ''} onClick={() => setOpen(false)}>
                     <Icon size={16} />
@@ -265,95 +354,111 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </aside>
       <div className="appFrame">
         <header className="appTopbar">
-          <button className="mobileMenu" onClick={() => setOpen(true)} aria-label="Mở menu"><Menu size={18} /></button>
-          <div className="routeTitle">
-            <span><PageIcon size={15} /> {page.group}</span>
-            <strong>{page.label}</strong>
-          </div>
-          <label className={`globalSearch ${quickSearchResults.length ? 'hasResults' : ''}`}>
-            <Search size={16} />
-            <input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Tìm module, đơn hàng, khách hàng..." />
-            <button type="button" className="searchShortcutButton" onClick={() => { setCommandSearch(quickSearch); setCommandOpen(true); }}>Ctrl K</button>
-            {quickSearchResults.length ? (
-              <div className="searchResults">
-                {quickSearchResults.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.href} href={item.href} prefetch={false} onClick={() => setQuickSearch('')}>
-                      <Icon size={16} />
-                      <span>{item.label}</span>
-                      <em>{item.group}</em>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : null}
-          </label>
-          <div className="topbarActions">
-            <div className="topbarShortcuts">
-              {shortcuts.map((item) => <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>)}
+          <div className="topbarInner">
+            <button className="mobileMenu" onClick={() => setOpen(true)} aria-label="Mở menu"><Menu size={18} /></button>
+            <div className="routeTitle">
+              <span><PageIcon size={15} /> {page.group}</span>
+              <strong>{page.label}</strong>
             </div>
-            <button className="activityButton" onClick={() => setActivityOpen(true)} aria-label="Mở trung tâm công việc">
-              <Bell size={16} />
-              <span>3</span>
-            </button>
-            {authUser ? (
-              <div className="accountMenuWrap">
-                <button className="authUserButton" onClick={() => setAccountOpen((current) => !current)} title={authUser.email} aria-expanded={accountOpen} aria-haspopup="menu">
-                  <UserCircle size={16} />
-                  <span>{authUser.name}</span>
-                  <ChevronDown size={14} />
-                </button>
-                {accountOpen ? (
-                  <div className="accountMenu" role="menu">
-                    <div className="accountMenuHeader">
-                      <small>Tài khoản</small>
-                      <strong>{authUser.name}</strong>
-                      <span>{authUser.email}</span>
-                      <em>Phiên đăng nhập đang hoạt động</em>
-                    </div>
-                    <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
-                      <Settings size={16} />
-                      <span>Quản trị tài khoản</span>
-                    </Link>
-                    <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
-                      <ShieldCheck size={16} />
-                      <span>Phân quyền vai trò</span>
-                    </Link>
-                    <button type="button" role="menuitem" className="accountLogoutButton" onClick={logout}>
-                      <LogOut size={16} />
-                      <span>Đăng xuất</span>
-                    </button>
-                  </div>
-                ) : null}
+            <div className={`globalSearch ${quickSearchResults.length && quickSearch.focused ? 'hasResults' : ''}`} role="search">
+              <Search size={16} />
+              <input
+                aria-label="Tìm nhanh module"
+                value={quickSearch.query}
+                onChange={(event) => setQuickSearch({ query: event.target.value, focused: true })}
+                onFocus={() => setQuickSearch((current) => ({ ...current, focused: true }))}
+                placeholder="Tìm nhanh module, nghiệp vụ..."
+              />
+              <button type="button" className="searchShortcutButton" onClick={openCommandPalette}>Ctrl K</button>
+              {quickSearchResults.length && quickSearch.focused ? (
+                <div className="searchResults">
+                  {quickSearchResults.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link key={item.href} href={item.href} prefetch={false} onClick={() => setQuickSearch({ query: '', focused: false })}>
+                        <Icon size={16} />
+                        <span>{item.label}</span>
+                        <em>{item.group}</em>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            <div className="topbarActions">
+              <div className="topbarShortcuts">
+                {shortcuts.map((item) => <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>)}
               </div>
-            ) : (
-              <Link className="authLoginLink" href="/login">Đăng nhập</Link>
-            )}
-            <span className="envPill">AI Tour</span>
-            <span className="healthPill"><ShieldCheck size={15} /> Online</span>
+              <button className="activityButton" onClick={() => setActivityOpen(true)} aria-label="Mở trung tâm công việc">
+                <Bell size={16} />
+                <span>3</span>
+              </button>
+              {authUser ? (
+                <div className="accountMenuWrap">
+                  <button className="authUserButton" onClick={() => setAccountOpen((current) => !current)} title={authEmail} aria-expanded={accountOpen} aria-haspopup="menu">
+                    <span className="authAvatar">{authInitials}</span>
+                    <span className="authUserMeta">
+                      <strong>{authName}</strong>
+                      <small>{authEmail}</small>
+                    </span>
+                    <ChevronDown size={14} />
+                  </button>
+                  {accountOpen ? (
+                    <div className="accountMenu" role="menu">
+                      <div className="accountMenuHeader">
+                        <small>Tài khoản đang dùng</small>
+                        <strong>{authName}</strong>
+                        <span>{authEmail}</span>
+                        <em>Đã xác thực</em>
+                      </div>
+                      <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
+                        <UserCircle size={16} />
+                        <span>Thông tin người dùng</span>
+                      </Link>
+                      <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
+                        <Settings size={16} />
+                        <span>Quản trị & phân quyền</span>
+                      </Link>
+                      <button type="button" role="menuitem" className="accountLogoutButton" onClick={logout}>
+                        <LogOut size={16} />
+                        <span>Đăng xuất khỏi hệ thống</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <Link className="authLoginLink" href={`/login?next=${encodeURIComponent(currentPathWithQuery)}`}>
+                  <LogIn size={15} />
+                  <span>Đăng nhập</span>
+                </Link>
+              )}
+              <span className="envPill">AI Tour</span>
+              <span className="healthPill"><ShieldCheck size={15} /> Online</span>
+            </div>
           </div>
         </header>
         <div className="moduleStrip">
-          {relatedLinks.map((item) => (
-            <Link key={item.href} href={item.href} prefetch={false} className={pathname === item.href || pathname.startsWith(`${item.href}/`) ? 'active' : ''}>{item.label}</Link>
-          ))}
+          <div className="moduleStripInner">
+            {relatedLinks.map((item) => (
+              <Link key={item.href} href={item.href} prefetch={false} className={isRouteActive(item.href, pathname, searchParams, relatedLinks) ? 'active' : ''}>{item.label}</Link>
+            ))}
+          </div>
         </div>
         <main className="appMain">{children}</main>
       </div>
-      {commandOpen ? (
-        <div className="commandOverlay" onMouseDown={() => setCommandOpen(false)}>
+      {commandPalette.open ? (
+        <div className="commandOverlay" onMouseDown={() => setCommandPalette((current) => ({ ...current, open: false }))}>
           <section className="commandPalette" onMouseDown={(event) => event.stopPropagation()}>
             <div className="commandSearch">
               <Search size={18} />
-              <input autoFocus value={commandSearch} onChange={(event) => setCommandSearch(event.target.value)} placeholder="Nhập tên module hoặc nghiệp vụ..." />
-              <button onClick={() => setCommandOpen(false)} aria-label="Đóng"><X size={18} /></button>
+              <input autoFocus value={commandPalette.query} onChange={(event) => setCommandPalette((current) => ({ ...current, query: event.target.value }))} placeholder="Nhập tên module hoặc nghiệp vụ..." />
+              <button onClick={() => setCommandPalette((current) => ({ ...current, open: false }))} aria-label="Đóng"><X size={18} /></button>
             </div>
             <div className="commandBody">
               {commandSearchResults.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => { setCommandSearch(''); setCommandOpen(false); }}>
+                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => setCommandPalette({ open: false, query: '' })}>
                     <Icon size={18} />
                     <span>{item.label}</span>
                     <em>{item.group}</em>
