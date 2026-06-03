@@ -3,6 +3,7 @@ import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
+import { calculateOrderTotals, operationAmount, salesAmount } from './order-calculator';
 
 const ORDER_TYPES: Record<string, OrderType> = {
   'fit-tours': 'FIT_TOUR',
@@ -61,7 +62,7 @@ export class OrdersService {
           data: {
             type,
             ...this.toOrderData(orderDto),
-            ...this.calculate(orderDto),
+            ...calculateOrderTotals(orderDto),
           } as Prisma.OrderCreateInput,
         });
         await this.replaceChildren(tx, order.id, orderDto);
@@ -117,7 +118,7 @@ export class OrdersService {
           where: { id },
           data: {
             ...this.toOrderData(orderDto),
-            ...this.calculate(merged),
+            ...calculateOrderTotals(merged),
           } as Prisma.OrderUpdateInput,
         });
         await this.replaceChildren(tx, id, orderDto);
@@ -249,34 +250,6 @@ export class OrdersService {
     });
   }
 
-  private calculate(dto: Partial<CreateOrderDto>) {
-    const revenue = (dto.salesItems ?? []).reduce((sum, item) => sum + this.salesAmount(item), 0);
-    const cost = (dto.operationItems ?? []).reduce((sum, item) => sum + this.operationAmount(item), 0);
-    const paidAmount = dto.paidAmount ?? 0;
-    const paidCost = dto.paidCost ?? 0;
-    return {
-      totalRevenue: revenue,
-      paidAmount,
-      remainingRevenue: Math.max(0, revenue - paidAmount),
-      totalCost: cost,
-      paidCost,
-      remainingCost: Math.max(0, cost - paidCost),
-      profit: revenue - cost,
-      paymentStatus: revenue <= 0 || paidAmount <= 0 ? 'UNPAID' : paidAmount >= revenue ? 'PAID' : 'PARTIAL',
-      costStatus: cost <= 0 || paidCost <= 0 ? 'PENDING' : paidCost >= cost ? 'PAID' : 'PARTIAL',
-    };
-  }
-
-  private salesAmount(item: { quantity?: number; serviceCount?: number; unitPrice?: number; vat?: number }) {
-    const base = (item.quantity ?? 1) * (item.serviceCount ?? 1) * (item.unitPrice ?? 0);
-    return base * (1 + (item.vat ?? 0) / 100);
-  }
-
-  private operationAmount(item: { quantity?: number; netPrice?: number; vat?: number }) {
-    const base = (item.quantity ?? 1) * (item.netPrice ?? 0);
-    return base * (1 + (item.vat ?? 0) / 100);
-  }
-
   private async replaceChildren(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>) {
     if (dto.guides) {
       await tx.orderGuide.deleteMany({ where: { orderId } });
@@ -284,11 +257,11 @@ export class OrdersService {
     }
     if (dto.salesItems) {
       await tx.orderSalesItem.deleteMany({ where: { orderId } });
-      await tx.orderSalesItem.createMany({ data: dto.salesItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), description: this.text(i.description), quantity: i.quantity ?? 1, serviceCount: i.serviceCount ?? 1, unitPrice: i.unitPrice ?? 0, vat: i.vat ?? 0, amount: this.salesAmount(i), note: this.text(i.note), sortOrder: index })) });
+      await tx.orderSalesItem.createMany({ data: dto.salesItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), description: this.text(i.description), quantity: i.quantity ?? 1, serviceCount: i.serviceCount ?? 1, unitPrice: i.unitPrice ?? 0, vat: i.vat ?? 0, amount: salesAmount(i), note: this.text(i.note), sortOrder: index })) });
     }
     if (dto.operationItems) {
       await tx.orderOperationItem.deleteMany({ where: { orderId } });
-      await tx.orderOperationItem.createMany({ data: dto.operationItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), bookingCode: this.text(i.bookingCode), serviceDate: this.date(i.serviceDate), quantity: i.quantity ?? 1, netPrice: i.netPrice ?? 0, vat: i.vat ?? 0, amount: this.operationAmount(i), status: i.status ?? 'WAITING', note: this.text(i.note), sortOrder: index })) });
+      await tx.orderOperationItem.createMany({ data: dto.operationItems.map((i, index) => ({ orderId, serviceType: this.text(i.serviceType), supplierId: this.text(i.supplierId), serviceId: this.text(i.serviceId), bookingCode: this.text(i.bookingCode), serviceDate: this.date(i.serviceDate), quantity: i.quantity ?? 1, netPrice: i.netPrice ?? 0, vat: i.vat ?? 0, amount: operationAmount(i), status: i.status ?? 'WAITING', note: this.text(i.note), sortOrder: index })) });
     }
     if (dto.members) {
       await tx.orderMember.deleteMany({ where: { orderId } });
