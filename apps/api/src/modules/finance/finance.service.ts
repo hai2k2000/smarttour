@@ -12,6 +12,7 @@ import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-p
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 import { FinanceCashflowService } from './finance-cashflow.service';
 import { FinanceInvoiceService } from './finance-invoice.service';
+import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
 import { FinanceLedgerService } from './finance-ledger.service';
 import { FinancePaymentService } from './finance-payment.service';
 import { FinanceReceiptService } from './finance-receipt.service';
@@ -331,7 +332,11 @@ export class FinanceService {
           approvedAt: new Date(),
           lockedAt: new Date(),
           reversalOfId: id,
+          branch: receipt.branch,
+          department: receipt.department,
+          assignedStaff: receipt.assignedStaff,
           createdBy: actor,
+          orders: { create: receipt.orders.map((line) => ({ orderId: line.orderId, orderCode: line.orderCode, tourCode: line.tourCode, tourName: line.tourName, amount: line.amount })) },
         },
       });
       await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
@@ -493,14 +498,14 @@ export class FinanceService {
       assertCanCancelFinanceEntity(payment, 'Payment');
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
-        data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, orderId: payment.orderId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
+        data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, operationVoucherId: payment.operationVoucherId, orderId: payment.orderId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, branch: payment.branch, department: payment.department, assignedStaff: payment.assignedStaff, createdBy: actor },
       });
       await tx.financePayment.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
       const supplierId = await resolvePaymentSupplier(tx, payment);
       await createPaymentReversalCashflow(tx, payment, reversal.id, supplierId, actor, reason);
       if (supplierId) {
         const original = await tx.supplierLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } } });
-        await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
+        await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), branch: payment.branch, department: payment.department, staff: actor, description: reason, reversedEntryId: original?.id, createdBy: actor } });
       }
       if (payment.orderId) await applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
       await reconcileCancelledPayment(tx, payment);
@@ -531,8 +536,9 @@ export class FinanceService {
     id: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     actorId?: string,
+    user?: RequestUser,
   ) {
-    await this.invoiceDetail(id);
+    await this.invoiceDetail(id, user);
     const upload = await this.filesService.upload(file, `finance/invoices/${id}`, actorId);
     try {
       return await this.prisma.financeInvoiceFile.create({
@@ -544,8 +550,8 @@ export class FinanceService {
     }
   }
 
-  async deleteInvoiceFileCore(id: string, fileId: string) {
-    await this.invoiceDetail(id);
+  async deleteInvoiceFileCore(id: string, fileId: string, user?: RequestUser) {
+    await this.invoiceDetail(id, user);
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Invoice file not found');
     const objectKey = this.objectKey(file.fileUrl);
@@ -763,7 +769,7 @@ export class FinanceService {
   }
 
   async importReceiptsCore(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
-    const rows = this.financeImportRows(dto, file).map((row, index) => this.validateReceiptImportRow(row, index + 2));
+    const rows = financeImportRows(dto, file).map((row, index) => validateReceiptImportRow(row, index + 2));
     await this.assertImportCodesAvailable('receipts', rows, 'receiptCode');
     return this.prisma.$transaction(async (tx) => {
       const imported = [];
@@ -779,7 +785,7 @@ export class FinanceService {
   }
 
   async importPaymentsCore(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
-    const rows = this.financeImportRows(dto, file).map((row, index) => this.validatePaymentImportRow(row, index + 2));
+    const rows = financeImportRows(dto, file).map((row, index) => validatePaymentImportRow(row, index + 2));
     await this.assertImportCodesAvailable('payments', rows, 'voucherCode');
     return this.prisma.$transaction(async (tx) => {
       const imported = [];
@@ -794,8 +800,8 @@ export class FinanceService {
     });
   }
 
-  async importPlaceholder(type: 'receipts' | 'payments', dto: AnyRecord) {
-    return type === 'receipts' ? this.importReceipts(dto) : this.importPayments(dto);
+  async importPlaceholder(type: 'receipts' | 'payments', dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+    return type === 'receipts' ? this.importReceipts(dto, file, user) : this.importPayments(dto, file, user);
   }
 
   private objectKey(fileUrl?: string | null) {
@@ -1120,112 +1126,6 @@ export class FinanceService {
     return `"${String(value ?? '').replaceAll('"', '""')}"`;
   }
 
-  private financeImportRows(dto: AnyRecord, file?: ImportFile) {
-    let rows: unknown[];
-    if (file) {
-      const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
-      if (!isCsv) throw new BadRequestException('Chỉ hỗ trợ import CSV. XLSX cần được xuất thành CSV trước khi tải lên.');
-      rows = this.parseCsv(file.buffer.toString('utf8'));
-    } else if (Array.isArray(dto.rows)) {
-      rows = dto.rows;
-    } else if (typeof dto.csv === 'string') {
-      rows = this.parseCsv(dto.csv);
-    } else {
-      throw new BadRequestException('Cần tải lên file CSV hoặc gửi mảng rows');
-    }
-    if (!rows.length) throw new BadRequestException('File import không có dòng dữ liệu');
-    if (rows.length > 500) throw new BadRequestException('Mỗi lần chỉ được import tối đa 500 dòng');
-    if (rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new BadRequestException('Dữ liệu import không hợp lệ');
-    return rows as AnyRecord[];
-  }
-
-  private parseCsv(value: string) {
-    const csv = value.replace(/^\uFEFF/, '');
-    const firstLine = csv.split(/\r?\n/, 1)[0] || '';
-    const delimiter = firstLine.includes(',') ? ',' : firstLine.includes(';') ? ';' : ',';
-    const lines: string[][] = [];
-    let row: string[] = [];
-    let cell = '';
-    let quoted = false;
-    for (let index = 0; index < csv.length; index += 1) {
-      const character = csv[index];
-      if (quoted) {
-        if (character === '"' && csv[index + 1] === '"') {
-          cell += '"';
-          index += 1;
-        } else if (character === '"') {
-          quoted = false;
-        } else {
-          cell += character;
-        }
-      } else if (character === '"') {
-        quoted = true;
-      } else if (character === delimiter) {
-        row.push(cell);
-        cell = '';
-      } else if (character === '\n') {
-        row.push(cell.replace(/\r$/, ''));
-        lines.push(row);
-        row = [];
-        cell = '';
-      } else {
-        cell += character;
-      }
-    }
-    if (quoted) throw new BadRequestException('CSV có dấu ngoặc kép chưa đóng');
-    if (cell || row.length) {
-      row.push(cell.replace(/\r$/, ''));
-      lines.push(row);
-    }
-    const header = (lines.shift() || []).map((column) => column.trim());
-    if (!header.length || header.some((column) => !column)) throw new BadRequestException('CSV thiếu header hợp lệ');
-    if (new Set(header).size !== header.length) throw new BadRequestException('CSV có header trùng lặp');
-    return lines.filter((cells) => cells.some((entry) => entry.trim())).map((cells, index) => {
-      if (cells.length > header.length) throw new BadRequestException(`CSV dòng ${index + 2} có quá nhiều cột`);
-      return Object.fromEntries(header.map((column, columnIndex) => [column, cells[columnIndex]?.trim() || undefined]));
-    });
-  }
-
-  private validateReceiptImportRow(row: AnyRecord, line: number) {
-    const receiptAmount = this.importNumber(row.receiptAmount, 'receiptAmount', line, true);
-    const paidBefore = this.importNumber(row.paidBefore, 'paidBefore', line);
-    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, receiptAmount);
-    if (totalAmount < paidBefore + receiptAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paidBefore + receiptAmount`);
-    return {
-      ...row,
-      receiptName: this.requiredImportText(row.receiptName, 'receiptName', line),
-      receiptType: this.importEnum(row.receiptType, 'receiptType', line, ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER']) || 'TOUR_PAYMENT',
-      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
-      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
-      documentDate: this.importDate(row.documentDate, 'documentDate', line),
-      transferDate: this.importDate(row.transferDate, 'transferDate', line),
-      totalAmount,
-      paidBefore,
-      receiptAmount,
-      approvalStatus: 'DRAFT',
-      createdBy: this.text(row.createdBy) || 'finance-import',
-    };
-  }
-
-  private validatePaymentImportRow(row: AnyRecord, line: number) {
-    const paymentAmount = this.importNumber(row.paymentAmount, 'paymentAmount', line, true);
-    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, paymentAmount);
-    if (totalAmount < paymentAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paymentAmount`);
-    return {
-      ...row,
-      voucherName: this.requiredImportText(row.voucherName, 'voucherName', line),
-      voucherType: this.importEnum(row.voucherType, 'voucherType', line, ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER']) || 'SUPPLIER_PAYMENT',
-      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
-      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
-      documentDate: this.importDate(row.documentDate, 'documentDate', line),
-      transferDate: this.importDate(row.transferDate, 'transferDate', line),
-      totalAmount,
-      paymentAmount,
-      approvalStatus: 'DRAFT',
-      createdBy: this.text(row.createdBy) || 'finance-import',
-    };
-  }
-
   private async assertImportCodesAvailable(type: 'receipts' | 'payments', rows: AnyRecord[], field: 'receiptCode' | 'voucherCode') {
     const codes = rows.map((row) => this.text(row[field])).filter((code): code is string => Boolean(code));
     const duplicate = codes.find((code, index) => codes.indexOf(code) !== index);
@@ -1240,12 +1140,6 @@ export class FinanceService {
     }
   }
 
-  private requiredImportText(value: unknown, field: string, line: number) {
-    const text = this.text(value);
-    if (!text) throw new BadRequestException(`Dòng ${line}: thiếu ${field}`);
-    return text;
-  }
-
   private adjustmentDirection(dto: AnyRecord) {
     const direction = this.text(dto.direction);
     if (direction !== 'INCREASE' && direction !== 'DECREASE') throw new BadRequestException('direction must be INCREASE or DECREASE');
@@ -1256,27 +1150,6 @@ export class FinanceService {
     const amount = this.decimal(dto.amount);
     if (amount <= 0) throw new BadRequestException('amount must be greater than zero');
     return amount;
-  }
-
-  private importNumber(value: unknown, field: string, line: number, positive = false, fallback = 0) {
-    if (value == null || value === '') return fallback;
-    const number = Number(value);
-    if (!Number.isFinite(number) || number < 0 || (positive && number <= 0)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return number;
-  }
-
-  private importDate(value: unknown, field: string, line: number) {
-    const text = this.text(value);
-    if (!text) return undefined;
-    if (!this.date(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return text;
-  }
-
-  private importEnum(value: unknown, field: string, line: number, allowed: string[]) {
-    const text = this.text(value);
-    if (!text) return undefined;
-    if (!allowed.includes(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return text;
   }
 
   private text(value: unknown) {

@@ -31,8 +31,8 @@ export class FinanceController {
 
   @Post('receipts/import')
   @RequirePermissions('finance.receipt.import')
-  importReceipts(@Body() dto: Record<string, unknown>) {
-    return this.service.importPlaceholder('receipts', dto);
+  importReceipts(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.importReceipts(dto, undefined, request.user);
   }
 
   @Get('receipts/:id')
@@ -93,8 +93,8 @@ export class FinanceController {
 
   @Post('payments/import')
   @RequirePermissions('finance.payment.import')
-  importPayments(@Body() dto: Record<string, unknown>) {
-    return this.service.importPlaceholder('payments', dto);
+  importPayments(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.importPayments(dto, undefined, request.user);
   }
 
   @Get('payments/:id')
@@ -195,10 +195,22 @@ export class FinanceController {
     return this.service.customerDebt(query, request.user);
   }
 
+  @Post('debt/customers/:customerId/adjustments')
+  @RequirePermissions('finance.debt.adjust')
+  createCustomerDebtAdjustment(@Param('customerId') customerId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.createCustomerDebtAdjustment(customerId, dto, request.user);
+  }
+
   @Get('debt/suppliers')
   @RequirePermissions('finance.cashflow.view')
   supplierDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
     return this.service.supplierDebt(query, request.user);
+  }
+
+  @Post('debt/suppliers/:supplierId/adjustments')
+  @RequirePermissions('finance.debt.adjust')
+  createSupplierDebtAdjustment(@Param('supplierId') supplierId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.createSupplierDebtAdjustment(supplierId, dto, request.user);
   }
 
   @Get('cashflow')
