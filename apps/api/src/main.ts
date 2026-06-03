@@ -3,8 +3,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { assertSecureRuntimeConfig } from './config/runtime-env';
 
 async function bootstrap() {
+  assertSecureRuntimeConfig();
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
   app.enableCors();

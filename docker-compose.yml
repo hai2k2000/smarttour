@@ -44,6 +44,7 @@ services:
     environment:
       DATABASE_URL: postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/smarttour?schema=public
       REDIS_URL: redis://redis:6379
+      SMARTTOUR_ENV: ${SMARTTOUR_ENV:-production}
       SMARTTOUR_AUTH_ENFORCE: ${SMARTTOUR_AUTH_ENFORCE:-true}
       SMARTTOUR_BOOTSTRAP_KEY: ${SMARTTOUR_BOOTSTRAP_KEY:-}
       MINIO_ENDPOINT: http://minio:9000

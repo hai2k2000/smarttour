@@ -7,6 +7,7 @@ import { CommissionReportsModule } from './modules/commission-reports/commission
 import { CustomersModule } from './modules/customers/customers.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { FitToursModule } from './modules/fit-tours/fit-tours.module';
+import { FilesModule } from './modules/files/files.module';
 import { GitToursModule } from './modules/git-tours/git-tours.module';
 import { LandToursModule } from './modules/landtours/landtours.module';
 import { OperationsModule } from './modules/operations/operations.module';
@@ -22,7 +23,7 @@ import { TourGuidesModule } from './modules/tour-guides/tour-guides.module';
 import { ToursModule } from './modules/tours/tours.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, OperationsModule, OperationVouchersModule, OrderCenterModule, CommissionReportsModule, FinanceModule, SuppliersModule, TourProgramsModule, TourGuidesModule, CustomersModule, BookingsModule, ToursModule, FitToursModule, GitToursModule, LandToursModule, QuotesModule, QuotationsModule, OrdersModule, ReportsModule],
+  imports: [DatabaseModule, AuthModule, FilesModule, OperationsModule, OperationVouchersModule, OrderCenterModule, CommissionReportsModule, FinanceModule, SuppliersModule, TourProgramsModule, TourGuidesModule, CustomersModule, BookingsModule, ToursModule, FitToursModule, GitToursModule, LandToursModule, QuotesModule, QuotationsModule, OrdersModule, ReportsModule],
   controllers: [HealthController],
 })
 export class AppModule {}
