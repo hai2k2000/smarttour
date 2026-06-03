@@ -72,8 +72,8 @@ const groups = [
       { label: 'Đơn Tour FIT', href: '/orders/fit-tours', icon: Route },
       { label: 'Đơn GIT/Combo', href: '/orders/git-combos', icon: BriefcaseBusiness },
       { label: 'Đơn LandTour', href: '/orders/landtours', icon: Landmark },
-      { label: 'Booking phòng KS', href: '/orders/hotel-bookings', icon: BedDouble },
-      { label: 'Booking vé MB', href: '/orders/flight-orders', icon: Plane },
+    { label: 'Booking phòng khách sạn', href: '/orders/hotel-bookings', icon: BedDouble },
+    { label: 'Booking vé máy bay', href: '/orders/flight-orders', icon: Plane },
       { label: 'Dịch vụ lẻ', href: '/orders/single-services', icon: ReceiptText },
     ],
   },
@@ -129,8 +129,8 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
     { label: 'FIT', href: '/orders/fit-tours' },
     { label: 'GIT/Combo', href: '/orders/git-combos' },
     { label: 'LandTour', href: '/orders/landtours' },
-    { label: 'Phong KS', href: '/orders/hotel-bookings' },
-    { label: 'Ve MB', href: '/orders/flight-orders' },
+    { label: 'Phòng khách sạn', href: '/orders/hotel-bookings' },
+    { label: 'Vé máy bay', href: '/orders/flight-orders' },
     { label: 'Dịch vụ lẻ', href: '/orders/single-services' },
   ],
   'Sản phẩm & vận hành': [
@@ -140,7 +140,7 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
     { label: 'LandTour', href: '/landtours' },
     { label: 'Điều hành', href: '/operation-vouchers' },
     { label: 'Vận hành', href: '/operations' },
-    { label: 'NCC', href: '/suppliers' },
+    { label: 'Nhà cung cấp', href: '/suppliers' },
   ],
   'Hệ thống': [
     { label: 'Người dùng & vai trò', href: '/security' },
@@ -162,19 +162,27 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [quickSearch, setQuickSearch] = useState('');
+  const [commandSearch, setCommandSearch] = useState('');
   const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
   const page = currentPage(pathname);
   const PageIcon = page.icon;
   const relatedLinks = workflowLinks[page.group] || [];
   const allItems = useMemo(() => groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title }))), []);
-  const searchResults = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+  const quickSearchResults = useMemo(() => {
+    const keyword = quickSearch.trim().toLowerCase();
     if (!keyword) return [];
     return allItems
       .filter((item) => `${item.label} ${item.group} ${item.href}`.toLowerCase().includes(keyword))
       .slice(0, 8);
-  }, [allItems, search]);
+  }, [allItems, quickSearch]);
+  const commandSearchResults = useMemo(() => {
+    const keyword = commandSearch.trim().toLowerCase();
+    if (!keyword) return allItems.slice(0, 12);
+    return allItems
+      .filter((item) => `${item.label} ${item.group} ${item.href}`.toLowerCase().includes(keyword))
+      .slice(0, 12);
+  }, [allItems, commandSearch]);
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem('smarttour.sidebar.collapsed') === 'true');
@@ -189,6 +197,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const handler = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        setCommandSearch('');
         setCommandOpen(true);
       }
       if (event.key === 'Escape') {
@@ -261,16 +270,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span><PageIcon size={15} /> {page.group}</span>
             <strong>{page.label}</strong>
           </div>
-          <label className={`globalSearch ${searchResults.length ? 'hasResults' : ''}`}>
+          <label className={`globalSearch ${quickSearchResults.length ? 'hasResults' : ''}`}>
             <Search size={16} />
-            <input value={search} onFocus={() => setCommandOpen(true)} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm module, đơn hàng, khách hàng..." />
-            <kbd>Ctrl K</kbd>
-            {searchResults.length ? (
+            <input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Tìm module, đơn hàng, khách hàng..." />
+            <button type="button" className="searchShortcutButton" onClick={() => { setCommandSearch(quickSearch); setCommandOpen(true); }}>Ctrl K</button>
+            {quickSearchResults.length ? (
               <div className="searchResults">
-                {searchResults.map((item) => {
+                {quickSearchResults.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <Link key={item.href} href={item.href} prefetch={false} onClick={() => setSearch('')}>
+                    <Link key={item.href} href={item.href} prefetch={false} onClick={() => setQuickSearch('')}>
                       <Icon size={16} />
                       <span>{item.label}</span>
                       <em>{item.group}</em>
@@ -335,14 +344,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <section className="commandPalette" onMouseDown={(event) => event.stopPropagation()}>
             <div className="commandSearch">
               <Search size={18} />
-              <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhập tên module hoặc nghiệp vụ..." />
+              <input autoFocus value={commandSearch} onChange={(event) => setCommandSearch(event.target.value)} placeholder="Nhập tên module hoặc nghiệp vụ..." />
               <button onClick={() => setCommandOpen(false)} aria-label="Đóng"><X size={18} /></button>
             </div>
             <div className="commandBody">
-              {(search.trim() ? searchResults : allItems).slice(0, 12).map((item) => {
+              {commandSearchResults.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => { setSearch(''); setCommandOpen(false); }}>
+                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => { setCommandSearch(''); setCommandOpen(false); }}>
                     <Icon size={18} />
                     <span>{item.label}</span>
                     <em>{item.group}</em>
@@ -369,9 +378,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </header>
             <section>
               <h3>Cần xử lý</h3>
-              <Link href="/order-center" onClick={() => setActivityOpen(false)}><strong>Đơn hàng can doi soat</strong><span>Lọc đơn chưa thu/chi hết</span></Link>
+              <Link href="/order-center" onClick={() => setActivityOpen(false)}><strong>Đơn hàng cần đối soát</strong><span>Lọc đơn chưa thu/chi hết</span></Link>
               <Link href="/commission-reports" onClick={() => setActivityOpen(false)}><strong>Hoa hồng chờ duyệt</strong><span>Duyệt và ghi nhận phiếu chi</span></Link>
-              <Link href="/reports" onClick={() => setActivityOpen(false)}><strong>Công nợ khách/NCC</strong><span>Theo dõi nợ phải thu và phải trả</span></Link>
+              <Link href="/reports" onClick={() => setActivityOpen(false)}><strong>Công nợ khách và nhà cung cấp</strong><span>Theo dõi nợ phải thu và phải trả</span></Link>
             </section>
             <section>
               <h3>Thao tác nhanh</h3>
