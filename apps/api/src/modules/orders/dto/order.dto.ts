@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
 
 class OrderGuideDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() guideId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() guideName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
@@ -12,6 +13,7 @@ class OrderGuideDto {
 }
 
 class OrderSalesItemDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() serviceType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() serviceId?: string;
@@ -24,6 +26,7 @@ class OrderSalesItemDto {
 }
 
 class OrderOperationItemDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() serviceType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() serviceId?: string;
@@ -37,6 +40,7 @@ class OrderOperationItemDto {
 }
 
 class OrderMemberDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiProperty() @IsString() @MinLength(2) fullName!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() gender?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() birthday?: string;
@@ -50,6 +54,7 @@ class OrderMemberDto {
 }
 
 class OrderItineraryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiProperty() @Type(() => Number) @IsNumber() @Min(1) dayNo!: number;
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() content?: string;
@@ -63,17 +68,20 @@ class OrderItineraryDto {
 }
 
 class OrderHandoverItemDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiProperty() @IsString() @MinLength(2) itemName!: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) quantity?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() note?: string;
 }
 
 class OrderSurveyQuestionDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiProperty() @IsString() @MinLength(2) question!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() note?: string;
 }
 
 class OrderTermDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() language?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() terms?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
@@ -98,6 +106,7 @@ export class CreateOrderDto {
   @ApiPropertyOptional() @IsOptional() @IsString() createdBy?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() createdDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() branch?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() department?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerType?: string;

@@ -20,11 +20,11 @@ export async function withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Pa
   return {
     ...dto,
     customerId,
-    customerName: dto.customerName ?? customer.fullName,
-    customerPhone: dto.customerPhone ?? customer.phone,
-    customerEmail: dto.customerEmail ?? customer.email ?? undefined,
-    customerAddress: dto.customerAddress ?? customer.address ?? undefined,
-    customerType: dto.customerType ?? customer.type?.name ?? customer.kind,
+    customerName: text(dto.customerName) ?? customer.fullName,
+    customerPhone: text(dto.customerPhone) ?? customer.phone,
+    customerEmail: text(dto.customerEmail) ?? customer.email ?? undefined,
+    customerAddress: text(dto.customerAddress) ?? customer.address ?? undefined,
+    customerType: text(dto.customerType) ?? customer.type?.name ?? customer.kind,
   };
 }
 
