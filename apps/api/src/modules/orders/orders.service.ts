@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { replaceOrderChildren } from './order-children-sync';
+import { withCustomerSnapshot } from './order-customer-snapshot';
 import { calculateOrderTotals } from './order-calculator';
 
 const ORDER_TYPES: Record<string, OrderType> = {
@@ -58,7 +59,7 @@ export class OrdersService {
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = await this.withCustomerSnapshot(tx, dto);
+        const orderDto = await withCustomerSnapshot(tx, dto);
         const order = await tx.order.create({
           data: {
             type,
@@ -86,7 +87,7 @@ export class OrdersService {
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = await this.withCustomerSnapshot(tx, dto);
+        const orderDto = await withCustomerSnapshot(tx, dto);
         const merged = {
           ...current,
           ...orderDto,
@@ -249,25 +250,6 @@ export class OrdersService {
       });
       return updated;
     });
-  }
-
-  private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
-    const customerId = this.text(dto.customerId);
-    if (!customerId) return dto;
-    const customer = await tx.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true, fullName: true, phone: true, email: true, address: true, kind: true, type: { select: { name: true } } },
-    });
-    if (!customer) throw new NotFoundException('Customer not found');
-    return {
-      ...dto,
-      customerId,
-      customerName: dto.customerName ?? customer.fullName,
-      customerPhone: dto.customerPhone ?? customer.phone,
-      customerEmail: dto.customerEmail ?? customer.email ?? undefined,
-      customerAddress: dto.customerAddress ?? customer.address ?? undefined,
-      customerType: dto.customerType ?? customer.type?.name ?? customer.kind,
-    };
   }
 
   private async syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orderId: string, dto: Partial<CreateOrderDto>, action: string) {
