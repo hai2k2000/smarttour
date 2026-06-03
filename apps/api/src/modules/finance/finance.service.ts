@@ -4,7 +4,9 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { createPaymentReversalCashflow, createReceiptReversalCashflow, upsertPaymentCashflow, upsertReceiptCashflow } from './finance-cashflow-postings';
 import { createInvoiceReversalCustomerLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
+import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanRejectFinanceEntity } from './finance-final-state';
 import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
@@ -99,41 +101,14 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!current) throw new NotFoundException('Receipt not found');
-      if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
+      assertCanApproveFinanceEntity(current, 'Receipt');
       const receipt = await tx.financeReceipt.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
         include: { orders: true },
       });
       const customerId = await resolveReceiptCustomer(tx, receipt);
-      await tx.financeCashflowEntry.upsert({
-        where: { sourceType_sourceId: { sourceType: 'RECEIPT', sourceId: id } },
-        create: {
-          sourceType: 'RECEIPT',
-          sourceId: id,
-          entryType: 'RECEIPT',
-          amount: receipt.receiptAmount,
-          paymentMethod: receipt.paymentMethod,
-          paymentDate: receipt.paymentDate || new Date(),
-          branch: receipt.branch,
-          department: receipt.department,
-          staff: receipt.assignedStaff,
-          customerId,
-          receiptId: id,
-          note: receipt.reason,
-        },
-        update: {
-          amount: receipt.receiptAmount,
-          paymentMethod: receipt.paymentMethod,
-          paymentDate: receipt.paymentDate || new Date(),
-          branch: receipt.branch,
-          department: receipt.department,
-          staff: receipt.assignedStaff,
-          customerId,
-          receiptId: id,
-          note: receipt.reason,
-        },
-      });
+      await upsertReceiptCashflow(tx, receipt, customerId);
       await upsertReceiptCustomerLedger(tx, receipt, customerId, actor);
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, Number(line.amount));
@@ -144,7 +119,7 @@ export class FinanceService {
   }
 
   async rejectReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.changeReceiptStatus(id, 'REJECTED', dto, user);
+    return this.changeReceiptStatus(id, 'REJECTED', dto, user, 'Receipt');
   }
 
   async cancelReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
@@ -153,8 +128,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!receipt) throw new NotFoundException('Receipt not found');
-      if (receipt.cancelledAt) return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
-      if (receipt.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved receipt can be cancelled');
+      assertCanCancelFinanceEntity(receipt, 'Receipt');
       const reversalCode = await this.nextCode(tx, 'FINANCE_RECEIPT', 'PTDC', new Date(), receipt.branch || undefined);
       const reversal = await tx.financeReceipt.create({
         data: {
@@ -180,10 +154,8 @@ export class FinanceService {
         },
       });
       await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      await tx.financeCashflowEntry.create({
-        data: { sourceType: 'RECEIPT_REVERSAL', sourceId: reversal.id, entryType: 'PAYMENT', amount: receipt.receiptAmount, paymentMethod: receipt.paymentMethod, paymentDate: new Date(), branch: receipt.branch, department: receipt.department, staff: actor, customerId: receipt.customerId, receiptId: reversal.id, note: reason },
-      });
       const customerId = await resolveReceiptCustomer(tx, receipt);
+      await createReceiptReversalCashflow(tx, receipt, reversal.id, customerId, actor, reason);
       await createReceiptReversalCustomerLedger(tx, receipt, reversal.id, customerId, reversalCode, reason, actor);
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, -Number(line.amount));
@@ -281,45 +253,13 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!current) throw new NotFoundException('Payment not found');
-      if (current.approvalStatus === FinanceApprovalStatus.APPROVED) {
-        await reconcileApprovedPayment(tx, current);
-        return current;
-      }
+      assertCanApproveFinanceEntity(current, 'Payment');
       const payment = await tx.financePayment.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
       });
       const supplierId = await resolvePaymentSupplier(tx, payment);
-      await tx.financeCashflowEntry.upsert({
-        where: { sourceType_sourceId: { sourceType: 'PAYMENT', sourceId: id } },
-        create: {
-          sourceType: 'PAYMENT',
-          sourceId: id,
-          entryType: 'PAYMENT',
-          amount: payment.paymentAmount,
-          paymentMethod: payment.paymentMethod,
-          paymentDate: payment.paymentDate || new Date(),
-          branch: payment.branch,
-          department: payment.department,
-          staff: payment.assignedStaff,
-          orderId: payment.orderId,
-          supplierId,
-          paymentId: id,
-          note: payment.reason,
-        },
-        update: {
-          amount: payment.paymentAmount,
-          paymentMethod: payment.paymentMethod,
-          paymentDate: payment.paymentDate || new Date(),
-          branch: payment.branch,
-          department: payment.department,
-          staff: payment.assignedStaff,
-          orderId: payment.orderId,
-          supplierId,
-          paymentId: id,
-          note: payment.reason,
-        },
-      });
+      await upsertPaymentCashflow(tx, payment, supplierId);
       if (supplierId) {
         await tx.supplierLedgerEntry.upsert({
           where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } },
@@ -360,7 +300,7 @@ export class FinanceService {
   }
 
   async rejectPayment(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.changePaymentStatus(id, 'REJECTED', dto, user);
+    return this.changePaymentStatus(id, 'REJECTED', dto, user, 'Payment');
   }
 
   async cancelPayment(id: string, dto: AnyRecord, user?: RequestUser) {
@@ -369,17 +309,14 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!payment) throw new NotFoundException('Payment not found');
-      if (payment.cancelledAt) return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
-      if (payment.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved payment can be cancelled');
+      assertCanCancelFinanceEntity(payment, 'Payment');
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
         data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, orderId: payment.orderId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
       });
       await tx.financePayment.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      await tx.financeCashflowEntry.create({
-        data: { sourceType: 'PAYMENT_REVERSAL', sourceId: reversal.id, entryType: 'RECEIPT', amount: payment.paymentAmount, paymentMethod: payment.paymentMethod, paymentDate: new Date(), branch: payment.branch, department: payment.department, staff: actor, orderId: payment.orderId, supplierId: payment.supplierId, paymentId: reversal.id, note: reason },
-      });
       const supplierId = await resolvePaymentSupplier(tx, payment);
+      await createPaymentReversalCashflow(tx, payment, reversal.id, supplierId, actor, reason);
       if (supplierId) {
         const original = await tx.supplierLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } } });
         await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
@@ -462,7 +399,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financeInvoice.findUnique({ where: { id } });
       if (!current) throw new NotFoundException('Invoice not found');
-      if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
+      assertCanApproveFinanceEntity(current, 'Invoice');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
       const customerId = await resolveInvoiceCustomer(tx, invoice);
       await upsertInvoiceCustomerLedger(tx, invoice, customerId, actor);
@@ -474,6 +411,9 @@ export class FinanceService {
   async rejectInvoice(id: string, dto: AnyRecord) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      const current = await tx.financeInvoice.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException('Invoice not found');
+      assertCanRejectFinanceEntity(current, 'Invoice');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
       return invoice;
@@ -486,8 +426,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const invoice = await tx.financeInvoice.findUnique({ where: { id } });
       if (!invoice) throw new NotFoundException('Invoice not found');
-      if (invoice.cancelledAt) return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
-      if (invoice.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved invoice can be cancelled');
+      assertCanCancelFinanceEntity(invoice, 'Invoice');
       const reversalCode = await this.nextCode(tx, 'FINANCE_INVOICE', 'VATDC', new Date(), undefined);
       const reversal = await tx.financeInvoice.create({
         data: { invoiceCode: reversalCode, systemCode: invoice.systemCode, orderId: invoice.orderId, receiptId: invoice.receiptId, customerId: invoice.customerId, customerName: invoice.customerName, customerPhone: invoice.customerPhone, customerEmail: invoice.customerEmail, invoiceType: 'ADJUSTMENT', issuedDate: new Date(), totalBeforeTax: invoice.totalBeforeTax, totalTax: invoice.totalTax, totalAfterTax: invoice.totalAfterTax, amountInWords: invoice.amountInWords, status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), reversalOfId: id, note: reason, createdBy: actor },
@@ -812,22 +751,24 @@ export class FinanceService {
     });
   }
 
-  private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
+  private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser, label = 'Receipt') {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Receipt not found');
+      if (status === 'REJECTED') assertCanRejectFinanceEntity(current, label);
       const receipt = await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinanceReceipt', id, { actor, status, note: this.text(dto.note) });
       return receipt;
     });
   }
 
-  private async changePaymentStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
+  private async changePaymentStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser, label = 'Payment') {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Payment not found');
+      if (status === 'REJECTED') assertCanRejectFinanceEntity(current, label);
       const payment = await tx.financePayment.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinancePayment', id, { actor, status, note: this.text(dto.note) });
       return payment;
