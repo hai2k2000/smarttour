@@ -9,6 +9,34 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listSelect() {
+    return {
+      id: true,
+      code: true,
+      tourProgramId: true,
+      customerId: true,
+      orderId: true,
+      tourId: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      paxCount: true,
+      startDate: true,
+      endDate: true,
+      saleOwner: true,
+      operatorOwner: true,
+      status: true,
+      totalSellPrice: true,
+      createdAt: true,
+      updatedAt: true,
+      tourProgram: { select: { id: true, code: true, name: true, route: true, durationDays: true } },
+      customer: { select: { id: true, code: true, fullName: true, phone: true, email: true, branch: true, department: true } },
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, paymentStatus: true, branch: true, department: true } },
+      tour: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      operationForm: { select: { id: true, status: true } },
+    } satisfies Prisma.BookingSelect;
+  }
+
   list(search?: string, status?: BookingStatus, tourProgramId?: string, user?: RequestUser) {
     const where: Prisma.BookingWhereInput = {
       ...(status ? { status } : {}),
@@ -28,7 +56,7 @@ export class BookingsService {
 
     return this.prisma.booking.findMany({
       where: this.scopeWhere(where, user),
-      include: { tourProgram: true, customer: true, order: true, tour: true, operationForm: true },
+      select: this.listSelect(),
       orderBy: [{ startDate: 'asc' }, { code: 'asc' }],
     });
   }

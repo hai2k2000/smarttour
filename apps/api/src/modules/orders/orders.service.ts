@@ -22,6 +22,38 @@ const ORDER_TYPES: Record<string, OrderType> = {
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listSelect() {
+    return {
+      id: true,
+      type: true,
+      status: true,
+      paymentStatus: true,
+      costStatus: true,
+      systemCode: true,
+      tourCode: true,
+      name: true,
+      customerId: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      startDate: true,
+      endDate: true,
+      totalRevenue: true,
+      paidAmount: true,
+      remainingRevenue: true,
+      totalCost: true,
+      paidCost: true,
+      remainingCost: true,
+      profit: true,
+      branch: true,
+      department: true,
+      operatorOwner: true,
+      updatedAt: true,
+      customer: { select: { id: true, code: true, fullName: true, phone: true, email: true, branch: true, department: true } },
+      _count: { select: { members: true, salesItems: true, operationItems: true, allotmentLocks: true } },
+    } satisfies Prisma.OrderSelect;
+  }
+
   list(typePath: string, search?: string, user?: RequestUser) {
     const type = this.resolveType(typePath);
     const where: Prisma.OrderWhereInput = {
@@ -41,7 +73,7 @@ export class OrdersService {
     };
     return this.prisma.order.findMany({
       where: branchDepartmentScopeWhere(where, user),
-      include: { customer: true, _count: { select: { members: true, salesItems: true, operationItems: true, allotmentLocks: true } } },
+      select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
   }

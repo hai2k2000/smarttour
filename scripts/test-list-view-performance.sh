@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+TEST_DB="${TEST_DB:-smarttour_list_perf_test}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
+POSTGRES_USER="${POSTGRES_USER:-smarttour}"
+PERF_ROWS="${PERF_ROWS:-300}"
+PERF_MAX_MS="${PERF_MAX_MS:-5000}"
+
+cd "$REPO_DIR"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(grep -E '^POSTGRES_PASSWORD=' .env | tail -1 | cut -d= -f2-)}"
+if [[ -z "$POSTGRES_PASSWORD" ]]; then
+  echo "FAIL_LIST_PERF_TEST missing POSTGRES_PASSWORD"
+  exit 1
+fi
+
+docker compose build api >/dev/null
+docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+docker exec "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$TEST_DB"
+
+cleanup() {
+  docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker compose run --rm \
+  -v "$PWD:/workspace:ro" \
+  -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
+  -e PERF_ROWS="$PERF_ROWS" \
+  -e PERF_MAX_MS="$PERF_MAX_MS" \
+  --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
+const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const { OrdersService } = require('./apps/api/dist/modules/orders/orders.service');
+const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
+const { FinanceService } = require('./apps/api/dist/modules/finance/finance.service');
+const { CommissionReportsService } = require('./apps/api/dist/modules/commission-reports/commission-reports.service');
+
+function assert(condition, label) {
+  if (!condition) throw new Error(label);
+}
+
+async function timed(label, action, maxMs) {
+  const start = process.hrtime.bigint();
+  const result = await action();
+  const elapsedMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+  console.log(`LIST_PERF ${label} rows=${Array.isArray(result) ? result.length : result.rows?.length ?? 'n/a'} ms=${elapsedMs.toFixed(1)}`);
+  assert(elapsedMs <= maxMs, `${label} exceeded ${maxMs}ms`);
+  return result;
+}
+
+async function main() {
+  const prisma = new PrismaService();
+  await prisma.$connect();
+  const rows = Number(process.env.PERF_ROWS || 300);
+  const maxMs = Number(process.env.PERF_MAX_MS || 5000);
+  const run = 'LIST-PERF-' + Date.now();
+
+  const customer = await prisma.customer.create({
+    data: { code: run + '-CUS', fullName: 'List Perf Customer', phone: '098' + String(Date.now()).slice(-7), branch: 'PERF-BR', department: 'PERF-DEP' },
+  });
+  const tourProgram = await prisma.tourProgram.create({
+    data: { code: run + '-TP', name: 'List Perf Program', route: 'Ha Noi - Ha Long', durationDays: 3 },
+  });
+  const supplierCategory = await prisma.supplierCategory.create({ data: { name: run + '-SUP-CAT' } });
+  const supplier = await prisma.supplier.create({
+    data: { categoryId: supplierCategory.id, supplierCode: run + '-SUP', name: 'List Perf Supplier', status: 'ACTIVE' },
+  });
+
+  const orders = await Promise.all(Array.from({ length: rows }, (_, index) => prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-ORD-${index}`,
+      tourCode: `${run}-TOUR-${index}`,
+      name: `Perf Order ${index}`,
+      customerId: customer.id,
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      startDate: new Date('2027-01-01'),
+      endDate: new Date('2027-01-03'),
+      totalRevenue: 1000 + index,
+      totalCost: 700 + index,
+      profit: 300,
+      branch: 'PERF-BR',
+      department: 'PERF-DEP',
+      salesItems: { create: { serviceType: 'HOTEL', description: 'Hotel', quantity: 1, unitPrice: 100, amount: 100 } },
+      operationItems: { create: { serviceType: 'HOTEL', quantity: 1, netPrice: 80, amount: 80 } },
+      members: { create: { fullName: `Guest ${index}` } },
+    },
+  })));
+
+  await prisma.booking.createMany({
+    data: orders.map((order, index) => ({
+      code: `${run}-BOOK-${index}`,
+      tourProgramId: tourProgram.id,
+      customerId: customer.id,
+      orderId: order.id,
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      paxCount: 2,
+      startDate: new Date('2027-01-01'),
+      endDate: new Date('2027-01-03'),
+      totalSellPrice: 1000 + index,
+      status: 'CONFIRMED',
+    })),
+  });
+
+  await prisma.operationVoucher.createMany({
+    data: orders.map((order, index) => ({
+      voucherCode: `${run}-VCH-${index}`,
+      orderId: order.id,
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      serviceType: 'HOTEL',
+      serviceName: `Hotel voucher ${index}`,
+      serviceDate: new Date('2027-01-02'),
+      totalAmount: 100,
+      remainAmount: 100,
+      status: 'PENDING',
+    })),
+  });
+
+  await prisma.financeInvoice.createMany({
+    data: orders.map((order, index) => ({
+      invoiceCode: `${run}-INV-${index}`,
+      orderId: order.id,
+      customerId: customer.id,
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      invoiceType: 'VAT',
+      issuedDate: new Date('2027-01-04'),
+      totalBeforeTax: 100,
+      totalTax: 10,
+      totalAfterTax: 110,
+    })),
+  });
+
+  await prisma.commissionEntry.createMany({
+    data: orders.map((order, index) => ({
+      orderId: order.id,
+      orderCode: order.systemCode,
+      orderType: order.type,
+      tourCode: order.tourCode,
+      customerName: order.customerName,
+      salesOwner: 'sales-a',
+      department: order.department,
+      branch: order.branch,
+      revenue: order.totalRevenue,
+      profit: order.profit,
+      commissionAmount: 30,
+      remainingAmount: 30,
+      milestoneDate: new Date('2027-01-01'),
+      note: `Perf commission ${index}`,
+    })),
+  });
+
+  const ordersService = new OrdersService(prisma);
+  const bookingsService = new BookingsService(prisma);
+  const vouchersService = new OperationVouchersService(prisma);
+  const financeService = new FinanceService(prisma, {});
+  const commissionService = new CommissionReportsService(prisma);
+
+  const orderRows = await timed('orders.list', () => ordersService.list('fit-tours', run), maxMs);
+  assert(orderRows[0]._count && !orderRows[0].salesItems, 'orders list should not include child arrays');
+
+  const bookingRows = await timed('bookings.list', () => bookingsService.list(run), maxMs);
+  assert(bookingRows[0].tourProgram && !bookingRows[0].tourProgram.itineraryDays, 'bookings list should not include itinerary days');
+
+  const voucherRows = await timed('operationVouchers.list', () => vouchersService.list(run), maxMs);
+  assert(voucherRows[0]._count && !voucherRows[0].details, 'voucher list should not include detail arrays');
+
+  const invoiceResult = await timed('finance.listInvoices', () => financeService.listInvoices({ search: run, take: String(rows) }), maxMs);
+  assert(!invoiceResult.rows[0].items && !invoiceResult.rows[0].files, 'invoice list should not include items/files');
+
+  const commissionResult = await timed('commissionReports.list', () => commissionService.list({ search: run, take: String(rows) }), maxMs);
+  assert(commissionResult.rows[0].logs.length <= 1 && commissionResult.rows[0].payments.length <= 1, 'commission list should only include latest log/payment previews');
+
+  await prisma.$disconnect();
+  console.log('TEST_LIST_VIEW_PERFORMANCE_OK');
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE

@@ -330,7 +330,12 @@ export class FinanceService {
 
   async listInvoices(query: Record<string, string>, user?: RequestUser) {
     const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
-    const rows = await this.prisma.financeInvoice.findMany({ where, include: { items: true, files: true }, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
+    const rows = await this.prisma.financeInvoice.findMany({
+      where,
+      select: this.invoiceListSelect(),
+      orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }],
+      take: this.take(query.take),
+    });
     const summaryRows = await this.prisma.financeInvoice.findMany({ where });
     return { rows, summary: invoiceSummary(summaryRows) };
   }
@@ -818,6 +823,39 @@ export class FinanceService {
       ...(query.search ? { OR: [{ invoiceCode: { contains: query.search, mode: 'insensitive' } }, { invoiceNumber: { contains: query.search, mode: 'insensitive' } }, { systemCode: { contains: query.search, mode: 'insensitive' } }, { taxCode: { contains: query.search, mode: 'insensitive' } }, { customerName: { contains: query.search, mode: 'insensitive' } }, { customerPhone: { contains: query.search, mode: 'insensitive' } }, { note: { contains: query.search, mode: 'insensitive' } }] } : {}),
       ...this.dateRange('issuedDate', query.from, query.to),
     };
+  }
+
+  private invoiceListSelect() {
+    return {
+      id: true,
+      invoiceCode: true,
+      systemCode: true,
+      orderId: true,
+      receiptId: true,
+      customerId: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      taxCode: true,
+      companyName: true,
+      invoiceType: true,
+      taxAuthorityCode: true,
+      invoiceNumber: true,
+      invoiceDate: true,
+      issuedDate: true,
+      tourCode: true,
+      tourName: true,
+      totalBeforeTax: true,
+      totalTax: true,
+      totalAfterTax: true,
+      status: true,
+      approvalStatus: true,
+      approvedBy: true,
+      approvedAt: true,
+      cancelledAt: true,
+      createdAt: true,
+      updatedAt: true,
+    } satisfies Prisma.FinanceInvoiceSelect;
   }
 
   private invoiceScopeWhere(where: Prisma.FinanceInvoiceWhereInput, user?: RequestUser): Prisma.FinanceInvoiceWhereInput {

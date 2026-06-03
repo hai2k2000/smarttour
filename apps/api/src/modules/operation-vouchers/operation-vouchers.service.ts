@@ -9,6 +9,35 @@ import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperati
 export class OperationVouchersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listSelect() {
+    return {
+      id: true,
+      voucherCode: true,
+      tourId: true,
+      bookingId: true,
+      orderId: true,
+      supplierId: true,
+      supplierName: true,
+      serviceType: true,
+      serviceName: true,
+      serviceDate: true,
+      totalAmount: true,
+      paidAmount: true,
+      remainAmount: true,
+      paymentDeadline: true,
+      status: true,
+      note: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+      supplier: { select: { id: true, supplierCode: true, name: true, phone: true } },
+      booking: { select: { id: true, code: true, customerName: true, startDate: true, endDate: true, status: true } },
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      tour: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      _count: { select: { details: true, payments: true } },
+    } satisfies Prisma.OperationVoucherSelect;
+  }
+
   list(search?: string, status?: string, user?: RequestUser) {
     return this.prisma.operationVoucher.findMany({
       where: this.scopeWhere({
@@ -24,7 +53,7 @@ export class OperationVouchersService {
             }
           : {}),
       }, user),
-      include: { supplier: true, booking: true, order: true, tour: true, _count: { select: { details: true, payments: true } } },
+      select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
     });
   }

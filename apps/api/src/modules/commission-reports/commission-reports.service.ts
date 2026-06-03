@@ -9,21 +9,36 @@ type AnyRecord = Record<string, unknown>;
 export class CommissionReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private listInclude() {
+    return {
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, startDate: true, endDate: true, branch: true, department: true } },
+      logs: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, action: true, actor: true, newStatus: true, createdAt: true } },
+      payments: { orderBy: { paidAt: 'desc' as const }, take: 1, select: { id: true, voucherNo: true, paidAt: true, receiver: true, amount: true } },
+    } satisfies Prisma.CommissionEntryInclude;
+  }
+
   async list(query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
     const where = branchDepartmentScopeWhere(this.where(query), user);
-    const rows = await this.prisma.commissionEntry.findMany({
-      where,
-      orderBy: this.orderBy(query.sortBy),
-      include: { order: true, logs: { orderBy: { createdAt: 'desc' }, take: 3 }, payments: { orderBy: { paidAt: 'desc' }, take: 3 } },
-      take: this.take(query.take),
-    });
-    return { rows, summary: await this.summary(query, user), grouping: await this.grouping(query.groupBy || 'salesOwner', query, user) };
+    const [rows, summaryRows] = await Promise.all([
+      this.prisma.commissionEntry.findMany({
+        where,
+        orderBy: this.orderBy(query.sortBy),
+        include: this.listInclude(),
+        take: this.take(query.take),
+      }),
+      this.prisma.commissionEntry.findMany({ where }),
+    ]);
+    return { rows, summary: this.summaryFromRows(summaryRows), grouping: this.groupingFromRows(summaryRows, query.groupBy || 'salesOwner') };
   }
 
   async summary(query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
+    return this.summaryFromRows(rows);
+  }
+
+  private summaryFromRows(rows: Array<Prisma.CommissionEntryGetPayload<{}>>) {
     const totalCommission = this.sum(rows, 'commissionAmount');
     const approvedCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.APPROVED), 'commissionAmount');
     const pendingCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.PENDING), 'commissionAmount');
@@ -47,6 +62,10 @@ export class CommissionReportsService {
   async grouping(groupBy: string, query: Record<string, string>, user?: RequestUser) {
     await this.syncFromOrders();
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
+    return this.groupingFromRows(rows, groupBy);
+  }
+
+  private groupingFromRows(rows: Array<Prisma.CommissionEntryGetPayload<{}>>, groupBy: string) {
     const keyFor = (row: (typeof rows)[number]) => {
       if (groupBy === 'department') return row.department || 'Chua co phong ban';
       if (groupBy === 'branch') return row.branch || 'Chua co chi nhanh';
