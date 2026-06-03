@@ -3,12 +3,15 @@ import { FinanceApprovalStatus, FinanceCashflowEntryType, FinanceInvoiceStatus, 
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { FilesService } from '../files/files.service';
+import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
+type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
   async listReceipts(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
@@ -19,13 +22,39 @@ export class FinanceService {
       take: this.take(query.take),
     });
     const summaryRows = await this.prisma.financeReceipt.findMany({ where });
-    return { rows, summary: this.receiptSummary(summaryRows) };
+    return { rows, summary: receiptSummary(summaryRows) };
   }
 
   async receiptDetail(id: string, user?: RequestUser) {
     const row = await this.prisma.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true, cashflowEntries: true } });
     if (!row) throw new NotFoundException('Receipt not found');
     return row;
+  }
+
+  async uploadReceiptFile(
+    id: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+    user?: RequestUser,
+  ) {
+    const current = await this.receiptDetail(id, user);
+    const upload = await this.filesService.upload(file, `finance/receipts/${id}`, actorId);
+    try {
+      const updated = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
+      const previousKey = this.objectKey(current.attachmentUrl);
+      if (previousKey && previousKey !== upload.objectKey) await this.filesService.remove(previousKey).catch(() => undefined);
+      return updated;
+    } catch (error) {
+      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async deleteReceiptFile(id: string, user?: RequestUser) {
+    const current = await this.receiptDetail(id, user);
+    const objectKey = this.objectKey(current.attachmentUrl);
+    if (objectKey) await this.filesService.remove(objectKey);
+    return this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
   }
 
   async createReceipt(dto: AnyRecord, user?: RequestUser) {
@@ -41,7 +70,7 @@ export class FinanceService {
   async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     dto = applyWriteDataScope(dto, user);
-    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && this.hasMoneyChange(dto)) {
+    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) {
       throw new BadRequestException('Approved receipt amount cannot be edited');
     }
     return this.prisma.$transaction(async (tx) => {
@@ -151,8 +180,8 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!receipt) throw new NotFoundException('Receipt not found');
+      if (receipt.cancelledAt) return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
       if (receipt.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved receipt can be cancelled');
-      if (receipt.cancelledAt) return receipt;
       const reversalCode = await this.nextCode(tx, 'FINANCE_RECEIPT', 'PTDC', new Date(), receipt.branch || undefined);
       const reversal = await tx.financeReceipt.create({
         data: {
@@ -188,6 +217,9 @@ export class FinanceService {
           data: { customerId, receiptId: reversal.id, sourceType: 'FINANCE_RECEIPT', sourceId: reversal.id, entryType: 'REVERSAL', debitAmount: receipt.receiptAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor },
         });
       }
+      for (const line of receipt.orders) {
+        if (line.orderId) await this.applyOrderReceipt(tx, line.orderId, -Number(line.amount));
+      }
       await this.audit(tx, 'CANCEL', 'FinanceReceipt', id, { actor, reason, reversalId: reversal.id });
       return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
     });
@@ -195,15 +227,56 @@ export class FinanceService {
 
   async listPayments(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
-    const rows = await this.prisma.financePayment.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }], take: this.take(query.take) });
+    const rows = await this.prisma.financePayment.findMany({
+      where,
+      include: {
+        operationVoucher: { select: { voucherCode: true, status: true } },
+        supplierPaymentRequests: { select: { code: true, status: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
+      take: this.take(query.take),
+    });
     const summaryRows = await this.prisma.financePayment.findMany({ where });
-    return { rows, summary: this.paymentSummary(summaryRows) };
+    return { rows, summary: paymentSummary(summaryRows) };
   }
 
   async paymentDetail(id: string, user?: RequestUser) {
-    const row = await this.prisma.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { cashflowEntries: true } });
+    const row = await this.prisma.financePayment.findFirst({
+      where: branchDepartmentScopeWhere({ id, deletedAt: null }, user),
+      include: {
+        cashflowEntries: true,
+        operationVoucher: { select: { voucherCode: true, status: true } },
+        supplierPaymentRequests: { select: { code: true, status: true } },
+      },
+    });
     if (!row) throw new NotFoundException('Payment not found');
     return row;
+  }
+
+  async uploadPaymentFile(
+    id: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+    user?: RequestUser,
+  ) {
+    const current = await this.paymentDetail(id, user);
+    const upload = await this.filesService.upload(file, `finance/payments/${id}`, actorId);
+    try {
+      const updated = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
+      const previousKey = this.objectKey(current.attachmentUrl);
+      if (previousKey && previousKey !== upload.objectKey) await this.filesService.remove(previousKey).catch(() => undefined);
+      return updated;
+    } catch (error) {
+      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async deletePaymentFile(id: string, user?: RequestUser) {
+    const current = await this.paymentDetail(id, user);
+    const objectKey = this.objectKey(current.attachmentUrl);
+    if (objectKey) await this.filesService.remove(objectKey);
+    return this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
   }
 
   async createPayment(dto: AnyRecord, user?: RequestUser) {
@@ -219,7 +292,7 @@ export class FinanceService {
   async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     dto = applyWriteDataScope(dto, user);
-    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && this.hasMoneyChange(dto)) {
+    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) {
       throw new BadRequestException('Approved payment amount cannot be edited');
     }
     return this.prisma.$transaction(async (tx) => {
@@ -240,7 +313,10 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!current) throw new NotFoundException('Payment not found');
-      if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
+      if (current.approvalStatus === FinanceApprovalStatus.APPROVED) {
+        await this.reconcileApprovedPayment(tx, current);
+        return current;
+      }
       const payment = await tx.financePayment.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
@@ -309,6 +385,7 @@ export class FinanceService {
         });
       }
       if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
+      await this.reconcileApprovedPayment(tx, payment);
       await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) });
       return payment;
     });
@@ -324,11 +401,11 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.cancelledAt) return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
       if (payment.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved payment can be cancelled');
-      if (payment.cancelledAt) return payment;
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
-        data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, operationVoucherId: payment.operationVoucherId, orderId: payment.orderId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
+        data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, orderId: payment.orderId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
       });
       await tx.financePayment.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
       await tx.financeCashflowEntry.create({
@@ -339,6 +416,8 @@ export class FinanceService {
         const original = await tx.supplierLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } } });
         await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), description: reason, reversedEntryId: original?.id, createdBy: actor } });
       }
+      if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
+      await this.reconcileCancelledPayment(tx, payment);
       await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id });
       return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
     });
@@ -346,15 +425,41 @@ export class FinanceService {
 
   async listInvoices(query: Record<string, string>) {
     const where = this.invoiceWhere(query);
-    const rows = await this.prisma.financeInvoice.findMany({ where, include: { items: true }, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
+    const rows = await this.prisma.financeInvoice.findMany({ where, include: { items: true, files: true }, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
     const summaryRows = await this.prisma.financeInvoice.findMany({ where });
-    return { rows, summary: this.invoiceSummary(summaryRows) };
+    return { rows, summary: invoiceSummary(summaryRows) };
   }
 
   async invoiceDetail(id: string) {
-    const row = await this.prisma.financeInvoice.findFirst({ where: { id, deletedAt: null }, include: { items: true } });
+    const row = await this.prisma.financeInvoice.findFirst({ where: { id, deletedAt: null }, include: { items: true, files: true } });
     if (!row) throw new NotFoundException('Invoice not found');
     return row;
+  }
+
+  async uploadInvoiceFile(
+    id: string,
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    actorId?: string,
+  ) {
+    await this.invoiceDetail(id);
+    const upload = await this.filesService.upload(file, `finance/invoices/${id}`, actorId);
+    try {
+      return await this.prisma.financeInvoiceFile.create({
+        data: { invoiceId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+      });
+    } catch (error) {
+      await this.filesService.remove(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async deleteInvoiceFile(id: string, fileId: string) {
+    await this.invoiceDetail(id);
+    const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
+    if (!file) throw new NotFoundException('Invoice file not found');
+    const objectKey = this.objectKey(file.fileUrl);
+    if (objectKey) await this.filesService.remove(objectKey);
+    return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
   }
 
   async createInvoice(dto: AnyRecord) {
@@ -369,7 +474,7 @@ export class FinanceService {
 
   async updateInvoice(id: string, dto: AnyRecord) {
     const current = await this.invoiceDetail(id);
-    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && this.hasMoneyChange(dto)) throw new BadRequestException('Approved invoice amount cannot be edited');
+    if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) throw new BadRequestException('Approved invoice amount cannot be edited');
     return this.prisma.$transaction(async (tx) => {
       await tx.financeInvoiceItem.deleteMany({ where: { invoiceId: id } });
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { ...this.invoiceData({ ...dto, invoiceCode: this.text(dto.invoiceCode) || current.invoiceCode }), items: { create: this.invoiceItems(dto) } }, include: { items: true } });
@@ -437,8 +542,8 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const invoice = await tx.financeInvoice.findUnique({ where: { id } });
       if (!invoice) throw new NotFoundException('Invoice not found');
+      if (invoice.cancelledAt) return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
       if (invoice.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved invoice can be cancelled');
-      if (invoice.cancelledAt) return invoice;
       const reversalCode = await this.nextCode(tx, 'FINANCE_INVOICE', 'VATDC', new Date(), undefined);
       const reversal = await tx.financeInvoice.create({
         data: { invoiceCode: reversalCode, systemCode: invoice.systemCode, orderId: invoice.orderId, receiptId: invoice.receiptId, customerId: invoice.customerId, customerName: invoice.customerName, customerPhone: invoice.customerPhone, customerEmail: invoice.customerEmail, invoiceType: 'ADJUSTMENT', issuedDate: new Date(), totalBeforeTax: invoice.totalBeforeTax, totalTax: invoice.totalTax, totalAfterTax: invoice.totalAfterTax, amountInWords: invoice.amountInWords, status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), reversalOfId: id, note: reason, createdBy: actor },
@@ -494,8 +599,8 @@ export class FinanceService {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const rows = await this.prisma.customerLedgerEntry.findMany({ where, include: { customer: true, order: true, receipt: true, invoice: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
-    return { rows, summary: this.ledgerSummary(rows) };
+    const entries = await this.prisma.customerLedgerEntry.findMany({ where, include: { customer: true, order: true, receipt: true, invoice: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
+    return { rows: this.customerDebtRows(entries), entries, summary: this.ledgerSummary(entries) };
   }
 
   async supplierDebt(query: Record<string, string>, user?: RequestUser) {
@@ -503,12 +608,106 @@ export class FinanceService {
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const rows = await this.prisma.supplierLedgerEntry.findMany({ where, include: { supplier: true, order: true, operationVoucher: true, payment: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
-    return { rows, summary: this.ledgerSummary(rows) };
+    const entries = await this.prisma.supplierLedgerEntry.findMany({ where, include: { supplier: true, order: true, operationVoucher: true, payment: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
+    return { rows: this.supplierDebtRows(entries), entries, summary: this.supplierLedgerSummary(entries) };
   }
 
-  importPlaceholder(type: string, dto: AnyRecord) {
-    return { type, imported: 0, message: 'CSV/XLSX parser placeholder; upload binary storage is not enabled yet.', receivedRows: Array.isArray(dto.rows) ? dto.rows.length : 0 };
+  async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
+    const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: customerId, mergedIntoId: null }, user), select: { id: true } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
+    const direction = this.adjustmentDirection(dto);
+    const amount = this.adjustmentAmount(dto);
+    const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.customerLedgerEntry.create({
+        data: {
+          customerId,
+          sourceType: 'MANUAL',
+          sourceId: randomUUID(),
+          entryType: 'ADJUSTMENT',
+          debitAmount: direction === 'INCREASE' ? amount : 0,
+          creditAmount: direction === 'DECREASE' ? amount : 0,
+          documentCode: this.text(dto.documentCode) || this.code('DCCUS'),
+          documentDate: this.date(dto.documentDate) || new Date(),
+          dueDate: this.date(dto.dueDate),
+          branch: this.text(scoped.branch),
+          department: this.text(scoped.department),
+          staff: actor,
+          description: this.text(dto.description) || this.text(dto.note) || 'Điều chỉnh công nợ khách hàng',
+          createdBy: actor,
+        },
+      });
+      await this.audit(tx, 'ADJUST', 'CustomerLedgerEntry', entry.id, { customerId, direction, amount, actor });
+      return entry;
+    });
+  }
+
+  async createSupplierDebtAdjustment(supplierId: string, dto: AnyRecord, user?: RequestUser) {
+    const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+    const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
+    const direction = this.adjustmentDirection(dto);
+    const amount = this.adjustmentAmount(dto);
+    const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.supplierLedgerEntry.create({
+        data: {
+          supplierId,
+          sourceType: 'MANUAL',
+          sourceId: randomUUID(),
+          entryType: 'ADJUSTMENT',
+          debitAmount: direction === 'DECREASE' ? amount : 0,
+          creditAmount: direction === 'INCREASE' ? amount : 0,
+          documentCode: this.text(dto.documentCode) || this.code('DCNCC'),
+          documentDate: this.date(dto.documentDate) || new Date(),
+          dueDate: this.date(dto.dueDate),
+          branch: this.text(scoped.branch),
+          department: this.text(scoped.department),
+          staff: actor,
+          description: this.text(dto.description) || this.text(dto.note) || 'Điều chỉnh công nợ nhà cung cấp',
+          createdBy: actor,
+        },
+      });
+      await this.audit(tx, 'ADJUST', 'SupplierLedgerEntry', entry.id, { supplierId, direction, amount, actor });
+      return entry;
+    });
+  }
+
+  async importReceipts(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+    const rows = this.financeImportRows(dto, file).map((row, index) => this.validateReceiptImportRow(row, index + 2));
+    await this.assertImportCodesAvailable('receipts', rows, 'receiptCode');
+    return this.prisma.$transaction(async (tx) => {
+      const imported = [];
+      for (const rawRow of rows) {
+        const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
+        const receiptCode = this.text(row.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(row.paymentDate), this.text(row.branch));
+        const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode }), orders: { create: this.receiptOrders(row) } }, include: { orders: true } });
+        await this.audit(tx, 'IMPORT', 'FinanceReceipt', receipt.id, { source: file?.originalname || 'rows' });
+        imported.push(receipt);
+      }
+      return { type: 'receipts', imported: imported.length, rows: imported };
+    });
+  }
+
+  async importPayments(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
+    const rows = this.financeImportRows(dto, file).map((row, index) => this.validatePaymentImportRow(row, index + 2));
+    await this.assertImportCodesAvailable('payments', rows, 'voucherCode');
+    return this.prisma.$transaction(async (tx) => {
+      const imported = [];
+      for (const rawRow of rows) {
+        const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
+        const voucherCode = this.text(row.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(row.paymentDate), this.text(row.branch));
+        const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode }) } });
+        await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' });
+        imported.push(payment);
+      }
+      return { type: 'payments', imported: imported.length, rows: imported };
+    });
+  }
+
+  private objectKey(fileUrl?: string | null) {
+    return fileUrl ? new URL(fileUrl, 'http://smarttour.local').searchParams.get('key') : null;
   }
 
   private receiptData(dto: AnyRecord): Prisma.FinanceReceiptUncheckedCreateInput {
@@ -675,17 +874,17 @@ export class FinanceService {
   private async applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) return;
-    const paidAmount = Number(order.paidAmount) + amount;
+    const paidAmount = Math.max(Number(order.paidAmount) + amount, 0);
     const remainingRevenue = Math.max(Number(order.totalRevenue) - paidAmount, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidAmount, remainingRevenue, paymentStatus: remainingRevenue <= 0 ? OrderPaymentStatus.PAID : OrderPaymentStatus.PARTIAL } });
+    await tx.order.update({ where: { id: orderId }, data: { paidAmount, remainingRevenue, paymentStatus: remainingRevenue <= 0 ? OrderPaymentStatus.PAID : paidAmount > 0 ? OrderPaymentStatus.PARTIAL : OrderPaymentStatus.UNPAID } });
   }
 
   private async applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) return;
-    const paidCost = Number(order.paidCost) + amount;
+    const paidCost = Math.max(Number(order.paidCost) + amount, 0);
     const remainingCost = Math.max(Number(order.totalCost) - paidCost, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidCost, remainingCost, costStatus: remainingCost <= 0 ? OrderCostStatus.PAID : OrderCostStatus.PARTIAL } });
+    await tx.order.update({ where: { id: orderId }, data: { paidCost, remainingCost, costStatus: remainingCost <= 0 ? OrderCostStatus.PAID : paidCost > 0 ? OrderCostStatus.PARTIAL : OrderCostStatus.PENDING } });
   }
 
   private async resolveReceiptCustomer(tx: Prisma.TransactionClient, receipt: { customerId: string | null; orders: { orderId: string | null }[] }) {
@@ -701,6 +900,36 @@ export class FinanceService {
     if (!payment.operationVoucherId) return null;
     const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId }, select: { supplierId: true } });
     return voucher?.supplierId || null;
+  }
+
+  private async reconcileApprovedPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null; paymentAmount: Prisma.Decimal }) {
+    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'PAID' } });
+    if (!payment.operationVoucherId) return;
+    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
+    if (!voucher) return;
+    const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
+    if (existing) return;
+    const amount = Math.min(Number(payment.paymentAmount), Number(voucher.remainAmount));
+    if (amount <= 0) return;
+    await tx.operationVoucherPayment.create({
+      data: { voucherId: voucher.id, paymentVoucherId: payment.id, paidAmount: amount, paymentDate: new Date(), note: 'Duyet phieu chi tai chinh' },
+    });
+    const paidAmount = Number(voucher.paidAmount) + amount;
+    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
+    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : 'PARTIAL' } });
+  }
+
+  private async reconcileCancelledPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null }) {
+    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'APPROVED', financePaymentId: null } });
+    if (!payment.operationVoucherId) return;
+    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
+    if (!voucher) return;
+    const reconciled = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
+    if (!reconciled) return;
+    await tx.operationVoucherPayment.delete({ where: { id: reconciled.id } });
+    const paidAmount = Math.max(Number(voucher.paidAmount) - Number(reconciled.paidAmount), 0);
+    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
+    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'PENDING' } });
   }
 
   private async resolveInvoiceCustomer(tx: Prisma.TransactionClient, invoice: { customerId: string | null; orderId: string | null }) {
@@ -782,24 +1011,6 @@ export class FinanceService {
     };
   }
 
-  private receiptSummary(rows: { receiptAmount: Prisma.Decimal; approvalStatus: FinanceApprovalStatus; receiptType: unknown }[]) {
-    return {
-      count: rows.length,
-      totalAmount: rows.reduce((sum, row) => sum + Number(row.receiptAmount), 0),
-      draft: rows.filter((row) => row.approvalStatus === 'DRAFT').length,
-      deposit: rows.filter((row) => row.receiptType === 'DEPOSIT').length,
-      approved: rows.filter((row) => row.approvalStatus === 'APPROVED').length,
-    };
-  }
-
-  private paymentSummary(rows: { paymentAmount: Prisma.Decimal; approvalStatus: FinanceApprovalStatus }[]) {
-    return { count: rows.length, totalAmount: rows.reduce((sum, row) => sum + Number(row.paymentAmount), 0), draft: rows.filter((row) => row.approvalStatus === 'DRAFT').length, approved: rows.filter((row) => row.approvalStatus === 'APPROVED').length, rejected: rows.filter((row) => row.approvalStatus === 'REJECTED').length };
-  }
-
-  private invoiceSummary(rows: { totalAfterTax: Prisma.Decimal; approvalStatus: FinanceApprovalStatus }[]) {
-    return { count: rows.length, totalAmount: rows.reduce((sum, row) => sum + Number(row.totalAfterTax), 0), pending: rows.filter((row) => row.approvalStatus === 'PENDING').length, approved: rows.filter((row) => row.approvalStatus === 'APPROVED').length, rejected: rows.filter((row) => row.approvalStatus === 'REJECTED').length };
-  }
-
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata: unknown) {
     await tx.auditLog.create({ data: { action, entity, entityId, metadata: metadata as Prisma.InputJsonValue } });
   }
@@ -816,6 +1027,165 @@ export class FinanceService {
   private csvCell(value: unknown) {
     if (value instanceof Date) return value.toISOString();
     return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  private financeImportRows(dto: AnyRecord, file?: ImportFile) {
+    let rows: unknown[];
+    if (file) {
+      const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
+      if (!isCsv) throw new BadRequestException('Chỉ hỗ trợ import CSV. XLSX cần được xuất thành CSV trước khi tải lên.');
+      rows = this.parseCsv(file.buffer.toString('utf8'));
+    } else if (Array.isArray(dto.rows)) {
+      rows = dto.rows;
+    } else if (typeof dto.csv === 'string') {
+      rows = this.parseCsv(dto.csv);
+    } else {
+      throw new BadRequestException('Cần tải lên file CSV hoặc gửi mảng rows');
+    }
+    if (!rows.length) throw new BadRequestException('File import không có dòng dữ liệu');
+    if (rows.length > 500) throw new BadRequestException('Mỗi lần chỉ được import tối đa 500 dòng');
+    if (rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new BadRequestException('Dữ liệu import không hợp lệ');
+    return rows as AnyRecord[];
+  }
+
+  private parseCsv(value: string) {
+    const csv = value.replace(/^\uFEFF/, '');
+    const firstLine = csv.split(/\r?\n/, 1)[0] || '';
+    const delimiter = firstLine.includes(',') ? ',' : firstLine.includes(';') ? ';' : ',';
+    const lines: string[][] = [];
+    let row: string[] = [];
+    let cell = '';
+    let quoted = false;
+    for (let index = 0; index < csv.length; index += 1) {
+      const character = csv[index];
+      if (quoted) {
+        if (character === '"' && csv[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else if (character === '"') {
+          quoted = false;
+        } else {
+          cell += character;
+        }
+      } else if (character === '"') {
+        quoted = true;
+      } else if (character === delimiter) {
+        row.push(cell);
+        cell = '';
+      } else if (character === '\n') {
+        row.push(cell.replace(/\r$/, ''));
+        lines.push(row);
+        row = [];
+        cell = '';
+      } else {
+        cell += character;
+      }
+    }
+    if (quoted) throw new BadRequestException('CSV có dấu ngoặc kép chưa đóng');
+    if (cell || row.length) {
+      row.push(cell.replace(/\r$/, ''));
+      lines.push(row);
+    }
+    const header = (lines.shift() || []).map((column) => column.trim());
+    if (!header.length || header.some((column) => !column)) throw new BadRequestException('CSV thiếu header hợp lệ');
+    if (new Set(header).size !== header.length) throw new BadRequestException('CSV có header trùng lặp');
+    return lines.filter((cells) => cells.some((entry) => entry.trim())).map((cells, index) => {
+      if (cells.length > header.length) throw new BadRequestException(`CSV dòng ${index + 2} có quá nhiều cột`);
+      return Object.fromEntries(header.map((column, columnIndex) => [column, cells[columnIndex]?.trim() || undefined]));
+    });
+  }
+
+  private validateReceiptImportRow(row: AnyRecord, line: number) {
+    const receiptAmount = this.importNumber(row.receiptAmount, 'receiptAmount', line, true);
+    const paidBefore = this.importNumber(row.paidBefore, 'paidBefore', line);
+    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, receiptAmount);
+    if (totalAmount < paidBefore + receiptAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paidBefore + receiptAmount`);
+    return {
+      ...row,
+      receiptName: this.requiredImportText(row.receiptName, 'receiptName', line),
+      receiptType: this.importEnum(row.receiptType, 'receiptType', line, ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER']) || 'TOUR_PAYMENT',
+      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
+      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
+      documentDate: this.importDate(row.documentDate, 'documentDate', line),
+      transferDate: this.importDate(row.transferDate, 'transferDate', line),
+      totalAmount,
+      paidBefore,
+      receiptAmount,
+      approvalStatus: 'DRAFT',
+      createdBy: this.text(row.createdBy) || 'finance-import',
+    };
+  }
+
+  private validatePaymentImportRow(row: AnyRecord, line: number) {
+    const paymentAmount = this.importNumber(row.paymentAmount, 'paymentAmount', line, true);
+    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, paymentAmount);
+    if (totalAmount < paymentAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paymentAmount`);
+    return {
+      ...row,
+      voucherName: this.requiredImportText(row.voucherName, 'voucherName', line),
+      voucherType: this.importEnum(row.voucherType, 'voucherType', line, ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER']) || 'SUPPLIER_PAYMENT',
+      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
+      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
+      documentDate: this.importDate(row.documentDate, 'documentDate', line),
+      transferDate: this.importDate(row.transferDate, 'transferDate', line),
+      totalAmount,
+      paymentAmount,
+      approvalStatus: 'DRAFT',
+      createdBy: this.text(row.createdBy) || 'finance-import',
+    };
+  }
+
+  private async assertImportCodesAvailable(type: 'receipts' | 'payments', rows: AnyRecord[], field: 'receiptCode' | 'voucherCode') {
+    const codes = rows.map((row) => this.text(row[field])).filter((code): code is string => Boolean(code));
+    const duplicate = codes.find((code, index) => codes.indexOf(code) !== index);
+    if (duplicate) throw new BadRequestException(`Mã ${duplicate} bị trùng trong file import`);
+    if (!codes.length) return;
+    if (type === 'receipts') {
+      const existing = await this.prisma.financeReceipt.findFirst({ where: { receiptCode: { in: codes } }, select: { receiptCode: true } });
+      if (existing) throw new BadRequestException(`Mã ${existing.receiptCode} đã tồn tại`);
+    } else {
+      const existing = await this.prisma.financePayment.findFirst({ where: { voucherCode: { in: codes } }, select: { voucherCode: true } });
+      if (existing) throw new BadRequestException(`Mã ${existing.voucherCode} đã tồn tại`);
+    }
+  }
+
+  private requiredImportText(value: unknown, field: string, line: number) {
+    const text = this.text(value);
+    if (!text) throw new BadRequestException(`Dòng ${line}: thiếu ${field}`);
+    return text;
+  }
+
+  private adjustmentDirection(dto: AnyRecord) {
+    const direction = this.text(dto.direction);
+    if (direction !== 'INCREASE' && direction !== 'DECREASE') throw new BadRequestException('direction must be INCREASE or DECREASE');
+    return direction;
+  }
+
+  private adjustmentAmount(dto: AnyRecord) {
+    const amount = this.decimal(dto.amount);
+    if (amount <= 0) throw new BadRequestException('amount must be greater than zero');
+    return amount;
+  }
+
+  private importNumber(value: unknown, field: string, line: number, positive = false, fallback = 0) {
+    if (value == null || value === '') return fallback;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0 || (positive && number <= 0)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
+    return number;
+  }
+
+  private importDate(value: unknown, field: string, line: number) {
+    const text = this.text(value);
+    if (!text) return undefined;
+    if (!this.date(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
+    return text;
+  }
+
+  private importEnum(value: unknown, field: string, line: number, allowed: string[]) {
+    const text = this.text(value);
+    if (!text) return undefined;
+    if (!allowed.includes(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
+    return text;
   }
 
   private text(value: unknown) {
@@ -870,12 +1240,75 @@ export class FinanceService {
     return { debit, credit, balance: debit - credit, count: rows.length };
   }
 
+  private supplierLedgerSummary(rows: { debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal }[]) {
+    const paid = rows.reduce((sum, row) => sum + Number(row.debitAmount), 0);
+    const payable = rows.reduce((sum, row) => sum + Number(row.creditAmount), 0);
+    return { debit: payable, credit: paid, balance: payable - paid, count: rows.length };
+  }
+
+  private customerDebtRows(entries: Array<{ customerId: string; customer: { fullName: string; phone: string; code: string }; debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal; dueDate: Date | null; documentDate: Date | null; createdAt: Date }>) {
+    const grouped = new Map<string, { id: string; code: string; name: string; phone: string; debitTotal: number; creditTotal: number; entries: typeof entries }>();
+    for (const entry of entries) {
+      const current = grouped.get(entry.customerId) || { id: entry.customerId, code: entry.customer.code, name: entry.customer.fullName, phone: entry.customer.phone, debitTotal: 0, creditTotal: 0, entries: [] };
+      current.debitTotal += Number(entry.debitAmount);
+      current.creditTotal += Number(entry.creditAmount);
+      current.entries.push(entry);
+      grouped.set(entry.customerId, current);
+    }
+    return Array.from(grouped.values())
+      .map(({ entries: rowEntries, ...row }) => ({ ...row, balance: row.debitTotal - row.creditTotal, aging: this.debtAging(rowEntries, 'debitAmount', 'creditAmount') }))
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance);
+  }
+
+  private supplierDebtRows(entries: Array<{ supplierId: string; supplier: { name: string; phone: string | null; supplierCode: string | null }; debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal; dueDate: Date | null; documentDate: Date | null; createdAt: Date }>) {
+    const grouped = new Map<string, { id: string; code: string; name: string; phone?: string; debitTotal: number; creditTotal: number; entries: typeof entries }>();
+    for (const entry of entries) {
+      const current = grouped.get(entry.supplierId) || { id: entry.supplierId, code: entry.supplier.supplierCode || '', name: entry.supplier.name, phone: entry.supplier.phone || undefined, debitTotal: 0, creditTotal: 0, entries: [] };
+      current.debitTotal += Number(entry.creditAmount);
+      current.creditTotal += Number(entry.debitAmount);
+      current.entries.push(entry);
+      grouped.set(entry.supplierId, current);
+    }
+    return Array.from(grouped.values())
+      .map(({ entries: rowEntries, ...row }) => ({ ...row, balance: row.debitTotal - row.creditTotal, aging: this.debtAging(rowEntries, 'creditAmount', 'debitAmount') }))
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance);
+  }
+
+  private debtAging(
+    entries: Array<{ debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal; dueDate: Date | null; documentDate: Date | null; createdAt: Date }>,
+    obligationField: 'debitAmount' | 'creditAmount',
+    settlementField: 'debitAmount' | 'creditAmount',
+  ) {
+    const aging = { current: 0, overdue1To30: 0, overdue31To60: 0, overdue61To90: 0, overdueOver90: 0 };
+    let settlements = entries.reduce((sum, entry) => sum + Number(entry[settlementField]), 0);
+    const obligations = entries
+      .map((entry) => ({ amount: Number(entry[obligationField]), dueDate: entry.dueDate, documentDate: entry.documentDate, createdAt: entry.createdAt }))
+      .filter((entry) => entry.amount > 0)
+      .sort((left, right) => Number(left.dueDate || left.documentDate || left.createdAt) - Number(right.dueDate || right.documentDate || right.createdAt));
+    const now = new Date();
+    for (const obligation of obligations) {
+      const remaining = Math.max(obligation.amount - settlements, 0);
+      settlements = Math.max(settlements - obligation.amount, 0);
+      if (!remaining) continue;
+      if (!obligation.dueDate || obligation.dueDate >= now) {
+        aging.current += remaining;
+        continue;
+      }
+      const overdueDays = Math.ceil((now.getTime() - obligation.dueDate.getTime()) / 86400000);
+      if (overdueDays <= 30) aging.overdue1To30 += remaining;
+      else if (overdueDays <= 60) aging.overdue31To60 += remaining;
+      else if (overdueDays <= 90) aging.overdue61To90 += remaining;
+      else aging.overdueOver90 += remaining;
+    }
+    if (settlements > 0) aging.current -= settlements;
+    return { ...aging, overdueTotal: aging.overdue1To30 + aging.overdue31To60 + aging.overdue61To90 + aging.overdueOver90 };
+  }
+
   private take(value?: string) {
     const take = Number(value || 300);
     return Math.min(Number.isFinite(take) ? take : 300, 2000);
   }
 
-  private hasMoneyChange(dto: AnyRecord) {
-    return ['totalAmount', 'paidBefore', 'receiptAmount', 'paymentAmount', 'items'].some((key) => key in dto);
-  }
 }
