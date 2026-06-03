@@ -135,58 +135,58 @@ export class FinanceController {
 
   @Get('invoices')
   @RequirePermissions('finance.invoice.view')
-  invoices(@Query() query: Record<string, string>) {
-    return this.service.listInvoices(query);
+  invoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
+    return this.service.listInvoices(query, request.user);
   }
 
   @Post('invoices')
   @RequirePermissions('finance.invoice.create')
-  createInvoice(@Body() dto: Record<string, unknown>) {
-    return this.service.createInvoice(dto);
+  createInvoice(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.createInvoice(dto, request.user);
   }
 
   @Get('invoices/export')
   @RequirePermissions('finance.invoice.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-invoices.csv"')
-  exportInvoices(@Query() query: Record<string, string>) {
-    return this.service.exportInvoices(query);
+  exportInvoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
+    return this.service.exportInvoices(query, request.user);
   }
 
   @Get('invoices/:id')
   @RequirePermissions('finance.invoice.view')
-  invoice(@Param('id') id: string) {
-    return this.service.invoiceDetail(id);
+  invoice(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.service.invoiceDetail(id, request.user);
   }
 
   @Put('invoices/:id')
   @RequirePermissions('finance.invoice.update')
-  updateInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.updateInvoice(id, dto);
+  updateInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.updateInvoice(id, dto, request.user);
   }
 
   @Delete('invoices/:id')
   @RequirePermissions('finance.invoice.delete')
-  deleteInvoice(@Param('id') id: string) {
-    return this.service.deleteInvoice(id);
+  deleteInvoice(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.service.deleteInvoice(id, request.user);
   }
 
   @Post('invoices/:id/approve')
   @RequirePermissions('finance.invoice.approve')
-  approveInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.approveInvoice(id, dto);
+  approveInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.approveInvoice(id, dto, request.user);
   }
 
   @Post('invoices/:id/reject')
   @RequirePermissions('finance.invoice.approve')
-  rejectInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.rejectInvoice(id, dto);
+  rejectInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.rejectInvoice(id, dto, request.user);
   }
 
   @Post('invoices/:id/cancel')
   @RequirePermissions('finance.invoice.approve')
-  cancelInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.cancelInvoice(id, dto);
+  cancelInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+    return this.service.cancelInvoice(id, dto, request.user);
   }
 
   @Get('debt/customers')

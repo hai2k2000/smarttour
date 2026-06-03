@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
@@ -12,53 +13,53 @@ export class FitToursController {
   constructor(private readonly fitToursService: FitToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string) {
-    return this.fitToursService.list(search, status);
+  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.list(search, status, request?.user);
   }
 
   @Post('import')
   @RequirePermissions('tour.manage')
-  import(@Body() dto: CreateFitTourDto) {
-    return this.fitToursService.create(dto);
+  import(@Body() dto: CreateFitTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.create(dto, request?.user);
   }
 
   @Post('export')
-  export(@Body('id') id: string) {
-    return this.fitToursService.detail(id);
+  export(@Body('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.detail(id, request?.user);
   }
 
   @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.fitToursService.detail(id);
+  detail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.detail(id, request?.user);
   }
 
   @Post()
   @RequirePermissions('tour.manage')
-  create(@Body() dto: CreateFitTourDto) {
-    return this.fitToursService.create(dto);
+  create(@Body() dto: CreateFitTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.create(dto, request?.user);
   }
 
   @Put(':id')
   @RequirePermissions('tour.manage')
-  update(@Param('id') id: string, @Body() dto: UpdateFitTourDto) {
-    return this.fitToursService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.update(id, dto, request?.user);
   }
 
   @Delete(':id')
   @RequirePermissions('tour.manage')
-  remove(@Param('id') id: string) {
-    return this.fitToursService.remove(id);
+  remove(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.remove(id, request?.user);
   }
 
   @Post(':id/copy-budget')
   @RequirePermissions('tour.manage')
-  copyBudget(@Param('id') id: string, @Body('sourceTourId') sourceTourId?: string) {
-    return this.fitToursService.copyBudget(id, sourceTourId);
+  copyBudget(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.copyBudget(id, sourceTourId, request?.user);
   }
 
   @Post(':id/copy-operation')
   @RequirePermissions('tour.manage')
-  copyOperation(@Param('id') id: string, @Body('sourceTourId') sourceTourId?: string) {
-    return this.fitToursService.copyOperation(id, sourceTourId);
+  copyOperation(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.copyOperation(id, sourceTourId, request?.user);
   }
 }

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 
@@ -20,7 +21,7 @@ const gitTourInclude = {
 export class GitToursService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(search?: string, status?: TourStatus) {
+  list(search?: string, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
       type: TourType.GIT,
       ...(status ? { status } : {}),
@@ -38,7 +39,7 @@ export class GitToursService {
     };
 
     return this.prisma.tour.findMany({
-      where,
+      where: branchDepartmentScopeWhere(where, user),
       include: {
         gitTour: true,
         customers: { where: { isPrimary: true }, take: 1 },
@@ -48,13 +49,14 @@ export class GitToursService {
     });
   }
 
-  async detail(id: string) {
-    const tour = await this.prisma.tour.findFirst({ where: { id, type: TourType.GIT }, include: gitTourInclude });
+  async detail(id: string, user?: RequestUser) {
+    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id, type: TourType.GIT }, user), include: gitTourInclude });
     if (!tour) throw new NotFoundException('GIT tour not found');
     return tour;
   }
 
-  async create(dto: CreateGitTourDto) {
+  async create(dto: CreateGitTourDto, user?: RequestUser) {
+    dto = applyWriteDataScope(dto, user);
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
         const created = await tx.tour.create({
@@ -69,7 +71,7 @@ export class GitToursService {
         });
         return created;
       });
-      return this.detail(tour.id);
+      return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('GIT tour system code already exists');
@@ -78,8 +80,9 @@ export class GitToursService {
     }
   }
 
-  async update(id: string, dto: UpdateGitTourDto) {
-    await this.detail(id);
+  async update(id: string, dto: UpdateGitTourDto, user?: RequestUser) {
+    await this.detail(id, user);
+    dto = applyWriteDataScope(dto, user);
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
@@ -91,7 +94,7 @@ export class GitToursService {
         await this.replaceChildren(tx, id, dto);
         await tx.tourLog.create({ data: { tourId: id, action: 'UPDATE_GIT_TOUR', entity: 'Tour' } });
       });
-      return this.detail(id);
+      return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('GIT tour system code already exists');
@@ -100,14 +103,14 @@ export class GitToursService {
     }
   }
 
-  async remove(id: string) {
-    await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    await this.detail(id, user);
     return this.prisma.tour.delete({ where: { id } });
   }
 
-  async copyServices(targetTourId: string, sourceTourId?: string) {
-    await this.detail(targetTourId);
-    const source = sourceTourId ? await this.prisma.tour.findUnique({ where: { id: sourceTourId }, include: { services: true } }) : await this.prisma.tour.findUnique({ where: { id: targetTourId }, include: { services: true } });
+  async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
+    await this.detail(targetTourId, user);
+    const source = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: sourceTourId || targetTourId, type: TourType.GIT }, user), include: { services: true } });
     if (!source) throw new NotFoundException('Source tour not found');
 
     await this.prisma.$transaction(async (tx) => {
@@ -136,7 +139,7 @@ export class GitToursService {
         })),
       });
     });
-    return this.detail(targetTourId);
+    return this.detail(targetTourId, user);
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto) {

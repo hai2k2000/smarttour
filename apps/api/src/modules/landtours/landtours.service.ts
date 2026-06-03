@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
@@ -19,7 +20,7 @@ const landTourInclude = {
 export class LandToursService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(search?: string, status?: TourStatus) {
+  list(search?: string, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
       type: TourType.LANDTOUR,
       ...(status ? { status } : {}),
@@ -37,7 +38,7 @@ export class LandToursService {
     };
 
     return this.prisma.tour.findMany({
-      where,
+      where: branchDepartmentScopeWhere(where, user),
       include: {
         landTour: true,
         customers: { where: { isPrimary: true }, take: 1 },
@@ -47,13 +48,14 @@ export class LandToursService {
     });
   }
 
-  async detail(id: string) {
-    const tour = await this.prisma.tour.findFirst({ where: { id, type: TourType.LANDTOUR }, include: landTourInclude });
+  async detail(id: string, user?: RequestUser) {
+    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
     if (!tour) throw new NotFoundException('LandTour not found');
     return tour;
   }
 
-  async create(dto: CreateLandTourDto) {
+  async create(dto: CreateLandTourDto, user?: RequestUser) {
+    dto = applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user) as CreateLandTourDto;
     try {
       const tour = await this.prisma.tour.create({
         data: {
@@ -65,7 +67,7 @@ export class LandToursService {
           logs: { create: { action: 'CREATE_LANDTOUR', entity: 'Tour' } },
         } as Prisma.TourCreateInput,
       });
-      return this.detail(tour.id);
+      return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('LandTour system code already exists');
@@ -74,8 +76,9 @@ export class LandToursService {
     }
   }
 
-  async update(id: string, dto: UpdateLandTourDto) {
-    await this.detail(id);
+  async update(id: string, dto: UpdateLandTourDto, user?: RequestUser) {
+    await this.detail(id, user);
+    dto = applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user) as UpdateLandTourDto;
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
@@ -87,7 +90,7 @@ export class LandToursService {
         await this.replaceChildren(tx, id, dto);
         await tx.tourLog.create({ data: { tourId: id, action: 'UPDATE_LANDTOUR', entity: 'Tour' } });
       });
-      return this.detail(id);
+      return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('LandTour system code already exists');
@@ -96,14 +99,14 @@ export class LandToursService {
     }
   }
 
-  async remove(id: string) {
-    await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    await this.detail(id, user);
     return this.prisma.tour.delete({ where: { id } });
   }
 
-  async copyServices(targetTourId: string, sourceTourId?: string) {
-    await this.detail(targetTourId);
-    const source = await this.prisma.tour.findUnique({ where: { id: sourceTourId || targetTourId }, include: { services: true } });
+  async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
+    await this.detail(targetTourId, user);
+    const source = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: sourceTourId || targetTourId, type: TourType.LANDTOUR }, user), include: { services: true } });
     if (!source) throw new NotFoundException('Source tour not found');
 
     await this.prisma.$transaction(async (tx) => {
@@ -132,7 +135,7 @@ export class LandToursService {
         })),
       });
     });
-    return this.detail(targetTourId);
+    return this.detail(targetTourId, user);
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto) {
@@ -167,6 +170,8 @@ export class LandToursService {
       ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
       ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
       ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
+      ...('branch' in dto ? { branch: this.optionalText((dto as Record<string, unknown>).branch) } : {}),
+      ...('department' in dto ? { department: this.optionalText((dto as Record<string, unknown>).department) } : {}),
       ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
       ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
       ...(dto.itinerarySummary !== undefined ? { route: this.optionalText(dto.itinerarySummary) } : {}),

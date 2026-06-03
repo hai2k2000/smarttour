@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 
@@ -37,7 +38,7 @@ const defaultSurveyQuestions = [
 export class FitToursService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(search?: string, status?: string) {
+  list(search?: string, status?: string, user?: RequestUser) {
     const workflowStatus = this.toWorkflowStatus(status);
     const where: Prisma.FitTourWhereInput = {
       ...(workflowStatus ? { workflowStatus } : {}),
@@ -55,7 +56,7 @@ export class FitToursService {
     };
 
     return this.prisma.fitTour.findMany({
-      where,
+      where: this.fitTourScopeWhere(where, user),
       include: {
         _count: {
           select: {
@@ -71,13 +72,14 @@ export class FitToursService {
     });
   }
 
-  async detail(id: string) {
-    const fitTour = await this.prisma.fitTour.findUnique({ where: { id }, include: fitTourInclude });
+  async detail(id: string, user?: RequestUser) {
+    const fitTour = await this.prisma.fitTour.findFirst({ where: this.fitTourScopeWhere({ id }, user), include: fitTourInclude });
     if (!fitTour) throw new NotFoundException('FIT tour not found');
     return fitTour;
   }
 
-  async create(dto: CreateFitTourDto) {
+  async create(dto: CreateFitTourDto, user?: RequestUser) {
+    dto = applyWriteDataScope(dto as CreateFitTourDto & { branch?: string | null; department?: string | null }, user) as CreateFitTourDto;
     try {
       const created = await this.prisma.$transaction(async (tx) => {
         const fitDto = await this.withCustomerSnapshot(tx, dto);
@@ -103,7 +105,7 @@ export class FitToursService {
         await this.replaceTourCoreChildren(tx, tour.id, fitDto);
         return fitTour;
       });
-      return this.detail(created.id);
+      return this.detail(created.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('FIT quote code already exists');
@@ -112,8 +114,9 @@ export class FitToursService {
     }
   }
 
-  async update(id: string, dto: UpdateFitTourDto) {
-    const current = await this.detail(id);
+  async update(id: string, dto: UpdateFitTourDto, user?: RequestUser) {
+    const current = await this.detail(id, user);
+    dto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
     try {
       await this.prisma.$transaction(async (tx) => {
         const patch = await this.withCustomerSnapshot(tx, dto);
@@ -133,7 +136,7 @@ export class FitToursService {
         await this.replaceChildren(tx, id, patch);
         await this.replaceTourCoreChildren(tx, tourId, merged);
       });
-      return this.detail(id);
+      return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('FIT quote code already exists');
@@ -142,8 +145,8 @@ export class FitToursService {
     }
   }
 
-  async remove(id: string) {
-    const fitTour = await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    const fitTour = await this.detail(id, user);
     return this.prisma.$transaction(async (tx) => {
       const deleted = await tx.fitTour.delete({ where: { id } });
       if (fitTour.tourId) await tx.tour.delete({ where: { id: fitTour.tourId } });
@@ -151,9 +154,9 @@ export class FitToursService {
     });
   }
 
-  async copyBudget(targetTourId: string, sourceTourId?: string) {
-    const source = await this.detail(sourceTourId || targetTourId);
-    await this.detail(targetTourId);
+  async copyBudget(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
+    const source = await this.detail(sourceTourId || targetTourId, user);
+    await this.detail(targetTourId, user);
     const budgetRows = source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source);
 
     await this.prisma.$transaction(async (tx) => {
@@ -172,12 +175,12 @@ export class FitToursService {
         })),
       });
     });
-    return this.detail(targetTourId);
+    return this.detail(targetTourId, user);
   }
 
-  async copyOperation(targetTourId: string, sourceTourId?: string) {
-    const source = await this.detail(sourceTourId || targetTourId);
-    await this.detail(targetTourId);
+  async copyOperation(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
+    const source = await this.detail(sourceTourId || targetTourId, user);
+    await this.detail(targetTourId, user);
     const rows = source.operationServices.length > 0 ? source.operationServices : source.budgetServices;
 
     await this.prisma.$transaction(async (tx) => {
@@ -198,7 +201,13 @@ export class FitToursService {
         })),
       });
     });
-    return this.detail(targetTourId);
+    return this.detail(targetTourId, user);
+  }
+
+  private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const scopedTour = branchDepartmentScopeWhere<Prisma.TourWhereInput>({}, user);
+    return { AND: [where, { tour: { is: scopedTour } }] };
   }
 
   private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {
@@ -311,6 +320,8 @@ export class FitToursService {
       ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
       ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
       ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
+      ...('branch' in dto ? { branch: this.optionalText((dto as Record<string, unknown>).branch) } : {}),
+      ...('department' in dto ? { department: this.optionalText((dto as Record<string, unknown>).department) } : {}),
       ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
       ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
       ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
