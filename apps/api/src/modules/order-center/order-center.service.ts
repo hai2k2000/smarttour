@@ -65,7 +65,21 @@ export class OrderCenterService {
       where: branchDepartmentScopeWhere(this.where(query), user),
       include: {
         _count: { select: { members: true, salesItems: true, operationItems: true } },
-        operationItems: { include: { supplier: true }, orderBy: { sortOrder: 'asc' }, take: 5 },
+        operationItems: {
+          select: {
+            id: true,
+            serviceType: true,
+            bookingCode: true,
+            serviceDate: true,
+            quantity: true,
+            netPrice: true,
+            amount: true,
+            status: true,
+            supplier: { select: { id: true, supplierCode: true, name: true } },
+          },
+          orderBy: { sortOrder: 'asc' },
+          take: 5,
+        },
       },
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
       take: 500,

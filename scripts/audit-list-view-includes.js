@@ -59,6 +59,27 @@ const checks = [
     must: ['private listInclude()', 'include: this.listInclude()'],
     forbidden: ['logs: { orderBy: { createdAt: \'desc\' }, take: 3', 'payments: { orderBy: { paidAt: \'desc\' }, take: 3'],
   },
+  {
+    file: 'apps/api/src/modules/order-center/order-center.service.ts',
+    sectionStart: 'async list(query',
+    sectionEnd: 'async exportCsv',
+    must: ['operationItems: {', 'select: {'],
+    forbidden: ['operationItems: { include: { supplier: true }', 'supplier: true'],
+  },
+  {
+    file: 'apps/api/src/modules/quotes/quotes.service.ts',
+    sectionStart: 'listTourQuotes(search',
+    sectionEnd: 'async getTourQuote',
+    must: ['include: { _count: { select: { costItems: true, itineraries: true } } }'],
+    forbidden: ['costItems: {', 'itineraries: {'],
+  },
+  {
+    file: 'apps/api/src/modules/quotes/quotes.service.ts',
+    sectionStart: 'listComboQuotes(search',
+    sectionEnd: 'async getComboQuote',
+    must: ['include: { _count: { select: { items: true } } }'],
+    forbidden: ['items: {'],
+  },
 ];
 
 const failures = [];

@@ -26,6 +26,14 @@ const controllerChecks = [
   'apps/api/src/modules/landtours/landtours.controller.ts',
 ];
 
+const schemaScopeGaps = [
+  {
+    file: 'apps/api/src/modules/quotes/quotes.service.ts',
+    reason: 'TourQuote has customerId but no branch/department field; QuoteCombo has no customer/branch link',
+    must: ['listTourQuotes', 'listComboQuotes', 'getTourQuote', 'getComboQuote'],
+  },
+];
+
 const failures = [];
 
 for (const check of checks) {
@@ -44,6 +52,14 @@ for (const file of controllerChecks) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   if (!source.includes('@Req()')) failures.push(`${file}: missing @Req() user propagation`);
   if (!source.includes('RequestUser')) failures.push(`${file}: missing RequestUser typing`);
+}
+
+for (const gap of schemaScopeGaps) {
+  const source = fs.readFileSync(path.join(root, gap.file), 'utf8');
+  for (const token of gap.must) {
+    if (!source.includes(token)) failures.push(`${gap.file}: missing tracked no-scope token ${token}`);
+  }
+  if (!gap.reason) failures.push(`${gap.file}: schema scope gap must document reason`);
 }
 
 if (failures.length) {

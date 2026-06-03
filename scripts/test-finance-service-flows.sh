@@ -47,6 +47,17 @@ function amount(value) {
   return Number(value);
 }
 
+async function sum(prisma, model, where, field) {
+  const result = await prisma[model].aggregate({ where, _sum: { [field]: true } });
+  return amount(result._sum[field] || 0);
+}
+
+async function cashflowNet(prisma, where) {
+  const receipt = await sum(prisma, 'financeCashflowEntry', { ...where, entryType: 'RECEIPT' }, 'amount');
+  const payment = await sum(prisma, 'financeCashflowEntry', { ...where, entryType: 'PAYMENT' }, 'amount');
+  return receipt - payment;
+}
+
 async function main() {
   const prisma = new PrismaService();
   await prisma.$connect();
@@ -106,9 +117,14 @@ async function main() {
   assert(approvedReceipt.approvalStatus === 'APPROVED', 'receipt should approve');
   assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'RECEIPT', sourceId: receipt.id } }) === 1, 'receipt approve should create cashflow');
   assert(await prisma.customerLedgerEntry.count({ where: { sourceType: 'FINANCE_RECEIPT', sourceId: receipt.id, entryType: 'CREDIT' } }) === 1, 'receipt approve should create customer ledger');
+  assert(await sum(prisma, 'financeCashflowEntry', { sourceType: 'RECEIPT', sourceId: receipt.id, entryType: 'RECEIPT' }, 'amount') === 1000, 'receipt cashflow amount should match receipt amount');
+  assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_RECEIPT', sourceId: receipt.id, entryType: 'CREDIT' }, 'creditAmount') === 1000, 'receipt customer ledger credit should match receipt amount');
   await rejects(() => finance.approveReceipt(receipt.id, { actor: 'finance-test' }), 'double approve receipt should be blocked');
   const cancelledReceipt = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'cancel receipt' });
   assert(cancelledReceipt.approvalStatus === 'CANCELLED' && cancelledReceipt.reversals.length === 1, 'receipt should cancel with reversal');
+  assert(await cashflowNet(prisma, { receiptId: { in: [receipt.id, cancelledReceipt.reversals[0].id] } }) === 0, 'receipt cashflow should net to zero after cancellation');
+  assert(await sum(prisma, 'customerLedgerEntry', { receiptId: { in: [receipt.id, cancelledReceipt.reversals[0].id] } }, 'creditAmount') === 1000, 'receipt original ledger credit should remain');
+  assert(await sum(prisma, 'customerLedgerEntry', { receiptId: { in: [receipt.id, cancelledReceipt.reversals[0].id] } }, 'debitAmount') === 1000, 'receipt reversal ledger debit should match original credit');
   await rejects(() => finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' }), 'double cancel receipt should be blocked');
 
   const rejectedReceiptDraft = await finance.createReceipt({
@@ -149,9 +165,14 @@ async function main() {
   let voucherAfter = await prisma.operationVoucher.findUniqueOrThrow({ where: { id: voucher.id } });
   assert(amount(voucherAfter.paidAmount) === 600 && amount(voucherAfter.remainAmount) === 400 && voucherAfter.status === 'PARTIAL', 'payment approve should reconcile voucher');
   assert(await prisma.supplierLedgerEntry.count({ where: { sourceType: 'FINANCE_PAYMENT', sourceId: payment.id, entryType: 'DEBIT' } }) === 1, 'payment approve should create supplier ledger');
+  assert(await sum(prisma, 'financeCashflowEntry', { sourceType: 'PAYMENT', sourceId: payment.id, entryType: 'PAYMENT' }, 'amount') === 600, 'payment cashflow amount should match payment amount');
+  assert(await sum(prisma, 'supplierLedgerEntry', { sourceType: 'FINANCE_PAYMENT', sourceId: payment.id, entryType: 'DEBIT' }, 'debitAmount') === 600, 'payment supplier ledger debit should match payment amount');
   await rejects(() => finance.approvePayment(payment.id, { actor: 'finance-test' }), 'double approve payment should be blocked');
   const cancelledPayment = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'cancel payment' });
   assert(cancelledPayment.approvalStatus === 'CANCELLED' && cancelledPayment.reversals.length === 1, 'payment should cancel with reversal');
+  assert(await cashflowNet(prisma, { paymentId: { in: [payment.id, cancelledPayment.reversals[0].id] } }) === 0, 'payment cashflow should net to zero after cancellation');
+  assert(await sum(prisma, 'supplierLedgerEntry', { paymentId: { in: [payment.id, cancelledPayment.reversals[0].id] } }, 'debitAmount') === 600, 'payment original supplier ledger debit should remain');
+  assert(await sum(prisma, 'supplierLedgerEntry', { paymentId: { in: [payment.id, cancelledPayment.reversals[0].id] } }, 'creditAmount') === 600, 'payment reversal supplier ledger credit should match original debit');
   voucherAfter = await prisma.operationVoucher.findUniqueOrThrow({ where: { id: voucher.id } });
   assert(amount(voucherAfter.paidAmount) === 0 && amount(voucherAfter.remainAmount) === 1000 && voucherAfter.status === 'PENDING', 'payment cancel should undo voucher reconcile');
   await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be blocked');
@@ -186,9 +207,12 @@ async function main() {
   const approvedInvoice = await finance.approveInvoice(invoice.id, { actor: 'finance-test' });
   assert(approvedInvoice.approvalStatus === 'APPROVED', 'invoice should approve');
   assert(await prisma.customerLedgerEntry.count({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } }) === 1, 'invoice approve should create customer ledger');
+  assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' }, 'debitAmount') === 1100, 'invoice customer ledger debit should match total after tax');
   await rejects(() => finance.approveInvoice(invoice.id, { actor: 'finance-test' }), 'double approve invoice should be blocked');
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
+  assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'debitAmount') === 1100, 'invoice original ledger debit should remain');
+  assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'creditAmount') === 1100, 'invoice reversal ledger credit should match original debit');
   await rejects(() => finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' }), 'double cancel invoice should be blocked');
 
   const rejectedInvoiceDraft = await finance.createInvoice({
