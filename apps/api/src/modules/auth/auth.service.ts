@@ -17,6 +17,7 @@ const DEFAULT_PERMISSIONS = [
   'operation.form.manage',
   'operation.payment-request.approve',
   'order.manage',
+  'tour.export',
   'supplier.manage',
   'customer.manage',
   'file.manage',

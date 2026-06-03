@@ -24,6 +24,7 @@ export class FitToursController {
   }
 
   @Post('export')
+  @RequirePermissions('tour.export')
   export(@Body('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.detail(id, request?.user);
   }

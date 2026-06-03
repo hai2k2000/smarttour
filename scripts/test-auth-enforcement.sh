@@ -18,6 +18,14 @@ if [[ "$code" != "401" ]]; then
   exit 1
 fi
 
+for path in customers finance/receipts orders/fit-tours files/download; do
+  code=$(curl -ksS -o /dev/null -w '%{http_code}' "$API_URL/$path" || true)
+  if [[ "$code" != "401" ]]; then
+    echo "FAIL_SENSITIVE_ROUTE_UNAUTH path=$path expected=401 actual=$code"
+    exit 1
+  fi
+done
+
 if docker compose exec -T api printenv SMARTTOUR_AUTH_ENFORCE | grep -qx true; then
   echo "OK_AUTH_ENFORCE_ENV true"
 else

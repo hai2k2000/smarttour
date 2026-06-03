@@ -42,6 +42,7 @@ const commonQuyền = [
   'booking.manage',
   'tour.view',
   'tour.manage',
+  'tour.export',
   'guide.view',
   'guide.manage',
   'supplier.view',

@@ -22,7 +22,27 @@ function hasDecorator(lines, pattern) {
   return lines.some((line) => pattern.test(line.trim()));
 }
 
+function readPermissions(decorators) {
+  return decorators
+    .filter((line) => /^@RequirePermissions\b/.test(line))
+    .flatMap((line) => [...line.matchAll(/'([^']+)'|"([^"]+)"/g)].map((match) => match[1] || match[2]));
+}
+
+function readHttpMethod(decorators) {
+  const decorator = decorators.find((line) => httpDecorator.test(line));
+  return decorator?.match(httpDecorator)?.[1]?.toUpperCase() || null;
+}
+
+function isMutation(method) {
+  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+}
+
+function onlyViewPermissions(permissions) {
+  return permissions.length > 0 && permissions.every((permission) => permission === '*' || permission.endsWith('.view'));
+}
+
 const failures = [];
+const weakPermissions = [];
 
 for (const file of walk(root)) {
   const rel = path.relative(process.cwd(), file).replaceAll('\\', '/');
@@ -32,7 +52,7 @@ for (const file of walk(root)) {
   const classIndex = lines.findIndex((line) => /\bclass\s+\w+Controller\b/.test(line));
   const classDecorators = lines.slice(0, Math.max(classIndex, 0)).filter((line) => line.trim().startsWith('@'));
   const classPublic = hasDecorator(classDecorators, /^@Public\b/);
-  const classPermissioned = hasDecorator(classDecorators, /^@RequirePermissions\b/);
+  const classPermissions = readPermissions(classDecorators);
 
   let decorators = [];
   for (const line of lines) {
@@ -55,18 +75,25 @@ for (const file of walk(root)) {
     }
 
     const routeKey = `${rel}:${method}`;
+    const httpMethod = readHttpMethod(decorators);
     const isPublic = classPublic || hasDecorator(decorators, /^@Public\b/);
-    const hasPermission = classPermissioned || hasDecorator(decorators, /^@RequirePermissions\b/);
+    const methodPermissions = readPermissions(decorators);
+    const effectivePermissions = methodPermissions.length ? methodPermissions : classPermissions;
+    const hasPermission = effectivePermissions.length > 0;
     if (!isPublic && !hasPermission && !allowedPrivateRoutes.has(routeKey)) {
       failures.push(routeKey);
+    }
+    if (!isPublic && hasPermission && isMutation(httpMethod) && onlyViewPermissions(effectivePermissions)) {
+      weakPermissions.push(`${routeKey} (${httpMethod}) -> ${effectivePermissions.join(', ')}`);
     }
     decorators = [];
   }
 }
 
-if (failures.length) {
+if (failures.length || weakPermissions.length) {
   console.error('FAIL_ROUTE_PERMISSION_AUDIT');
   for (const failure of failures) console.error(`missing RequirePermissions: ${failure}`);
+  for (const failure of weakPermissions) console.error(`mutation route uses only view permission: ${failure}`);
   process.exit(1);
 }
 
