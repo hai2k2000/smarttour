@@ -109,6 +109,8 @@ export class BookingsService {
     const current = await this.detail(id, user);
     const tourProgram = dto.tourProgramId ? await this.ensureTourProgram(dto.tourProgramId) : current.tourProgram;
     await this.ensureBookingLinks(dto, user, false);
+    await this.ensureFinalScopedLink(current, dto, user);
+    await this.ensureLinkedDataEditAllowed(current, dto);
     this.ensureOperationFormEditAllowed(current, dto);
     if (dto.status !== undefined) this.ensureStatusTransition(current.status, dto.status, current.operationForm?.status);
     this.ensureBookingValues(
@@ -207,6 +209,29 @@ export class BookingsService {
     if (!row) throw new NotFoundException(message);
   }
 
+  private async ensureFinalScopedLink(
+    current: { customerId: string | null; orderId: string | null; tourId: string | null },
+    dto: Partial<CreateBookingDto>,
+    user?: RequestUser,
+  ) {
+    if (!this.requiresScopedLink(user)) return;
+    const customerId = dto.customerId !== undefined ? this.optionalText(dto.customerId) : current.customerId;
+    const orderId = dto.orderId !== undefined ? this.optionalText(dto.orderId) : current.orderId;
+    const tourId = dto.tourId !== undefined ? this.optionalText(dto.tourId) : current.tourId;
+    if (!customerId && !orderId && !tourId) {
+      throw new BadRequestException('Booking cần giữ ít nhất một liên kết khách hàng, đơn hàng hoặc tour vận hành theo phạm vi dữ liệu');
+    }
+
+    const [customer, order, tour] = await Promise.all([
+      customerId ? this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: customerId }, user), select: { id: true } }) : Promise.resolve(null),
+      orderId ? this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id: orderId }, user), select: { id: true } }) : Promise.resolve(null),
+      tourId ? this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: tourId }, user), select: { id: true } }) : Promise.resolve(null),
+    ]);
+    if (!customer && !order && !tour) {
+      throw new BadRequestException('Booking phải còn liên kết với dữ liệu thuộc phạm vi của bạn');
+    }
+  }
+
   private requiresScopedLink(user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return false;
     return true;
@@ -269,6 +294,23 @@ export class BookingsService {
     if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) blocked.push('ngày kết thúc');
     if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'totalSellPrice') !== this.numberValue(current.totalSellPrice, 'totalSellPrice')) blocked.push('giá bán tổng');
     if (blocked.length) throw new ConflictException(`Booking đã có phiếu điều hành, không thể đổi ${blocked.join(', ')}`);
+  }
+
+  private async ensureLinkedDataEditAllowed(
+    current: { id: string; tourProgramId: string; customerId: string | null; orderId: string | null; tourId: string | null },
+    dto: UpdateBookingDto,
+  ) {
+    const changed: string[] = [];
+    if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) changed.push('tour mẫu');
+    if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) changed.push('khách hàng liên kết');
+    if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) changed.push('đơn hàng liên kết');
+    if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) changed.push('tour vận hành liên kết');
+    if (!changed.length) return;
+
+    const usage = await this.bookingUsage(current.id);
+    if (usage.total) {
+      throw new ConflictException(`Booking đã phát sinh ${this.usageSummary(usage)}, không thể đổi ${changed.join(', ')}`);
+    }
   }
 
   private async ensureCanDelete(id: string) {
