@@ -1210,6 +1210,27 @@ label { min-width: 0; }
   line-height: 1.1;
 }
 
+.orderPage .orderFormSections {
+  display: grid;
+  gap: 12px;
+}
+
+.orderPage .orderFormSections fieldset {
+  border: 1px solid #d9e9d3;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+  min-width: 0;
+  background: #fbfff8;
+}
+
+.orderPage .orderFormSections legend {
+  padding: 0 6px;
+  color: var(--dn-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .orderPage .fitTableBlock,
 .orderPage .listPanel {
   overflow: hidden;
@@ -1263,11 +1284,17 @@ label { min-width: 0; }
 .orderPage .orderDynamicTable td:nth-child(13) { width: 44px; }
 
 .orderPage .orderDynamicTable input,
-.orderPage .orderDynamicTable select {
+.orderPage .orderDynamicTable select,
+.orderPage .orderDynamicTable textarea {
   min-width: 0;
   width: 100%;
   padding: 8px 7px;
   font-size: 13px;
+}
+
+.orderPage .orderDynamicTable textarea {
+  resize: vertical;
+  min-height: 40px;
 }
 
 .orderPage .orderDynamicTable .iconButton {
@@ -1276,11 +1303,34 @@ label { min-width: 0; }
   padding: 7px;
 }
 
+.orderPage .orderListHeader {
+  align-items: center;
+  gap: 10px;
+}
+
+.orderPage .orderListHeader .searchBox {
+  flex: 1 1 320px;
+  min-width: min(360px, 100%);
+}
+
 .orderPage .orderListTable {
   width: 100%;
   min-width: 0;
   max-width: 100%;
   table-layout: fixed;
+}
+
+.orderPage .orderListTable th,
+.orderPage .orderListTable td {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.orderPage .orderCellStack {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .orderPage .hotelFormActions {

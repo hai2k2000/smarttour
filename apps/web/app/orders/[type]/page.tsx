@@ -26,7 +26,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
     return (
       <main className="shell">
         <aside className="sidebar"><div className="brand">SmartTour</div></aside>
-        <section className="workspace"><h1>Loại don hang khong ton tai</h1></section>
+        <section className="workspace"><h1>Loại đơn hàng không tồn tại</h1></section>
       </main>
     );
   }
@@ -40,8 +40,8 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
           <Link href="/orders/fit-tours" className={type === 'fit-tours' ? 'active' : ''}>Đơn Tour FIT</Link>
           <Link href="/orders/git-combos" className={type === 'git-combos' ? 'active' : ''}>Đơn GIT/Combo</Link>
           <Link href="/orders/landtours" className={type === 'landtours' ? 'active' : ''}>Đơn LandTour</Link>
-          <Link href="/orders/hotel-bookings" className={type === 'hotel-bookings' ? 'active' : ''}>Booking phòng KS</Link>
-          <Link href="/orders/flight-orders" className={type === 'flight-orders' ? 'active' : ''}>Booking vé MB</Link>
+          <Link href="/orders/hotel-bookings" className={type === 'hotel-bookings' ? 'active' : ''}>Booking phòng khách sạn</Link>
+          <Link href="/orders/flight-orders" className={type === 'flight-orders' ? 'active' : ''}>Booking vé bay</Link>
           <Link href="/orders/single-services" className={type === 'single-services' ? 'active' : ''}>Dịch vụ lẻ</Link>
           <Link href="/quotes/tours">Tính giá tour</Link>
           <Link href="/quotes/combos">Tính giá combo</Link>
@@ -51,7 +51,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: O
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Đơn hàng/LKH</p>
+            <p className="eyebrow">Đơn hàng / lữ hành</p>
             <h1>{config.title}</h1>
           </div>
           <div className="user"><ClipboardList size={18} /> {config.shortTitle} <Users size={18} /> Nhân sự vận hành</div>
