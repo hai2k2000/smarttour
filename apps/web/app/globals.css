@@ -559,6 +559,14 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .orderListTable { min-width: 1280px; }
 .orderListTable td { vertical-align: top; }
 .orderListTable td:last-child { color: inherit; font-weight: inherit; }
+.orderListTable td.orderListEmptyCell {
+  width: auto;
+  min-width: 0;
+  text-align: center;
+}
+.orderListTable td.orderListEmptyCell .tableEmptyState {
+  width: 100%;
+}
 .reportWorkspace { display: grid; gap: 14px; }
 .reportsPage .metrics, .reportMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .reportMetrics .metric { min-height: 104px; }
