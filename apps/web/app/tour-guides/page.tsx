@@ -23,8 +23,8 @@ export default async function TourHDVsPage() {
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">HDV</p>
-          <h1>Quan ly huong dan vien</h1>
+          <p className="eyebrow">Hướng dẫn viên</p>
+          <h1>Quản lý hướng dẫn viên</h1>
         </div>
         <div className="pageHeaderActions">
           <span className="statusPill"><UserCheck size={14} /> Điều hành HDV</span>
