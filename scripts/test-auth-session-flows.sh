@@ -45,6 +45,7 @@ async function rejects(action, label) {
 }
 
 async function main() {
+  process.env.SMARTTOUR_ENV = 'development';
   delete process.env.SMARTTOUR_BOOTSTRAP_KEY;
   process.env.SMARTTOUR_SESSION_DAYS = '1';
 
@@ -60,31 +61,32 @@ async function main() {
   const request = { headers: { 'user-agent': 'auth-session-test' }, ip: '127.0.0.1' };
 
   const boot = await auth.bootstrap({ email, username, name: 'Session Admin', password }, request);
-  assert(boot.token && boot.user.email === email, 'bootstrap without key should create first admin and issue token');
+  assert(boot.token && boot.tokenType === 'Bearer' && boot.expiresAt && boot.user.email === email, 'bootstrap without key should create first development admin and issue consistent session');
   await auth.validateToken(boot.token);
 
   await rejects(() => auth.bootstrap({ email: 'other@example.com', name: 'Other', password }), 'bootstrap should lock without key once users exist');
 
   process.env.SMARTTOUR_BOOTSTRAP_KEY = 'test-bootstrap-key';
   await rejects(() => auth.bootstrap({ email, username, name: 'Session Admin', password, bootstrapKey: 'wrong' }), 'bootstrap should reject wrong bootstrap key');
-
-  const bootWithKey = await auth.bootstrap({ email, username, name: 'Session Admin', password, bootstrapKey: 'test-bootstrap-key' }, request);
-  assert(bootWithKey.token, 'bootstrap with key should issue token when users exist');
+  await rejects(() => auth.bootstrap({ email, username, name: 'Session Admin', password, bootstrapKey: 'test-bootstrap-key' }, request), 'bootstrap should remain one-time even with correct key');
 
   await rejects(() => auth.login({ username, password: 'WrongPass123' }, request), 'login should fail with wrong password');
   const loginOne = await auth.login({ username, password }, request);
-  assert(loginOne.token, 'login should pass with correct password');
+  assert(loginOne.token && loginOne.tokenType === 'Bearer' && loginOne.expiresAt, 'login should pass with consistent session response');
 
   const logoutSession = await auth.login({ email, password }, request);
   await auth.validateToken(logoutSession.token);
   await auth.logout(logoutSession.token, logoutSession.user.id);
   await rejects(() => auth.validateToken(logoutSession.token), 'logout should revoke token');
+  assert(await prisma.auditLog.count({ where: { actorId: logoutSession.user.id, action: 'LOGOUT' } }) === 1, 'logout should write audit log in the revoke transaction');
 
   const primary = await auth.login({ username, password }, request);
   const secondary = await auth.login({ username, password }, request);
-  await auth.changePassword(primary.user.id, { currentPassword: password, newPassword: nextPassword }, primary.token);
-  await auth.validateToken(primary.token);
+  const changed = await auth.changePassword(primary.user.id, { currentPassword: password, newPassword: nextPassword }, primary.token, request);
+  assert(changed.token && changed.token !== primary.token && changed.tokenType === 'Bearer', 'change password should issue a fresh consistent session');
+  await rejects(() => auth.validateToken(primary.token), 'change password should revoke previous current session');
   await rejects(() => auth.validateToken(secondary.token), 'change password should revoke other sessions');
+  await auth.validateToken(changed.token);
   await rejects(() => auth.login({ username, password }, request), 'old password should fail after change password');
   const afterChange = await auth.login({ username, password: nextPassword }, request);
   assert(afterChange.token, 'new password should login after change password');

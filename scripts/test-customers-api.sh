@@ -133,8 +133,8 @@ async function main() {
     const viewToken = await login(viewUsername);
     const noCustomerToken = await login(noCustomerUsername);
 
-    await request('GET', '/customers', { token: noCustomerToken, status: 401 });
-    await request('POST', '/customers', { token: viewToken, body: { code: `${run}-VIEW-CREATE`, fullName: 'View Only', phone: `${run}0` }, status: 401 });
+    await request('GET', '/customers', { token: noCustomerToken, status: 403 });
+    await request('POST', '/customers', { token: viewToken, body: { code: `${run}-VIEW-CREATE`, fullName: 'View Only', phone: `${run}0` }, status: 403 });
 
     const branchCustomerPayload = {
       code: `${run}-A`,

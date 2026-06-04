@@ -125,8 +125,8 @@ async function main() {
     const viewToken = await login(viewUsername);
     const noOrderToken = await login(noOrderUsername);
 
-    await request('GET', '/orders/single-services', { token: noOrderToken, status: 401 });
-    await request('POST', '/orders/single-services', { token: viewToken, body: { systemCode: `${run}-VIEW`, name: 'View create blocked' }, status: 401 });
+    await request('GET', '/orders/single-services', { token: noOrderToken, status: 403 });
+    await request('POST', '/orders/single-services', { token: viewToken, body: { systemCode: `${run}-VIEW`, name: 'View create blocked' }, status: 403 });
     await request('POST', '/orders/single-services', { token: manageToken, body: {}, status: 400 });
     await request('POST', '/orders/single-services', {
       token: manageToken,
@@ -167,7 +167,7 @@ async function main() {
     assert(detail.id === branchOrder.id && detail.members.length === 1 && detail.salesItems.length === 1, 'order detail should return scoped child data');
     await request('GET', `/orders/single-services/${otherOrder.id}`, { token: viewToken, status: 404 });
 
-    await request('PUT', `/orders/single-services/${branchOrder.id}`, { token: viewToken, body: { name: 'Viewer blocked' }, status: 401 });
+    await request('PUT', `/orders/single-services/${branchOrder.id}`, { token: viewToken, body: { name: 'Viewer blocked' }, status: 403 });
     await request('PUT', `/orders/single-services/${otherOrder.id}`, { token: manageToken, body: { name: 'Outside update blocked' }, status: 404 });
     await request('DELETE', `/orders/single-services/${otherOrder.id}`, { token: manageToken, status: 404 });
     await request('POST', `/orders/single-services/${otherOrder.id}/copy`, { token: manageToken, status: 404 });
@@ -180,7 +180,7 @@ async function main() {
       body: { startDate: '2026-12-10', endDate: '2026-12-09' },
       status: 400,
     });
-    await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: viewToken, body: { status: 'RUNNING' }, status: 401 });
+    await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: viewToken, body: { status: 'RUNNING' }, status: 403 });
     const running = await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: manageToken, body: { status: 'RUNNING' } });
     assert(running.status === 'RUNNING', 'order manager should update lifecycle status');
 

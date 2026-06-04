@@ -35,6 +35,7 @@ function assert(condition, label) {
 }
 
 async function main() {
+  process.env.SMARTTOUR_ENV = 'development';
   delete process.env.SMARTTOUR_BOOTSTRAP_KEY;
   const prisma = new PrismaService();
   await prisma.$connect();

@@ -252,6 +252,10 @@ export default function SecurityClient() {
       const response = await fetch(`${browserApiBase()}${path}`, { method, headers: authHeaders(), body: JSON.stringify(payload) });
       const data = await readResponse(response);
       if (!response.ok) throw new ApiError(response.status, apiMessage(data, response.statusText));
+      if (action === 'changePassword') {
+        updateAuthSession(data);
+        setAuthState('ready');
+      }
       const reloadErrors = action === 'changePassword' ? [] : await load(false);
       setMessage(reloadErrors.length
         ? { kind: 'error', text: `${actionLabels[action].success} Tuy nhiên, không thể tải lại đầy đủ dữ liệu: ${reloadErrors.join(' ')}` }
@@ -628,6 +632,16 @@ function authHeaders() {
 
 async function readResponse(response: Response) {
   return response.json().catch(() => ({}));
+}
+
+function updateAuthSession(data: unknown) {
+  if (!data || typeof data !== 'object' || !('token' in data) || typeof data.token !== 'string' || !data.token) {
+    throw new Error('API không trả về phiên đăng nhập mới sau khi đổi mật khẩu');
+  }
+  window.localStorage.setItem('smarttour.auth.token', data.token);
+  const expiresAt = 'expiresAt' in data && typeof data.expiresAt === 'string' ? new Date(data.expiresAt).getTime() : 0;
+  const maxAge = expiresAt > Date.now() ? Math.floor((expiresAt - Date.now()) / 1000) : 60 * 60 * 24 * 14;
+  document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 function apiMessage(data: unknown, fallback: string) {

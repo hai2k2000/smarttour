@@ -38,8 +38,8 @@ export class AuthController {
   }
 
   @Post('change-password')
-  changePassword(@Req() request: AuthRequest, @Body() dto: Record<string, unknown>) {
-    return this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers));
+  changePassword(@Req() request: AuthRequest, @Body() dto: Record<string, unknown>, @Ip() ip: string) {
+    return this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers), { headers: request.headers, ip });
   }
 
   @Get('users')
@@ -50,14 +50,14 @@ export class AuthController {
 
   @Post('users')
   @RequirePermissions('auth.user.manage')
-  createUser(@Body() dto: Record<string, unknown>) {
-    return this.service.createUser(dto);
+  createUser(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+    return this.service.createUser(dto, request.user?.id);
   }
 
   @Put('users/:id')
   @RequirePermissions('auth.user.manage')
-  updateUser(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.updateUser(id, dto);
+  updateUser(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+    return this.service.updateUser(id, dto, request.user?.id);
   }
 
   @Get('roles')
@@ -68,13 +68,13 @@ export class AuthController {
 
   @Post('roles')
   @RequirePermissions('auth.role.manage')
-  createRole(@Body() dto: Record<string, unknown>) {
-    return this.service.createRole(dto);
+  createRole(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+    return this.service.createRole(dto, request.user?.id);
   }
 
   @Put('roles/:id')
   @RequirePermissions('auth.role.manage')
-  updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
-    return this.service.updateRole(id, dto);
+  updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+    return this.service.updateRole(id, dto, request.user?.id);
   }
 }

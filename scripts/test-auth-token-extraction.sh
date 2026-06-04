@@ -35,11 +35,11 @@ async function run() {
   const controller = new AuthController(service);
   controller.logout({ headers: { authorization: 'Bearer logout.header', cookie: 'smarttour.auth.token=logout.cookie' }, user: { id: 'user-1' } });
   controller.me({ headers: { cookie: 'smarttour.auth.token=me.cookie' } });
-  controller.changePassword({ headers: { authorization: 'Bearer change.header' }, user: { id: 'user-2' } }, { currentPassword: 'old', newPassword: 'new' });
+  controller.changePassword({ headers: { authorization: 'Bearer change.header' }, user: { id: 'user-2' } }, { currentPassword: 'old', newPassword: 'new' }, '127.0.0.1');
 
   assert(calls[0][0] === 'logout' && calls[0][1] === 'logout.header' && calls[0][2] === 'user-1', 'logout should use shared token extraction');
   assert(calls[1][0] === 'me' && calls[1][1] === 'me.cookie', 'me should accept cookie token');
-  assert(calls[2][0] === 'changePassword' && calls[2][1] === 'user-2' && calls[2][3] === 'change.header', 'change password should accept bearer token');
+  assert(calls[2][0] === 'changePassword' && calls[2][1] === 'user-2' && calls[2][3] === 'change.header' && calls[2][4].ip === '127.0.0.1', 'change password should accept bearer token and request metadata');
 
   console.log('TEST_AUTH_TOKEN_EXTRACTION_OK');
 }

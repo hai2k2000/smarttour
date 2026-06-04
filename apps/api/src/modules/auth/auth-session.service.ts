@@ -45,10 +45,18 @@ export class AuthSessionService {
   }
 
   async revokeOtherUserSessions(userId: string, token?: string, tx?: Prisma.TransactionClient) {
-    if (!token) return;
+    if (!token) return this.revokeUserSessions(userId, tx);
     const client = tx || this.prisma;
     await client.userSession.updateMany({
       where: { userId, tokenHash: { not: this.tokenHash(token) }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeUserSessions(userId: string, tx?: Prisma.TransactionClient) {
+    const client = tx || this.prisma;
+    await client.userSession.updateMany({
+      where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
   }
