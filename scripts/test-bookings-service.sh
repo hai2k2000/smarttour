@@ -214,7 +214,11 @@ async function main() {
   const listed = await service.list(run);
   assert(listed.some((row) => row.id === created.id), 'list should include created booking');
   assert((await service.list('Bookings Service Customer')).some((row) => row.id === created.id), 'list search should match customerName');
+  assert((await service.list(links.customer.phone)).some((row) => row.id === created.id), 'list search should match customerPhone');
+  assert((await service.list(links.customer.email)).some((row) => row.id === created.id), 'list search should match customerEmail');
   assert((await service.list('Operator Test')).some((row) => row.id === created.id), 'list search should match operatorOwner');
+  assert((await service.list(tourProgram.code)).some((row) => row.id === created.id), 'list search should match tourProgram code');
+  assert((await service.list('Ha Long')).some((row) => row.id === created.id), 'list search should match tourProgram route');
   assert((await service.list(undefined, 'DRAFT')).some((row) => row.id === created.id), 'list status filter should match DRAFT');
   assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
   assert(listed.find((row) => row.id === created.id)?.tourProgram?.durationDays === 3, 'list should include tourProgram fields used by frontend');
@@ -241,6 +245,10 @@ async function main() {
     () => service.update(created.id, { startDate: '2026-10-02', endDate: '2026-10-03' }),
     'update should reject duration mismatch',
   );
+  await rejects(
+    () => service.update(created.id, { startDate: '2026-10-06', endDate: '2026-10-04' }),
+    'update should reject endDate before startDate',
+  );
   await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
   await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
   await rejects(() => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }), 'update should reject missing tourProgramId');
@@ -258,6 +266,13 @@ async function main() {
   }));
   await service.remove(deletable.id);
   await rejects(() => service.detail(deletable.id), 'delete should remove booking without important dependencies');
+
+  const linkedDeletable = await service.create(bookingDto(run, 'DELETE-LINKED', tourProgram, links, {
+    startDate: '2026-11-05',
+    endDate: '2026-11-07',
+  }));
+  await service.remove(linkedDeletable.id);
+  await rejects(() => service.detail(linkedDeletable.id), 'delete should allow linked booking when no operation data exists');
 
   const operationForm = await prisma.operationForm.create({
     data: {

@@ -7,6 +7,7 @@ import {
   BOOKING_CODE_PATTERN,
   BOOKING_CUSTOMER_NAME_MAX_LENGTH,
   BOOKING_EMAIL_MAX_LENGTH,
+  BOOKING_ID_MAX_LENGTH,
   BOOKING_OWNER_MAX_LENGTH,
   BOOKING_PHONE_MAX_LENGTH,
   BOOKING_PHONE_PATTERN,
@@ -23,6 +24,12 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const BOOKING_CODE_CONFLICT_MESSAGE = 'Mã booking đã tồn tại';
+const BOOKING_SEARCH_MAX_LENGTH = 120;
+
+type BookingLinkInput = Pick<Partial<CreateBookingDto>, 'customerId' | 'orderId' | 'tourId'>;
+type BookingLinkModel = 'customer' | 'order' | 'tour';
+type BookingLinkKey = keyof BookingLinkInput;
 
 @Injectable()
 export class BookingsService {
@@ -86,27 +93,44 @@ export class BookingsService {
       customer: { select: { id: true, code: true, fullName: true, phone: true, email: true, branch: true, department: true } },
       order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, paymentStatus: true, branch: true, department: true } },
       tour: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
-      operationVouchers: { select: { id: true, voucherCode: true, status: true } },
-      allotmentLocks: { select: { id: true, status: true, quantity: true } },
+      operationVouchers: { orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, voucherCode: true, status: true } },
+      allotmentLocks: { orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, status: true, quantity: true } },
+      operationForm: { select: { id: true, status: true } },
+    } satisfies Prisma.BookingSelect;
+  }
+
+  private mutationSelect() {
+    return {
+      id: true,
+      code: true,
+      tourProgramId: true,
+      customerId: true,
+      orderId: true,
+      tourId: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      paxCount: true,
+      startDate: true,
+      endDate: true,
+      saleOwner: true,
+      operatorOwner: true,
+      status: true,
+      totalSellPrice: true,
+      tourProgram: { select: { id: true, durationDays: true } },
       operationForm: { select: { id: true, status: true } },
     } satisfies Prisma.BookingSelect;
   }
 
   list(search?: string, status?: string | BookingStatus, tourProgramId?: string, user?: RequestUser) {
     const normalizedStatus = this.bookingStatus(status);
+    const normalizedSearch = this.searchText(search);
+    const normalizedTourProgramId = this.optionalId(tourProgramId, 'Tour mẫu');
     const where: Prisma.BookingWhereInput = {
       ...(normalizedStatus ? { status: normalizedStatus } : {}),
-      ...(tourProgramId ? { tourProgramId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { code: { contains: search, mode: 'insensitive' } },
-              { customerName: { contains: search, mode: 'insensitive' } },
-              { saleOwner: { contains: search, mode: 'insensitive' } },
-              { operatorOwner: { contains: search, mode: 'insensitive' } },
-              { tourProgram: { name: { contains: search, mode: 'insensitive' } } },
-            ],
-          }
+      ...(normalizedTourProgramId ? { tourProgramId: normalizedTourProgramId } : {}),
+      ...(normalizedSearch
+        ? { OR: this.searchConditions(normalizedSearch) }
         : {}),
     };
 
@@ -133,24 +157,25 @@ export class BookingsService {
     try {
       return await this.prisma.booking.create({
         data: this.toCreateData(dto),
-        include: { tourProgram: true, customer: true, order: true, tour: true, operationForm: true },
+        select: this.detailSelect(),
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã booking đã tồn tại');
+        throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
       }
       throw error;
     }
   }
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    const tourProgram = dto.tourProgramId ? await this.ensureTourProgram(dto.tourProgramId) : current.tourProgram;
+    const current = await this.loadForMutation(id, user);
+    const tourProgram = dto.tourProgramId !== undefined ? await this.ensureTourProgram(dto.tourProgramId) : current.tourProgram;
     await this.ensureBookingLinks(dto, user, false);
     await this.ensureFinalScopedLink(current, dto, user);
     await this.ensureLinkedDataEditAllowed(current, dto);
     this.ensureOperationFormEditAllowed(current, dto);
-    if (dto.status !== undefined) this.ensureStatusTransition(current.status, dto.status, current.operationForm?.status);
+    const targetStatus = dto.status !== undefined ? this.bookingStatus(dto.status, true) : undefined;
+    if (targetStatus !== undefined) this.ensureStatusTransition(current.status, targetStatus, current.operationForm?.status);
     this.ensureBookingValues(
       {
         startDate: dto.startDate !== undefined ? dto.startDate : current.startDate,
@@ -164,11 +189,11 @@ export class BookingsService {
       return await this.prisma.booking.update({
         where: { id },
         data: this.toUpdateData(dto),
-        include: { tourProgram: true, customer: true, order: true, tour: true, operationForm: true },
+        select: this.detailSelect(),
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã booking đã tồn tại');
+        throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
       }
       throw error;
     }
@@ -179,7 +204,7 @@ export class BookingsService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    await this.detail(id, user);
+    await this.loadForMutation(id, user);
     await this.ensureCanDelete(id);
     return this.prisma.booking.delete({ where: { id } });
   }
@@ -188,9 +213,43 @@ export class BookingsService {
     return bookingScopeWhere(where, user);
   }
 
-  private async ensureTourProgram(id: string) {
+  private async loadForMutation(id: string, user?: RequestUser) {
+    const booking = await this.prisma.booking.findFirst({
+      where: this.scopeWhere({ id }, user),
+      select: this.mutationSelect(),
+    });
+    if (!booking) throw new NotFoundException('Không tìm thấy booking');
+    return booking;
+  }
+
+  private searchText(search?: string) {
+    const text = this.optionalText(search);
+    if (!text) return undefined;
+    if (text.length > BOOKING_SEARCH_MAX_LENGTH) {
+      throw new BadRequestException(`Từ khóa tìm kiếm không được vượt quá ${BOOKING_SEARCH_MAX_LENGTH} ký tự`);
+    }
+    return text;
+  }
+
+  private searchConditions(search: string): Prisma.BookingWhereInput[] {
+    const contains = { contains: search, mode: 'insensitive' as const };
+    return [
+      { code: contains },
+      { customerName: contains },
+      { customerPhone: contains },
+      { customerEmail: contains },
+      { saleOwner: contains },
+      { operatorOwner: contains },
+      { tourProgram: { code: contains } },
+      { tourProgram: { name: contains } },
+      { tourProgram: { route: contains } },
+    ];
+  }
+
+  private async ensureTourProgram(id: unknown) {
+    const tourProgramId = this.requiredId(id, 'Tour mẫu');
     const tourProgram = await this.prisma.tourProgram.findUnique({
-      where: { id },
+      where: { id: tourProgramId },
       select: {
         id: true,
         durationDays: true,
@@ -221,34 +280,64 @@ export class BookingsService {
     }
   }
 
-  private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
-    if (this.requiresScopedLink(user) && requireScopedLink && !dto.customerId && !dto.orderId && !dto.tourId) {
+  private async ensureBookingLinks(dto: BookingLinkInput, user: RequestUser | undefined, requireScopedLink: boolean) {
+    const links = this.normalizedBookingLinks(dto);
+    if (this.requiresScopedLink(user) && requireScopedLink && !links.customerId && !links.orderId && !links.tourId) {
       throw new BadRequestException('Cần liên kết khách hàng, đơn hàng hoặc tour vận hành để tạo booking theo phạm vi dữ liệu');
     }
-    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Không tìm thấy khách hàng liên kết', user);
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng liên kết', user);
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour vận hành liên kết', user);
+    await Promise.all(
+      this.linkEntries(links)
+        .filter((entry): entry is [BookingLinkKey, string] => Boolean(entry[1]))
+        .map(([key, linkedId]) => this.ensureLinkedEntityExists(key, linkedId, user)),
+    );
   }
 
-  private async ensureExists(model: 'customer' | 'order' | 'tour', id: string, message: string, user?: RequestUser) {
+  private async ensureLinkedEntityExists(key: BookingLinkKey, id: string, user?: RequestUser) {
+    const config = this.linkConfig(key);
     const row =
-      model === 'customer'
+      config.model === 'customer'
         ? await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
-        : model === 'order'
+        : config.model === 'order'
           ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
           : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
-    if (!row) throw new NotFoundException(message);
+    if (!row) throw new NotFoundException(config.notFoundMessage);
+  }
+
+  private linkConfig(key: BookingLinkKey): { model: BookingLinkModel; label: string; notFoundMessage: string } {
+    const configs: Record<BookingLinkKey, { model: BookingLinkModel; label: string; notFoundMessage: string }> = {
+      customerId: { model: 'customer', label: 'Khách hàng liên kết', notFoundMessage: 'Không tìm thấy khách hàng liên kết' },
+      orderId: { model: 'order', label: 'Đơn hàng liên kết', notFoundMessage: 'Không tìm thấy đơn hàng liên kết' },
+      tourId: { model: 'tour', label: 'Tour vận hành liên kết', notFoundMessage: 'Không tìm thấy tour vận hành liên kết' },
+    };
+    return configs[key];
+  }
+
+  private normalizedBookingLinks(dto: BookingLinkInput): Record<BookingLinkKey, string | null | undefined> {
+    return {
+      customerId: dto.customerId !== undefined ? this.optionalId(dto.customerId, this.linkConfig('customerId').label) : undefined,
+      orderId: dto.orderId !== undefined ? this.optionalId(dto.orderId, this.linkConfig('orderId').label) : undefined,
+      tourId: dto.tourId !== undefined ? this.optionalId(dto.tourId, this.linkConfig('tourId').label) : undefined,
+    };
+  }
+
+  private linkEntries(links: Record<BookingLinkKey, string | null | undefined>): Array<[BookingLinkKey, string | null | undefined]> {
+    return [
+      ['customerId', links.customerId],
+      ['orderId', links.orderId],
+      ['tourId', links.tourId],
+    ];
   }
 
   private async ensureFinalScopedLink(
     current: { customerId: string | null; orderId: string | null; tourId: string | null },
-    dto: Partial<CreateBookingDto>,
+    dto: BookingLinkInput,
     user?: RequestUser,
   ) {
     if (!this.requiresScopedLink(user)) return;
-    const customerId = dto.customerId !== undefined ? this.optionalText(dto.customerId) : current.customerId;
-    const orderId = dto.orderId !== undefined ? this.optionalText(dto.orderId) : current.orderId;
-    const tourId = dto.tourId !== undefined ? this.optionalText(dto.tourId) : current.tourId;
+    const links = this.normalizedBookingLinks(dto);
+    const customerId = dto.customerId !== undefined ? links.customerId || null : current.customerId;
+    const orderId = dto.orderId !== undefined ? links.orderId || null : current.orderId;
+    const tourId = dto.tourId !== undefined ? links.tourId || null : current.tourId;
     if (!customerId && !orderId && !tourId) {
       throw new BadRequestException('Booking cần giữ ít nhất một liên kết khách hàng, đơn hàng hoặc tour vận hành theo phạm vi dữ liệu');
     }
@@ -268,10 +357,14 @@ export class BookingsService {
     return true;
   }
 
-  private bookingStatus(status?: string | BookingStatus) {
+  private bookingStatus(status?: string | BookingStatus, required = false) {
     const value = this.optionalText(status);
-    if (!value) return undefined;
-    if (Object.values(BookingStatus).includes(value as BookingStatus)) return value as BookingStatus;
+    if (!value) {
+      if (required) throw new BadRequestException('Trạng thái booking không được để trống');
+      return undefined;
+    }
+    const normalized = value.toUpperCase();
+    if (Object.values(BookingStatus).includes(normalized as BookingStatus)) return normalized as BookingStatus;
     throw new BadRequestException(`Trạng thái booking không hợp lệ: ${value}`);
   }
 
@@ -309,14 +402,14 @@ export class BookingsService {
     if (!current.operationForm) return;
     const blocked: string[] = [];
     if (dto.code !== undefined && this.bookingCode(dto.code) !== current.code) blocked.push('mã booking');
-    if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) blocked.push('tour mẫu');
-    if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) blocked.push('khách hàng liên kết');
-    if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) blocked.push('đơn hàng liên kết');
-    if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) blocked.push('tour vận hành liên kết');
+    if (dto.tourProgramId !== undefined && this.requiredId(dto.tourProgramId, 'Tour mẫu') !== current.tourProgramId) blocked.push('tour mẫu');
+    if (dto.customerId !== undefined && this.optionalId(dto.customerId, this.linkConfig('customerId').label) !== current.customerId) blocked.push('khách hàng liên kết');
+    if (dto.orderId !== undefined && this.optionalId(dto.orderId, this.linkConfig('orderId').label) !== current.orderId) blocked.push('đơn hàng liên kết');
+    if (dto.tourId !== undefined && this.optionalId(dto.tourId, this.linkConfig('tourId').label) !== current.tourId) blocked.push('tour vận hành liên kết');
     if (dto.customerName !== undefined && this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) !== current.customerName) blocked.push('tên khách/đoàn');
     if (dto.customerPhone !== undefined && this.customerPhone(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
     if (dto.customerEmail !== undefined && this.customerEmail(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
-    if (dto.paxCount !== undefined && dto.paxCount !== current.paxCount) blocked.push('số khách');
+    if (dto.paxCount !== undefined && this.paxCountValue(dto.paxCount) !== current.paxCount) blocked.push('số khách');
     if (dto.startDate !== undefined && this.dateKey(dto.startDate) !== this.dateKey(current.startDate)) blocked.push('ngày khởi hành');
     if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) blocked.push('ngày kết thúc');
     if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'Giá bán tổng') !== this.numberValue(current.totalSellPrice, 'Giá bán tổng')) blocked.push('giá bán tổng');
@@ -328,10 +421,10 @@ export class BookingsService {
     dto: UpdateBookingDto,
   ) {
     const changed: string[] = [];
-    if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) changed.push('tour mẫu');
-    if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) changed.push('khách hàng liên kết');
-    if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) changed.push('đơn hàng liên kết');
-    if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) changed.push('tour vận hành liên kết');
+    if (dto.tourProgramId !== undefined && this.requiredId(dto.tourProgramId, 'Tour mẫu') !== current.tourProgramId) changed.push('tour mẫu');
+    if (dto.customerId !== undefined && this.optionalId(dto.customerId, this.linkConfig('customerId').label) !== current.customerId) changed.push('khách hàng liên kết');
+    if (dto.orderId !== undefined && this.optionalId(dto.orderId, this.linkConfig('orderId').label) !== current.orderId) changed.push('đơn hàng liên kết');
+    if (dto.tourId !== undefined && this.optionalId(dto.tourId, this.linkConfig('tourId').label) !== current.tourId) changed.push('tour vận hành liên kết');
     if (!changed.length) return;
 
     const usage = await this.bookingUsage(current.id);
@@ -347,20 +440,17 @@ export class BookingsService {
   }
 
   private async bookingUsage(id: string) {
-    const [booking, operationForms, operationVouchers, allotmentLocks] = await Promise.all([
-      this.prisma.booking.findUnique({ where: { id }, select: { orderId: true, tourId: true } }),
+    const [operationForms, operationVouchers, allotmentLocks] = await Promise.all([
       this.prisma.operationForm.count({ where: { bookingId: id } }),
       this.prisma.operationVoucher.count({ where: { bookingId: id } }),
       this.prisma.supplierAllotmentAllocation.count({ where: { bookingId: id } }),
     ]);
-    const usage = { linkedOrders: booking?.orderId ? 1 : 0, linkedTours: booking?.tourId ? 1 : 0, operationForms, operationVouchers, allotmentLocks };
+    const usage = { operationForms, operationVouchers, allotmentLocks };
     return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };
   }
 
   private usageSummary(usage: Awaited<ReturnType<BookingsService['bookingUsage']>>) {
     const labels: Array<[Exclude<keyof typeof usage, 'total'>, string]> = [
-      ['linkedOrders', 'đơn hàng liên kết'],
-      ['linkedTours', 'tour vận hành liên kết'],
       ['operationForms', 'phiếu điều hành'],
       ['operationVouchers', 'phiếu dịch vụ điều hành'],
       ['allotmentLocks', 'khóa allotment'],
@@ -372,7 +462,7 @@ export class BookingsService {
   }
 
   private ensureBookingValues(
-    input: { startDate: unknown; endDate: unknown; paxCount?: number; totalSellPrice?: unknown },
+    input: { startDate: unknown; endDate: unknown; paxCount?: unknown; totalSellPrice?: unknown },
     durationDays: number,
   ) {
     const { start, end } = this.ensureDateRange(input.startDate, input.endDate);
@@ -380,17 +470,15 @@ export class BookingsService {
     if (durationDays > 0 && actualDuration !== durationDays) {
       throw new BadRequestException(`Khoảng ngày booking phải đúng ${durationDays} ngày theo tour mẫu, hiện đang là ${actualDuration} ngày`);
     }
-    if (input.paxCount !== undefined && (!Number.isInteger(input.paxCount) || input.paxCount < 1)) {
-      throw new BadRequestException('Số khách phải là số nguyên lớn hơn 0');
-    }
+    if (input.paxCount !== undefined) this.paxCountValue(input.paxCount);
     if (input.totalSellPrice !== undefined && this.numberValue(input.totalSellPrice, 'Giá bán tổng') < 0) {
       throw new BadRequestException('Giá bán tổng không được âm');
     }
   }
 
   private ensureDateRange(startDate: unknown, endDate: unknown) {
-    const start = this.dateOnlyTime(startDate, 'ng?y b?t ??u');
-    const end = this.dateOnlyTime(endDate, 'ng?y k?t th?c');
+    const start = this.dateOnlyTime(startDate, 'Ngày khởi hành');
+    const end = this.dateOnlyTime(endDate, 'Ngày kết thúc');
     if (start > end) {
       throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
     }
@@ -399,22 +487,22 @@ export class BookingsService {
 
   private dateOnlyTime(value: unknown, field: string) {
     if (value instanceof Date) {
-      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${this.dateFieldLabel(field)} không hợp lệ`);
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
       return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
     }
 
-    if (value === null || value === undefined) throw new BadRequestException(`${this.dateFieldLabel(field)} không được để trống`);
+    if (value === null || value === undefined) throw new BadRequestException(`${field} không được để trống`);
     const text = String(value).trim();
-    if (!text) throw new BadRequestException(`${this.dateFieldLabel(field)} không được để trống`);
+    if (!text) throw new BadRequestException(`${field} không được để trống`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-      throw new BadRequestException(`${this.dateFieldLabel(field)} phải có định dạng YYYY-MM-DD`);
+      throw new BadRequestException(`${field} phải có định dạng YYYY-MM-DD`);
     }
 
     const [year, month, day] = text.split('-').map(Number);
     const time = Date.UTC(year, month - 1, day);
     const date = new Date(time);
     if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-      throw new BadRequestException(`${this.dateFieldLabel(field)} không hợp lệ`);
+      throw new BadRequestException(`${field} không hợp lệ`);
     }
     return time;
   }
@@ -423,19 +511,21 @@ export class BookingsService {
     return new Date(this.dateOnlyTime(value, field));
   }
 
-  private dateFieldLabel(field: string) {
-    if (field === 'ng?y b?t ??u') return 'Ngày khởi hành';
-    if (field === 'ng?y k?t th?c') return 'Ngày kết thúc';
-    return 'Ngày';
-  }
-
   private dateKey(value: unknown) {
-    return this.dateOnlyTime(value, 'ng?y');
+    return this.dateOnlyTime(value, 'Ngày');
   }
 
   private numberValue(value: unknown, field: string) {
     const number = Number(value ?? 0);
     if (!Number.isFinite(number)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    return number;
+  }
+
+  private paxCountValue(value: unknown) {
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < 1) {
+      throw new BadRequestException('Số khách phải là số nguyên lớn hơn 0');
+    }
     return number;
   }
 
@@ -476,19 +566,27 @@ export class BookingsService {
     return text;
   }
 
+  private requiredId(value: unknown, label: string) {
+    return this.requiredText(value, label, BOOKING_ID_MAX_LENGTH);
+  }
+
+  private optionalId(value: unknown, label: string) {
+    return this.optionalLimitedText(value, label, BOOKING_ID_MAX_LENGTH);
+  }
+
   private toCreateData(dto: CreateBookingDto): Prisma.BookingUncheckedCreateInput {
     return {
       code: this.bookingCode(dto.code),
-      tourProgramId: dto.tourProgramId,
-      customerId: this.optionalText(dto.customerId),
-      orderId: this.optionalText(dto.orderId),
-      tourId: this.optionalText(dto.tourId),
+      tourProgramId: this.requiredId(dto.tourProgramId, 'Tour mẫu'),
+      customerId: this.optionalId(dto.customerId, this.linkConfig('customerId').label),
+      orderId: this.optionalId(dto.orderId, this.linkConfig('orderId').label),
+      tourId: this.optionalId(dto.tourId, this.linkConfig('tourId').label),
       customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH),
       customerPhone: this.customerPhone(dto.customerPhone),
       customerEmail: this.customerEmail(dto.customerEmail),
-      paxCount: dto.paxCount,
-      startDate: this.dateOnlyDate(dto.startDate, 'ng?y b?t ??u'),
-      endDate: this.dateOnlyDate(dto.endDate, 'ng?y k?t th?c'),
+      paxCount: this.paxCountValue(dto.paxCount),
+      startDate: this.dateOnlyDate(dto.startDate, 'Ngày khởi hành'),
+      endDate: this.dateOnlyDate(dto.endDate, 'Ngày kết thúc'),
       saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH),
       operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH),
       totalSellPrice: this.numberValue(dto.totalSellPrice ?? 0, 'Giá bán tổng'),
@@ -498,20 +596,20 @@ export class BookingsService {
   private toUpdateData(dto: UpdateBookingDto): Prisma.BookingUncheckedUpdateInput {
     return {
       ...(dto.code !== undefined ? { code: this.bookingCode(dto.code) } : {}),
-      ...(dto.tourProgramId !== undefined ? { tourProgramId: dto.tourProgramId } : {}),
-      ...(dto.customerId !== undefined ? { customerId: this.optionalText(dto.customerId) } : {}),
-      ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
-      ...(dto.tourId !== undefined ? { tourId: this.optionalText(dto.tourId) } : {}),
+      ...(dto.tourProgramId !== undefined ? { tourProgramId: this.requiredId(dto.tourProgramId, 'Tour mẫu') } : {}),
+      ...(dto.customerId !== undefined ? { customerId: this.optionalId(dto.customerId, this.linkConfig('customerId').label) } : {}),
+      ...(dto.orderId !== undefined ? { orderId: this.optionalId(dto.orderId, this.linkConfig('orderId').label) } : {}),
+      ...(dto.tourId !== undefined ? { tourId: this.optionalId(dto.tourId, this.linkConfig('tourId').label) } : {}),
       ...(dto.customerName !== undefined ? { customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) } : {}),
       ...(dto.customerPhone !== undefined ? { customerPhone: this.customerPhone(dto.customerPhone) } : {}),
       ...(dto.customerEmail !== undefined ? { customerEmail: this.customerEmail(dto.customerEmail) } : {}),
-      ...(dto.paxCount !== undefined ? { paxCount: dto.paxCount } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'ng?y b?t ??u') } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'ng?y k?t th?c') } : {}),
+      ...(dto.paxCount !== undefined ? { paxCount: this.paxCountValue(dto.paxCount) } : {}),
+      ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'Ngày khởi hành') } : {}),
+      ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'Ngày kết thúc') } : {}),
       ...(dto.saleOwner !== undefined ? { saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
       ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
       ...(dto.totalSellPrice !== undefined ? { totalSellPrice: this.numberValue(dto.totalSellPrice, 'Giá bán tổng') } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.status !== undefined ? { status: this.bookingStatus(dto.status, true) } : {}),
     };
   }
 
