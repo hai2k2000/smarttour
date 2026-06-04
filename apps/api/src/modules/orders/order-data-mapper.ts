@@ -20,17 +20,17 @@ export function toOrderData(dto: Partial<ScopedOrderDto>) {
     ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
     ...(dto.route !== undefined ? { route: text(dto.route) } : {}),
     ...(dto.marketGroup !== undefined ? { marketGroup: text(dto.marketGroup) } : {}),
-    ...(dto.bookingDate !== undefined ? { bookingDate: date(dto.bookingDate) } : {}),
-    ...(dto.paymentDate !== undefined ? { paymentDate: date(dto.paymentDate) } : {}),
-    ...(dto.startDate !== undefined ? { startDate: date(dto.startDate) } : {}),
-    ...(dto.endDate !== undefined ? { endDate: date(dto.endDate) } : {}),
+    ...(dto.bookingDate !== undefined ? { bookingDate: date(dto.bookingDate, 'bookingDate') } : {}),
+    ...(dto.paymentDate !== undefined ? { paymentDate: date(dto.paymentDate, 'paymentDate') } : {}),
+    ...(dto.startDate !== undefined ? { startDate: date(dto.startDate, 'startDate') } : {}),
+    ...(dto.endDate !== undefined ? { endDate: date(dto.endDate, 'endDate') } : {}),
     ...(dto.status !== undefined ? { status: dto.status } : {}),
     ...(dto.costStatus !== undefined ? { costStatus: dto.costStatus } : {}),
     ...(dto.tourCategory !== undefined ? { tourCategory: text(dto.tourCategory) } : {}),
     ...(dto.currency !== undefined ? { currency: dto.currency || 'VND' } : {}),
     ...(dto.exchangeRate !== undefined ? { exchangeRate: dto.exchangeRate || 1 } : {}),
     ...(dto.createdBy !== undefined ? { createdBy: text(dto.createdBy) } : {}),
-    ...(dto.createdDate !== undefined ? { createdDate: date(dto.createdDate) } : {}),
+    ...(dto.createdDate !== undefined ? { createdDate: date(dto.createdDate, 'createdDate') } : {}),
     ...(dto.branch !== undefined ? { branch: text(dto.branch) } : {}),
     ...(dto.department !== undefined ? { department: text(dto.department) } : {}),
     ...(dto.customerId !== undefined ? { customerId: text(dto.customerId) } : {}),
@@ -55,8 +55,8 @@ export function toOrderData(dto: Partial<ScopedOrderDto>) {
     ...(dto.seatHeld !== undefined ? { seatHeld: dto.seatHeld } : {}),
     ...(dto.seatSold !== undefined ? { seatSold: dto.seatSold } : {}),
     ...(dto.allowOverbooking !== undefined ? { allowOverbooking: dto.allowOverbooking } : {}),
-    ...(dto.receiveDeadline !== undefined ? { receiveDeadline: date(dto.receiveDeadline) } : {}),
-    ...(dto.closeDeadline !== undefined ? { closeDeadline: date(dto.closeDeadline) } : {}),
+    ...(dto.receiveDeadline !== undefined ? { receiveDeadline: date(dto.receiveDeadline, 'receiveDeadline') } : {}),
+    ...(dto.closeDeadline !== undefined ? { closeDeadline: date(dto.closeDeadline, 'closeDeadline') } : {}),
     ...(dto.commission !== undefined ? { commission: dto.commission } : {}),
     ...(dto.note !== undefined ? { note: text(dto.note) } : {}),
     ...(dto.handoverRequest !== undefined ? { handoverRequest: text(dto.handoverRequest) } : {}),
@@ -73,23 +73,44 @@ export function mergeOrderTotalsInput(current: OrderTotalsSource, dto: Partial<C
   };
 }
 
+export function mergeOrderDateInput(
+  current: {
+    bookingDate?: Date | string | null;
+    paymentDate?: Date | string | null;
+    startDate?: Date | string | null;
+    endDate?: Date | string | null;
+    createdDate?: Date | string | null;
+    receiveDeadline?: Date | string | null;
+    closeDeadline?: Date | string | null;
+  },
+  dto: Partial<CreateOrderDto>,
+): Partial<CreateOrderDto> {
+  return {
+    ...dto,
+    bookingDate: dto.bookingDate ?? iso(current.bookingDate),
+    paymentDate: dto.paymentDate ?? iso(current.paymentDate),
+    startDate: dto.startDate ?? iso(current.startDate),
+    endDate: dto.endDate ?? iso(current.endDate),
+    createdDate: dto.createdDate ?? iso(current.createdDate),
+    receiveDeadline: dto.receiveDeadline ?? iso(current.receiveDeadline),
+    closeDeadline: dto.closeDeadline ?? iso(current.closeDeadline),
+  };
+}
+
 export function toOrderCopyDto(order: Record<string, any>): ScopedOrderDto {
   return {
     systemCode: `${order.systemCode}-COPY-${Date.now().toString().slice(-4)}`,
     tourCode: order.tourCode ?? undefined,
-    holdCode: order.holdCode ? `${order.holdCode}-COPY` : undefined,
     name: `${order.name} Copy`,
     route: order.route ?? undefined,
     marketGroup: order.marketGroup ?? undefined,
     bookingDate: iso(order.bookingDate),
-    paymentDate: iso(order.paymentDate),
     startDate: iso(order.startDate),
     endDate: iso(order.endDate),
-    status: order.settledAt || order.status === 'SETTLED' ? 'COMPLETED' : order.status,
+    status: 'UPCOMING',
     tourCategory: order.tourCategory ?? undefined,
     currency: order.currency,
     exchangeRate: number(order.exchangeRate),
-    createdBy: order.createdBy ?? undefined,
     createdDate: new Date().toISOString(),
     branch: order.branch ?? undefined,
     department: order.department ?? undefined,
@@ -135,11 +156,11 @@ export function toOrderCopyDto(order: Record<string, any>): ScopedOrderDto {
     members: order.members?.map((item: OrderLineSource) => ({
       fullName: item.fullName,
       gender: item.gender ?? undefined,
-      birthday: iso(item.birthday),
+      birthday: iso(item.birthday, 'member.birthday'),
       phone: item.phone ?? undefined,
       email: item.email ?? undefined,
       identityNumber: item.identityNumber ?? undefined,
-      issuedDate: iso(item.issuedDate),
+      issuedDate: iso(item.issuedDate, 'member.issuedDate'),
       nationality: item.nationality ?? undefined,
       passengerType: item.passengerType ?? undefined,
       note: item.note ?? undefined,
@@ -163,6 +184,7 @@ export function toOrderCopyDto(order: Record<string, any>): ScopedOrderDto {
 }
 
 export function validateOrderDates(dto: Partial<CreateOrderDto>) {
+  const parsed = new Map<string, Date | null>();
   for (const [field, value] of [
     ['bookingDate', dto.bookingDate],
     ['paymentDate', dto.paymentDate],
@@ -172,10 +194,15 @@ export function validateOrderDates(dto: Partial<CreateOrderDto>) {
     ['receiveDeadline', dto.receiveDeadline],
     ['closeDeadline', dto.closeDeadline],
   ] as const) {
-    if (value && !Number.isFinite(new Date(value).getTime())) throw new BadRequestException(`${field} is invalid`);
+    parsed.set(field, parseOrderDate(value, field));
   }
-  if (dto.startDate && dto.endDate && new Date(dto.endDate) < new Date(dto.startDate)) throw new BadRequestException('End date must be after start date');
-  if (dto.bookingDate && dto.paymentDate && new Date(dto.paymentDate) < new Date(dto.bookingDate)) throw new BadRequestException('Payment date must be after booking date');
+  validateNestedDates(dto);
+  const startDate = parsed.get('startDate');
+  const endDate = parsed.get('endDate');
+  const bookingDate = parsed.get('bookingDate');
+  const paymentDate = parsed.get('paymentDate');
+  if (startDate && endDate && endDate < startDate) throw new BadRequestException('End date must be after start date');
+  if (bookingDate && paymentDate && paymentDate < bookingDate) throw new BadRequestException('Payment date must be after booking date');
 }
 
 export function orderStatusForAllotment(currentStatus: OrderStatus, dto: Partial<CreateOrderDto>) {
@@ -208,7 +235,7 @@ function toOperationItemDto(item: OrderLineSource) {
     supplierId: item.supplierId ?? undefined,
     serviceId: item.serviceId ?? undefined,
     bookingCode: item.bookingCode ?? undefined,
-    serviceDate: iso(item.serviceDate),
+    serviceDate: iso(item.serviceDate, 'operationItems.serviceDate'),
     quantity: number(item.quantity),
     netPrice: number(item.netPrice),
     vat: number(item.vat),
@@ -222,14 +249,29 @@ function text(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-function date(value?: string | null) {
-  return value ? new Date(value) : null;
+function validateNestedDates(dto: Partial<CreateOrderDto>) {
+  dto.operationItems?.forEach((item, index) => parseOrderDate(item.serviceDate, `operationItems[${index}].serviceDate`));
+  dto.members?.forEach((item, index) => {
+    parseOrderDate(item.birthday, `members[${index}].birthday`);
+    parseOrderDate(item.issuedDate, `members[${index}].issuedDate`);
+  });
 }
 
-function iso(value?: Date | string | null) {
-  return value ? new Date(value).toISOString() : undefined;
+function date(value?: string | Date | null, field = 'date') {
+  return parseOrderDate(value, field);
+}
+
+function iso(value?: Date | string | null, field = 'date') {
+  return parseOrderDate(value, field)?.toISOString();
 }
 
 function number(value: unknown) {
   return Number(value ?? 0);
+}
+
+function parseOrderDate(value: unknown, field: string) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  if (!Number.isFinite(parsed.getTime())) throw new BadRequestException(`${field} is invalid`);
+  return parsed;
 }

@@ -7,7 +7,15 @@ cd "$REPO_DIR"
 docker compose build api >/dev/null
 
 docker compose run --rm --entrypoint node api <<'NODE'
-const { calculateOrderTotals, operationAmount, salesAmount } = require('./apps/api/dist/modules/orders/order-calculator');
+const {
+  calculateCost,
+  calculateCostSummary,
+  calculateOrderTotals,
+  calculatePaymentSummary,
+  calculateRevenue,
+  operationAmount,
+  salesAmount,
+} = require('./apps/api/dist/modules/orders/order-calculator');
 
 function assertEqual(actual, expected, label) {
   if (typeof actual === 'number' && typeof expected === 'number' && Math.abs(actual - expected) < 0.000001) {
@@ -23,6 +31,10 @@ assertEqual(operationAmount({ quantity: 4, netPrice: 50000, vat: 5 }), 210000, '
 assertEqual(salesAmount({ quantity: 2, serviceCount: 0, unitPrice: 100000, vat: 0 }), 0, 'zero service count must remain zero');
 assertEqual(salesAmount({ unitPrice: 100000, vat: 0 }), 100000, 'missing sales counts should default to one');
 assertEqual(operationAmount({ netPrice: 50000, vat: 0 }), 50000, 'missing operation quantity should default to one');
+assertEqual(calculateRevenue({ salesItems: [{ quantity: 2, serviceCount: 1, unitPrice: 100000, vat: 10 }] }), 220000, 'calculateRevenue should only sum sales rows');
+assertEqual(calculateCost({ operationItems: [{ quantity: 2, netPrice: 70000, vat: 0 }] }), 140000, 'calculateCost should only sum operation rows');
+assertEqual(calculatePaymentSummary(220000, 100000).paymentStatus, 'PARTIAL', 'calculatePaymentSummary should derive payment status');
+assertEqual(calculateCostSummary(140000, 140000).costStatus, 'PAID', 'calculateCostSummary should derive cost status');
 
 const partial = calculateOrderTotals({
   salesItems: [{ quantity: 2, serviceCount: 1, unitPrice: 100000, vat: 10 }],

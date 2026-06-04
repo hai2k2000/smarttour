@@ -7,7 +7,7 @@ import { OrderAllotmentService } from './order-allotment-sync';
 import { calculateOrderTotals } from './order-calculator';
 import { OrderChildrenSyncService } from './order-children-sync';
 import { OrderCustomerSnapshotService } from './order-customer-snapshot';
-import { mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldResyncHotelAllotments, toOrderCopyDto, toOrderData, validateOrderDates } from './order-data-mapper';
+import { mergeOrderDateInput, mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldResyncHotelAllotments, toOrderCopyDto, toOrderData, validateOrderDates } from './order-data-mapper';
 import { OrderLifecycleService } from './order-lifecycle';
 
 const ORDER_TYPES: Record<string, OrderType> = {
@@ -110,6 +110,24 @@ export class OrdersService {
     return order;
   }
 
+  private async loadForEdit(typePath: string, id: string, user?: RequestUser) {
+    const order = await this.prisma.order.findFirst({
+      where: branchDepartmentScopeWhere({ id, type: this.resolveType(typePath), deletedAt: null }, user),
+      include: this.editInclude(),
+    });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return order;
+  }
+
+  private async loadForCopy(typePath: string, id: string, user?: RequestUser) {
+    const order = await this.prisma.order.findFirst({
+      where: branchDepartmentScopeWhere({ id, type: this.resolveType(typePath), deletedAt: null }, user),
+      include: this.copyInclude(),
+    });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return order;
+  }
+
   async create(typePath: string, dto: CreateOrderDto, user?: RequestUser) {
     const type = this.resolveType(typePath);
     const scopedDto = applyWriteDataScope(dto as ScopedOrderDto, user) as ScopedOrderDto;
@@ -117,18 +135,19 @@ export class OrdersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto)) as ScopedOrderDto;
+        const totals = calculateOrderTotals(orderDto);
         const order = await tx.order.create({
           data: {
             type,
             ...toOrderData(orderDto),
             ...(orderDto.status === 'SETTLED' ? { settledAt: new Date() } : {}),
-            ...calculateOrderTotals(orderDto),
+            ...totals,
           } as Prisma.OrderCreateInput,
         });
         await this.children.create(tx, order.id, orderDto);
         if (type === 'HOTEL_BOOKING') await this.allotments.alignAutoLocksForStatus(tx, order.id, orderDto.status ?? 'UPCOMING', 'CREATE');
-        await tx.orderLog.create({ data: { orderId: order.id, action: 'CREATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
-        return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.writeInclude() });
+        await tx.orderLog.create({ data: { orderId: order.id, action: 'CREATE', newValue: this.logPayload(orderDto, totals) } });
+        return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.editInclude() });
       });
     } catch (error) {
       this.handleUniqueCodeError(error);
@@ -136,28 +155,37 @@ export class OrdersService {
   }
 
   async update(typePath: string, id: string, dto: UpdateOrderDto, user?: RequestUser) {
-    const current = await this.detail(typePath, id, user);
+    const current = await this.loadForEdit(typePath, id, user);
     const scopedDto = applyWriteDataScope(dto as ScopedOrderDto, user) as ScopedOrderDto;
     this.lifecycle.assertEditable(current);
-    validateOrderDates(scopedDto);
+    validateOrderDates(mergeOrderDateInput(current, scopedDto));
     try {
       return await this.prisma.$transaction(async (tx) => {
         const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto)) as ScopedOrderDto;
         const hotelNeedsAllotmentResync = current.type === 'HOTEL_BOOKING' && shouldResyncHotelAllotments(orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.releaseAutoLocks(tx, id, 'UPDATE_RELEASE');
 
+        const totalsInput = mergeOrderTotalsInput(current, orderDto);
+        const totals = calculateOrderTotals(totalsInput);
         await tx.order.update({
           where: { id },
           data: {
             ...toOrderData(orderDto),
             ...(orderDto.status === 'SETTLED' ? { settledAt: new Date() } : {}),
-            ...calculateOrderTotals(mergeOrderTotalsInput(current, orderDto)),
+            ...totals,
           } as Prisma.OrderUpdateInput,
         });
         await this.children.sync(tx, id, orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.alignAutoLocksForStatus(tx, id, orderStatusForAllotment(current.status, orderDto), 'UPDATE');
-        await tx.orderLog.create({ data: { orderId: id, action: 'UPDATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
-        return tx.order.findUniqueOrThrow({ where: { id }, include: this.writeInclude() });
+        await tx.orderLog.create({
+          data: {
+            orderId: id,
+            action: 'UPDATE',
+            oldValue: this.orderStateSummary(current),
+            newValue: this.logPayload(orderDto, totals),
+          },
+        });
+        return tx.order.findUniqueOrThrow({ where: { id }, include: this.editInclude() });
       });
     } catch (error) {
       this.handleUniqueCodeError(error);
@@ -165,7 +193,7 @@ export class OrdersService {
   }
 
   async remove(typePath: string, id: string, user?: RequestUser) {
-    const order = await this.detail(typePath, id, user);
+    const order = await this.loadForEdit(typePath, id, user);
     this.lifecycle.assertNotSettled(order, 'deleted');
     return this.prisma.$transaction(async (tx) => {
       if (order.type === 'HOTEL_BOOKING') await this.allotments.releaseAutoLocks(tx, id, 'DELETE_RELEASE');
@@ -175,26 +203,26 @@ export class OrdersService {
   }
 
   async updateStatus(typePath: string, id: string, status: OrderStatus, user?: RequestUser) {
-    const order = await this.detail(typePath, id, user);
+    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return this.lifecycle.applyStatus(tx, order, status, this.writeInclude());
+      return this.lifecycle.applyStatus(tx, order, status, this.editInclude());
     });
   }
 
   async copy(typePath: string, id: string, user?: RequestUser) {
-    const order = await this.detail(typePath, id, user);
+    const order = await this.loadForCopy(typePath, id, user);
     return this.create(typePath, toOrderCopyDto(order), user);
   }
 
   async settle(typePath: string, id: string, user?: RequestUser) {
-    const order = await this.detail(typePath, id, user);
+    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return this.lifecycle.settle(tx, order, this.writeInclude());
+      return this.lifecycle.settle(tx, order, this.editInclude());
     });
   }
 
   async unlock(typePath: string, id: string, dto: UnlockOrderDto, user?: RequestUser) {
-    const order = await this.detail(typePath, id, user);
+    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
       return this.lifecycle.unlock(tx, order, dto);
     });
@@ -216,7 +244,7 @@ export class OrdersService {
     } satisfies Prisma.OrderInclude;
   }
 
-  private writeInclude() {
+  private editInclude() {
     return {
       customer: true,
       guides: true,
@@ -230,6 +258,100 @@ export class OrdersService {
       terms: true,
       files: true,
     } satisfies Prisma.OrderInclude;
+  }
+
+  private copyInclude() {
+    return {
+      guides: true,
+      salesItems: true,
+      operationItems: true,
+      members: true,
+      itineraries: true,
+      handoverItems: true,
+      surveyQuestions: true,
+      terms: true,
+    } satisfies Prisma.OrderInclude;
+  }
+
+  private logPayload(dto: Partial<ScopedOrderDto>, totals?: ReturnType<typeof calculateOrderTotals>) {
+    const childCounts = {
+      guides: dto.guides?.length,
+      salesItems: dto.salesItems?.length,
+      operationItems: dto.operationItems?.length,
+      members: dto.members?.length,
+      itineraries: dto.itineraries?.length,
+      handoverItems: dto.handoverItems?.length,
+      surveyQuestions: dto.surveyQuestions?.length,
+      terms: dto.terms?.length,
+    };
+    const changedFields = Object.keys(dto).filter((key) => !this.omittedLogFields().has(key));
+    return {
+      systemCode: dto.systemCode,
+      tourCode: dto.tourCode,
+      name: dto.name,
+      status: dto.status,
+      branch: dto.branch,
+      department: dto.department,
+      customerId: dto.customerId,
+      startDate: dto.startDate,
+      endDate: dto.endDate,
+      changedFields,
+      childCounts: Object.fromEntries(Object.entries(childCounts).filter(([, value]) => value !== undefined)),
+      ...(totals ? { totals } : {}),
+    } as Prisma.InputJsonValue;
+  }
+
+  private orderStateSummary(order: {
+    systemCode: string;
+    status: OrderStatus;
+    paymentStatus: string;
+    costStatus: string;
+    totalRevenue: unknown;
+    paidAmount: unknown;
+    totalCost: unknown;
+    paidCost: unknown;
+    settledAt?: Date | null;
+    salesItems?: unknown[];
+    operationItems?: unknown[];
+    members?: unknown[];
+  }) {
+    return {
+      systemCode: order.systemCode,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      costStatus: order.costStatus,
+      settledAt: order.settledAt,
+      totals: {
+        totalRevenue: Number(order.totalRevenue),
+        paidAmount: Number(order.paidAmount),
+        totalCost: Number(order.totalCost),
+        paidCost: Number(order.paidCost),
+      },
+      childCounts: {
+        salesItems: order.salesItems?.length ?? 0,
+        operationItems: order.operationItems?.length ?? 0,
+        members: order.members?.length ?? 0,
+      },
+    } as Prisma.InputJsonValue;
+  }
+
+  private omittedLogFields() {
+    return new Set([
+      'guides',
+      'salesItems',
+      'operationItems',
+      'members',
+      'itineraries',
+      'handoverItems',
+      'surveyQuestions',
+      'terms',
+      'customerPhone',
+      'customerEmail',
+      'customerAddress',
+      'note',
+      'handoverRequest',
+      'surveyDescription',
+    ]);
   }
 
   private resolveType(typePath: string) {

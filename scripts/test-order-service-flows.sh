@@ -127,7 +127,10 @@ async function main() {
   assert(money(created.paidAmount) === 500000 && money(created.remainingRevenue) === 1700000, 'create should calculate paid and remaining revenue');
   assert(money(created.paidCost) === 200000 && money(created.remainingCost) === 500000, 'create should calculate paid and remaining cost');
   const createLog = await prisma.orderLog.findFirst({ where: { orderId: created.id, action: 'CREATE' } });
-  assert(createLog?.newValue?.systemCode === run + '-ORD' && createLog.newValue.customerId === customer.id, 'create should write full create log payload');
+  assert(createLog?.newValue?.systemCode === run + '-ORD' && createLog.newValue.customerId === customer.id, 'create should write core create log payload');
+  assert(createLog.newValue.childCounts.salesItems === 1 && createLog.newValue.childCounts.operationItems === 1, 'create log should summarize child counts');
+  assert(createLog.newValue.totals.totalRevenue === 2200000 && createLog.newValue.totals.totalCost === 700000, 'create log should include calculated totals');
+  assert(!createLog.newValue.salesItems && !createLog.newValue.operationItems && !createLog.newValue.customerEmail && !createLog.newValue.customerPhone, 'create log should not store full child rows or sensitive customer fields');
   const listRows = await service.list('single-services', run);
   assert(listRows.some((row) => row.id === created.id), 'list should include created order');
   assert(!Object.prototype.hasOwnProperty.call(listRows[0], 'customer'), 'list select should not include deep customer object');
@@ -206,7 +209,10 @@ async function main() {
   assert(partial.operationItems[0].id === created.operationItems[0].id, 'partial update should preserve operation item id');
   assert(partial.members[0].id === created.members[0].id, 'partial update should preserve member id');
   await rejects(() => service.update('single-services', created.id, { startDate: '2026-11-10', endDate: '2026-11-09' }), 'update should reject end date before start date');
+  await rejects(() => service.update('single-services', created.id, { startDate: '2026-12-31' }), 'update should reject start date after current end date');
+  await rejects(() => service.update('single-services', created.id, { endDate: '2026-01-01' }), 'update should reject end date before current start date');
   await rejects(() => service.update('single-services', created.id, { closeDeadline: 'not-a-date' }), 'update should reject an invalid date value');
+  await rejects(() => service.update('single-services', created.id, { operationItems: [{ serviceType: 'OTHER', serviceDate: 'not-a-date', quantity: 1, netPrice: 1000 }] }), 'update should reject invalid nested operation serviceDate');
   const emptyUpdate = await service.update('single-services', created.id, {});
   assert(emptyUpdate.id === created.id && emptyUpdate.salesItems[0].id === created.salesItems[0].id && emptyUpdate.members[0].id === created.members[0].id, 'empty partial update should preserve order and children');
   const blankChildPayload = await service.update('single-services', created.id, { members: [{ fullName: '   ' }], salesItems: [{ description: '   ', unitPrice: 0 }], operationItems: [{ serviceType: '   ', netPrice: 0 }] });
@@ -236,10 +242,15 @@ async function main() {
   assert(updated.itineraries.length === 2 && updated.itineraries.some((item) => item.id === partial.itineraries[0].id && item.title === 'Updated start'), 'update should sync itinerary children');
   assert(updated.handoverItems[0].id === partial.handoverItems[0].id && money(updated.handoverItems[0].quantity) === 2, 'update should sync handover children');
   assert(updated.surveyQuestions[0].id === partial.surveyQuestions[0].id && updated.terms[0].id === partial.terms[0].id, 'update should sync survey and term children');
+  const updateLog = await prisma.orderLog.findFirst({ where: { orderId: created.id, action: 'UPDATE' }, orderBy: { createdAt: 'desc' } });
+  assert(updateLog?.oldValue?.systemCode === created.systemCode && updateLog.oldValue.childCounts.salesItems >= 1, 'update log should include compact old summary');
+  assert(updateLog.newValue.childCounts.salesItems === 1 && updateLog.newValue.childCounts.members === 2, 'update log should include compact new child counts');
+  assert(!updateLog.newValue.salesItems && !updateLog.newValue.members && !updateLog.newValue.customerEmail, 'update log should not store full child rows or sensitive customer fields');
 
   const copied = await service.copy('single-services', created.id);
   assert(copied.id !== created.id && copied.systemCode.startsWith(created.systemCode + '-COPY-'), 'copy should create a new order');
-  assert(copied.status === updated.status && !copied.settledAt, 'copy should not carry settlement lock');
+  assert(copied.status === 'UPCOMING' && !copied.settledAt, 'copy should reset lifecycle status and not carry settlement lock');
+  assert(!copied.holdCode && !copied.paymentDate && !copied.createdBy, 'copy should not carry stale hold/payment/creator fields');
   assert(copied.customerName === created.customerName && copied.customerPhone === created.customerPhone && copied.customerEmail === created.customerEmail, 'copy should preserve the source order customer snapshot');
   assert(copied.guides.length === updated.guides.length && copied.members.length === updated.members.length && copied.itineraries.length === updated.itineraries.length && copied.handoverItems.length === updated.handoverItems.length && copied.surveyQuestions.length === updated.surveyQuestions.length && copied.terms.length === updated.terms.length, 'copy should include all child row groups');
   assert(money(copied.totalRevenue) === money(updated.totalRevenue) && money(copied.totalCost) === money(updated.totalCost) && money(copied.profit) === money(updated.profit), 'copy should recalculate clean totals from copied child rows');
