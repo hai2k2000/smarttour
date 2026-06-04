@@ -120,6 +120,7 @@ async function main() {
     terms: [{ language: 'VI', terms: 'Dieu khoan' }],
   });
   assert(created.customerName === customer.fullName && created.customerPhone === customer.phone, 'create should apply customer snapshot');
+  assert(created.type === 'SINGLE_SERVICE', 'single-services should create SINGLE_SERVICE orders');
   assert(created.customerEmail === customer.email, 'create should fill blank customer snapshot fields');
   assert(created.guides.length === 1 && created.members.length === 1 && created.salesItems.length === 1 && created.operationItems.length === 1, 'create should sync children');
   assert(money(created.totalRevenue) === 2200000 && money(created.totalCost) === 700000 && money(created.profit) === 1500000, 'create should calculate totals');
@@ -130,6 +131,13 @@ async function main() {
   const listRows = await service.list('single-services', run);
   assert(listRows.some((row) => row.id === created.id), 'list should include created order');
   assert(!Object.prototype.hasOwnProperty.call(listRows[0], 'customer'), 'list select should not include deep customer object');
+  assert((await service.list('single-services', created.systemCode)).some((row) => row.id === created.id), 'list search should match system code');
+  assert((await service.list('single-services', 'Service Flow')).some((row) => row.id === created.id), 'list search should match order name');
+  assert((await service.list('single-services', customer.phone)).some((row) => row.id === created.id), 'list search should match customer phone snapshot');
+  assert((await service.list('fit-tours', created.systemCode)).length === 0, 'list should filter by order type');
+  const createdDetail = await service.detail('single-services', created.id);
+  assert(createdDetail.id === created.id && createdDetail.guides.length === 1 && createdDetail.members.length === 1 && createdDetail.salesItems.length === 1 && createdDetail.operationItems.length === 1, 'detail should include full order children');
+  await rejects(() => service.detail('fit-tours', created.id), 'detail should reject an order requested through the wrong type');
   await prisma.customer.update({
     where: { id: customer.id },
     data: { fullName: 'Customer Changed Later', phone: '0988888888', email: 'changed-later@smarttour.local' },
@@ -138,13 +146,13 @@ async function main() {
   assert(afterCustomerChange.customerName === created.customerName && afterCustomerChange.customerPhone === created.customerPhone && afterCustomerChange.customerEmail === created.customerEmail, 'customer changes should not mutate existing order snapshot');
 
   const typeFixtures = [
-    ['fit-tours', 'FIT'],
-    ['git-combos', 'GIT'],
-    ['landtours', 'LAND'],
-    ['flight-orders', 'FLT'],
-    ['services', 'SVCALIAS'],
+    ['fit-tours', 'FIT', 'FIT_TOUR'],
+    ['git-combos', 'GIT', 'GIT_COMBO'],
+    ['landtours', 'LAND', 'LANDTOUR'],
+    ['flight-orders', 'FLT', 'FLIGHT_ORDER'],
+    ['services', 'SVCALIAS', 'SINGLE_SERVICE'],
   ];
-  for (const [typePath, suffix] of typeFixtures) {
+  for (const [typePath, suffix, expectedType] of typeFixtures) {
     const row = await service.create(typePath, {
       systemCode: `${run}-${suffix}`,
       name: `Order ${suffix}`,
@@ -154,8 +162,26 @@ async function main() {
       salesItems: [{ description: suffix, quantity: 1, serviceCount: 1, unitPrice: 1000, vat: 0 }],
       operationItems: [{ serviceType: 'OTHER', quantity: 1, netPrice: 400, vat: 0, status: 'WAITING' }],
     });
-    assert(row.systemCode === `${run}-${suffix}` && money(row.profit) === 600, `create should work for ${typePath}`);
+    assert(row.systemCode === `${run}-${suffix}` && row.type === expectedType && money(row.profit) === 600, `create should work for ${typePath}`);
   }
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-DATE',
+    name: 'Bad date order',
+    startDate: '2026-10-20',
+    endDate: '2026-10-19',
+  }), 'create should reject end date before start date');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-PAYMENT-DATE',
+    name: 'Bad payment date order',
+    bookingDate: '2026-10-20',
+    paymentDate: '2026-10-19',
+  }), 'create should reject payment date before booking date');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-INVALID-DATE',
+    name: 'Invalid date order',
+    startDate: 'not-a-date',
+  }), 'create should reject an invalid date value');
+  assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE'] } } }) === 0, 'invalid create dates should not persist orders');
   const explicitCustomerSnapshot = await service.create('single-services', {
     systemCode: run + '-CUS-OVERRIDE',
     name: 'Customer Override',
@@ -179,6 +205,10 @@ async function main() {
   assert(partial.salesItems[0].id === created.salesItems[0].id, 'partial update should preserve sales item id');
   assert(partial.operationItems[0].id === created.operationItems[0].id, 'partial update should preserve operation item id');
   assert(partial.members[0].id === created.members[0].id, 'partial update should preserve member id');
+  await rejects(() => service.update('single-services', created.id, { startDate: '2026-11-10', endDate: '2026-11-09' }), 'update should reject end date before start date');
+  await rejects(() => service.update('single-services', created.id, { closeDeadline: 'not-a-date' }), 'update should reject an invalid date value');
+  const emptyUpdate = await service.update('single-services', created.id, {});
+  assert(emptyUpdate.id === created.id && emptyUpdate.salesItems[0].id === created.salesItems[0].id && emptyUpdate.members[0].id === created.members[0].id, 'empty partial update should preserve order and children');
   const blankChildPayload = await service.update('single-services', created.id, { members: [{ fullName: '   ' }], salesItems: [{ description: '   ', unitPrice: 0 }], operationItems: [{ serviceType: '   ', netPrice: 0 }] });
   assert(blankChildPayload.members.length === partial.members.length, 'blank member row should not delete existing members');
   assert(blankChildPayload.salesItems.length === partial.salesItems.length, 'blank sales row should not replace existing sales items');
@@ -188,7 +218,12 @@ async function main() {
     name: 'Order Service Flow Updated',
     salesItems: [{ id: partial.salesItems[0].id, description: 'Updated revenue', quantity: 1, serviceCount: 1, unitPrice: 3000000, vat: 0 }],
     operationItems: [{ id: partial.operationItems[0].id, serviceType: 'OTHER', quantity: 1, netPrice: 1200000, vat: 0, status: 'WAITING' }],
+    guides: [{ id: partial.guides[0].id, guideName: 'Guide B', phone: '0900000088' }, { guideName: 'Guide C' }],
     members: [{ id: partial.members[0].id, fullName: 'Nguyen Van B' }, { fullName: 'Nguyen Van C' }],
+    itineraries: [{ id: partial.itineraries[0].id, dayNo: 1, title: 'Updated start', content: 'Updated trip' }, { dayNo: 2, title: 'Finish', content: 'Finish trip' }],
+    handoverItems: [{ id: partial.handoverItems[0].id, itemName: 'Updated voucher', quantity: 2 }],
+    surveyQuestions: [{ id: partial.surveyQuestions[0].id, question: 'Chat luong cap nhat?' }],
+    terms: [{ id: partial.terms[0].id, language: 'VI', terms: 'Dieu khoan cap nhat' }],
   });
   assert(updated.name === 'Order Service Flow Updated', 'update should change order fields');
   assert(updated.members.length === 2 && money(updated.totalRevenue) === 3000000 && money(updated.totalCost) === 1200000 && money(updated.profit) === 1800000, 'update should replace children and totals');
@@ -197,6 +232,10 @@ async function main() {
   assert(updated.salesItems[0].id === partial.salesItems[0].id, 'update should preserve existing sales item id');
   assert(updated.operationItems[0].id === partial.operationItems[0].id, 'update should preserve existing operation item id');
   assert(updated.members.some((item) => item.id === partial.members[0].id && item.fullName === 'Nguyen Van B'), 'update should preserve existing member id');
+  assert(updated.guides.length === 2 && updated.guides.some((item) => item.id === partial.guides[0].id && item.guideName === 'Guide B'), 'update should sync guide children');
+  assert(updated.itineraries.length === 2 && updated.itineraries.some((item) => item.id === partial.itineraries[0].id && item.title === 'Updated start'), 'update should sync itinerary children');
+  assert(updated.handoverItems[0].id === partial.handoverItems[0].id && money(updated.handoverItems[0].quantity) === 2, 'update should sync handover children');
+  assert(updated.surveyQuestions[0].id === partial.surveyQuestions[0].id && updated.terms[0].id === partial.terms[0].id, 'update should sync survey and term children');
 
   const copied = await service.copy('single-services', created.id);
   assert(copied.id !== created.id && copied.systemCode.startsWith(created.systemCode + '-COPY-'), 'copy should create a new order');
@@ -258,6 +297,7 @@ async function main() {
     salesItems: [{ description: 'Hotel revenue', quantity: 2, serviceCount: 1, unitPrice: 1500000, vat: 0 }],
     operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: hotelService.id, serviceDate: '2026-10-10', quantity: 2, netPrice: 700000, vat: 0, status: 'WAITING' }],
   });
+  assert(hotel.type === 'HOTEL_BOOKING', 'hotel-bookings should create HOTEL_BOOKING orders');
   let lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel create should lock allotment');
   let activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'LOCKED' } });

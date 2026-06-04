@@ -33,6 +33,7 @@ const { LandToursService } = require('./apps/api/dist/modules/landtours/landtour
 const { FitToursService } = require('./apps/api/dist/modules/fit-tours/fit-tours.service');
 const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
 const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
+const { OrdersService } = require('./apps/api/dist/modules/orders/orders.service');
 const { SuppliersService } = require('./apps/api/dist/modules/suppliers/suppliers.service');
 const { TourGuidesService } = require('./apps/api/dist/modules/tour-guides/tour-guides.service');
 
@@ -69,6 +70,7 @@ async function main() {
   const fitTours = new FitToursService(prisma);
   const bookings = new BookingsService(prisma);
   const operationVouchers = new OperationVouchersService(prisma);
+  const orders = new OrdersService(prisma);
   const suppliers = new SuppliersService(prisma, {});
   const tourGuides = new TourGuidesService(prisma, {});
   const run = 'SCOPE-' + Date.now();
@@ -95,6 +97,30 @@ async function main() {
   const orderB = await prisma.order.create({
     data: { type: 'FIT_TOUR', systemCode: run + '-ORD-B', name: 'Order B', branch: 'BR-B', department: 'DEP-B', customerId: customerB.id },
   });
+  const scopedCreatedOrder = await orders.create('single-services', {
+    systemCode: run + '-ORD-CREATED-A',
+    name: 'Scoped created order',
+    salesItems: [{ description: 'Scoped revenue', quantity: 1, serviceCount: 1, unitPrice: 100 }],
+  }, branchUser);
+  assert(scopedCreatedOrder.branch === 'BR-A' && !scopedCreatedOrder.department, 'order create should inject only the required branch scope');
+  const departmentCreatedOrder = await orders.create('single-services', {
+    systemCode: run + '-ORD-CREATED-DEP',
+    name: 'Department scoped created order',
+  }, departmentUser);
+  assert(departmentCreatedOrder.department === 'DEP-B' && !departmentCreatedOrder.branch, 'order create should inject only the required department scope');
+  assert((await orders.list('fit-tours', run, branchUser)).map((row) => row.id).join(',') === orderA.id, 'branch user should only list scoped orders');
+  assert((await orders.list('fit-tours', run, departmentUser)).map((row) => row.id).join(',') === orderB.id, 'department user should only list scoped orders');
+  assert((await orders.list('fit-tours', run, noScopeUser)).length === 0, 'order list should return no sensitive rows for user without data scope');
+  assert((await orders.detail('fit-tours', orderA.id, branchUser)).id === orderA.id, 'branch user should read scoped order detail');
+  await rejects(() => orders.detail('fit-tours', orderB.id, branchUser), 'branch user should not read other branch order detail');
+  await rejects(() => orders.create('single-services', { systemCode: run + '-ORD-OUTSIDE', name: 'Outside order', branch: 'BR-B' }, branchUser), 'order create should reject explicit outside branch');
+  await rejects(() => orders.create('single-services', { systemCode: run + '-ORD-NOSCOPE', name: 'No scope order' }, noScopeUser), 'order create should reject user without data scope');
+  const scopedUpdatedOrder = await orders.update('fit-tours', orderA.id, { name: 'Order A Updated' }, branchUser);
+  assert(scopedUpdatedOrder.name === 'Order A Updated' && scopedUpdatedOrder.branch === 'BR-A', 'order update should allow mutation inside scope');
+  await rejects(() => orders.update('fit-tours', orderB.id, { name: 'Blocked update' }, branchUser), 'order update should reject mutation outside branch scope');
+  await rejects(() => orders.remove('fit-tours', orderB.id, branchUser), 'order remove should reject mutation outside branch scope');
+  await rejects(() => orders.copy('fit-tours', orderB.id, branchUser), 'order copy should reject mutation outside branch scope');
+  await rejects(() => orders.settle('fit-tours', orderB.id, branchUser), 'order settle should reject mutation outside branch scope');
 
   const invoiceA = await finance.createInvoice({
     invoiceCode: run + '-INV-A',

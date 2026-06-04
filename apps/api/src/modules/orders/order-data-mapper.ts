@@ -163,6 +163,17 @@ export function toOrderCopyDto(order: Record<string, any>): ScopedOrderDto {
 }
 
 export function validateOrderDates(dto: Partial<CreateOrderDto>) {
+  for (const [field, value] of [
+    ['bookingDate', dto.bookingDate],
+    ['paymentDate', dto.paymentDate],
+    ['startDate', dto.startDate],
+    ['endDate', dto.endDate],
+    ['createdDate', dto.createdDate],
+    ['receiveDeadline', dto.receiveDeadline],
+    ['closeDeadline', dto.closeDeadline],
+  ] as const) {
+    if (value && !Number.isFinite(new Date(value).getTime())) throw new BadRequestException(`${field} is invalid`);
+  }
   if (dto.startDate && dto.endDate && new Date(dto.endDate) < new Date(dto.startDate)) throw new BadRequestException('End date must be after start date');
   if (dto.bookingDate && dto.paymentDate && new Date(dto.paymentDate) < new Date(dto.bookingDate)) throw new BadRequestException('Payment date must be after booking date');
 }
