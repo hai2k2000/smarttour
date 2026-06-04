@@ -12,6 +12,7 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
   [BookingStatus.COMPLETED]: new Set([BookingStatus.COMPLETED]),
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
 };
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class BookingsService {
@@ -88,9 +89,9 @@ export class BookingsService {
   }
 
   async create(dto: CreateBookingDto, user?: RequestUser) {
-    await this.ensureTourProgram(dto.tourProgramId);
+    const tourProgram = await this.ensureTourProgram(dto.tourProgramId);
     await this.ensureBookingLinks(dto, user, true);
-    this.ensureDateRange(dto.startDate, dto.endDate);
+    this.ensureBookingValues(dto, tourProgram.durationDays);
     try {
       return await this.prisma.booking.create({
         data: this.toCreateData(dto),
@@ -106,13 +107,19 @@ export class BookingsService {
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
     const current = await this.detail(id, user);
-    if (dto.tourProgramId) await this.ensureTourProgram(dto.tourProgramId);
+    const tourProgram = dto.tourProgramId ? await this.ensureTourProgram(dto.tourProgramId) : current.tourProgram;
     await this.ensureBookingLinks(dto, user, false);
-    this.ensureOperationFormLinkStable(current, dto);
+    this.ensureOperationFormEditAllowed(current, dto);
     if (dto.status !== undefined) this.ensureStatusTransition(current.status, dto.status, current.operationForm?.status);
-    if (dto.startDate || dto.endDate) {
-      this.ensureDateRange(dto.startDate ?? current.startDate.toISOString(), dto.endDate ?? current.endDate.toISOString());
-    }
+    this.ensureBookingValues(
+      {
+        startDate: dto.startDate ?? current.startDate,
+        endDate: dto.endDate ?? current.endDate,
+        paxCount: dto.paxCount ?? current.paxCount,
+        totalSellPrice: dto.totalSellPrice ?? current.totalSellPrice,
+      },
+      tourProgram.durationDays,
+    );
     try {
       return await this.prisma.booking.update({
         where: { id },
@@ -149,8 +156,9 @@ export class BookingsService {
   }
 
   private async ensureTourProgram(id: string) {
-    const tourProgram = await this.prisma.tourProgram.findUnique({ where: { id } });
+    const tourProgram = await this.prisma.tourProgram.findUnique({ where: { id }, select: { id: true, durationDays: true } });
     if (!tourProgram) throw new NotFoundException('Không tìm thấy tour mẫu');
+    return tourProgram;
   }
 
   private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
@@ -201,22 +209,38 @@ export class BookingsService {
     }
   }
 
-  private ensureOperationFormLinkStable(
+  private ensureOperationFormEditAllowed(
     current: {
       operationForm?: { id: string } | null;
+      code: string;
       tourProgramId: string;
       customerId: string | null;
       orderId: string | null;
       tourId: string | null;
+      customerName: string;
+      customerPhone: string | null;
+      customerEmail: string | null;
+      paxCount: number;
+      startDate: Date;
+      endDate: Date;
+      totalSellPrice: unknown;
     },
     dto: UpdateBookingDto,
   ) {
     if (!current.operationForm) return;
     const blocked: string[] = [];
+    if (dto.code !== undefined && dto.code.trim().toUpperCase() !== current.code) blocked.push('mã booking');
     if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) blocked.push('tour mẫu');
     if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) blocked.push('khách hàng liên kết');
     if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) blocked.push('đơn hàng liên kết');
     if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) blocked.push('tour vận hành liên kết');
+    if (dto.customerName !== undefined && dto.customerName.trim() !== current.customerName) blocked.push('tên khách/đoàn');
+    if (dto.customerPhone !== undefined && this.optionalText(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
+    if (dto.customerEmail !== undefined && this.optionalText(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
+    if (dto.paxCount !== undefined && dto.paxCount !== current.paxCount) blocked.push('số khách');
+    if (dto.startDate !== undefined && this.dateKey(dto.startDate) !== this.dateKey(current.startDate)) blocked.push('ngày khởi hành');
+    if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) blocked.push('ngày kết thúc');
+    if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'totalSellPrice') !== this.numberValue(current.totalSellPrice, 'totalSellPrice')) blocked.push('giá bán tổng');
     if (blocked.length) throw new ConflictException(`Booking đã có phiếu điều hành, không thể đổi ${blocked.join(', ')}`);
   }
 
@@ -248,15 +272,41 @@ export class BookingsService {
       .join(', ');
   }
 
-  private ensureDateRange(startDate: string, endDate: string) {
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
-    if (Number.isNaN(start) || Number.isNaN(end)) {
-      throw new BadRequestException('Ngày khởi hành hoặc ngày kết thúc không hợp lệ');
-    }
+  private ensureBookingValues(
+    input: { startDate: string | Date; endDate: string | Date; paxCount?: number; totalSellPrice?: unknown },
+    durationDays: number,
+  ) {
+    const start = this.dateOnlyTime(input.startDate, 'startDate');
+    const end = this.dateOnlyTime(input.endDate, 'endDate');
     if (start > end) {
       throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
     }
+    const actualDuration = Math.round((end - start) / MS_PER_DAY) + 1;
+    if (durationDays > 0 && actualDuration !== durationDays) {
+      throw new BadRequestException(`Khoảng ngày booking phải đúng ${durationDays} ngày theo tour mẫu, hiện đang là ${actualDuration} ngày`);
+    }
+    if (input.paxCount !== undefined && (!Number.isInteger(input.paxCount) || input.paxCount < 1)) {
+      throw new BadRequestException('Số khách phải là số nguyên lớn hơn 0');
+    }
+    if (input.totalSellPrice !== undefined && this.numberValue(input.totalSellPrice, 'totalSellPrice') < 0) {
+      throw new BadRequestException('Giá bán tổng không được âm');
+    }
+  }
+
+  private dateOnlyTime(value: string | Date, field: string) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  }
+
+  private dateKey(value: string | Date) {
+    return this.dateOnlyTime(value, 'date');
+  }
+
+  private numberValue(value: unknown, field: string) {
+    const number = Number(value ?? 0);
+    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    return number;
   }
 
   private toCreateData(dto: CreateBookingDto): Prisma.BookingUncheckedCreateInput {
