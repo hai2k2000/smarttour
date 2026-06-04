@@ -36,6 +36,16 @@ import {
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ReactNode, Suspense, useEffect, useMemo, useState } from 'react';
+import { orderNavigation } from './orders/order-config';
+
+const orderIcons = {
+  'fit-tours': Route,
+  'git-combos': BriefcaseBusiness,
+  landtours: Landmark,
+  'hotel-bookings': BedDouble,
+  'flight-orders': Plane,
+  'single-services': ReceiptText,
+};
 
 const groups = [
   {
@@ -71,12 +81,7 @@ const groups = [
   {
     title: 'Đơn hàng',
     items: [
-      { label: 'Đơn Tour FIT', href: '/orders/fit-tours', icon: Route },
-      { label: 'Đơn GIT/Combo', href: '/orders/git-combos', icon: BriefcaseBusiness },
-      { label: 'Đơn LandTour', href: '/orders/landtours', icon: Landmark },
-    { label: 'Booking phòng khách sạn', href: '/orders/hotel-bookings', icon: BedDouble },
-    { label: 'Booking vé máy bay', href: '/orders/flight-orders', icon: Plane },
-      { label: 'Dịch vụ lẻ', href: '/orders/single-services', icon: ReceiptText },
+      ...orderNavigation.map((item) => ({ label: item.label, href: item.href, icon: orderIcons[item.type] })),
     ],
   },
   {
@@ -128,14 +133,7 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
     { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
     { label: 'Công nợ', href: '/finance?tab=debt' },
   ],
-  'Đơn hàng': [
-    { label: 'FIT', href: '/orders/fit-tours' },
-    { label: 'GIT/Combo', href: '/orders/git-combos' },
-    { label: 'LandTour', href: '/orders/landtours' },
-    { label: 'Phòng khách sạn', href: '/orders/hotel-bookings' },
-    { label: 'Vé máy bay', href: '/orders/flight-orders' },
-    { label: 'Dịch vụ lẻ', href: '/orders/single-services' },
-  ],
+  'Đơn hàng': orderNavigation.map((item) => ({ label: item.workflowLabel, href: item.href })),
   'Sản phẩm & vận hành': [
     { label: 'Tour mẫu', href: '/tour-programs' },
     { label: 'FIT', href: '/fit-tours' },

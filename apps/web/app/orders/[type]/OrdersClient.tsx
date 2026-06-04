@@ -7,19 +7,9 @@ import { useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { viStatus } from '../../i18n';
+import type { OrderConfig, OrderRouteType } from '../order-config';
 
-export type OrderRouteType = 'fit-tours' | 'git-combos' | 'landtours' | 'hotel-bookings' | 'single-services' | 'flight-orders';
-type OrderConfig = { title: string; shortTitle: string; steps: string[]; nameLabel: string; codeLabel: string };
 type RowColumn = [string, string, ('text' | 'number' | 'date' | 'datetime-local' | 'textarea' | 'status' | 'passengerType' | 'language')?];
-
-export const orderConfigs: Record<OrderRouteType, OrderConfig> = {
-  'fit-tours': { title: 'Tạo tour khách lẻ FIT', shortTitle: 'Đơn FIT', nameLabel: 'Tên tour', codeLabel: 'Mã tour', steps: ['Tính giá', 'Thông tin tour', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ'] },
-  'git-combos': { title: 'Tạo tour GIT/Combo', shortTitle: 'GIT/Combo', nameLabel: 'Lịch trình', codeLabel: 'Mã tour', steps: ['Tính giá', 'Thông tin tour', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Danh sách thành viên', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ'] },
-  landtours: { title: 'Tạo LandTour/Combo', shortTitle: 'LandTour', nameLabel: 'Lịch trình', codeLabel: 'Mã tour', steps: ['Tính giá', 'Thông tin tour', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ'] },
-  'hotel-bookings': { title: 'Booking phòng khách sạn', shortTitle: 'Booking phòng', nameLabel: 'Tên tour / dịch vụ', codeLabel: 'Mã booking', steps: ['Thông tin booking', 'Dịch vụ và giá', 'Danh sách thành viên', 'Điều khoản', 'Đánh giá dịch vụ'] },
-  'single-services': { title: 'Đơn dịch vụ lẻ', shortTitle: 'Dịch vụ lẻ', nameLabel: 'Tên dịch vụ', codeLabel: 'Mã đơn', steps: ['Thông tin dịch vụ', 'Dịch vụ và giá', 'Danh sách thành viên', 'Điều khoản', 'Đánh giá'] },
-  'flight-orders': { title: 'Booking vé máy bay', shortTitle: 'Booking vé bay', nameLabel: 'Tên booking / PNR', codeLabel: 'Mã vé', steps: ['Thông tin vé', 'Chặng bay', 'Hành khách', 'Điều khoản', 'Đánh giá'] },
-};
 
 type OrderSummary = {
   id: string;
