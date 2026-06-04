@@ -108,8 +108,11 @@ async function main() {
     customerType: '   ',
     startDate: '2026-10-10',
     endDate: '2026-10-11',
+    paidAmount: 500000,
+    paidCost: 200000,
     salesItems: [{ description: 'Revenue', quantity: 2, serviceCount: 1, unitPrice: 1000000, vat: 10 }],
     operationItems: [{ serviceType: 'OTHER', quantity: 2, netPrice: 350000, vat: 0, status: 'WAITING' }],
+    guides: [{ guideName: 'Guide A', phone: '0900000099' }],
     members: [{ fullName: 'Nguyen Van A', phone: '0900000001' }],
     itineraries: [{ dayNo: 1, title: 'Start', content: 'Start trip' }],
     handoverItems: [{ itemName: 'Voucher', quantity: 1 }],
@@ -118,13 +121,21 @@ async function main() {
   });
   assert(created.customerName === customer.fullName && created.customerPhone === customer.phone, 'create should apply customer snapshot');
   assert(created.customerEmail === customer.email, 'create should fill blank customer snapshot fields');
-  assert(created.members.length === 1 && created.salesItems.length === 1 && created.operationItems.length === 1, 'create should sync children');
+  assert(created.guides.length === 1 && created.members.length === 1 && created.salesItems.length === 1 && created.operationItems.length === 1, 'create should sync children');
   assert(money(created.totalRevenue) === 2200000 && money(created.totalCost) === 700000 && money(created.profit) === 1500000, 'create should calculate totals');
+  assert(money(created.paidAmount) === 500000 && money(created.remainingRevenue) === 1700000, 'create should calculate paid and remaining revenue');
+  assert(money(created.paidCost) === 200000 && money(created.remainingCost) === 500000, 'create should calculate paid and remaining cost');
   const createLog = await prisma.orderLog.findFirst({ where: { orderId: created.id, action: 'CREATE' } });
   assert(createLog?.newValue?.systemCode === run + '-ORD' && createLog.newValue.customerId === customer.id, 'create should write full create log payload');
   const listRows = await service.list('single-services', run);
   assert(listRows.some((row) => row.id === created.id), 'list should include created order');
   assert(!Object.prototype.hasOwnProperty.call(listRows[0], 'customer'), 'list select should not include deep customer object');
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: { fullName: 'Customer Changed Later', phone: '0988888888', email: 'changed-later@smarttour.local' },
+  });
+  const afterCustomerChange = await service.detail('single-services', created.id);
+  assert(afterCustomerChange.customerName === created.customerName && afterCustomerChange.customerPhone === created.customerPhone && afterCustomerChange.customerEmail === created.customerEmail, 'customer changes should not mutate existing order snapshot');
 
   const typeFixtures = [
     ['fit-tours', 'FIT'],
@@ -164,6 +175,7 @@ async function main() {
   assert(createdSettled.status === 'SETTLED' && createdSettled.settledAt, 'create SETTLED should set settledAt');
 
   const partial = await service.update('single-services', created.id, { note: 'Partial update should not touch children' });
+  assert(partial.customerName === created.customerName && partial.customerPhone === created.customerPhone, 'partial update should preserve customer snapshot');
   assert(partial.salesItems[0].id === created.salesItems[0].id, 'partial update should preserve sales item id');
   assert(partial.operationItems[0].id === created.operationItems[0].id, 'partial update should preserve operation item id');
   assert(partial.members[0].id === created.members[0].id, 'partial update should preserve member id');
@@ -179,7 +191,9 @@ async function main() {
     members: [{ id: partial.members[0].id, fullName: 'Nguyen Van B' }, { fullName: 'Nguyen Van C' }],
   });
   assert(updated.name === 'Order Service Flow Updated', 'update should change order fields');
-  assert(updated.members.length === 2 && money(updated.totalRevenue) === 3000000 && money(updated.totalCost) === 1200000, 'update should replace children and totals');
+  assert(updated.members.length === 2 && money(updated.totalRevenue) === 3000000 && money(updated.totalCost) === 1200000 && money(updated.profit) === 1800000, 'update should replace children and totals');
+  assert(money(updated.paidAmount) === 500000 && money(updated.remainingRevenue) === 2500000, 'update should preserve paid amount and recalculate remaining revenue');
+  assert(money(updated.paidCost) === 200000 && money(updated.remainingCost) === 1000000, 'update should preserve paid cost and recalculate remaining cost');
   assert(updated.salesItems[0].id === partial.salesItems[0].id, 'update should preserve existing sales item id');
   assert(updated.operationItems[0].id === partial.operationItems[0].id, 'update should preserve existing operation item id');
   assert(updated.members.some((item) => item.id === partial.members[0].id && item.fullName === 'Nguyen Van B'), 'update should preserve existing member id');
@@ -187,7 +201,10 @@ async function main() {
   const copied = await service.copy('single-services', created.id);
   assert(copied.id !== created.id && copied.systemCode.startsWith(created.systemCode + '-COPY-'), 'copy should create a new order');
   assert(copied.status === updated.status && !copied.settledAt, 'copy should not carry settlement lock');
-  assert(copied.members.length === updated.members.length, 'copy should include child rows');
+  assert(copied.customerName === created.customerName && copied.customerPhone === created.customerPhone && copied.customerEmail === created.customerEmail, 'copy should preserve the source order customer snapshot');
+  assert(copied.guides.length === updated.guides.length && copied.members.length === updated.members.length && copied.itineraries.length === updated.itineraries.length && copied.handoverItems.length === updated.handoverItems.length && copied.surveyQuestions.length === updated.surveyQuestions.length && copied.terms.length === updated.terms.length, 'copy should include all child row groups');
+  assert(money(copied.totalRevenue) === money(updated.totalRevenue) && money(copied.totalCost) === money(updated.totalCost) && money(copied.profit) === money(updated.profit), 'copy should recalculate clean totals from copied child rows');
+  assert(money(copied.paidAmount) === 0 && money(copied.paidCost) === 0 && money(copied.remainingRevenue) === money(copied.totalRevenue) && money(copied.remainingCost) === money(copied.totalCost), 'copy should reset paid values and remaining amounts');
   assert(copied.salesItems[0].id !== updated.salesItems[0].id && copied.operationItems[0].id !== updated.operationItems[0].id, 'copy should create independent child rows');
   await rejects(() => service.update('single-services', created.id, { members: [{ id: copied.members[0].id, fullName: 'Cross Order Member' }] }), 'foreign child row id should be rejected');
 
@@ -215,8 +232,12 @@ async function main() {
   await service.updateStatus('single-services', cancelledForSettle.id, 'CANCELLED');
   await rejects(() => service.settle('single-services', cancelledForSettle.id), 'cancelled order should not be settled');
 
+  const settleStartedAt = Date.now();
   const settled = await service.settle('single-services', created.id);
   assert(settled.status === 'SETTLED' && settled.settledAt, 'settle should mark order settled');
+  assert(new Date(settled.settledAt).getTime() >= settleStartedAt, 'settle should set settledAt at settlement time');
+  const settledAgain = await service.settle('single-services', created.id);
+  assert(new Date(settledAgain.settledAt).getTime() === new Date(settled.settledAt).getTime(), 'settle should be idempotent and preserve settledAt');
   await rejects(() => service.update('single-services', created.id, { name: 'Blocked' }), 'settled order update should be blocked');
   await rejects(() => service.remove('single-services', created.id), 'settled order delete should be blocked');
   await rejects(() => service.updateStatus('single-services', created.id, 'CANCELLED'), 'settled order status change should be blocked');
@@ -239,10 +260,23 @@ async function main() {
   });
   let lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel create should lock allotment');
+  let activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'LOCKED' } });
+  assert(activeHotelAllocation?.quantity === 2 && activeHotelAllocation.orderOperationItemId === hotel.operationItems[0].id, 'hotel create should link the lock to the correct operation item');
+
+  const hotelCopy = await service.copy('hotel-bookings', hotel.id);
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 4 && lockedAllotment.bookedQty === 0, 'hotel copy should create an independent allotment lock');
+  activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotelCopy.id, createdBy: 'ORDER_AUTO', status: 'LOCKED' } });
+  assert(activeHotelAllocation?.quantity === 2 && activeHotelAllocation.orderOperationItemId === hotelCopy.operationItems[0].id && hotelCopy.operationItems[0].id !== hotel.operationItems[0].id, 'hotel copy lock should link to the copied operation item');
+  await service.remove('hotel-bookings', hotelCopy.id);
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'removing hotel copy should release only its allotment lock');
 
   await service.updateStatus('hotel-bookings', hotel.id, 'COMPLETED');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'hotel completed should confirm allotment');
+  activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'CONFIRMED' } });
+  assert(activeHotelAllocation?.quantity === 2, 'hotel completed should mark its allocation confirmed');
 
   await service.updateStatus('hotel-bookings', hotel.id, 'UPCOMING');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
@@ -255,6 +289,8 @@ async function main() {
   await service.updateStatus('hotel-bookings', hotel.id, 'CANCELLED');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel cancelled should release allotment');
+  const releasedHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'RELEASED' }, orderBy: { releasedAt: 'desc' } });
+  assert(releasedHotelAllocation?.releasedAt, 'hotel cancelled should mark its allocation released');
 
   await service.updateStatus('hotel-bookings', hotel.id, 'UPCOMING');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
@@ -301,6 +337,8 @@ async function main() {
   assert(hotelUpdateChanged.operationItems[0].id === hotelUpdate.operationItems[0].id, 'hotel update should preserve operation item id');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'completed hotel update should keep allotment booked, not locked');
+  activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotelUpdate.id, createdBy: 'ORDER_AUTO', status: 'CONFIRMED' }, orderBy: { createdAt: 'desc' } });
+  assert(activeHotelAllocation?.quantity === 2 && activeHotelAllocation.orderOperationItemId === hotelUpdateChanged.operationItems[0].id, 'hotel update should link replacement allocation to the preserved operation item');
   await service.updateStatus('hotel-bookings', hotelUpdate.id, 'UPCOMING');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel update downgrade should move booked rooms back to locked');

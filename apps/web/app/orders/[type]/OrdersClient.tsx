@@ -175,8 +175,8 @@ function browserApiBase() {
 }
 function money(value: unknown) { return safeNumber(value).toLocaleString('vi-VN'); }
 function safeNumber(value: unknown) { const parsed = Number(value ?? 0); return Number.isFinite(parsed) ? parsed : 0; }
-function lineRevenue(i: Partial<OrderForm['salesItems'][number]>) { return safeNumber(i.quantity) * safeNumber(i.serviceCount || 1) * safeNumber(i.unitPrice) * (1 + safeNumber(i.vat) / 100); }
-function lineCost(i: Partial<OrderForm['operationItems'][number]>) { return safeNumber(i.quantity) * safeNumber(i.netPrice) * (1 + safeNumber(i.vat) / 100); }
+function lineRevenue(i: Partial<OrderForm['salesItems'][number]>) { return safeNumber(i.quantity ?? 1) * safeNumber(i.serviceCount ?? 1) * safeNumber(i.unitPrice) * (1 + safeNumber(i.vat) / 100); }
+function lineCost(i: Partial<OrderForm['operationItems'][number]>) { return safeNumber(i.quantity ?? 1) * safeNumber(i.netPrice) * (1 + safeNumber(i.vat) / 100); }
 function dateOnly(value?: string | null) { return value ? String(value).slice(0, 10) : ''; }
 function dateTimeLocal(value?: string | null) { return value ? String(value).slice(0, 16) : ''; }
 function text(value: unknown) { return typeof value === 'string' ? value.trim() : ''; }
@@ -200,12 +200,12 @@ function mapOrderToForm(order: any): OrderForm {
     createdDate: dateOnly(order.createdDate),
     receiveDeadline: dateTimeLocal(order.receiveDeadline),
     closeDeadline: dateTimeLocal(order.closeDeadline),
-    salesItems: Array.isArray(order.salesItems) && order.salesItems.length ? order.salesItems.map((i: any) => ({ ...emptySales, ...i, quantity: safeNumber(i.quantity), serviceCount: safeNumber(i.serviceCount || 1), unitPrice: safeNumber(i.unitPrice), vat: safeNumber(i.vat) })) : [{ ...emptySales }],
-    operationItems: Array.isArray(order.operationItems) && order.operationItems.length ? order.operationItems.map((i: any) => ({ ...emptyOperation, ...i, serviceDate: dateOnly(i.serviceDate), quantity: safeNumber(i.quantity), netPrice: safeNumber(i.netPrice), vat: safeNumber(i.vat) })) : [{ ...emptyOperation }],
+    salesItems: Array.isArray(order.salesItems) && order.salesItems.length ? order.salesItems.map((i: any) => ({ ...emptySales, ...i, quantity: safeNumber(i.quantity ?? 1), serviceCount: safeNumber(i.serviceCount ?? 1), unitPrice: safeNumber(i.unitPrice), vat: safeNumber(i.vat) })) : [{ ...emptySales }],
+    operationItems: Array.isArray(order.operationItems) && order.operationItems.length ? order.operationItems.map((i: any) => ({ ...emptyOperation, ...i, serviceDate: dateOnly(i.serviceDate), quantity: safeNumber(i.quantity ?? 1), netPrice: safeNumber(i.netPrice), vat: safeNumber(i.vat) })) : [{ ...emptyOperation }],
     members: Array.isArray(order.members) && order.members.length ? order.members.map((i: any) => ({ ...emptyMember, ...i, birthday: dateOnly(i.birthday), issuedDate: dateOnly(i.issuedDate) })) : [{ ...emptyMember }],
-    itineraries: Array.isArray(order.itineraries) && order.itineraries.length ? order.itineraries.map((i: any) => ({ ...defaults.itineraries[0], ...i, dayNo: safeNumber(i.dayNo || 1) })) : defaults.itineraries,
+    itineraries: Array.isArray(order.itineraries) && order.itineraries.length ? order.itineraries.map((i: any) => ({ ...defaults.itineraries[0], ...i, dayNo: safeNumber(i.dayNo ?? 1) })) : defaults.itineraries,
     guides: Array.isArray(order.guides) && order.guides.length ? order.guides.map((i: any) => ({ ...defaults.guides[0], ...i })) : defaults.guides,
-    handoverItems: Array.isArray(order.handoverItems) && order.handoverItems.length ? order.handoverItems.map((i: any) => ({ id: '', itemName: '', note: '', ...i, quantity: safeNumber(i.quantity || 1) })) : defaults.handoverItems,
+    handoverItems: Array.isArray(order.handoverItems) && order.handoverItems.length ? order.handoverItems.map((i: any) => ({ id: '', itemName: '', note: '', ...i, quantity: safeNumber(i.quantity ?? 1) })) : defaults.handoverItems,
     surveyQuestions: Array.isArray(order.surveyQuestions) && order.surveyQuestions.length ? order.surveyQuestions.map((i: any) => ({ id: '', question: '', note: '', ...i })) : defaults.surveyQuestions,
     terms: Array.isArray(order.terms) && order.terms.length ? order.terms.map((i: any) => ({ id: '', language: 'VN', terms: '', notes: '', ...i })) : defaults.terms,
     paidAmount: safeNumber(order.paidAmount),
@@ -215,7 +215,7 @@ function mapOrderToForm(order: any): OrderForm {
     adultQty: safeNumber(order.adultQty),
     childQty: safeNumber(order.childQty),
     infantQty: safeNumber(order.infantQty),
-    quantity: safeNumber(order.quantity || 1),
+    quantity: safeNumber(order.quantity ?? 1),
     seatTotal: safeNumber(order.seatTotal),
     seatHeld: safeNumber(order.seatHeld),
     seatSold: safeNumber(order.seatSold),

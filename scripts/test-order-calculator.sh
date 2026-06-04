@@ -20,6 +20,9 @@ function assertEqual(actual, expected, label) {
 
 assertEqual(salesAmount({ quantity: 2, serviceCount: 3, unitPrice: 100000, vat: 10 }), 660000, 'sales amount with VAT');
 assertEqual(operationAmount({ quantity: 4, netPrice: 50000, vat: 5 }), 210000, 'operation amount with VAT');
+assertEqual(salesAmount({ quantity: 2, serviceCount: 0, unitPrice: 100000, vat: 0 }), 0, 'zero service count must remain zero');
+assertEqual(salesAmount({ unitPrice: 100000, vat: 0 }), 100000, 'missing sales counts should default to one');
+assertEqual(operationAmount({ netPrice: 50000, vat: 0 }), 50000, 'missing operation quantity should default to one');
 
 const partial = calculateOrderTotals({
   salesItems: [{ quantity: 2, serviceCount: 1, unitPrice: 100000, vat: 10 }],
