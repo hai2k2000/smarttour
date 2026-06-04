@@ -1,13 +1,17 @@
-import { Body, Controller, Get, Headers, Ip, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Ip, Param, Post, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
+import { AuthTokenHeaders, tokenFromHeaders } from './auth-token';
 import { Public, RequirePermissions } from './permissions.decorator';
+
+type AuthRequest = {
+  headers: AuthTokenHeaders;
+  user?: { id: string };
+};
 
 @ApiTags('auth')
 @ApiBearerAuth()
 @Controller('auth')
-@UseGuards(AuthGuard)
 export class AuthController {
   constructor(private readonly service: AuthService) {}
 
@@ -24,18 +28,18 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Req() request: { headers: { authorization?: string; cookie?: string | string[] }; user?: { id: string } }) {
-    return this.service.logout(this.token(request.headers), request.user?.id);
+  logout(@Req() request: AuthRequest) {
+    return this.service.logout(tokenFromHeaders(request.headers), request.user?.id);
   }
 
   @Get('me')
-  me(@Req() request: { headers: { authorization?: string; cookie?: string | string[] } }) {
-    return this.service.me(this.token(request.headers));
+  me(@Req() request: AuthRequest) {
+    return this.service.me(tokenFromHeaders(request.headers));
   }
 
   @Post('change-password')
-  changePassword(@Req() request: { headers: { authorization?: string; cookie?: string | string[] }; user?: { id: string } }, @Body() dto: Record<string, unknown>) {
-    return this.service.changePassword(request.user?.id, dto, this.token(request.headers));
+  changePassword(@Req() request: AuthRequest, @Body() dto: Record<string, unknown>) {
+    return this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers));
   }
 
   @Get('users')
@@ -72,21 +76,5 @@ export class AuthController {
   @RequirePermissions('auth.role.manage')
   updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
     return this.service.updateRole(id, dto);
-  }
-
-  private bearer(value?: string) {
-    if (!value) return undefined;
-    const [type, token] = value.split(' ');
-    return type?.toLowerCase() === 'bearer' && token ? token : undefined;
-  }
-
-  private token(headers: { authorization?: string; cookie?: string | string[] }) {
-    return this.bearer(headers.authorization) || this.cookie(headers.cookie);
-  }
-
-  private cookie(value?: string | string[]) {
-    const header = Array.isArray(value) ? value.join(';') : value;
-    const cookie = header?.split(';').map((item) => item.trim()).find((item) => item.startsWith('smarttour.auth.token='));
-    return cookie ? decodeURIComponent(cookie.slice('smarttour.auth.token='.length)) : undefined;
   }
 }

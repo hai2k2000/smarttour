@@ -7,7 +7,7 @@ cd "$REPO_DIR"
 docker compose build api >/dev/null
 
 docker compose run --rm --entrypoint node api <<'NODE'
-const { UnauthorizedException } = require('@nestjs/common');
+const { ForbiddenException, UnauthorizedException } = require('@nestjs/common');
 const { AuthGuard } = require('./apps/api/dist/modules/auth/auth.guard');
 const { PERMISSIONS_KEY, PUBLIC_ROUTE_KEY } = require('./apps/api/dist/modules/auth/permissions.decorator');
 const { assertSecureRuntimeConfig, authEnforceEnabled, smartTourEnvironment } = require('./apps/api/dist/config/runtime-env');
@@ -74,17 +74,28 @@ async function run() {
   assert(rejected, 'production guard should fail closed when enforce=false');
 
   process.env.SMARTTOUR_AUTH_ENFORCE = 'true';
-  rejected = false;
+  let permissionError;
   try {
     await new AuthGuard(reflector({ [PERMISSIONS_KEY]: ['finance.receipt.approve'] }), authService(['finance.receipt.view'])).canActivate(context({ authorization: 'Bearer token' }));
-  } catch {
-    rejected = true;
+  } catch (error) {
+    permissionError = error;
   }
-  assert(rejected, 'missing required permission should reject');
+  assert(permissionError instanceof ForbiddenException, 'authenticated user missing permission should receive forbidden');
 
   const allowedContext = context({ cookie: 'smarttour.auth.token=token' });
   assert(await new AuthGuard(reflector({ [PERMISSIONS_KEY]: ['finance.receipt.approve'] }), authService(['finance.receipt.approve'])).canActivate(allowedContext) === true, 'matching permission should pass');
   assert(allowedContext.request.user, 'guard should attach user to request');
+
+  const encodedCookieContext = context({ cookie: 'other=value; smarttour.auth.token=encoded%2Etoken' });
+  assert(await new AuthGuard(reflector(), authService()).canActivate(encodedCookieContext) === true, 'encoded cookie token should pass');
+
+  rejected = false;
+  try {
+    await new AuthGuard(reflector(), authService()).canActivate(context({ authorization: 'Bearer token extra' }));
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, 'malformed bearer header should reject');
 
   assert(await new AuthGuard(reflector({ [PUBLIC_ROUTE_KEY]: true }), authService()).canActivate(context()) === true, 'public route should bypass auth');
   console.log('TEST_AUTH_GUARD_BEHAVIOR_OK');
