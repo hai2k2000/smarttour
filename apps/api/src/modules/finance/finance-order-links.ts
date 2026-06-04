@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { OrderCostStatus, OrderPaymentStatus, Prisma } from '@prisma/client';
 
 export async function applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {
@@ -83,4 +84,62 @@ export async function resolveInvoiceCustomerScope(
     if (receipt?.customerId) return { customerId: receipt.customerId, branch: receipt.branch, department: receipt.department };
   }
   return { customerId: null, branch: null, department: null };
+}
+
+export async function assertReceiptOrderLinks(
+  tx: Prisma.TransactionClient,
+  receipt: { customerId?: string | null; orders?: { orderId?: string | null }[] },
+) {
+  const orderIds = Array.from(new Set((receipt.orders || []).map((line) => line.orderId).filter((orderId): orderId is string => Boolean(orderId))));
+  if (!orderIds.length) return;
+
+  const orders = await tx.order.findMany({ where: { id: { in: orderIds }, deletedAt: null }, select: { id: true, customerId: true } });
+  if (orders.length !== orderIds.length) throw new BadRequestException('Receipt contains an invalid order link');
+  if (receipt.customerId && orders.some((order) => order.customerId && order.customerId !== receipt.customerId)) {
+    throw new BadRequestException('Receipt customer does not match linked order customer');
+  }
+}
+
+export async function assertPaymentLinks(
+  tx: Prisma.TransactionClient,
+  payment: { supplierId?: string | null; operationVoucherId?: string | null; orderId?: string | null },
+) {
+  if (payment.orderId) {
+    const order = await tx.order.findFirst({ where: { id: payment.orderId, deletedAt: null }, select: { id: true } });
+    if (!order) throw new BadRequestException('Payment contains an invalid order link');
+  }
+  if (!payment.operationVoucherId) return;
+
+  const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null }, select: { supplierId: true, orderId: true } });
+  if (!voucher) throw new BadRequestException('Payment contains an invalid operation voucher link');
+  if (payment.supplierId && voucher.supplierId && payment.supplierId !== voucher.supplierId) {
+    throw new BadRequestException('Payment supplier does not match operation voucher supplier');
+  }
+  if (payment.orderId && voucher.orderId && payment.orderId !== voucher.orderId) {
+    throw new BadRequestException('Payment order does not match operation voucher order');
+  }
+}
+
+export async function assertInvoiceLinks(
+  tx: Prisma.TransactionClient,
+  invoice: { customerId?: string | null; orderId?: string | null; receiptId?: string | null },
+) {
+  let resolvedCustomerId = invoice.customerId || null;
+  if (invoice.orderId) {
+    const order = await tx.order.findFirst({ where: { id: invoice.orderId, deletedAt: null }, select: { customerId: true } });
+    if (!order) throw new BadRequestException('Invoice contains an invalid order link');
+    if (resolvedCustomerId && order.customerId && resolvedCustomerId !== order.customerId) {
+      throw new BadRequestException('Invoice customer does not match linked order customer');
+    }
+    resolvedCustomerId ||= order.customerId;
+  }
+  if (invoice.receiptId) {
+    const receipt = await tx.financeReceipt.findFirst({ where: { id: invoice.receiptId, deletedAt: null }, include: { orders: true } });
+    if (!receipt) throw new BadRequestException('Invoice contains an invalid receipt link');
+    const receiptCustomerId = await resolveReceiptCustomer(tx, receipt);
+    if (resolvedCustomerId && receiptCustomerId && resolvedCustomerId !== receiptCustomerId) {
+      throw new BadRequestException('Invoice customer does not match linked receipt customer');
+    }
+    resolvedCustomerId ||= receiptCustomerId;
+  }
 }

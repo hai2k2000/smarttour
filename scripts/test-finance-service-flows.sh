@@ -85,6 +85,23 @@ async function main() {
       status: 'ACTIVE',
     },
   });
+  const otherCustomer = await prisma.customer.create({
+    data: {
+      code: run + '-OTHER-CUS',
+      fullName: 'Other Finance Customer',
+      phone: '092' + String(Date.now()).slice(-7),
+      branch: 'OTHER-BR',
+      department: 'OTHER-DEP',
+    },
+  });
+  const otherSupplier = await prisma.supplier.create({
+    data: {
+      categoryId: category.id,
+      supplierCode: run + '-OTHER-SUP',
+      name: 'Other Finance Supplier',
+      status: 'ACTIVE',
+    },
+  });
   const voucher = await prisma.operationVoucher.create({
     data: {
       voucherCode: run + '-OV',
@@ -112,6 +129,49 @@ async function main() {
       department: 'FIN-DEP',
     },
   });
+  const otherOrder = await prisma.order.create({
+    data: {
+      type: 'SINGLE_SERVICE',
+      systemCode: run + '-OTHER-ORD',
+      name: 'Other Finance Order',
+      customerId: otherCustomer.id,
+      totalRevenue: 300,
+      remainingRevenue: 300,
+      totalCost: 200,
+      remainingCost: 200,
+      branch: 'OTHER-BR',
+      department: 'OTHER-DEP',
+    },
+  });
+
+  await rejects(() => finance.createReceipt({
+    receiptCode: run + '-BAD-RCPT-LINK',
+    receiptName: 'Bad Receipt Link',
+    receiptType: 'TOUR_PAYMENT',
+    paymentMethod: 'BANK_TRANSFER',
+    customerId: customer.id,
+    totalAmount: 300,
+    receiptAmount: 300,
+    orders: [{ orderId: otherOrder.id, amount: 300 }],
+  }), 'receipt should reject mismatched customer/order links');
+  await rejects(() => finance.createPayment({
+    voucherCode: run + '-BAD-PAY-LINK',
+    voucherName: 'Bad Payment Link',
+    voucherType: 'SUPPLIER_PAYMENT',
+    paymentMethod: 'BANK_TRANSFER',
+    supplierId: otherSupplier.id,
+    operationVoucherId: voucher.id,
+    totalAmount: 100,
+    paymentAmount: 100,
+  }), 'payment should reject mismatched supplier/voucher links');
+  await rejects(() => finance.createInvoice({
+    invoiceCode: run + '-BAD-INV-LINK',
+    customerId: customer.id,
+    orderId: otherOrder.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    items: [{ itemName: 'Bad invoice link', quantity: 1, unitPrice: 100, taxRate: 10 }],
+  }), 'invoice should reject mismatched customer/order links');
 
   const receipt = await finance.createReceipt({
     receiptCode: run + '-RCPT',

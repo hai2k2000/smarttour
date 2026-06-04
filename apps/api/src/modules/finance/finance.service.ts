@@ -7,7 +7,7 @@ import { FilesService } from '../files/files.service';
 import { createPaymentReversalCashflow, createReceiptReversalCashflow, upsertPaymentCashflow, upsertReceiptCashflow } from './finance-cashflow-postings';
 import { createInvoiceReversalCustomerLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
 import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanRejectFinanceEntity } from './finance-final-state';
-import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
+import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 import { FinanceCashflowService } from './finance-cashflow.service';
@@ -260,6 +260,7 @@ export class FinanceService {
     dto = applyWriteDataScope(dto, user);
     return this.prisma.$transaction(async (tx) => {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
+      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders: this.receiptOrders(dto) });
       const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode }), orders: { create: this.receiptOrders(dto) } }, include: { orders: true } });
       await this.audit(tx, 'CREATE', 'FinanceReceipt', receipt.id, dto);
       return receipt;
@@ -274,6 +275,7 @@ export class FinanceService {
     }
     return this.prisma.$transaction(async (tx) => {
       await tx.financeReceiptOrder.deleteMany({ where: { receiptId: id } });
+      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orders: this.receiptOrders(dto) });
       const receipt = await tx.financeReceipt.update({
         where: { id },
         data: { ...this.receiptData({ ...dto, receiptCode: this.text(dto.receiptCode) || current.receiptCode }), orders: { create: this.receiptOrders(dto) } },
@@ -296,6 +298,7 @@ export class FinanceService {
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!current) throw new NotFoundException('Receipt not found');
       assertCanApproveFinanceEntity(current, 'Receipt');
+      await assertReceiptOrderLinks(tx, current);
       const receipt = await tx.financeReceipt.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
@@ -433,6 +436,7 @@ export class FinanceService {
     dto = applyWriteDataScope(dto, user);
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
+      await assertPaymentLinks(tx, this.paymentData({ ...dto, voucherCode }));
       const payment = await tx.financePayment.create({ data: this.paymentData({ ...dto, voucherCode }) });
       await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto);
       return payment;
@@ -446,6 +450,7 @@ export class FinanceService {
       throw new BadRequestException('Approved payment amount cannot be edited');
     }
     return this.prisma.$transaction(async (tx) => {
+      await assertPaymentLinks(tx, this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode }));
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode }) });
       await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto);
       return payment;
@@ -464,6 +469,7 @@ export class FinanceService {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!current) throw new NotFoundException('Payment not found');
       assertCanApproveFinanceEntity(current, 'Payment');
+      await assertPaymentLinks(tx, current);
       const payment = await tx.financePayment.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
@@ -608,6 +614,7 @@ export class FinanceService {
   async createInvoiceCore(dto: AnyRecord, user?: RequestUser) {
     return this.prisma.$transaction(async (tx) => {
       await this.assertInvoiceWriteScope(tx, dto, user);
+      await assertInvoiceLinks(tx, dto);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
       const calculated = this.invoiceData(dto);
       const invoice = await tx.financeInvoice.create({ data: { ...calculated, invoiceCode, items: { create: this.invoiceItems(dto) } }, include: { items: true } });
@@ -621,6 +628,7 @@ export class FinanceService {
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) throw new BadRequestException('Approved invoice amount cannot be edited');
     return this.prisma.$transaction(async (tx) => {
       await this.assertInvoiceWriteScope(tx, { ...current, ...dto }, user);
+      await assertInvoiceLinks(tx, { ...current, ...dto });
       await tx.financeInvoiceItem.deleteMany({ where: { invoiceId: id } });
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { ...this.invoiceData({ ...dto, invoiceCode: this.text(dto.invoiceCode) || current.invoiceCode }), items: { create: this.invoiceItems(dto) } }, include: { items: true } });
       await this.audit(tx, 'UPDATE', 'FinanceInvoice', id, dto);
@@ -640,6 +648,7 @@ export class FinanceService {
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id }, user) });
       if (!current) throw new NotFoundException('Invoice not found');
       assertCanApproveFinanceEntity(current, 'Invoice');
+      await assertInvoiceLinks(tx, current);
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
       const invoiceScope = await resolveInvoiceCustomerScope(tx, invoice);
       await upsertInvoiceCustomerLedger(tx, { ...invoice, branch: invoiceScope.branch, department: invoiceScope.department }, invoiceScope.customerId, actor);
