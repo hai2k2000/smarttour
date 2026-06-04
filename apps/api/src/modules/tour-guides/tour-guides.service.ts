@@ -1,25 +1,34 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma, TourStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
+
+const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
+const GUIDE_SCHEDULE_STATUSES = ['AVAILABLE', 'BUSY', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'] as const;
+type ScheduleLinkContext = {
+  orders: Map<string, { id: string; status: OrderStatus; startDate: Date | null; endDate: Date | null }>;
+  tours: Map<string, { id: string; status: TourStatus; startDate: Date | null; endDate: Date | null }>;
+};
 
 @Injectable()
 export class TourGuidesService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
   list(search?: string, status?: string) {
+    const normalizedStatus = status ? this.normalizeGuideStatus(status) : undefined;
     return this.prisma.guideProfile.findMany({
       where: {
         deletedAt: null,
-        ...(status ? { status } : {}),
+        ...(normalizedStatus ? { status: normalizedStatus } : {}),
         ...(search
           ? {
               OR: [
                 { guideCode: { contains: search, mode: 'insensitive' } },
                 { fullName: { contains: search, mode: 'insensitive' } },
                 { phone: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
                 { guideType: { contains: search, mode: 'insensitive' } },
               ],
             }
@@ -85,32 +94,36 @@ export class TourGuidesService {
   }
 
   async create(dto: CreateTourGuideDto, user?: RequestUser) {
+    this.validateGuidePayload(dto);
     this.validateSchedules(dto.schedules ?? []);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
+        await this.assertUniqueGuide(tx, dto);
+        const scheduleContext = await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
         const guide = await tx.guideProfile.create({ data: this.toGuideData(dto) as Prisma.GuideProfileCreateInput });
-        await this.replaceChildren(tx, guide.id, dto);
+        await this.replaceChildren(tx, guide.id, dto, scheduleContext);
         return tx.guideProfile.findUniqueOrThrow({ where: { id: guide.id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Guide code already exists');
+      this.handleUniqueCodeError(error);
       throw error;
     }
   }
 
   async update(id: string, dto: UpdateTourGuideDto, user?: RequestUser) {
     await this.detail(id);
+    this.validateGuidePayload(dto);
     if (dto.schedules) this.validateSchedules(dto.schedules);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
+        await this.assertUniqueGuide(tx, dto, id);
+        const scheduleContext = await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
         await tx.guideProfile.update({ where: { id }, data: this.toGuideData(dto) as Prisma.GuideProfileUpdateInput });
-        await this.replaceChildren(tx, id, dto);
+        await this.replaceChildren(tx, id, dto, scheduleContext);
         return tx.guideProfile.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Guide code already exists');
+      this.handleUniqueCodeError(error);
       throw error;
     }
   }
@@ -120,22 +133,79 @@ export class TourGuidesService {
     return this.prisma.guideProfile.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
   }
 
-  private async replaceChildren(tx: Prisma.TransactionClient, guideId: string, dto: Partial<CreateTourGuideDto>) {
+  private async replaceChildren(tx: Prisma.TransactionClient, guideId: string, dto: Partial<CreateTourGuideDto>, scheduleContext: ScheduleLinkContext) {
     if (dto.cards) {
+      const rows = dto.cards
+        .filter((item) => this.text(item.cardType))
+        .map((item, index) => ({
+          guideId,
+          cardType: item.cardType.trim(),
+          cardNumber: this.text(item.cardNumber),
+          issueDate: this.date(item.issueDate, 'Ngày cấp thẻ HDV'),
+          expiredDate: this.date(item.expiredDate, 'Ngày hết hạn thẻ HDV'),
+          issuePlace: this.text(item.issuePlace),
+          fileUrl: this.text(item.fileUrl),
+          note: this.text(item.note),
+          sortOrder: index,
+        }));
       await tx.guideCard.deleteMany({ where: { guideId } });
-      await tx.guideCard.createMany({ data: dto.cards.filter((i) => i.cardType).map((i, index) => ({ guideId, cardType: i.cardType.trim(), cardNumber: this.text(i.cardNumber), issueDate: this.date(i.issueDate), expiredDate: this.date(i.expiredDate), issuePlace: this.text(i.issuePlace), fileUrl: this.text(i.fileUrl), note: this.text(i.note), sortOrder: index })) });
+      if (rows.length) await tx.guideCard.createMany({ data: rows });
     }
     if (dto.documents) {
+      const rows = dto.documents
+        .filter((item) => this.text(item.documentType))
+        .map((item, index) => ({
+          guideId,
+          documentType: item.documentType.trim(),
+          documentNo: this.text(item.documentNo),
+          country: this.text(item.country),
+          issueDate: this.date(item.issueDate, 'Ngày cấp giấy tờ HDV'),
+          expiredDate: this.date(item.expiredDate, 'Ngày hết hạn giấy tờ HDV'),
+          issuePlace: this.text(item.issuePlace),
+          fileUrl: this.text(item.fileUrl),
+          note: this.text(item.note),
+          sortOrder: index,
+        }));
       await tx.guideDocument.deleteMany({ where: { guideId } });
-      await tx.guideDocument.createMany({ data: dto.documents.filter((i) => i.documentType).map((i, index) => ({ guideId, documentType: i.documentType.trim(), documentNo: this.text(i.documentNo), country: this.text(i.country), issueDate: this.date(i.issueDate), expiredDate: this.date(i.expiredDate), issuePlace: this.text(i.issuePlace), fileUrl: this.text(i.fileUrl), note: this.text(i.note), sortOrder: index })) });
+      if (rows.length) await tx.guideDocument.createMany({ data: rows });
     }
     if (dto.costServices) {
+      const rows = dto.costServices
+        .filter((item) => this.text(item.serviceName))
+        .map((item, index) => ({
+          guideId,
+          serviceType: this.text(item.serviceType),
+          serviceName: item.serviceName.trim(),
+          unit: this.text(item.unit),
+          currency: this.text(item.currency) ?? 'VND',
+          netPrice: item.netPrice ?? 0,
+          sellingPrice: item.sellingPrice ?? 0,
+          note: this.text(item.note),
+          sortOrder: index,
+        }));
       await tx.guideCostService.deleteMany({ where: { guideId } });
-      await tx.guideCostService.createMany({ data: dto.costServices.filter((i) => i.serviceName).map((i, index) => ({ guideId, serviceType: this.text(i.serviceType), serviceName: i.serviceName.trim(), unit: this.text(i.unit), currency: i.currency || 'VND', netPrice: i.netPrice ?? 0, sellingPrice: i.sellingPrice ?? 0, note: this.text(i.note), sortOrder: index })) });
+      if (rows.length) await tx.guideCostService.createMany({ data: rows });
     }
     if (dto.schedules) {
+      const rows = dto.schedules
+        .filter((item) => item.startDate && item.endDate)
+        .map((item, index) => {
+          const orderId = this.text(item.orderId);
+          const tourId = this.text(item.tourId);
+          return {
+            guideId,
+            tourId,
+            orderId,
+            title: this.text(item.title),
+            startDate: this.date(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
+            endDate: this.date(item.endDate, 'Ngày kết thúc lịch điều hành')!,
+            status: this.scheduleStatusForLinks(item.status, orderId, tourId, scheduleContext),
+            note: this.text(item.note),
+            sortOrder: index,
+          };
+        });
       await tx.guideSchedule.deleteMany({ where: { guideId } });
-      await tx.guideSchedule.createMany({ data: dto.schedules.filter((i) => i.startDate && i.endDate).map((i, index) => ({ guideId, tourId: this.text(i.tourId), orderId: this.text(i.orderId), title: this.text(i.title), startDate: new Date(i.startDate), endDate: new Date(i.endDate), status: i.status || 'BUSY', note: this.text(i.note), sortOrder: index })) });
+      if (rows.length) await tx.guideSchedule.createMany({ data: rows });
     }
   }
 
@@ -144,7 +214,7 @@ export class TourGuidesService {
       ...(dto.guideCode !== undefined ? { guideCode: dto.guideCode.trim() } : {}),
       ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.text(dto.taxCode) } : {}),
-      ...(dto.birthday !== undefined ? { birthday: this.date(dto.birthday) } : {}),
+      ...(dto.birthday !== undefined ? { birthday: this.date(dto.birthday, 'Ngày sinh HDV') } : {}),
       ...(dto.gender !== undefined ? { gender: this.text(dto.gender) } : {}),
       ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
       ...(dto.email !== undefined ? { email: this.text(dto.email) } : {}),
@@ -162,33 +232,61 @@ export class TourGuidesService {
       ...(dto.frequency !== undefined ? { frequency: this.text(dto.frequency) } : {}),
       ...(dto.avatarUrl !== undefined ? { avatarUrl: this.text(dto.avatarUrl) } : {}),
       ...(dto.comment !== undefined ? { comment: this.text(dto.comment) } : {}),
-      ...(dto.status !== undefined ? { status: dto.status || 'ACTIVE' } : {}),
+      ...(dto.status !== undefined ? { status: this.normalizeGuideStatus(dto.status || 'ACTIVE') } : {}),
       ...(dto.createdBy !== undefined ? { createdBy: this.text(dto.createdBy) } : {}),
     };
   }
 
-  private validateSchedules(schedules: Array<{ startDate?: string; endDate?: string }>) {
-    const normalized = schedules.filter((item) => item.startDate && item.endDate).map((item) => ({ start: new Date(item.startDate!), end: new Date(item.endDate!) }));
-    for (const item of normalized) if (item.end < item.start) throw new BadRequestException('Schedule end date must be after start date');
+  private validateGuidePayload(dto: Partial<CreateTourGuideDto>) {
+    if (dto.guideCode !== undefined && !this.text(dto.guideCode)) throw new BadRequestException('Mã HDV là bắt buộc');
+    if (dto.fullName !== undefined && !this.text(dto.fullName)) throw new BadRequestException('Họ tên HDV là bắt buộc');
+    if (dto.phone !== undefined && !this.text(dto.phone)) throw new BadRequestException('Số điện thoại HDV là bắt buộc');
+    if (dto.status !== undefined) this.normalizeGuideStatus(dto.status || 'ACTIVE');
+  }
+
+  private validateSchedules(schedules: Array<{ startDate?: string; endDate?: string; status?: string; title?: string; tourId?: string; orderId?: string; note?: string }>) {
+    const normalized = schedules
+      .filter((item) => [item.startDate, item.endDate, item.title, item.tourId, item.orderId, item.note].some((value) => this.text(value)) || Boolean(item.status))
+      .map((item) => {
+        if (!item.startDate || !item.endDate) throw new BadRequestException('Lịch điều hành phải có ngày bắt đầu và ngày kết thúc');
+        return {
+          start: this.date(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
+          end: this.date(item.endDate, 'Ngày kết thúc lịch điều hành')!,
+          status: this.normalizeScheduleStatus(item.status ?? 'BUSY'),
+        };
+      });
+    for (const item of normalized) if (item.end <= item.start) throw new BadRequestException('Ngày kết thúc lịch điều hành phải sau ngày bắt đầu');
     for (let i = 0; i < normalized.length; i += 1) {
       for (let j = i + 1; j < normalized.length; j += 1) {
-        if (normalized[i].start <= normalized[j].end && normalized[j].start <= normalized[i].end) throw new BadRequestException('Guide schedule conflict detected');
+        if (normalized[i].status === 'CANCELLED' || normalized[j].status === 'CANCELLED') continue;
+        if (normalized[i].start < normalized[j].end && normalized[j].start < normalized[i].end) throw new BadRequestException('Lịch điều hành HDV bị trùng thời gian');
       }
     }
   }
 
-  private async validateScheduleLinks(tx: Prisma.TransactionClient, schedules: Array<{ tourId?: string; orderId?: string }>, user?: RequestUser) {
+  private async validateScheduleLinks(tx: Prisma.TransactionClient, schedules: Array<{ tourId?: string; orderId?: string; startDate?: string; endDate?: string }>, user?: RequestUser): Promise<ScheduleLinkContext> {
     const tourIds = [...new Set(schedules.map((item) => this.text(item.tourId)).filter((id): id is string => Boolean(id)))];
     const orderIds = [...new Set(schedules.map((item) => this.text(item.orderId)).filter((id): id is string => Boolean(id)))];
     if (tourIds.length || orderIds.length) this.assertScopedScheduleWrite(user);
+    const context: ScheduleLinkContext = { orders: new Map(), tours: new Map() };
     if (tourIds.length) {
-      const count = await tx.tour.count({ where: branchDepartmentScopeWhere({ id: { in: tourIds } }, user) });
-      if (count !== tourIds.length) throw new NotFoundException('Tour not found in guide schedule');
+      const tours = await tx.tour.findMany({
+        where: branchDepartmentScopeWhere({ id: { in: tourIds } }, user),
+        select: { id: true, status: true, startDate: true, endDate: true },
+      });
+      if (tours.length !== tourIds.length) throw new NotFoundException('Không tìm thấy tour trong lịch điều hành HDV');
+      tours.forEach((tour) => context.tours.set(tour.id, tour));
     }
     if (orderIds.length) {
-      const count = await tx.order.count({ where: branchDepartmentScopeWhere({ id: { in: orderIds } }, user) });
-      if (count !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng in guide schedule');
+      const orders = await tx.order.findMany({
+        where: branchDepartmentScopeWhere({ id: { in: orderIds }, deletedAt: null }, user),
+        select: { id: true, status: true, startDate: true, endDate: true },
+      });
+      if (orders.length !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng trong lịch điều hành HDV');
+      orders.forEach((order) => context.orders.set(order.id, order));
     }
+    this.validateScheduleRangesAgainstLinks(schedules, context);
+    return context;
   }
 
   private assertScopedScheduleWrite(user?: RequestUser) {
@@ -200,12 +298,75 @@ export class TourGuidesService {
     return { cards: { orderBy: { sortOrder: 'asc' } }, documents: { orderBy: { sortOrder: 'asc' } }, costServices: { orderBy: { sortOrder: 'asc' } }, files: true, schedules: { include: { tour: true, order: true }, orderBy: { startDate: 'asc' } } } satisfies Prisma.GuideProfileInclude;
   }
 
+  private async assertUniqueGuide(tx: Prisma.TransactionClient, dto: Partial<CreateTourGuideDto>, excludeId?: string) {
+    const guideCode = this.text(dto.guideCode);
+    const email = this.text(dto.email)?.toLowerCase();
+    const phone = this.text(dto.phone);
+    const OR: Prisma.GuideProfileWhereInput[] = [];
+    if (guideCode) OR.push({ guideCode: { equals: guideCode, mode: 'insensitive' } });
+    if (email) OR.push({ email: { equals: email, mode: 'insensitive' } });
+    if (phone) OR.push({ phone });
+    if (!OR.length) return;
+    const conflicts = await tx.guideProfile.findMany({
+      where: { deletedAt: null, ...(excludeId ? { id: { not: excludeId } } : {}), OR },
+      select: { guideCode: true, email: true, phone: true },
+      take: 3,
+    });
+    if (guideCode && conflicts.some((item) => item.guideCode.toLowerCase() === guideCode.toLowerCase())) throw new ConflictException('Mã HDV đã tồn tại');
+    if (email && conflicts.some((item) => item.email?.toLowerCase() === email)) throw new ConflictException('Email HDV đã tồn tại');
+    if (phone && conflicts.some((item) => item.phone === phone)) throw new ConflictException('Số điện thoại HDV đã tồn tại');
+  }
+
+  private validateScheduleRangesAgainstLinks(schedules: Array<{ tourId?: string; orderId?: string; startDate?: string; endDate?: string }>, context: ScheduleLinkContext) {
+    for (const schedule of schedules) {
+      if (!schedule.startDate || !schedule.endDate) continue;
+      const startDate = this.date(schedule.startDate, 'Ngày bắt đầu lịch điều hành')!;
+      const endDate = this.date(schedule.endDate, 'Ngày kết thúc lịch điều hành')!;
+      const order = this.text(schedule.orderId) ? context.orders.get(this.text(schedule.orderId)!) : null;
+      const tour = this.text(schedule.tourId) ? context.tours.get(this.text(schedule.tourId)!) : null;
+      const source = order ?? tour;
+      if (!source) continue;
+      if (source.startDate && startDate < source.startDate) throw new BadRequestException('Lịch điều hành HDV không được bắt đầu trước ngày khởi hành của tour/đơn hàng liên kết');
+      if (source.endDate && endDate > source.endDate) throw new BadRequestException('Lịch điều hành HDV không được kết thúc sau ngày về của tour/đơn hàng liên kết');
+    }
+  }
+
+  private normalizeGuideStatus(status: string) {
+    const normalized = status.toUpperCase();
+    if (!(GUIDE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái HDV không hợp lệ');
+    return normalized;
+  }
+
+  private normalizeScheduleStatus(status: string) {
+    const normalized = status.toUpperCase();
+    if (!(GUIDE_SCHEDULE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái lịch điều hành HDV không hợp lệ');
+    return normalized;
+  }
+
+  private scheduleStatusForLinks(status: string | undefined, orderId: string | null, tourId: string | null, context: ScheduleLinkContext) {
+    const requested = this.normalizeScheduleStatus(status || 'BUSY');
+    const orderStatus = orderId ? context.orders.get(orderId)?.status : null;
+    const tourStatus = tourId ? context.tours.get(tourId)?.status : null;
+    if (orderStatus === 'CANCELLED' || tourStatus === 'CANCELLED') return 'CANCELLED';
+    if (orderStatus === 'COMPLETED' || orderStatus === 'SETTLED' || tourStatus === 'COMPLETED' || tourStatus === 'SETTLED') return 'COMPLETED';
+    return requested;
+  }
+
+  private handleUniqueCodeError(error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException('Mã HDV đã tồn tại');
+    }
+  }
+
   private text(value?: string | null) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
   }
 
-  private date(value?: string | null) {
-    return value ? new Date(value) : null;
+  private date(value?: string | null, label = 'Ngày') {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
+    return parsed;
   }
 }
