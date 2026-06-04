@@ -320,20 +320,23 @@ export class BookingsService {
   }
 
   private async bookingUsage(id: string) {
-    const [operationForms, operationVouchers, activeAllotmentLocks] = await Promise.all([
+    const [booking, operationForms, operationVouchers, allotmentLocks] = await Promise.all([
+      this.prisma.booking.findUnique({ where: { id }, select: { orderId: true, tourId: true } }),
       this.prisma.operationForm.count({ where: { bookingId: id } }),
-      this.prisma.operationVoucher.count({ where: { bookingId: id, deletedAt: null } }),
-      this.prisma.supplierAllotmentAllocation.count({ where: { bookingId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
+      this.prisma.operationVoucher.count({ where: { bookingId: id } }),
+      this.prisma.supplierAllotmentAllocation.count({ where: { bookingId: id } }),
     ]);
-    const usage = { operationForms, operationVouchers, activeAllotmentLocks };
+    const usage = { linkedOrders: booking?.orderId ? 1 : 0, linkedTours: booking?.tourId ? 1 : 0, operationForms, operationVouchers, allotmentLocks };
     return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };
   }
 
   private usageSummary(usage: Awaited<ReturnType<BookingsService['bookingUsage']>>) {
     const labels: Array<[Exclude<keyof typeof usage, 'total'>, string]> = [
+      ['linkedOrders', 'đơn hàng liên kết'],
+      ['linkedTours', 'tour vận hành liên kết'],
       ['operationForms', 'phiếu điều hành'],
       ['operationVouchers', 'phiếu dịch vụ điều hành'],
-      ['activeAllotmentLocks', 'khóa allotment đang hiệu lực'],
+      ['allotmentLocks', 'khóa allotment'],
     ];
     return labels
       .filter(([key]) => usage[key] > 0)
