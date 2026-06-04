@@ -25,9 +25,10 @@ function reflector(metadata = {}) {
   return { getAllAndOverride: (key) => metadata[key] };
 }
 
-function authService(userPermissions = []) {
+function authService(userPermissions = [], seenTokens = []) {
   return {
     async validateToken(token) {
+      seenTokens.push(token);
       if (!token) throw new UnauthorizedException('missing token');
       return { user: { roles: [{ role: { permissions: userPermissions.map((permission) => ({ permission })) } }] } };
     },
@@ -43,7 +44,13 @@ async function run() {
   delete process.env.SMARTTOUR_AUTH_ENFORCE;
   assert(smartTourEnvironment() === 'development', 'development env should resolve');
   assert(authEnforceEnabled() === false, 'development should not enforce by default');
-  assert(await new AuthGuard(reflector(), authService()).canActivate(context()) === true, 'dev without token should pass when enforce is off');
+  let missingTokenError;
+  try {
+    await new AuthGuard(reflector(), authService()).canActivate(context());
+  } catch (error) {
+    missingTokenError = error;
+  }
+  assert(missingTokenError instanceof UnauthorizedException, 'development private route without token should reject even when enforce is off');
 
   process.env.SMARTTOUR_ENV = 'production';
   process.env.SMARTTOUR_AUTH_ENFORCE = 'true';
@@ -88,6 +95,10 @@ async function run() {
 
   const encodedCookieContext = context({ cookie: 'other=value; smarttour.auth.token=encoded%2Etoken' });
   assert(await new AuthGuard(reflector(), authService()).canActivate(encodedCookieContext) === true, 'encoded cookie token should pass');
+
+  const seenTokens = [];
+  await new AuthGuard(reflector(), authService([], seenTokens)).canActivate(context({ authorization: 'Bearer header.token', cookie: 'smarttour.auth.token=cookie.token' }));
+  assert(seenTokens[0] === 'header.token', 'guard should use shared token extraction with bearer precedence over cookie');
 
   rejected = false;
   try {

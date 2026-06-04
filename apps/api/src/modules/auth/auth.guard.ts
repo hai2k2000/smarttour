@@ -20,7 +20,7 @@ export class AuthGuard implements CanActivate {
     if ((env === 'production' || env === 'staging') && !enforce) {
       throw new UnauthorizedException('Auth enforcement must be enabled in this environment');
     }
-    if (!token && !enforce) return true;
+    if (!token) throw new UnauthorizedException('Thiếu token đăng nhập');
     const session = await this.authService.validateToken(token);
     request.user = session.user;
     if (required.length && !this.authService.hasPermissions(session.user, required)) throw new ForbiddenException('Thiếu quyền truy cập');

@@ -10,6 +10,12 @@ const allowedPrivateRoutes = new Set([
   'apps/api/src/modules/auth/auth.controller.ts:me',
   'apps/api/src/modules/auth/auth.controller.ts:changePassword',
 ]);
+const allowedPublicRoutes = new Set([
+  'apps/api/src/modules/auth/auth.controller.ts:bootstrap',
+  'apps/api/src/modules/auth/auth.controller.ts:login',
+  'apps/api/src/modules/quotations/quotations.controller.ts:publicDetail',
+]);
+const nonRoutePermissionCatalog = new Set(['*', 'data.scope.all', 'data.scope.branch', 'data.scope.department']);
 
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -43,6 +49,8 @@ function onlyViewPermissions(permissions) {
 
 const failures = [];
 const weakPermissions = [];
+const backendPermissions = new Set();
+const publicRoutes = new Set();
 
 for (const file of walk(root)) {
   const rel = path.relative(process.cwd(), file).replaceAll('\\', '/');
@@ -80,8 +88,13 @@ for (const file of walk(root)) {
     const methodPermissions = readPermissions(decorators);
     const effectivePermissions = methodPermissions.length ? methodPermissions : classPermissions;
     const hasPermission = effectivePermissions.length > 0;
+    for (const permission of effectivePermissions) backendPermissions.add(permission);
+    if (isPublic) publicRoutes.add(routeKey);
     if (!isPublic && !hasPermission && !allowedPrivateRoutes.has(routeKey)) {
       failures.push(routeKey);
+    }
+    if (isPublic && !allowedPublicRoutes.has(routeKey)) {
+      failures.push(`unexpected public route: ${routeKey}`);
     }
     if (!isPublic && hasPermission && isMutation(httpMethod) && onlyViewPermissions(effectivePermissions)) {
       weakPermissions.push(`${routeKey} (${httpMethod}) -> ${effectivePermissions.join(', ')}`);
@@ -90,11 +103,50 @@ for (const file of walk(root)) {
   }
 }
 
+for (const routeKey of allowedPublicRoutes) {
+  if (!publicRoutes.has(routeKey)) failures.push(`reviewed public route is missing or no longer public: ${routeKey}`);
+}
+
+const frontendCatalog = readFrontendPermissionCatalog();
+const frontendLabels = readPermissionLabels();
+const expectedFrontendPermissions = new Set([...backendPermissions, ...nonRoutePermissionCatalog]);
+for (const permission of expectedFrontendPermissions) {
+  if (!frontendCatalog.has(permission)) failures.push(`frontend permission catalog missing: ${permission}`);
+  if (!frontendLabels.has(permission)) failures.push(`frontend permission label missing: ${permission}`);
+}
+for (const permission of frontendCatalog) {
+  if (!expectedFrontendPermissions.has(permission)) failures.push(`frontend permission catalog has no backend match: ${permission}`);
+}
+
 if (failures.length || weakPermissions.length) {
   console.error('FAIL_ROUTE_PERMISSION_AUDIT');
-  for (const failure of failures) console.error(`missing RequirePermissions: ${failure}`);
+  for (const failure of failures) console.error(failure);
   for (const failure of weakPermissions) console.error(`mutation route uses only view permission: ${failure}`);
   process.exit(1);
 }
 
 console.log('ROUTE_PERMISSION_AUDIT_OK');
+
+function readFrontendPermissionCatalog() {
+  const file = path.join(process.cwd(), 'apps/web/app/security/SecurityClient.tsx');
+  if (!fs.existsSync(file)) return new Set();
+  const source = fs.readFileSync(file, 'utf8');
+  const block = source.match(/const commonPermissionGroups = \[[\s\S]*?\] as const;/)?.[0] || '';
+  return readPermissionStrings(block);
+}
+
+function readPermissionLabels() {
+  const file = path.join(process.cwd(), 'apps/web/app/i18n.ts');
+  if (!fs.existsSync(file)) return new Set();
+  const source = fs.readFileSync(file, 'utf8');
+  const block = source.match(/const permissionLabels: Record<string, string> = \{[\s\S]*?\};/)?.[0] || '';
+  return readPermissionStrings(block);
+}
+
+function readPermissionStrings(source) {
+  return new Set(
+    [...source.matchAll(/['"]([a-z*][a-z0-9_*.-]*(?:\.[a-z0-9_*.-]+)*)['"]/g)]
+      .map((match) => match[1])
+      .filter((value) => value === '*' || value.includes('.')),
+  );
+}

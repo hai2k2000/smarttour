@@ -38,7 +38,7 @@ type SecurityAction = 'createUser' | 'updateUser' | 'createRole' | 'updateRole' 
 const commonPermissionGroups = [
   {
     label: 'Quản trị hệ thống',
-    permissions: ['*', 'auth.user.manage', 'auth.role.manage', 'file.manage'],
+    permissions: ['*', 'auth.user.manage', 'auth.role.manage', 'file.view', 'file.manage'],
   },
   {
     label: 'Phạm vi dữ liệu',

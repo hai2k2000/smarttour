@@ -76,6 +76,7 @@ const permissionLabels: Record<string, string> = {
   'data.scope.all': 'Xem toàn bộ dữ liệu',
   'data.scope.branch': 'Xem dữ liệu theo chi nhánh',
   'data.scope.department': 'Xem dữ liệu theo phòng ban',
+  'file.view': 'Xem tệp đính kèm',
   'file.manage': 'Quản lý tệp đính kèm',
   'booking.view': 'Xem booking',
   'booking.manage': 'Quản lý booking',
