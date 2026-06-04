@@ -41,7 +41,7 @@ async function main() {
   await prisma.$connect();
   const auth = new AuthService(prisma, new AuthSessionService(prisma));
 
-  await auth.bootstrap({
+  const boot = await auth.bootstrap({
     email: 'security-admin@example.com',
     username: 'security-admin',
     name: 'Security Admin',
@@ -52,7 +52,7 @@ async function main() {
     name: 'Branch Manager',
     description: 'Scoped management role',
     permissions: ['auth.user.manage', 'data.scope.branch'],
-  });
+  }, boot.user.id);
   await auth.createUser({
     email: 'branch-user@example.com',
     username: 'branch-user',
@@ -60,9 +60,9 @@ async function main() {
     password: 'BranchPass123',
     branch: 'Hanoi',
     roleCodes: ['branch_manager'],
-  });
+  }, boot.user.id);
 
-  const users = await auth.listUsers();
+  const users = await auth.listUsers(boot.user.id);
   const branchUser = users.find((user) => user.email === 'branch-user@example.com');
   assert(branchUser, 'created user should appear in listUsers');
   assert(!('passwordHash' in branchUser), 'listUsers must not expose passwordHash');
@@ -72,7 +72,7 @@ async function main() {
   assert(Array.isArray(branchUser.roles) && branchUser.roles.every((role) => Object.keys(role).sort().join(',') === 'code,name'), 'listUsers role projection should only contain code and name');
   assert(Array.isArray(branchUser.permissions) && branchUser.permissions.includes('auth.user.manage'), 'listUsers should expose flattened permissions');
 
-  const roles = await auth.listRoles();
+  const roles = await auth.listRoles(boot.user.id);
   const branchRole = roles.find((role) => role.code === 'branch_manager');
   assert(branchRole, 'created role should appear in listRoles');
   assert(!('users' in branchRole), 'listRoles must not expose user records');

@@ -115,6 +115,79 @@ async function main() {
   assert(await errorFrom(() => auth.updateRole(branchRole.id, { permissions: [] }, boot.user.id)) instanceof BadRequestException, 'updateRole should reject empty permissions');
   assert(await errorFrom(() => auth.updateRole(superAdmin.id, { permissions: ['auth.user.manage'] }, boot.user.id)) instanceof BadRequestException, 'super_admin should retain wildcard');
 
+  const scopedManagerRole = await auth.createRole({
+    code: 'scoped_user_manager',
+    name: 'Scoped User Manager',
+    permissions: ['auth.user.manage', 'auth.role.manage', 'data.scope.branch'],
+  }, boot.user.id);
+  const branchAdmin = await auth.createUser({
+    email: 'branch-admin@example.com',
+    username: 'branch-admin',
+    name: 'Branch Admin',
+    password,
+    branch: 'Hanoi',
+    roleCodes: ['scoped_user_manager'],
+  }, boot.user.id);
+  const outsideBranchUser = await auth.createUser({
+    email: 'outside-branch@example.com',
+    username: 'outside-branch',
+    name: 'Outside Branch',
+    password,
+    branch: 'Danang',
+    roleCodes: ['scoped_user_manager'],
+  }, boot.user.id);
+  const missingScopeUser = await auth.createUser({
+    email: 'missing-scope@example.com',
+    username: 'missing-scope',
+    name: 'Missing Scope',
+    password,
+    branch: 'Hanoi',
+    roleCodes: ['scoped_user_manager'],
+  }, boot.user.id);
+  await prisma.user.update({ where: { id: missingScopeUser.id }, data: { branch: null } });
+
+  const scopedUsers = await auth.listUsers(branchAdmin.id);
+  assert(scopedUsers.length > 0 && scopedUsers.every((user) => user.branch === 'Hanoi'), 'branch scoped manager should list only users in their branch');
+  assert(!scopedUsers.some((user) => user.id === outsideBranchUser.id), 'branch scoped manager should not see users outside branch');
+  assert(await errorFrom(() => auth.listUsers(missingScopeUser.id)) instanceof ForbiddenException, 'branch scoped manager without branch should not list sensitive user data');
+  const branchCreated = await auth.createUser({
+    email: 'branch-created@example.com',
+    name: 'Branch Created',
+    password,
+    roleCodes: ['scoped_user_manager'],
+  }, branchAdmin.id);
+  assert(branchCreated.branch === 'Hanoi' && branchCreated.dataScope === 'branch', 'branch scoped manager should create users inside their branch scope');
+  assert(await errorFrom(() => auth.createUser({ email: 'wrong-branch@example.com', name: 'Wrong Branch', password, branch: 'Danang', roleCodes: ['scoped_user_manager'] }, branchAdmin.id)) instanceof ForbiddenException, 'branch scoped manager should not create users outside branch');
+  assert(await errorFrom(() => auth.createUser({ email: 'grant-super@example.com', name: 'Grant Super', password, branch: 'Hanoi', roleCodes: ['super_admin'] }, branchAdmin.id)) instanceof ForbiddenException, 'branch scoped manager should not grant roles beyond own permissions');
+  assert(await errorFrom(() => auth.updateUser(outsideBranchUser.id, { name: 'Outside blocked' }, branchAdmin.id)) instanceof ForbiddenException, 'branch scoped manager should not update users outside branch');
+  assert(await errorFrom(() => auth.updateUser(branchCreated.id, { branch: 'Danang' }, branchAdmin.id)) instanceof ForbiddenException, 'branch scoped manager should not move users outside branch');
+
+  const scopedRoles = await auth.listRoles(branchAdmin.id);
+  assert(scopedRoles.some((role) => role.code === scopedManagerRole.code), 'branch scoped manager should see assignable scoped roles');
+  assert(!scopedRoles.some((role) => role.code === 'super_admin'), 'branch scoped manager should not see roles beyond own permissions as assignable');
+  assert(await errorFrom(() => auth.createRole({ code: 'branch_role_change', name: 'Branch Role Change', permissions: ['auth.user.manage', 'data.scope.branch'] }, branchAdmin.id)) instanceof ForbiddenException, 'scoped manager should not mutate global role definitions');
+
+  const roleAdminRole = await auth.createRole({
+    code: 'role_admin',
+    name: 'Role Admin',
+    permissions: ['auth.role.manage', 'auth.user.manage', 'data.scope.all'],
+  }, boot.user.id);
+  const roleAdmin = await auth.createUser({
+    email: 'role-admin@example.com',
+    username: 'role-admin',
+    name: 'Role Admin',
+    password,
+    roleCodes: ['role_admin'],
+  }, boot.user.id);
+  const childRole = await auth.createRole({
+    code: 'role_admin_child',
+    name: 'Role Admin Child',
+    permissions: ['auth.user.manage', 'data.scope.all'],
+  }, roleAdmin.id);
+  assert(childRole.permissions.some((permission) => permission.permission === 'auth.user.manage'), 'all-scope role admin should create roles within own permissions');
+  assert(await errorFrom(() => auth.createRole({ code: 'finance_admin', name: 'Finance Admin', permissions: ['finance.receipt.view', 'data.scope.all'] }, roleAdmin.id)) instanceof ForbiddenException, 'role admin should not create roles with permissions they do not hold');
+  assert(await errorFrom(() => auth.updateRole(superAdmin.id, { name: 'Super Admin renamed' }, roleAdmin.id)) instanceof ForbiddenException, 'role admin should not update roles with permissions beyond own permissions');
+
   assert(auth.hasPermissions({ roles: [{ role: { status: 'ACTIVE', permissions: [{ permission: '*' }] } }] }, ['anything.manage']), 'wildcard permission should allow all requirements');
   assert(auth.hasPermissions({ roles: [{ role: { status: 'ACTIVE', permissions: [{ permission: 'data.scope.branch' }] } }] }, ['data.scope.branch']), 'exact data scope permission should match');
   assert(!auth.hasPermissions({ roles: [{ role: { status: 'INACTIVE', permissions: [{ permission: '*' }] } }] }, ['order.view']), 'inactive role must not grant permissions');

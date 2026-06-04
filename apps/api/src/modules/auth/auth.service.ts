@@ -15,6 +15,9 @@ import { AuthSessionService } from './auth-session.service';
 type AnyRecord = Record<string, unknown>;
 type SessionRequest = { headers?: Record<string, string | string[] | undefined>; ip?: string };
 type PermissionUser = {
+  id?: string;
+  branch?: string | null;
+  department?: string | null;
   roles?: Array<{
     role?: {
       status?: string;
@@ -80,6 +83,18 @@ const ROLE_ASSIGNMENT_SELECT = {
 type SafeUserRow = Prisma.UserGetPayload<{ select: typeof SAFE_USER_SELECT }>;
 type RoleAssignment = Prisma.RoleGetPayload<{ select: typeof ROLE_ASSIGNMENT_SELECT }>;
 type RoleManagementRow = Prisma.RoleGetPayload<{ select: typeof ROLE_MANAGEMENT_SELECT }>;
+type ActorInput = string | PermissionUser | undefined;
+type AuthDb = Prisma.TransactionClient | PrismaService;
+type ManagementActor = {
+  id: string;
+  branch: string | null;
+  department: string | null;
+  permissions: Set<string>;
+  hasAllPermissions: boolean;
+  hasUnrestrictedScope: boolean;
+  hasBranchScope: boolean;
+  hasDepartmentScope: boolean;
+};
 
 @Injectable()
 export class AuthService {
@@ -221,27 +236,32 @@ export class AuthService {
     return permissions.has('*') || required.every((permission) => permissions.has(permission));
   }
 
-  async listUsers() {
+  async listUsers(actorInput?: ActorInput) {
+    const actor = await this.resolveManagementActor(this.prisma, actorInput, 'auth.user.manage');
     const rows = await this.prisma.user.findMany({
+      where: this.userScopeWhere(actor),
       select: SAFE_USER_SELECT,
       orderBy: [{ updatedAt: 'desc' }, { username: 'asc' }, { email: 'asc' }],
     });
-    return rows.map((row) => this.safeUser(row));
+    return rows.filter((row) => this.canManageUser(actor, row)).map((row) => this.safeUser(row));
   }
 
-  async createUser(dto: AnyRecord, actorId?: string) {
+  async createUser(dto: AnyRecord, actorInput?: ActorInput) {
     const email = this.normalizeEmail(dto.email);
     const password = this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
     const name = this.requiredText(dto.name, 'Cần nhập họ tên');
-    const branch = this.text(dto.branch);
-    const department = this.text(dto.department);
     const roleCodes = this.requiredRoleCodes(dto.roleCodes);
     this.assertPasswordPolicy(password);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const actor = await this.resolveManagementActor(tx, actorInput, 'auth.user.manage');
+        const branch = this.scopedText(dto.branch, actor, 'branch');
+        const department = this.scopedText(dto.department, actor, 'department');
         const roles = await this.resolveActiveRoles(tx, roleCodes);
         this.assertRoleScope(roles, branch, department);
+        this.assertAssignableRoles(actor, roles);
+        this.assertTargetWithinActorScope(actor, { branch, department });
         const username = await this.resolveUsername(tx, email, dto.username);
         const user = await tx.user.create({
           data: {
@@ -256,7 +276,8 @@ export class AuthService {
           select: SAFE_USER_SELECT,
         });
         const after = this.userAuditSnapshot(user);
-        await this.audit(tx, actorId, 'CREATE', 'User', user.id, {
+        await this.audit(tx, actor.id, 'CREATE', 'User', user.id, {
+          actorScope: this.actorAuditScope(actor),
           after,
           roleChanges: this.arrayChanges([], after.roleCodes),
           permissionCount: after.permissions.length,
@@ -268,7 +289,7 @@ export class AuthService {
     }
   }
 
-  async updateUser(id: string, dto: AnyRecord, actorId?: string) {
+  async updateUser(id: string, dto: AnyRecord, actorInput?: ActorInput) {
     const current = await this.prisma.user.findUnique({ where: { id }, select: SAFE_USER_SELECT });
     if (!current) throw new NotFoundException('Không tìm thấy người dùng');
 
@@ -276,14 +297,18 @@ export class AuthService {
     const nextPassword = dto.password === undefined ? undefined : this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
     const nextStatus = dto.status === undefined ? undefined : this.normalizeStatus(dto.status, USER_STATUSES, 'trạng thái người dùng');
     const nextName = dto.name === undefined ? undefined : this.requiredText(dto.name, 'Cần nhập họ tên');
-    const nextBranch = dto.branch === undefined ? current.branch : this.text(dto.branch);
-    const nextDepartment = dto.department === undefined ? current.department : this.text(dto.department);
     if (nextPassword) this.assertPasswordPolicy(nextPassword);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const actor = await this.resolveManagementActor(tx, actorInput, 'auth.user.manage');
+        const nextBranch = dto.branch === undefined ? current.branch : this.scopedText(dto.branch, actor, 'branch');
+        const nextDepartment = dto.department === undefined ? current.department : this.scopedText(dto.department, actor, 'department');
+        this.assertManageableCurrentUser(actor, current);
+        this.assertTargetWithinActorScope(actor, { branch: nextBranch, department: nextDepartment });
         const roles = roleCodes ? await this.resolveActiveRoles(tx, roleCodes) : current.roles.map((row) => row.role);
         this.assertRoleScope(roles, nextBranch, nextDepartment);
+        this.assertAssignableRoles(actor, roles);
 
         let nextUsername: string | undefined;
         if (dto.username !== undefined) {
@@ -315,7 +340,8 @@ export class AuthService {
         }
         const before = this.userAuditSnapshot(current);
         const after = this.userAuditSnapshot(user);
-        await this.audit(tx, actorId, 'UPDATE', 'User', id, {
+        await this.audit(tx, actor.id, 'UPDATE', 'User', id, {
+          actorScope: this.actorAuditScope(actor),
           changedFields: this.changedFields(dto, ['username', 'name', 'status', 'branch', 'department', 'password', 'roleCodes']),
           changes: this.objectChanges(before, after, ['username', 'email', 'name', 'status', 'branch', 'department', 'dataScope']),
           before,
@@ -331,14 +357,16 @@ export class AuthService {
     }
   }
 
-  async listRoles() {
-    return this.prisma.role.findMany({
+  async listRoles(actorInput?: ActorInput) {
+    const actor = await this.resolveManagementActor(this.prisma, actorInput, 'auth.role.manage');
+    const rows = await this.prisma.role.findMany({
       select: ROLE_MANAGEMENT_SELECT,
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
     });
+    return rows.filter((role) => this.canManageRole(actor, role.permissions.map((permission) => permission.permission)));
   }
 
-  async createRole(dto: AnyRecord, actorId?: string) {
+  async createRole(dto: AnyRecord, actorInput?: ActorInput) {
     const code = this.normalizeRoleCode(dto.code);
     const name = this.requiredText(dto.name, 'Cần nhập tên vai trò');
     const description = this.text(dto.description);
@@ -346,6 +374,8 @@ export class AuthService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const actor = await this.resolveManagementActor(tx, actorInput, 'auth.role.manage');
+        this.assertCanMutateRole(actor, permissions);
         const role = await tx.role.create({
           data: {
             code,
@@ -356,7 +386,8 @@ export class AuthService {
           select: ROLE_MANAGEMENT_SELECT,
         });
         const after = this.roleAuditSnapshot(role);
-        await this.audit(tx, actorId, 'CREATE', 'Role', role.id, {
+        await this.audit(tx, actor.id, 'CREATE', 'Role', role.id, {
+          actorScope: this.actorAuditScope(actor),
           after,
           permissionChanges: this.arrayChanges([], after.permissions),
         });
@@ -367,7 +398,7 @@ export class AuthService {
     }
   }
 
-  async updateRole(id: string, dto: AnyRecord, actorId?: string) {
+  async updateRole(id: string, dto: AnyRecord, actorInput?: ActorInput) {
     const current = await this.prisma.role.findUnique({ where: { id }, select: ROLE_MANAGEMENT_SELECT });
     if (!current) throw new NotFoundException('Không tìm thấy vai trò');
     const permissions = dto.permissions === undefined ? undefined : this.requiredPermissions(dto.permissions);
@@ -379,6 +410,9 @@ export class AuthService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const actor = await this.resolveManagementActor(tx, actorInput, 'auth.role.manage');
+      this.assertCanMutateRole(actor, current.permissions.map((permission) => permission.permission));
+      if (permissions) this.assertCanMutateRole(actor, permissions);
       if (permissions) {
         await tx.rolePermission.deleteMany({ where: { roleId: id } });
         await tx.rolePermission.createMany({ data: permissions.map((permission) => ({ roleId: id, permission })) });
@@ -394,7 +428,8 @@ export class AuthService {
       });
       const before = this.roleAuditSnapshot(current);
       const after = this.roleAuditSnapshot(role);
-      await this.audit(tx, actorId, 'UPDATE', 'Role', id, {
+      await this.audit(tx, actor.id, 'UPDATE', 'Role', id, {
+        actorScope: this.actorAuditScope(actor),
         code: current.code,
         changedFields: this.changedFields(dto, ['name', 'description', 'status', 'permissions']),
         changes: this.objectChanges(before, after, ['name', 'description', 'status', 'isSystem']),
@@ -466,6 +501,133 @@ export class AuthService {
       lastLoginAt: user.lastLoginAt,
       roles,
       permissions,
+    };
+  }
+
+  private async resolveManagementActor(client: AuthDb, actorInput: ActorInput, requiredPermission: string): Promise<ManagementActor> {
+    const actor = await this.resolveActorUser(client, actorInput);
+    const safe = this.safeUser(actor);
+    const permissions = new Set(safe.permissions);
+    const hasAllPermissions = permissions.has('*');
+    if (!hasAllPermissions && !permissions.has(requiredPermission)) {
+      throw new ForbiddenException(`Thiếu quyền ${requiredPermission}`);
+    }
+    const hasUnrestrictedScope = hasAllPermissions || permissions.has('data.scope.all');
+    const hasBranchScope = permissions.has('data.scope.branch');
+    const hasDepartmentScope = permissions.has('data.scope.department');
+    if (!hasUnrestrictedScope) {
+      if (!hasBranchScope && !hasDepartmentScope) throw new ForbiddenException('Tài khoản chưa có phạm vi dữ liệu hợp lệ');
+      if (hasBranchScope && !safe.branch) throw new ForbiddenException('Tài khoản thiếu chi nhánh để thao tác dữ liệu theo chi nhánh');
+      if (hasDepartmentScope && !safe.department) throw new ForbiddenException('Tài khoản thiếu phòng ban để thao tác dữ liệu theo phòng ban');
+    }
+    return {
+      id: safe.id,
+      branch: safe.branch || null,
+      department: safe.department || null,
+      permissions,
+      hasAllPermissions,
+      hasUnrestrictedScope,
+      hasBranchScope,
+      hasDepartmentScope,
+    };
+  }
+
+  private async resolveActorUser(client: AuthDb, actorInput: ActorInput): Promise<SafeUserRow> {
+    if (!actorInput) throw new UnauthorizedException('Thiếu thông tin người thao tác');
+    if (typeof actorInput === 'string') {
+      const actor = await client.user.findUnique({ where: { id: actorInput }, select: SAFE_USER_SELECT });
+      if (!actor) throw new UnauthorizedException('Người thao tác không hợp lệ');
+      return actor;
+    }
+    if (!actorInput.id) throw new UnauthorizedException('Người thao tác không hợp lệ');
+    if (Array.isArray(actorInput.roles)) return actorInput as SafeUserRow;
+    const actor = await client.user.findUnique({ where: { id: actorInput.id }, select: SAFE_USER_SELECT });
+    if (!actor) throw new UnauthorizedException('Người thao tác không hợp lệ');
+    return actor;
+  }
+
+  private userScopeWhere(actor: ManagementActor): Prisma.UserWhereInput {
+    if (actor.hasUnrestrictedScope) return {};
+    const OR: Prisma.UserWhereInput[] = [];
+    if (actor.hasBranchScope) OR.push({ branch: actor.branch });
+    if (actor.hasDepartmentScope) OR.push({ department: actor.department });
+    return OR.length ? { OR } : { id: '__no_data_scope__' };
+  }
+
+  private canManageUser(actor: ManagementActor, user: SafeUserRow) {
+    return this.isTargetWithinActorScope(actor, user) && this.permissionsWithinActor(actor, this.userAuditSnapshot(user).permissions);
+  }
+
+  private assertManageableCurrentUser(actor: ManagementActor, user: SafeUserRow) {
+    if (!this.isTargetWithinActorScope(actor, user)) {
+      throw new ForbiddenException('Không thể thao tác người dùng ngoài phạm vi dữ liệu của bạn');
+    }
+    if (!this.permissionsWithinActor(actor, this.userAuditSnapshot(user).permissions)) {
+      throw new ForbiddenException('Không thể thao tác người dùng có quyền vượt quá quyền của bạn');
+    }
+  }
+
+  private assertTargetWithinActorScope(actor: ManagementActor, target: { branch?: string | null; department?: string | null }) {
+    if (!this.isTargetWithinActorScope(actor, target)) {
+      throw new ForbiddenException('Không thể thao tác dữ liệu ngoài phạm vi được phân công');
+    }
+  }
+
+  private isTargetWithinActorScope(actor: ManagementActor, target: { branch?: string | null; department?: string | null }) {
+    if (actor.hasUnrestrictedScope) return true;
+    if (actor.hasBranchScope && target.branch !== actor.branch) return false;
+    if (actor.hasDepartmentScope && target.department !== actor.department) return false;
+    return true;
+  }
+
+  private scopedText(value: unknown, actor: ManagementActor, field: 'branch' | 'department') {
+    const text = this.text(value);
+    if (actor.hasUnrestrictedScope) return text;
+    if (field === 'branch' && actor.hasBranchScope) {
+      if (text && text !== actor.branch) throw new ForbiddenException('Không thể chọn chi nhánh ngoài phạm vi của bạn');
+      return actor.branch;
+    }
+    if (field === 'department' && actor.hasDepartmentScope) {
+      if (text && text !== actor.department) throw new ForbiddenException('Không thể chọn phòng ban ngoài phạm vi của bạn');
+      return actor.department;
+    }
+    return text;
+  }
+
+  private assertAssignableRoles(actor: ManagementActor, roles: RoleAssignment[]) {
+    const permissions = Array.from(new Set(roles.flatMap((role) => role.permissions.map((permission) => permission.permission))));
+    if (!this.permissionsWithinActor(actor, permissions)) {
+      throw new ForbiddenException('Không thể gán vai trò có quyền vượt quá quyền của bạn');
+    }
+  }
+
+  private canManageRole(actor: ManagementActor, permissions: string[]) {
+    return this.permissionsWithinActor(actor, permissions);
+  }
+
+  private assertCanMutateRole(actor: ManagementActor, permissions: string[]) {
+    if (!actor.hasUnrestrictedScope) {
+      throw new ForbiddenException('Chỉ tài khoản có phạm vi toàn bộ dữ liệu mới được tạo hoặc cập nhật vai trò');
+    }
+    if (!this.permissionsWithinActor(actor, permissions)) {
+      throw new ForbiddenException('Không thể cấu hình vai trò có quyền vượt quá quyền của bạn');
+    }
+  }
+
+  private permissionsWithinActor(actor: ManagementActor, permissions: string[]) {
+    return actor.hasAllPermissions || permissions.every((permission) => actor.permissions.has(permission));
+  }
+
+  private actorAuditScope(actor: ManagementActor) {
+    return {
+      branch: actor.branch,
+      department: actor.department,
+      permissions: Array.from(actor.permissions).sort(),
+      dataScopes: [
+        ...(actor.hasUnrestrictedScope ? ['all'] : []),
+        ...(actor.hasBranchScope ? ['branch'] : []),
+        ...(actor.hasDepartmentScope ? ['department'] : []),
+      ],
     };
   }
 

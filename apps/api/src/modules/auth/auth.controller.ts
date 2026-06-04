@@ -6,7 +6,12 @@ import { Public, RequirePermissions } from './permissions.decorator';
 
 type AuthRequest = {
   headers: AuthTokenHeaders;
-  user?: { id: string };
+  user?: {
+    id: string;
+    branch?: string | null;
+    department?: string | null;
+    roles?: Array<{ role?: { status?: string; permissions?: Array<{ permission: string }> } }>;
+  };
 };
 
 @ApiTags('auth')
@@ -44,37 +49,37 @@ export class AuthController {
 
   @Get('users')
   @RequirePermissions('auth.user.manage')
-  users() {
-    return this.service.listUsers();
+  users(@Req() request: AuthRequest) {
+    return this.service.listUsers(request.user);
   }
 
   @Post('users')
   @RequirePermissions('auth.user.manage')
   createUser(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
-    return this.service.createUser(dto, request.user?.id);
+    return this.service.createUser(dto, request.user);
   }
 
   @Put('users/:id')
   @RequirePermissions('auth.user.manage')
   updateUser(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
-    return this.service.updateUser(id, dto, request.user?.id);
+    return this.service.updateUser(id, dto, request.user);
   }
 
   @Get('roles')
   @RequirePermissions('auth.role.manage')
-  roles() {
-    return this.service.listRoles();
+  roles(@Req() request: AuthRequest) {
+    return this.service.listRoles(request.user);
   }
 
   @Post('roles')
   @RequirePermissions('auth.role.manage')
   createRole(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
-    return this.service.createRole(dto, request.user?.id);
+    return this.service.createRole(dto, request.user);
   }
 
   @Put('roles/:id')
   @RequirePermissions('auth.role.manage')
   updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
-    return this.service.updateRole(id, dto, request.user?.id);
+    return this.service.updateRole(id, dto, request.user);
   }
 }

@@ -63,6 +63,9 @@ async function main() {
   const boot = await auth.bootstrap({ email, username, name: 'Session Admin', password }, request);
   assert(boot.token && boot.tokenType === 'Bearer' && boot.expiresAt && boot.user.email === email, 'bootstrap without key should create first development admin and issue consistent session');
   await auth.validateToken(boot.token);
+  const bootstrapAudit = await prisma.auditLog.findFirst({ where: { actorId: boot.user.id, action: 'BOOTSTRAP', entity: 'User', entityId: boot.user.id } });
+  assert(bootstrapAudit?.metadata?.after?.email === email, 'bootstrap should write traceable audit metadata');
+  assert(bootstrapAudit.metadata.roleChanges.added.includes('super_admin'), 'bootstrap audit should trace super admin role assignment');
 
   await rejects(() => auth.bootstrap({ email: 'other@example.com', name: 'Other', password }), 'bootstrap should lock without key once users exist');
 
@@ -73,17 +76,23 @@ async function main() {
   await rejects(() => auth.login({ username, password: 'WrongPass123' }, request), 'login should fail with wrong password');
   const loginOne = await auth.login({ username, password }, request);
   assert(loginOne.token && loginOne.tokenType === 'Bearer' && loginOne.expiresAt, 'login should pass with consistent session response');
+  const loginAudit = await prisma.auditLog.findFirst({ where: { actorId: loginOne.user.id, action: 'LOGIN' }, orderBy: { createdAt: 'desc' } });
+  assert(loginAudit?.metadata?.sessionIssued === true && loginAudit.metadata.identifier === username, 'login should write session audit metadata');
 
   const logoutSession = await auth.login({ email, password }, request);
   await auth.validateToken(logoutSession.token);
   await auth.logout(logoutSession.token, logoutSession.user.id);
   await rejects(() => auth.validateToken(logoutSession.token), 'logout should revoke token');
   assert(await prisma.auditLog.count({ where: { actorId: logoutSession.user.id, action: 'LOGOUT' } }) === 1, 'logout should write audit log in the revoke transaction');
+  const logoutAudit = await prisma.auditLog.findFirst({ where: { actorId: logoutSession.user.id, action: 'LOGOUT' } });
+  assert(logoutAudit?.metadata?.tokenRevoked === true, 'logout audit should trace token revoke side effect');
 
   const primary = await auth.login({ username, password }, request);
   const secondary = await auth.login({ username, password }, request);
   const changed = await auth.changePassword(primary.user.id, { currentPassword: password, newPassword: nextPassword }, primary.token, request);
   assert(changed.token && changed.token !== primary.token && changed.tokenType === 'Bearer', 'change password should issue a fresh consistent session');
+  const changePasswordAudit = await prisma.auditLog.findFirst({ where: { actorId: primary.user.id, action: 'CHANGE_PASSWORD' }, orderBy: { createdAt: 'desc' } });
+  assert(changePasswordAudit?.metadata?.passwordChanged === true && changePasswordAudit.metadata.sessionsRevoked === 'all', 'change password audit should trace password and session side effects');
   await rejects(() => auth.validateToken(primary.token), 'change password should revoke previous current session');
   await rejects(() => auth.validateToken(secondary.token), 'change password should revoke other sessions');
   await auth.validateToken(changed.token);
