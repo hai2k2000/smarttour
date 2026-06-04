@@ -125,6 +125,25 @@ async function main() {
   assert(audits.some((audit) => audit.entity === 'Role'), 'role changes should be audited');
   assert(audits.some((audit) => audit.entity === 'User'), 'user changes should be audited');
 
+  const userCreateAudit = audits.find((audit) => audit.action === 'CREATE' && audit.entity === 'User' && audit.entityId === first.id);
+  assert(userCreateAudit?.metadata?.after?.email === first.email, 'create user audit should include after snapshot');
+  assert(userCreateAudit.metadata.after.roleCodes.includes('branch_manager'), 'create user audit should trace assigned role codes');
+  assert(userCreateAudit.metadata.roleChanges.added.includes('branch_manager'), 'create user audit should trace role additions');
+
+  const lockAudit = audits.find((audit) => audit.action === 'UPDATE' && audit.entity === 'User' && audit.entityId === first.id && audit.metadata?.after?.status === 'LOCKED');
+  assert(lockAudit?.metadata?.before?.status === 'ACTIVE', 'update user audit should include previous status');
+  assert(lockAudit.metadata.changes.status.from === 'ACTIVE' && lockAudit.metadata.changes.status.to === 'LOCKED', 'update user audit should trace status diff');
+  assert(lockAudit.metadata.sessionsRevoked === true, 'update user audit should trace session revoke side effect');
+
+  const roleCreateAudit = audits.find((audit) => audit.action === 'CREATE' && audit.entity === 'Role' && audit.entityId === branchRole.id);
+  assert(roleCreateAudit?.metadata?.after?.code === 'branch_manager', 'create role audit should include role snapshot');
+  assert(roleCreateAudit.metadata.permissionChanges.added.includes('data.scope.branch'), 'create role audit should trace permission additions');
+
+  const roleUpdateAudit = audits.find((audit) => audit.action === 'UPDATE' && audit.entity === 'Role' && audit.entityId === branchRole.id);
+  assert(roleUpdateAudit?.metadata?.before?.permissions.includes('data.scope.branch'), 'update role audit should include previous permissions');
+  assert(roleUpdateAudit.metadata.permissionChanges.added.includes('order.manage'), 'update role audit should trace added permissions');
+  assert(roleUpdateAudit.metadata.permissionChanges.removed.includes('data.scope.branch'), 'update role audit should trace removed permissions');
+
   await prisma.$disconnect();
   console.log('TEST_AUTH_SERVICE_FLOWS_OK');
 }

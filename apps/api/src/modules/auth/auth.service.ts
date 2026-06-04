@@ -79,6 +79,7 @@ const ROLE_ASSIGNMENT_SELECT = {
 
 type SafeUserRow = Prisma.UserGetPayload<{ select: typeof SAFE_USER_SELECT }>;
 type RoleAssignment = Prisma.RoleGetPayload<{ select: typeof ROLE_ASSIGNMENT_SELECT }>;
+type RoleManagementRow = Prisma.RoleGetPayload<{ select: typeof ROLE_MANAGEMENT_SELECT }>;
 
 @Injectable()
 export class AuthService {
@@ -129,9 +130,8 @@ export class AuthService {
           });
           await this.audit(tx, user.id, 'BOOTSTRAP', 'User', user.id, {
             environment: smartTourEnvironment(),
-            email,
-            username,
-            roleCodes: ['super_admin'],
+            after: this.userAuditSnapshot(user),
+            roleChanges: this.arrayChanges([], ['super_admin']),
           });
           return this.sessionResponse(tx, user.id, request);
         },
@@ -157,7 +157,10 @@ export class AuthService {
 
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-      await this.audit(tx, user.id, 'LOGIN', 'User', user.id, {});
+      await this.audit(tx, user.id, 'LOGIN', 'User', user.id, {
+        identifier,
+        sessionIssued: true,
+      });
       return this.sessionResponse(tx, user.id, request);
     });
   }
@@ -168,7 +171,9 @@ export class AuthService {
     if (session.user.id !== actorId) throw new UnauthorizedException('Phiên đăng nhập không thuộc người dùng hiện tại');
     await this.prisma.$transaction(async (tx) => {
       await this.sessions.revokeToken(token, tx);
-      await this.audit(tx, actorId, 'LOGOUT', 'User', actorId, {});
+      await this.audit(tx, actorId, 'LOGOUT', 'User', actorId, {
+        tokenRevoked: true,
+      });
     });
     return { ok: true };
   }
@@ -194,7 +199,10 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash: this.hashPassword(newPassword) } });
       await this.sessions.revokeUserSessions(userId, tx);
-      await this.audit(tx, userId, 'CHANGE_PASSWORD', 'User', userId, { sessionsRevoked: 'all' });
+      await this.audit(tx, userId, 'CHANGE_PASSWORD', 'User', userId, {
+        passwordChanged: true,
+        sessionsRevoked: 'all',
+      });
       return this.sessionResponse(tx, userId, request);
     });
   }
@@ -247,14 +255,11 @@ export class AuthService {
           },
           select: SAFE_USER_SELECT,
         });
+        const after = this.userAuditSnapshot(user);
         await this.audit(tx, actorId, 'CREATE', 'User', user.id, {
-          email,
-          username,
-          name,
-          status: 'ACTIVE',
-          branch,
-          department,
-          roleCodes,
+          after,
+          roleChanges: this.arrayChanges([], after.roleCodes),
+          permissionCount: after.permissions.length,
         });
         return this.safeUser(user);
       });
@@ -308,11 +313,15 @@ export class AuthService {
         if (nextPassword || (nextStatus !== undefined && nextStatus !== 'ACTIVE')) {
           await this.sessions.revokeUserSessions(id, tx);
         }
+        const before = this.userAuditSnapshot(current);
+        const after = this.userAuditSnapshot(user);
         await this.audit(tx, actorId, 'UPDATE', 'User', id, {
           changedFields: this.changedFields(dto, ['username', 'name', 'status', 'branch', 'department', 'password', 'roleCodes']),
-          oldStatus: current.status,
-          newStatus: user.status,
-          roleCodes: roleCodes || current.roles.map((row) => row.role.code),
+          changes: this.objectChanges(before, after, ['username', 'email', 'name', 'status', 'branch', 'department', 'dataScope']),
+          before,
+          after,
+          roleChanges: this.arrayChanges(before.roleCodes, after.roleCodes),
+          passwordChanged: Boolean(nextPassword),
           sessionsRevoked: Boolean(nextPassword || (nextStatus !== undefined && nextStatus !== 'ACTIVE')),
         });
         return this.safeUser(user);
@@ -346,7 +355,11 @@ export class AuthService {
           },
           select: ROLE_MANAGEMENT_SELECT,
         });
-        await this.audit(tx, actorId, 'CREATE', 'Role', role.id, { code, name, permissions });
+        const after = this.roleAuditSnapshot(role);
+        await this.audit(tx, actorId, 'CREATE', 'Role', role.id, {
+          after,
+          permissionChanges: this.arrayChanges([], after.permissions),
+        });
         return role;
       });
     } catch (error) {
@@ -379,12 +392,15 @@ export class AuthService {
         },
         select: ROLE_MANAGEMENT_SELECT,
       });
+      const before = this.roleAuditSnapshot(current);
+      const after = this.roleAuditSnapshot(role);
       await this.audit(tx, actorId, 'UPDATE', 'Role', id, {
         code: current.code,
         changedFields: this.changedFields(dto, ['name', 'description', 'status', 'permissions']),
-        oldStatus: current.status,
-        newStatus: role.status,
-        permissions: permissions || current.permissions.map((permission) => permission.permission),
+        changes: this.objectChanges(before, after, ['name', 'description', 'status', 'isSystem']),
+        before,
+        after,
+        permissionChanges: this.arrayChanges(before.permissions, after.permissions),
       });
       return role;
     });
@@ -451,6 +467,61 @@ export class AuthService {
       roles,
       permissions,
     };
+  }
+
+  private userAuditSnapshot(user: SafeUserRow) {
+    const safe = this.safeUser(user);
+    return {
+      id: safe.id,
+      username: safe.username,
+      email: safe.email,
+      name: safe.name,
+      status: safe.status,
+      branch: safe.branch,
+      department: safe.department,
+      dataScope: safe.dataScope,
+      roleCodes: safe.roles.map((role) => role.code).sort(),
+      permissions: safe.permissions,
+    };
+  }
+
+  private roleAuditSnapshot(role: RoleManagementRow) {
+    return {
+      id: role.id,
+      code: role.code,
+      name: role.name,
+      description: role.description,
+      status: role.status,
+      isSystem: role.isSystem,
+      userCount: role._count.users,
+      permissions: role.permissions.map((permission) => permission.permission).sort(),
+    };
+  }
+
+  private objectChanges(before: AnyRecord, after: AnyRecord, fields: string[]) {
+    return fields.reduce<Record<string, { from: unknown; to: unknown }>>((changes, field) => {
+      const previous = before[field] ?? null;
+      const next = after[field] ?? null;
+      if (!this.sameJsonValue(previous, next)) changes[field] = { from: previous, to: next };
+      return changes;
+    }, {});
+  }
+
+  private arrayChanges(before: string[], after: string[]) {
+    const previous = Array.from(new Set(before)).sort();
+    const next = Array.from(new Set(after)).sort();
+    const previousSet = new Set(previous);
+    const nextSet = new Set(next);
+    return {
+      before: previous,
+      after: next,
+      added: next.filter((value) => !previousSet.has(value)),
+      removed: previous.filter((value) => !nextSet.has(value)),
+    };
+  }
+
+  private sameJsonValue(left: unknown, right: unknown) {
+    return JSON.stringify(left) === JSON.stringify(right);
   }
 
   private async resolveActiveRoles(tx: Prisma.TransactionClient, roleCodes: string[]) {
