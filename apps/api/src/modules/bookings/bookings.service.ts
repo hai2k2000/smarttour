@@ -190,11 +190,11 @@ export class BookingsService {
 
   private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
     if (this.requiresScopedLink(user) && requireScopedLink && !dto.customerId && !dto.orderId && !dto.tourId) {
-      throw new BadRequestException('customerId, orderId or tourId is required for scoped booking writes');
+      throw new BadRequestException('Cần liên kết khách hàng, đơn hàng hoặc tour vận hành để tạo booking theo phạm vi dữ liệu');
     }
-    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Không tìm thấy khách hàng', user);
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour vận hành', user);
+    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Không tìm thấy khách hàng liên kết', user);
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng liên kết', user);
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour vận hành liên kết', user);
   }
 
   private async ensureExists(model: 'customer' | 'order' | 'tour', id: string, message: string, user?: RequestUser) {
