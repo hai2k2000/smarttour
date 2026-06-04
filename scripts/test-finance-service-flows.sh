@@ -189,6 +189,7 @@ async function main() {
     department: 'FIN-DEP',
     orders: [{ orderId: order.id, orderCode: order.systemCode, tourCode: order.tourCode, tourName: order.name, amount: 1000 }],
   });
+  assert(amount(receipt.totalAmount) === 1000 && amount(receipt.paidBefore) === 0 && amount(receipt.receiptAmount) === 1000 && amount(receipt.remainingAmount) === 0, 'receipt create should calculate remaining amount');
   const approvedReceipt = await finance.approveReceipt(receipt.id, { actor: 'finance-test' });
   assert(approvedReceipt.approvalStatus === 'APPROVED', 'receipt should approve');
   assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'RECEIPT', sourceId: receipt.id } }) === 1, 'receipt approve should create cashflow');
@@ -209,6 +210,8 @@ async function main() {
   assert(receiptReversalLedger.branch === 'FIN-BR' && receiptReversalLedger.department === 'FIN-DEP' && receiptReversalLedger.orderId === order.id, 'receipt reversal ledger should preserve scope and order link');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidAmount) === 0 && amount(orderAfter.remainingRevenue) === 1000 && orderAfter.paymentStatus === 'UNPAID', 'receipt cancel should undo order revenue reconcile');
+  let customerDebtReport = await finance.customerDebt({ customerId: customer.id, take: '1000' });
+  assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'receipt cancel should net customer debt report back to zero');
   const cancelledReceiptAgain = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' });
   assert(cancelledReceiptAgain.reversals.length === 1, 'double cancel receipt should be idempotent without duplicate reversal');
 
@@ -246,6 +249,7 @@ async function main() {
     branch: 'FIN-BR',
     department: 'FIN-DEP',
   });
+  assert(amount(payment.totalAmount) === 1000 && amount(payment.paymentAmount) === 600 && amount(payment.remainingAmount) === 400, 'payment create should calculate remaining amount');
   const approvedPayment = await finance.approvePayment(payment.id, { actor: 'finance-test' });
   assert(approvedPayment.approvalStatus === 'APPROVED', 'payment should approve');
   let voucherAfter = await prisma.operationVoucher.findUniqueOrThrow({ where: { id: voucher.id } });
@@ -269,6 +273,10 @@ async function main() {
   assert(amount(voucherAfter.paidAmount) === 0 && amount(voucherAfter.remainAmount) === 1000 && voucherAfter.status === 'PENDING', 'payment cancel should undo voucher reconcile');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidCost) === 0 && amount(orderAfter.remainingCost) === 700 && orderAfter.costStatus === 'PENDING', 'payment cancel should undo order cost reconcile');
+  const supplierDebtAfterPaymentCancel = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' });
+  assert(supplierDebtAfterPaymentCancel.summary.balance === 0 && !supplierDebtAfterPaymentCancel.rows.find((row) => row.id === supplier.id), 'payment cancel should net supplier debt report back to zero');
+  const cashflowAfterCancels = await finance.cashflow({ take: '1000' });
+  assert(cashflowAfterCancels.summary.netCashflow === 0 && cashflowAfterCancels.summary.totalReceipt === cashflowAfterCancels.summary.totalPayment, 'receipt/payment cancel should net cashflow summary to zero');
   const cancelledPaymentAgain = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' });
   assert(cancelledPaymentAgain.reversals.length === 1, 'double cancel payment should be idempotent without duplicate reversal');
 
@@ -312,6 +320,8 @@ async function main() {
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'creditAmount') === 1100, 'invoice reversal ledger credit should match original debit');
   const invoiceReversalLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: cancelledInvoice.reversals[0].id, entryType: 'REVERSAL' } });
   assert(invoiceReversalLedger.branch === 'FIN-BR' && invoiceReversalLedger.department === 'FIN-DEP', 'invoice reversal ledger should preserve resolved customer scope');
+  customerDebtReport = await finance.customerDebt({ customerId: customer.id, take: '1000' });
+  assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'invoice cancel should net customer debt report back to zero');
   const cancelledInvoiceAgain = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' });
   assert(cancelledInvoiceAgain.reversals.length === 1, 'double cancel invoice should be idempotent without duplicate reversal');
 
@@ -329,20 +339,26 @@ async function main() {
   await rejects(() => finance.approveInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not approve');
 
   const receiptImportCsv = [
-    'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch',
-    `${run}-IMP-RCPT,"Import, Receipt",TOUR_PAYMENT,BANK_TRANSFER,2026-11-05,100,0,100,CSV Customer,FIN-BR`,
+    'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department',
+    `${run}-IMP-RCPT,"Import, Receipt",TOUR_PAYMENT,BANK_TRANSFER,2026-11-05,100,25,50,CSV Customer,FIN-BR,FIN-DEP`,
   ].join('\n');
   const receiptImport = await finance.importReceipts({ csv: receiptImportCsv });
   assert(receiptImport.imported === 1 && receiptImport.rows[0].receiptCode === `${run}-IMP-RCPT`, 'receipt CSV import should accept quoted commas');
+  assert(receiptImport.rows[0].receiptName === 'Import, Receipt' && receiptImport.rows[0].paymentDate.toISOString().slice(0, 10) === '2026-11-05', 'receipt CSV import should map quoted text and payment date');
+  assert(amount(receiptImport.rows[0].totalAmount) === 100 && amount(receiptImport.rows[0].paidBefore) === 25 && amount(receiptImport.rows[0].receiptAmount) === 50 && amount(receiptImport.rows[0].remainingAmount) === 25, 'receipt CSV import should map amounts and remaining amount');
+  assert(receiptImport.rows[0].branch === 'FIN-BR' && receiptImport.rows[0].department === 'FIN-DEP', 'receipt CSV import should map branch and department');
   await rejects(() => finance.importReceipts({ csv: receiptImportCsv }), 'receipt CSV import should reject existing code');
   await rejects(() => finance.importReceipts({ csv: 'receiptCode,receiptName,totalAmount,receiptAmount\nBAD,Bad,-1,1' }), 'receipt CSV import should reject negative amount');
 
   const paymentImportCsv = [
-    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName',
-    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV`,
+    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department',
+    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV,FIN-BR,FIN-DEP`,
   ].join('\n');
   const paymentImport = await finance.importPayments({ csv: paymentImportCsv });
   assert(paymentImport.imported === 1 && paymentImport.rows[0].voucherCode === `${run}-IMP-PAY`, 'payment CSV import should accept valid data');
+  assert(paymentImport.rows[0].paymentMethod === 'CASH' && paymentImport.rows[0].paymentDate.toISOString().slice(0, 10) === '2026-11-06', 'payment CSV import should map method and payment date');
+  assert(amount(paymentImport.rows[0].totalAmount) === 200 && amount(paymentImport.rows[0].paymentAmount) === 150 && amount(paymentImport.rows[0].remainingAmount) === 50, 'payment CSV import should map amounts and remaining amount');
+  assert(paymentImport.rows[0].branch === 'FIN-BR' && paymentImport.rows[0].department === 'FIN-DEP', 'payment CSV import should map branch and department');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,totalAmount,paymentAmount\nBAD,Bad,100,200' }), 'payment CSV import should reject amount over total');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,voucherName,totalAmount,paymentAmount\nA,B,C,1,1' }), 'payment CSV import should reject duplicate headers');
 
