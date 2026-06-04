@@ -643,7 +643,7 @@ export class FitToursService {
   }
 
   private mapHandoverItems(rows?: unknown[]) {
-    const source = rows && rows.length > 0 ? rows : defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 }));
+    const source = rows === undefined ? defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
       itemName: this.text(row.itemName || row.name || 'Tài liệu bàn giao'),
@@ -653,7 +653,7 @@ export class FitToursService {
   }
 
   private mapSurveyQuestions(rows?: unknown[]) {
-    const source = rows && rows.length > 0 ? rows : defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 }));
+    const source = rows === undefined ? defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
       question: this.text(row.question || 'Câu hỏi'),
