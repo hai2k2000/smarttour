@@ -142,6 +142,23 @@ async function main() {
       body: { ...guidePayload(`${run}_BAD`), guideCode: 'bad code with spaces' },
       status: 400,
     });
+    const missingCode = guidePayload(`${run}_MISSING_CODE`);
+    delete missingCode.guideCode;
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: missingCode,
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_MISSING_NAME`), fullName: '' },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_MISSING_PHONE`), phone: '' },
+      status: 400,
+    });
     await request('POST', '/tour-guides', {
       token: adminToken,
       body: { ...guidePayload(`${run}_BAD_PHONE`), phone: 'abc' },
@@ -159,7 +176,27 @@ async function main() {
     });
     await request('POST', '/tour-guides', {
       token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_BIRTHDAY`), birthday: 'not-a-date' },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_CARD_DATE`), cards: [{ cardType: 'Thẻ HDV', issueDate: 'wrong-date' }] },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
       body: { ...guidePayload(`${run}_BAD_SCHEDULE`), schedules: [{ title: 'Missing date', status: 'BUSY' }] },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_SCHEDULE_DATE`), schedules: [{ title: 'Invalid date', startDate: 'not-a-date', endDate: '2030-03-01T17:00', status: 'BUSY' }] },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_SCHEDULE_RANGE`), schedules: [{ title: 'Wrong range', startDate: '2030-03-01T17:00', endDate: '2030-03-01T08:00', status: 'BUSY' }] },
       status: 400,
     });
     await request('POST', '/tour-guides', {
@@ -183,6 +220,20 @@ async function main() {
     assert(Array.isArray(guide.files), 'detail response should include files array for edit form');
     assert(guide.cards[0].issueDate.startsWith('2030-01-01'), 'date-only card issue date should not shift calendar day');
     assert(guide.schedules[0].startDate === '2030-02-01T01:00:00.000Z' && guide.schedules[0].endDate === '2030-02-01T10:00:00.000Z', 'datetime-local schedule should be parsed as Asia/Bangkok time');
+
+    const listRows = await request('GET', '/tour-guides', { token: viewToken });
+    assert(listRows.some((row) => row.id === guide.id), 'list should include created guide');
+    const searchByCode = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_MAIN`)}`, { token: viewToken });
+    assert(searchByCode.some((row) => row.id === guide.id), 'search should find guide by code');
+    const searchByName = await request('GET', `/tour-guides?search=${encodeURIComponent('Nguyen Van HDV')}`, { token: viewToken });
+    assert(searchByName.some((row) => row.id === guide.id), 'search should find guide by full name');
+    const searchByPhone = await request('GET', '/tour-guides?search=0900000001', { token: viewToken });
+    assert(searchByPhone.some((row) => row.id === guide.id), 'search should find guide by phone');
+    const searchByType = await request('GET', '/tour-guides?search=Local', { token: viewToken });
+    assert(searchByType.some((row) => row.id === guide.id), 'search should find guide by guide type');
+    const activeRows = await request('GET', '/tour-guides?status=ACTIVE', { token: viewToken });
+    assert(activeRows.some((row) => row.id === guide.id), 'status filter should include active guide');
+    await request('GET', '/tour-guides?status=LOCKED', { token: viewToken, status: 400 });
 
     await request('GET', `/tour-guides/${guide.id}`, { status: 401 });
     const detail = await request('GET', `/tour-guides/${guide.id}`, { token: viewToken });
