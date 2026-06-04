@@ -39,9 +39,45 @@ export class BookingsService {
       createdAt: true,
       updatedAt: true,
       tourProgram: { select: { id: true, code: true, name: true, route: true, durationDays: true } },
+      operationForm: { select: { id: true, status: true } },
+    } satisfies Prisma.BookingSelect;
+  }
+
+  private detailSelect() {
+    return {
+      id: true,
+      code: true,
+      tourProgramId: true,
+      customerId: true,
+      orderId: true,
+      tourId: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      paxCount: true,
+      startDate: true,
+      endDate: true,
+      saleOwner: true,
+      operatorOwner: true,
+      status: true,
+      totalSellPrice: true,
+      createdAt: true,
+      updatedAt: true,
+      tourProgram: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          route: true,
+          durationDays: true,
+          itineraryDays: { orderBy: { dayNumber: 'asc' }, select: { id: true, dayNumber: true, title: true } },
+        },
+      },
       customer: { select: { id: true, code: true, fullName: true, phone: true, email: true, branch: true, department: true } },
       order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, paymentStatus: true, branch: true, department: true } },
       tour: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      operationVouchers: { select: { id: true, voucherCode: true, status: true } },
+      allotmentLocks: { select: { id: true, status: true, quantity: true } },
       operationForm: { select: { id: true, status: true } },
     } satisfies Prisma.BookingSelect;
   }
@@ -74,15 +110,7 @@ export class BookingsService {
   async detail(id: string, user?: RequestUser) {
     const booking = await this.prisma.booking.findFirst({
       where: this.scopeWhere({ id }, user),
-      include: {
-        tourProgram: { include: { itineraryDays: { orderBy: { dayNumber: 'asc' } } } },
-        customer: true,
-        order: true,
-        tour: true,
-        operationVouchers: true,
-        allotmentLocks: true,
-        operationForm: { include: { tasks: true, services: true, costs: true } },
-      },
+      select: this.detailSelect(),
     });
     if (!booking) throw new NotFoundException('Không tìm thấy booking');
     return booking;
