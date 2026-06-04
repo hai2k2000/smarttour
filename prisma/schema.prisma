@@ -1921,6 +1921,8 @@ model TourItineraryDay {
   title         String
   description   String?
   services      OperationService[]
+
+  @@unique([tourProgramId, dayNumber])
 }
 
 model Booking {

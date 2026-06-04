@@ -156,9 +156,36 @@ export class BookingsService {
   }
 
   private async ensureTourProgram(id: string) {
-    const tourProgram = await this.prisma.tourProgram.findUnique({ where: { id }, select: { id: true, durationDays: true } });
+    const tourProgram = await this.prisma.tourProgram.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        durationDays: true,
+        itineraryDays: { orderBy: { dayNumber: 'asc' }, select: { dayNumber: true } },
+      },
+    });
     if (!tourProgram) throw new NotFoundException('Không tìm thấy tour mẫu');
+    this.ensureTourProgramItineraryComplete(tourProgram);
     return tourProgram;
+  }
+
+  private ensureTourProgramItineraryComplete(tourProgram: {
+    durationDays: number;
+    itineraryDays: Array<{ dayNumber: number }>;
+  }) {
+    const dayNumbers = new Set(tourProgram.itineraryDays.map((day) => day.dayNumber));
+    const missingDays: number[] = [];
+    for (let day = 1; day <= tourProgram.durationDays; day += 1) {
+      if (!dayNumbers.has(day)) missingDays.push(day);
+    }
+    const extraDays = [...dayNumbers].filter((day) => day < 1 || day > tourProgram.durationDays);
+    if (missingDays.length || extraDays.length || dayNumbers.size !== tourProgram.durationDays) {
+      const parts = [
+        missingDays.length ? `thiếu ngày ${missingDays.join(', ')}` : '',
+        extraDays.length ? `có ngày ngoài thời lượng ${extraDays.join(', ')}` : '',
+      ].filter(Boolean);
+      throw new BadRequestException(`Tour mẫu chưa đủ lịch trình: ${parts.join('; ')}`);
+    }
   }
 
   private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
