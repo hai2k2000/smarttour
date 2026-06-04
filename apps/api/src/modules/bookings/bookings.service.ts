@@ -113,8 +113,8 @@ export class BookingsService {
     if (dto.status !== undefined) this.ensureStatusTransition(current.status, dto.status, current.operationForm?.status);
     this.ensureBookingValues(
       {
-        startDate: dto.startDate ?? current.startDate,
-        endDate: dto.endDate ?? current.endDate,
+        startDate: dto.startDate !== undefined ? dto.startDate : current.startDate,
+        endDate: dto.endDate !== undefined ? dto.endDate : current.endDate,
         paxCount: dto.paxCount ?? current.paxCount,
         totalSellPrice: dto.totalSellPrice ?? current.totalSellPrice,
       },
@@ -300,14 +300,10 @@ export class BookingsService {
   }
 
   private ensureBookingValues(
-    input: { startDate: string | Date; endDate: string | Date; paxCount?: number; totalSellPrice?: unknown },
+    input: { startDate: unknown; endDate: unknown; paxCount?: number; totalSellPrice?: unknown },
     durationDays: number,
   ) {
-    const start = this.dateOnlyTime(input.startDate, 'startDate');
-    const end = this.dateOnlyTime(input.endDate, 'endDate');
-    if (start > end) {
-      throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
-    }
+    const { start, end } = this.ensureDateRange(input.startDate, input.endDate);
     const actualDuration = Math.round((end - start) / MS_PER_DAY) + 1;
     if (durationDays > 0 && actualDuration !== durationDays) {
       throw new BadRequestException(`Khoảng ngày booking phải đúng ${durationDays} ngày theo tour mẫu, hiện đang là ${actualDuration} ngày`);
@@ -320,13 +316,48 @@ export class BookingsService {
     }
   }
 
-  private dateOnlyTime(value: string | Date, field: string) {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  private ensureDateRange(startDate: unknown, endDate: unknown) {
+    const start = this.dateOnlyTime(startDate, 'startDate');
+    const end = this.dateOnlyTime(endDate, 'endDate');
+    if (start > end) {
+      throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
+    }
+    return { start, end };
   }
 
-  private dateKey(value: string | Date) {
+  private dateOnlyTime(value: unknown, field: string) {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${this.dateFieldLabel(field)} không hợp lệ`);
+      return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+    }
+
+    if (value === null || value === undefined) throw new BadRequestException(`${this.dateFieldLabel(field)} không được để trống`);
+    const text = String(value).trim();
+    if (!text) throw new BadRequestException(`${this.dateFieldLabel(field)} không được để trống`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      throw new BadRequestException(`${this.dateFieldLabel(field)} phải có định dạng YYYY-MM-DD`);
+    }
+
+    const [year, month, day] = text.split('-').map(Number);
+    const time = Date.UTC(year, month - 1, day);
+    const date = new Date(time);
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException(`${this.dateFieldLabel(field)} không hợp lệ`);
+    }
+    return time;
+  }
+
+  private dateOnlyDate(value: unknown, field: string) {
+    return new Date(this.dateOnlyTime(value, field));
+  }
+
+  private dateFieldLabel(field: string) {
+    if (field === 'startDate') return 'Ngày khởi hành';
+    if (field === 'endDate') return 'Ngày kết thúc';
+    return 'Ngày';
+  }
+
+  private dateKey(value: unknown) {
     return this.dateOnlyTime(value, 'date');
   }
 
@@ -347,8 +378,8 @@ export class BookingsService {
       customerPhone: this.optionalText(dto.customerPhone),
       customerEmail: this.optionalText(dto.customerEmail),
       paxCount: dto.paxCount,
-      startDate: new Date(dto.startDate),
-      endDate: new Date(dto.endDate),
+      startDate: this.dateOnlyDate(dto.startDate, 'startDate'),
+      endDate: this.dateOnlyDate(dto.endDate, 'endDate'),
       saleOwner: this.optionalText(dto.saleOwner),
       operatorOwner: this.optionalText(dto.operatorOwner),
       totalSellPrice: dto.totalSellPrice ?? 0,
@@ -366,8 +397,8 @@ export class BookingsService {
       ...(dto.customerPhone !== undefined ? { customerPhone: this.optionalText(dto.customerPhone) } : {}),
       ...(dto.customerEmail !== undefined ? { customerEmail: this.optionalText(dto.customerEmail) } : {}),
       ...(dto.paxCount !== undefined ? { paxCount: dto.paxCount } : {}),
-      ...(dto.startDate !== undefined ? { startDate: new Date(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: new Date(dto.endDate) } : {}),
+      ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'startDate') } : {}),
+      ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'endDate') } : {}),
       ...(dto.saleOwner !== undefined ? { saleOwner: this.optionalText(dto.saleOwner) } : {}),
       ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
       ...(dto.totalSellPrice !== undefined ? { totalSellPrice: dto.totalSellPrice } : {}),
