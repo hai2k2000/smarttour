@@ -48,6 +48,18 @@ function amount(value) {
   return Number(value);
 }
 
+function role(...permissions) {
+  return { role: { permissions: permissions.map((permission) => ({ permission })) } };
+}
+
+function scopedUser(branch, department, ...permissions) {
+  return { id: 'user-' + branch + '-' + department, username: 'scope-user', branch, department, roles: [role(...permissions)] };
+}
+
+function uploadFile(name = 'finance-test.txt') {
+  return { originalname: name, mimetype: 'text/plain', size: 12, buffer: Buffer.from('finance-test') };
+}
+
 async function sum(prisma, model, where, field) {
   const result = await prisma[model].aggregate({ where, _sum: { [field]: true } });
   return amount(result._sum[field] || 0);
@@ -63,7 +75,25 @@ async function main() {
   const prisma = new PrismaService();
   await prisma.$connect();
   await prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CodeSequence_scope_prefix_year_month_branch_expr_key" ON "CodeSequence"("scope", "prefix", "year", COALESCE("month", 0), COALESCE("branch", \'\'))');
-  const finance = new FinanceService(prisma, {});
+  const fileStore = { uploaded: [], removed: [] };
+  const filesService = {
+    async upload(file, folder, actorId) {
+      if (!file) throw new Error('missing file');
+      const objectKey = `${folder}/${file.originalname}`;
+      fileStore.uploaded.push({ objectKey, actorId });
+      return { fileName: file.originalname, url: `/files/${objectKey}`, objectKey, mimeType: file.mimetype, size: file.size };
+    },
+    objectKeyFromUrl(url) {
+      return url ? String(url).replace(/^\/files\//, '') : null;
+    },
+    async removeQuietly(objectKey) {
+      if (objectKey) fileStore.removed.push(objectKey);
+    },
+    async removeIfPresent(objectKey) {
+      if (objectKey) fileStore.removed.push(objectKey);
+    },
+  };
+  const finance = new FinanceService(prisma, filesService);
   const run = 'FIN-SVC-' + Date.now();
 
   const customer = await prisma.customer.create({
@@ -144,6 +174,80 @@ async function main() {
     },
   });
 
+  const branchUser = scopedUser('FIN-BR', 'FIN-DEP', 'data.scope.branch');
+  const outOfScopeUser = scopedUser('OTHER-BR', 'OTHER-DEP', 'data.scope.branch');
+
+  const draftReceipt = await finance.createReceipt({
+    receiptCode: run + '-CRUD-RCPT',
+    receiptName: 'Receipt CRUD',
+    receiptType: 'TOUR_PAYMENT',
+    paymentMethod: 'CASH',
+    paymentDate: '2026-10-01',
+    customerId: customer.id,
+    totalAmount: 500,
+    paidBefore: 100,
+    receiptAmount: 200,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const updatedReceipt = await finance.updateReceipt(draftReceipt.id, { receiptName: 'Receipt CRUD Updated', totalAmount: 500, paidBefore: 150, receiptAmount: 250, branch: 'FIN-BR', department: 'FIN-DEP' });
+  assert(updatedReceipt.receiptName === 'Receipt CRUD Updated' && amount(updatedReceipt.remainingAmount) === 100, 'receipt update should persist fields and recalculate remaining amount');
+  const receiptUpload = await finance.uploadReceiptFile(draftReceipt.id, uploadFile('receipt.txt'), 'finance-test');
+  assert(receiptUpload.attachmentName === 'receipt.txt' && receiptUpload.attachmentUrl.includes('/finance/receipts/'), 'receipt upload should attach file metadata');
+  const receiptFileDeleted = await finance.deleteReceiptFile(draftReceipt.id);
+  assert(!receiptFileDeleted.attachmentName && !receiptFileDeleted.attachmentUrl && fileStore.removed.some((key) => key.includes('receipt.txt')), 'receipt delete file should clear metadata and remove object');
+  const receiptDetailScoped = await finance.receiptDetail(draftReceipt.id, branchUser);
+  assert(receiptDetailScoped.id === draftReceipt.id, 'receipt detail should be visible in branch scope');
+  await rejects(() => finance.receiptDetail(draftReceipt.id, outOfScopeUser), 'receipt detail should be hidden outside branch scope');
+  const deletedReceipt = await finance.deleteReceipt(draftReceipt.id);
+  assert(deletedReceipt.deletedAt, 'receipt delete should soft delete draft');
+
+  const draftPayment = await finance.createPayment({
+    voucherCode: run + '-CRUD-PAY',
+    voucherName: 'Payment CRUD',
+    voucherType: 'SUPPLIER_PAYMENT',
+    paymentMethod: 'CASH',
+    paymentDate: '2026-10-02',
+    supplierId: supplier.id,
+    totalAmount: 700,
+    paymentAmount: 300,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const updatedPayment = await finance.updatePayment(draftPayment.id, { voucherName: 'Payment CRUD Updated', totalAmount: 700, paymentAmount: 450, branch: 'FIN-BR', department: 'FIN-DEP' });
+  assert(updatedPayment.voucherName === 'Payment CRUD Updated' && amount(updatedPayment.remainingAmount) === 250, 'payment update should persist fields and recalculate remaining amount');
+  const paymentUpload = await finance.uploadPaymentFile(draftPayment.id, uploadFile('payment.txt'), 'finance-test');
+  assert(paymentUpload.attachmentName === 'payment.txt' && paymentUpload.attachmentUrl.includes('/finance/payments/'), 'payment upload should attach file metadata');
+  const paymentFileDeleted = await finance.deletePaymentFile(draftPayment.id);
+  assert(!paymentFileDeleted.attachmentName && !paymentFileDeleted.attachmentUrl && fileStore.removed.some((key) => key.includes('payment.txt')), 'payment delete file should clear metadata and remove object');
+  const paymentDetailScoped = await finance.paymentDetail(draftPayment.id, branchUser);
+  assert(paymentDetailScoped.id === draftPayment.id, 'payment detail should be visible in branch scope');
+  await rejects(() => finance.paymentDetail(draftPayment.id, outOfScopeUser), 'payment detail should be hidden outside branch scope');
+  const deletedPayment = await finance.deletePayment(draftPayment.id);
+  assert(deletedPayment.deletedAt, 'payment delete should soft delete draft');
+
+  const draftInvoice = await finance.createInvoice({
+    invoiceCode: run + '-CRUD-INV',
+    customerId: customer.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    issuedDate: '2026-10-03',
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+    items: [{ itemName: 'Invoice CRUD', unit: 'pax', quantity: 1, unitPrice: 100, taxRate: 10 }],
+  });
+  const updatedInvoice = await finance.updateInvoice(draftInvoice.id, { customerName: customer.fullName, invoiceType: 'VAT', branch: 'FIN-BR', department: 'FIN-DEP', items: [{ itemName: 'Invoice CRUD Updated', unit: 'pax', quantity: 2, unitPrice: 100, taxRate: 8 }] });
+  assert(amount(updatedInvoice.totalBeforeTax) === 200 && amount(updatedInvoice.totalTax) === 16 && amount(updatedInvoice.totalAfterTax) === 216, 'invoice update should recalculate item totals');
+  const invoiceFile = await finance.uploadInvoiceFile(draftInvoice.id, uploadFile('invoice.txt'), 'finance-test');
+  assert(invoiceFile.fileName === 'invoice.txt' && invoiceFile.fileUrl.includes('/finance/invoices/'), 'invoice upload should create invoice file row');
+  const invoiceFileDeleted = await finance.deleteInvoiceFile(draftInvoice.id, invoiceFile.id);
+  assert(invoiceFileDeleted.fileName === 'invoice.txt' && fileStore.removed.some((key) => key.includes('invoice.txt')), 'invoice delete file should remove invoice file row and object');
+  const invoiceDetailScoped = await finance.invoiceDetail(draftInvoice.id, branchUser);
+  assert(invoiceDetailScoped.id === draftInvoice.id, 'invoice detail should be visible in branch scope');
+  await rejects(() => finance.invoiceDetail(draftInvoice.id, outOfScopeUser), 'invoice detail should be hidden outside branch scope');
+  const deletedInvoice = await finance.deleteInvoice(draftInvoice.id);
+  assert(deletedInvoice.deletedAt, 'invoice delete should soft delete draft');
+
   await rejects(() => finance.createReceipt({
     receiptCode: run + '-BAD-RCPT-LINK',
     receiptName: 'Bad Receipt Link',
@@ -192,6 +296,14 @@ async function main() {
   assert(amount(receipt.totalAmount) === 1000 && amount(receipt.paidBefore) === 0 && amount(receipt.receiptAmount) === 1000 && amount(receipt.remainingAmount) === 0, 'receipt create should calculate remaining amount');
   const approvedReceipt = await finance.approveReceipt(receipt.id, { actor: 'finance-test' });
   assert(approvedReceipt.approvalStatus === 'APPROVED', 'receipt should approve');
+  const branchReceiptList = await finance.listReceipts({ search: run, take: '1000' }, branchUser);
+  const outReceiptList = await finance.listReceipts({ search: run, take: '1000' }, outOfScopeUser);
+  assert(branchReceiptList.rows.some((row) => row.id === receipt.id), 'receipt list should include branch scoped rows');
+  assert(!outReceiptList.rows.some((row) => row.id === receipt.id), 'receipt list should exclude out-of-scope rows');
+  const branchReceiptExport = await finance.exportReceipts({ search: run }, branchUser);
+  const outReceiptExport = await finance.exportReceipts({ search: run }, outOfScopeUser);
+  assert(branchReceiptExport.includes(receipt.receiptCode), 'receipt export should include branch scoped rows');
+  assert(!outReceiptExport.includes(receipt.receiptCode), 'receipt export should exclude out-of-scope rows');
   assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'RECEIPT', sourceId: receipt.id } }) === 1, 'receipt approve should create cashflow');
   assert(await prisma.customerLedgerEntry.count({ where: { sourceType: 'FINANCE_RECEIPT', sourceId: receipt.id, entryType: 'CREDIT' } }) === 1, 'receipt approve should create customer ledger');
   assert(await sum(prisma, 'financeCashflowEntry', { sourceType: 'RECEIPT', sourceId: receipt.id, entryType: 'RECEIPT' }, 'amount') === 1000, 'receipt cashflow amount should match receipt amount');
@@ -252,6 +364,14 @@ async function main() {
   assert(amount(payment.totalAmount) === 1000 && amount(payment.paymentAmount) === 600 && amount(payment.remainingAmount) === 400, 'payment create should calculate remaining amount');
   const approvedPayment = await finance.approvePayment(payment.id, { actor: 'finance-test' });
   assert(approvedPayment.approvalStatus === 'APPROVED', 'payment should approve');
+  const branchPaymentList = await finance.listPayments({ search: run, take: '1000' }, branchUser);
+  const outPaymentList = await finance.listPayments({ search: run, take: '1000' }, outOfScopeUser);
+  assert(branchPaymentList.rows.some((row) => row.id === payment.id), 'payment list should include branch scoped rows');
+  assert(!outPaymentList.rows.some((row) => row.id === payment.id), 'payment list should exclude out-of-scope rows');
+  const branchPaymentExport = await finance.exportPayments({ search: run }, branchUser);
+  const outPaymentExport = await finance.exportPayments({ search: run }, outOfScopeUser);
+  assert(branchPaymentExport.includes(payment.voucherCode), 'payment export should include branch scoped rows');
+  assert(!outPaymentExport.includes(payment.voucherCode), 'payment export should exclude out-of-scope rows');
   let voucherAfter = await prisma.operationVoucher.findUniqueOrThrow({ where: { id: voucher.id } });
   assert(amount(voucherAfter.paidAmount) === 600 && amount(voucherAfter.remainAmount) === 400 && voucherAfter.status === 'PARTIAL', 'payment approve should reconcile voucher');
   assert(await prisma.supplierLedgerEntry.count({ where: { sourceType: 'FINANCE_PAYMENT', sourceId: payment.id, entryType: 'DEBIT' } }) === 1, 'payment approve should create supplier ledger');
@@ -277,6 +397,10 @@ async function main() {
   assert(supplierDebtAfterPaymentCancel.summary.balance === 0 && !supplierDebtAfterPaymentCancel.rows.find((row) => row.id === supplier.id), 'payment cancel should net supplier debt report back to zero');
   const cashflowAfterCancels = await finance.cashflow({ take: '1000' });
   assert(cashflowAfterCancels.summary.netCashflow === 0 && cashflowAfterCancels.summary.totalReceipt === cashflowAfterCancels.summary.totalPayment, 'receipt/payment cancel should net cashflow summary to zero');
+  const branchCashflow = await finance.cashflow({ take: '1000' }, branchUser);
+  const outCashflow = await finance.cashflow({ take: '1000' }, outOfScopeUser);
+  assert(branchCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should include branch scoped rows');
+  assert(!outCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should exclude out-of-scope rows');
   const cancelledPaymentAgain = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' });
   assert(cancelledPaymentAgain.reversals.length === 1, 'double cancel payment should be idempotent without duplicate reversal');
 
@@ -309,6 +433,14 @@ async function main() {
   });
   const approvedInvoice = await finance.approveInvoice(invoice.id, { actor: 'finance-test' });
   assert(approvedInvoice.approvalStatus === 'APPROVED', 'invoice should approve');
+  const branchInvoiceList = await finance.listInvoices({ search: run, take: '1000' }, branchUser);
+  const outInvoiceList = await finance.listInvoices({ search: run, take: '1000' }, outOfScopeUser);
+  assert(branchInvoiceList.rows.some((row) => row.id === invoice.id), 'invoice list should include branch scoped rows');
+  assert(!outInvoiceList.rows.some((row) => row.id === invoice.id), 'invoice list should exclude out-of-scope rows');
+  const branchInvoiceExport = await finance.exportInvoices({ search: run }, branchUser);
+  const outInvoiceExport = await finance.exportInvoices({ search: run }, outOfScopeUser);
+  assert(branchInvoiceExport.includes(invoice.invoiceCode), 'invoice export should include branch scoped rows');
+  assert(!outInvoiceExport.includes(invoice.invoiceCode), 'invoice export should exclude out-of-scope rows');
   assert(await prisma.customerLedgerEntry.count({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } }) === 1, 'invoice approve should create customer ledger');
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' }, 'debitAmount') === 1100, 'invoice customer ledger debit should match total after tax');
   const invoiceLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } });
@@ -393,6 +525,10 @@ async function main() {
   const customerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' });
   const customerDebtRow = customerDebt.rows.find((row) => row.id === customer.id);
   assert(customerDebtRow && customerDebtRow.balance === 150, 'customer debt report should include net manual adjustment balance');
+  const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);
+  const outCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, outOfScopeUser);
+  assert(branchCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should include branch scoped entries');
+  assert(!outCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should exclude out-of-scope entries');
   await rejects(() => finance.createCustomerDebtAdjustment(customer.id, { direction: 'SIDEWAYS', amount: 1 }), 'customer debt adjustment should reject invalid direction');
 
   const supplierAdjustmentIncrease = await finance.createSupplierDebtAdjustment(supplier.id, { direction: 'INCREASE', amount: 400, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'increase supplier debt' });
@@ -401,6 +537,10 @@ async function main() {
   const supplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' });
   const supplierDebtRow = supplierDebt.rows.find((row) => row.id === supplier.id);
   assert(supplierDebtRow && supplierDebtRow.balance === 275, 'supplier debt report should include net manual adjustment balance');
+  const branchSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, branchUser);
+  const outSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, outOfScopeUser);
+  assert(branchSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should include branch scoped entries');
+  assert(!outSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should exclude out-of-scope entries');
   await rejects(() => finance.createSupplierDebtAdjustment(supplier.id, { direction: 'INCREASE', amount: 0 }), 'supplier debt adjustment should reject non-positive amount');
 
   await prisma.$disconnect();
