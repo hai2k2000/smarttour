@@ -23,6 +23,7 @@ type Message = { kind: 'success' | 'error' | 'info'; text: string };
 type RowColumn = { key: string; label: string; type?: string; placeholder?: string };
 const costValueKeys = ['serviceType', 'serviceName', 'unit', 'netPrice', 'sellingPrice', 'note'];
 const scheduleValueKeys = ['title', 'startDate', 'endDate', 'note'];
+const appTimeZone = 'Asia/Bangkok';
 
 const cardSchema = z.object({ cardType: z.string().default(''), cardNumber: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
 const documentSchema = z.object({ documentType: z.string().default(''), documentNo: z.string().default(''), country: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
@@ -71,7 +72,12 @@ function browserApiBase() {
 }
 
 function newGuideCode() {
-  return `HDV${Date.now().toString().slice(-6)}`;
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 4).toUpperCase()
+      : Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `HDV-${timestamp}-${random}`;
 }
 
 function newGuideDefaults(): GuideForm {
@@ -140,7 +146,18 @@ function dateOnly(value?: string | null) {
 }
 
 function dateTimeLocal(value?: string | null) {
-  return value ? value.slice(0, 16) : '';
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: appTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date).replace(' ', 'T');
 }
 
 function normalizeSearch(value: unknown) {

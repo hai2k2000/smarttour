@@ -7,6 +7,7 @@ import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 const GUIDE_SCHEDULE_STATUSES = ['AVAILABLE', 'BUSY', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'] as const;
+const VIETNAM_TIMEZONE_OFFSET_MINUTES = 7 * 60;
 type ScheduleLinkContext = {
   orders: Map<string, { id: string; status: OrderStatus; startDate: Date | null; endDate: Date | null }>;
   tours: Map<string, { id: string; status: TourStatus; startDate: Date | null; endDate: Date | null }>;
@@ -141,8 +142,8 @@ export class TourGuidesService {
           guideId,
           cardType: item.cardType.trim(),
           cardNumber: this.text(item.cardNumber),
-          issueDate: this.date(item.issueDate, 'Ngày cấp thẻ HDV'),
-          expiredDate: this.date(item.expiredDate, 'Ngày hết hạn thẻ HDV'),
+          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp thẻ HDV'),
+          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn thẻ HDV'),
           issuePlace: this.text(item.issuePlace),
           fileUrl: this.text(item.fileUrl),
           note: this.text(item.note),
@@ -159,8 +160,8 @@ export class TourGuidesService {
           documentType: item.documentType.trim(),
           documentNo: this.text(item.documentNo),
           country: this.text(item.country),
-          issueDate: this.date(item.issueDate, 'Ngày cấp giấy tờ HDV'),
-          expiredDate: this.date(item.expiredDate, 'Ngày hết hạn giấy tờ HDV'),
+          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp giấy tờ HDV'),
+          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn giấy tờ HDV'),
           issuePlace: this.text(item.issuePlace),
           fileUrl: this.text(item.fileUrl),
           note: this.text(item.note),
@@ -197,8 +198,8 @@ export class TourGuidesService {
             tourId,
             orderId,
             title: this.text(item.title),
-            startDate: this.date(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
-            endDate: this.date(item.endDate, 'Ngày kết thúc lịch điều hành')!,
+            startDate: this.dateTime(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
+            endDate: this.dateTime(item.endDate, 'Ngày kết thúc lịch điều hành')!,
             status: this.scheduleStatusForLinks(item.status, orderId, tourId, scheduleContext),
             note: this.text(item.note),
             sortOrder: index,
@@ -214,7 +215,7 @@ export class TourGuidesService {
       ...(dto.guideCode !== undefined ? { guideCode: dto.guideCode.trim() } : {}),
       ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.text(dto.taxCode) } : {}),
-      ...(dto.birthday !== undefined ? { birthday: this.date(dto.birthday, 'Ngày sinh HDV') } : {}),
+      ...(dto.birthday !== undefined ? { birthday: this.dateOnly(dto.birthday, 'Ngày sinh HDV') } : {}),
       ...(dto.gender !== undefined ? { gender: this.text(dto.gender) } : {}),
       ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
       ...(dto.email !== undefined ? { email: this.text(dto.email) } : {}),
@@ -250,8 +251,8 @@ export class TourGuidesService {
       .map((item) => {
         if (!item.startDate || !item.endDate) throw new BadRequestException('Lịch điều hành phải có ngày bắt đầu và ngày kết thúc');
         return {
-          start: this.date(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
-          end: this.date(item.endDate, 'Ngày kết thúc lịch điều hành')!,
+          start: this.dateTime(item.startDate, 'Ngày bắt đầu lịch điều hành')!,
+          end: this.dateTime(item.endDate, 'Ngày kết thúc lịch điều hành')!,
           status: this.normalizeScheduleStatus(item.status ?? 'BUSY'),
         };
       });
@@ -320,8 +321,8 @@ export class TourGuidesService {
   private validateScheduleRangesAgainstLinks(schedules: Array<{ tourId?: string; orderId?: string; startDate?: string; endDate?: string }>, context: ScheduleLinkContext) {
     for (const schedule of schedules) {
       if (!schedule.startDate || !schedule.endDate) continue;
-      const startDate = this.date(schedule.startDate, 'Ngày bắt đầu lịch điều hành')!;
-      const endDate = this.date(schedule.endDate, 'Ngày kết thúc lịch điều hành')!;
+      const startDate = this.dateTime(schedule.startDate, 'Ngày bắt đầu lịch điều hành')!;
+      const endDate = this.dateTime(schedule.endDate, 'Ngày kết thúc lịch điều hành')!;
       const order = this.text(schedule.orderId) ? context.orders.get(this.text(schedule.orderId)!) : null;
       const tour = this.text(schedule.tourId) ? context.tours.get(this.text(schedule.tourId)!) : null;
       const source = order ?? tour;
@@ -363,9 +364,31 @@ export class TourGuidesService {
     return trimmed ? trimmed : null;
   }
 
-  private date(value?: string | null, label = 'Ngày') {
+  private dateOnly(value?: string | null, label = 'Ngày') {
+    const trimmed = this.text(value);
+    if (!trimmed) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const parsed = new Date(`${trimmed}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
+      return parsed;
+    }
+    return this.dateTime(trimmed, label);
+  }
+
+  private dateTime(value?: string | null, label = 'Ngày') {
     if (!value) return null;
-    const parsed = new Date(value);
+    const trimmed = value.trim();
+    const localDateTime = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    const parsed = localDateTime
+      ? new Date(Date.UTC(
+          Number(localDateTime[1]),
+          Number(localDateTime[2]) - 1,
+          Number(localDateTime[3]),
+          Number(localDateTime[4]),
+          Number(localDateTime[5]),
+          Number(localDateTime[6] ?? 0),
+        ) - VIETNAM_TIMEZONE_OFFSET_MINUTES * 60 * 1000)
+      : new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
     return parsed;
   }

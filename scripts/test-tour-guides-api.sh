@@ -93,7 +93,7 @@ async function main() {
       cards: [{ cardType: 'Thẻ HDV', cardNumber: `${code}-CARD`, issueDate: '2030-01-01', expiredDate: '2031-01-01', issuePlace: 'Ha Noi', note: 'card note' }],
       documents: [{ documentType: 'Passport', documentNo: `${code}-PASS`, country: 'VN', issueDate: '2030-01-01', expiredDate: '2031-01-01', note: 'doc note' }],
       costServices: [{ serviceType: 'Guide', serviceName: 'Công tác phí HDV', unit: 'ngày', currency: 'VND', netPrice: 1000000, sellingPrice: 1200000, note: 'cost note' }],
-      schedules: [{ title: 'Tour test', startDate: '2030-02-01T08:00:00.000Z', endDate: '2030-02-01T17:00:00.000Z', status: 'BUSY', note: 'schedule note' }],
+      schedules: [{ title: 'Tour test', startDate: '2030-02-01T08:00', endDate: '2030-02-01T17:00', status: 'BUSY', note: 'schedule note' }],
       ...overrides,
     };
   }
@@ -181,10 +181,13 @@ async function main() {
     });
     assert(guide.cards.length === 1 && guide.documents.length === 1 && guide.costServices.length === 1 && guide.schedules.length === 1, 'create should return detail with child arrays');
     assert(Array.isArray(guide.files), 'detail response should include files array for edit form');
+    assert(guide.cards[0].issueDate.startsWith('2030-01-01'), 'date-only card issue date should not shift calendar day');
+    assert(guide.schedules[0].startDate === '2030-02-01T01:00:00.000Z' && guide.schedules[0].endDate === '2030-02-01T10:00:00.000Z', 'datetime-local schedule should be parsed as Asia/Bangkok time');
 
     await request('GET', `/tour-guides/${guide.id}`, { status: 401 });
     const detail = await request('GET', `/tour-guides/${guide.id}`, { token: viewToken });
     assert(detail.cards[0].cardType === 'Thẻ HDV' && String(detail.costServices[0].netPrice) === '1000000', 'detail should return enough child data for edit form');
+    assert(String(detail.costServices[0].sellingPrice) === '1200000' && !('amount' in detail.costServices[0]), 'guide cost service should save price-book values without derived calculations');
     await request('PUT', `/tour-guides/${guide.id}`, { token: viewToken, body: { fullName: 'Viewer cannot update' }, status: 403 });
 
     const searchRows = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_main@smarttour.local`)}`, { token: viewToken });
@@ -220,6 +223,24 @@ async function main() {
     assert(updated.cards.length === 1 && updated.cards[0].cardType === 'Thẻ quốc tế', 'update should replace card rows predictably');
     assert(updated.documents.length === 0 && updated.schedules.length === 0, 'update with empty child arrays should clear those sections');
     assert(updated.costServices.length === 1 && updated.costServices[0].serviceName === 'Guide full day', 'update should keep submitted cost service row');
+    const preserved = await request('PUT', `/tour-guides/${guide.id}`, {
+      token: adminToken,
+      body: { fullName: 'Nguyen Van HDV Preserve Children' },
+    });
+    assert(preserved.cards.length === 1 && preserved.cards[0].cardType === 'Thẻ quốc tế', 'update without child arrays should preserve existing card rows');
+    assert(preserved.costServices.length === 1 && preserved.costServices[0].serviceName === 'Guide full day', 'update without child arrays should preserve existing cost rows');
+    const cleared = await request('PUT', `/tour-guides/${guide.id}`, {
+      token: adminToken,
+      body: {
+        cards: [],
+        documents: [{ documentType: 'Visa', documentNo: 'VISA-1', issueDate: '2030-07-01', expiredDate: '2030-08-01' }],
+        costServices: [],
+        schedules: [{ title: 'New local time schedule', startDate: '2030-08-01T09:30', endDate: '2030-08-01T11:00', status: 'CONFIRMED' }],
+      },
+    });
+    assert(cleared.cards.length === 0 && cleared.costServices.length === 0, 'submitted empty child arrays should delete those rows after save');
+    assert(cleared.documents.length === 1 && cleared.documents[0].documentType === 'Visa', 'submitted document rows should be saved after deleting other child rows');
+    assert(cleared.schedules.length === 1 && cleared.schedules[0].startDate === '2030-08-01T02:30:00.000Z', 'saved schedule rows should keep Asia/Bangkok local time conversion');
 
     const cancelledOrder = await prisma.order.create({
       data: {
@@ -261,4 +282,20 @@ main().catch((error) => {
   console.error(error.stack || error.message);
   process.exit(1);
 });
+NODE
+
+docker run --rm -i -v "$PWD:/workspace:ro" -w /workspace node:22-alpine node <<'NODE'
+const fs = require('fs');
+
+const source = fs.readFileSync('apps/web/app/tour-guides/TourGuidesClient.tsx', 'utf8');
+
+function assert(condition, label) {
+  if (!condition) throw new Error(label);
+}
+
+assert(source.includes('Date.now().toString(36).toUpperCase()') && source.includes('crypto.randomUUID'), 'newGuideCode should use high-entropy timestamp plus random suffix');
+assert(source.includes("const appTimeZone = 'Asia/Bangkok'") && source.includes("timeZone: appTimeZone"), 'TourGuidesClient should display schedule datetimes in Asia/Bangkok');
+assert(source.includes('buildPayload') && source.includes('costServices') && source.includes('netPrice: numberOrZero(row.netPrice)'), 'TourGuidesClient should submit HDV price-book rows as explicit numbers');
+
+console.log('TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK');
 NODE
