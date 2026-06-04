@@ -22,16 +22,55 @@ const fitTourInclude = {
   attachments: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.FitTourInclude;
 
-const defaultHandoverItems = ['Rooming list', 'Ve may bay', 'Bao hiem du lich', 'Chuong trinh tour', 'Final confirmation'];
+const fitTourListSelect = {
+  id: true,
+  quoteCode: true,
+  tourCode: true,
+  tourName: true,
+  customerName: true,
+  phone: true,
+  startDate: true,
+  endDate: true,
+  adultCount: true,
+  childCount: true,
+  infantCount: true,
+  sellingPrice: true,
+  commissionPerGuest: true,
+  workflowStatus: true,
+  updatedAt: true,
+  _count: {
+    select: {
+      commonCosts: true,
+      hotelCosts: true,
+      privateCosts: true,
+      budgetServices: true,
+      operationServices: true,
+    },
+  },
+} satisfies Prisma.FitTourSelect;
+
+const workflowOrder = [
+  FitTourWorkflowStatus.DRAFT,
+  FitTourWorkflowStatus.PRICING,
+  FitTourWorkflowStatus.TOUR_INFO,
+  FitTourWorkflowStatus.BUDGET,
+  FitTourWorkflowStatus.OPERATION,
+  FitTourWorkflowStatus.HANDOVER,
+  FitTourWorkflowStatus.SURVEY,
+  FitTourWorkflowStatus.COMPLETED,
+] as const;
+const terminalWorkflowStatuses = new Set<FitTourWorkflowStatus>([FitTourWorkflowStatus.COMPLETED, FitTourWorkflowStatus.CANCELLED]);
+
+const defaultHandoverItems = ['Rooming list', 'Vé máy bay', 'Bảo hiểm du lịch', 'Chương trình tour', 'Final confirmation'];
 const defaultSurveyQuestions = [
-  'Chat luong chuong trinh tour',
-  'Phuong tien van chuyen',
-  'Chat luong do an',
-  'Thai do nhan vien tu van',
-  'Chat luong khach san',
-  'Huong dan vien',
-  'Cong tac to chuc',
-  'Muc do hai long chung',
+  'Chất lượng chương trình tour',
+  'Phương tiện vận chuyển',
+  'Chất lượng đồ ăn',
+  'Thái độ nhân viên tư vấn',
+  'Chất lượng khách sạn',
+  'Hướng dẫn viên',
+  'Công tác tổ chức',
+  'Mức độ hài lòng chung',
 ];
 
 @Injectable()
@@ -57,17 +96,7 @@ export class FitToursService {
 
     return this.prisma.fitTour.findMany({
       where: this.fitTourScopeWhere(where, user),
-      include: {
-        _count: {
-          select: {
-            commonCosts: true,
-            hotelCosts: true,
-            privateCosts: true,
-            budgetServices: true,
-            operationServices: true,
-          },
-        },
-      },
+      select: fitTourListSelect,
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
     });
   }
@@ -84,6 +113,9 @@ export class FitToursService {
       const created = await this.prisma.$transaction(async (tx) => {
         const fitDto = await this.withCustomerSnapshot(tx, dto);
         await this.ensureOrder(tx, fitDto.orderId);
+        this.validateProvidedFields(fitDto, true);
+        this.validateFitTourBusinessRules(fitDto, true);
+        this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
         const tour = await tx.tour.create({ data: this.toTourCoreData(fitDto, true) as Prisma.TourUncheckedCreateInput });
         const fitTour = await tx.fitTour.create({
           data: {
@@ -122,6 +154,9 @@ export class FitToursService {
         const patch = await this.withCustomerSnapshot(tx, dto);
         await this.ensureOrder(tx, patch.orderId);
         const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
+        this.validateProvidedFields(patch, false);
+        this.validateFitTourBusinessRules(merged, false);
+        this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
         const tourId = current.tourId || (await tx.tour.create({ data: this.toTourCoreData(merged, true) as Prisma.TourUncheckedCreateInput })).id;
         await tx.fitTour.update({
           where: { id },
@@ -155,15 +190,17 @@ export class FitToursService {
   }
 
   async copyBudget(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
-    const source = await this.detail(sourceTourId || targetTourId, user);
-    await this.detail(targetTourId, user);
+    const targetId = this.requiredText(targetTourId, 'targetTourId');
+    const sourceId = this.optionalText(sourceTourId) || targetId;
+    const source = await this.detail(sourceId, user);
+    await this.detail(targetId, user);
     const budgetRows = source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.fitBudgetService.deleteMany({ where: { fitTourId: targetTourId } });
+      await tx.fitBudgetService.deleteMany({ where: { fitTourId: targetId } });
       await tx.fitBudgetService.createMany({
         data: budgetRows.map((row) => ({
-          fitTourId: targetTourId,
+          fitTourId: targetId,
           serviceType: row.serviceType,
           supplierId: row.supplierId || null,
           description: row.description || null,
@@ -175,19 +212,21 @@ export class FitToursService {
         })),
       });
     });
-    return this.detail(targetTourId, user);
+    return this.detail(targetId, user);
   }
 
   async copyOperation(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
-    const source = await this.detail(sourceTourId || targetTourId, user);
-    await this.detail(targetTourId, user);
+    const targetId = this.requiredText(targetTourId, 'targetTourId');
+    const sourceId = this.optionalText(sourceTourId) || targetId;
+    const source = await this.detail(sourceId, user);
+    await this.detail(targetId, user);
     const rows = source.operationServices.length > 0 ? source.operationServices : source.budgetServices;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.fitOperationService.deleteMany({ where: { fitTourId: targetTourId } });
+      await tx.fitOperationService.deleteMany({ where: { fitTourId: targetId } });
       await tx.fitOperationService.createMany({
         data: rows.map((row) => ({
-          fitTourId: targetTourId,
+          fitTourId: targetId,
           serviceType: row.serviceType,
           supplierId: row.supplierId || null,
           supplierServiceId: 'supplierServiceId' in row ? row.supplierServiceId || null : null,
@@ -201,7 +240,83 @@ export class FitToursService {
         })),
       });
     });
-    return this.detail(targetTourId, user);
+    return this.detail(targetId, user);
+  }
+
+  private validateProvidedFields(dto: UpdateFitTourDto, creating: boolean) {
+    this.validateTextLength(dto.quoteCode, 'quoteCode', 'Mã báo giá', 2, creating);
+    this.validateTextLength(dto.tourCode, 'tourCode', 'Mã tour', 2, creating);
+    this.validateTextLength(dto.customerName, 'customerName', 'Họ tên khách', 2, creating);
+  }
+
+  private validateFitTourBusinessRules(dto: UpdateFitTourDto, creating: boolean) {
+    const adultCount = this.nonNegativeInteger(dto.adultCount ?? (creating ? 1 : 0), 'adultCount');
+    const childCount = this.nonNegativeInteger(dto.childCount, 'childCount');
+    const infantCount = this.nonNegativeInteger(dto.infantCount, 'infantCount');
+    if (adultCount + childCount + infantCount < 1) {
+      throw new BadRequestException('Số khách phải lớn hơn 0');
+    }
+
+    for (const field of [
+      'sellingPrice',
+      'commissionPerGuest',
+      'exchangeRate',
+      'seatCount',
+      'tourPrice',
+      'discount',
+      'adultPrice',
+      'childPrice25',
+      'childPrice611',
+      'infantPrice',
+      'surcharge',
+    ]) {
+      if ((dto as Record<string, unknown>)[field] !== undefined) this.nonNegativeNumber((dto as Record<string, unknown>)[field], field);
+    }
+
+    const startDate = this.optionalDate(dto.startDate, 'startDate');
+    const endDate = this.optionalDate(dto.endDate, 'endDate');
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('Ngày về phải sau hoặc bằng ngày khởi đi');
+    }
+
+    if (dto.bookingDate !== undefined) this.optionalDate(dto.bookingDate, 'bookingDate');
+    for (const field of ['visaDeadline', 'holdUntil', 'confirmedAt', 'closeAt']) {
+      if ((dto as Record<string, unknown>)[field] !== undefined) this.optionalDate((dto as Record<string, unknown>)[field], field);
+    }
+
+    if (dto.workflowStatus !== undefined) this.toWorkflowStatusStrict(dto.workflowStatus);
+  }
+
+  private validateWorkflowTransition(currentStatus: FitTourWorkflowStatus | null | undefined, nextStatus: FitTourWorkflowStatus | undefined, creating: boolean) {
+    const next = this.toWorkflowStatusStrict(nextStatus) || FitTourWorkflowStatus.DRAFT;
+    if (creating) {
+      if (next !== FitTourWorkflowStatus.DRAFT && next !== FitTourWorkflowStatus.PRICING) {
+        throw new BadRequestException('Tour FIT mới chỉ được tạo ở trạng thái Nháp hoặc Tính giá');
+      }
+      return;
+    }
+
+    if (nextStatus === undefined) return;
+    const current = currentStatus || FitTourWorkflowStatus.DRAFT;
+    if (terminalWorkflowStatuses.has(current) && next !== current) {
+      throw new BadRequestException('Không thể đổi trạng thái của tour FIT đã ở trạng thái cuối');
+    }
+    if (next === FitTourWorkflowStatus.CANCELLED) return;
+    if (next === FitTourWorkflowStatus.COMPLETED && current !== FitTourWorkflowStatus.SURVEY && current !== FitTourWorkflowStatus.COMPLETED) {
+      throw new BadRequestException('Chỉ được hoàn tất tour FIT sau bước Phiếu đánh giá dịch vụ');
+    }
+
+    const currentIndex = workflowOrder.indexOf(current as (typeof workflowOrder)[number]);
+    const nextIndex = workflowOrder.indexOf(next as (typeof workflowOrder)[number]);
+    if (currentIndex >= 0 && nextIndex >= 0 && nextIndex > currentIndex + 1) {
+      throw new BadRequestException('Không được chuyển workflow FIT vượt quá bước kế tiếp');
+    }
+  }
+
+  private validateTextLength(dtoValue: unknown, field: string, label: string, minLength: number, required: boolean) {
+    if (dtoValue === undefined && !required) return;
+    const text = this.requiredText(dtoValue, field);
+    if (text.length < minLength) throw new BadRequestException(`${label} cần ít nhất ${minLength} ký tự`);
   }
 
   private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
@@ -436,7 +551,7 @@ export class FitToursService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dich vu'),
+        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dịch vụ'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         quantity,
@@ -460,7 +575,7 @@ export class FitToursService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || 'Hotel'),
+        serviceType: this.text(row.serviceType || 'Khách sạn'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         paxPerRoom,
@@ -485,7 +600,7 @@ export class FitToursService {
       const unitPrice = this.number(row.unitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dich vu'),
+        serviceType: this.text(row.serviceType || 'Dịch vụ'),
         supplierId: this.optionalText(row.supplierId),
         description: this.optionalText(row.description),
         quantity,
@@ -503,7 +618,7 @@ export class FitToursService {
       const confirmedUnitPrice = this.number(row.confirmedUnitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dich vu'),
+        serviceType: this.text(row.serviceType || 'Dịch vụ'),
         supplierId: this.optionalText(row.supplierId),
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         bookingCode: this.optionalText(row.bookingCode),
@@ -531,7 +646,7 @@ export class FitToursService {
     const source = rows && rows.length > 0 ? rows : defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 }));
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      itemName: this.text(row.itemName || row.name || 'Tai lieu ban giao'),
+      itemName: this.text(row.itemName || row.name || 'Tài liệu bàn giao'),
       quantity: this.number(row.quantity || 1),
       notes: this.optionalText(row.notes),
     }));
@@ -541,14 +656,14 @@ export class FitToursService {
     const source = rows && rows.length > 0 ? rows : defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 }));
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      question: this.text(row.question || 'Cau hoi'),
+      question: this.text(row.question || 'Câu hỏi'),
       notes: this.optionalText(row.notes),
     }));
   }
 
   private mapAttachments(rows?: unknown[]) {
     return this.rows(rows).map((row) => ({
-      step: this.optionalText(row.step),
+      step: this.toAttachmentStep(row.step),
       fileName: this.text(row.fileName || row.name || 'attachment'),
       fileUrl: this.optionalText(row.fileUrl),
       mimeType: this.optionalText(row.mimeType),
@@ -588,14 +703,34 @@ export class FitToursService {
     return text ? text : null;
   }
 
-  private optionalDate(value: unknown) {
+  private optionalDate(value: unknown, field = 'date') {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+      return value;
+    }
     const text = this.text(value);
-    return text ? new Date(text) : null;
+    if (!text) return null;
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    return date;
   }
 
   private number(value: unknown) {
     const number = Number(value || 0);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  private nonNegativeNumber(value: unknown, field: string) {
+    const number = Number(value ?? 0);
+    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    if (number < 0) throw new BadRequestException(`${field} không được âm`);
+    return number;
+  }
+
+  private nonNegativeInteger(value: unknown, field: string) {
+    const number = this.nonNegativeNumber(value, field);
+    if (!Number.isInteger(number)) throw new BadRequestException(`${field} phải là số nguyên`);
+    return number;
   }
 
   private money(explicitAmount: unknown, subtotal: number, vat: number) {
@@ -607,6 +742,20 @@ export class FitToursService {
     if (!status) return undefined;
     if (!Object.values(FitTourWorkflowStatus).includes(status as FitTourWorkflowStatus)) return undefined;
     return status as FitTourWorkflowStatus;
+  }
+
+  private toWorkflowStatusStrict(status: unknown) {
+    const value = this.text(status);
+    if (!value) return undefined;
+    if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value as FitTourWorkflowStatus;
+    throw new BadRequestException('Trạng thái workflow FIT không hợp lệ');
+  }
+
+  private toAttachmentStep(step: unknown) {
+    const value = this.text(step);
+    if (!value) return null;
+    if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value;
+    throw new BadRequestException('Bước workflow của file đính kèm không hợp lệ');
   }
 
   private toServiceStatus(status: unknown) {
