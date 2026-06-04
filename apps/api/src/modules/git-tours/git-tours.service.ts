@@ -1,7 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
+import { TourCoreService } from '../tours/tour-core.service';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 
@@ -10,16 +11,19 @@ type Row = Record<string, unknown>;
 const gitTourInclude = {
   gitTour: true,
   customers: true,
+  suppliers: true,
   revenues: true,
   services: { include: { supplier: true } },
   costs: { include: { supplier: true } },
+  guides: true,
   attachments: true,
+  surveys: true,
   logs: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.TourInclude;
 
 @Injectable()
 export class GitToursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
   list(search?: string, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
@@ -39,7 +43,7 @@ export class GitToursService {
     };
 
     return this.prisma.tour.findMany({
-      where: branchDepartmentScopeWhere(where, user),
+      where: this.tourCore.scopeWhere(where, user),
       include: {
         gitTour: true,
         customers: { where: { isPrimary: true }, take: 1 },
@@ -50,8 +54,8 @@ export class GitToursService {
   }
 
   async detail(id: string, user?: RequestUser) {
-    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id, type: TourType.GIT }, user), include: gitTourInclude });
-    if (!tour) throw new NotFoundException('GIT tour not found');
+    const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.GIT }, user), include: gitTourInclude });
+    if (!tour) throw new NotFoundException('Kh?ng t?m th?y tour GIT');
     return tour;
   }
 
@@ -59,22 +63,21 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
         const created = await tx.tour.create({
           data: {
             ...this.toTourData(dto, true),
             gitTour: { create: this.toGitDetailData(dto) },
-            customers: { create: this.mapCustomers(dto) },
-            revenues: { create: this.mapRevenues(dto.revenues) },
-            services: { create: [...this.mapBudgetServices(dto.budgetServices), ...this.mapOperationServices(dto.operationServices)] },
-            logs: { create: { action: 'CREATE_GIT_TOUR', entity: 'Tour' } },
           } as Prisma.TourCreateInput,
         });
+        await this.replaceChildren(tx, created.id, dto, true);
+        await this.tourCore.log(tx, created.id, 'CREATE_GIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system' });
         return created;
       });
       return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('GIT tour system code already exists');
+        throw new ConflictException('M? h? th?ng tour GIT ?? t?n t?i');
       }
       throw error;
     }
@@ -85,6 +88,7 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
         await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
         await tx.gitTourDetail.upsert({
           where: { tourId: id },
@@ -92,12 +96,12 @@ export class GitToursService {
           update: this.toGitDetailData(dto) as Prisma.GitTourDetailUncheckedUpdateInput,
         });
         await this.replaceChildren(tx, id, dto);
-        await tx.tourLog.create({ data: { tourId: id, action: 'UPDATE_GIT_TOUR', entity: 'Tour' } });
+        await this.tourCore.log(tx, id, 'UPDATE_GIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system' });
       });
       return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('GIT tour system code already exists');
+        throw new ConflictException('M? h? th?ng tour GIT ?? t?n t?i');
       }
       throw error;
     }
@@ -105,21 +109,20 @@ export class GitToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.tour.delete({ where: { id } });
+    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system'));
   }
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    const source = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: sourceTourId || targetTourId, type: TourType.GIT }, user), include: { services: true } });
-    if (!source) throw new NotFoundException('Source tour not found');
+    const source = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id: sourceTourId || targetTourId, type: TourType.GIT }, user), include: { services: true } });
+    if (!source) throw new NotFoundException('Kh?ng t?m th?y tour ngu?n');
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.tourService.deleteMany({ where: { tourId: targetTourId } });
-      await tx.tourService.createMany({
-        data: source.services.map((service) => ({
-          tourId: targetTourId,
+      const services = source.services.map((service) => ({
+          tourId: '',
           serviceType: service.serviceType,
           supplierId: service.supplierId,
+          supplierServiceId: service.supplierServiceId,
           serviceDate: service.serviceDate,
           description: service.description,
           quantity: service.quantity,
@@ -136,51 +139,49 @@ export class GitToursService {
           confirmationStatus: service.confirmationStatus,
           bookingCode: service.bookingCode,
           notes: service.notes,
-        })),
-      });
+      }));
+      await this.tourCore.replaceServices(tx, targetTourId, services);
+      await this.tourCore.replaceSuppliers(tx, targetTourId, this.tourCore.suppliersFromServices(services, 'GIT_SERVICE'));
     });
     return this.detail(targetTourId, user);
   }
 
-  private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto) {
-    if (dto.customerName !== undefined || dto.agentName !== undefined) {
-      await tx.tourCustomer.deleteMany({ where: { tourId } });
-      await tx.tourCustomer.createMany({ data: this.mapCustomers(dto).map((customer) => ({ ...customer, tourId })) });
+  private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto, creating = false) {
+    if (creating || dto.customerName !== undefined || dto.agentName !== undefined) {
+      const customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang GIT')];
+      const agent = this.tourCore.agentCustomer(dto as unknown as Row);
+      if (agent) customers.push(agent);
+      await this.tourCore.replaceCustomers(tx, tourId, customers);
     }
-    if (dto.revenues !== undefined) {
-      await tx.tourRevenue.deleteMany({ where: { tourId } });
-      await tx.tourRevenue.createMany({ data: this.mapRevenues(dto.revenues).map((row) => ({ ...row, tourId })) });
+    if (creating || dto.revenues !== undefined) {
+      await this.tourCore.replaceRevenues(tx, tourId, this.tourCore.mapRevenues(dto.revenues));
     }
-    if (dto.budgetServices !== undefined || dto.operationServices !== undefined) {
-      await tx.tourService.deleteMany({ where: { tourId } });
-      await tx.tourService.createMany({ data: [...this.mapBudgetServices(dto.budgetServices), ...this.mapOperationServices(dto.operationServices)].map((row) => ({ ...row, tourId })) });
+    if (creating || dto.costs !== undefined) {
+      await this.tourCore.replaceCosts(tx, tourId, this.tourCore.mapCosts(dto.costs, 'GIT_COST'));
+    }
+    if (creating || dto.budgetServices !== undefined || dto.operationServices !== undefined) {
+      const services = [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      await this.tourCore.replaceServices(tx, tourId, services);
+      await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'GIT_SERVICE'));
+    }
+    if (creating || dto.guides !== undefined) {
+      await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
+    }
+    if (creating || dto.attachments !== undefined) {
+      await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
+    }
+    if (creating || dto.surveyQuestions !== undefined) {
+      await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions));
     }
   }
 
   private toTourData(dto: UpdateGitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return {
-      ...(creating ? { type: TourType.GIT, systemCode: this.requiredText(dto.systemCode), tourCode: this.requiredText(dto.tourCode) } : {}),
+    return this.tourCore.toTourData(dto as unknown as Record<string, unknown>, creating, {
       type: TourType.GIT,
-      ...(dto.status !== undefined ? { status: dto.status } : creating ? { status: TourStatus.UPCOMING } : {}),
-      ...(dto.paymentStatus !== undefined ? { paymentStatus: dto.paymentStatus } : creating ? { paymentStatus: PaymentStatus.UNPAID } : {}),
-      workflowStep: 'GIT_INFO',
-      ...(dto.systemCode !== undefined ? { systemCode: dto.systemCode.trim().toUpperCase() } : {}),
-      ...(dto.tourCode !== undefined ? { tourCode: dto.tourCode.trim().toUpperCase() } : {}),
-      ...(dto.name !== undefined ? { name: this.optionalText(dto.name) } : {}),
-      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
-      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
-      ...(dto.paymentDueDate !== undefined ? { paymentDueDate: this.optionalDate(dto.paymentDueDate) } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
-      ...(dto.branch !== undefined ? { branch: this.optionalText(dto.branch) } : {}),
-      ...(dto.department !== undefined ? { department: this.optionalText(dto.department) } : {}),
-      ...(dto.customerSource !== undefined ? { customerSource: this.optionalText(dto.customerSource) } : {}),
-      ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
-      ...(dto.itinerarySummary !== undefined ? { route: this.optionalText(dto.itinerarySummary) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
-    };
+      routeField: 'itinerarySummary',
+      defaultWorkflowStep: 'GIT_INFO',
+      defaultStatus: TourStatus.UPCOMING,
+    });
   }
 
   private toGitDetailData(dto: UpdateGitTourDto): Prisma.GitTourDetailUncheckedCreateInput | Prisma.GitTourDetailUncheckedUpdateInput {
@@ -192,87 +193,8 @@ export class GitToursService {
       ...(dto.commissionRate !== undefined ? { commissionRate: this.number(dto.commissionRate) } : {}),
       ...(dto.invoiceStatus !== undefined ? { invoiceStatus: this.optionalText(dto.invoiceStatus) } : {}),
       ...(dto.accountCode !== undefined ? { accountCode: this.optionalText(dto.accountCode) } : {}),
-      ...(dto.branch !== undefined ? { branch: this.optionalText(dto.branch) } : {}),
-      ...(dto.department !== undefined ? { department: this.optionalText(dto.department) } : {}),
-      ...(dto.customerSource !== undefined ? { customerSource: this.optionalText(dto.customerSource) } : {}),
       ...(dto.fileNote !== undefined ? { fileNote: this.optionalText(dto.fileNote) } : {}),
     };
-  }
-
-  private mapCustomers(dto: UpdateGitTourDto): Prisma.TourCustomerCreateWithoutTourInput[] {
-    const customers: Prisma.TourCustomerCreateWithoutTourInput[] = [];
-    if (dto.customerName) customers.push({ customerType: 'CUSTOMER', name: dto.customerName.trim(), isPrimary: true, notes: this.optionalText(dto.notes) });
-    if (dto.agentName) customers.push({ customerType: 'AGENT', name: dto.agentName.trim(), isPrimary: customers.length === 0 });
-    return customers.length > 0 ? customers : [{ customerType: 'CUSTOMER', name: 'GIT Customer', isPrimary: true }];
-  }
-
-  private mapRevenues(rows?: unknown[]): Prisma.TourRevenueCreateWithoutTourInput[] {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1);
-      const unitPrice = this.number(row.unitPrice);
-      const exchangeRate = this.number(row.exchangeRate || 1);
-      const vat = this.number(row.vat);
-      return {
-        description: this.text(row.description || 'Doanh thu tour'),
-        quantity,
-        unitPrice,
-        currency: this.text(row.currency || 'VND'),
-        exchangeRate,
-        vat,
-        amount: this.money(row.amount, quantity * unitPrice * exchangeRate, vat),
-        invoiceNo: this.optionalText(row.invoiceNo),
-        paymentStatus: PaymentStatus.UNPAID,
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private mapBudgetServices(rows?: unknown[]): Prisma.TourServiceCreateWithoutTourInput[] {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1);
-      const budgetUnitPrice = this.number(row.unitPrice || row.budgetUnitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Dich vu'),
-        supplier: this.optionalText(row.supplierId) ? { connect: { id: this.text(row.supplierId) } } : undefined,
-        description: this.optionalText(row.description),
-        quantity,
-        budgetUnitPrice,
-        vat,
-        budgetAmount: this.money(row.amount, quantity * budgetUnitPrice, vat),
-        confirmationStatus: TourServiceStatus.WAITING,
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateWithoutTourInput[] {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1);
-      const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Dich vu'),
-        supplier: this.optionalText(row.supplierId) ? { connect: { id: this.text(row.supplierId) } } : undefined,
-        bookingCode: this.optionalText(row.bookingCode),
-        quantity,
-        confirmedUnitPrice,
-        vat,
-        confirmedAmount: this.money(row.amount, quantity * confirmedUnitPrice, vat),
-        confirmationStatus: this.toServiceStatus(row.status),
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private rows(rows?: unknown[]): Row[] {
-    return (rows || []).filter((row): row is Row => Boolean(row) && typeof row === 'object');
-  }
-
-  private requiredText(value?: string) {
-    const text = value?.trim();
-    if (!text) throw new BadRequestException('Required GIT tour field missing');
-    return text.toUpperCase();
   }
 
   private text(value: unknown) {
@@ -284,24 +206,11 @@ export class GitToursService {
     return text ? text : null;
   }
 
-  private optionalDate(value?: string) {
-    const text = value?.trim();
-    return text ? new Date(text) : null;
-  }
 
   private number(value: unknown) {
     const parsed = Number(value || 0);
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  private money(explicitAmount: unknown, subtotal: number, vat: number) {
-    const amount = this.number(explicitAmount);
-    return amount > 0 ? amount : subtotal * (1 + vat / 100);
-  }
 
-  private toServiceStatus(status: unknown) {
-    const value = this.text(status);
-    if (Object.values(TourServiceStatus).includes(value as TourServiceStatus)) return value as TourServiceStatus;
-    return TourServiceStatus.WAITING;
-  }
 }

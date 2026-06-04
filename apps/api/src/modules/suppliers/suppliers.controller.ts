@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { RequirePermissions } from '../auth/permissions.decorator';
+import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -105,37 +106,20 @@ export class SuppliersController {
 
   @Post('hotel-allotments/:id/lock')
   @RequirePermissions('supplier.manage')
-  lockAllotment(@Param('id') id: string, @Body() dto: LockAllotmentDto, @Req() request?: { user?: RequestUser }) {
-    return this.suppliersService.lockAllotment(id, dto, request?.user);
+  lockAllotment(@Param('id') id: string, @Body() dto: LockAllotmentDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.lockAllotment(id, dto, request.user);
   }
 
   @Post('hotel-allotment-allocations/:id/confirm')
   @RequirePermissions('supplier.manage')
-  confirmAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request?: { user?: RequestUser }) {
-    return this.suppliersService.confirmAllotmentAllocation(id, dto, request?.user);
+  confirmAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.confirmAllotmentAllocation(id, dto, request.user);
   }
 
   @Post('hotel-allotment-allocations/:id/release')
   @RequirePermissions('supplier.manage')
-  releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request?: { user?: RequestUser }) {
-    return this.suppliersService.releaseAllotmentAllocation(id, dto, request?.user);
-  }
-
-  @Post(':id/files')
-  @RequirePermissions('supplier.manage')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
-  addFile(
-    @Param('id') id: string,
-    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
-    @Req() request: { user?: { id?: string } },
-  ) {
-    return this.suppliersService.addSupplierFile(id, file, request.user?.id);
-  }
-
-  @Delete(':id/files/:fileId')
-  @RequirePermissions('supplier.manage')
-  removeFile(@Param('id') id: string, @Param('fileId') fileId: string) {
-    return this.suppliersService.deleteSupplierFile(id, fileId);
+  releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.releaseAllotmentAllocation(id, dto, request.user);
   }
 
   @Get(':type')
@@ -177,6 +161,24 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   removeTyped(@Param('type') type: string, @Param('id') id: string) {
     return this.suppliersService.getTypedSupplier(type, id).then(() => this.suppliersService.deleteSupplier(id));
+  }
+
+  @Post(':id/files')
+  @RequirePermissions('supplier.manage')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
+  addSupplierFile(
+    @Param('id') id: string,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.suppliersService.addSupplierFile(id, file, request.user?.id);
+  }
+
+  @Delete(':id/files/:fileId')
+  @RequirePermissions('supplier.manage')
+  deleteSupplierFile(@Param('id') id: string, @Param('fileId') fileId: string) {
+    return this.suppliersService.deleteSupplierFile(id, fileId);
   }
 
   @Get(':id')

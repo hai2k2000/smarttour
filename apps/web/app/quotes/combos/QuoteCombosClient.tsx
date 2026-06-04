@@ -1,38 +1,83 @@
-﻿'use client';
+'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Copy, Eye, Pencil, Plus, Save, Search, ShoppingCart, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, Pencil, Plus, RefreshCcw, Save, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
+import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, UseFormSetValue, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { authHeaders, authJsonHeaders } from '../../authFetch';
+import { PermissionNotice, usePermissions } from '../../usePermissions';
 
-type Supplier = { id: string; name: string; supplierServices?: { id: string; serviceName: string; netPrice: string }[] };
-type ComboSummary = { id: string; comboCode: string; comboType: string; adultComboPrice: string; totalNetPricePerPax: string; status: string; _count?: { items: number } };
+type SupplierService = { id: string; serviceName: string; netPrice: string | number | null };
+type Supplier = { id: string; name: string; supplierServices?: SupplierService[] };
+type ServiceOption = SupplierService & { supplierId: string; supplierName: string };
+type ComboSummary = {
+  id: string;
+  comboCode: string;
+  comboType: string;
+  adultComboPrice: string;
+  totalNetPricePerPax: string;
+  status: string;
+  _count?: { items: number };
+};
+
+type ComboAction = 'create-order' | 'create-quote';
+
+const actionLabels: Record<ComboAction, string> = {
+  'create-order': 'tạo đơn hàng',
+  'create-quote': 'chốt báo giá',
+};
+
+const statusLabels: Record<string, string> = {
+  DRAFT: 'Nháp',
+  QUOTED: 'Đã chốt báo giá',
+  ORDER_CREATED: 'Đã tạo đơn hàng',
+};
 
 const itemSchema = z.object({
   supplierId: z.string().default(''),
   serviceId: z.string().default(''),
   serviceName: z.string().default(''),
   checkIn: z.string().default(''),
-  netPricePerService: z.coerce.number().default(0),
-  nightCount: z.coerce.number().default(1),
-  paxCount: z.coerce.number().default(1),
+  netPricePerService: z.coerce.number().min(0, 'Giá NET không được âm').default(0),
+  nightCount: z.coerce.number().min(1, 'Số đêm phải từ 1').default(1),
+  paxCount: z.coerce.number().min(1, 'Số khách phải từ 1').default(1),
 });
 
 const comboSchema = z.object({
-  comboCode: z.string().min(2),
-  comboType: z.string().min(2),
+  comboCode: z.string().trim().min(2, 'Mã combo cần ít nhất 2 ký tự'),
+  comboType: z.string().trim().min(2, 'Loại combo cần ít nhất 2 ký tự'),
   note: z.string().default(''),
-  profitPerPax: z.coerce.number().default(0),
-  childPricePercent: z.coerce.number().default(75),
+  profitPerPax: z.coerce.number().min(0, 'Lợi nhuận/người không được âm').default(0),
+  childPricePercent: z.coerce.number().min(0, '% giá trẻ em không được âm').default(75),
   items: z.array(itemSchema).default([]),
 });
 
 type ComboForm = z.infer<typeof comboSchema>;
-const comboTypes = ['2N1D', '3N2D', '4N3D', '5N4D', '6N5D', '7N6D', 'Combo khac'];
-const emptyItem = { supplierId: '', serviceId: '', serviceName: '', checkIn: '', netPricePerService: 0, nightCount: 1, paxCount: 1 };
-const defaultValues: ComboForm = { comboCode: `CB${Date.now().toString().slice(-6)}`, comboType: '3N2D', note: '', profitPerPax: 0, childPricePercent: 75, items: [{ ...emptyItem }] };
+type ComboItem = ComboForm['items'][number];
+
+const comboTypes = [
+  { value: '2N1D', label: '2N1D' },
+  { value: '3N2D', label: '3N2D' },
+  { value: '4N3D', label: '4N3D' },
+  { value: '5N4D', label: '5N4D' },
+  { value: '6N5D', label: '6N5D' },
+  { value: '7N6D', label: '7N6D' },
+  { value: 'Combo khac', label: 'Combo khác' },
+];
+const emptyItem: ComboItem = { supplierId: '', serviceId: '', serviceName: '', checkIn: '', netPricePerService: 0, nightCount: 1, paxCount: 1 };
+
+function freshDefaultValues(): ComboForm {
+  return {
+    comboCode: `CB${Date.now().toString().slice(-6)}`,
+    comboType: '3N2D',
+    note: '',
+    profitPerPax: 0,
+    childPricePercent: 75,
+    items: [{ ...emptyItem }],
+  };
+}
 
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
@@ -41,38 +86,172 @@ function browserApiBase() {
   return apiBase;
 }
 
+function safeNumber(value: unknown, fallback = 0) {
+  if (value === '' || value === null || value === undefined) return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function safeNonNegative(value: unknown, fallback = 0) {
+  return Math.max(0, safeNumber(value, fallback));
+}
+
+function safePositiveInt(value: unknown, fallback = 1) {
+  return Math.max(1, Math.floor(safeNumber(value, fallback)));
+}
+
+function safeNonNegativeInt(value: unknown, fallback = 0) {
+  return Math.max(0, Math.floor(safeNumber(value, fallback)));
+}
+
+function text(value: unknown) {
+  return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+}
+
+function dateInputValue(value: unknown) {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
 function money(value: unknown) {
-  return Number(value || 0).toLocaleString('vi-VN');
+  return safeNumber(value).toLocaleString('vi-VN');
+}
+
+function statusText(status: string) {
+  return statusLabels[status] || status || 'Không rõ';
+}
+
+function itemNetPerPax(item: Partial<ComboItem>) {
+  const pax = Math.max(1, safeNumber(item.paxCount, 1));
+  const nights = Math.max(1, safeNumber(item.nightCount, 1));
+  return safeNumber(item.netPricePerService) * nights / pax;
+}
+
+function normalizeServiceOptions(suppliers: Supplier[]): ServiceOption[] {
+  return suppliers.flatMap((supplier) =>
+    (supplier.supplierServices || [])
+      .map((service) => ({
+        id: text(service.id),
+        serviceName: text(service.serviceName),
+        netPrice: service.netPrice ?? '0',
+        supplierId: text(supplier.id),
+        supplierName: text(supplier.name),
+      }))
+      .filter((service) => service.id && service.serviceName && service.supplierId),
+  );
+}
+
+function normalizeComboItem(item: unknown, serviceOptions: ServiceOption[]): ComboItem {
+  const row = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+  const rawSupplierId = text(row.supplierId);
+  const rawServiceId = text(row.serviceId);
+  const service = rawServiceId ? serviceOptions.find((option) => option.id === rawServiceId) : undefined;
+  const serviceMatchesSupplier = Boolean(service && (!rawSupplierId || rawSupplierId === service.supplierId));
+  const supplierId = serviceMatchesSupplier && service ? rawSupplierId || service.supplierId : rawSupplierId;
+  const serviceId = serviceMatchesSupplier ? rawServiceId : '';
+  const serviceName = text(row.serviceName) || (serviceMatchesSupplier && service ? service.serviceName : '');
+  const fallbackNet = serviceMatchesSupplier && service ? safeNumber(service.netPrice) : 0;
+
+  return {
+    supplierId,
+    serviceId,
+    serviceName,
+    checkIn: dateInputValue(row.checkIn),
+    netPricePerService: safeNonNegative(row.netPricePerService, fallbackNet),
+    nightCount: safePositiveInt(row.nightCount, 1),
+    paxCount: safePositiveInt(row.paxCount, 1),
+  };
+}
+
+function hasValidComboItem(item: ComboItem) {
+  return item.serviceName.trim().length >= 2;
+}
+
+function normalizeComboSummary(item: unknown): ComboSummary | null {
+  if (!item || typeof item !== 'object') return null;
+  const row = item as Record<string, unknown>;
+  const id = text(row.id);
+  if (!id) return null;
+  return {
+    id,
+    comboCode: text(row.comboCode),
+    comboType: text(row.comboType),
+    adultComboPrice: String(row.adultComboPrice ?? '0'),
+    totalNetPricePerPax: String(row.totalNetPricePerPax ?? '0'),
+    status: text(row.status) || 'DRAFT',
+    _count: typeof row._count === 'object' && row._count ? { items: safeNonNegativeInt((row._count as { items?: unknown }).items) } : undefined,
+  };
+}
+
+function normalizeComboList(data: unknown) {
+  const rows = Array.isArray(data) ? data : Array.isArray((data as { rows?: unknown })?.rows) ? (data as { rows: unknown[] }).rows : null;
+  if (!rows) throw new Error('API không trả về danh sách combo hợp lệ.');
+  const normalized = rows.map(normalizeComboSummary).filter((item): item is ComboSummary => Boolean(item));
+  if (rows.length && !normalized.length) throw new Error('API trả về danh sách combo nhưng thiếu dữ liệu định danh hợp lệ.');
+  return normalized;
+}
+
+async function responseError(response: Response, fallback: string) {
+  const data = await response.json().catch(() => null) as { message?: string | string[] } | null;
+  if (Array.isArray(data?.message)) return data.message.join(', ');
+  return data?.message || fallback;
+}
+
+function buildPayload(data: ComboForm, serviceOptions: ServiceOption[]) {
+  const items = data.items.map((item) => normalizeComboItem(item, serviceOptions)).filter(hasValidComboItem);
+  return {
+    comboCode: text(data.comboCode),
+    comboType: text(data.comboType),
+    note: text(data.note),
+    profitPerPax: safeNonNegative(data.profitPerPax),
+    childPricePercent: safeNonNegative(data.childPricePercent, 75),
+    items,
+  };
 }
 
 export default function QuoteCombosClient({ initialCombos, suppliers }: { initialCombos: ComboSummary[]; suppliers: Supplier[] }) {
+  const { can, canAny } = usePermissions();
   const [combos, setCombos] = useState(initialCombos);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
-  const { register, control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<ComboForm>({
+  const [listLoading, setListLoading] = useState(false);
+  const [loadingComboId, setLoadingComboId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<ComboAction | null>(null);
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<ComboForm>({
     resolver: zodResolver(comboSchema) as any,
-    defaultValues,
+    defaultValues: freshDefaultValues(),
   });
   const items = useFieldArray({ control, name: 'items' });
   const values = useWatch({ control });
 
-  const totals = useMemo(() => {
-    const totalNet = (values.items || []).reduce((sum, item) => {
-      const pax = Math.max(1, Number(item.paxCount || 1));
-      const nights = Math.max(1, Number(item.nightCount || 1));
-      return sum + Number(item.netPricePerService || 0) * nights / pax;
-    }, 0);
-    const adult = totalNet + Number(values.profitPerPax || 0);
-    return { totalNet, adult, child: adult * Number(values.childPricePercent || 0) / 100 };
-  }, [values]);
+  const serviceOptions = useMemo(() => normalizeServiceOptions(suppliers), [suppliers]);
 
-  const serviceOptions = useMemo(() => suppliers.flatMap((supplier) => (supplier.supplierServices || []).map((service) => ({ ...service, supplierId: supplier.id, supplierName: supplier.name }))), [suppliers]);
+  const totals = useMemo(() => {
+    const normalizedItems = (values.items || []).map((item) => normalizeComboItem(item, serviceOptions));
+    const totalNet = normalizedItems.reduce((sum, item) => sum + itemNetPerPax(item), 0);
+    const profit = safeNumber(values.profitPerPax);
+    const adult = totalNet + profit;
+    const childPercent = safeNumber(values.childPricePercent, 75);
+    return { totalNet, adult, child: adult * childPercent / 100 };
+  }, [serviceOptions, values]);
+
   const filteredCombos = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return combos;
-    return combos.filter((item) => [item.comboCode, item.comboType, item.status].some((value) => String(value).toLowerCase().includes(term)));
+    return combos.filter((item) => [item.comboCode, item.comboType, item.status, statusText(item.status)].some((value) => String(value).toLowerCase().includes(term)));
   }, [query, combos]);
 
   const comboTable = useReactTable({
@@ -80,61 +259,119 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     columns: useMemo(() => {
       const helper = createColumnHelper<ComboSummary>();
       return [
-        helper.accessor('comboCode', { header: 'Ma combo' }),
-        helper.accessor('comboType', { header: 'Loai combo' }),
-        helper.accessor('totalNetPricePerPax', { header: 'NET/khach', cell: (info) => money(info.getValue()) }),
-        helper.accessor('adultComboPrice', { header: 'Gia nguoi lon', cell: (info) => money(info.getValue()) }),
-        helper.display({ id: 'count', header: 'Dich vu', cell: ({ row }) => row.original._count?.items ?? 0 }),
-        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadCombo(row.original.id)}><Pencil size={15} /> Sua</button> }),
+        helper.accessor('comboCode', { header: 'Mã combo', cell: (info) => <strong>{info.getValue()}</strong> }),
+        helper.accessor('comboType', { header: 'Loại combo' }),
+        helper.accessor('totalNetPricePerPax', { header: 'NET/khách', cell: (info) => money(info.getValue()) }),
+        helper.accessor('adultComboPrice', { header: 'Giá người lớn', cell: (info) => money(info.getValue()) }),
+        helper.display({ id: 'count', header: 'Dịch vụ', cell: ({ row }) => row.original._count?.items ?? 0 }),
+        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{statusText(info.getValue())}</span> }),
+        helper.display({
+          id: 'actions',
+          header: '',
+          cell: ({ row }) => (
+            <button type="button" className="secondaryButton iconTextButton" disabled={loadingComboId === row.original.id} onClick={() => loadCombo(row.original.id)}>
+              <Pencil size={15} /> {loadingComboId === row.original.id ? 'Đang tải' : 'Sửa'}
+            </button>
+          ),
+        }),
       ];
-    }, []),
+    }, [loadingComboId]),
     getCoreRowModel: getCoreRowModel(),
   });
 
-  async function reload() {
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos`, { cache: 'no-store' });
-    if (response.ok) setCombos(await response.json());
+  async function reload(showSuccess = true) {
+    setListLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos`, { cache: 'no-store', headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseError(response, 'Không tải được danh sách combo.'));
+      const data = await response.json().catch(() => {
+        throw new Error('API không trả về JSON hợp lệ cho danh sách combo.');
+      });
+      setCombos(normalizeComboList(data));
+      if (showSuccess) setMessage('Đã tải lại danh sách combo.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không tải được danh sách combo.');
+    } finally {
+      setListLoading(false);
+    }
   }
 
-  async function loadCombo(id: string) {
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`);
-    if (!response.ok) return;
-    const combo = await response.json();
-    setEditingId(id);
-    setFormOpen(true);
-    reset({
-      comboCode: combo.comboCode,
-      comboType: combo.comboType,
-      note: combo.note || '',
-      profitPerPax: Number(combo.profitPerPax || 0),
-      childPricePercent: Number(combo.childPricePercent || 75),
-      items: combo.items?.length ? combo.items.map((item: any) => ({ supplierId: item.supplierId || '', serviceId: item.serviceId || '', serviceName: item.serviceName || '', checkIn: item.checkIn?.slice(0, 10) || '', netPricePerService: Number(item.netPricePerService || 0), nightCount: Number(item.nightCount || 1), paxCount: Number(item.paxCount || 1) })) : [{ ...emptyItem }],
-    });
+  async function loadCombo(id: string, showSuccess = true) {
+    setLoadingComboId(id);
+    setError('');
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`, { headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết combo.'));
+      const data = await response.json().catch(() => {
+        throw new Error('API không trả về JSON hợp lệ cho chi tiết combo.');
+      });
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('API không trả về chi tiết combo hợp lệ.');
+      const combo = data as Record<string, unknown>;
+      const comboItems = Array.isArray(combo.items) ? combo.items.map((item) => normalizeComboItem(item, serviceOptions)).filter(hasValidComboItem) : [];
+
+      setEditingId(id);
+      setFormOpen(true);
+      reset({
+        ...freshDefaultValues(),
+        comboCode: text(combo.comboCode),
+        comboType: text(combo.comboType) || '3N2D',
+        note: text(combo.note),
+        profitPerPax: safeNonNegative(combo.profitPerPax),
+        childPricePercent: safeNonNegative(combo.childPricePercent, 75),
+        items: comboItems.length ? comboItems : [{ ...emptyItem }],
+      });
+      if (showSuccess) setMessage('Đã tải chi tiết combo.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không tải được chi tiết combo.');
+    } finally {
+      setLoadingComboId(null);
+    }
   }
 
   async function onSubmit(data: ComboForm) {
-    const payload = { ...data, items: data.items.filter((item) => item.serviceName && item.netPricePerService >= 0) };
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos${editingId ? `/${editingId}` : ''}`, {
-      method: editingId ? 'PUT' : 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      setMessage('Khong luu duoc combo. Kiem tra ma combo va dong dich vu.');
+    setError('');
+    setMessage('');
+    const payload = buildPayload(data, serviceOptions);
+    if (!payload.items.length) {
+      setError('Cần ít nhất một dịch vụ hợp lệ trước khi lưu combo.');
       return;
     }
-    setMessage(editingId ? 'Da cap nhat combo.' : 'Da tao combo.');
-    setEditingId(null); setFormOpen(false); reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
-    await reload();
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos${editingId ? `/${editingId}` : ''}`, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: authJsonHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(await responseError(response, 'Không lưu được combo. Kiểm tra mã combo và dòng dịch vụ.'));
+      const successMessage = editingId ? 'Đã cập nhật combo.' : 'Đã tạo báo giá combo.';
+      setEditingId(null);
+      setFormOpen(false);
+      reset(freshDefaultValues());
+      await reload(false);
+      setMessage(successMessage);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không lưu được combo.');
+    }
   }
 
-  async function action(path: string) {
-    if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/quotes/combos/${editingId}/${path}`, { method: 'POST' });
-    if (response.ok) {
-      setMessage(`Da cap nhat combo: ${path}`);
-      await reload();
+  async function action(path: ComboAction) {
+    if (!editingId) {
+      setError(`Cần mở một combo đã lưu trước khi ${actionLabels[path]}.`);
+      return;
+    }
+    setActionLoading(path);
+    setError('');
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${editingId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+      if (!response.ok) throw new Error(await responseError(response, `Không thể ${actionLabels[path]}.`));
+      await reload(false);
+      await loadCombo(editingId, false);
+      setMessage(`Đã ${actionLabels[path]}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? `${actionLabels[path][0].toUpperCase()}${actionLabels[path].slice(1)} lỗi: ${caught.message}` : `Không thể ${actionLabels[path]}.`);
+    } finally {
+      setActionLoading(null);
     }
   }
 
@@ -142,70 +379,101 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     setEditingId(null);
     setFormOpen(false);
     setMessage('');
-    reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
+    setError('');
+    reset(freshDefaultValues());
   }
 
   function openCreate() {
     setEditingId(null);
     setMessage('');
-    reset({ ...defaultValues, comboCode: `CB${Date.now().toString().slice(-6)}` });
+    setError('');
+    reset(freshDefaultValues());
     setFormOpen(true);
   }
 
+  const validationMessage = errors.comboCode?.message || errors.comboType?.message || errors.profitPerPax?.message || errors.childPricePercent?.message;
+  const formBusy = isSubmitting || Boolean(actionLoading || loadingComboId);
+
   return (
-    <div className="quotePage">
-      {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
-        <section className="quoteComboShell">
-          <div className="quoteComboMain">
-            <section className="panel">
-              <div className="sectionHeader">
-                <h2>GIA COMBO</h2>
-                <button type="button" className="secondaryButton iconTextButton"><Eye size={16} /> Xem chi tiet</button>
+    <div className="quotePage quoteComboPage">
+      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem và quản lý báo giá combo" />
+      {formOpen ? (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalPanel modalPanelWide">
+            <form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
+              <section className="quoteComboShell">
+                <div className="quoteComboMain">
+                  <section className="panel quoteFormSection">
+                    <div className="sectionHeader">
+                      <h2>{editingId ? 'Cập nhật combo' : 'Tạo combo'}</h2>
+                      <span>{message || 'Backend sẽ tính lại NET/người và giá combo trước khi lưu.'}</span>
+                    </div>
+                    {validationMessage ? <div className="formErrors"><AlertCircle size={15} /> {validationMessage}</div> : null}
+                    <h3>Thông tin combo</h3>
+                    <div className="quoteComboTop quoteComboInfoGrid">
+                      <label>Mã combo<input {...register('comboCode')} /></label>
+                      <label>Loại combo<select {...register('comboType')}>{comboTypes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+                    </div>
+                  </section>
+
+                  <ComboRows register={register} fieldArray={items} suppliers={suppliers} serviceOptions={serviceOptions} setValue={setValue} watchedItems={values.items || []} />
+
+                  <section className="panel quoteFormSection">
+                    <h3>Ghi chú</h3>
+                    <textarea rows={5} {...register('note')} placeholder="Điều kiện áp dụng, chính sách hoàn hủy, phụ thu cuối tuần..." />
+                  </section>
+                </div>
+                <aside className="panel quoteSummaryBox quoteComboSummary">
+                  <h2>Phần tính giá</h2>
+                  <div className="summaryRows">
+                    <div><span>Tổng NET/người</span><strong>{money(totals.totalNet)}</strong></div>
+                  </div>
+                  <label>Lợi nhuận/người<input type="number" min="0" step="0.01" inputMode="decimal" {...register('profitPerPax')} /></label>
+                  <div className="summaryRows">
+                    <div><span>Giá combo người lớn</span><strong>{money(totals.adult)}</strong></div>
+                  </div>
+                  <label>% giá trẻ em<input type="number" min="0" step="0.01" inputMode="decimal" {...register('childPricePercent')} /></label>
+                  <div className="summaryRows">
+                    <div><span>Giá combo trẻ em</span><strong>{money(totals.child)}</strong></div>
+                  </div>
+                  <small>NET/người = tổng từng dịch vụ theo công thức giá NET/DV * số đêm / số khách.</small>
+                </aside>
+              </section>
+
+              {error ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
+
+              <div className="hotelFormActions">
+                <button type="submit" disabled={formBusy || !can('quote.manage')}><Save size={17} /> {editingId ? 'Lưu báo giá' : 'Tạo báo giá'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('create-order')}><ShoppingCart size={17} /> {actionLoading === 'create-order' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('create-quote')}><Check size={17} /> {actionLoading === 'create-quote' ? 'Đang chốt' : 'Chốt báo giá'}</button>
+                <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
               </div>
-              <div className="quoteComboTop">
-                <label>Ma combo<input {...register('comboCode')} /></label>
-                <label>Loai combo<select {...register('comboType')}>{comboTypes.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
-              </div>
-            </section>
-            <ComboRows register={register} fieldArray={items} suppliers={suppliers} serviceOptions={serviceOptions} setValue={setValue} />
-            <section className="panel">
-              <h2>Ghi chu</h2>
-              <textarea rows={5} {...register('note')} placeholder="Dieu kien ap dung, chinh sach hoan huy, phu thu cuoi tuan..." />
-            </section>
+            </form>
           </div>
-          <aside className="panel quoteSummaryBox">
-            <h2>Khoi tinh gia</h2>
-            <div className="summaryRows">
-              <div><span>Tong NET/nguoi</span><strong>{money(totals.totalNet)}</strong></div>
-            </div>
-            <label>Loi nhuan/nguoi<input type="number" {...register('profitPerPax')} /></label>
-            <div className="summaryRows">
-              <div><span>Gia combo nguoi lon</span><strong>{money(totals.adult)}</strong></div>
-            </div>
-            <label>% tre con<input type="number" {...register('childPricePercent')} /></label>
-            <div className="summaryRows">
-              <div><span>Gia combo tre con</span><strong>{money(totals.child)}</strong></div>
-            </div>
-            <p className="mutedText">{message || 'Gia NET/nguoi tinh theo tung dong dich vu.'}</p>
-          </aside>
-        </section>
-        <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting}><Save size={17} /> Tao bao gia</button>
-          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('create-order')}><ShoppingCart size={17} /> Tao don hang</button>
-          <button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('create-quote')}><Copy size={17} /> Chot bao gia</button>
-          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Dong</button>
         </div>
-      </form></div></div> : null}
+      ) : null}
+
       <section className="panel listPanel">
-        <div className="sectionHeader">
-          <h2>Danh sach combo</h2>
-          <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Them moi</button>
-          <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma combo..." /></label>
+        <div className="sectionHeader quoteListHeader">
+          <div>
+            <h2>Danh sách combo</h2>
+            <span>{listLoading ? 'Đang tải dữ liệu...' : `${filteredCombos.length} combo`}</span>
+          </div>
+          <div className="quoteListActions">
+            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Thêm mới</button>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã combo, loại combo..." /></label>
+          </div>
         </div>
-        <div className="fitTableWrap">
-          <table className="fitTable quoteListTable">
+        {error && !formOpen ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
+        {message && !formOpen ? <div className="quoteAlert quoteAlertInfo">{message}</div> : null}
+        <div className="fitTableWrap quoteListWrap">
+          <table className="fitTable quoteComboListTable">
             <thead>{comboTable.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-            <tbody>{comboTable.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
+            <tbody>
+              {comboTable.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+              {!comboTable.getRowModel().rows.length ? <tr><td colSpan={7} className="tableEmptyState">{listLoading ? 'Đang tải danh sách combo...' : 'Không có combo phù hợp.'}</td></tr> : null}
+            </tbody>
           </table>
         </div>
       </section>
@@ -213,45 +481,113 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   );
 }
 
-function ComboRows({ register, fieldArray, suppliers, serviceOptions, setValue }: { register: UseFormRegister<ComboForm>; fieldArray: UseFieldArrayReturn<ComboForm, 'items', 'id'>; suppliers: Supplier[]; serviceOptions: Array<{ id: string; serviceName: string; netPrice: string; supplierId: string; supplierName: string }>; setValue: any }) {
+function ComboRows({
+  register,
+  fieldArray,
+  suppliers,
+  serviceOptions,
+  setValue,
+  watchedItems,
+}: {
+  register: UseFormRegister<ComboForm>;
+  fieldArray: UseFieldArrayReturn<ComboForm, 'items', 'id'>;
+  suppliers: Supplier[];
+  serviceOptions: ServiceOption[];
+  setValue: UseFormSetValue<ComboForm>;
+  watchedItems: Partial<ComboItem>[];
+}) {
   const table = useReactTable({
     data: fieldArray.fields,
     columns: useMemo(() => {
       const helper = createColumnHelper<FieldArrayWithId<ComboForm, 'items', 'id'>>();
       return [
         helper.display({ id: 'stt', header: 'STT', cell: ({ row }) => row.index + 1 }),
-        helper.display({ id: 'supplierId', header: 'NCC', cell: ({ row }) => <select {...register(`items.${row.index}.supplierId`)}><option value="">Chon NCC</option>{suppliers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select> }),
-        helper.display({ id: 'serviceId', header: 'Dich vu', cell: ({ row }) => <select {...register(`items.${row.index}.serviceId`)} onChange={(event) => {
-          const service = serviceOptions.find((item) => item.id === event.target.value);
-          setValue(`items.${row.index}.serviceId`, event.target.value);
-          if (service) {
-            setValue(`items.${row.index}.supplierId`, service.supplierId);
-            setValue(`items.${row.index}.serviceName`, service.serviceName);
-            setValue(`items.${row.index}.netPricePerService`, Number(service.netPrice || 0));
-          }
-        }}><option value="">Nhap tay/chon dich vu</option>{serviceOptions.map((item) => <option value={item.id} key={item.id}>{item.supplierName} - {item.serviceName}</option>)}</select> }),
+        helper.display({
+          id: 'supplierId',
+          header: 'Nhà cung cấp',
+          cell: ({ row }) => {
+            const field = register(`items.${row.index}.supplierId`);
+            return (
+              <select
+                {...field}
+                onChange={(event) => {
+                  field.onChange(event);
+                  const supplierId = event.target.value;
+                  const currentServiceId = text(watchedItems[row.index]?.serviceId);
+                  const currentService = serviceOptions.find((item) => item.id === currentServiceId);
+                  if (currentService && currentService.supplierId !== supplierId) {
+                    setValue(`items.${row.index}.serviceId`, '');
+                  }
+                }}
+              >
+                <option value="">Chọn nhà cung cấp</option>
+                {suppliers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+              </select>
+            );
+          },
+        }),
+        helper.display({
+          id: 'serviceId',
+          header: 'Dịch vụ',
+          cell: ({ row }) => {
+            const selectedSupplierId = text(watchedItems[row.index]?.supplierId);
+            const availableServices = selectedSupplierId ? serviceOptions.filter((item) => item.supplierId === selectedSupplierId) : serviceOptions;
+            const field = register(`items.${row.index}.serviceId`);
+            return (
+              <select
+                {...field}
+                onChange={(event) => {
+                  field.onChange(event);
+                  const service = serviceOptions.find((item) => item.id === event.target.value);
+                  if (service) {
+                    setValue(`items.${row.index}.supplierId`, service.supplierId);
+                    setValue(`items.${row.index}.serviceName`, service.serviceName);
+                    setValue(`items.${row.index}.netPricePerService`, safeNumber(service.netPrice));
+                  }
+                }}
+              >
+                <option value="">Nhập tay/chọn dịch vụ</option>
+                {availableServices.map((item) => <option value={item.id} key={`${item.supplierId}:${item.id}`}>{item.supplierName} - {item.serviceName}</option>)}
+              </select>
+            );
+          },
+        }),
         ...[
-          { key: 'serviceName', label: 'Ten dich vu' },
-          { key: 'checkIn', label: 'Check In', type: 'date' },
-          { key: 'netPricePerService', label: 'Gia NET/DV', type: 'number' },
-          { key: 'nightCount', label: 'So dem', type: 'number' },
-          { key: 'paxCount', label: 'So khach', type: 'number' },
-        ].map((column) => helper.display({ id: column.key, header: column.label, cell: ({ row }) => <input type={column.type || 'text'} {...register(`items.${row.index}.${column.key}` as any)} /> })),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)}><Trash2 size={15} /></button> }),
+          { key: 'serviceName', label: 'Tên dịch vụ' },
+          { key: 'checkIn', label: 'Ngày dùng', type: 'date' },
+          { key: 'netPricePerService', label: 'Giá NET/DV', type: 'number' },
+          { key: 'nightCount', label: 'Số đêm', type: 'number' },
+          { key: 'paxCount', label: 'Số khách', type: 'number' },
+        ].map((column) => helper.display({
+          id: column.key,
+          header: column.label,
+          cell: ({ row }) => {
+            if (column.type === 'number') {
+              const isPaxOrNight = column.key === 'nightCount' || column.key === 'paxCount';
+              return <input type="number" min={isPaxOrNight ? 1 : 0} step={isPaxOrNight ? 1 : 0.01} inputMode={isPaxOrNight ? 'numeric' : 'decimal'} {...register(`items.${row.index}.${column.key}` as any, { valueAsNumber: true })} />;
+            }
+            return <input type={column.type || 'text'} {...register(`items.${row.index}.${column.key}` as any)} />;
+          },
+        })),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="dangerButton iconButton" aria-label="Xóa dịch vụ" onClick={() => fieldArray.remove(row.index)}><Trash2 size={15} /></button> }),
       ];
-    }, [fieldArray, register, serviceOptions, setValue, suppliers]),
+    }, [fieldArray, register, serviceOptions, setValue, suppliers, watchedItems]),
     getCoreRowModel: getCoreRowModel(),
   });
+
   return (
     <section className="fitTableBlock">
       <div className="sectionHeader">
-        <h2>Dich vu combo</h2>
-        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyItem })}><Plus size={16} /> Them dich vu</button>
+        <h2>Danh sách dịch vụ</h2>
+        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyItem })}><Plus size={16} /> Thêm dịch vụ</button>
       </div>
       <div className="fitTableWrap">
         <table className="fitTable quoteComboTable">
           <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-          <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
+          <tbody>
+            {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+            {!table.getRowModel().rows.length ? <tr><td colSpan={9} className="tableEmptyState">Chưa có dịch vụ. Bấm "Thêm dịch vụ" để bắt đầu.</td></tr> : null}
+          </tbody>
         </table>
       </div>
     </section>

@@ -2,7 +2,16 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BookingStatus, OperationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
-import { CreateBookingDto } from './dto/create-booking.dto';
+import {
+  BOOKING_CODE_MAX_LENGTH,
+  BOOKING_CODE_PATTERN,
+  BOOKING_CUSTOMER_NAME_MAX_LENGTH,
+  BOOKING_EMAIL_MAX_LENGTH,
+  BOOKING_OWNER_MAX_LENGTH,
+  BOOKING_PHONE_MAX_LENGTH,
+  BOOKING_PHONE_PATTERN,
+  CreateBookingDto,
+} from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { bookingScopeWhere } from './booking-scope';
 
@@ -299,18 +308,18 @@ export class BookingsService {
   ) {
     if (!current.operationForm) return;
     const blocked: string[] = [];
-    if (dto.code !== undefined && dto.code.trim().toUpperCase() !== current.code) blocked.push('mã booking');
+    if (dto.code !== undefined && this.bookingCode(dto.code) !== current.code) blocked.push('mã booking');
     if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) blocked.push('tour mẫu');
     if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) blocked.push('khách hàng liên kết');
     if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) blocked.push('đơn hàng liên kết');
     if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) blocked.push('tour vận hành liên kết');
-    if (dto.customerName !== undefined && dto.customerName.trim() !== current.customerName) blocked.push('tên khách/đoàn');
-    if (dto.customerPhone !== undefined && this.optionalText(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
-    if (dto.customerEmail !== undefined && this.optionalText(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
+    if (dto.customerName !== undefined && this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) !== current.customerName) blocked.push('tên khách/đoàn');
+    if (dto.customerPhone !== undefined && this.customerPhone(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
+    if (dto.customerEmail !== undefined && this.customerEmail(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
     if (dto.paxCount !== undefined && dto.paxCount !== current.paxCount) blocked.push('số khách');
     if (dto.startDate !== undefined && this.dateKey(dto.startDate) !== this.dateKey(current.startDate)) blocked.push('ngày khởi hành');
     if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) blocked.push('ngày kết thúc');
-    if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'totalSellPrice') !== this.numberValue(current.totalSellPrice, 'totalSellPrice')) blocked.push('giá bán tổng');
+    if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'Giá bán tổng') !== this.numberValue(current.totalSellPrice, 'Giá bán tổng')) blocked.push('giá bán tổng');
     if (blocked.length) throw new ConflictException(`Booking đã có phiếu điều hành, không thể đổi ${blocked.join(', ')}`);
   }
 
@@ -374,14 +383,14 @@ export class BookingsService {
     if (input.paxCount !== undefined && (!Number.isInteger(input.paxCount) || input.paxCount < 1)) {
       throw new BadRequestException('Số khách phải là số nguyên lớn hơn 0');
     }
-    if (input.totalSellPrice !== undefined && this.numberValue(input.totalSellPrice, 'totalSellPrice') < 0) {
+    if (input.totalSellPrice !== undefined && this.numberValue(input.totalSellPrice, 'Giá bán tổng') < 0) {
       throw new BadRequestException('Giá bán tổng không được âm');
     }
   }
 
   private ensureDateRange(startDate: unknown, endDate: unknown) {
-    const start = this.dateOnlyTime(startDate, 'startDate');
-    const end = this.dateOnlyTime(endDate, 'endDate');
+    const start = this.dateOnlyTime(startDate, 'ng?y b?t ??u');
+    const end = this.dateOnlyTime(endDate, 'ng?y k?t th?c');
     if (start > end) {
       throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
     }
@@ -415,13 +424,13 @@ export class BookingsService {
   }
 
   private dateFieldLabel(field: string) {
-    if (field === 'startDate') return 'Ngày khởi hành';
-    if (field === 'endDate') return 'Ngày kết thúc';
+    if (field === 'ng?y b?t ??u') return 'Ngày khởi hành';
+    if (field === 'ng?y k?t th?c') return 'Ngày kết thúc';
     return 'Ngày';
   }
 
   private dateKey(value: unknown) {
-    return this.dateOnlyTime(value, 'date');
+    return this.dateOnlyTime(value, 'ng?y');
   }
 
   private numberValue(value: unknown, field: string) {
@@ -430,41 +439,78 @@ export class BookingsService {
     return number;
   }
 
+  private bookingCode(value: unknown) {
+    const code = this.requiredText(value, 'Mã booking', BOOKING_CODE_MAX_LENGTH).toUpperCase();
+    if (!BOOKING_CODE_PATTERN.test(code)) {
+      throw new BadRequestException('Mã booking chỉ được dùng chữ cái không dấu, số, dấu gạch ngang hoặc gạch dưới, không có khoảng trắng');
+    }
+    return code;
+  }
+
+  private customerPhone(value: unknown) {
+    const phone = this.optionalLimitedText(value, 'Điện thoại khách', BOOKING_PHONE_MAX_LENGTH);
+    if (phone && !BOOKING_PHONE_PATTERN.test(phone)) {
+      throw new BadRequestException('Điện thoại khách chỉ được dùng số, khoảng trắng và các ký tự + ( ) . - từ 6 đến 32 ký tự');
+    }
+    return phone;
+  }
+
+  private customerEmail(value: unknown) {
+    const email = this.optionalLimitedText(value, 'Email khách', BOOKING_EMAIL_MAX_LENGTH)?.toLowerCase() || null;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException('Email khách không hợp lệ');
+    }
+    return email;
+  }
+
+  private requiredText(value: unknown, label: string, maxLength: number) {
+    const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+    if (!text) throw new BadRequestException(`${label} không được để trống`);
+    if (text.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
+    return text;
+  }
+
+  private optionalLimitedText(value: unknown, label: string, maxLength: number) {
+    const text = this.optionalText(value);
+    if (text && text.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
+    return text;
+  }
+
   private toCreateData(dto: CreateBookingDto): Prisma.BookingUncheckedCreateInput {
     return {
-      code: dto.code.trim().toUpperCase(),
+      code: this.bookingCode(dto.code),
       tourProgramId: dto.tourProgramId,
       customerId: this.optionalText(dto.customerId),
       orderId: this.optionalText(dto.orderId),
       tourId: this.optionalText(dto.tourId),
-      customerName: dto.customerName.trim(),
-      customerPhone: this.optionalText(dto.customerPhone),
-      customerEmail: this.optionalText(dto.customerEmail),
+      customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH),
+      customerPhone: this.customerPhone(dto.customerPhone),
+      customerEmail: this.customerEmail(dto.customerEmail),
       paxCount: dto.paxCount,
-      startDate: this.dateOnlyDate(dto.startDate, 'startDate'),
-      endDate: this.dateOnlyDate(dto.endDate, 'endDate'),
-      saleOwner: this.optionalText(dto.saleOwner),
-      operatorOwner: this.optionalText(dto.operatorOwner),
-      totalSellPrice: dto.totalSellPrice ?? 0,
+      startDate: this.dateOnlyDate(dto.startDate, 'ng?y b?t ??u'),
+      endDate: this.dateOnlyDate(dto.endDate, 'ng?y k?t th?c'),
+      saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH),
+      operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH),
+      totalSellPrice: this.numberValue(dto.totalSellPrice ?? 0, 'Giá bán tổng'),
     };
   }
 
   private toUpdateData(dto: UpdateBookingDto): Prisma.BookingUncheckedUpdateInput {
     return {
-      ...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {}),
+      ...(dto.code !== undefined ? { code: this.bookingCode(dto.code) } : {}),
       ...(dto.tourProgramId !== undefined ? { tourProgramId: dto.tourProgramId } : {}),
       ...(dto.customerId !== undefined ? { customerId: this.optionalText(dto.customerId) } : {}),
       ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
       ...(dto.tourId !== undefined ? { tourId: this.optionalText(dto.tourId) } : {}),
-      ...(dto.customerName !== undefined ? { customerName: dto.customerName.trim() } : {}),
-      ...(dto.customerPhone !== undefined ? { customerPhone: this.optionalText(dto.customerPhone) } : {}),
-      ...(dto.customerEmail !== undefined ? { customerEmail: this.optionalText(dto.customerEmail) } : {}),
+      ...(dto.customerName !== undefined ? { customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) } : {}),
+      ...(dto.customerPhone !== undefined ? { customerPhone: this.customerPhone(dto.customerPhone) } : {}),
+      ...(dto.customerEmail !== undefined ? { customerEmail: this.customerEmail(dto.customerEmail) } : {}),
       ...(dto.paxCount !== undefined ? { paxCount: dto.paxCount } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'startDate') } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'endDate') } : {}),
-      ...(dto.saleOwner !== undefined ? { saleOwner: this.optionalText(dto.saleOwner) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
-      ...(dto.totalSellPrice !== undefined ? { totalSellPrice: dto.totalSellPrice } : {}),
+      ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'ng?y b?t ??u') } : {}),
+      ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'ng?y k?t th?c') } : {}),
+      ...(dto.saleOwner !== undefined ? { saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
+      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
+      ...(dto.totalSellPrice !== undefined ? { totalSellPrice: this.numberValue(dto.totalSellPrice, 'Giá bán tổng') } : {}),
       ...(dto.status !== undefined ? { status: dto.status } : {}),
     };
   }

@@ -776,6 +776,8 @@ model FinanceReceipt {
   paymentMethod     FinancePaymentMethod   @default(BANK_TRANSFER)
   customerId        String?
   customer          Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  tourId            String?
+  tour              Tour?                   @relation(fields: [tourId], references: [id], onDelete: SetNull)
   payerName         String?
   payerPhone        String?
   payerEmail        String?
@@ -820,6 +822,7 @@ model FinanceReceipt {
   @@index([branch])
   @@index([assignedStaff])
   @@index([customerId])
+  @@index([tourId])
   @@index([reversalOfId])
 }
 
@@ -855,6 +858,8 @@ model FinancePayment {
   operationVoucher   OperationVoucher?      @relation(fields: [operationVoucherId], references: [id], onDelete: SetNull)
   orderId            String?
   order              Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  tourId             String?
+  tour               Tour?                  @relation(fields: [tourId], references: [id], onDelete: SetNull)
   receiverName       String?
   receiverPhone      String?
   receiverEmail      String?
@@ -899,6 +904,7 @@ model FinancePayment {
   @@index([supplierId])
   @@index([operationVoucherId])
   @@index([orderId])
+  @@index([tourId])
   @@index([branch])
   @@index([assignedStaff])
   @@index([reversalOfId])
@@ -910,6 +916,8 @@ model FinanceInvoice {
   systemCode         String?
   orderId            String?
   order              Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  tourId             String?
+  tour               Tour?                 @relation(fields: [tourId], references: [id], onDelete: SetNull)
   receiptId          String?
   receipt            FinanceReceipt?       @relation(fields: [receiptId], references: [id], onDelete: SetNull)
   customerId         String?
@@ -973,6 +981,7 @@ model FinanceInvoice {
   @@index([taxCode])
   @@index([customerPhone])
   @@index([orderId])
+  @@index([tourId])
   @@index([receiptId])
   @@index([customerId])
   @@index([reversalOfId])
@@ -1023,6 +1032,8 @@ model FinanceCashflowEntry {
   staff         String?
   orderId       String?
   order         Order?                    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  tourId        String?
+  tour          Tour?                     @relation(fields: [tourId], references: [id], onDelete: SetNull)
   supplierId    String?
   supplier      Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   customerId    String?
@@ -1040,6 +1051,7 @@ model FinanceCashflowEntry {
   @@index([branch])
   @@index([paymentMethod])
   @@index([orderId])
+  @@index([tourId])
   @@index([supplierId])
   @@index([customerId])
 }
@@ -1050,6 +1062,8 @@ model CustomerLedgerEntry {
   customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   orderId        String?
   order          Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  tourId         String?
+  tour           Tour?            @relation(fields: [tourId], references: [id], onDelete: SetNull)
   receiptId      String?
   receipt        FinanceReceipt?  @relation(fields: [receiptId], references: [id], onDelete: SetNull)
   invoiceId      String?
@@ -1078,6 +1092,7 @@ model CustomerLedgerEntry {
   @@unique([sourceType, sourceId, entryType])
   @@index([customerId, documentDate])
   @@index([orderId])
+  @@index([tourId])
   @@index([receiptId])
   @@index([invoiceId])
   @@index([reversedEntryId])
@@ -1089,6 +1104,8 @@ model SupplierLedgerEntry {
   supplier           Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   orderId            String?
   order              Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  tourId             String?
+  tour               Tour?            @relation(fields: [tourId], references: [id], onDelete: SetNull)
   operationVoucherId String?
   operationVoucher   OperationVoucher? @relation(fields: [operationVoucherId], references: [id], onDelete: SetNull)
   paymentId          String?
@@ -1117,6 +1134,7 @@ model SupplierLedgerEntry {
   @@unique([sourceType, sourceId, entryType])
   @@index([supplierId, documentDate])
   @@index([orderId])
+  @@index([tourId])
   @@index([operationVoucherId])
   @@index([paymentId])
   @@index([reversedEntryId])
@@ -1986,6 +2004,9 @@ model Tour {
   pickupPoint       String?
   dropoffPoint      String?
   notes             String?
+  closedAt          DateTime?
+  closedBy          String?
+  deletedAt         DateTime?
   fitTour           FitTour?
   gitTour           GitTourDetail?
   landTour          LandTourDetail?
@@ -2003,6 +2024,12 @@ model Tour {
   payments          TourPayment[]
   receipts          TourReceipt[]
   expenses          TourExpense[]
+  financeReceipts   FinanceReceipt[]
+  financePayments   FinancePayment[]
+  financeInvoices   FinanceInvoice[]
+  financeCashflowEntries FinanceCashflowEntry[]
+  customerLedgerEntries CustomerLedgerEntry[]
+  supplierLedgerEntries SupplierLedgerEntry[]
   logs              TourLog[]
   operationVouchers OperationVoucher[]
   bookings          Booking[]
@@ -2015,6 +2042,8 @@ model Tour {
   @@index([type, status])
   @@index([startDate])
   @@index([orderId])
+  @@index([deletedAt])
+  @@index([type, deletedAt])
 }
 
 model TourCustomer {

@@ -1,9 +1,25 @@
 'use client';
 
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Download, RefreshCw, Search } from 'lucide-react';
+import { Download, Loader2, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { authHeaders } from '../authFetch';
+
+type ReportTabKey = 'revenue' | 'profit' | 'finance' | 'customer-debt' | 'supplier-debt' | 'employees';
+type GroupKey =
+  | 'by-created-date'
+  | 'by-checkin-date'
+  | 'by-checkout-date'
+  | 'by-approved-date'
+  | 'by-employee'
+  | 'by-agency'
+  | 'by-branch'
+  | 'by-department'
+  | 'by-market'
+  | 'by-type';
+type DateFieldKey = 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'paymentDate' | 'settledAt';
+type MessageTone = 'idle' | 'success' | 'info' | 'error';
+type LoadReason = 'filter' | 'tab' | 'reset';
 
 type Summary = {
   totalRevenue?: number;
@@ -12,41 +28,25 @@ type Summary = {
   totalCost?: number;
   paidCost?: number;
   remainingCost?: number;
+  totalPurchase?: number;
+  remainingAmount?: number;
   profit?: number;
   commission?: number;
   marginRate?: number;
-};
-type ReportSummary = Summary & {
   supplierCount?: number;
-  totalPurchase?: number;
-  remainingAmount?: number;
 };
-type NormalizedSummary = Required<Summary>;
-type MetricRow = {
+type MetricRow = Summary & {
   key: string;
   label: string;
   orderCount: number;
   customerCount: number;
-  revenue: number;
-  paidAmount: number;
-  remainingRevenue: number;
-  cost: number;
-  paidCost: number;
-  remainingCost: number;
-  profit: number;
-  commission: number;
-  marginRate: number;
-  averageOrderValue: number;
-  profitAfterCommission: number;
-  paidRatio: number;
+  revenue?: number;
+  cost?: number;
+  averageOrderValue?: number;
+  profitAfterCommission?: number;
+  paidRatio?: number;
 };
-type ReportData = {
-  summary?: ReportSummary;
-  rows?: unknown[];
-  orders?: unknown[];
-  byType?: unknown[];
-  cashflowByMonth?: unknown[];
-};
+type ReportData = { summary?: Summary; rows?: any[]; orders?: any[]; byType?: any[]; cashflowByMonth?: any[] };
 type Overview = Summary & {
   totalOrders?: number;
   totalCustomers?: number;
@@ -54,109 +54,117 @@ type Overview = Summary & {
   unpaidOrders?: number;
   unpaidCostOrders?: number;
   settledOrders?: number;
-  byType?: unknown[];
-  byMonth?: unknown[];
+  byType?: MetricRow[];
+  byMonth?: MetricRow[];
 };
 type Filters = Record<string, string>;
-type MessageState = { kind: 'idle' | 'loading' | 'success' | 'error'; text: string };
-type LoadReason = 'refresh' | 'filter' | 'tab' | 'group' | 'reset';
+type ReportMessage = { tone: MessageTone; text: string };
 
-const reportTabs = [
+const reportTabs: Array<{ key: ReportTabKey; label: string }> = [
   { key: 'revenue', label: 'Doanh thu' },
   { key: 'profit', label: 'Lợi nhuận' },
   { key: 'finance', label: 'Tài chính' },
   { key: 'customer-debt', label: 'Công nợ khách hàng' },
-  { key: 'supplier-debt', label: 'Công nợ nhà cung cấp' },
+  { key: 'supplier-debt', label: 'Công nợ NCC' },
   { key: 'employees', label: 'Nhân viên' },
-] as const;
-type ReportTab = (typeof reportTabs)[number]['key'];
-
-const groupOptions = [
+];
+const tabLabels = Object.fromEntries(reportTabs.map((tab) => [tab.key, tab.label])) as Record<ReportTabKey, string>;
+const groupedTabs = new Set<ReportTabKey>(['revenue', 'profit']);
+const groupOptions: Array<[GroupKey, string]> = [
   ['by-created-date', 'Ngày tạo'],
-  ['by-checkin-date', 'Ngày khởi hành'],
-  ['by-checkout-date', 'Ngày kết thúc'],
-  ['by-approved-date', 'Ngày quyết toán'],
+  ['by-checkin-date', 'Ngày check-in'],
+  ['by-checkout-date', 'Ngày check-out'],
+  ['by-approved-date', 'Ngày chốt'],
   ['by-employee', 'Nhân viên'],
   ['by-agency', 'Đại lý'],
   ['by-branch', 'Chi nhánh'],
   ['by-department', 'Phòng ban'],
   ['by-market', 'Thị trường'],
   ['by-type', 'Loại dịch vụ'],
-] as const;
-type GroupBy = (typeof groupOptions)[number][0];
-
+];
 const typeOptions = [
   ['', 'Tất cả'],
-  ['FIT_TOUR', 'Đơn FIT'],
+  ['FIT_TOUR', 'FIT Tour'],
   ['GIT_COMBO', 'GIT / Combo'],
-  ['LANDTOUR', 'LandTour'],
-  ['HOTEL_BOOKING', 'Booking phòng'],
+  ['LANDTOUR', 'Landtour'],
+  ['HOTEL_BOOKING', 'Đặt phòng khách sạn'],
   ['SINGLE_SERVICE', 'Dịch vụ lẻ'],
-  ['FLIGHT_ORDER', 'Booking vé bay'],
-] as const;
+  ['FLIGHT_ORDER', 'Vé máy bay'],
+];
 const paymentOptions = [
   ['', 'Tất cả'],
-  ['UNPAID', 'Chưa thanh toán'],
-  ['PARTIAL', 'Thanh toán một phần'],
-  ['PAID', 'Đã thanh toán'],
+  ['UNPAID', 'Chưa thu'],
+  ['PARTIAL', 'Thu một phần'],
+  ['PAID', 'Đã thu'],
   ['REFUND', 'Hoàn tiền'],
-] as const;
-const dateFields = [
+];
+const costOptions = [
+  ['', 'Tất cả'],
+  ['PENDING', 'Chưa chi'],
+  ['PARTIAL', 'Chi một phần'],
+  ['PAID', 'Đã chi'],
+  ['OVERDUE', 'Quá hạn'],
+];
+const statusOptions = [
+  ['', 'Tất cả'],
+  ['DRAFT', 'Nháp'],
+  ['UPCOMING', 'Sắp khởi hành'],
+  ['RUNNING', 'Đang chạy'],
+  ['COMPLETED', 'Hoàn tất'],
+  ['CANCELLED', 'Đã hủy'],
+  ['SETTLED', 'Đã chốt'],
+];
+const dateFields: Array<[DateFieldKey, string]> = [
   ['createdAt', 'Ngày tạo'],
   ['bookingDate', 'Ngày đặt'],
-  ['startDate', 'Ngày khởi hành'],
+  ['startDate', 'Ngày bắt đầu'],
   ['endDate', 'Ngày kết thúc'],
   ['paymentDate', 'Ngày thanh toán'],
-  ['settledAt', 'Ngày quyết toán'],
-] as const;
-const orderFilterKeys = ['search', 'dateFrom', 'dateTo', 'dateField', 'type', 'paymentStatus', 'branch', 'department', 'employee', 'agency', 'marketGroup', 'settled'] as const;
-const supplierDebtFilterKeys = ['search', 'supplier', 'dateFrom', 'dateTo'] as const;
-const numericColumnIds = new Set(['orderCount', 'customerCount', 'revenue', 'paidAmount', 'remainingRevenue', 'cost', 'paidCost', 'remainingCost', 'profit', 'marginRate']);
-const numericCellStyle = { textAlign: 'right' as const, fontVariantNumeric: 'tabular-nums' };
-
-const reportEndpointByTab: Record<ReportTab, (groupBy: GroupBy) => string> = {
-  revenue: (groupBy) => `/reports/revenue/${encodeURIComponent(groupBy)}`,
-  profit: () => '/reports/profit',
-  finance: () => '/reports/finance',
-  'customer-debt': () => '/reports/debt/customers',
-  'supplier-debt': () => '/reports/debt/suppliers',
-  employees: () => '/reports/employees/performance',
-};
+  ['settledAt', 'Ngày chốt'],
+];
+const orderFilterKeys = new Set([
+  'search',
+  'dateFrom',
+  'dateTo',
+  'dateField',
+  'type',
+  'paymentStatus',
+  'costStatus',
+  'status',
+  'branch',
+  'department',
+  'employee',
+  'agency',
+  'customerType',
+  'marketGroup',
+  'settled',
+]);
+const supplierDebtFilterKeys = new Set(['search', 'supplier', 'dateFrom', 'dateTo']);
+const emptyReport: ReportData = { summary: {}, rows: [] };
+const defaultFilters: Filters = { dateField: 'createdAt' };
 
 function browserApiBase() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
   if (typeof window === 'undefined') return apiBase;
-  if (!apiBase || apiBase.includes('smarttour-api-1')) return '';
+  if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
   return apiBase;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function asNumber(value: unknown) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function numberOr(value: unknown, fallback: number) {
-  return value === undefined || value === null || value === '' ? fallback : asNumber(value);
-}
-
-function asText(value: unknown) {
-  return String(value ?? '').trim();
+function numberValue(value: unknown) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function money(value: unknown) {
-  return asNumber(value).toLocaleString('vi-VN');
+  return numberValue(value).toLocaleString('vi-VN');
 }
 
-function count(value: unknown) {
-  return asNumber(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 });
+function integer(value: unknown) {
+  return Math.trunc(numberValue(value)).toLocaleString('vi-VN');
 }
 
 function percent(value: unknown) {
-  return `${asNumber(value).toFixed(1)}%`;
+  return `${numberValue(value).toFixed(1)}%`;
 }
 
 function qs(filters: Filters) {
@@ -167,277 +175,239 @@ function qs(filters: Filters) {
   return params.toString();
 }
 
-function pickFilters(filters: Filters, keys: readonly string[]) {
-  return keys.reduce<Filters>((selected, key) => {
-    if (filters[key]) selected[key] = filters[key];
-    return selected;
-  }, {});
+function endpointFor(tab: ReportTabKey, selectedGroup: GroupKey) {
+  if (tab === 'profit') return '/reports/profit';
+  if (tab === 'finance') return '/reports/finance';
+  if (tab === 'customer-debt') return '/reports/debt/customers';
+  if (tab === 'supplier-debt') return '/reports/debt/suppliers';
+  if (tab === 'employees') return '/reports/employees/performance';
+  return `/reports/revenue/${selectedGroup}`;
 }
 
-function supportsGrouping(tab: ReportTab) {
-  return tab === 'revenue' || tab === 'profit';
+function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: GroupKey, includeGroup = true) {
+  const allowedKeys = tab === 'supplier-debt' ? supplierDebtFilterKeys : orderFilterKeys;
+  const query: Filters = {};
+  allowedKeys.forEach((key) => {
+    if (currentFilters[key]) query[key] = currentFilters[key];
+  });
+  if (includeGroup && groupedTabs.has(tab)) query.groupBy = selectedGroup;
+  return query;
 }
 
-function reportFilters(tab: ReportTab, filters: Filters, groupBy: GroupBy) {
-  const selected = pickFilters(filters, tab === 'supplier-debt' ? supplierDebtFilterKeys : orderFilterKeys);
-  if (supportsGrouping(tab)) selected.groupBy = groupBy;
-  return selected;
+async function responseError(response: Response, fallback: string) {
+  let detail = '';
+  try {
+    const body = await response.clone().json();
+    const message = body?.message;
+    detail = Array.isArray(message) ? message.join(', ') : message || body?.error || '';
+  } catch {
+    try {
+      detail = await response.clone().text();
+    } catch {
+      detail = '';
+    }
+  }
+  return detail ? `${fallback}: ${detail}` : `${fallback} (HTTP ${response.status})`;
 }
 
-function endpointFor(tab: ReportTab, selectedGroup: GroupBy) {
-  return reportEndpointByTab[tab](selectedGroup);
-}
-
-function reportTabLabel(tab: ReportTab) {
-  return reportTabs.find((item) => item.key === tab)?.label || 'Báo cáo';
-}
-
-function emptyMetricRow(key: string, label: string): MetricRow {
+function normalizeMetricRow(row: any, fallbackKey: string): MetricRow {
+  const revenue = numberValue(row.revenue ?? row.totalRevenue);
+  const cost = numberValue(row.cost ?? row.totalCost ?? row.totalPurchase);
+  const profit = row.profit === undefined || row.profit === null ? revenue - cost : numberValue(row.profit);
   return {
-    key,
-    label,
-    orderCount: 0,
-    customerCount: 0,
-    revenue: 0,
-    paidAmount: 0,
-    remainingRevenue: 0,
-    cost: 0,
-    paidCost: 0,
-    remainingCost: 0,
-    profit: 0,
-    commission: 0,
-    marginRate: 0,
-    averageOrderValue: 0,
-    profitAfterCommission: 0,
-    paidRatio: 0,
+    key: String(row.key || row.id || row.orderId || row.supplierId || row.supplierName || fallbackKey),
+    label: String(row.label || row.name || row.customerName || row.supplierName || 'Chưa có tên'),
+    orderCount: numberValue(row.orderCount),
+    customerCount: numberValue(row.customerCount),
+    revenue,
+    paidAmount: numberValue(row.paidAmount),
+    remainingRevenue: numberValue(row.remainingRevenue),
+    cost,
+    paidCost: numberValue(row.paidCost),
+    remainingCost: numberValue(row.remainingCost ?? row.remainingAmount),
+    profit,
+    commission: numberValue(row.commission),
+    marginRate: numberValue(row.marginRate),
+    averageOrderValue: numberValue(row.averageOrderValue),
+    profitAfterCommission: numberValue(row.profitAfterCommission),
+    paidRatio: numberValue(row.paidRatio),
   };
 }
 
-function normalizeMetricRow(value: unknown, index: number): MetricRow {
-  const row = asRecord(value);
-  return {
-    ...emptyMetricRow(asText(row.key) || `row-${index}`, asText(row.label) || 'Chưa phân nhóm'),
-    orderCount: asNumber(row.orderCount),
-    customerCount: asNumber(row.customerCount),
-    revenue: asNumber(row.revenue),
-    paidAmount: asNumber(row.paidAmount),
-    remainingRevenue: asNumber(row.remainingRevenue),
-    cost: asNumber(row.cost),
-    paidCost: asNumber(row.paidCost),
-    remainingCost: asNumber(row.remainingCost),
-    profit: asNumber(row.profit),
-    commission: asNumber(row.commission),
-    marginRate: asNumber(row.marginRate),
-    averageOrderValue: asNumber(row.averageOrderValue),
-    profitAfterCommission: asNumber(row.profitAfterCommission),
-    paidRatio: asNumber(row.paidRatio),
-  };
-}
-
-function normalizeRows(active: ReportTab, data: ReportData): MetricRow[] {
-  if (active === 'finance') return (Array.isArray(data.byType) ? data.byType : []).map(normalizeMetricRow);
+function normalizeRows(active: ReportTabKey, data: ReportData): MetricRow[] {
+  if (active === 'finance') return (data.byType || []).map((row, index) => normalizeMetricRow(row, `finance-${index}`));
   if (active === 'customer-debt') {
-    return (Array.isArray(data.rows) ? data.rows : []).map((value, index) => {
-      const row = asRecord(value);
-      const totalRevenue = asNumber(row.totalRevenue);
-      const paidAmount = asNumber(row.paidAmount);
-      const customerName = asText(row.customerName) || 'Chưa có tên khách hàng';
-      const systemCode = asText(row.systemCode);
-      return {
-        ...emptyMetricRow(asText(row.orderId) || asText(row.systemCode) || `customer-debt-${index}`, [customerName, systemCode].filter(Boolean).join(' - ')),
-        orderCount: 1,
-        customerCount: 1,
-        revenue: totalRevenue,
-        paidAmount,
-        remainingRevenue: numberOr(row.remainingRevenue, totalRevenue - paidAmount),
-      };
-    });
-  }
-  if (active === 'supplier-debt') {
-    return (Array.isArray(data.rows) ? data.rows : []).map((value, index) => {
-      const row = asRecord(value);
-      const totalCost = asNumber(row.totalPurchase);
-      const paidCost = asNumber(row.paidAmount);
-      return {
-        ...emptyMetricRow(asText(row.supplierId) || asText(row.supplierName) || `supplier-debt-${index}`, asText(row.supplierName) || 'Chưa gán nhà cung cấp'),
-        orderCount: asNumber(row.voucherCount),
-        cost: totalCost,
-        paidCost,
-        remainingCost: numberOr(row.remainingAmount, totalCost - paidCost),
-      };
-    });
-  }
-  return (Array.isArray(data.rows) ? data.rows : []).map(normalizeMetricRow);
-}
-
-function normalizeSummary(active: ReportTab, value: ReportSummary | undefined): NormalizedSummary {
-  const summary = asRecord(value);
-  if (active === 'supplier-debt') {
-    const totalCost = asNumber(summary.totalPurchase);
-    const paidCost = asNumber(summary.paidAmount);
-    return {
-      totalRevenue: 0,
-      paidAmount: 0,
-      remainingRevenue: 0,
-      totalCost,
-      paidCost,
-      remainingCost: numberOr(summary.remainingAmount, totalCost - paidCost),
+    return (data.rows || []).map((row, index) => ({
+      key: String(row.orderId || row.systemCode || `customer-debt-${index}`),
+      label: `${row.customerName || 'Chưa có khách'} - ${row.systemCode || 'Chưa có mã đơn'}`,
+      orderCount: 1,
+      customerCount: row.customerName ? 1 : 0,
+      revenue: numberValue(row.totalRevenue),
+      paidAmount: numberValue(row.paidAmount),
+      remainingRevenue: numberValue(row.remainingRevenue),
+      cost: 0,
+      paidCost: 0,
+      remainingCost: 0,
       profit: 0,
       commission: 0,
       marginRate: 0,
-    };
-  }
-
-  const totalRevenue = asNumber(summary.totalRevenue);
-  const paidAmount = asNumber(summary.paidAmount);
-  const totalCost = asNumber(summary.totalCost);
-  const paidCost = asNumber(summary.paidCost);
-  const profit = numberOr(summary.profit, totalRevenue - totalCost);
-  return {
-    totalRevenue,
-    paidAmount,
-    remainingRevenue: numberOr(summary.remainingRevenue, totalRevenue - paidAmount),
-    totalCost,
-    paidCost,
-    remainingCost: numberOr(summary.remainingCost, totalCost - paidCost),
-    profit,
-    commission: asNumber(summary.commission),
-    marginRate: numberOr(summary.marginRate, totalRevenue ? (profit / totalRevenue) * 100 : 0),
-  };
-}
-
-function summaryItems(active: ReportTab, summary: NormalizedSummary) {
-  if (active === 'customer-debt') {
-    return [
-      ['Tổng phải thu', money(summary.totalRevenue)],
-      ['Thực thu', money(summary.paidAmount)],
-      ['Còn phải thu', money(summary.remainingRevenue)],
-    ];
+    }));
   }
   if (active === 'supplier-debt') {
+    return (data.rows || []).map((row, index) => ({
+      key: String(row.supplierId || row.supplierName || `supplier-debt-${index}`),
+      label: row.supplierName || 'Chưa gắn NCC',
+      orderCount: numberValue(row.voucherCount),
+      customerCount: 0,
+      revenue: 0,
+      paidAmount: 0,
+      remainingRevenue: 0,
+      cost: numberValue(row.totalPurchase),
+      paidCost: numberValue(row.paidAmount),
+      remainingCost: numberValue(row.remainingAmount),
+      profit: -numberValue(row.remainingAmount),
+      commission: 0,
+      marginRate: 0,
+    }));
+  }
+  return (data.rows || []).map((row, index) => normalizeMetricRow(row, `${active}-${index}`));
+}
+
+function numericCell(value: unknown, formatter = money) {
+  return <span style={{ display: 'block', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatter(value)}</span>;
+}
+
+function reportSummaryCards(tab: ReportTabKey, summary: Summary, rowCount: number) {
+  if (tab === 'supplier-debt') {
     return [
-      ['Tổng phải chi', money(summary.totalCost)],
-      ['Thực chi', money(summary.paidCost)],
-      ['Còn phải chi', money(summary.remainingCost)],
+      { label: 'Tổng chi', value: summary.totalPurchase, formatter: money },
+      { label: 'Thực chi', value: summary.paidAmount, formatter: money },
+      { label: 'Còn phải chi', value: summary.remainingAmount, formatter: money },
+      { label: 'NCC còn nợ', value: summary.supplierCount ?? rowCount, formatter: integer },
+    ];
+  }
+  if (tab === 'customer-debt') {
+    return [
+      { label: 'Doanh thu', value: summary.totalRevenue, formatter: money },
+      { label: 'Thực thu', value: summary.paidAmount, formatter: money },
+      { label: 'Còn phải thu', value: summary.remainingRevenue, formatter: money },
+      { label: 'Đơn còn nợ', value: rowCount, formatter: integer },
+    ];
+  }
+  if (tab === 'finance') {
+    return [
+      { label: 'Thực thu', value: summary.paidAmount, formatter: money },
+      { label: 'Thực chi', value: summary.paidCost, formatter: money },
+      { label: 'Dòng tiền ròng', value: numberValue(summary.paidAmount) - numberValue(summary.paidCost), formatter: money },
+      { label: 'Tỷ suất', value: summary.marginRate, formatter: percent },
     ];
   }
   return [
-    ['Tổng doanh thu', money(summary.totalRevenue)],
-    ['Thực thu', money(summary.paidAmount)],
-    ['Còn phải thu', money(summary.remainingRevenue)],
-    ['Tổng chi', money(summary.totalCost)],
-    ['Thực chi', money(summary.paidCost)],
-    ['Còn phải chi', money(summary.remainingCost)],
-    ['Lợi nhuận', money(summary.profit)],
-    ['Tỷ suất', percent(summary.marginRate)],
+    { label: 'Doanh thu', value: summary.totalRevenue, formatter: money },
+    { label: 'Tổng chi', value: summary.totalCost, formatter: money },
+    { label: 'Lợi nhuận', value: summary.profit, formatter: money },
+    { label: 'Tỷ suất', value: summary.marginRate, formatter: percent },
   ];
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Không xác định được nguyên nhân';
+function filenameFor(tab: ReportTabKey) {
+  const date = new Date().toISOString().slice(0, 10);
+  return `smarttour-${tab}-${date}.csv`;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: 'no-store', headers: authHeaders() });
-  if (!response.ok) {
-    const detail = (await response.text()).trim().slice(0, 180);
-    throw new Error(`${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
-  }
-  return response.json();
-}
-
-export default function ReportsClient({ initialOverview, initialRevenue }: { initialOverview: Overview; initialRevenue: ReportData }) {
+export default function ReportsClient({ initialOverview, initialRevenue, initialMessage }: { initialOverview: Overview; initialRevenue: ReportData; initialMessage?: string }) {
   const [overview, setOverview] = useState<Overview>(initialOverview || {});
-  const [active, setActive] = useState<ReportTab>('revenue');
-  const [groupBy, setGroupBy] = useState<GroupBy>('by-created-date');
-  const [filters, setFilters] = useState<Filters>({ dateField: 'createdAt' });
-  const [report, setReport] = useState<ReportData>(initialRevenue || { summary: {}, rows: [] });
-  const [message, setMessage] = useState<MessageState>({ kind: 'idle', text: '' });
+  const [active, setActive] = useState<ReportTabKey>('revenue');
+  const [groupBy, setGroupBy] = useState<GroupKey>('by-created-date');
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [report, setReport] = useState<ReportData>(initialRevenue || emptyReport);
+  const [message, setMessage] = useState<ReportMessage>({
+    tone: initialMessage ? 'error' : 'idle',
+    text: initialMessage || 'Lọc chung cho doanh thu, công nợ, tài chính và nhân viên.',
+  });
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const requestSequence = useRef(0);
+  const requestSeq = useRef(0);
 
   const rows = useMemo(() => normalizeRows(active, report), [active, report]);
-  const normalizedReportSummary = normalizeSummary(active, report.summary);
-  const currentSummaryItems = summaryItems(active, normalizedReportSummary);
-  const columns = useMemo(() => {
-    const helper = createColumnHelper<MetricRow>();
-    const label = helper.accessor('label', { header: active === 'supplier-debt' ? 'Nhà cung cấp' : active === 'customer-debt' ? 'Khách hàng / Đơn hàng' : 'Nhóm báo cáo', cell: (info) => <strong>{info.getValue()}</strong> });
-    if (active === 'customer-debt') {
-      return [
-        label,
-        helper.accessor('revenue', { header: 'Tổng phải thu', cell: (info) => money(info.getValue()) }),
-        helper.accessor('paidAmount', { header: 'Thực thu', cell: (info) => money(info.getValue()) }),
-        helper.accessor('remainingRevenue', { header: 'Còn phải thu', cell: (info) => money(info.getValue()) }),
-      ];
-    }
-    if (active === 'supplier-debt') {
-      return [
-        label,
-        helper.accessor('orderCount', { header: 'Số chứng từ', cell: (info) => count(info.getValue()) }),
-        helper.accessor('cost', { header: 'Tổng phải chi', cell: (info) => money(info.getValue()) }),
-        helper.accessor('paidCost', { header: 'Thực chi', cell: (info) => money(info.getValue()) }),
-        helper.accessor('remainingCost', { header: 'Còn phải chi', cell: (info) => money(info.getValue()) }),
-      ];
-    }
-    return [
-      label,
-      helper.accessor('orderCount', { header: 'Số đơn', cell: (info) => count(info.getValue()) }),
-      helper.accessor('customerCount', { header: 'Khách hàng', cell: (info) => count(info.getValue()) }),
-      helper.accessor('revenue', { header: 'Tổng doanh thu', cell: (info) => money(info.getValue()) }),
-      helper.accessor('paidAmount', { header: 'Thực thu', cell: (info) => money(info.getValue()) }),
-      helper.accessor('remainingRevenue', { header: 'Còn phải thu', cell: (info) => money(info.getValue()) }),
-      helper.accessor('cost', { header: 'Tổng chi', cell: (info) => money(info.getValue()) }),
-      helper.accessor('paidCost', { header: 'Thực chi', cell: (info) => money(info.getValue()) }),
-      helper.accessor('remainingCost', { header: 'Còn phải chi', cell: (info) => money(info.getValue()) }),
-      helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => money(info.getValue()) }),
-      helper.accessor('marginRate', { header: 'Tỷ suất', cell: (info) => percent(info.getValue()) }),
-    ];
-  }, [active]);
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
+  const summaryCards = useMemo(() => reportSummaryCards(active, report.summary || {}, rows.length), [active, report.summary, rows.length]);
+  const table = useReactTable({
+    data: rows,
+    columns: useMemo(() => {
+      const helper = createColumnHelper<MetricRow>();
+      const labelColumn = helper.accessor('label', { header: active === 'supplier-debt' ? 'Nhà cung cấp' : 'Nhóm báo cáo', cell: (info) => <strong>{info.getValue()}</strong> });
+      const orderColumn = helper.accessor('orderCount', { header: active === 'supplier-debt' ? 'Số phiếu' : 'Số đơn', cell: (info) => numericCell(info.getValue(), integer) });
+      const customerColumn = helper.accessor('customerCount', { header: 'Khách', cell: (info) => numericCell(info.getValue(), integer) });
+      const revenueColumn = helper.accessor('revenue', { header: 'Doanh thu', cell: (info) => numericCell(info.getValue()) });
+      const paidColumn = helper.accessor('paidAmount', { header: 'Thực thu', cell: (info) => numericCell(info.getValue()) });
+      const remainingRevenueColumn = helper.accessor('remainingRevenue', { header: 'Còn phải thu', cell: (info) => numericCell(info.getValue()) });
+      const costColumn = helper.accessor('cost', { header: 'Tổng chi', cell: (info) => numericCell(info.getValue()) });
+      const paidCostColumn = helper.accessor('paidCost', { header: 'Thực chi', cell: (info) => numericCell(info.getValue()) });
+      const remainingCostColumn = helper.accessor('remainingCost', { header: 'Còn phải chi', cell: (info) => numericCell(info.getValue()) });
+      const profitColumn = helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => numericCell(info.getValue()) });
+      const marginColumn = helper.accessor('marginRate', { header: 'Tỷ suất', cell: (info) => numericCell(info.getValue(), percent) });
 
-  async function load(nextActive: ReportTab = active, nextGroupBy: GroupBy = groupBy, nextFilters: Filters = filters, reason: LoadReason = 'refresh') {
-    const requestId = ++requestSequence.current;
-    const label = reportTabLabel(nextActive);
-    const overviewQuery = qs(pickFilters(nextFilters, orderFilterKeys));
-    const currentReportQuery = qs(reportFilters(nextActive, nextFilters, nextGroupBy));
-    const overviewUrl = `${browserApiBase()}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`;
-    const reportUrl = `${browserApiBase()}/api${endpointFor(nextActive, nextGroupBy)}${currentReportQuery ? `?${currentReportQuery}` : ''}`;
+      if (active === 'customer-debt') return [labelColumn, orderColumn, revenueColumn, paidColumn, remainingRevenueColumn];
+      if (active === 'supplier-debt') return [labelColumn, orderColumn, costColumn, paidCostColumn, remainingCostColumn];
+      if (active === 'finance') return [labelColumn, orderColumn, customerColumn, revenueColumn, paidColumn, costColumn, paidCostColumn, profitColumn, marginColumn];
+      return [labelColumn, orderColumn, customerColumn, revenueColumn, paidColumn, remainingRevenueColumn, costColumn, paidCostColumn, remainingCostColumn, profitColumn, marginColumn];
+    }, [active]),
+    getCoreRowModel: getCoreRowModel(),
+  });
 
+  async function load(nextActive = active, nextGroupBy = groupBy, nextFilters = filters, reason: LoadReason = 'filter') {
+    const requestId = requestSeq.current + 1;
+    requestSeq.current = requestId;
     setLoading(true);
-    setMessage({ kind: 'loading', text: `Đang tải báo cáo ${label.toLowerCase()}...` });
-    const [overviewResult, reportResult] = await Promise.allSettled([
-      fetchJson<Overview>(overviewUrl),
-      fetchJson<ReportData>(reportUrl),
-    ]);
-    if (requestId !== requestSequence.current) return;
+    setMessage({ tone: 'info', text: `Đang tải báo cáo ${tabLabels[nextActive]}...` });
 
-    const errors: string[] = [];
-    if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
-    else errors.push(`tổng quan: ${errorMessage(overviewResult.reason)}`);
+    const overviewQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, false));
+    const reportQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, true));
+    const endpoint = endpointFor(nextActive, nextGroupBy);
+    const apiBase = browserApiBase();
 
-    if (reportResult.status === 'fulfilled') setReport(reportResult.value);
-    else {
-      setReport({ summary: {}, rows: [] });
-      errors.push(`${label.toLowerCase()}: ${errorMessage(reportResult.reason)}`);
+    try {
+      const [overviewResult, reportResult] = await Promise.allSettled([
+        fetch(`${apiBase}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+          if (!response.ok) throw new Error(await responseError(response, 'Không tải được Tổng quan'));
+          return response.json() as Promise<Overview>;
+        }),
+        fetch(`${apiBase}/api${endpoint}${reportQuery ? `?${reportQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+          if (!response.ok) throw new Error(await responseError(response, `Không tải được báo cáo ${tabLabels[nextActive]}`));
+          return response.json() as Promise<ReportData>;
+        }),
+      ]);
+
+      if (requestId !== requestSeq.current) return;
+
+      const failures: string[] = [];
+      if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
+      else failures.push(overviewResult.reason instanceof Error ? overviewResult.reason.message : 'Không tải được Tổng quan.');
+      if (reportResult.status === 'fulfilled') setReport(reportResult.value);
+      else failures.push(reportResult.reason instanceof Error ? reportResult.reason.message : `Không tải được báo cáo ${tabLabels[nextActive]}.`);
+
+      if (failures.length) {
+        setMessage({ tone: 'error', text: failures.join(' ') });
+        return;
+      }
+
+      const successText =
+        reason === 'tab'
+          ? `Đã tải báo cáo ${tabLabels[nextActive]}.`
+          : reason === 'reset'
+            ? 'Đã xóa bộ lọc và tải lại dữ liệu.'
+            : 'Đã lọc dữ liệu theo điều kiện mới.';
+      setMessage({ tone: 'success', text: successText });
+    } catch (error) {
+      if (requestId === requestSeq.current) setMessage({ tone: 'error', text: error instanceof Error ? error.message : 'Không tải được báo cáo.' });
+    } finally {
+      if (requestId === requestSeq.current) setLoading(false);
     }
-
-    if (errors.length) {
-      setMessage({ kind: 'error', text: `Lỗi tải ${errors.join('; ')}` });
-    } else if (reason === 'filter') {
-      setMessage({ kind: 'success', text: `Đã lọc dữ liệu báo cáo ${label.toLowerCase()}.` });
-    } else if (reason === 'reset') {
-      setMessage({ kind: 'success', text: `Đã xóa bộ lọc và tải lại báo cáo ${label.toLowerCase()}.` });
-    } else {
-      setMessage({ kind: 'success', text: `Đã tải báo cáo ${label.toLowerCase()}.` });
-    }
-    setLoading(false);
   }
 
-  function setTab(tab: ReportTab) {
+  function setTab(tab: ReportTabKey) {
     if (tab === active) return;
     setActive(tab);
-    setReport({ summary: {}, rows: [] });
     void load(tab, groupBy, filters, 'tab');
   }
 
@@ -445,46 +415,42 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  function changeGroup(nextGroupBy: GroupBy) {
-    setGroupBy(nextGroupBy);
-    void load(active, nextGroupBy, filters, 'group');
+  function applyFilters() {
+    void load(active, groupBy, filters, 'filter');
   }
 
   function resetFilters() {
-    const nextFilters = { dateField: 'createdAt' };
+    const nextFilters = { ...defaultFilters };
     setFilters(nextFilters);
     void load(active, groupBy, nextFilters, 'reset');
   }
 
   async function exportCsv() {
-    const exportTab = active;
-    const query = qs(reportFilters(exportTab, filters, groupBy));
-    const url = `${browserApiBase()}/api/reports/export/${exportTab}${query ? `?${query}` : ''}`;
     setExporting(true);
-    setMessage({ kind: 'loading', text: `Đang xuất báo cáo ${reportTabLabel(exportTab).toLowerCase()}...` });
+    setMessage({ tone: 'info', text: `Đang xuất CSV báo cáo ${tabLabels[active]}...` });
     try {
-      const response = await fetch(url, { cache: 'no-store', headers: authHeaders() });
-      if (!response.ok) {
-        const detail = (await response.text()).trim().slice(0, 180);
-        throw new Error(`${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
-      }
-      const blobUrl = URL.createObjectURL(await response.blob());
+      const query = qs(queryFor(active, filters, groupBy, true));
+      const response = await fetch(`${browserApiBase()}/api/reports/export/${active}${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseError(response, `Export CSV ${tabLabels[active]} lỗi`));
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `bao-cao-${exportTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.href = url;
+      link.download = filenameFor(active);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(blobUrl);
-      setMessage({ kind: 'success', text: `Đã xuất báo cáo ${reportTabLabel(exportTab).toLowerCase()}.` });
+      URL.revokeObjectURL(url);
+      setMessage({ tone: 'success', text: `Đã xuất CSV báo cáo ${tabLabels[active]}.` });
     } catch (error) {
-      setMessage({ kind: 'error', text: `Lỗi xuất báo cáo ${reportTabLabel(exportTab).toLowerCase()}: ${errorMessage(error)}` });
+      setMessage({ tone: 'error', text: error instanceof Error ? error.message : `Export CSV ${tabLabels[active]} lỗi.` });
     } finally {
       setExporting(false);
     }
   }
 
-  const supplierDebtMode = active === 'supplier-debt';
+  const isSupplierDebt = active === 'supplier-debt';
+  const messageStyle = message.tone === 'error' ? { color: '#b42318' } : message.tone === 'success' ? { color: '#276749' } : undefined;
 
   return (
     <div className="orderPage reportsPage">
@@ -495,40 +461,40 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
         <article className="metric"><span>Tổng chi</span><strong>{money(overview.totalCost)}</strong></article>
         <article className="metric metricTone-red"><span>Còn phải chi</span><strong>{money(overview.remainingCost)}</strong></article>
         <article className="metric metricTone-green"><span>Lợi nhuận</span><strong>{money(overview.profit)}</strong></article>
-        <article className="metric"><span>Tổng đơn hàng</span><strong>{count(overview.totalOrders)}</strong></article>
-        <article className="metric"><span>Khách hàng</span><strong>{count(overview.totalCustomers)}</strong></article>
-        <article className="metric"><span>NCC còn nợ</span><strong>{count(overview.supplierDebtCount)}</strong></article>
+        <article className="metric"><span>Tổng đơn hàng</span><strong>{integer(overview.totalOrders)}</strong></article>
+        <article className="metric"><span>Khách hàng</span><strong>{integer(overview.totalCustomers)}</strong></article>
+        <article className="metric"><span>NCC còn nợ</span><strong>{integer(overview.supplierDebtCount)}</strong></article>
       </section>
 
       <section className="panel reportFilterPanel">
-        <div className="sectionHeader">
-          <h2>Bộ lọc báo cáo</h2>
-          <span role={message.kind === 'error' ? 'alert' : undefined}>{message.text || 'Lọc dữ liệu theo đúng tiêu chí từng nhóm báo cáo'}</span>
-        </div>
+        <div className="sectionHeader"><h2>Bộ lọc báo cáo</h2><span style={messageStyle}>{message.text}</span></div>
         <div className="quoteFormGrid reportFilterGrid">
-          <label>Tìm nhanh<input value={filters.search || ''} onChange={(event) => setFilter('search', event.target.value)} /></label>
+          <label>Tìm nhanh<input value={filters.search || ''} placeholder={isSupplierDebt ? 'Tên NCC, mã phiếu, dịch vụ...' : 'Mã đơn, khách, tour...'} onChange={(event) => setFilter('search', event.target.value)} /></label>
           <label>Từ ngày<input type="date" value={filters.dateFrom || ''} onChange={(event) => setFilter('dateFrom', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.dateTo || ''} onChange={(event) => setFilter('dateTo', event.target.value)} /></label>
-          {supplierDebtMode ? (
-            <label>Nhà cung cấp<input value={filters.supplier || ''} onChange={(event) => setFilter('supplier', event.target.value)} /></label>
+          {isSupplierDebt ? (
+            <label>NCC<input value={filters.supplier || ''} placeholder="Tên nhà cung cấp" onChange={(event) => setFilter('supplier', event.target.value)} /></label>
           ) : (
             <>
               <label>Lọc theo ngày<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{dateFields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <label>Loại dịch vụ<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+              <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+              <label>Trạng thái đơn<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Chi nhánh<input value={filters.branch || ''} onChange={(event) => setFilter('branch', event.target.value)} /></label>
               <label>Phòng ban<input value={filters.department || ''} onChange={(event) => setFilter('department', event.target.value)} /></label>
               <label>Nhân viên<input value={filters.employee || ''} onChange={(event) => setFilter('employee', event.target.value)} /></label>
               <label>Đại lý<input value={filters.agency || ''} onChange={(event) => setFilter('agency', event.target.value)} /></label>
+              <label>Loại khách<input value={filters.customerType || ''} onChange={(event) => setFilter('customerType', event.target.value)} /></label>
               <label>Thị trường<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
-              <label>Trạng thái quyết toán<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tất cả</option><option value="true">Đã quyết toán</option><option value="false">Chưa quyết toán</option></select></label>
+              <label>Trạng thái chốt<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tất cả</option><option value="true">Đã chốt</option><option value="false">Chưa chốt</option></select></label>
             </>
           )}
         </div>
         <div className="hotelFormActions reportActions">
-          <button type="button" disabled={loading} onClick={() => void load(active, groupBy, filters, 'filter')}><Search size={17}/> {loading ? 'Đang tải...' : 'Lọc dữ liệu'}</button>
-          <button type="button" disabled={loading} className="secondaryButton" onClick={resetFilters}><RefreshCw size={17}/> Xóa lọc</button>
-          <button type="button" disabled={exporting} className="secondaryButton" onClick={() => void exportCsv()}><Download size={17}/> {exporting ? 'Đang xuất...' : 'Xuất CSV'}</button>
+          <button type="button" disabled={loading} onClick={applyFilters}>{loading ? <Loader2 size={17} /> : <Search size={17} />} {loading ? 'Đang lọc...' : 'Lọc dữ liệu'}</button>
+          <button type="button" disabled={loading} className="secondaryButton" onClick={resetFilters}><RefreshCw size={17} /> Xóa lọc</button>
+          <button type="button" disabled={loading || exporting} className="secondaryButton" onClick={exportCsv}><Download size={17} /> {exporting ? 'Đang export...' : 'Export CSV'}</button>
         </div>
       </section>
 
@@ -537,25 +503,25 @@ export default function ReportsClient({ initialOverview, initialRevenue }: { ini
           {reportTabs.map((tab) => <button type="button" key={tab.key} className={active === tab.key ? 'active' : ''} onClick={() => setTab(tab.key)}>{tab.label}</button>)}
         </div>
         <div className="reportControls">
-          {supportsGrouping(active) ? (
-            <label>Nhóm báo cáo<select value={groupBy} onChange={(event) => changeGroup(event.target.value as GroupBy)}>{groupOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          {groupedTabs.has(active) ? (
+            <label>Nhóm báo cáo<select value={groupBy} onChange={(event) => { const nextGroup = event.target.value as GroupKey; setGroupBy(nextGroup); void load(active, nextGroup, filters, 'filter'); }}>{groupOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           ) : null}
           <div className="summaryRows reportSummary">
-            {currentSummaryItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+            {summaryCards.map((card) => <div key={card.label}><span>{card.label}</span><strong>{card.formatter(card.value)}</strong></div>)}
           </div>
         </div>
       </section>
 
       <section className="panel listPanel">
-        <div className="sectionHeader"><h2>{reportTabLabel(active)}</h2><span>{count(rows.length)} dòng</span></div>
+        <div className="sectionHeader"><h2>{tabLabels[active]}</h2><span>{loading ? 'Đang tải dữ liệu...' : `${rows.length} dòng`}</span></div>
         {rows.length ? (
           <div className="fitTableWrap">
             <table className="fitTable orderListTable reportTable">
-              <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id} style={numericColumnIds.has(header.column.id) ? numericCellStyle : undefined}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-              <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id} style={numericColumnIds.has(cell.column.id) ? numericCellStyle : undefined}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
+              <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
+              <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
             </table>
           </div>
-        ) : <div className="tableEmptyState">Không có dữ liệu báo cáo phù hợp bộ lọc.</div>}
+        ) : <div className="tableEmptyState">{loading ? 'Đang tải dữ liệu báo cáo...' : 'Không có dữ liệu báo cáo phù hợp bộ lọc.'}</div>}
       </section>
     </div>
   );

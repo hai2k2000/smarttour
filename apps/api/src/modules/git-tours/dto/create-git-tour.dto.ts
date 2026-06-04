@@ -14,6 +14,11 @@ export class CreateGitTourDto {
   @MinLength(2)
   tourCode!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
   @ApiProperty({ example: 'Doan cong ty ABC Da Nang 4N3D' })
   @IsString()
   @MinLength(2)
@@ -23,6 +28,11 @@ export class CreateGitTourDto {
   @IsOptional()
   @IsEnum(TourStatus)
   status?: TourStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  workflowStep?: string;
 
   @ApiPropertyOptional({ enum: PaymentStatus })
   @IsOptional()
@@ -146,10 +156,30 @@ export class CreateGitTourDto {
   @ApiPropertyOptional({ type: Array })
   @IsOptional()
   @IsArray()
+  costs?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
   budgetServices?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @IsOptional()
   @IsArray()
   operationServices?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  guides?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  attachments?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  surveyQuestions?: unknown[];
 }

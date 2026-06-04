@@ -106,7 +106,7 @@ export class OperationsController {
   }
 
   @Post('supplier-payment-requests/:id/create-finance-payment')
-  @RequirePermissions('operation.payment-request.approve')
+  @RequirePermissions('operation.payment-request.approve', 'finance.payment.create')
   createFinancePaymentForRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.createFinancePaymentForRequest(id, dto, request?.user);
   }

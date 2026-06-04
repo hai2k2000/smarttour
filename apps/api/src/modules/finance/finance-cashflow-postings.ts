@@ -11,6 +11,7 @@ export async function upsertReceiptCashflow(
     department: string | null;
     assignedStaff: string | null;
     reason: string | null;
+    tourId?: string | null;
   },
   customerId: string | null,
 ) {
@@ -27,6 +28,7 @@ export async function upsertReceiptCashflow(
       department: receipt.department,
       staff: receipt.assignedStaff,
       customerId,
+      tourId: receipt.tourId,
       receiptId: receipt.id,
       note: receipt.reason,
     },
@@ -38,6 +40,7 @@ export async function upsertReceiptCashflow(
       department: receipt.department,
       staff: receipt.assignedStaff,
       customerId,
+      tourId: receipt.tourId,
       receiptId: receipt.id,
       note: receipt.reason,
     },
@@ -51,6 +54,7 @@ export async function createReceiptReversalCashflow(
     paymentMethod: string;
     branch: string | null;
     department: string | null;
+    tourId?: string | null;
   },
   reversalId: string,
   customerId: string | null,
@@ -69,6 +73,7 @@ export async function createReceiptReversalCashflow(
       department: receipt.department,
       staff: actor,
       customerId,
+      tourId: receipt.tourId,
       receiptId: reversalId,
       note: reason,
     },
@@ -87,6 +92,7 @@ export async function upsertPaymentCashflow(
     assignedStaff: string | null;
     orderId: string | null;
     reason: string | null;
+    tourId?: string | null;
   },
   supplierId: string | null,
 ) {
@@ -103,6 +109,7 @@ export async function upsertPaymentCashflow(
       department: payment.department,
       staff: payment.assignedStaff,
       orderId: payment.orderId,
+      tourId: payment.tourId,
       supplierId,
       paymentId: payment.id,
       note: payment.reason,
@@ -115,6 +122,7 @@ export async function upsertPaymentCashflow(
       department: payment.department,
       staff: payment.assignedStaff,
       orderId: payment.orderId,
+      tourId: payment.tourId,
       supplierId,
       paymentId: payment.id,
       note: payment.reason,
@@ -130,6 +138,7 @@ export async function createPaymentReversalCashflow(
     branch: string | null;
     department: string | null;
     orderId: string | null;
+    tourId?: string | null;
   },
   reversalId: string,
   supplierId: string | null,
@@ -148,6 +157,7 @@ export async function createPaymentReversalCashflow(
       department: payment.department,
       staff: actor,
       orderId: payment.orderId,
+      tourId: payment.tourId,
       supplierId,
       paymentId: reversalId,
       note: reason,

@@ -156,6 +156,52 @@ async function main() {
     () => service.create(bookingDto(run, 'BAD-MONEY', tourProgram, links, { totalSellPrice: -1 })),
     'create should reject negative totalSellPrice',
   );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-CODE-SPACE', tourProgram, links, { code: `${run} BAD CODE` })),
+    'create should reject booking code with spaces',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-CODE-ACCENT', tourProgram, links, { code: `${run}-Á` })),
+    'create should reject booking code with non-ascii characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-NAME-LONG', tourProgram, links, { customerName: 'x'.repeat(181) })),
+    'create should reject customerName longer than 180 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-PHONE', tourProgram, links, { customerPhone: '123' })),
+    'create should reject invalid customerPhone',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-EMAIL', tourProgram, links, { customerEmail: 'bad-email' })),
+    'create should reject invalid customerEmail',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-SALE-OWNER-LONG', tourProgram, links, { saleOwner: 'x'.repeat(121) })),
+    'create should reject saleOwner longer than 120 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-OPERATOR-OWNER-LONG', tourProgram, links, { operatorOwner: 'x'.repeat(121) })),
+    'create should reject operatorOwner longer than 120 characters',
+  );
+
+  const normalized = await service.create(bookingDto(run, 'NORMALIZED', tourProgram, links, {
+    code: ` ${run.toLowerCase()}-bkg-normalized `,
+    customerName: '  Bookings Service Customer Normalized  ',
+    customerPhone: '  +84 912 345 678  ',
+    customerEmail: '  CUSTOMER.NORMALIZED@SMARTTOUR.LOCAL  ',
+    saleOwner: '  Sale Normalized  ',
+    operatorOwner: '  Operator Normalized  ',
+    totalSellPrice: undefined,
+    startDate: '2026-09-01',
+    endDate: '2026-09-03',
+  }));
+  assert(normalized.code === `${run}-BKG-NORMALIZED`, 'create should trim and uppercase booking code');
+  assert(normalized.customerName === 'Bookings Service Customer Normalized', 'create should trim customerName');
+  assert(normalized.customerPhone === '+84 912 345 678', 'create should trim customerPhone');
+  assert(normalized.customerEmail === 'customer.normalized@smarttour.local', 'create should trim and lowercase customerEmail');
+  assert(normalized.saleOwner === 'Sale Normalized' && normalized.operatorOwner === 'Operator Normalized', 'create should trim owner fields');
+  assert(amount(normalized.totalSellPrice) === 0, 'create should default missing totalSellPrice to zero');
 
   const created = await service.create(bookingDto(run, '001', tourProgram, links));
   assert(created.code === `${run}-BKG-001`, 'create should persist booking code');
@@ -205,6 +251,8 @@ async function main() {
   await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
 
   const deletable = await service.create(bookingDto(run, 'DELETE', tourProgram, links, {
+    orderId: undefined,
+    tourId: undefined,
     startDate: '2026-11-01',
     endDate: '2026-11-03',
   }));

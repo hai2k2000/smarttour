@@ -11,6 +11,7 @@ type ReceiptForCustomerLedger = {
   department: string | null;
   assignedStaff: string | null;
   orders: { orderId: string | null }[];
+  tourId?: string | null;
 };
 
 type InvoiceForCustomerLedger = {
@@ -26,6 +27,7 @@ type InvoiceForCustomerLedger = {
   customerName: string | null;
   branch?: string | null;
   department?: string | null;
+  tourId?: string | null;
 };
 
 export async function upsertReceiptCustomerLedger(
@@ -42,6 +44,7 @@ export async function upsertReceiptCustomerLedger(
       customerId,
       receiptId: receipt.id,
       orderId: receipt.orders.find((line) => line.orderId)?.orderId,
+      tourId: receipt.tourId,
       sourceType: 'FINANCE_RECEIPT',
       sourceId: receipt.id,
       entryType: 'CREDIT',
@@ -56,6 +59,7 @@ export async function upsertReceiptCustomerLedger(
     },
     update: {
       customerId,
+      tourId: receipt.tourId,
       creditAmount: receipt.receiptAmount,
       documentCode: receipt.receiptCode,
       documentDate: receipt.paymentDate || new Date(),
@@ -86,6 +90,7 @@ export async function createReceiptReversalCustomerLedger(
       customerId,
       receiptId: reversalId,
       orderId: receipt.orders.find((line) => line.orderId)?.orderId,
+      tourId: receipt.tourId,
       sourceType: 'FINANCE_RECEIPT',
       sourceId: reversalId,
       entryType: 'REVERSAL',
@@ -116,6 +121,7 @@ export async function upsertInvoiceCustomerLedger(
       customerId,
       invoiceId: invoice.id,
       orderId: invoice.orderId,
+      tourId: invoice.tourId,
       sourceType: 'FINANCE_INVOICE',
       sourceId: invoice.id,
       entryType: 'DEBIT',
@@ -129,6 +135,7 @@ export async function upsertInvoiceCustomerLedger(
     },
     update: {
       customerId,
+      tourId: invoice.tourId,
       debitAmount: invoice.totalAfterTax,
       documentCode: invoice.invoiceNumber || invoice.invoiceCode,
       documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
@@ -158,6 +165,7 @@ export async function createInvoiceReversalCustomerLedger(
       customerId,
       invoiceId: reversalId,
       orderId: invoice.orderId,
+      tourId: invoice.tourId,
       sourceType: 'FINANCE_INVOICE',
       sourceId: reversalId,
       entryType: 'REVERSAL',

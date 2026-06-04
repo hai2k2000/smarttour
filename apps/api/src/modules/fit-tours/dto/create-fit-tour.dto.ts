@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { FitTourWorkflowStatus } from '@prisma/client';
+import { FitTourWorkflowStatus, PaymentStatus, TourStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
@@ -108,6 +108,36 @@ export class CreateFitTourDto {
   @IsOptional()
   @IsEnum(FitTourWorkflowStatus)
   workflowStatus?: FitTourWorkflowStatus;
+
+  @ApiPropertyOptional({ enum: TourStatus })
+  @IsOptional()
+  @IsEnum(TourStatus)
+  status?: TourStatus;
+
+  @ApiPropertyOptional({ enum: PaymentStatus })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  paymentStatus?: PaymentStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  workflowStep?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  branch?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerSource?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -275,6 +305,16 @@ export class CreateFitTourDto {
   @IsOptional()
   @IsArray()
   privateCosts?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  revenues?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  costs?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @IsOptional()

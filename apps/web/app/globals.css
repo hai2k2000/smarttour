@@ -269,11 +269,36 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .panel h2 { display: inline-flex; align-items: center; gap: 8px; }
 .suppliersGrid { grid-template-columns: 360px 1fr; align-items: start; }
 .listPanel, .categoryPanel { margin-top: 14px; overflow-x: auto; }
+.suppliersPage { display: grid; gap: 14px; }
+.supplierNotice { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #bfe3b8; border-radius: var(--dn-radius-md); background: var(--dn-green-soft); color: var(--dn-primary); padding: 10px 12px; font-weight: 800; }
+.supplierNotice svg { flex: 0 0 auto; margin-top: 1px; }
+.supplierNoticeError { border-color: #fecaca; background: #fff1f0; color: #b20000; }
+.supplierIntroPanel { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.supplierIntroPanel p { margin: 4px 0 0; max-width: 680px; }
+.supplierCategoryList { display: grid; gap: 8px; }
+.supplierCategoryCard { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--dn-border); border-radius: var(--dn-radius-md); background: var(--dn-surface-soft); padding: 10px 11px; }
+.supplierCategoryCard strong { min-width: 0; overflow-wrap: anywhere; }
+.supplierCategoryCard span { flex: 0 0 auto; color: var(--dn-primary); font-size: 12px; font-weight: 800; }
+.supplierTable { min-width: 1080px; table-layout: fixed; }
+.supplierTable th:nth-child(1) { width: 190px; }
+.supplierTable th:nth-child(2) { width: 140px; }
+.supplierTable th:nth-child(3), .supplierTable th:nth-child(4), .supplierTable th:nth-child(5) { width: 135px; }
+.supplierTable th:nth-child(8) { width: 108px; }
+.supplierTable td { vertical-align: top; line-height: 1.4; }
+.supplierTable td:last-child { color: inherit; font-weight: inherit; }
+.supplierMeta { display: block; margin-top: 4px; color: var(--dn-muted); font-size: 12px; font-weight: 700; }
+.supplierDebtNote { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: #4b6b3d; }
+.supplierFieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.supplierForm textarea { resize: vertical; }
+.supplierDeleteWarning { display: grid; gap: 8px; border: 1px solid #fecaca; border-radius: var(--dn-radius-md); background: #fff1f0; color: #7f1d1d; padding: 12px; }
+.supplierDeleteWarning p { margin: 0; line-height: 1.5; }
+.iconOnlyButton { min-width: 36px; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.iconTextButton { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
 .sectionHeader { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 8px; }
 .sectionHeader span { color: var(--dn-primary); font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips span { border: 1px solid var(--dn-border); border-radius: 999px; padding: 7px 10px; background: var(--dn-surface-soft); color: #276c72; font-size: 13px; }
-@media (max-width: 1100px) { .suppliersGrid, .formGrid { grid-template-columns: 1fr; } .formGrid label:nth-of-type(7), .formGrid label:nth-of-type(8), .formGrid button { grid-column: auto; } }
+@media (max-width: 1100px) { .suppliersGrid, .formGrid, .supplierFieldGrid { grid-template-columns: 1fr; } .formGrid label:nth-of-type(7), .formGrid label:nth-of-type(8), .formGrid button { grid-column: auto; } .supplierIntroPanel { align-items: stretch; flex-direction: column; } }
 
 .tourProgramGrid { grid-template-columns: 420px 1fr; align-items: start; }
 .tourCards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
@@ -419,28 +444,102 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 
 .quotePage { display: grid; gap: 14px; }
 .quoteForm { display: grid; gap: 14px; }
+.quoteFormSection { display: grid; gap: 12px; }
+.quoteFormSection h3 { margin: 0; color: var(--dn-primary); font-size: 14px; line-height: 1.2; }
 .quoteFormGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .quoteFormGrid .span2 { grid-column: span 2; }
+.quotePaxGrid { grid-template-columns: repeat(5, minmax(120px, 1fr)); }
 .quoteWorkArea { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
 .quoteMain { display: grid; gap: 14px; min-width: 0; }
 .quoteSummaryBox { display: grid; gap: 12px; position: sticky; top: 18px; }
 .quoteSummaryBox .summaryRows { gap: 8px; }
 .quoteSummaryBox .summaryRows div { padding-top: 8px; }
-.quoteDynamicTable { min-width: 1240px; }
-.quoteDynamicTable td { min-width: 120px; }
-.quoteDynamicTable td:first-child { min-width: 52px; width: 52px; color: var(--dn-muted); font-weight: 700; }
-.quoteDynamicTable td:last-child { min-width: 58px; width: 58px; }
-.quoteListTable { min-width: 960px; }
-.quoteListTable td:last-child { color: inherit; font-weight: inherit; }
+.quoteAlert { display: flex; align-items: flex-start; gap: 8px; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 700; line-height: 1.45; }
+.quoteAlert svg { flex: 0 0 auto; margin-top: 1px; }
+.quoteAlertError { color: #b20000; background: #fff1f0; border: 1px solid #fecaca; }
+.quoteAlertInfo { color: var(--dn-primary); background: var(--dn-green-soft); border: 1px solid #bfe3b8; }
+.quoteListHeader { align-items: flex-start; }
+.quoteListActions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.quoteListActions .searchBox { flex: 1 1 280px; }
+.quoteListWrap { width: 100%; max-width: 100%; overflow-x: auto; }
+.quoteCellStack { display: grid; gap: 4px; min-width: 0; }
+.quoteCellStack strong, .quoteCellStack small { overflow-wrap: anywhere; }
+.quoteCellStack small { color: var(--dn-muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.quoteTextClamp { display: -webkit-box; max-width: 260px; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.quotePage .quoteDynamicTable { width: max(100%, 1160px); min-width: 1160px; table-layout: fixed; }
+.quotePage .quoteDynamicTable th, .quotePage .quoteDynamicTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quotePage .quoteDynamicTable th:nth-child(1), .quotePage .quoteDynamicTable td:nth-child(1) { width: 52px; color: var(--dn-muted); font-weight: 700; }
+.quotePage .quoteDynamicTable th:nth-child(2), .quotePage .quoteDynamicTable td:nth-child(2) { width: 136px; }
+.quotePage .quoteDynamicTable th:nth-child(3), .quotePage .quoteDynamicTable td:nth-child(3),
+.quotePage .quoteDynamicTable th:nth-child(4), .quotePage .quoteDynamicTable td:nth-child(4) { width: 150px; }
+.quotePage .quoteDynamicTable th:nth-child(5), .quotePage .quoteDynamicTable td:nth-child(5) { width: 112px; }
+.quotePage .quoteDynamicTable th:nth-child(n+6):nth-child(-n+10),
+.quotePage .quoteDynamicTable td:nth-child(n+6):nth-child(-n+10) { width: 104px; }
+.quotePage .quoteDynamicTable th:nth-child(11), .quotePage .quoteDynamicTable td:nth-child(11) { width: 150px; }
+.quotePage .quoteDynamicTable th:last-child, .quotePage .quoteDynamicTable td:last-child { width: 58px; }
+.quotePage .quoteDynamicTable input, .quotePage .quoteDynamicTable select, .quotePage .quoteDynamicTable textarea { width: 100%; min-width: 0; }
+.quotePage .quoteListTable { width: max(100%, 900px); min-width: 900px; table-layout: fixed; }
+.quotePage .quoteListTable th, .quotePage .quoteListTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quotePage .quoteListTable th:nth-child(1), .quotePage .quoteListTable td:nth-child(1) { width: 160px; }
+.quotePage .quoteListTable th:nth-child(2), .quotePage .quoteListTable td:nth-child(2) { width: 180px; }
+.quotePage .quoteListTable th:nth-child(3), .quotePage .quoteListTable td:nth-child(3) { width: 240px; }
+.quotePage .quoteListTable th:nth-child(5), .quotePage .quoteListTable td:nth-child(5) { width: 120px; }
+.quotePage .quoteListTable th:nth-child(6), .quotePage .quoteListTable td:nth-child(6) { width: 120px; }
+.quotePage .quoteListTable th:last-child, .quotePage .quoteListTable td:last-child { width: 96px; color: inherit; font-weight: inherit; text-align: right; }
 .quoteComboShell { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
 .quoteComboMain { display: grid; gap: 14px; min-width: 0; }
 .quoteComboTop { display: grid; grid-template-columns: 220px 220px; gap: 12px; }
-.quoteComboTable { min-width: 1120px; }
-.quoteComboTable td { min-width: 130px; }
-.quoteComboTable td:first-child { min-width: 52px; width: 52px; color: var(--dn-muted); font-weight: 700; }
-.quoteComboTable td:last-child { min-width: 58px; width: 58px; }
-@media (max-width: 1400px) { .quoteFormGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .quoteWorkArea, .quoteComboShell { grid-template-columns: 1fr; } .quoteSummaryBox { position: static; } }
-@media (max-width: 760px) { .quoteFormGrid, .quoteComboTop { grid-template-columns: 1fr; } .quoteFormGrid .span2 { grid-column: auto; } }
+.quoteComboInfoGrid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+.quoteComboSummary small { color: var(--dn-muted); line-height: 1.45; }
+.quoteComboPage .quoteComboTable { width: max(100%, 1120px); min-width: 1120px; table-layout: fixed; }
+.quoteComboPage .quoteComboTable th, .quoteComboPage .quoteComboTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quoteComboPage .quoteComboTable th:nth-child(1), .quoteComboPage .quoteComboTable td:nth-child(1) { width: 52px; color: var(--dn-muted); font-weight: 700; }
+.quoteComboPage .quoteComboTable th:nth-child(2), .quoteComboPage .quoteComboTable td:nth-child(2) { width: 170px; }
+.quoteComboPage .quoteComboTable th:nth-child(3), .quoteComboPage .quoteComboTable td:nth-child(3) { width: 210px; }
+.quoteComboPage .quoteComboTable th:nth-child(4), .quoteComboPage .quoteComboTable td:nth-child(4) { width: 180px; }
+.quoteComboPage .quoteComboTable th:nth-child(5), .quoteComboPage .quoteComboTable td:nth-child(5) { width: 118px; }
+.quoteComboPage .quoteComboTable th:nth-child(6), .quoteComboPage .quoteComboTable td:nth-child(6) { width: 120px; }
+.quoteComboPage .quoteComboTable th:nth-child(7), .quoteComboPage .quoteComboTable td:nth-child(7),
+.quoteComboPage .quoteComboTable th:nth-child(8), .quoteComboPage .quoteComboTable td:nth-child(8) { width: 88px; }
+.quoteComboPage .quoteComboTable th:last-child, .quoteComboPage .quoteComboTable td:last-child { width: 58px; }
+.quoteComboPage .quoteComboTable input, .quoteComboPage .quoteComboTable select { width: 100%; min-width: 0; }
+.quoteComboListTable { width: max(100%, 840px); min-width: 840px; table-layout: fixed; }
+.quoteComboListTable th, .quoteComboListTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quoteComboListTable th:nth-child(1), .quoteComboListTable td:nth-child(1) { width: 150px; }
+.quoteComboListTable th:nth-child(2), .quoteComboListTable td:nth-child(2) { width: 130px; }
+.quoteComboListTable th:nth-child(3), .quoteComboListTable td:nth-child(3),
+.quoteComboListTable th:nth-child(4), .quoteComboListTable td:nth-child(4) { width: 140px; }
+.quoteComboListTable th:nth-child(5), .quoteComboListTable td:nth-child(5),
+.quoteComboListTable th:nth-child(6), .quoteComboListTable td:nth-child(6) { width: 100px; }
+.quoteComboListTable th:last-child, .quoteComboListTable td:last-child { width: 96px; color: inherit; font-weight: inherit; text-align: right; }
+.quotationStatusLine { min-height: 58px; display: grid; align-content: center; gap: 6px; border: 1px solid var(--dn-border); border-radius: 7px; background: var(--dn-surface-soft); padding: 8px 10px; }
+.quotationStatusLine span { color: var(--dn-muted); font-size: 12px; font-weight: 800; }
+.quotationStatusLine strong { width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
+.quotationPage .quotationItemTable { width: max(100%, 1320px); min-width: 1320px; }
+.quotationPage .quotationItemTable th:nth-child(1), .quotationPage .quotationItemTable td:nth-child(1) { width: 48px; }
+.quotationPage .quotationItemTable th:nth-child(2), .quotationPage .quotationItemTable td:nth-child(2) { width: 136px; }
+.quotationPage .quotationItemTable th:nth-child(3), .quotationPage .quotationItemTable td:nth-child(3),
+.quotationPage .quotationItemTable th:nth-child(4), .quotationPage .quotationItemTable td:nth-child(4) { width: 150px; }
+.quotationPage .quotationItemTable th:nth-child(5), .quotationPage .quotationItemTable td:nth-child(5) { width: 78px; }
+.quotationPage .quotationItemTable th:nth-child(6), .quotationPage .quotationItemTable td:nth-child(6),
+.quotationPage .quotationItemTable th:nth-child(7), .quotationPage .quotationItemTable td:nth-child(7),
+.quotationPage .quotationItemTable th:nth-child(8), .quotationPage .quotationItemTable td:nth-child(8),
+.quotationPage .quotationItemTable th:nth-child(10), .quotationPage .quotationItemTable td:nth-child(10),
+.quotationPage .quotationItemTable th:nth-child(12), .quotationPage .quotationItemTable td:nth-child(12) { width: 86px; }
+.quotationPage .quotationItemTable th:nth-child(9), .quotationPage .quotationItemTable td:nth-child(9),
+.quotationPage .quotationItemTable th:nth-child(11), .quotationPage .quotationItemTable td:nth-child(11),
+.quotationPage .quotationItemTable th:nth-child(13), .quotationPage .quotationItemTable td:nth-child(13) { width: 116px; }
+.quotationPage .quotationItemTable th:last-child, .quotationPage .quotationItemTable td:last-child { width: 54px; }
+.quotationPage .quotationListTable { width: max(100%, 980px); min-width: 980px; }
+.quotationPage .quotationListTable th:nth-child(1), .quotationPage .quotationListTable td:nth-child(1) { width: 150px; }
+.quotationPage .quotationListTable th:nth-child(2), .quotationPage .quotationListTable td:nth-child(2) { width: 180px; }
+.quotationPage .quotationListTable th:nth-child(3), .quotationPage .quotationListTable td:nth-child(3) { width: 250px; }
+.quotationPage .quotationListTable th:nth-child(4), .quotationPage .quotationListTable td:nth-child(4),
+.quotationPage .quotationListTable th:nth-child(5), .quotationPage .quotationListTable td:nth-child(5) { width: 130px; }
+.quotationPage .quotationListTable th:nth-child(6), .quotationPage .quotationListTable td:nth-child(6) { width: 128px; }
+.quotationPage .quotationListTable th:last-child, .quotationPage .quotationListTable td:last-child { width: 100px; color: inherit; font-weight: inherit; text-align: right; }
+@media (max-width: 1400px) { .quoteFormGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .quotePaxGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .quoteWorkArea, .quoteComboShell { grid-template-columns: 1fr; } .quoteSummaryBox { position: static; } }
+@media (max-width: 760px) { .quoteFormGrid, .quotePaxGrid, .quoteComboTop, .quoteComboInfoGrid { grid-template-columns: 1fr; } .quoteFormGrid .span2 { grid-column: auto; } .quoteListActions { width: 100%; justify-content: stretch; } .quoteListActions button, .quoteListActions .searchBox { width: 100%; } .quoteTextClamp { max-width: 180px; } }
 
 .orderPage { display: grid; gap: 14px; }
 .orderWorkspace { display: grid; gap: 14px; }
@@ -613,21 +712,31 @@ select[multiple] { min-height: 92px; }
 .operationsGrid { grid-template-columns: minmax(380px, .5fr) minmax(0, 1.5fr); align-items: start; }
 .operationsFormPanel .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .operationsFormPanel textarea, .operationsFormPanel button { grid-column: 1 / -1; }
+.operationsFormGrid fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 1px solid var(--dn-border); border-radius: 10px; padding: 12px; min-width: 0; }
+.operationsFormGrid fieldset legend { padding: 0 6px; color: var(--dn-primary); font-size: 13px; font-weight: 800; }
+.operationsFormGrid fieldset label { min-width: 0; }
+.operationsFormGrid fieldset textarea { grid-column: 1 / -1; }
+.operationsFormGrid .span2 { grid-column: 1 / -1; }
+.operationsPaymentStack { display: grid; gap: 14px; min-width: 0; }
 .operationsList { min-width: 0; }
-.operationsTable { min-width: 1120px; }
-.operationsTable th, .operationsTable td { white-space: nowrap; vertical-align: top; }
+.operationsTable { min-width: 980px; }
+.operationsTable th, .operationsTable td { white-space: normal; vertical-align: top; min-width: 110px; }
+.operationsTable th:last-child, .operationsTable td:last-child { min-width: 190px; }
+.operationsTable strong { display: block; overflow-wrap: anywhere; }
 .operationsTable td span { display: block; color: var(--dn-muted); font-size: 12px; margin-top: 5px; }
 .operationsTable td:last-child { color: inherit; font-weight: inherit; }
 .operationsActions { min-width: 150px; display: flex; gap: 6px; justify-content: flex-end; }
+.operationsSelectedRow { background: #f7fbef; }
 .reconciliationCard { display: grid; gap: 10px; border-top: 1px solid #e3efd9; padding-top: 12px; }
 .reconciliationCard h3 { margin: 0; color: var(--dn-primary); font-size: 15px; }
+.reconciliationCard p { margin: 0; color: var(--dn-muted); line-height: 1.45; }
 .reconciliationTimeline { display: grid; gap: 8px; }
 .reconciliationTimeline div { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--dn-border); border-radius: 7px; padding: 9px; background: var(--dn-surface-soft); }
 .reconciliationTimeline span { color: var(--dn-muted); font-size: 12px; }
 .reconciliationActions { display: flex; flex-wrap: wrap; gap: 8px; }
 .reconciliationDetails { display: grid; gap: 12px; }
 @media (max-width: 1500px) { .operationsMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .operationsGrid { grid-template-columns: 1fr; } }
-@media (max-width: 900px) { .operationsMetrics, .operationsFilters, .operationsFormPanel .formGrid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .operationsMetrics, .operationsFilters, .operationsFormPanel .formGrid, .operationsFormGrid fieldset { grid-template-columns: 1fr; } }
 
 
 /* Vietnamese typography polish */

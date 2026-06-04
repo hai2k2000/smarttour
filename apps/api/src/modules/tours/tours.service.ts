@@ -1,13 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
+import { TourCoreService } from './tour-core.service';
 import { CreateTourDto } from './dto/create-tour.dto';
 import { UpdateTourDto } from './dto/update-tour.dto';
 
 const tourInclude = {
   order: true,
   fitTour: true,
+  gitTour: true,
+  landTour: true,
   customers: { include: { crmCustomer: true } },
   suppliers: { include: { supplier: true } },
   services: { include: { supplier: true, supplierService: true } },
@@ -27,7 +30,7 @@ const tourInclude = {
 
 @Injectable()
 export class ToursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
   private listSelect() {
     return {
@@ -54,6 +57,8 @@ export class ToursService {
       updatedAt: true,
       order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
       fitTour: { select: { id: true, quoteCode: true, tourCode: true, customerName: true, workflowStatus: true } },
+      gitTour: { select: { id: true, holdCode: true, agentName: true } },
+      landTour: { select: { id: true, guideName: true, comboType: true } },
       _count: {
         select: {
           customers: true,
@@ -84,47 +89,55 @@ export class ToursService {
     };
 
     return this.prisma.tour.findMany({
-      where: branchDepartmentScopeWhere(where, user),
+      where: this.tourCore.scopeWhere(where, user),
       select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
   }
 
   async detail(id: string, user?: RequestUser) {
-    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: tourInclude });
-    if (!tour) throw new NotFoundException('Tour not found');
+    const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id }, user), include: tourInclude });
+    if (!tour) throw new NotFoundException('Không tìm thấy tour');
     return tour;
   }
 
   async create(dto: CreateTourDto, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
-    await this.ensureOrder(dto.orderId);
     try {
-      return await this.prisma.tour.create({
-        data: this.toTourData(dto, true) as Prisma.TourCreateInput,
-        include: tourInclude,
+      return await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, dto.orderId, user);
+        const tour = await tx.tour.create({
+          data: this.tourCore.toTourData(dto as unknown as Record<string, unknown>, true, { type: dto.type }) as Prisma.TourCreateInput,
+          include: tourInclude,
+        });
+        await this.tourCore.log(tx, tour.id, 'CREATE_TOUR', { actor: this.actor(user), type: dto.type });
+        return tour;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Tour system code already exists');
+        throw new ConflictException('Mã hệ thống tour đã tồn tại');
       }
       throw error;
     }
   }
 
   async update(id: string, dto: UpdateTourDto, user?: RequestUser) {
-    await this.detail(id, user);
+    const current = await this.detail(id, user);
     dto = applyWriteDataScope(dto, user);
-    await this.ensureOrder(dto.orderId);
     try {
-      return await this.prisma.tour.update({
-        where: { id },
-        data: this.toTourData(dto, false) as Prisma.TourUpdateInput,
-        include: tourInclude,
+      return await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, dto.orderId, user);
+        const tour = await tx.tour.update({
+          where: { id },
+          data: this.tourCore.toTourData(dto as Record<string, unknown>, false, { type: current.type }) as Prisma.TourUpdateInput,
+          include: tourInclude,
+        });
+        await this.tourCore.log(tx, id, 'UPDATE_TOUR', { actor: this.actor(user) });
+        return tour;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Tour system code already exists');
+        throw new ConflictException('Mã hệ thống tour đã tồn tại');
       }
       throw error;
     }
@@ -132,7 +145,12 @@ export class ToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.tour.delete({ where: { id } });
+    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, this.actor(user)));
+  }
+
+  async close(id: string, dto: { note?: string }, user?: RequestUser) {
+    await this.detail(id, user);
+    return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
   }
 
   private toTourData(dto: UpdateTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
@@ -176,7 +194,7 @@ export class ToursService {
 
   private requiredText(value?: string) {
     const text = value?.trim();
-    if (!text) throw new BadRequestException('Required tour field missing');
+    if (!text) throw new BadRequestException('Thiếu trường bắt buộc của tour');
     return text.toUpperCase();
   }
 
@@ -193,5 +211,9 @@ export class ToursService {
   private number(value?: number) {
     const parsed = Number(value || 0);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
   }
 }

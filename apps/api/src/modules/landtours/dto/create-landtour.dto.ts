@@ -14,6 +14,11 @@ export class CreateLandTourDto {
   @MinLength(2)
   tourCode!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
   @ApiProperty({ example: 'Combo Da Nang land + hotel + car' })
   @IsString()
   @MinLength(2)
@@ -23,6 +28,11 @@ export class CreateLandTourDto {
   @IsOptional()
   @IsEnum(TourStatus)
   status?: TourStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  workflowStep?: string;
 
   @ApiPropertyOptional({ enum: PaymentStatus })
   @IsOptional()
@@ -68,6 +78,21 @@ export class CreateLandTourDto {
   @IsOptional()
   @IsString()
   operatorOwner?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  branch?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerSource?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -124,10 +149,35 @@ export class CreateLandTourDto {
   @ApiPropertyOptional({ type: Array })
   @IsOptional()
   @IsArray()
+  revenues?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  costs?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
   salesServices?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @IsOptional()
   @IsArray()
   operationServices?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  guides?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  attachments?: unknown[];
+
+  @ApiPropertyOptional({ type: Array })
+  @IsOptional()
+  @IsArray()
+  surveyQuestions?: unknown[];
 }

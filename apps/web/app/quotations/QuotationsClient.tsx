@@ -1,43 +1,95 @@
-﻿'use client';
+'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Check, Copy, Link as LinkIcon, Pencil, Plus, Save, Search, Send, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, Link as LinkIcon, Pencil, Plus, RefreshCcw, Save, Search, Send, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { authHeaders, authJsonHeaders } from '../authFetch';
+import { PermissionNotice, usePermissions } from '../usePermissions';
 
-type Dashboard = { total: number; totalValue: number; pending: number; approved: number; converted: number; expired: number };
-type QuotationSummary = { id: string; quoteCode: string; productType: string; customerName: string | null; customerPhone: string | null; route: string | null; totalSelling: string; sellingPerPax: string; status: string; smartLinkToken: string | null; _count?: { items: number; logs: number } };
+type Dashboard = {
+  total: number;
+  totalValue: number;
+  pending: number;
+  approved: number;
+  converted: number;
+  expired: number;
+};
 
-const productTypes = ['FIT', 'GIT', 'LANDTOUR', 'COMBO', 'BOOKING', 'VISA', 'SERVICE'];
-const statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONVERTED', 'CANCELLED'];
-const services = ['Ve may bay', 'Khach san', 'Xe', 'Nha hang', 'HDV', 'Ve tham quan', 'Visa', 'Bao hiem', 'Sim', 'Dich vu khac'];
+type QuotationSummary = {
+  id: string;
+  quoteCode: string;
+  productType: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  route: string | null;
+  totalSelling: string | number;
+  sellingPerPax: string | number;
+  status: string;
+  smartLinkToken: string | null;
+  _count?: { items: number; logs: number };
+};
+
+type QuotationAction = 'submit' | 'approve' | 'smartlink-on' | 'smartlink-off' | 'convert';
+
+const productTypes = ['FIT', 'GIT', 'LANDTOUR', 'COMBO', 'BOOKING', 'VISA', 'SERVICE'] as const;
+const statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONVERTED', 'CANCELLED'] as const;
+const services = ['Vé máy bay', 'Khách sạn', 'Xe', 'Nhà hàng', 'Hướng dẫn viên', 'Vé tham quan', 'Visa', 'Bảo hiểm', 'Sim', 'Dịch vụ khác'];
+
+const productTypeLabels: Record<string, string> = {
+  FIT: 'FIT',
+  GIT: 'GIT',
+  LANDTOUR: 'Land tour',
+  COMBO: 'Combo',
+  BOOKING: 'Booking',
+  VISA: 'Visa',
+  SERVICE: 'Dịch vụ',
+};
+
+const statusLabels: Record<string, string> = {
+  DRAFT: 'Nháp',
+  PENDING_APPROVAL: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối',
+  EXPIRED: 'Hết hạn',
+  CONVERTED: 'Đã chuyển đơn',
+  CANCELLED: 'Đã hủy',
+};
+
+const actionLabels: Record<QuotationAction, string> = {
+  submit: 'gửi duyệt',
+  approve: 'duyệt báo giá',
+  'smartlink-on': 'bật SmartLink',
+  'smartlink-off': 'tắt SmartLink',
+  convert: 'chuyển đơn hàng',
+};
 
 const itemSchema = z.object({
-  serviceType: z.string().default('Khach san'),
+  serviceType: z.string().default('Khách sạn'),
   supplierId: z.string().default(''),
   serviceId: z.string().default(''),
   supplierName: z.string().default(''),
   serviceName: z.string().default(''),
   unit: z.string().default(''),
-  quantity: z.coerce.number().default(1),
-  paxCount: z.coerce.number().default(1),
-  nightCount: z.coerce.number().default(1),
-  netPrice: z.coerce.number().default(0),
-  vat: z.coerce.number().default(0),
+  quantity: z.coerce.number().min(0, 'Số lượng không được âm').default(1),
+  paxCount: z.coerce.number().min(0, 'Số khách không được âm').default(1),
+  nightCount: z.coerce.number().min(0, 'Số đêm không được âm').default(1),
+  netPrice: z.coerce.number().min(0, 'Giá NET không được âm').default(0),
+  vat: z.coerce.number().min(0, 'VAT không được âm').default(0),
   markupAmount: z.coerce.number().default(0),
   markupPercent: z.coerce.number().default(0),
   note: z.string().default(''),
 });
 
 const quotationSchema = z.object({
-  quoteCode: z.string().min(2),
-  productType: z.string().default('FIT'),
+  quoteCode: z.string().trim().min(2, 'Mã báo giá cần ít nhất 2 ký tự'),
+  productType: z.enum(productTypes).default('FIT'),
   customerCode: z.string().default(''),
   customerName: z.string().default(''),
   customerPhone: z.string().default(''),
-  customerEmail: z.string().email().or(z.literal('')).default(''),
+  customerEmail: z.string().email('Email không hợp lệ').or(z.literal('')).default(''),
   salesOwner: z.string().default(''),
   operatorOwner: z.string().default(''),
   branch: z.string().default(''),
@@ -45,21 +97,22 @@ const quotationSchema = z.object({
   marketGroup: z.string().default(''),
   productCategory: z.string().default(''),
   route: z.string().default(''),
-  paxAdult: z.coerce.number().default(1),
-  paxChild: z.coerce.number().default(0),
-  paxInfant: z.coerce.number().default(0),
+  paxAdult: z.coerce.number().int('Số người lớn phải là số nguyên').min(0, 'Số người lớn không được âm').default(1),
+  paxChild: z.coerce.number().int('Số trẻ em phải là số nguyên').min(0, 'Số trẻ em không được âm').default(0),
+  paxInfant: z.coerce.number().int('Số em bé phải là số nguyên').min(0, 'Số em bé không được âm').default(0),
   currency: z.string().default('VND'),
-  exchangeRate: z.coerce.number().default(1),
+  exchangeRate: z.coerce.number().min(0, 'Tỷ giá không được âm').default(1),
   createdDate: z.string().default(''),
   expiredDate: z.string().default(''),
   expectedPaymentDate: z.string().default(''),
   departureDate: z.string().default(''),
   returnDate: z.string().default(''),
-  approvalLevel: z.coerce.number().default(1),
-  status: z.string().default('DRAFT'),
-  childPricePercent: z.coerce.number().default(75),
-  infantPricePercent: z.coerce.number().default(20),
+  approvalLevel: z.coerce.number().int('Cấp duyệt phải là số nguyên').min(0, 'Cấp duyệt không được âm').default(1),
+  status: z.enum(statuses).default('DRAFT'),
+  childPricePercent: z.coerce.number().min(0, '% giá trẻ em không được âm').default(75),
+  infantPricePercent: z.coerce.number().min(0, '% giá em bé không được âm').default(20),
   smartLinkEnabled: z.boolean().default(false),
+  smartLinkToken: z.string().default(''),
   language: z.string().default('VI'),
   terms: z.string().default(''),
   note: z.string().default(''),
@@ -67,8 +120,62 @@ const quotationSchema = z.object({
 });
 
 type QuotationForm = z.infer<typeof quotationSchema>;
-const emptyItem = { serviceType: 'Khach san', supplierId: '', serviceId: '', supplierName: '', serviceName: '', unit: '', quantity: 1, paxCount: 1, nightCount: 1, netPrice: 0, vat: 0, markupAmount: 0, markupPercent: 0, note: '' };
-const defaultValues: QuotationForm = { quoteCode: `QTE${Date.now().toString().slice(-6)}`, productType: 'FIT', customerCode: '', customerName: '', customerPhone: '', customerEmail: '', salesOwner: 'Sales', operatorOwner: 'Operator', branch: '', department: '', marketGroup: '', productCategory: '', route: '', paxAdult: 1, paxChild: 0, paxInfant: 0, currency: 'VND', exchangeRate: 1, createdDate: '', expiredDate: '', expectedPaymentDate: '', departureDate: '', returnDate: '', approvalLevel: 1, status: 'DRAFT', childPricePercent: 75, infantPricePercent: 20, smartLinkEnabled: false, language: 'VI', terms: '', note: '', items: [{ ...emptyItem }] };
+type QuotationItem = QuotationForm['items'][number];
+
+const emptyItem: QuotationItem = {
+  serviceType: 'Khách sạn',
+  supplierId: '',
+  serviceId: '',
+  supplierName: '',
+  serviceName: '',
+  unit: '',
+  quantity: 1,
+  paxCount: 1,
+  nightCount: 1,
+  netPrice: 0,
+  vat: 0,
+  markupAmount: 0,
+  markupPercent: 0,
+  note: '',
+};
+
+function freshDefaultValues(): QuotationForm {
+  return {
+    quoteCode: `QTE${Date.now().toString().slice(-6)}`,
+    productType: 'FIT',
+    customerCode: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    salesOwner: 'Sales',
+    operatorOwner: 'Nhân sự vận hành',
+    branch: '',
+    department: '',
+    marketGroup: '',
+    productCategory: '',
+    route: '',
+    paxAdult: 1,
+    paxChild: 0,
+    paxInfant: 0,
+    currency: 'VND',
+    exchangeRate: 1,
+    createdDate: '',
+    expiredDate: '',
+    expectedPaymentDate: '',
+    departureDate: '',
+    returnDate: '',
+    approvalLevel: 1,
+    status: 'DRAFT',
+    childPricePercent: 75,
+    infantPricePercent: 20,
+    smartLinkEnabled: false,
+    smartLinkToken: '',
+    language: 'VI',
+    terms: '',
+    note: '',
+    items: [{ ...emptyItem }],
+  };
+}
 
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
@@ -76,114 +183,746 @@ function browserApiBase() {
   if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
   return apiBase;
 }
-function money(value: unknown) { return Number(value || 0).toLocaleString('vi-VN'); }
-function dateOnly(value?: string | null) { return value ? value.slice(0, 10) : ''; }
-function itemCost(item: any) { return Number(item.quantity || 0) * Number(item.nightCount || 0) * Number(item.netPrice || 0) * (1 + Number(item.vat || 0) / 100); }
-function itemMarkup(item: any) { const cost = itemCost(item); return Number(item.markupAmount || 0) + cost * Number(item.markupPercent || 0) / 100; }
+
+function safeNumber(value: unknown, fallback = 0) {
+  if (value === '' || value === null || value === undefined) return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function safeNonNegative(value: unknown, fallback = 0) {
+  return Math.max(0, safeNumber(value, fallback));
+}
+
+function safeNonNegativeInt(value: unknown, fallback = 0) {
+  return Math.max(0, Math.floor(safeNumber(value, fallback)));
+}
+
+function text(value: unknown) {
+  return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+}
+
+function dateInputValue(value: unknown) {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function money(value: unknown) {
+  return safeNumber(value).toLocaleString('vi-VN');
+}
+
+function normalizeProductType(value: unknown): QuotationForm['productType'] {
+  return productTypes.includes(value as QuotationForm['productType']) ? value as QuotationForm['productType'] : 'FIT';
+}
+
+function normalizeStatus(value: unknown): QuotationForm['status'] {
+  return statuses.includes(value as QuotationForm['status']) ? value as QuotationForm['status'] : 'DRAFT';
+}
+
+function statusText(status: unknown) {
+  const key = text(status);
+  return statusLabels[key] || key || 'Không rõ';
+}
+
+function productTypeText(productType: unknown) {
+  const key = text(productType);
+  return productTypeLabels[key] || key || '-';
+}
+
+function statusPillClass(status: unknown) {
+  const key = text(status);
+  if (key === 'APPROVED' || key === 'CONVERTED') return 'statusPill statusPillSuccess';
+  if (key === 'PENDING_APPROVAL' || key === 'EXPIRED') return 'statusPill statusPillWarning';
+  if (key === 'REJECTED' || key === 'CANCELLED') return 'statusPill statusPillError';
+  return 'statusPill statusPillNeutral';
+}
+
+function positiveRate(value: unknown, fallback = 1) {
+  const number = safeNumber(value, fallback);
+  return number > 0 ? number : fallback;
+}
+
+function itemCost(item: Partial<QuotationItem>, exchangeRateValue: unknown = 1) {
+  const quantity = safeNumber(item.quantity, 1);
+  const nightCount = safeNumber(item.nightCount, 1);
+  const netPrice = safeNumber(item.netPrice);
+  const vat = safeNumber(item.vat);
+  return quantity * nightCount * netPrice * positiveRate(exchangeRateValue) * (1 + vat / 100);
+}
+
+function itemMarkup(item: Partial<QuotationItem>, exchangeRateValue: unknown = 1) {
+  const cost = itemCost(item, exchangeRateValue);
+  return safeNumber(item.markupAmount) + cost * (safeNumber(item.markupPercent) / 100);
+}
+
+function normalizeItem(item: unknown): QuotationItem {
+  const row = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+  return {
+    serviceType: text(row.serviceType) || 'Khách sạn',
+    supplierId: text(row.supplierId),
+    serviceId: text(row.serviceId),
+    supplierName: text(row.supplierName),
+    serviceName: text(row.serviceName),
+    unit: text(row.unit),
+    quantity: safeNonNegative(row.quantity, 1),
+    paxCount: safeNonNegative(row.paxCount, 1),
+    nightCount: safeNonNegative(row.nightCount, 1),
+    netPrice: safeNonNegative(row.netPrice),
+    vat: safeNonNegative(row.vat),
+    markupAmount: safeNumber(row.markupAmount),
+    markupPercent: safeNumber(row.markupPercent),
+    note: text(row.note),
+  };
+}
+
+function hasItemContent(item: QuotationItem) {
+  return Boolean(
+    item.serviceName ||
+    item.supplierName ||
+    item.unit ||
+    item.note ||
+    item.netPrice > 0 ||
+    item.vat > 0 ||
+    item.markupAmount !== 0 ||
+    item.markupPercent !== 0,
+  );
+}
+
+function hasValidItem(item: QuotationItem) {
+  return item.serviceName.trim().length >= 2 && item.serviceType.trim().length >= 2;
+}
+
+function normalizeDashboard(data: unknown): Dashboard {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('API dashboard không trả về dữ liệu hợp lệ.');
+  }
+  const row = data as Record<string, unknown>;
+  return {
+    total: safeNonNegativeInt(row.total),
+    totalValue: safeNonNegative(row.totalValue),
+    pending: safeNonNegativeInt(row.pending),
+    approved: safeNonNegativeInt(row.approved),
+    converted: safeNonNegativeInt(row.converted),
+    expired: safeNonNegativeInt(row.expired),
+  };
+}
+
+function normalizeQuotationSummary(item: unknown): QuotationSummary | null {
+  if (!item || typeof item !== 'object') return null;
+  const row = item as Record<string, unknown>;
+  const id = text(row.id);
+  if (!id) return null;
+  return {
+    id,
+    quoteCode: text(row.quoteCode),
+    productType: text(row.productType) || 'FIT',
+    customerName: text(row.customerName) || null,
+    customerPhone: text(row.customerPhone) || null,
+    route: text(row.route) || null,
+    totalSelling: row.totalSelling == null ? '0' : String(row.totalSelling),
+    sellingPerPax: row.sellingPerPax == null ? '0' : String(row.sellingPerPax),
+    status: text(row.status) || 'DRAFT',
+    smartLinkToken: text(row.smartLinkToken) || null,
+    _count: row._count && typeof row._count === 'object' ? row._count as QuotationSummary['_count'] : undefined,
+  };
+}
+
+function normalizeQuotationList(data: unknown) {
+  const rows = Array.isArray(data) ? data : Array.isArray((data as { rows?: unknown })?.rows) ? (data as { rows: unknown[] }).rows : null;
+  if (!rows) throw new Error('API không trả về danh sách báo giá hợp lệ.');
+  const normalized = rows.map(normalizeQuotationSummary).filter((item): item is QuotationSummary => Boolean(item));
+  if (rows.length && !normalized.length) throw new Error('API trả về danh sách báo giá nhưng thiếu dữ liệu định danh hợp lệ.');
+  return normalized;
+}
+
+function derivePercent(price: unknown, sellingPerPax: unknown, fallback: number) {
+  const selling = safeNumber(sellingPerPax);
+  if (selling <= 0) return fallback;
+  const percent = safeNumber(price) / selling * 100;
+  return Number.isFinite(percent) && percent >= 0 ? percent : fallback;
+}
+
+function normalizeQuotationForm(data: unknown): QuotationForm {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('API không trả về chi tiết báo giá hợp lệ.');
+  }
+  const row = data as Record<string, unknown>;
+  const items = Array.isArray(row.items) ? row.items.map(normalizeItem) : [];
+  const defaults = freshDefaultValues();
+  return {
+    ...defaults,
+    quoteCode: text(row.quoteCode) || defaults.quoteCode,
+    productType: normalizeProductType(row.productType),
+    customerCode: text(row.customerCode),
+    customerName: text(row.customerName),
+    customerPhone: text(row.customerPhone),
+    customerEmail: text(row.customerEmail),
+    salesOwner: text(row.salesOwner) || defaults.salesOwner,
+    operatorOwner: text(row.operatorOwner) || defaults.operatorOwner,
+    branch: text(row.branch),
+    department: text(row.department),
+    marketGroup: text(row.marketGroup),
+    productCategory: text(row.productCategory),
+    route: text(row.route),
+    paxAdult: safeNonNegativeInt(row.paxAdult, 1),
+    paxChild: safeNonNegativeInt(row.paxChild),
+    paxInfant: safeNonNegativeInt(row.paxInfant),
+    currency: text(row.currency) || 'VND',
+    exchangeRate: safeNonNegative(row.exchangeRate, 1),
+    createdDate: dateInputValue(row.createdDate),
+    expiredDate: dateInputValue(row.expiredDate),
+    expectedPaymentDate: dateInputValue(row.expectedPaymentDate),
+    departureDate: dateInputValue(row.departureDate),
+    returnDate: dateInputValue(row.returnDate),
+    approvalLevel: safeNonNegativeInt(row.approvalLevel, 1),
+    status: normalizeStatus(row.status),
+    childPricePercent: derivePercent(row.childPrice, row.sellingPerPax, 75),
+    infantPricePercent: derivePercent(row.infantPrice, row.sellingPerPax, 20),
+    smartLinkEnabled: Boolean(row.smartLinkEnabled),
+    smartLinkToken: text(row.smartLinkToken),
+    language: text(row.language) || 'VI',
+    terms: text(row.terms),
+    note: text(row.note),
+    items: items.length ? items : [{ ...emptyItem }],
+  };
+}
+
+function buildPayload(data: QuotationForm) {
+  const normalizedItems = data.items.map(normalizeItem);
+  const touchedItems = normalizedItems.filter(hasItemContent);
+  const invalidItems = touchedItems.filter((item) => !hasValidItem(item));
+  if (invalidItems.length) {
+    throw new Error('Có dòng dịch vụ đã nhập chi phí hoặc ghi chú nhưng thiếu loại dịch vụ hoặc tên dịch vụ tối thiểu 2 ký tự.');
+  }
+  if (!touchedItems.length) {
+    throw new Error('Cần ít nhất một dòng dịch vụ hợp lệ trước khi lưu báo giá.');
+  }
+  return {
+    quoteCode: text(data.quoteCode),
+    productType: normalizeProductType(data.productType),
+    customerCode: text(data.customerCode),
+    customerName: text(data.customerName),
+    customerPhone: text(data.customerPhone),
+    customerEmail: text(data.customerEmail),
+    salesOwner: text(data.salesOwner),
+    operatorOwner: text(data.operatorOwner),
+    branch: text(data.branch),
+    department: text(data.department),
+    marketGroup: text(data.marketGroup),
+    productCategory: text(data.productCategory),
+    route: text(data.route),
+    paxAdult: safeNonNegativeInt(data.paxAdult, 1),
+    paxChild: safeNonNegativeInt(data.paxChild),
+    paxInfant: safeNonNegativeInt(data.paxInfant),
+    currency: text(data.currency) || 'VND',
+    exchangeRate: positiveRate(data.exchangeRate),
+    createdDate: dateInputValue(data.createdDate),
+    expiredDate: dateInputValue(data.expiredDate),
+    expectedPaymentDate: dateInputValue(data.expectedPaymentDate),
+    departureDate: dateInputValue(data.departureDate),
+    returnDate: dateInputValue(data.returnDate),
+    approvalLevel: safeNonNegativeInt(data.approvalLevel, 1),
+    childPricePercent: safeNonNegative(data.childPricePercent, 75),
+    infantPricePercent: safeNonNegative(data.infantPricePercent, 20),
+    language: text(data.language) || 'VI',
+    terms: text(data.terms),
+    note: text(data.note),
+    items: touchedItems,
+  };
+}
+
+async function responseError(response: Response, fallback: string) {
+  const data = await response.json().catch(() => null) as { message?: string | string[]; error?: string } | null;
+  if (Array.isArray(data?.message)) return data.message.join(', ');
+  return data?.message || data?.error || fallback;
+}
+
+function formErrorText(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const record = error as Record<string, unknown>;
+  if (typeof record.message === 'string') return record.message;
+  for (const value of Object.values(record)) {
+    const nested = formErrorText(value);
+    if (nested) return nested;
+  }
+  return '';
+}
 
 export default function QuotationsClient({ initialDashboard, initialQuotations }: { initialDashboard: Dashboard; initialQuotations: QuotationSummary[] }) {
-  const [dashboard, setDashboard] = useState(initialDashboard);
-  const [quotations, setQuotations] = useState(initialQuotations);
+  const { can, canAny } = usePermissions();
+  const [dashboard, setDashboard] = useState(() => {
+    try {
+      return normalizeDashboard(initialDashboard);
+    } catch {
+      return { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 };
+    }
+  });
+  const [quotations, setQuotations] = useState(() => normalizeQuotationList(initialQuotations));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
-  const { register, control, handleSubmit, reset, formState: { isSubmitting } } = useForm<QuotationForm>({ resolver: zodResolver(quotationSchema) as any, defaultValues });
+  const [error, setError] = useState('');
+  const [reloading, setReloading] = useState(false);
+  const [loadingQuotationId, setLoadingQuotationId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<QuotationAction | null>(null);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<QuotationForm>({
+    resolver: zodResolver(quotationSchema) as any,
+    defaultValues: freshDefaultValues(),
+  });
   const items = useFieldArray({ control, name: 'items' });
   const values = useWatch({ control });
+  const validationError = formErrorText(errors);
+  const currentStatus = normalizeStatus(values.status);
+  const isSmartLinkEnabled = Boolean(values.smartLinkEnabled);
+  const canManage = can('quotation.manage');
+
   const totals = useMemo(() => {
-    const totalCost = (values.items || []).reduce((sum, item) => sum + itemCost(item), 0);
-    const totalMarkup = (values.items || []).reduce((sum, item) => sum + itemMarkup(item), 0);
+    const rows = (values.items || []).map(normalizeItem).filter(hasItemContent);
+    const exchangeRate = positiveRate(values.exchangeRate);
+    const totalCost = rows.reduce((sum, item) => sum + itemCost(item, exchangeRate), 0);
+    const totalMarkup = rows.reduce((sum, item) => sum + itemMarkup(item, exchangeRate), 0);
     const totalSelling = totalCost + totalMarkup;
-    const pax = Math.max(1, Number(values.paxAdult || 0) + Number(values.paxChild || 0) + Number(values.paxInfant || 0));
-    return { totalCost, totalMarkup, totalSelling, pax, costPerPax: totalCost / pax, sellingPerPax: totalSelling / pax, margin: totalSelling ? totalMarkup / totalSelling * 100 : 0 };
+    const pax = Math.max(1, safeNumber(values.paxAdult) + safeNumber(values.paxChild) + safeNumber(values.paxInfant));
+    const costPerPax = totalCost / pax;
+    const sellingPerPax = totalSelling / pax;
+    const childPrice = sellingPerPax * safeNumber(values.childPricePercent, 75) / 100;
+    const infantPrice = sellingPerPax * safeNumber(values.infantPricePercent, 20) / 100;
+    return {
+      totalCost,
+      totalMarkup,
+      totalSelling,
+      pax,
+      costPerPax,
+      sellingPerPax,
+      profitPerPax: sellingPerPax - costPerPax,
+      marginRate: totalSelling ? totalMarkup / totalSelling * 100 : 0,
+      adultPrice: sellingPerPax,
+      childPrice,
+      infantPrice,
+    };
   }, [values]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return quotations;
-    return quotations.filter((item) => [item.quoteCode, item.productType, item.customerName, item.customerPhone, item.route].filter(Boolean).some((value) => String(value).toLowerCase().includes(term)));
+    return quotations.filter((item) =>
+      [item.quoteCode, item.productType, item.customerName, item.customerPhone, item.route]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term)),
+    );
   }, [query, quotations]);
+
   const table = useReactTable({
     data: filtered,
     columns: useMemo(() => {
       const helper = createColumnHelper<QuotationSummary>();
       return [
-        helper.display({ id: 'code', header: 'Ma BG', cell: ({ row }) => <div><strong>{row.original.quoteCode}</strong><br /><span className="mutedText">{row.original.productType}</span></div> }),
-        helper.display({ id: 'customer', header: 'Khach', cell: ({ row }) => <span>{row.original.customerName || '-'}<br />{row.original.customerPhone || '-'}</span> }),
-        helper.accessor('route', { header: 'San pham / Hanh trinh', cell: (info) => info.getValue() || '-' }),
-        helper.accessor('totalSelling', { header: 'Tong gia tri', cell: (info) => money(info.getValue()) }),
-        helper.accessor('sellingPerPax', { header: 'Gia/khach', cell: (info) => money(info.getValue()) }),
-        helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadQuotation(row.original.id)}><Pencil size={15}/> Sua</button> }),
+        helper.display({
+          id: 'code',
+          header: 'Mã BG',
+          cell: ({ row }) => (
+            <span className="quoteCellStack">
+              <strong>{row.original.quoteCode || '-'}</strong>
+              <small>{productTypeText(row.original.productType)}</small>
+            </span>
+          ),
+        }),
+        helper.display({
+          id: 'customer',
+          header: 'Khách',
+          cell: ({ row }) => (
+            <span className="quoteCellStack">
+              <strong>{row.original.customerName || '-'}</strong>
+              <small>{row.original.customerPhone || 'Chưa có SĐT'}</small>
+            </span>
+          ),
+        }),
+        helper.accessor('route', {
+          header: 'Sản phẩm / Hành trình',
+          cell: (info) => <span className="quoteTextClamp">{info.getValue() || '-'}</span>,
+        }),
+        helper.accessor('totalSelling', { header: 'Tổng giá trị', cell: (info) => money(info.getValue()) }),
+        helper.accessor('sellingPerPax', { header: 'Giá/khách', cell: (info) => money(info.getValue()) }),
+        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className={statusPillClass(info.getValue())}>{statusText(info.getValue())}</span> }),
+        helper.display({
+          id: 'actions',
+          header: '',
+          cell: ({ row }) => (
+            <button type="button" className="secondaryButton iconTextButton" disabled={loadingQuotationId === row.original.id} onClick={() => loadQuotation(row.original.id)}>
+              <Pencil size={15} /> {loadingQuotationId === row.original.id ? 'Đang tải' : 'Sửa'}
+            </button>
+          ),
+        }),
       ];
-    }, []),
+    }, [loadingQuotationId]),
     getCoreRowModel: getCoreRowModel(),
   });
 
-  async function reload() {
-    const [dashResponse, listResponse] = await Promise.all([fetch(`${browserApiBase()}/api/quotations/dashboard`, { cache: 'no-store' }), fetch(`${browserApiBase()}/api/quotations`, { cache: 'no-store' })]);
-    if (dashResponse.ok) setDashboard(await dashResponse.json());
-    if (listResponse.ok) setQuotations(await listResponse.json());
+  const submitEnabled = Boolean(editingId) && ['DRAFT', 'REJECTED'].includes(currentStatus);
+  const approveEnabled = Boolean(editingId) && currentStatus === 'PENDING_APPROVAL';
+  const smartLinkEnabledForStatus = Boolean(editingId) && !['CONVERTED', 'CANCELLED'].includes(currentStatus);
+  const convertEnabled = Boolean(editingId) && currentStatus === 'APPROVED';
+  const savingDisabled = isSubmitting || Boolean(actionLoading) || !canManage || currentStatus === 'CONVERTED';
+
+  async function reload(showSuccess = true) {
+    setReloading(true);
+    setError('');
+    const failures: string[] = [];
+    const [dashResult, listResult] = await Promise.allSettled([
+      fetch(`${browserApiBase()}/api/quotations/dashboard`, { cache: 'no-store', headers: authHeaders() }),
+      fetch(`${browserApiBase()}/api/quotations`, { cache: 'no-store', headers: authHeaders() }),
+    ]);
+
+    if (dashResult.status === 'fulfilled') {
+      if (dashResult.value.ok) {
+        try {
+          setDashboard(normalizeDashboard(await dashResult.value.json()));
+        } catch (caught) {
+          failures.push(caught instanceof Error ? caught.message : 'Dashboard trả về dữ liệu không hợp lệ.');
+        }
+      } else {
+        failures.push(`Dashboard: ${await responseError(dashResult.value, 'không tải được dữ liệu tổng quan')}`);
+      }
+    } else {
+      failures.push('Dashboard: không kết nối được API.');
+    }
+
+    if (listResult.status === 'fulfilled') {
+      if (listResult.value.ok) {
+        try {
+          setQuotations(normalizeQuotationList(await listResult.value.json()));
+        } catch (caught) {
+          failures.push(caught instanceof Error ? caught.message : 'Danh sách báo giá trả về dữ liệu không hợp lệ.');
+        }
+      } else {
+        failures.push(`Danh sách: ${await responseError(listResult.value, 'không tải được danh sách báo giá')}`);
+      }
+    } else {
+      failures.push('Danh sách: không kết nối được API.');
+    }
+
+    if (failures.length) {
+      setError(`Không tải đủ dữ liệu báo giá. ${failures.join(' ')}`);
+    } else if (showSuccess) {
+      setMessage('Đã tải lại dashboard và danh sách báo giá.');
+    }
+    setReloading(false);
   }
-  async function loadQuotation(id: string) {
-    const response = await fetch(`${browserApiBase()}/api/quotations/${id}`);
-    if (!response.ok) return;
-    const q = await response.json();
-    setEditingId(id);
-    setFormOpen(true);
-    reset({ ...defaultValues, ...q, createdDate: dateOnly(q.createdDate), expiredDate: dateOnly(q.expiredDate), expectedPaymentDate: dateOnly(q.expectedPaymentDate), departureDate: dateOnly(q.departureDate), returnDate: dateOnly(q.returnDate), items: q.items?.length ? q.items.map((i: any) => ({ ...i, quantity: Number(i.quantity), paxCount: Number(i.paxCount), nightCount: Number(i.nightCount), netPrice: Number(i.netPrice), vat: Number(i.vat), markupAmount: Number(i.markupAmount), markupPercent: Number(i.markupPercent) })) : [{ ...emptyItem }] });
+
+  async function loadQuotation(id: string, showSuccess = true) {
+    setLoadingQuotationId(id);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotations/${id}`, { headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết báo giá.'));
+      const data = await response.json().catch(() => {
+        throw new Error('API không trả về JSON hợp lệ cho chi tiết báo giá.');
+      });
+      setEditingId(id);
+      reset(normalizeQuotationForm(data));
+      if (showSuccess) setMessage('Đã tải chi tiết báo giá vào form.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không tải được chi tiết báo giá.');
+    } finally {
+      setLoadingQuotationId(null);
+    }
   }
+
   async function onSubmit(data: QuotationForm) {
-    const payload = { ...data, items: data.items.filter((item) => item.serviceName || item.netPrice > 0) };
-    const response = await fetch(`${browserApiBase()}/api/quotations${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!response.ok) { setMessage('Khong luu duoc bao gia hop nhat. Kiem tra ma bao gia va dong dich vu.'); return; }
-    setMessage(editingId ? 'Da cap nhat bao gia.' : 'Da tao bao gia.');
-    setEditingId(null); setFormOpen(false); reset({ ...defaultValues, quoteCode: `QTE${Date.now().toString().slice(-6)}` }); await reload();
+    setError('');
+    setMessage('');
+    let payload: ReturnType<typeof buildPayload>;
+    try {
+      payload = buildPayload(data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Dữ liệu báo giá chưa hợp lệ.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotations${editingId ? `/${editingId}` : ''}`, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: authJsonHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(await responseError(response, 'Không lưu được báo giá. Kiểm tra mã báo giá và các dòng dịch vụ.'));
+      const successMessage = editingId ? 'Đã cập nhật báo giá.' : 'Đã tạo báo giá.';
+      reset(freshDefaultValues());
+      setEditingId(null);
+      await reload(false);
+      setMessage(successMessage);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không lưu được báo giá.');
+    }
   }
-  async function action(path: string, method = 'POST', body: Record<string, unknown> = { actor: 'Operator' }) {
+
+  async function action(actionKey: QuotationAction, path: 'submit' | 'approve' | 'smartlink' | 'convert', method = 'POST', body: Record<string, unknown> = { actor: 'Nhân sự vận hành' }) {
     if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/quotations/${editingId}/${path}`, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    if (response.ok) { setMessage(`Da thuc hien ${path}`); await loadQuotation(editingId); await reload(); }
+    const label = actionLabels[actionKey];
+    setActionLoading(actionKey);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`${browserApiBase()}/api/quotations/${editingId}/${path}`, {
+        method,
+        headers: authJsonHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(await responseError(response, `Không ${label} được.`));
+      const currentId = editingId;
+      await loadQuotation(currentId, false);
+      await reload(false);
+      setMessage(`Đã ${label}.`);
+    } catch (caught) {
+      const detail = caught instanceof Error ? caught.message : `Không ${label} được.`;
+      setError(`Không thể ${label}: ${detail}`);
+    } finally {
+      setActionLoading(null);
+    }
   }
-  function closeForm() { setEditingId(null); setFormOpen(false); setMessage(''); reset({ ...defaultValues, quoteCode: `QTE${Date.now().toString().slice(-6)}` }); }
-  function openCreate() { setEditingId(null); setMessage(''); reset({ ...defaultValues, quoteCode: `QTE${Date.now().toString().slice(-6)}` }); setFormOpen(true); }
+
+  function closeForm() {
+    setEditingId(null);
+    setMessage('');
+    setError('');
+    reset(freshDefaultValues());
+  }
 
   return (
-    <div className="orderPage">
+    <div className="quotePage quotationPage">
+      <PermissionNotice allowed={canAny(['quotation.view', 'quotation.manage'])} label="xem và quản lý báo giá" />
+
       <section className="metrics">
-        <article className="metric"><span>Tong bao gia</span><strong>{dashboard.total}</strong></article>
-        <article className="metric"><span>Tong gia tri</span><strong>{money(dashboard.totalValue)}</strong></article>
-        <article className="metric"><span>Cho duyet</span><strong>{dashboard.pending}</strong></article>
-        <article className="metric"><span>Da duyet</span><strong>{dashboard.approved}</strong></article>
-        <article className="metric"><span>Da chuyen don</span><strong>{dashboard.converted}</strong></article>
-        <article className="metric"><span>Het han</span><strong>{dashboard.expired}</strong></article>
+        <article className="metric"><span>Tổng báo giá</span><strong>{dashboard.total}</strong></article>
+        <article className="metric"><span>Tổng giá trị</span><strong>{money(dashboard.totalValue)}</strong></article>
+        <article className="metric"><span>Chờ duyệt</span><strong>{dashboard.pending}</strong></article>
+        <article className="metric"><span>Đã duyệt</span><strong>{dashboard.approved}</strong></article>
+        <article className="metric"><span>Đã chuyển đơn</span><strong>{dashboard.converted}</strong></article>
+        <article className="metric"><span>Hết hạn</span><strong>{dashboard.expired}</strong></article>
       </section>
-      {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="orderForm">
-        <section className="orderWorkArea">
-          <div className="orderMain">
+
+      <form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
+        {error ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
+        {validationError ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {validationError}</div> : null}
+        {message ? <div className="quoteAlert quoteAlertInfo"><Check size={16} /> {message}</div> : null}
+
+        <section className="quoteWorkArea">
+          <div className="quoteMain">
             <section className="panel">
-              <div className="sectionHeader"><h2>Quotation Engine</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><span>{message || 'Bao gia hop nhat cho FIT/GIT/LandTour/Combo/Booking/Visa/Service'}</span></div>
-              <div className="quoteFormGrid">
-                <label>Ma bao gia<input {...register('quoteCode')} /></label><label>Loai san pham<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Ma khach<input {...register('customerCode')} /></label><label>Ten khach<input {...register('customerName')} /></label><label>Dien thoai<input {...register('customerPhone')} /></label>
-                <label>Email<input type="email" {...register('customerEmail')} /></label><label>Sales<input {...register('salesOwner')} /></label><label>Dieu hanh<input {...register('operatorOwner')} /></label><label>Chi nhanh<input {...register('branch')} /></label><label>Phong ban<input {...register('department')} /></label>
-                <label>Thi truong<input {...register('marketGroup')} /></label><label>Loai hinh<input {...register('productCategory')} /></label><label>Hanh trinh / San pham<input {...register('route')} /></label><label>Ngay tao<input type="date" {...register('createdDate')} /></label><label>Het han<input type="date" {...register('expiredDate')} /></label>
-                <label>Ngay thanh toan DK<input type="date" {...register('expectedPaymentDate')} /></label><label>Ngay di<input type="date" {...register('departureDate')} /></label><label>Ngay ve<input type="date" {...register('returnDate')} /></label><label>Nguoi lon<input type="number" {...register('paxAdult')} /></label><label>Tre em<input type="number" {...register('paxChild')} /></label>
-                <label>Em be<input type="number" {...register('paxInfant')} /></label><label>Duyet cap<select {...register('approvalLevel')}><option value="0">Khong duyet</option><option value="1">1 cap</option><option value="2">2 cap</option></select></label><label>Ngon ngu<select {...register('language')}><option value="VI">VI</option><option value="EN">EN</option></select></label><label className="span2">Dieu khoan<textarea rows={2} {...register('terms')} /></label>
+              <div className="sectionHeader">
+                <h2>Công cụ báo giá hợp nhất</h2>
+                <span>{editingId ? `Đang sửa: ${values.quoteCode || editingId}` : 'Tạo báo giá cho FIT/GIT/Land tour/Combo/Booking/Visa/Dịch vụ'}</span>
+              </div>
+
+              <input type="hidden" {...register('status')} />
+
+              <section className="quoteFormSection">
+                <h3>Thông tin quotation</h3>
+                <div className="quoteFormGrid">
+                  <label>Mã báo giá<input {...register('quoteCode')} /></label>
+                  <label>Loại sản phẩm<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{productTypeText(item)}</option>)}</select></label>
+                  <label>Nhóm thị trường<input {...register('marketGroup')} /></label>
+                  <label>Loại hình sản phẩm<input {...register('productCategory')} /></label>
+                  <label className="span2">Sản phẩm / Hành trình<input {...register('route')} /></label>
+                  <label>Tiền tệ<input {...register('currency')} /></label>
+                  <label>Tỷ giá<input type="number" min="0" step="0.01" inputMode="decimal" {...register('exchangeRate', { valueAsNumber: true })} /></label>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Khách hàng</h3>
+                <div className="quoteFormGrid">
+                  <label>Mã khách<input {...register('customerCode')} /></label>
+                  <label>Tên khách<input {...register('customerName')} /></label>
+                  <label>Điện thoại<input {...register('customerPhone')} /></label>
+                  <label>Email<input type="email" {...register('customerEmail')} /></label>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Phân bổ sales / operator / branch / department</h3>
+                <div className="quoteFormGrid">
+                  <label>Sales phụ trách<input {...register('salesOwner')} /></label>
+                  <label>Điều hành<input {...register('operatorOwner')} /></label>
+                  <label>Chi nhánh<input {...register('branch')} /></label>
+                  <label>Phòng ban<input {...register('department')} /></label>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Pax</h3>
+                <div className="quoteFormGrid quotePaxGrid">
+                  <label>Người lớn<input type="number" min="0" step="1" inputMode="numeric" {...register('paxAdult', { valueAsNumber: true })} /></label>
+                  <label>Trẻ em<input type="number" min="0" step="1" inputMode="numeric" {...register('paxChild', { valueAsNumber: true })} /></label>
+                  <label>Em bé<input type="number" min="0" step="1" inputMode="numeric" {...register('paxInfant', { valueAsNumber: true })} /></label>
+                  <label>% giá trẻ em<input type="number" min="0" step="0.01" inputMode="decimal" {...register('childPricePercent', { valueAsNumber: true })} /></label>
+                  <label>% giá em bé<input type="number" min="0" step="0.01" inputMode="decimal" {...register('infantPricePercent', { valueAsNumber: true })} /></label>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Thời gian</h3>
+                <div className="quoteFormGrid">
+                  <label>Ngày tạo<input type="date" {...register('createdDate')} /></label>
+                  <label>Hết hạn<input type="date" {...register('expiredDate')} /></label>
+                  <label>Ngày thanh toán dự kiến<input type="date" {...register('expectedPaymentDate')} /></label>
+                  <label>Ngày đi<input type="date" {...register('departureDate')} /></label>
+                  <label>Ngày về<input type="date" {...register('returnDate')} /></label>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Trạng thái duyệt</h3>
+                <div className="quoteFormGrid">
+                  <label>Cấp duyệt<select {...register('approvalLevel', { valueAsNumber: true })}><option value="0">Không duyệt</option><option value="1">1 cấp</option><option value="2">2 cấp</option></select></label>
+                  <label>Ngôn ngữ<select {...register('language')}><option value="VI">Tiếng Việt</option><option value="EN">English</option></select></label>
+                  <div className="quotationStatusLine">
+                    <span>Trạng thái</span>
+                    <strong className={statusPillClass(currentStatus)}>{statusText(currentStatus)}</strong>
+                  </div>
+                  <div className="quotationStatusLine">
+                    <span>SmartLink</span>
+                    <strong>{isSmartLinkEnabled ? 'Đang bật' : 'Đang tắt'}</strong>
+                  </div>
+                  <div className="quotationStatusLine span2">
+                    <span>Token SmartLink</span>
+                    <strong>{values.smartLinkToken || 'Chưa có token'}</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section className="quoteFormSection">
+                <h3>Điều khoản / ghi chú</h3>
+                <div className="quoteFormGrid">
+                  <label className="span2">Điều khoản<textarea rows={3} {...register('terms')} /></label>
+                  <label className="span2">Ghi chú nội bộ<textarea rows={3} {...register('note')} /></label>
+                </div>
+              </section>
+            </section>
+
+            <section className="fitTableBlock">
+              <div className="sectionHeader">
+                <h2>Items / dịch vụ báo giá</h2>
+                <button type="button" className="secondaryButton iconTextButton" onClick={() => items.append({ ...emptyItem })}>
+                  <Plus size={16} /> Thêm dòng
+                </button>
+              </div>
+              <div className="fitTableWrap quoteListWrap">
+                <table className="fitTable quoteDynamicTable quotationItemTable">
+                  <thead>
+                    <tr>
+                      <th>STT</th>
+                      <th>Loại DV</th>
+                      <th>NCC</th>
+                      <th>Dịch vụ</th>
+                      <th>ĐVT</th>
+                      <th>SL</th>
+                      <th>Pax</th>
+                      <th>Đêm</th>
+                      <th>NET</th>
+                      <th>VAT %</th>
+                      <th>Markup</th>
+                      <th>Markup %</th>
+                      <th>Thành tiền</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.fields.map((field, index) => {
+                      const row = normalizeItem(values.items?.[index] || {});
+                      return (
+                        <tr key={field.id}>
+                          <td>{index + 1}</td>
+                          <td><select {...register(`items.${index}.serviceType`)}>{services.map((service) => <option key={service} value={service}>{service}</option>)}</select></td>
+                          <td><input {...register(`items.${index}.supplierName`)} /></td>
+                          <td><input {...register(`items.${index}.serviceName`)} /></td>
+                          <td><input {...register(`items.${index}.unit`)} /></td>
+                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.quantity`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.paxCount`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.nightCount`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.netPrice`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.vat`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" step="0.01" inputMode="decimal" {...register(`items.${index}.markupAmount`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" step="0.01" inputMode="decimal" {...register(`items.${index}.markupPercent`, { valueAsNumber: true })} /></td>
+                          <td>{money(itemCost(row, values.exchangeRate) + itemMarkup(row, values.exchangeRate))}</td>
+                          <td><button type="button" className="dangerButton iconButton" disabled={items.fields.length <= 1} onClick={() => items.remove(index)}><Trash2 size={15} /></button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </section>
-            <section className="fitTableBlock">
-              <div className="sectionHeader"><h2>Dich vu bao gia</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><button type="button" className="secondaryButton" onClick={() => items.append({ ...emptyItem })}><Plus size={16}/> Them dong</button></div>
-              <div className="fitTableWrap"><table className="fitTable orderDynamicTable"><thead><tr><th>STT</th><th>Loai DV</th><th>NCC</th><th>Dich vu</th><th>DVT</th><th>SL</th><th>Dem</th><th>NET</th><th>VAT%</th><th>Markup</th><th>Markup%</th><th>Thanh tien</th><th /></tr></thead><tbody>{items.fields.map((field, index) => <tr key={field.id}><td>{index + 1}</td><td><select {...register(`items.${index}.serviceType`)}>{services.map((s) => <option key={s} value={s}>{s}</option>)}</select></td><td><input {...register(`items.${index}.supplierName`)} /></td><td><input {...register(`items.${index}.serviceName`)} /></td><td><input {...register(`items.${index}.unit`)} /></td><td><input type="number" {...register(`items.${index}.quantity`)} /></td><td><input type="number" {...register(`items.${index}.nightCount`)} /></td><td><input type="number" {...register(`items.${index}.netPrice`)} /></td><td><input type="number" {...register(`items.${index}.vat`)} /></td><td><input type="number" {...register(`items.${index}.markupAmount`)} /></td><td><input type="number" {...register(`items.${index}.markupPercent`)} /></td><td>{money(itemCost(values.items?.[index] || {}) + itemMarkup(values.items?.[index] || {}))}</td><td><button type="button" className="dangerButton iconButton" onClick={() => items.remove(index)}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div>
-            </section>
           </div>
+
           <aside className="panel quoteSummaryBox">
-            <h2>Price Engine</h2>
-            <div className="summaryRows"><div><span>Total cost</span><strong>{money(totals.totalCost)}</strong></div><div><span>Markup</span><strong>{money(totals.totalMarkup)}</strong></div><div><span>Total selling</span><strong>{money(totals.totalSelling)}</strong></div><div><span>Pax</span><strong>{totals.pax}</strong></div><div><span>Cost/pax</span><strong>{money(totals.costPerPax)}</strong></div><div><span>Selling/pax</span><strong>{money(totals.sellingPerPax)}</strong></div><div><span>Margin</span><strong>{totals.margin.toFixed(1)}%</strong></div></div>
+            <h2>Tổng hợp giá</h2>
+              <div className="summaryRows">
+                <div><span>Tổng cost</span><strong>{money(totals.totalCost)}</strong></div>
+                <div><span>Markup</span><strong>{money(totals.totalMarkup)}</strong></div>
+                <div><span>Tổng selling</span><strong>{money(totals.totalSelling)}</strong></div>
+                <div><span>Pax</span><strong>{totals.pax}</strong></div>
+                <div><span>Tỷ giá tính giá</span><strong>{positiveRate(values.exchangeRate).toLocaleString('vi-VN')}</strong></div>
+              <div><span>Cost/pax</span><strong>{money(totals.costPerPax)}</strong></div>
+              <div><span>Selling/pax</span><strong>{money(totals.sellingPerPax)}</strong></div>
+              <div><span>Giá người lớn</span><strong>{money(totals.adultPrice)}</strong></div>
+              <div><span>Giá trẻ em</span><strong>{money(totals.childPrice)}</strong></div>
+              <div><span>Giá em bé</span><strong>{money(totals.infantPrice)}</strong></div>
+              <div><span>Lãi/pax</span><strong>{money(totals.profitPerPax)}</strong></div>
+              <div><span>Biên lợi nhuận</span><strong>{totals.marginRate.toFixed(1)}%</strong></div>
+            </div>
           </aside>
         </section>
-        <div className="hotelFormActions"><button type="submit" disabled={isSubmitting}><Save size={17}/> Luu</button><button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('submit')}><Send size={17}/> Gui duyet</button><button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('approve')}><Check size={17}/> Duyet</button><button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('smartlink', 'PATCH', { enabled: true })}><LinkIcon size={17}/> SmartLink</button><button type="button" className="secondaryButton" disabled={!editingId} onClick={() => action('convert')}><Copy size={17}/> Chuyen don</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Dong</button></div>
-      </form></div></div> : null}
-      <section className="panel listPanel"><div className="sectionHeader"><h2>Danh sach bao gia hop nhat</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Them moi</button><label className="searchBox"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, khach, san pham..." /></label></div><div className="fitTableWrap"><table className="fitTable orderListTable"><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div></section>
+
+        <div className="hotelFormActions">
+          <button type="submit" disabled={savingDisabled}><Save size={17} /> {isSubmitting ? 'Đang lưu' : editingId ? 'Cập nhật báo giá' : 'Tạo báo giá'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManage || !submitEnabled || Boolean(actionLoading)} onClick={() => action('submit', 'submit')}><Send size={17} /> {actionLoading === 'submit' ? 'Đang gửi' : 'Gửi duyệt'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManage || !approveEnabled || Boolean(actionLoading)} onClick={() => action('approve', 'approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang duyệt' : 'Duyệt'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManage || !smartLinkEnabledForStatus || Boolean(actionLoading)} onClick={() => action(isSmartLinkEnabled ? 'smartlink-off' : 'smartlink-on', 'smartlink', 'PATCH', { enabled: !isSmartLinkEnabled })}><LinkIcon size={17} /> {isSmartLinkEnabled ? 'Tắt SmartLink' : 'Bật SmartLink'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManage || !convertEnabled || Boolean(actionLoading)} onClick={() => action('convert', 'convert')}><Copy size={17} /> Chuyển đơn</button>
+          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
+        </div>
+      </form>
+
+      <section className="panel listPanel">
+        <div className="sectionHeader quoteListHeader">
+          <h2>Danh sách báo giá hợp nhất</h2>
+          <div className="quoteListActions">
+            <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => reload()}>
+              <RefreshCcw size={15} /> {reloading ? 'Đang tải' : 'Tải lại'}
+            </button>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, khách, sản phẩm..." /></label>
+          </div>
+        </div>
+        {reloading ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải lại dashboard và danh sách báo giá...</div> : null}
+        <div className="fitTableWrap quoteListWrap">
+          <table className="fitTable quoteListTable quotationListTable">
+            <thead>
+              {table.getHeaderGroups().map((group) => (
+                <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => (
+                <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>
+              ))}
+              {!table.getRowModel().rows.length ? <tr><td colSpan={7}>Không có báo giá phù hợp.</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

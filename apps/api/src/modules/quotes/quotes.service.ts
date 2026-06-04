@@ -1,8 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, QuoteComboStatus, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
+
+type TourCostItemInput = NonNullable<CreateQuoteTourDto['costItems']>[number];
+type TourItineraryInput = NonNullable<CreateQuoteTourDto['itineraries']>[number];
+type ComboItemInput = NonNullable<CreateQuoteComboDto['items']>[number];
 
 @Injectable()
 export class QuotesService {
@@ -39,16 +43,18 @@ export class QuotesService {
   }
 
   async createTourQuote(dto: CreateQuoteTourDto) {
+    const input = this.prepareTourQuoteDto(dto, true);
+    this.validateTourDates(input);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const totals = this.calculateTourQuote(dto);
+        const totals = this.calculateTourQuote(input);
         const quote = await tx.tourQuote.create({
           data: {
-            ...this.toTourQuoteData(dto),
+            ...this.toTourQuoteData(input),
             ...totals,
           } as Prisma.TourQuoteCreateInput,
         });
-        await this.replaceTourQuoteChildren(tx, quote.id, dto);
+        await this.replaceTourQuoteChildren(tx, quote.id, input);
         return tx.tourQuote.findUniqueOrThrow({
           where: { id: quote.id },
           include: { costItems: true, itineraries: true },
@@ -63,39 +69,32 @@ export class QuotesService {
   }
 
   async updateTourQuote(id: string, dto: UpdateQuoteTourDto) {
-    await this.getTourQuote(id);
+    const currentQuote = await this.getTourQuote(id);
+    this.assertTourQuoteEditable(currentQuote.status);
+    const input = this.prepareTourQuoteDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const current = await tx.tourQuote.findUniqueOrThrow({
           where: { id },
           include: { costItems: true, itineraries: true },
         });
+        this.assertTourQuoteEditable(current.status);
+        const currentDto = this.toTourQuoteDto(current);
         const merged = {
-          ...current,
-          ...dto,
-          costItems: dto.costItems ?? current.costItems.map((item) => ({
-            costType: item.costType,
-            serviceType: item.serviceType ?? undefined,
-            description: item.description ?? undefined,
-            unit: item.unit ?? undefined,
-            quantity: Number(item.quantity),
-            serviceCount: Number(item.serviceCount),
-            paxPerRoom: Number(item.paxPerRoom),
-            currency: item.currency,
-            exchangeRate: Number(item.exchangeRate),
-            unitPrice: Number(item.unitPrice),
-            vat: Number(item.vat),
-            note: item.note ?? undefined,
-          })),
+          ...currentDto,
+          ...input,
+          costItems: input.costItems ?? currentDto.costItems,
+          itineraries: input.itineraries ?? currentDto.itineraries,
         } as CreateQuoteTourDto;
+        this.validateTourDates(merged);
         await tx.tourQuote.update({
           where: { id },
           data: {
-            ...this.toTourQuoteData(dto),
+            ...this.toTourQuoteData(input),
             ...this.calculateTourQuote(merged),
           },
         });
-        await this.replaceTourQuoteChildren(tx, id, dto);
+        await this.replaceTourQuoteChildren(tx, id, input);
         return tx.tourQuote.findUniqueOrThrow({
           where: { id },
           include: { costItems: true, itineraries: true },
@@ -110,12 +109,15 @@ export class QuotesService {
   }
 
   async deleteTourQuote(id: string) {
-    await this.getTourQuote(id);
+    const quote = await this.getTourQuote(id);
+    this.assertTourQuoteEditable(quote.status);
     return this.prisma.tourQuote.delete({ where: { id } });
   }
 
   async approveTourQuote(id: string, dto: QuoteApprovalDto) {
-    await this.getTourQuote(id);
+    const quote = await this.getTourQuote(id);
+    if (quote.status === 'APPROVED') return quote;
+    this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING', 'REJECTED'], 'approve');
     return this.prisma.tourQuote.update({
       where: { id },
       data: { status: 'APPROVED', approvedBy: this.optionalText(dto.approvedBy), approvalNote: this.optionalText(dto.approvalNote) },
@@ -123,7 +125,9 @@ export class QuotesService {
   }
 
   async rejectTourQuote(id: string, dto: QuoteApprovalDto) {
-    await this.getTourQuote(id);
+    const quote = await this.getTourQuote(id);
+    if (quote.status === 'REJECTED') return quote;
+    this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING'], 'reject');
     return this.prisma.tourQuote.update({
       where: { id },
       data: { status: 'REJECTED', approvedBy: this.optionalText(dto.approvedBy), approvalNote: this.optionalText(dto.approvalNote) },
@@ -131,7 +135,9 @@ export class QuotesService {
   }
 
   async convertTourQuote(id: string) {
-    await this.getTourQuote(id);
+    const quote = await this.getTourQuote(id);
+    if (quote.status === 'CONVERTED') return quote;
+    this.assertTourQuoteStatus(quote.status, ['APPROVED'], 'convert');
     return this.prisma.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' } });
   }
 
@@ -160,15 +166,16 @@ export class QuotesService {
   }
 
   async createComboQuote(dto: CreateQuoteComboDto) {
+    const input = await this.prepareComboDto(dto, true);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const combo = await tx.quoteCombo.create({
           data: {
-            ...this.toComboData(dto),
-            ...this.calculateCombo(dto),
+            ...this.toComboData(input),
+            ...this.calculateCombo(input),
           } as Prisma.QuoteComboCreateInput,
         });
-        await this.replaceComboItems(tx, combo.id, dto);
+        await this.replaceComboItems(tx, combo.id, input);
         return tx.quoteCombo.findUniqueOrThrow({ where: { id: combo.id }, include: { items: true } });
       });
     } catch (error) {
@@ -180,31 +187,27 @@ export class QuotesService {
   }
 
   async updateComboQuote(id: string, dto: UpdateQuoteComboDto) {
-    await this.getComboQuote(id);
+    const currentCombo = await this.getComboQuote(id);
+    this.assertComboEditable(currentCombo.status);
+    const input = await this.prepareComboDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const current = await tx.quoteCombo.findUniqueOrThrow({ where: { id }, include: { items: true } });
+        this.assertComboEditable(current.status);
+        const currentDto = this.toComboDto(current);
         const merged = {
-          ...current,
-          ...dto,
-          items: dto.items ?? current.items.map((item) => ({
-            supplierId: item.supplierId ?? undefined,
-            serviceId: item.serviceId ?? undefined,
-            serviceName: item.serviceName,
-            checkIn: item.checkIn?.toISOString(),
-            netPricePerService: Number(item.netPricePerService),
-            nightCount: Number(item.nightCount),
-            paxCount: Number(item.paxCount),
-          })),
+          ...currentDto,
+          ...input,
+          items: input.items ?? currentDto.items,
         } as CreateQuoteComboDto;
         await tx.quoteCombo.update({
           where: { id },
           data: {
-            ...this.toComboData(dto),
+            ...this.toComboData(input),
             ...this.calculateCombo(merged),
           },
         });
-        await this.replaceComboItems(tx, id, dto);
+        await this.replaceComboItems(tx, id, input);
         return tx.quoteCombo.findUniqueOrThrow({ where: { id }, include: { items: true } });
       });
     } catch (error) {
@@ -216,22 +219,28 @@ export class QuotesService {
   }
 
   async deleteComboQuote(id: string) {
-    await this.getComboQuote(id);
+    const combo = await this.getComboQuote(id);
+    this.assertComboEditable(combo.status);
     return this.prisma.quoteCombo.delete({ where: { id } });
   }
 
   async createQuoteFromCombo(id: string) {
-    await this.getComboQuote(id);
-    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'QUOTED' } });
+    const combo = await this.getComboQuote(id);
+    if (combo.status === 'QUOTED') return combo;
+    this.assertComboStatus(combo.status, ['DRAFT'], 'quote');
+    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'QUOTED' }, include: { items: true } });
   }
 
   async createOrderFromCombo(id: string) {
-    await this.getComboQuote(id);
-    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'ORDER_CREATED' } });
+    const combo = await this.getComboQuote(id);
+    if (combo.status === 'ORDER_CREATED') return combo;
+    this.assertComboStatus(combo.status, ['QUOTED'], 'create order');
+    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'ORDER_CREATED' }, include: { items: true } });
   }
 
   async recalculateCombo(id: string) {
     const combo = await this.getComboQuote(id);
+    this.assertComboEditable(combo.status);
     const dto = {
       comboCode: combo.comboCode,
       comboType: combo.comboType,
@@ -245,6 +254,109 @@ export class QuotesService {
       })),
     };
     return this.prisma.quoteCombo.update({ where: { id }, data: this.calculateCombo(dto) });
+  }
+
+  private prepareTourQuoteDto<T extends Partial<CreateQuoteTourDto>>(dto: T, requireCostItems: boolean): T {
+    const prepared = { ...dto } as Partial<CreateQuoteTourDto>;
+    if (dto.costItems !== undefined || requireCostItems) {
+      prepared.costItems = this.sanitizeTourCostItems(dto.costItems, requireCostItems || dto.costItems !== undefined);
+    }
+    if (dto.itineraries !== undefined) {
+      prepared.itineraries = this.sanitizeTourItineraries(dto.itineraries);
+    }
+    return prepared as T;
+  }
+
+  private sanitizeTourCostItems(items: CreateQuoteTourDto['costItems'], requireOne: boolean): TourCostItemInput[] {
+    const rows = (items ?? []).filter((item) => this.hasTourCostContent(item));
+    if (requireOne && !rows.length) throw new BadRequestException('At least one cost item is required');
+    return rows.map((item, index) => {
+      const serviceType = this.optionalText(item.serviceType);
+      const description = this.optionalText(item.description);
+      if (!serviceType && !description) throw new BadRequestException(`Cost item ${index + 1} requires service type or description`);
+      return {
+        costType: item.costType,
+        serviceType: serviceType ?? undefined,
+        description: description ?? undefined,
+        unit: this.optionalText(item.unit) ?? undefined,
+        quantity: this.nonNegative(item.quantity, 1),
+        serviceCount: this.nonNegative(item.serviceCount, 1),
+        paxPerRoom: this.nonNegative(item.paxPerRoom, 1),
+        currency: this.optionalText(item.currency) || 'VND',
+        exchangeRate: this.nonNegative(item.exchangeRate, 1),
+        unitPrice: this.nonNegative(item.unitPrice),
+        vat: this.nonNegative(item.vat),
+        note: this.optionalText(item.note) ?? undefined,
+      };
+    });
+  }
+
+  private sanitizeTourItineraries(items: CreateQuoteTourDto['itineraries']): TourItineraryInput[] {
+    return (items ?? [])
+      .filter((item) => this.optionalText(item.title) || this.optionalText(item.content))
+      .map((item, index) => ({
+        dayNo: Math.max(1, Math.floor(this.number(item.dayNo, index + 1))),
+        title: this.optionalText(item.title) ?? undefined,
+        content: this.optionalText(item.content) ?? undefined,
+      }));
+  }
+
+  private hasTourCostContent(item: TourCostItemInput) {
+    return Boolean(
+      this.optionalText(item.serviceType) ||
+      this.optionalText(item.description) ||
+      this.optionalText(item.note) ||
+      this.number(item.unitPrice) > 0 ||
+      this.number(item.vat) > 0,
+    );
+  }
+
+  private async prepareComboDto<T extends Partial<CreateQuoteComboDto>>(dto: T, requireItems: boolean): Promise<T> {
+    const prepared = { ...dto } as Partial<CreateQuoteComboDto>;
+    if (dto.items !== undefined || requireItems) {
+      prepared.items = await this.sanitizeComboItems(dto.items, requireItems || dto.items !== undefined);
+    }
+    return prepared as T;
+  }
+
+  private async sanitizeComboItems(items: CreateQuoteComboDto['items'], requireOne: boolean): Promise<ComboItemInput[]> {
+    const rows = (items ?? []).filter((item) => this.hasComboItemContent(item));
+    if (requireOne && !rows.length) throw new BadRequestException('At least one combo item is required');
+    const serviceIds = [...new Set(rows.map((item) => this.optionalText(item.serviceId)).filter((id): id is string => Boolean(id)))];
+    const services = serviceIds.length
+      ? await this.prisma.supplierService.findMany({ where: { id: { in: serviceIds } }, select: { id: true, supplierId: true, serviceName: true, netPrice: true } })
+      : [];
+    const serviceById = new Map(services.map((service) => [service.id, service]));
+
+    return rows.map((item, index) => {
+      const serviceId = this.optionalText(item.serviceId);
+      const service = serviceId ? serviceById.get(serviceId) : undefined;
+      if (serviceId && !service) throw new BadRequestException(`Combo item ${index + 1} references an unknown service`);
+      const supplierId = this.optionalText(item.supplierId);
+      if (service?.supplierId && supplierId && supplierId !== service.supplierId) {
+        throw new BadRequestException(`Combo item ${index + 1} service does not belong to selected supplier`);
+      }
+      const serviceName = this.optionalText(item.serviceName) || this.optionalText(service?.serviceName);
+      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Combo item ${index + 1} requires service name`);
+      return {
+        supplierId: supplierId || service?.supplierId || undefined,
+        serviceId: service?.id || undefined,
+        serviceName,
+        checkIn: this.optionalText(item.checkIn) ?? undefined,
+        netPricePerService: this.nonNegative(item.netPricePerService, service ? Number(service.netPrice) : 0),
+        nightCount: this.positive(item.nightCount, 1),
+        paxCount: this.positive(item.paxCount, 1),
+      };
+    });
+  }
+
+  private hasComboItemContent(item: ComboItemInput) {
+    return Boolean(
+      this.optionalText(item.serviceName) ||
+      this.optionalText(item.serviceId) ||
+      this.optionalText(item.supplierId) ||
+      this.number(item.netPricePerService) > 0,
+    );
   }
 
   private calculateTourQuote(dto: Partial<CreateQuoteTourDto>) {
@@ -399,12 +511,129 @@ export class QuotesService {
     };
   }
 
+  private toTourQuoteDto(quote: Prisma.TourQuoteGetPayload<{ include: { costItems: true; itineraries: true } }>): CreateQuoteTourDto {
+    return {
+      quoteCode: quote.quoteCode,
+      tourCode: quote.tourCode,
+      tourName: quote.tourName ?? undefined,
+      route: quote.route ?? undefined,
+      marketGroup: quote.marketGroup ?? undefined,
+      currency: quote.currency,
+      exchangeRate: Number(quote.exchangeRate),
+      bookingDate: quote.bookingDate?.toISOString(),
+      paymentDate: quote.paymentDate?.toISOString(),
+      departureDate: quote.departureDate?.toISOString(),
+      returnDate: quote.returnDate?.toISOString(),
+      customerName: quote.customerName ?? undefined,
+      customerPhone: quote.customerPhone ?? undefined,
+      customerEmail: quote.customerEmail ?? undefined,
+      customerAddress: quote.customerAddress ?? undefined,
+      customerNote: quote.customerNote ?? undefined,
+      operatorOwner: quote.operatorOwner ?? undefined,
+      collaborator: quote.collaborator ?? undefined,
+      adultQty: quote.adultQty,
+      childQty: quote.childQty,
+      infantQty: quote.infantQty,
+      profit: Number(quote.profit),
+      commission: Number(quote.commission),
+      discount: Number(quote.discount),
+      childPricePercent: Number(quote.childPricePercent),
+      infantPricePercent: Number(quote.infantPricePercent),
+      costItems: quote.costItems.map((item) => ({
+        costType: item.costType,
+        serviceType: item.serviceType ?? undefined,
+        description: item.description ?? undefined,
+        unit: item.unit ?? undefined,
+        quantity: Number(item.quantity),
+        serviceCount: Number(item.serviceCount),
+        paxPerRoom: Number(item.paxPerRoom),
+        currency: item.currency,
+        exchangeRate: Number(item.exchangeRate),
+        unitPrice: Number(item.unitPrice),
+        vat: Number(item.vat),
+        note: item.note ?? undefined,
+      })),
+      itineraries: quote.itineraries.map((item) => ({
+        dayNo: item.dayNo,
+        title: item.title ?? undefined,
+        content: item.content ?? undefined,
+      })),
+    };
+  }
+
+  private toComboDto(combo: Prisma.QuoteComboGetPayload<{ include: { items: true } }>): CreateQuoteComboDto {
+    return {
+      comboCode: combo.comboCode,
+      comboType: combo.comboType,
+      note: combo.note ?? undefined,
+      profitPerPax: Number(combo.profitPerPax),
+      childPricePercent: Number(combo.childPricePercent),
+      items: combo.items.map((item) => ({
+        supplierId: item.supplierId ?? undefined,
+        serviceId: item.serviceId ?? undefined,
+        serviceName: item.serviceName,
+        checkIn: item.checkIn?.toISOString(),
+        netPricePerService: Number(item.netPricePerService),
+        nightCount: Number(item.nightCount),
+        paxCount: Number(item.paxCount),
+      })),
+    };
+  }
+
+  private assertTourQuoteEditable(status: QuoteStatus) {
+    this.assertTourQuoteStatus(status, ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'], 'edit');
+  }
+
+  private assertTourQuoteStatus(status: QuoteStatus, allowed: QuoteStatus[], action: string) {
+    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} tour quote from status ${status}`);
+  }
+
+  private assertComboEditable(status: QuoteComboStatus) {
+    this.assertComboStatus(status, ['DRAFT', 'QUOTED'], 'edit');
+  }
+
+  private assertComboStatus(status: QuoteComboStatus, allowed: QuoteComboStatus[], action: string) {
+    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} combo from status ${status}`);
+  }
+
+  private validateTourDates(dto: Partial<CreateQuoteTourDto>) {
+    this.assertDateOrder(dto.bookingDate, dto.paymentDate, 'Payment date must be after booking date');
+    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Return date must be after departure date');
+  }
+
+  private assertDateOrder(startValue: unknown, endValue: unknown, message: string) {
+    const start = this.dateValue(startValue);
+    const end = this.dateValue(endValue);
+    if (start && end && end < start) throw new BadRequestException(message);
+  }
+
   private optionalText(value?: string | null) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
   }
 
-  private optionalDate(value?: string | null) {
-    return value ? new Date(value) : null;
+  private optionalDate(value?: string | Date | null) {
+    return this.dateValue(value);
+  }
+
+  private dateValue(value?: unknown) {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid date');
+    return date;
+  }
+
+  private number(value: unknown, fallback = 0) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  private nonNegative(value: unknown, fallback = 0) {
+    return Math.max(0, this.number(value, fallback));
+  }
+
+  private positive(value: unknown, fallback = 1) {
+    return Math.max(1, this.number(value, fallback));
   }
 }

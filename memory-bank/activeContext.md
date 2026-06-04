@@ -2,110 +2,24 @@
 
 ## Current Focus
 
-Production stabilization and reusable file storage rollout are the active implementation areas after enabling Auth/RBAC enforcement.
+Tour Management core redesign is now the active implementation area after the first FIT prototype.
 
 ## Immediate Next Tasks
 
-1. Run the full authenticated smoke suite with the real admin password and execute manual QA with named users.
-2. Select a security-clean native XLSX workbook parser after the validated Finance receipt/payment CSV import path.
-3. Add XLSX/Word/PDF document exports for the highest-value Finance, operation, order, quote, and reporting workflows.
-4. Configure off-VPS backup sync and an external healthcheck webhook target.
-5. Continue manual QA with named accounting and operation users for the completed reconciliation workflow.
+1. Continue Orders module after first shared order implementation: hotel booking specific room service selectors, receipts/payments, export/Word/PDF, approval UI, and member import/export.
+2. Continue Quotes module: quote detail/print/PDF, import/export, convert-to-booking payloads, approval comments UI, and customer lookup.
+3. Continue Supplier module: upload files, import/export, debt/payment links, transaction-aware soft delete, and specialized child tables where needed.
+4. Add real file upload storage for common tour and supplier attachments.
+5. Implement common revenue, cost, receipt, payment, expense, and report flows.
+6. Add authentication and RBAC enforcement.
 
 ## Notes
 
 The repository lives on the VPS under `/opt/smarttour` and tracks `git@github.com:hai2k2000/smarttour.git`.
-The VPS currently has 29 applied Prisma migrations, `SMARTTOUR_AUTH_ENFORCE=true`, and localhost-bound API, database, Redis, and MinIO services.
-
-## Pause Handoff - 2026-05-31
-
-- Stop point: pause after deploying and smoke-testing reusable private MinIO storage plus Supplier, FIT, tour guide, Customer, Finance receipt/payment attachments, Finance invoice multi-file documents, Finance receipt/payment CSV import, grouped debt aging, manual debt adjustments, payment reconciliation UI/state fixes, and cancellation reversal reconciliation. Do not discard the current dirty working tree.
-- Verified at pause: `npm run lint`, production build, `scripts/healthcheck.sh`, `scripts/security-audit.sh`, Prisma migration status, generic Supplier attachment create/upload/cookie-download/delete cleanup, FIT attachment create/upload/download/delete cleanup with common Tour metadata sync, tour guide attachment create/upload/download/delete cleanup, Customer attachment create/upload/download/delete cleanup including aggregate delete cleanup, Finance receipt/payment attachment upload/download/delete cleanup, Finance invoice document upload/download/delete cleanup, Finance receipt/payment CSV import including invalid-row rejection, grouped customer/supplier debt aging, manual debt adjustments, supplier payment request and operation voucher pending-to-paid reconciliation, reconciliation cancellation/recreate transitions, Finance receipt/payment/invoice cancellation idempotency, Order total reversal, SVG upload rejection, `scripts/smoke-business-workflows.sh`, `scripts/smoke-finance-reports.sh`, and `scripts/smoke-finance-cancellations.sh`.
-- Running SmartTour containers: `smarttour-web-preview`, `smarttour-api-1`, `smarttour-postgres-1`, `smarttour-redis-1`, and `smarttour-minio-1`.
-- Not run after the final attachment deploy: `scripts/backup-postgres.sh`, `scripts/restore-drill-postgres.sh`, and the full authenticated `npm run smoke:all` suite. Full smoke requires the real admin password supplied as `ADMIN_PASSWORD`.
-- Next implementation task: select a security-clean native XLSX parser, then add workbook import/export without reintroducing dependency audit findings.
-- External operations decisions still open: configure `BACKUP_REMOTE_TARGET` for off-VPS backup sync and `HEALTHCHECK_WEBHOOK_URL` for failure alerts.
+Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking CRUD should be smoke-tested before the next push.
 
 ## Latest Session Notes
 
-- Hardened backend branch/department data-scope enforcement:
-  - Shared read/write helper behavior now denies scoped users missing required branch/department values and rejects no-scope writes.
-  - Extended scoped link checks across Bookings, Operations, Operation Vouchers, Supplier allotment allocations, and Tour Guide schedules.
-  - Added focused branch/department tests in `scripts/test-auth-data-scope.sh` and `scripts/test-data-scope-module-flows.sh`; verified `DATA_SCOPE_AUDIT_OK`, API Docker build, and both focused test scripts.
-- Connected FIT attachments end to end:
-  - Added `POST /api/fit-tours/:id/files` and `DELETE /api/fit-tours/:id/files/:fileId`.
-  - Uploads use the private common MinIO service and sync metadata into both `FitAttachment` and common `TourAttachment`.
-  - FIT wizard uploads selected binary files after the FIT tour is saved, shows private download links, and supports attachment deletion.
-  - Extended `scripts/smoke-files.sh`; end-to-end smoke passed for FIT create, upload, aggregate metadata sync, byte-identical download, delete, `404` after delete, and temporary record cleanup.
-- Connected Tour Guide attachments end to end:
-  - Added `POST /api/tour-guides/:id/files` and `DELETE /api/tour-guides/:id/files/:fileId`.
-  - Tour Guide screen uploads selected binary files after save, shows private download links, and supports attachment deletion.
-  - Extended `scripts/smoke-files.sh`; combined Supplier foundation, FIT, and Tour Guide private-file smoke passed with temporary record cleanup.
-- Connected Customer attachments end to end:
-  - Added migration `20260531121500_customer_files` with `CustomerFile`.
-  - Added `POST /api/customers/:id/files` and `DELETE /api/customers/:id/files/:fileId`, including data-scope checks, merge transfer, and object cleanup when a Customer is deleted.
-  - Customer create/detail screens upload selected binary files, show private download links, and support attachment deletion.
-  - Extended `scripts/smoke-files.sh`; combined private-file smoke passed, including Customer aggregate delete object cleanup and temporary record cleanup.
-- Connected Finance receipt/payment attachments end to end:
-  - Added `POST`/`DELETE` file routes for receipts and payments.
-  - Backed the existing single-attachment voucher fields with private common MinIO storage, including replacement cleanup.
-  - Added create-form upload and private download links for receipt/payment tables.
-  - Extended `scripts/smoke-files.sh`; combined private-file smoke passed for receipt/payment upload/download/delete cleanup.
-  - Remaining Finance storage work at that point: invoice multi-file documents and parsed CSV/XLSX import.
-- Connected Finance invoice documents end to end:
-  - Added migration `20260531143000_finance_invoice_files` with `FinanceInvoiceFile`.
-  - Added invoice document upload/delete APIs backed by private common MinIO storage.
-  - Finance invoice creation and list UI now support multiple private documents plus add/delete controls.
-  - Extended `scripts/smoke-files.sh`; verified invoice upload, byte-identical download, delete, `404` after delete, and temporary record cleanup.
-- Replaced the Finance receipt/payment CSV import placeholder:
-  - Added multipart CSV and JSON `rows` import support with transaction writes.
-  - Added header, row-count, enum, date, amount, and duplicate-code validation.
-  - Added CSV import controls to the receipt/payment tabs plus positive multipart CSV and invalid-row rejection smoke coverage.
-  - Native XLSX workbook parsing remains open.
-- Re-ran `scripts/smoke-business-workflows.sh` with an ephemeral super-admin account:
-  - Confirmed empty Operation Form and Supplier Payment Request payloads return `400`.
-  - Confirmed the linked booking, operation, supplier payment request, voucher, and UI route workflow still passes.
-- Fixed the Finance debt tab contract and added grouped debt aging:
-  - `/api/finance/debt/customers` and `/api/finance/debt/suppliers` now return grouped `rows` for UI plus raw `entries` for traceability.
-  - Customer and supplier ledger semantics are grouped separately; settled amounts are allocated against the oldest obligations for aging buckets.
-  - Finance debt UI now shows total, paid, current, overdue, and remaining amounts.
-  - Extended `scripts/smoke-finance-reports.sh`; grouped debt contract, exports, and UI routes passed.
-- Evaluated native XLSX parsing with `exceljs@4.4.0`:
-  - Removed the dependency after `npm audit --omit=dev` reported transitive `uuid <11.1.1` moderate vulnerabilities and the override produced an invalid dependency tree.
-  - Kept the production dependency baseline at `0 vulnerabilities`; native XLSX remains open pending a security-clean parser choice.
-- Added Finance manual debt adjustments end to end:
-  - Added migration `20260531154500_finance_debt_adjust_permission` with `finance.debt.adjust` for accounting and super-admin roles.
-  - Added customer and supplier debt-adjustment endpoints using `MANUAL` ledger sources and `ADJUSTMENT` entries.
-  - Added a permission-protected adjustment form to the Finance debt tab.
-  - Extended Finance/Reports smoke coverage for customer/supplier adjustments, overdue aging, exports, UI routes, audit cleanup, and temporary record cleanup.
-- Fixed Finance payment reconciliation timing:
-  - Supplier Payment Request stays `APPROVED` while its generated `FinancePayment` is `PENDING`; it becomes `PAID` only after Finance approval.
-  - Operation Voucher `create-payment-voucher` now creates only a pending Finance payment, blocks active duplicates, and updates voucher payment/status only after approval.
-  - Finance `approvePayment` performs idempotent reconciliation for linked supplier requests and operation vouchers, including already-approved legacy payments.
-  - Extended `scripts/smoke-business-workflows.sh` for pending/paid transitions, duplicate rejection, UI routes, audit cleanup, and temporary record cleanup.
-- Added reconciliation UI across Operations, Operation Vouchers, and Finance:
-  - Operations Supplier Payment Request rows now show colored request/Finance states, lifecycle-aware actions, and a reconciliation timeline modal.
-  - Operation Voucher rows and detail sidebar now show paid/remain amounts, linked Finance payment status, and valid create/approve actions.
-  - Finance Payment rows now expose linked supplier requests and operation vouchers for accounting review.
-  - Extended business-workflow smoke coverage for the list payload contracts consumed by these screens.
-- Fixed Finance cancellation reconciliation:
-  - Cancelling an approved Finance payment reopens linked supplier requests, restores Operation Voucher remaining amounts, and allows replacement payments.
-  - Receipt/payment cancellation now reverses linked Order paid totals; repeated receipt/payment/invoice cancellation returns a stable response without creating duplicate reversal documents.
-  - Added `scripts/smoke-finance-cancellations.sh` and registered `npm run smoke:finance-cancellations` in `smoke:all`.
-- Audited the production baseline and stabilized the existing Vietnamese UI batch:
-  - Fixed Supplier page TypeScript declarations, Operations validation messages, and healthcheck expectations after auth redirect.
-  - Replaced deprecated Next.js `middleware.ts` with `proxy.ts`.
-  - Rotated the production `JWT_SECRET` placeholder and tightened security audit placeholder detection.
-- Added reusable private MinIO file storage:
-  - New NestJS `/api/files/upload`, `/api/files/download`, and permission-protected delete endpoints.
-  - MinIO starts with the API, uses a private bucket, and binds ports `9000/9001` to localhost.
-  - Dangerous SVG/HTML/script-like uploads are rejected and file size is limited.
-  - Added `npm run smoke:files`; manual end-to-end smoke passed for upload, byte-identical download, delete, and SVG rejection.
-- Connected Supplier attachments end to end:
-  - Added `POST /api/suppliers/:id/files` and `DELETE /api/suppliers/:id/files/:fileId`.
-  - Hotel and generic Supplier screens upload selected files after saving the supplier and expose download links.
-  - Cookie-backed API auth allows direct private download links in the browser.
-  - Supplier attachment smoke passed with record, object, and temporary session cleanup.
 - Booking screen now exposes inline status updates, quick edit rows, and delete actions using the existing Booking PATCH/DELETE API.
 - API Docker build now regenerates Prisma Client for Alpine with `linux-musl-openssl-3.0.x`, fixing the container startup error found during verification.
 - Booking API smoke test passed: create, edit, status update, and delete all worked against Docker Postgres.
@@ -409,3 +323,8 @@ The VPS currently has 29 applied Prisma migrations, `SMARTTOUR_AUTH_ENFORCE=true
   - Web build passed and `smarttour-web-preview` was rebuilt/restarted.
   - Smoke test returned 200 for 20 key routes. Containers remain only `smarttour-web-preview`, `smarttour-api-1`, `smarttour-postgres-1`, and `smarttour-redis-1`.
   - Authenticated RBAC smoke test passed for guard behavior: sales can reach order/quote validation, accounting is denied order mutation, sales is denied operations mutation, and accounting can run commission sync. Operation form with empty payload passes permission guard but currently returns 500 instead of validation 400, so Operations DTO/service validation should be hardened before enabling global enforce.
+- Added Operations test coverage:
+  - `scripts/smoke-operations-backend.sh` now covers dashboard load, operation form create/update/cancel, supplier payment request create/submit/approve/reject, finance payment creation/approval/cancel reconciliation, branch scope, missing-branch guardrails, and per-action permission denials.
+  - `scripts/smoke-operations-ui.js` adds Playwright coverage for `/operations` dashboard/list load, form/payment modals, reconciliation detail panel, action enabled/disabled state, and tab state reset.
+  - Added stable `data-testid` anchors to `OperationsClient` for the smoke test and registered `smoke:operations:ui`.
+  - VPS verification passed: `SMOKE_OPERATIONS_BACKEND_OK`, `docker compose build web`, and `SMOKE_OPERATIONS_UI_OK` against `https://aitour.io.vn`.

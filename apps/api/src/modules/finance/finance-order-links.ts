@@ -67,6 +67,44 @@ export async function resolveInvoiceCustomer(
   return order?.customerId || null;
 }
 
+export async function resolveTourId(
+  tx: Prisma.TransactionClient,
+  input: {
+    tourId?: string | null;
+    orderId?: string | null;
+    receiptId?: string | null;
+    paymentId?: string | null;
+    operationVoucherId?: string | null;
+    orders?: { orderId?: string | null }[];
+  },
+) {
+  if (input.tourId) {
+    const tour = await tx.tour.findFirst({ where: { id: input.tourId, deletedAt: null }, select: { id: true } });
+    if (!tour) throw new BadRequestException('Invalid tour link');
+    return tour.id;
+  }
+
+  let orderId = input.orderId || input.orders?.find((line) => line.orderId)?.orderId || null;
+  if (!orderId && input.operationVoucherId) {
+    const voucher = await tx.operationVoucher.findUnique({ where: { id: input.operationVoucherId }, select: { orderId: true } });
+    orderId = voucher?.orderId || null;
+  }
+  if (!orderId && input.receiptId) {
+    const receipt = await tx.financeReceipt.findUnique({ where: { id: input.receiptId }, include: { orders: true } });
+    if (receipt?.tourId) return receipt.tourId;
+    orderId = receipt?.orders.find((line) => line.orderId)?.orderId || null;
+  }
+  if (!orderId && input.paymentId) {
+    const payment = await tx.financePayment.findUnique({ where: { id: input.paymentId }, select: { tourId: true, orderId: true } });
+    if (payment?.tourId) return payment.tourId;
+    orderId = payment?.orderId || null;
+  }
+  if (!orderId) return null;
+
+  const tour = await tx.tour.findFirst({ where: { orderId, deletedAt: null }, select: { id: true } });
+  return tour?.id || null;
+}
+
 export async function resolveInvoiceCustomerScope(
   tx: Prisma.TransactionClient,
   invoice: { customerId: string | null; orderId: string | null; receiptId?: string | null },

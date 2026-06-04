@@ -1,0 +1,369 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentStatus, Prisma, TourStatus, TourType } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
+import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+
+type AnyRecord = Record<string, unknown>;
+
+export type TourRootConfig = {
+  type: TourType;
+  systemCodeField?: string;
+  tourCodeField?: string;
+  nameField?: string;
+  productTypeField?: string;
+  routeField?: string;
+  notesField?: string;
+  workflowField?: string;
+  defaultWorkflowStep?: string;
+  defaultStatus?: TourStatus;
+  defaultProductType?: string;
+  statusFromWorkflow?: (workflowStep: string) => TourStatus;
+};
+
+@Injectable()
+export class TourCoreService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  scopeWhere<T extends Prisma.TourWhereInput>(where: T, user?: RequestUser): Prisma.TourWhereInput {
+    return branchDepartmentScopeWhere({ ...where, deletedAt: null }, user);
+  }
+
+  toTourData(dto: AnyRecord, creating: boolean, config: TourRootConfig): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
+    const systemCodeField = config.systemCodeField || 'systemCode';
+    const tourCodeField = config.tourCodeField || 'tourCode';
+    const nameField = config.nameField || 'name';
+    const productTypeField = config.productTypeField || 'productType';
+    const routeField = config.routeField || 'route';
+    const notesField = config.notesField || 'notes';
+    const workflowField = config.workflowField || 'workflowStep';
+    const workflowStep = this.pickText(dto, workflowField) || this.pickText(dto, 'workflowStep') || (creating ? config.defaultWorkflowStep : undefined);
+    const status = this.pickText(dto, 'status') as TourStatus | undefined;
+
+    return {
+      ...(creating
+        ? {
+            type: config.type,
+            systemCode: this.requiredText(dto[systemCodeField], 'systemCode').toUpperCase(),
+            tourCode: this.requiredText(dto[tourCodeField], 'tourCode').toUpperCase(),
+          }
+        : {}),
+      ...(dto.type !== undefined ? { type: config.type } : {}),
+      ...(status ? { status } : workflowStep ? { status: this.statusFromWorkflow(workflowStep, config) } : creating ? { status: config.defaultStatus || TourStatus.UPCOMING } : {}),
+      ...(dto.paymentStatus !== undefined ? { paymentStatus: dto.paymentStatus as PaymentStatus } : creating ? { paymentStatus: PaymentStatus.UNPAID } : {}),
+      ...(workflowStep !== undefined ? { workflowStep } : {}),
+      ...(dto[systemCodeField] !== undefined ? { systemCode: this.requiredText(dto[systemCodeField], 'systemCode').toUpperCase() } : {}),
+      ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
+      ...(dto[tourCodeField] !== undefined ? { tourCode: this.requiredText(dto[tourCodeField], 'tourCode').toUpperCase() } : {}),
+      ...(dto[nameField] !== undefined ? { name: this.optionalText(dto[nameField]) } : {}),
+      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
+      ...(dto[productTypeField] !== undefined ? { productType: this.optionalText(dto[productTypeField]) } : creating && config.defaultProductType ? { productType: config.defaultProductType } : {}),
+      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate, 'bookingDate') } : {}),
+      ...(dto.paymentDueDate !== undefined ? { paymentDueDate: this.optionalDate(dto.paymentDueDate, 'paymentDueDate') } : {}),
+      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate, 'startDate') } : {}),
+      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate, 'endDate') } : {}),
+      ...(dto.createdBy !== undefined ? { createdBy: this.optionalText(dto.createdBy) } : {}),
+      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
+      ...(dto.branch !== undefined ? { branch: this.optionalText(dto.branch) } : {}),
+      ...(dto.department !== undefined ? { department: this.optionalText(dto.department) } : {}),
+      ...(dto.customerSource !== undefined ? { customerSource: this.optionalText(dto.customerSource) } : {}),
+      ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
+      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate, 'exchangeRate') } : {}),
+      ...(dto[routeField] !== undefined ? { route: this.optionalText(dto[routeField]) } : {}),
+      ...(dto.flightRoute !== undefined ? { flightRoute: this.optionalText(dto.flightRoute) } : {}),
+      ...(dto.pickupPoint !== undefined ? { pickupPoint: this.optionalText(dto.pickupPoint) } : {}),
+      ...(dto.dropoffPoint !== undefined ? { dropoffPoint: this.optionalText(dto.dropoffPoint) } : {}),
+      ...(dto[notesField] !== undefined ? { notes: this.optionalText(dto[notesField]) } : {}),
+    };
+  }
+
+  async ensureOrder(tx: Prisma.TransactionClient, orderId?: unknown, user?: RequestUser) {
+    const id = this.optionalText(orderId);
+    if (!id) return;
+    const row = await tx.order.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), select: { id: true } });
+    if (!row) throw new NotFoundException('Không tìm thấy đơn hàng trong phạm vi dữ liệu');
+  }
+
+  async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
+    await this.ensureOrder(tx, dto.orderId, user);
+    const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;
+    return tx.tour.update({ where: { id: tourId }, data });
+  }
+
+  async softDelete(tx: Prisma.TransactionClient, tourId: string, actor?: string, reason?: string) {
+    const tour = await tx.tour.update({
+      where: { id: tourId },
+      data: { status: TourStatus.CANCELLED, deletedAt: new Date() },
+    });
+    await this.log(tx, tourId, 'DELETE_TOUR', { actor, reason, status: TourStatus.CANCELLED });
+    return tour;
+  }
+
+  async close(tx: Prisma.TransactionClient, tourId: string, actor?: string, note?: string) {
+    const tour = await tx.tour.update({
+      where: { id: tourId },
+      data: { status: TourStatus.COMPLETED, closedAt: new Date(), closedBy: actor || null },
+    });
+    await this.log(tx, tourId, 'CLOSE_TOUR', { actor, note, status: TourStatus.COMPLETED });
+    return tour;
+  }
+
+  async log(tx: Prisma.TransactionClient, tourId: string, action: string, metadata?: unknown) {
+    await tx.tourLog.create({ data: { tourId, action, entity: 'Tour', metadata: metadata as Prisma.InputJsonValue } });
+  }
+
+  async replaceCustomers(tx: Prisma.TransactionClient, tourId: string, customers: Prisma.TourCustomerCreateManyInput[]) {
+    await tx.tourCustomer.deleteMany({ where: { tourId } });
+    if (customers.length) await tx.tourCustomer.createMany({ data: customers.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceSuppliers(tx: Prisma.TransactionClient, tourId: string, suppliers: Prisma.TourSupplierCreateManyInput[]) {
+    await tx.tourSupplier.deleteMany({ where: { tourId } });
+    if (suppliers.length) await tx.tourSupplier.createMany({ data: suppliers.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceServices(tx: Prisma.TransactionClient, tourId: string, services: Prisma.TourServiceCreateManyInput[]) {
+    await tx.tourService.deleteMany({ where: { tourId } });
+    if (services.length) await tx.tourService.createMany({ data: services.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceRevenues(tx: Prisma.TransactionClient, tourId: string, revenues: Prisma.TourRevenueCreateManyInput[]) {
+    await tx.tourRevenue.deleteMany({ where: { tourId } });
+    if (revenues.length) await tx.tourRevenue.createMany({ data: revenues.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceCosts(tx: Prisma.TransactionClient, tourId: string, costs: Prisma.TourCostCreateManyInput[]) {
+    await tx.tourCost.deleteMany({ where: { tourId } });
+    if (costs.length) await tx.tourCost.createMany({ data: costs.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceGuides(tx: Prisma.TransactionClient, tourId: string, guides: Prisma.TourGuideCreateManyInput[]) {
+    await tx.tourGuide.deleteMany({ where: { tourId } });
+    if (guides.length) await tx.tourGuide.createMany({ data: guides.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceAttachments(tx: Prisma.TransactionClient, tourId: string, attachments: Prisma.TourAttachmentCreateManyInput[]) {
+    await tx.tourAttachment.deleteMany({ where: { tourId } });
+    if (attachments.length) await tx.tourAttachment.createMany({ data: attachments.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceSurveys(tx: Prisma.TransactionClient, tourId: string, surveys: Prisma.TourSurveyCreateManyInput[]) {
+    await tx.tourSurvey.deleteMany({ where: { tourId } });
+    if (surveys.length) await tx.tourSurvey.createMany({ data: surveys.map((row) => ({ ...row, tourId })) });
+  }
+
+  async replaceTerms(tx: Prisma.TransactionClient, tourId: string, terms: Prisma.TourTermCreateManyInput[]) {
+    await tx.tourTerm.deleteMany({ where: { tourId } });
+    if (terms.length) await tx.tourTerm.createMany({ data: terms.map((row) => ({ ...row, tourId })) });
+  }
+
+  primaryCustomer(dto: AnyRecord, fallbackName: string): Prisma.TourCustomerCreateManyInput {
+    return {
+      tourId: '',
+      customerType: 'CUSTOMER',
+      name: this.optionalText(dto.customerName) || fallbackName,
+      phone: this.optionalText(dto.phone),
+      email: this.optionalText(dto.email),
+      isPrimary: true,
+      notes: this.optionalText(dto.notes),
+    };
+  }
+
+  agentCustomer(dto: AnyRecord): Prisma.TourCustomerCreateManyInput | null {
+    const name = this.optionalText(dto.agentName);
+    return name ? { tourId: '', customerType: 'AGENT', name, isPrimary: false } : null;
+  }
+
+  mapGuides(rows?: unknown[]): Prisma.TourGuideCreateManyInput[] {
+    return this.rows(rows).map((row) => ({
+      tourId: '',
+      guideId: this.optionalText(row.guideId),
+      name: this.optionalText(row.name || row.ten) || 'Guide',
+      phone: this.optionalText(row.phone),
+      guideType: this.optionalText(row.guideType),
+      notes: this.optionalText(row.notes),
+    }));
+  }
+
+  mapAttachments(rows?: unknown[]): Prisma.TourAttachmentCreateManyInput[] {
+    return this.rows(rows).map((row) => ({
+      tourId: '',
+      step: this.optionalText(row.step),
+      fileName: this.optionalText(row.fileName || row.name) || 'attachment',
+      fileUrl: this.optionalText(row.fileUrl),
+      mimeType: this.optionalText(row.mimeType),
+      size: row.size === undefined || row.size === null ? null : Math.max(Math.trunc(this.number(row.size, 'size')), 0),
+      uploadedBy: this.optionalText(row.uploadedBy),
+    }));
+  }
+
+  mapSurveys(rows: unknown[] | undefined, defaults: string[] = []): Prisma.TourSurveyCreateManyInput[] {
+    const source = rows === undefined ? defaults.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
+    return this.rows(source).map((row, index) => ({
+      tourId: '',
+      orderNo: Math.max(Math.trunc(this.number(row.orderNo || row.stt || index + 1, 'orderNo')), 1),
+      question: this.optionalText(row.question) || 'Câu hỏi',
+      notes: this.optionalText(row.notes),
+    }));
+  }
+
+  mapRevenues(rows?: unknown[]): Prisma.TourRevenueCreateManyInput[] {
+    return this.rows(rows).map((row) => {
+      const quantity = this.number(row.quantity || 1, 'quantity');
+      const unitPrice = this.number(row.unitPrice, 'unitPrice');
+      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
+      const vat = this.number(row.vat, 'vat');
+      return {
+        tourId: '',
+        description: this.optionalText(row.description) || 'Doanh thu tour',
+        quantity,
+        unitPrice,
+        currency: this.optionalText(row.currency) || 'VND',
+        exchangeRate,
+        vat,
+        amount: this.money(row.amount, quantity * unitPrice * exchangeRate, vat),
+        invoiceNo: this.optionalText(row.invoiceNo),
+        notes: this.optionalText(row.notes),
+      };
+    });
+  }
+
+  mapSalesServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
+    return this.rows(rows).map((row) => {
+      const quantity = this.number(row.quantity || 1, 'quantity');
+      const salesUnitPrice = this.number(row.unitPrice || row.salesUnitPrice, 'salesUnitPrice');
+      const vat = this.number(row.vat, 'vat');
+      return {
+        tourId: '',
+        serviceType: this.optionalText(row.serviceType) || 'Dịch vụ',
+        supplierId: this.optionalText(row.supplierId),
+        supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
+        description: this.optionalText(row.description),
+        quantity,
+        salesUnitPrice,
+        vat,
+        salesAmount: this.money(row.amount, quantity * salesUnitPrice, vat),
+        notes: this.optionalText(row.notes),
+      };
+    });
+  }
+
+  mapBudgetServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
+    return this.rows(rows).map((row) => {
+      const quantity = this.number(row.quantity || 1, 'quantity');
+      const budgetUnitPrice = this.number(row.unitPrice || row.budgetUnitPrice, 'budgetUnitPrice');
+      const vat = this.number(row.vat, 'vat');
+      return {
+        tourId: '',
+        serviceType: this.optionalText(row.serviceType) || 'Dịch vụ',
+        supplierId: this.optionalText(row.supplierId),
+        supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
+        description: this.optionalText(row.description),
+        quantity,
+        budgetUnitPrice,
+        vat,
+        budgetAmount: this.money(row.amount, quantity * budgetUnitPrice, vat),
+        notes: this.optionalText(row.notes),
+      };
+    });
+  }
+
+  mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
+    return this.rows(rows).map((row) => {
+      const quantity = this.number(row.quantity || 1, 'quantity');
+      const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice, 'confirmedUnitPrice');
+      const vat = this.number(row.vat, 'vat');
+      return {
+        tourId: '',
+        serviceType: this.optionalText(row.serviceType) || 'Dịch vụ',
+        supplierId: this.optionalText(row.supplierId),
+        supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
+        description: this.optionalText(row.description),
+        quantity,
+        confirmedUnitPrice,
+        vat,
+        confirmedAmount: this.money(row.amount, quantity * confirmedUnitPrice, vat),
+        bookingCode: this.optionalText(row.bookingCode),
+        notes: this.optionalText(row.notes),
+      };
+    });
+  }
+
+  mapCosts(rows?: unknown[], costType = 'TOUR_COST'): Prisma.TourCostCreateManyInput[] {
+    return this.rows(rows).map((row) => ({
+      tourId: '',
+      supplierId: this.optionalText(row.supplierId),
+      costType: this.optionalText(row.costType || row.serviceType) || costType,
+      description: this.optionalText(row.description),
+      expectedAmount: this.number(row.amount || row.expectedAmount, 'expectedAmount'),
+      actualAmount: this.number(row.actualAmount, 'actualAmount'),
+      currency: this.optionalText(row.currency) || 'VND',
+      exchangeRate: this.number(row.exchangeRate || 1, 'exchangeRate'),
+      vat: this.number(row.vat, 'vat'),
+      invoiceNo: this.optionalText(row.invoiceNo),
+      notes: this.optionalText(row.notes),
+    }));
+  }
+
+  suppliersFromServices(services: Prisma.TourServiceCreateManyInput[], defaultRole = 'SERVICE'): Prisma.TourSupplierCreateManyInput[] {
+    const suppliers = new Map<string, Prisma.TourSupplierCreateManyInput>();
+    for (const service of services) {
+      const supplierId = this.optionalText(service.supplierId);
+      if (!supplierId || suppliers.has(supplierId)) continue;
+      suppliers.set(supplierId, {
+        tourId: '',
+        supplierId,
+        serviceType: this.optionalText(service.serviceType) || defaultRole,
+        role: defaultRole,
+        status: service.confirmationStatus,
+        notes: service.notes,
+      });
+    }
+    return Array.from(suppliers.values());
+  }
+
+  private statusFromWorkflow(workflowStep: string, config: TourRootConfig) {
+    return config.statusFromWorkflow ? config.statusFromWorkflow(workflowStep) : TourStatus.UPCOMING;
+  }
+
+  private pickText(dto: AnyRecord, field: string) {
+    return field in dto ? this.optionalText(dto[field]) || undefined : undefined;
+  }
+
+  private requiredText(value: unknown, field: string) {
+    const text = this.optionalText(value);
+    if (!text) throw new BadRequestException(`${field} là bắt buộc`);
+    return text;
+  }
+
+  private optionalText(value: unknown) {
+    const text = String(value ?? '').trim();
+    return text ? text : null;
+  }
+
+  private rows(rows?: unknown[]): AnyRecord[] {
+    return (rows || []).filter((row): row is AnyRecord => Boolean(row) && typeof row === 'object' && !Array.isArray(row));
+  }
+
+  private optionalDate(value: unknown, field: string) {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+      return value;
+    }
+    const text = this.optionalText(value);
+    if (!text) return null;
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    return date;
+  }
+
+  private number(value: unknown, field: string) {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    return parsed;
+  }
+
+  private money(explicitAmount: unknown, subtotal: number, vat: number) {
+    const amount = this.number(explicitAmount, 'amount');
+    return amount > 0 ? amount : subtotal * (1 + vat / 100);
+  }
+}

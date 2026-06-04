@@ -1,7 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
+import { TourCoreService } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
@@ -10,15 +11,20 @@ type Row = Record<string, unknown>;
 const landTourInclude = {
   landTour: true,
   customers: true,
+  suppliers: true,
+  revenues: true,
   services: { include: { supplier: true } },
+  costs: { include: { supplier: true } },
+  guides: true,
   terms: true,
   attachments: true,
+  surveys: true,
   logs: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.TourInclude;
 
 @Injectable()
 export class LandToursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
   list(search?: string, status?: TourStatus, user?: RequestUser) {
     const where: Prisma.TourWhereInput = {
@@ -38,7 +44,7 @@ export class LandToursService {
     };
 
     return this.prisma.tour.findMany({
-      where: branchDepartmentScopeWhere(where, user),
+      where: this.tourCore.scopeWhere(where, user),
       include: {
         landTour: true,
         customers: { where: { isPrimary: true }, take: 1 },
@@ -49,7 +55,7 @@ export class LandToursService {
   }
 
   async detail(id: string, user?: RequestUser) {
-    const tour = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
+    const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
     if (!tour) throw new NotFoundException('LandTour not found');
     return tour;
   }
@@ -57,15 +63,17 @@ export class LandToursService {
   async create(dto: CreateLandTourDto, user?: RequestUser) {
     dto = applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user) as CreateLandTourDto;
     try {
-      const tour = await this.prisma.tour.create({
-        data: {
-          ...this.toTourData(dto, true),
-          landTour: { create: this.toLandDetailData(dto) },
-          customers: { create: this.mapCustomers(dto) },
-          services: { create: [...this.mapSalesServices(dto.salesServices), ...this.mapOperationServices(dto.operationServices)] },
-          terms: { create: this.mapTerms(dto) },
-          logs: { create: { action: 'CREATE_LANDTOUR', entity: 'Tour' } },
-        } as Prisma.TourCreateInput,
+      const tour = await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
+        const created = await tx.tour.create({
+          data: {
+            ...this.toTourData(dto, true),
+            landTour: { create: this.toLandDetailData(dto) },
+          } as Prisma.TourCreateInput,
+        });
+        await this.replaceChildren(tx, created.id, dto, true);
+        await this.tourCore.log(tx, created.id, 'CREATE_LANDTOUR', { actor: user?.username || user?.email || user?.id || 'system' });
+        return created;
       });
       return this.detail(tour.id, user);
     } catch (error) {
@@ -81,6 +89,7 @@ export class LandToursService {
     dto = applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user) as UpdateLandTourDto;
     try {
       await this.prisma.$transaction(async (tx) => {
+        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
         await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
         await tx.landTourDetail.upsert({
           where: { tourId: id },
@@ -88,7 +97,7 @@ export class LandToursService {
           update: this.toLandDetailData(dto) as Prisma.LandTourDetailUncheckedUpdateInput,
         });
         await this.replaceChildren(tx, id, dto);
-        await tx.tourLog.create({ data: { tourId: id, action: 'UPDATE_LANDTOUR', entity: 'Tour' } });
+        await this.tourCore.log(tx, id, 'UPDATE_LANDTOUR', { actor: user?.username || user?.email || user?.id || 'system' });
       });
       return this.detail(id, user);
     } catch (error) {
@@ -101,21 +110,20 @@ export class LandToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.tour.delete({ where: { id } });
+    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system'));
   }
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    const source = await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: sourceTourId || targetTourId, type: TourType.LANDTOUR }, user), include: { services: true } });
+    const source = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id: sourceTourId || targetTourId, type: TourType.LANDTOUR }, user), include: { services: true } });
     if (!source) throw new NotFoundException('Source tour not found');
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.tourService.deleteMany({ where: { tourId: targetTourId } });
-      await tx.tourService.createMany({
-        data: source.services.map((service) => ({
-          tourId: targetTourId,
+      const services = source.services.map((service) => ({
+          tourId: '',
           serviceType: service.serviceType,
           supplierId: service.supplierId,
+          supplierServiceId: service.supplierServiceId,
           serviceDate: service.serviceDate,
           description: service.description,
           quantity: service.quantity,
@@ -132,51 +140,50 @@ export class LandToursService {
           confirmationStatus: service.confirmationStatus,
           bookingCode: service.bookingCode,
           notes: service.notes,
-        })),
-      });
+      }));
+      await this.tourCore.replaceServices(tx, targetTourId, services);
+      await this.tourCore.replaceSuppliers(tx, targetTourId, this.tourCore.suppliersFromServices(services, 'LANDTOUR_SERVICE'));
     });
     return this.detail(targetTourId, user);
   }
 
-  private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto) {
-    if (dto.customerName !== undefined) {
-      await tx.tourCustomer.deleteMany({ where: { tourId } });
-      await tx.tourCustomer.createMany({ data: this.mapCustomers(dto).map((row) => ({ ...row, tourId })) });
+  private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto, creating = false) {
+    if (creating || dto.customerName !== undefined) {
+      await this.tourCore.replaceCustomers(tx, tourId, [this.tourCore.primaryCustomer(dto as unknown as Row, 'LandTour Customer')]);
     }
-    if (dto.salesServices !== undefined || dto.operationServices !== undefined) {
-      await tx.tourService.deleteMany({ where: { tourId } });
-      await tx.tourService.createMany({ data: [...this.mapSalesServices(dto.salesServices), ...this.mapOperationServices(dto.operationServices)].map((row) => ({ ...row, tourId })) });
+    if (creating || dto.revenues !== undefined) {
+      await this.tourCore.replaceRevenues(tx, tourId, this.tourCore.mapRevenues(dto.revenues));
     }
-    if (dto.termsVi !== undefined || dto.termsEn !== undefined) {
-      await tx.tourTerm.deleteMany({ where: { tourId } });
-      await tx.tourTerm.createMany({ data: this.mapTerms(dto).map((row) => ({ ...row, tourId })) });
+    if (creating || dto.costs !== undefined) {
+      await this.tourCore.replaceCosts(tx, tourId, this.tourCore.mapCosts(dto.costs, 'LANDTOUR_COST'));
+    }
+    if (creating || dto.salesServices !== undefined || dto.operationServices !== undefined) {
+      const services = [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      await this.tourCore.replaceServices(tx, tourId, services);
+      await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'LANDTOUR_SERVICE'));
+    }
+    if (creating || dto.guideName !== undefined || dto.guides !== undefined) {
+      await this.tourCore.replaceGuides(tx, tourId, this.mapTourGuides(dto));
+    }
+    if (creating || dto.attachments !== undefined) {
+      await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
+    }
+    if (creating || dto.surveyQuestions !== undefined) {
+      await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions));
+    }
+    if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) {
+      await this.tourCore.replaceTerms(tx, tourId, this.mapTerms(dto));
     }
   }
 
   private toTourData(dto: UpdateLandTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return {
-      ...(creating ? { type: TourType.LANDTOUR, systemCode: this.requiredText(dto.systemCode), tourCode: this.requiredText(dto.tourCode) } : {}),
+    return this.tourCore.toTourData(dto as unknown as Record<string, unknown>, creating, {
       type: TourType.LANDTOUR,
-      ...(dto.status !== undefined ? { status: dto.status } : creating ? { status: TourStatus.UPCOMING } : {}),
-      ...(dto.paymentStatus !== undefined ? { paymentStatus: dto.paymentStatus } : creating ? { paymentStatus: PaymentStatus.UNPAID } : {}),
-      workflowStep: 'LANDTOUR_INFO',
-      ...(dto.systemCode !== undefined ? { systemCode: dto.systemCode.trim().toUpperCase() } : {}),
-      ...(dto.tourCode !== undefined ? { tourCode: dto.tourCode.trim().toUpperCase() } : {}),
-      ...(dto.name !== undefined ? { name: this.optionalText(dto.name) } : {}),
-      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
-      productType: 'LANDTOUR',
-      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
-      ...(dto.paymentDueDate !== undefined ? { paymentDueDate: this.optionalDate(dto.paymentDueDate) } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
-      ...('branch' in dto ? { branch: this.optionalText((dto as Record<string, unknown>).branch) } : {}),
-      ...('department' in dto ? { department: this.optionalText((dto as Record<string, unknown>).department) } : {}),
-      ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
-      ...(dto.itinerarySummary !== undefined ? { route: this.optionalText(dto.itinerarySummary) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
-    };
+      routeField: 'itinerarySummary',
+      defaultWorkflowStep: 'LANDTOUR_INFO',
+      defaultProductType: 'LANDTOUR',
+      defaultStatus: TourStatus.UPCOMING,
+    });
   }
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {
@@ -191,66 +198,20 @@ export class LandToursService {
     };
   }
 
-  private mapCustomers(dto: UpdateLandTourDto): Prisma.TourCustomerCreateWithoutTourInput[] {
-    return [{ customerType: 'CUSTOMER', name: dto.customerName?.trim() || 'LandTour Customer', isPrimary: true, notes: this.optionalText(dto.notes) }];
+  private mapTourGuides(dto: UpdateLandTourDto): Prisma.TourGuideCreateManyInput[] {
+    const guides = this.tourCore.mapGuides(dto.guides);
+    if (!guides.length && dto.guideName) {
+      guides.push({ tourId: '', name: dto.guideName, guideType: 'LANDTOUR' });
+    }
+    return guides;
   }
 
-  private mapSalesServices(rows?: unknown[]): Prisma.TourServiceCreateWithoutTourInput[] {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1);
-      const salesUnitPrice = this.number(row.unitPrice || row.salesUnitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Land service'),
-        supplier: this.optionalText(row.supplierId) ? { connect: { id: this.text(row.supplierId) } } : undefined,
-        description: this.optionalText(row.description),
-        quantity,
-        salesUnitPrice,
-        vat,
-        salesAmount: this.money(row.amount, quantity * salesUnitPrice, vat),
-        confirmationStatus: TourServiceStatus.WAITING,
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateWithoutTourInput[] {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1);
-      const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Land service'),
-        supplier: this.optionalText(row.supplierId) ? { connect: { id: this.text(row.supplierId) } } : undefined,
-        description: this.optionalText(row.description),
-        quantity,
-        confirmedUnitPrice,
-        vat,
-        confirmedAmount: this.money(row.amount, quantity * confirmedUnitPrice, vat),
-        confirmationStatus: this.toServiceStatus(row.status),
-        bookingCode: this.optionalText(row.bookingCode),
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private mapTerms(dto: UpdateLandTourDto): Prisma.TourTermCreateWithoutTourInput[] {
-    const terms: Prisma.TourTermCreateWithoutTourInput[] = [];
-    if (dto.termsVi) terms.push({ language: 'VI', termType: 'LANDTOUR', content: dto.termsVi });
-    if (dto.termsEn) terms.push({ language: 'EN', termType: 'LANDTOUR', content: dto.termsEn });
+  private mapTerms(dto: UpdateLandTourDto): Prisma.TourTermCreateManyInput[] {
+    const terms: Prisma.TourTermCreateManyInput[] = [];
+    if (dto.termsVi) terms.push({ tourId: '', language: 'VI', termType: 'LANDTOUR', content: dto.termsVi });
+    if (dto.termsEn) terms.push({ tourId: '', language: 'EN', termType: 'LANDTOUR', content: dto.termsEn });
     return terms;
   }
-
-  private rows(rows?: unknown[]): Row[] {
-    return (rows || []).filter((row): row is Row => Boolean(row) && typeof row === 'object');
-  }
-
-  private requiredText(value?: string) {
-    const text = value?.trim();
-    if (!text) throw new BadRequestException('Required LandTour field missing');
-    return text.toUpperCase();
-  }
-
   private text(value: unknown) {
     return String(value || '').trim();
   }
@@ -260,24 +221,11 @@ export class LandToursService {
     return text ? text : null;
   }
 
-  private optionalDate(value?: string) {
-    const text = value?.trim();
-    return text ? new Date(text) : null;
-  }
 
   private number(value: unknown) {
     const parsed = Number(value || 0);
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  private money(explicitAmount: unknown, subtotal: number, vat: number) {
-    const amount = this.number(explicitAmount);
-    return amount > 0 ? amount : subtotal * (1 + vat / 100);
-  }
 
-  private toServiceStatus(status: unknown) {
-    const value = this.text(status);
-    if (Object.values(TourServiceStatus).includes(value as TourServiceStatus)) return value as TourServiceStatus;
-    return TourServiceStatus.WAITING;
-  }
 }

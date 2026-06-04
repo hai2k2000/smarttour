@@ -238,90 +238,21 @@
 - Applied migration on VPS; Prisma status is up to date with 24 migrations.
 - Rebuilt/restarted `smarttour-web-preview`; smoke-tested 20 key routes through the domain.
 - Authenticated RBAC smoke-tested temporary sales/accounting/operation users and cleaned them up. Guard behavior passed; operation form empty-payload path currently reaches service and returns 500, so validation hardening remains before global enforcement.
-
-- Audited and stabilized the production UI/RBAC batch:
-  - Fixed Supplier page TypeScript declarations and Operations validation text.
-  - Updated healthcheck for authenticated `/` redirect.
-  - Replaced deprecated Next.js `middleware.ts` with `proxy.ts`.
-  - Rotated the production `JWT_SECRET` placeholder and hardened security audit detection.
-- Added reusable private MinIO file storage:
-  - Added shared `/api/files/upload`, `/api/files/download`, and delete endpoints.
-  - Added upload size validation and rejection for SVG/HTML/script-like file types.
-  - Started MinIO with API deploy and bound MinIO, n8n, and Compose nginx ports to localhost.
-  - Added MinIO health coverage and `npm run smoke:files`.
-- Connected Supplier attachment storage:
-  - Added upload/delete endpoints linked to `SupplierFile`.
-  - Added upload-after-save and download links to hotel and generic Supplier screens.
-  - Added cookie-backed API auth for direct private file downloads.
-  - Smoke-tested upload, download byte comparison, delete, SVG rejection, Supplier linkage, cookie download, and cleanup.
-- Connected FIT attachment storage:
-  - Added upload/delete endpoints linked to `FitAttachment` and mirrored metadata into common `TourAttachment`.
-  - FIT wizard now uploads selected binary files after save, shows private download links, and supports attachment deletion.
-  - Extended file smoke coverage for FIT create, upload, aggregate metadata sync, byte-identical download, delete, `404` after delete, and cleanup.
-- Connected Tour Guide attachment storage:
-  - Added upload/delete endpoints linked to `GuideFile`.
-  - Tour Guide screen now uploads selected binary files after save, shows private download links, and supports attachment deletion.
-  - Extended file smoke coverage for Tour Guide create, upload, byte-identical download, delete, `404` after delete, and cleanup.
-- Added migration `20260531121500_customer_files`.
-- Connected Customer attachment storage:
-  - Added `CustomerFile` plus upload/delete endpoints with Customer data-scope checks.
-  - Customer merge moves file metadata to the target profile; Customer delete removes stored objects.
-  - Customer create/detail screens now upload selected binary files, show private download links, and support attachment deletion.
-  - Extended file smoke coverage for Customer create, upload, byte-identical download, delete, aggregate-delete object cleanup, and temporary record cleanup.
-- Connected Finance receipt/payment attachment storage:
-  - Added upload/delete endpoints backed by the existing single-attachment voucher fields.
-  - Replacement upload cleans the prior private MinIO object best-effort.
-  - Finance receipt/payment forms upload selected files after create and expose private download links.
-  - Extended file smoke coverage for receipt/payment create, upload, byte-identical download, delete, `404` after delete, and cleanup.
-- Added migration `20260531143000_finance_invoice_files`.
-- Connected Finance invoice multi-file document storage:
-  - Added `FinanceInvoiceFile` plus invoice document upload/delete endpoints.
-  - Finance invoice create/list UI supports multiple private MinIO documents with add/delete controls.
-  - Extended file smoke coverage for invoice upload, byte-identical download, delete, `404` after delete, and cleanup.
-- Replaced the Finance receipt/payment CSV import placeholder:
-  - Added multipart CSV and JSON `rows` import with transaction writes.
-  - Added header, row-count, enum, date, amount, and duplicate-code validation.
-  - Added CSV import controls plus positive multipart CSV and invalid-row rejection smoke coverage for receipt/payment tabs.
-  - Native XLSX workbook parsing remains open.
-- Re-ran business smoke with an ephemeral super-admin account; empty Operation Form and Supplier Payment Request payloads return `400`, linked workflows pass, and temporary rows are cleaned.
-- Fixed Finance debt aggregation and aging:
-  - Finance customer/supplier debt APIs now return grouped UI rows plus raw ledger entries for traceability.
-  - Customer receivable and supplier payable semantics are grouped separately.
-  - Paid/received amounts are allocated against the oldest obligations to calculate current and overdue aging buckets.
-  - Finance debt UI now shows total, paid, current, overdue, and remaining amounts.
-  - Extended Finance/Reports smoke coverage for grouped debt contract, exports, routes, and cleanup.
-- Evaluated and removed `exceljs@4.4.0` because its transitive `uuid <11.1.1` dependency introduced moderate audit findings; production remains at zero dependency vulnerabilities.
-- Added migration `20260531154500_finance_debt_adjust_permission`.
-- Added Finance manual debt adjustments:
-  - Added `finance.debt.adjust` for accounting and super-admin roles.
-  - Added customer/supplier adjustment endpoints using traceable `MANUAL` ledger sources and `ADJUSTMENT` entries.
-  - Added a permission-protected adjustment form to the Finance debt tab.
-  - Extended Finance/Reports smoke coverage for adjustments, overdue aging, exports, routes, audit cleanup, and temporary record cleanup.
-- Fixed Finance payment reconciliation timing:
-  - Supplier payment requests stay `APPROVED` while generated Finance payments are `PENDING`, then move to `PAID` only after approval.
-  - Operation voucher payment creation now blocks active duplicates and defers paid amount/status updates until Finance approval.
-  - Finance payment approval performs idempotent reconciliation for linked supplier requests and operation vouchers, including legacy already-approved payments.
-  - Extended business-workflow smoke coverage for pending/paid transitions, duplicate rejection, routes, audit cleanup, and temporary record cleanup.
-- Added reconciliation UI across Operations, Operation Vouchers, and Finance:
-  - Added lifecycle-aware request actions and a timeline modal for supplier payment requests.
-  - Added Finance status, paid/remain amounts, and create/approve controls to Operation Voucher list/detail views.
-  - Added linked supplier request and operation voucher references to Finance payment rows.
-  - Extended list contract assertions in `scripts/smoke-business-workflows.sh`.
-- Fixed Finance cancellation reconciliation:
-  - Cancelling approved payments reopens supplier requests and restores linked Operation Voucher balances so replacement payments can be created.
-  - Receipt/payment cancellation reverses linked Order totals, and repeated receipt/payment/invoice cancellation is idempotent with a stable response shape.
-  - Added `scripts/smoke-finance-cancellations.sh` to `smoke:all`.
-- Hardened branch/department data-scope enforcement across backend helpers and scoped write flows, including Booking links, Operation dashboards/forms/payment requests, Operation Voucher linked payments, Supplier allotment allocations, and Tour Guide schedule links.
-- Added focused data-scope tests for branch, department, missing branch/department, no-scope writes, and linked module flows; verified `scripts/test-auth-data-scope.sh` and `scripts/test-data-scope-module-flows.sh`.
-- Confirmed VPS production baseline: 29 Prisma migrations applied, `SMARTTOUR_AUTH_ENFORCE=true`, named `admin`/`sale`/`dieuhanh`/`ketoan` users, passing health/security audits, and zero production dependency vulnerabilities.
+- Added Operations backend and UI smoke coverage.
+- `smoke-operations-backend.sh` now exercises dashboard load, operation form create/update/cancel, supplier payment request lifecycle, finance payment creation/approval/cancel reconciliation, branch scope, missing branch guardrails, and permission denials for view-only/request-create roles.
+- `smoke-operations-ui.js` now uses Playwright to cover `/operations` dashboard/form list loading, form and payment modals, request search, reconciliation panel, action button state, and tab-state reset.
+- Added stable Operations UI `data-testid` anchors and `smoke:operations:ui` npm script.
+- Verified on VPS: Operations backend smoke passed with `SMOKE_OPERATIONS_BACKEND_OK`, web Docker build passed, and Operations UI smoke passed with `SMOKE_OPERATIONS_UI_OK` against `https://aitour.io.vn`.
 
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.
-- Finance deepening: select a security-clean native XLSX parser, add XLSX/Word/PDF export, and deepen approval permissions.
+- Finance deepening: expose ledger/debt aging screens in UI, add manual adjustment endpoints, real XLSX import/export, Word/PDF export, binary upload storage, approval permissions, and richer operation-voucher/payment-request reconciliation UI.
 - Commission RBAC scopes, real payment voucher integration, Excel/PDF commission exports, tier rule management UI, and AI forecast integration.
-- Customer real Excel/PDF import/export, customer contracts/visa/booking normalized links, and AI lead scoring/insights.
-- Supplier import/export, debt links, payment totals, and transaction-aware soft delete beyond the current common soft-delete path.
+- Customer binary uploads, real Excel/PDF import/export, RBAC data scopes, customer contracts/visa/booking normalized links, and AI lead scoring/insights.
+- Supplier and Tour Program edit/delete UI.
+- Real binary/file storage for Supplier attachments; current Hotel Supplier screen only reserves the file input area.
+- Supplier import/export, debt links, payment totals, and transaction-aware soft delete.
 - Dedicated Supplier APIs for contact/service/allotment row-level CRUD.
 - UI surfacing for automatic hotel allotment allocation status in hotel booking and supplier inventory screens.
 - Dedicated normalized child tables for restaurant menu items, flight deadlines/pricing, landtour itineraries, villa pricing, and other type-specific records; current generic implementation stores type-specific service fields in `SupplierService.metadata`.
@@ -332,18 +263,18 @@
 - Rich text editor for quote itinerary content.
 - Hotel booking dedicated room/NCC selector from Hotel Supplier service rows; current hotel booking uses shared sales/operation rows.
 - Orders receipts, payments, finance history, export Word/PDF/Excel, and approval workflow UI.
-- HDV calendar conflict UI; current `/tour-guides` validates only overlapping schedules submitted in the same request.
-- Allotment calendar day/week/month UI, COD enforcement in order create flow, and full stop-sell blocking rules.
+- HDV file upload binary storage and calendar conflict UI; current `/tour-guides` stores file URL fields and validates only overlapping schedules submitted in the same request.
+- Allotment calendar day/week/month UI, automatic booked quantity updates from hotel booking orders, COD enforcement in order create flow, and full stop-sell blocking rules.
 - Group Booking Engine, Tour Transfer, Refund Management, SmartLink Portal, Email/Notification Center, Bulk Tour Generator, Dynamic Code Generator, KPI dashboards, RBAC permissions, Excel import/export, and notification service from `tour/bosung.md`.
 - Quotation Excel/PDF/Word export, supplier price picker, real hotel inventory pull for booking quotations, reminder notifications, 2-level approval permissions, public branded SmartLink page, quote AI readiness endpoints.
 - Reporting SQL/materialized views, XLSX export, chart visualizations, drill-down modal UI, RBAC report permissions, and receipt/payment voucher detail joins beyond current `Order`/`OperationVoucher` aggregates.
-- Richer operation voucher reconciliation with finance payments and expenses.
+- Operation voucher integration with real payment vouchers/expenses; current `create-payment-voucher` records voucher payment metadata only.
 - Flight booking dedicated passenger/ticket/term tables; current implementation uses shared `Order` members, sales items, operation items, terms, and surveys.
+- Real binary/file storage for FIT attachments; current UI records selected file metadata only.
 - Structured XLSX/CSV import and export for FIT tours.
 - Full GIT wizard/documents/payment-request workflow.
 - Full LandTour service views by service/supplier/day, SmartLink confirmation, export, and calendar.
 - Common finance/reporting UI from `tour_revenues`, `tour_costs`, `tour_receipts`, `tour_payments`, and `tour_expenses`.
-- Deeper Operation UI workflow: detail drawer, edit existing operation forms/payment requests, calendar/kanban assignment views, and operation voucher reconciliation view.
-- Full Auth/RBAC acceptance: confirm the real admin password, run the complete authenticated smoke suite, and manually validate branch/department scopes with named users.
-- Configure an off-VPS backup target and an external healthcheck webhook.
-- Automated tests.
+- Deeper Operation UI workflow: edit existing operation forms/payment requests, calendar/kanban assignment views, and operation voucher reconciliation view.
+- Full Auth/RBAC rollout: confirm/set real admin password flow, harden operation form/payment request validation, run authenticated mutation smoke tests with valid payloads across modules, enable `SMARTTOUR_AUTH_ENFORCE=true`, and add branch/department data scopes.
+- Broader automated tests beyond smoke coverage.

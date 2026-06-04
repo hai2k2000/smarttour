@@ -40,4 +40,10 @@ export class ToursController {
   remove(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.toursService.remove(id, request?.user);
   }
+
+  @Post(':id/close')
+  @RequirePermissions('tour.manage')
+  close(@Param('id') id: string, @Body() dto: { note?: string }, @Req() request?: { user?: RequestUser }) {
+    return this.toursService.close(id, dto, request?.user);
+  }
 }

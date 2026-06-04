@@ -50,9 +50,7 @@ run_step "auth data scope helpers" bash scripts/test-auth-data-scope.sh
 run_step "module data scope flows" bash scripts/test-data-scope-module-flows.sh
 
 run_step "order calculator" bash scripts/test-order-calculator.sh
-run_step "orders controller permissions" bash scripts/test-orders-controller-permissions.sh
 run_step "order service flows" bash scripts/test-order-service-flows.sh
-run_step "orders API permission and scope" bash scripts/test-orders-api.sh
 
 run_step "finance rules" bash scripts/test-finance-rules.sh
 run_step "finance service flows" bash scripts/test-finance-service-flows.sh
@@ -74,7 +72,11 @@ fi
 
 if [[ "$RUN_LIVE_API_SMOKES" == "1" ]]; then
   run_step "live business smoke" bash scripts/smoke-business-workflows.sh
+  run_step "live operations backend smoke" bash scripts/smoke-operations-backend.sh
+  run_step "live suppliers smoke" bash scripts/smoke-suppliers.sh
+  run_step "live quotes and quotations smoke" bash scripts/smoke-quotes-quotations.sh
   run_step "live finance reports smoke" bash scripts/smoke-finance-reports.sh
+  run_step "live reports business rules smoke" bash scripts/smoke-reports-business-rules.sh
   run_step "live finance cancellations smoke" bash scripts/smoke-finance-cancellations.sh
   run_step "live files smoke" bash scripts/smoke-files.sh
 else

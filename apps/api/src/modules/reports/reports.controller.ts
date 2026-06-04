@@ -66,7 +66,7 @@ export class ReportsController {
   }
 
   @Get('export/:report')
-  @RequirePermissions('report.export')
+  @RequirePermissions('report.view', 'report.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-report.csv"')
   export(@Param('report') report: string, @Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {

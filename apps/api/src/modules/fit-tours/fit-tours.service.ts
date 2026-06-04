@@ -2,8 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { TourCoreService } from '../tours/tour-core.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
+import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 
 type Row = Record<string, unknown>;
 
@@ -61,21 +63,25 @@ const workflowOrder = [
 ] as const;
 const terminalWorkflowStatuses = new Set<FitTourWorkflowStatus>([FitTourWorkflowStatus.COMPLETED, FitTourWorkflowStatus.CANCELLED]);
 
-const defaultHandoverItems = ['Rooming list', 'Vé máy bay', 'Bảo hiểm du lịch', 'Chương trình tour', 'Final confirmation'];
+const defaultHandoverItems = ['Rooming list', 'V my bay', 'Bo him du lch', 'Chng trnh tour', 'Final confirmation'];
 const defaultSurveyQuestions = [
-  'Chất lượng chương trình tour',
-  'Phương tiện vận chuyển',
-  'Chất lượng đồ ăn',
-  'Thái độ nhân viên tư vấn',
-  'Chất lượng khách sạn',
-  'Hướng dẫn viên',
-  'Công tác tổ chức',
-  'Mức độ hài lòng chung',
+  'Cht lng chng trnh tour',
+  'Phng tin vn chuyn',
+  'Cht lng  n',
+  'Thi  nhn vin t vn',
+  'Cht lng khch sn',
+  'Hng dn vin',
+  'Cng tc t chc',
+  'Mc  hi lng chung',
 ];
 
 @Injectable()
 export class FitToursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tourCore: TourCoreService,
+    private readonly legacyCompat: FitTourLegacyCompatService,
+  ) {}
 
   list(search?: string, status?: string, user?: RequestUser) {
     const workflowStatus = this.toWorkflowStatus(status);
@@ -103,7 +109,7 @@ export class FitToursService {
 
   async detail(id: string, user?: RequestUser) {
     const fitTour = await this.prisma.fitTour.findFirst({ where: this.fitTourScopeWhere({ id }, user), include: fitTourInclude });
-    if (!fitTour) throw new NotFoundException('FIT tour not found');
+    if (!fitTour) throw new NotFoundException('Không tìm thấy tour FIT');
     return fitTour;
   }
 
@@ -112,7 +118,7 @@ export class FitToursService {
     try {
       const created = await this.prisma.$transaction(async (tx) => {
         const fitDto = await this.withCustomerSnapshot(tx, dto);
-        await this.ensureOrder(tx, fitDto.orderId);
+        await this.tourCore.ensureOrder(tx, fitDto.orderId, user);
         this.validateProvidedFields(fitDto, true);
         this.validateFitTourBusinessRules(fitDto, true);
         this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
@@ -135,12 +141,13 @@ export class FitToursService {
           } as Prisma.FitTourCreateInput,
         });
         await this.replaceTourCoreChildren(tx, tour.id, fitDto);
+        await this.tourCore.log(tx, tour.id, 'CREATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: fitTour.id });
         return fitTour;
       });
       return this.detail(created.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('FIT quote code already exists');
+        throw new ConflictException('Mã báo giá FIT đã tồn tại');
       }
       throw error;
     }
@@ -152,7 +159,7 @@ export class FitToursService {
     try {
       await this.prisma.$transaction(async (tx) => {
         const patch = await this.withCustomerSnapshot(tx, dto);
-        await this.ensureOrder(tx, patch.orderId);
+        await this.tourCore.ensureOrder(tx, patch.orderId, user);
         const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
         this.validateProvidedFields(patch, false);
         this.validateFitTourBusinessRules(merged, false);
@@ -170,11 +177,12 @@ export class FitToursService {
         await tx.tour.update({ where: { id: tourId }, data: this.toTourCoreData(merged, false) as Prisma.TourUncheckedUpdateInput });
         await this.replaceChildren(tx, id, patch);
         await this.replaceTourCoreChildren(tx, tourId, merged);
+        await this.tourCore.log(tx, tourId, 'UPDATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: id });
       });
       return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('FIT quote code already exists');
+        throw new ConflictException('Mã báo giá FIT đã tồn tại');
       }
       throw error;
     }
@@ -183,14 +191,14 @@ export class FitToursService {
   async remove(id: string, user?: RequestUser) {
     const fitTour = await this.detail(id, user);
     return this.prisma.$transaction(async (tx) => {
-      const deleted = await tx.fitTour.delete({ where: { id } });
-      if (fitTour.tourId) await tx.tour.delete({ where: { id: fitTour.tourId } });
-      return deleted;
+      const updated = await tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
+      if (fitTour.tourId) await this.tourCore.softDelete(tx, fitTour.tourId, user?.username || user?.email || user?.id || 'system');
+      return updated;
     });
   }
 
   async copyBudget(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
-    const targetId = this.requiredText(targetTourId, 'targetTourId');
+    const targetId = this.requiredText(targetTourId, 'Cần chọn tour đích');
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
     await this.detail(targetId, user);
@@ -216,7 +224,7 @@ export class FitToursService {
   }
 
   async copyOperation(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
-    const targetId = this.requiredText(targetTourId, 'targetTourId');
+    const targetId = this.requiredText(targetTourId, 'Cần chọn tour đích');
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
     await this.detail(targetId, user);
@@ -244,9 +252,9 @@ export class FitToursService {
   }
 
   private validateProvidedFields(dto: UpdateFitTourDto, creating: boolean) {
-    this.validateTextLength(dto.quoteCode, 'quoteCode', 'Mã báo giá', 2, creating);
-    this.validateTextLength(dto.tourCode, 'tourCode', 'Mã tour', 2, creating);
-    this.validateTextLength(dto.customerName, 'customerName', 'Họ tên khách', 2, creating);
+    this.validateTextLength(dto.quoteCode, 'quoteCode', 'M bo gi', 2, creating);
+    this.validateTextLength(dto.tourCode, 'tourCode', 'M tour', 2, creating);
+    this.validateTextLength(dto.customerName, 'customerName', 'H tn khch', 2, creating);
   }
 
   private validateFitTourBusinessRules(dto: UpdateFitTourDto, creating: boolean) {
@@ -254,7 +262,7 @@ export class FitToursService {
     const childCount = this.nonNegativeInteger(dto.childCount, 'childCount');
     const infantCount = this.nonNegativeInteger(dto.infantCount, 'infantCount');
     if (adultCount + childCount + infantCount < 1) {
-      throw new BadRequestException('Số khách phải lớn hơn 0');
+      throw new BadRequestException('S khch phi ln hn 0');
     }
 
     for (const field of [
@@ -276,7 +284,7 @@ export class FitToursService {
     const startDate = this.optionalDate(dto.startDate, 'startDate');
     const endDate = this.optionalDate(dto.endDate, 'endDate');
     if (startDate && endDate && startDate > endDate) {
-      throw new BadRequestException('Ngày về phải sau hoặc bằng ngày khởi đi');
+      throw new BadRequestException('Ngy v phi sau hoc bng ngy khi i');
     }
 
     if (dto.bookingDate !== undefined) this.optionalDate(dto.bookingDate, 'bookingDate');
@@ -291,7 +299,7 @@ export class FitToursService {
     const next = this.toWorkflowStatusStrict(nextStatus) || FitTourWorkflowStatus.DRAFT;
     if (creating) {
       if (next !== FitTourWorkflowStatus.DRAFT && next !== FitTourWorkflowStatus.PRICING) {
-        throw new BadRequestException('Tour FIT mới chỉ được tạo ở trạng thái Nháp hoặc Tính giá');
+        throw new BadRequestException('Tour FIT mi ch c to  trng thi Nhp hoc Tnh gi');
       }
       return;
     }
@@ -299,29 +307,29 @@ export class FitToursService {
     if (nextStatus === undefined) return;
     const current = currentStatus || FitTourWorkflowStatus.DRAFT;
     if (terminalWorkflowStatuses.has(current) && next !== current) {
-      throw new BadRequestException('Không thể đổi trạng thái của tour FIT đã ở trạng thái cuối');
+      throw new BadRequestException('Khng th i trng thi ca tour FIT   trng thi cui');
     }
     if (next === FitTourWorkflowStatus.CANCELLED) return;
     if (next === FitTourWorkflowStatus.COMPLETED && current !== FitTourWorkflowStatus.SURVEY && current !== FitTourWorkflowStatus.COMPLETED) {
-      throw new BadRequestException('Chỉ được hoàn tất tour FIT sau bước Phiếu đánh giá dịch vụ');
+      throw new BadRequestException('Ch c hon tt tour FIT sau bc Phiu nh gi dch v');
     }
 
     const currentIndex = workflowOrder.indexOf(current as (typeof workflowOrder)[number]);
     const nextIndex = workflowOrder.indexOf(next as (typeof workflowOrder)[number]);
     if (currentIndex >= 0 && nextIndex >= 0 && nextIndex > currentIndex + 1) {
-      throw new BadRequestException('Không được chuyển workflow FIT vượt quá bước kế tiếp');
+      throw new BadRequestException('Khng c chuyn workflow FIT vt qu bc k tip');
     }
   }
 
   private validateTextLength(dtoValue: unknown, field: string, label: string, minLength: number, required: boolean) {
     if (dtoValue === undefined && !required) return;
     const text = this.requiredText(dtoValue, field);
-    if (text.length < minLength) throw new BadRequestException(`${label} cần ít nhất ${minLength} ký tự`);
+    if (text.length < minLength) throw new BadRequestException(`${label} cn t nht ${minLength} k t`);
   }
 
   private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
-    if (!user || hasUnrestrictedDataScope(user)) return where;
-    const scopedTour = branchDepartmentScopeWhere<Prisma.TourWhereInput>({}, user);
+    if (!user || hasUnrestrictedDataScope(user)) return { AND: [where, { tour: { is: { deletedAt: null } } }] };
+    const scopedTour = branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user);
     return { AND: [where, { tour: { is: scopedTour } }] };
   }
 
@@ -329,7 +337,7 @@ export class FitToursService {
     const customerId = this.optionalText(dto.customerId);
     if (!customerId) return dto;
     const customer = await tx.customer.findUnique({ where: { id: customerId }, select: { fullName: true, phone: true, email: true } });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw new NotFoundException('Không tìm thấy khách hàng');
     return {
       ...dto,
       customerId,
@@ -343,7 +351,7 @@ export class FitToursService {
     const id = this.optionalText(orderId);
     if (!id) return;
     const order = await tx.order.findUnique({ where: { id }, select: { id: true } });
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (!order) throw new NotFoundException('Khng tm thy n hng');
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
@@ -386,65 +394,84 @@ export class FitToursService {
   }
 
   private async replaceTourCoreChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
-    await tx.tourCustomer.deleteMany({ where: { tourId } });
-    await tx.tourCustomer.create({
-      data: {
-        tourId,
-        crmCustomerId: this.optionalText(dto.customerId),
-        customerType: 'PRIMARY',
-        name: this.requiredText(dto.customerName, 'customerName'),
-        phone: this.optionalText(dto.phone),
-        email: this.optionalText(dto.email),
-        isPrimary: true,
-        notes: this.optionalText(dto.notes),
-      },
-    });
-
-    await tx.tourGuide.deleteMany({ where: { tourId } });
-    await tx.tourGuide.createMany({ data: this.mapGuides(dto.guides).map((row) => ({ ...row, tourId })) });
-
-    await tx.tourAttachment.deleteMany({ where: { tourId } });
-    await tx.tourAttachment.createMany({ data: this.mapAttachments(dto.attachments).map((row) => ({ ...row, tourId, uploadedBy: null })) });
-
-    await tx.tourSurvey.deleteMany({ where: { tourId } });
-    await tx.tourSurvey.createMany({ data: this.mapSurveyQuestions(dto.surveyQuestions).map((row) => ({ ...row, tourId })) });
-
-    await tx.tourService.deleteMany({ where: { tourId } });
-    await tx.tourService.createMany({ data: this.mapTourServices(dto).map((row) => ({ ...row, tourId })) });
+    await this.tourCore.replaceCustomers(tx, tourId, [this.mapTourCustomer(dto)]);
+    await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
+    await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
+    await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions, defaultSurveyQuestions));
+    await this.tourCore.replaceRevenues(tx, tourId, this.mapTourRevenues(dto));
+    await this.tourCore.replaceCosts(tx, tourId, this.mapTourCosts(dto));
+    const services = this.mapTourServices(dto).map((row) => ({ ...row, tourId: '' }));
+    await this.tourCore.replaceServices(tx, tourId, services);
+    await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'FIT_SERVICE'));
   }
 
   private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    const workflowStep = dto.workflowStatus || FitTourWorkflowStatus.DRAFT;
-    return {
-      ...(creating
-        ? {
-            type: TourType.FIT,
-            systemCode: this.requiredText(dto.quoteCode, 'quoteCode').toUpperCase(),
-            tourCode: this.requiredText(dto.tourCode, 'tourCode').toUpperCase(),
-          }
-        : {}),
+    return this.tourCore.toTourData(dto as Record<string, unknown>, creating, {
       type: TourType.FIT,
-      status: this.toTourStatus(workflowStep),
-      workflowStep,
-      ...(dto.quoteCode !== undefined ? { systemCode: dto.quoteCode.trim().toUpperCase() } : {}),
-      ...(dto.tourCode !== undefined ? { tourCode: dto.tourCode.trim().toUpperCase() } : {}),
-      ...(dto.tourName !== undefined ? { name: this.optionalText(dto.tourName) } : {}),
-      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
-      ...(dto.tourType !== undefined ? { productType: this.optionalText(dto.tourType) } : {}),
-      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
-      ...('branch' in dto ? { branch: this.optionalText((dto as Record<string, unknown>).branch) } : {}),
-      ...('department' in dto ? { department: this.optionalText((dto as Record<string, unknown>).department) } : {}),
-      ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
-      ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
-      ...(dto.flightRoute !== undefined ? { flightRoute: this.optionalText(dto.flightRoute) } : {}),
-      ...(dto.pickupPoint !== undefined ? { pickupPoint: this.optionalText(dto.pickupPoint) } : {}),
-      ...(dto.dropoffPoint !== undefined ? { dropoffPoint: this.optionalText(dto.dropoffPoint) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
+      systemCodeField: 'quoteCode',
+      tourCodeField: 'tourCode',
+      nameField: 'tourName',
+      productTypeField: 'tourType',
+      workflowField: 'workflowStatus',
+      defaultWorkflowStep: FitTourWorkflowStatus.DRAFT,
+      statusFromWorkflow: (workflowStep) => this.toTourStatus(workflowStep),
+    });
+  }
+
+  private mapTourCustomer(dto: UpdateFitTourDto): Prisma.TourCustomerCreateManyInput {
+    return {
+      tourId: '',
+      crmCustomerId: this.optionalText(dto.customerId),
+      customerType: 'CUSTOMER',
+      name: this.requiredText(dto.customerName, 'Can nhap ten khach hang'),
+      phone: this.optionalText(dto.phone),
+      email: this.optionalText(dto.email),
+      isPrimary: true,
+      notes: this.optionalText(dto.notes),
     };
+  }
+
+  private mapTourRevenues(dto: UpdateFitTourDto): Prisma.TourRevenueCreateManyInput[] {
+    if (dto.revenues !== undefined) return this.tourCore.mapRevenues(dto.revenues);
+    const amount = this.number(dto.sellingPrice || dto.tourPrice);
+    if (amount <= 0) return [];
+    return [
+      {
+        tourId: '',
+        description: this.optionalText(dto.tourName) || this.optionalText(dto.tourCode) || 'FIT revenue',
+        quantity: 1,
+        unitPrice: amount,
+        currency: 'VND',
+        exchangeRate: 1,
+        vat: 0,
+        amount,
+        notes: this.optionalText(dto.notes),
+      },
+    ];
+  }
+
+  private mapTourCosts(dto: UpdateFitTourDto): Prisma.TourCostCreateManyInput[] {
+    if (dto.costs !== undefined) return this.tourCore.mapCosts(dto.costs, 'FIT_COST');
+    const mapRows = (
+      rows: Array<{ serviceType: string; description: string | null; amount: number; currency: string; exchangeRate: number; vat: number; notes: string | null }>,
+      costType: string,
+    ) =>
+      rows.map((row) => ({
+        tourId: '',
+        costType: row.serviceType || costType,
+        description: row.description,
+        expectedAmount: row.amount,
+        actualAmount: row.amount,
+        currency: row.currency || 'VND',
+        exchangeRate: row.exchangeRate || 1,
+        vat: row.vat,
+        notes: row.notes,
+      }));
+    return [
+      ...mapRows(this.mapCommonCosts(dto.commonCosts), 'FIT_COMMON_COST'),
+      ...mapRows(this.mapHotelCosts(dto.hotelCosts), 'FIT_HOTEL_COST'),
+      ...mapRows(this.mapPrivateCosts(dto.privateCosts), 'FIT_PRIVATE_COST'),
+    ];
   }
 
   private mapTourServices(dto: UpdateFitTourDto): Array<Omit<Prisma.TourServiceCreateManyInput, 'tourId'>> {
@@ -484,62 +511,7 @@ export class FitToursService {
   }
 
   private toFitTourData(dto: UpdateFitTourDto, creating: boolean): Prisma.FitTourUncheckedCreateInput | Prisma.FitTourUncheckedUpdateInput {
-    const requiredCreate = creating
-      ? {
-          quoteCode: this.requiredText(dto.quoteCode, 'quoteCode').toUpperCase(),
-          tourCode: this.requiredText(dto.tourCode, 'tourCode').toUpperCase(),
-          customerName: this.requiredText(dto.customerName, 'customerName'),
-        }
-      : {};
-
-    return {
-      ...requiredCreate,
-      ...(dto.quoteCode !== undefined ? { quoteCode: dto.quoteCode.trim().toUpperCase() } : {}),
-      ...(dto.tourCode !== undefined ? { tourCode: dto.tourCode.trim().toUpperCase() } : {}),
-      ...(dto.customerName !== undefined ? { customerName: dto.customerName.trim() } : {}),
-      ...(dto.tourName !== undefined ? { tourName: this.optionalText(dto.tourName) } : {}),
-      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
-      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
-      ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone) } : {}),
-      ...(dto.email !== undefined ? { email: this.optionalText(dto.email) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
-      ...(dto.adultCount !== undefined ? { adultCount: this.number(dto.adultCount) } : creating ? { adultCount: 1 } : {}),
-      ...(dto.childCount !== undefined ? { childCount: this.number(dto.childCount) } : {}),
-      ...(dto.infantCount !== undefined ? { infantCount: this.number(dto.infantCount) } : {}),
-      ...(dto.sellingPrice !== undefined ? { sellingPrice: this.number(dto.sellingPrice) } : {}),
-      ...(dto.commissionPerGuest !== undefined ? { commissionPerGuest: this.number(dto.commissionPerGuest) } : {}),
-      ...(dto.workflowStatus !== undefined ? { workflowStatus: dto.workflowStatus } : creating ? { workflowStatus: FitTourWorkflowStatus.DRAFT } : {}),
-      ...(dto.allowOverbooking !== undefined ? { allowOverbooking: Boolean(dto.allowOverbooking) } : {}),
-      ...this.pickOptionalText(dto as Record<string, unknown>, [
-        'flightRoute',
-        'tourType',
-        'exchangeRateCode',
-        'operatorOwner',
-        'transportMode',
-        'outboundRoute',
-        'outboundCarrier',
-        'returnRoute',
-        'returnCarrier',
-        'pickupPoint',
-        'dropoffPoint',
-        'handoverGuideRequest',
-        'surveyDescription',
-      ]),
-      ...this.pickOptionalNumbers(dto as Record<string, unknown>, [
-        'exchangeRate',
-        'seatCount',
-        'tourPrice',
-        'discount',
-        'adultPrice',
-        'childPrice25',
-        'childPrice611',
-        'infantPrice',
-        'surcharge',
-      ]),
-      ...this.pickOptionalDates(dto as Record<string, unknown>, ['visaDeadline', 'holdUntil', 'confirmedAt', 'closeAt']),
-    };
+    return this.legacyCompat.toFitTourData(dto, creating);
   }
 
   private mapCommonCosts(rows?: unknown[]) {
@@ -551,7 +523,7 @@ export class FitToursService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dịch vụ'),
+        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dch v'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         quantity,
@@ -575,7 +547,7 @@ export class FitToursService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || 'Khách sạn'),
+        serviceType: this.text(row.serviceType || 'Khch sn'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         paxPerRoom,
@@ -600,7 +572,7 @@ export class FitToursService {
       const unitPrice = this.number(row.unitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dịch vụ'),
+        serviceType: this.text(row.serviceType || 'Dch v'),
         supplierId: this.optionalText(row.supplierId),
         description: this.optionalText(row.description),
         quantity,
@@ -618,7 +590,7 @@ export class FitToursService {
       const confirmedUnitPrice = this.number(row.confirmedUnitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dịch vụ'),
+        serviceType: this.text(row.serviceType || 'Dch v'),
         supplierId: this.optionalText(row.supplierId),
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         bookingCode: this.optionalText(row.bookingCode),
@@ -646,7 +618,7 @@ export class FitToursService {
     const source = rows === undefined ? defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      itemName: this.text(row.itemName || row.name || 'Tài liệu bàn giao'),
+      itemName: this.text(row.itemName || row.name || 'Ti liu bn giao'),
       quantity: this.number(row.quantity || 1),
       notes: this.optionalText(row.notes),
     }));
@@ -656,7 +628,7 @@ export class FitToursService {
     const source = rows === undefined ? defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      question: this.text(row.question || 'Câu hỏi'),
+      question: this.text(row.question || 'Cu hi'),
       notes: this.optionalText(row.notes),
     }));
   }
@@ -694,7 +666,7 @@ export class FitToursService {
 
   private requiredText(value: unknown, field: string) {
     const text = this.text(value);
-    if (!text) throw new BadRequestException(`${field} is required`);
+    if (!text) throw new BadRequestException(`${field} l? b?t bu?c`);
     return text;
   }
 
@@ -705,13 +677,13 @@ export class FitToursService {
 
   private optionalDate(value: unknown, field = 'date') {
     if (value instanceof Date) {
-      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} khng hp l`);
       return value;
     }
     const text = this.text(value);
     if (!text) return null;
     const date = new Date(text);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} khng hp l`);
     return date;
   }
 
@@ -722,14 +694,14 @@ export class FitToursService {
 
   private nonNegativeNumber(value: unknown, field: string) {
     const number = Number(value ?? 0);
-    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phải là số hợp lệ`);
-    if (number < 0) throw new BadRequestException(`${field} không được âm`);
+    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phi l s hp l`);
+    if (number < 0) throw new BadRequestException(`${field} khng c m`);
     return number;
   }
 
   private nonNegativeInteger(value: unknown, field: string) {
     const number = this.nonNegativeNumber(value, field);
-    if (!Number.isInteger(number)) throw new BadRequestException(`${field} phải là số nguyên`);
+    if (!Number.isInteger(number)) throw new BadRequestException(`${field} phi l s nguyn`);
     return number;
   }
 
@@ -748,14 +720,14 @@ export class FitToursService {
     const value = this.text(status);
     if (!value) return undefined;
     if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value as FitTourWorkflowStatus;
-    throw new BadRequestException('Trạng thái workflow FIT không hợp lệ');
+    throw new BadRequestException('Trng thi workflow FIT khng hp l');
   }
 
   private toAttachmentStep(step: unknown) {
     const value = this.text(step);
     if (!value) return null;
     if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value;
-    throw new BadRequestException('Bước workflow của file đính kèm không hợp lệ');
+    throw new BadRequestException('Bc workflow ca file nh km khng hp l');
   }
 
   private toServiceStatus(status: unknown) {

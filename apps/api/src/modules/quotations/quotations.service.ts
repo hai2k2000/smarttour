@@ -4,6 +4,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateQuotationDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
 
+type QuotationItemInput = NonNullable<CreateQuotationDto['items']>[number];
+
 const ORDER_TYPE_BY_PRODUCT: Record<string, OrderType> = {
   FIT: 'FIT_TOUR',
   GIT: 'GIT_COMBO',
@@ -66,11 +68,13 @@ export class QuotationsService {
 
   async create(dto: CreateQuotationDto, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
+    dto = this.prepareDto(dto, true);
+    this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const totals = this.calculate(dto);
         const quote = await tx.quotation.create({ data: { ...this.toData(dto), ...totals, smartLinkToken: this.token(dto.quoteCode) } as Prisma.QuotationCreateInput });
-        await this.replaceItems(tx, quote.id, dto.items ?? []);
+        await this.replaceItems(tx, quote.id, dto.items ?? [], dto.exchangeRate);
         await tx.quotationApprovalLog.create({ data: { quotationId: quote.id, action: 'CREATE', newStatus: quote.status } });
         return tx.quotation.findUniqueOrThrow({ where: { id: quote.id }, include: this.includeAll() });
       });
@@ -83,7 +87,8 @@ export class QuotationsService {
   async update(id: string, dto: UpdateQuotationDto, user?: RequestUser) {
     const current = await this.detail(id, user);
     dto = applyWriteDataScope(dto, user);
-    if (current.status === 'CONVERTED') throw new BadRequestException('Converted quotation cannot be edited');
+    this.assertEditable(current.status);
+    dto = this.prepareDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const items = dto.items ?? current.items.map((item) => ({
@@ -102,8 +107,16 @@ export class QuotationsService {
           markupPercent: Number(item.markupPercent),
           note: item.note ?? undefined,
         }));
-        await tx.quotation.update({ where: { id }, data: { ...this.toData(dto), ...this.calculate({ ...current, ...dto, items } as CreateQuotationDto) } as Prisma.QuotationUpdateInput });
-        if (dto.items) await this.replaceItems(tx, id, dto.items);
+        const merged = {
+          ...current,
+          childPricePercent: this.derivePricePercent(current.childPrice, current.sellingPerPax, 75),
+          infantPricePercent: this.derivePricePercent(current.infantPrice, current.sellingPerPax, 20),
+          ...dto,
+          items,
+        } as CreateQuotationDto;
+        this.validateDates(merged);
+        await tx.quotation.update({ where: { id }, data: { ...this.toData(dto), ...this.calculate(merged) } as Prisma.QuotationUpdateInput });
+        if (dto.items || dto.exchangeRate !== undefined) await this.replaceItems(tx, id, items, merged.exchangeRate);
         await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'UPDATE', actor: 'Operator', oldStatus: current.status, newStatus: dto.status ?? current.status } });
         return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
@@ -114,24 +127,35 @@ export class QuotationsService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    await this.detail(id, user);
+    const quote = await this.detail(id, user);
+    this.assertDeletable(quote.status);
     return this.prisma.quotation.delete({ where: { id } });
   }
 
   async submit(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    return this.status(id, 'PENDING_APPROVAL', 'SUBMIT', dto, user);
+    const current = await this.detail(id, user);
+    if (current.status === 'PENDING_APPROVAL') return current;
+    this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit');
+    return this.statusFromCurrent(current, 'PENDING_APPROVAL', 'SUBMIT', dto);
   }
 
   async approve(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    return this.status(id, 'APPROVED', 'APPROVE', dto, user);
+    const current = await this.detail(id, user);
+    if (current.status === 'APPROVED') return current;
+    this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve');
+    return this.statusFromCurrent(current, 'APPROVED', 'APPROVE', dto);
   }
 
   async reject(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    return this.status(id, 'REJECTED', 'REJECT', dto, user);
+    const current = await this.detail(id, user);
+    if (current.status === 'REJECTED') return current;
+    this.assertStatus(current.status, ['PENDING_APPROVAL'], 'reject');
+    return this.statusFromCurrent(current, 'REJECTED', 'REJECT', dto);
   }
 
   async smartLink(id: string, enabled = true, user?: RequestUser) {
-    await this.detail(id, user);
+    const current = await this.detail(id, user);
+    this.assertStatus(current.status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'toggle smartlink');
     return this.prisma.quotation.update({ where: { id }, data: { smartLinkEnabled: enabled }, include: this.includeAll() });
   }
 
@@ -139,6 +163,12 @@ export class QuotationsService {
     const quote = await this.detail(id, user);
     if (quote.status !== 'APPROVED') throw new BadRequestException('Only approved quotations can be converted');
     const orderType = ORDER_TYPE_BY_PRODUCT[quote.productType] || 'SINGLE_SERVICE';
+    const exchangeRate = this.positiveRate(quote.exchangeRate);
+    const totals = this.calculate({
+      ...(quote as unknown as CreateQuotationDto),
+      childPricePercent: this.derivePricePercent(quote.childPrice, quote.sellingPerPax, 75),
+      infantPricePercent: this.derivePricePercent(quote.infantPrice, quote.sellingPerPax, 20),
+    });
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -146,13 +176,19 @@ export class QuotationsService {
           systemCode: `ORD-${quote.quoteCode}`,
           tourCode: quote.quoteCode,
           name: quote.route || quote.productCategory || quote.quoteCode,
+          route: quote.route,
           marketGroup: quote.marketGroup,
           bookingDate: new Date(),
           paymentDate: quote.expectedPaymentDate,
           startDate: quote.departureDate,
           endDate: quote.returnDate,
+          tourCategory: quote.productCategory,
+          currency: quote.currency,
+          exchangeRate: quote.exchangeRate,
+          createdBy: quote.salesOwner,
           branch: quote.branch,
           department: quote.department,
+          customerId: quote.customerId,
           customerName: quote.customerName,
           customerPhone: quote.customerPhone,
           customerEmail: quote.customerEmail,
@@ -161,33 +197,82 @@ export class QuotationsService {
           childQty: quote.paxChild,
           infantQty: quote.paxInfant,
           quantity: quote.paxTotal,
-          totalRevenue: quote.totalSelling,
-          remainingRevenue: quote.totalSelling,
-          totalCost: quote.totalCost,
-          remainingCost: quote.totalCost,
-          profit: Number(quote.totalSelling) - Number(quote.totalCost),
-          salesItems: { create: quote.items.map((item, index) => ({ serviceType: item.serviceType, supplierId: item.supplierId, serviceId: item.serviceId, description: item.serviceName, quantity: item.quantity, serviceCount: item.nightCount, unitPrice: item.sellingPrice, vat: 0, amount: item.amount, note: item.note, sortOrder: index })) },
-          operationItems: { create: quote.items.map((item, index) => ({ serviceType: item.serviceType, supplierId: item.supplierId, serviceId: item.serviceId, quantity: item.quantity, netPrice: item.netPrice, vat: item.vat, amount: item.netPrice, status: 'WAITING', note: item.note, sortOrder: index })) },
+          totalRevenue: totals.totalSelling,
+          remainingRevenue: totals.totalSelling,
+          totalCost: totals.totalCost,
+          remainingCost: totals.totalCost,
+          profit: totals.totalSelling - totals.totalCost,
+          note: quote.note,
+          salesItems: { create: quote.items.map((item, index) => ({ serviceType: item.serviceType, supplierId: item.supplierId, serviceId: item.serviceId, description: item.serviceName, quantity: item.quantity, serviceCount: item.nightCount, unitPrice: this.unitSellingForOrder(item, exchangeRate), vat: 0, amount: this.itemSelling(item, exchangeRate), note: item.note, sortOrder: index })) },
+          operationItems: { create: quote.items.map((item, index) => ({ serviceType: item.serviceType, supplierId: item.supplierId, serviceId: item.serviceId, quantity: item.quantity, netPrice: this.unitCostForOrder(item, exchangeRate), vat: 0, amount: this.itemCost(item, exchangeRate), status: 'WAITING', note: item.note, sortOrder: index })) },
           terms: quote.terms ? { create: [{ language: quote.language, terms: quote.terms }] } : undefined,
         } as Prisma.OrderCreateInput,
       });
-      await tx.quotation.update({ where: { id }, data: { status: 'CONVERTED', convertedOrderId: order.id } });
+      await tx.quotation.update({ where: { id }, data: { ...totals, status: 'CONVERTED', convertedOrderId: order.id } });
       await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'CONVERT', actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: quote.status, newStatus: 'CONVERTED' } });
       return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
     });
   }
 
-  private async status(id: string, status: QuotationStatus, action: string, dto: QuotationActionDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    const quote = await this.prisma.quotation.update({ where: { id }, data: { status }, include: this.includeAll() });
-    await this.prisma.quotationApprovalLog.create({ data: { quotationId: id, action, actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
+  private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto) {
+    const quote = await this.prisma.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
+    await this.prisma.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
     return quote;
+  }
+
+  private prepareDto<T extends Partial<CreateQuotationDto>>(dto: T, requireItems: boolean): T {
+    const prepared = { ...dto } as Partial<CreateQuotationDto>;
+    if (dto.items !== undefined || requireItems) {
+      prepared.items = this.sanitizeItems(dto.items, requireItems || dto.items !== undefined);
+    }
+    return prepared as T;
+  }
+
+  private sanitizeItems(items: CreateQuotationDto['items'], requireOne: boolean): QuotationItemInput[] {
+    const rows = (items ?? []).filter((item) => this.hasItemContent(item));
+    if (requireOne && !rows.length) throw new BadRequestException('At least one quotation item is required');
+    return rows.map((item, index) => {
+      const serviceType = this.text(item.serviceType);
+      const serviceName = this.text(item.serviceName);
+      if (!serviceType || serviceType.length < 2) throw new BadRequestException(`Quotation item ${index + 1} requires service type`);
+      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Quotation item ${index + 1} requires service name`);
+      return {
+        serviceType,
+        supplierId: this.text(item.supplierId) ?? undefined,
+        serviceId: this.text(item.serviceId) ?? undefined,
+        supplierName: this.text(item.supplierName) ?? undefined,
+        serviceName,
+        unit: this.text(item.unit) ?? undefined,
+        quantity: this.nonNegative(item.quantity, 1),
+        paxCount: this.nonNegative(item.paxCount, 1),
+        nightCount: this.nonNegative(item.nightCount, 1),
+        netPrice: this.nonNegative(item.netPrice),
+        vat: this.nonNegative(item.vat),
+        markupAmount: this.number(item.markupAmount),
+        markupPercent: this.number(item.markupPercent),
+        note: this.text(item.note) ?? undefined,
+      };
+    });
+  }
+
+  private hasItemContent(item: QuotationItemInput) {
+    return Boolean(
+      this.text(item.serviceName) ||
+      this.text(item.supplierName) ||
+      this.text(item.unit) ||
+      this.text(item.note) ||
+      this.number(item.netPrice) > 0 ||
+      this.number(item.vat) > 0 ||
+      this.number(item.markupAmount) !== 0 ||
+      this.number(item.markupPercent) !== 0,
+    );
   }
 
   private calculate(dto: Partial<CreateQuotationDto>) {
     const items = dto.items ?? [];
-    const totalCost = items.reduce((sum, item) => sum + this.itemCost(item), 0);
-    const totalMarkup = items.reduce((sum, item) => sum + this.itemMarkup(item), 0);
+    const exchangeRate = this.positiveRate(dto.exchangeRate);
+    const totalCost = items.reduce((sum, item) => sum + this.itemCost(item, exchangeRate), 0);
+    const totalMarkup = items.reduce((sum, item) => sum + this.itemMarkup(item, exchangeRate), 0);
     const totalSelling = totalCost + totalMarkup;
     const paxTotal = Math.max(1, (dto.paxAdult ?? 0) + (dto.paxChild ?? 0) + (dto.paxInfant ?? 0));
     const costPerPax = totalCost / paxTotal;
@@ -198,20 +283,39 @@ export class QuotationsService {
     return { totalCost, totalMarkup, totalSelling, paxTotal, costPerPax, sellingPerPax, profitPerPax, marginRate: totalSelling ? (totalMarkup / totalSelling) * 100 : 0, adultPrice: sellingPerPax, childPrice: sellingPerPax * childPercent / 100, infantPrice: sellingPerPax * infantPercent / 100 };
   }
 
-  private itemCost(item: { quantity?: number; nightCount?: number; netPrice?: number; vat?: number }) {
-    return (item.quantity ?? 1) * (item.nightCount ?? 1) * (item.netPrice ?? 0) * (1 + (item.vat ?? 0) / 100);
+  private itemCost(item: { quantity?: unknown; nightCount?: unknown; netPrice?: unknown; vat?: unknown }, exchangeRate = 1) {
+    return this.number(item.quantity, 1) * this.number(item.nightCount, 1) * this.number(item.netPrice) * exchangeRate * (1 + this.number(item.vat) / 100);
   }
 
-  private itemMarkup(item: { quantity?: number; nightCount?: number; netPrice?: number; vat?: number; markupAmount?: number; markupPercent?: number }) {
-    const cost = this.itemCost(item);
-    return (item.markupAmount ?? 0) + cost * ((item.markupPercent ?? 0) / 100);
+  private itemMarkup(item: { quantity?: unknown; nightCount?: unknown; netPrice?: unknown; vat?: unknown; markupAmount?: unknown; markupPercent?: unknown }, exchangeRate = 1) {
+    const cost = this.itemCost(item, exchangeRate);
+    return this.number(item.markupAmount) + cost * (this.number(item.markupPercent) / 100);
   }
 
-  private async replaceItems(tx: Prisma.TransactionClient, quotationId: string, items: CreateQuotationDto['items']) {
+  private itemSelling(item: { quantity?: unknown; nightCount?: unknown; netPrice?: unknown; vat?: unknown; markupAmount?: unknown; markupPercent?: unknown }, exchangeRate = 1) {
+    return this.itemCost(item, exchangeRate) + this.itemMarkup(item, exchangeRate);
+  }
+
+  private unitCostForOrder(item: { quantity?: number | Prisma.Decimal; nightCount?: number | Prisma.Decimal; netPrice?: number | Prisma.Decimal; vat?: number | Prisma.Decimal }, exchangeRate = 1) {
+    const nightCount = Number(item.nightCount ?? 1);
+    const netPrice = Number(item.netPrice ?? 0);
+    const vat = Number(item.vat ?? 0);
+    return nightCount * netPrice * exchangeRate * (1 + vat / 100);
+  }
+
+  private unitSellingForOrder(item: { quantity?: number | Prisma.Decimal; nightCount?: number | Prisma.Decimal; netPrice?: number | Prisma.Decimal; vat?: number | Prisma.Decimal; markupAmount?: number | Prisma.Decimal; markupPercent?: number | Prisma.Decimal }, exchangeRate = 1) {
+    const quantity = Number(item.quantity ?? 1);
+    const nightCount = Number(item.nightCount ?? 1);
+    const denominator = Math.max(1, quantity * nightCount);
+    return this.itemSelling(item, exchangeRate) / denominator;
+  }
+
+  private async replaceItems(tx: Prisma.TransactionClient, quotationId: string, items: CreateQuotationDto['items'], exchangeRateValue?: unknown) {
+    const exchangeRate = this.positiveRate(exchangeRateValue);
     await tx.quotationItem.deleteMany({ where: { quotationId } });
     await tx.quotationItem.createMany({ data: (items ?? []).filter((i) => i.serviceName).map((item, index) => {
-      const cost = this.itemCost(item);
-      const markup = this.itemMarkup(item);
+      const cost = this.itemCost(item, exchangeRate);
+      const markup = this.itemMarkup(item, exchangeRate);
       return { quotationId, serviceType: item.serviceType, supplierId: this.text(item.supplierId), serviceId: this.text(item.serviceId), supplierName: this.text(item.supplierName), serviceName: item.serviceName.trim(), unit: this.text(item.unit), quantity: item.quantity ?? 1, paxCount: item.paxCount ?? 1, nightCount: item.nightCount ?? 1, netPrice: item.netPrice ?? 0, vat: item.vat ?? 0, markupAmount: item.markupAmount ?? 0, markupPercent: item.markupPercent ?? 0, sellingPrice: cost + markup, amount: cost + markup, note: this.text(item.note), sortOrder: index };
     }) });
   }
@@ -235,7 +339,7 @@ export class QuotationsService {
       ...(dto.paxChild !== undefined ? { paxChild: dto.paxChild } : {}),
       ...(dto.paxInfant !== undefined ? { paxInfant: dto.paxInfant } : {}),
       ...(dto.currency !== undefined ? { currency: dto.currency || 'VND' } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: dto.exchangeRate || 1 } : {}),
+      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.positiveRate(dto.exchangeRate) } : {}),
       ...(dto.createdDate !== undefined ? { createdDate: this.date(dto.createdDate) } : {}),
       ...(dto.expiredDate !== undefined ? { expiredDate: this.date(dto.expiredDate) } : {}),
       ...(dto.expectedPaymentDate !== undefined ? { expectedPaymentDate: this.date(dto.expectedPaymentDate) } : {}),
@@ -254,6 +358,30 @@ export class QuotationsService {
     return { items: { include: { supplier: true, service: true }, orderBy: { sortOrder: 'asc' } }, logs: { orderBy: { createdAt: 'desc' } } } satisfies Prisma.QuotationInclude;
   }
 
+  private assertEditable(status: QuotationStatus) {
+    this.assertStatus(status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'edit');
+  }
+
+  private assertDeletable(status: QuotationStatus) {
+    this.assertStatus(status, ['DRAFT', 'REJECTED', 'EXPIRED', 'CANCELLED'], 'delete');
+  }
+
+  private assertStatus(status: QuotationStatus, allowed: QuotationStatus[], action: string) {
+    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} quotation from status ${status}`);
+  }
+
+  private validateDates(dto: Partial<CreateQuotationDto>) {
+    this.assertDateOrder(dto.createdDate, dto.expiredDate, 'Expired date must be after created date');
+    this.assertDateOrder(dto.createdDate, dto.expectedPaymentDate, 'Expected payment date must be after created date');
+    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Return date must be after departure date');
+  }
+
+  private assertDateOrder(startValue: unknown, endValue: unknown, message: string) {
+    const start = this.dateValue(startValue);
+    const end = this.dateValue(endValue);
+    if (start && end && end < start) throw new BadRequestException(message);
+  }
+
   private token(code: string) {
     return `${code.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
   }
@@ -263,7 +391,36 @@ export class QuotationsService {
     return trimmed ? trimmed : null;
   }
 
-  private date(value?: string | null) {
-    return value ? new Date(value) : null;
+  private date(value?: string | Date | null) {
+    return this.dateValue(value);
+  }
+
+  private dateValue(value?: unknown) {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid date');
+    return date;
+  }
+
+  private number(value: unknown, fallback = 0) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  private nonNegative(value: unknown, fallback = 0) {
+    return Math.max(0, this.number(value, fallback));
+  }
+
+  private positiveRate(value: unknown, fallback = 1) {
+    const number = this.number(value, fallback);
+    return number > 0 ? number : fallback;
+  }
+
+  private derivePricePercent(price: unknown, sellingPerPax: unknown, fallback: number) {
+    const selling = this.number(sellingPerPax);
+    if (selling <= 0) return fallback;
+    const percent = this.number(price) / selling * 100;
+    return Number.isFinite(percent) && percent >= 0 ? percent : fallback;
   }
 }

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -24,6 +24,8 @@ const SUPPLIER_TYPE_LABELS: Record<string, string> = {
   'series-tickets': 'Series Ticket',
 };
 
+type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
+
 @Injectable()
 export class SuppliersService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
@@ -36,8 +38,14 @@ export class SuppliersService {
   }
 
   async createCategory(dto: CreateSupplierCategoryDto) {
+    const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
+    const existing = await this.prisma.supplierCategory.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Loại nhà cung cấp đã tồn tại');
     try {
-      return await this.prisma.supplierCategory.create({ data: { name: dto.name.trim() } });
+      return await this.prisma.supplierCategory.create({ data: { name } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Loại nhà cung cấp đã tồn tại');
@@ -90,6 +98,7 @@ export class SuppliersService {
   }
 
   async createSupplier(dto: CreateSupplierDto) {
+    this.validateSupplierPayload(dto);
     await this.ensureCategory(dto.categoryId);
     return this.prisma.supplier.create({
       data: this.toSupplierData(dto) as Prisma.SupplierUncheckedCreateInput,
@@ -99,6 +108,7 @@ export class SuppliersService {
 
   async updateSupplier(id: string, dto: UpdateSupplierDto) {
     await this.getSupplier(id);
+    this.validateSupplierPayload(dto, true);
     if (dto.categoryId) await this.ensureCategory(dto.categoryId);
     return this.prisma.supplier.update({
       where: { id },
@@ -109,29 +119,20 @@ export class SuppliersService {
 
   async deleteSupplier(id: string) {
     await this.getSupplier(id);
+    const usage = await this.supplierUsage(id);
+    if (usage.total > 0) {
+      throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
+    }
     return this.prisma.supplier.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' }, include: { category: true } });
   }
 
-  async updateSupplierStatus(id: string, status: SupplierStatus) {
+  async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string) {
     await this.getSupplier(id);
-    return this.prisma.supplier.update({
-      where: { id },
-      data: { status },
-      include: { category: true, hotelProfile: true },
-    });
-  }
-
-  async addSupplierFile(
-    supplierId: string,
-    file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
-    actorId?: string,
-  ) {
-    await this.getSupplier(supplierId);
-    const upload = await this.filesService.upload(file, `suppliers/${supplierId}`, actorId);
+    const upload = await this.filesService.upload(file, `suppliers/${id}`, actorId);
     try {
       return await this.prisma.supplierFile.create({
         data: {
-          supplierId,
+          supplierId: id,
           fileName: upload.fileName,
           fileUrl: upload.url,
           fileType: upload.mimeType,
@@ -144,31 +145,23 @@ export class SuppliersService {
     }
   }
 
-  async deleteSupplierFile(supplierId: string, fileId: string) {
-    await this.getSupplier(supplierId);
-    const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId } });
-    if (!file) throw new NotFoundException('Không tìm thấy file nhà cung cấp');
+  async deleteSupplierFile(id: string, fileId: string) {
+    await this.getSupplier(id);
+    const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
+    if (!file) throw new NotFoundException('Khong tim thay file nha cung cap');
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    const deleted = await this.prisma.supplierFile.delete({ where: { id: file.id } });
-    try {
-      await this.filesService.removeIfPresent(objectKey);
-      return deleted;
-    } catch (error) {
-      await this.prisma.supplierFile.create({
-        data: {
-          id: deleted.id,
-          supplierId: deleted.supplierId,
-          fileName: deleted.fileName,
-          fileUrl: deleted.fileUrl,
-          fileType: deleted.fileType,
-          uploadedBy: deleted.uploadedBy,
-          createdAt: deleted.createdAt,
-        },
-      }).catch(() => undefined);
-      throw error;
-    }
+    if (objectKey) await this.filesService.remove(objectKey);
+    return this.prisma.supplierFile.delete({ where: { id: fileId } });
   }
 
+  async updateSupplierStatus(id: string, status: SupplierStatus) {
+    await this.getSupplier(id);
+    return this.prisma.supplier.update({
+      where: { id },
+      data: { status },
+      include: { category: true, hotelProfile: true },
+    });
+  }
 
   async listTypedSuppliers(type: string, query: { search?: string; province?: string; status?: SupplierStatus; market?: string }) {
     const categoryName = this.getTypeLabel(type);
@@ -296,7 +289,7 @@ export class SuppliersService {
       where: { id, hotelProfile: { isNot: null } },
       include: this.hotelInclude(),
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Hotel supplier not found');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp khách sạn');
     return supplier;
   }
 
@@ -406,7 +399,7 @@ export class SuppliersService {
 
   async overrideAllotment(id: string, dto: OverrideAllotmentDto) {
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException('Allotment not found');
+    if (!current) throw new NotFoundException('Không tìm thấy allotment');
     const next = {
       allotmentQty: dto.allotmentQty ?? current.allotmentQty,
       bookedQty: dto.bookedQty ?? current.bookedQty,
@@ -414,13 +407,13 @@ export class SuppliersService {
       status: dto.status ?? current.status,
     };
     if (next.bookedQty + next.lockedQty > next.allotmentQty && next.status !== 'STOP_SELL') {
-      throw new BadRequestException('Booked plus locked quantity cannot exceed allotment quantity');
+      throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá số lượng allotment');
     }
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.supplierAllotment.update({
         where: { id },
         data: next,
-        include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 } },
+        include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
       });
       await tx.supplierAllotmentLog.create({
         data: {
@@ -445,9 +438,9 @@ export class SuppliersService {
   async lockAllotment(id: string, dto: LockAllotmentDto, user?: RequestUser) {
     const quantity = dto.quantity ?? 1;
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException('Allotment not found');
-    if (current.status !== 'ACTIVE') throw new BadRequestException('Allotment is not active');
-    await this.ensureAllocationLinks(dto, user);
+    if (!current) throw new NotFoundException('Không tìm thấy allotment');
+    if (current.status !== 'ACTIVE') throw new BadRequestException('Allotment chưa ở trạng thái hoạt động');
+    await this.ensureAllocationLinks(dto);
     if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
       throw new BadRequestException('Service does not match allotment');
     }
@@ -455,6 +448,7 @@ export class SuppliersService {
     if (current.bookedQty + current.lockedQty + quantity > allotmentQty) {
       throw new BadRequestException('Not enough allotment quantity');
     }
+    const actor = this.actorFrom(dto.actor, user);
     return this.prisma.$transaction(async (tx) => {
       const allocation = await tx.supplierAllotmentAllocation.create({
         data: {
@@ -468,7 +462,7 @@ export class SuppliersService {
           status: 'LOCKED',
           lockedAt: new Date(),
           note: this.optionalText(dto.note),
-          createdBy: this.optionalText(dto.actor),
+          createdBy: actor,
         },
       });
       const updated = await tx.supplierAllotment.update({
@@ -477,7 +471,7 @@ export class SuppliersService {
         include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
       });
       await tx.supplierAllotmentLog.create({
-        data: { allotmentId: id, supplierId: current.supplierId, action: 'LOCK', oldValue: { lockedQty: current.lockedQty }, newValue: { allocationId: allocation.id, quantity }, note: this.optionalText(dto.note), actor: this.optionalText(dto.actor) },
+        data: { allotmentId: id, supplierId: current.supplierId, action: 'LOCK', oldValue: { lockedQty: current.lockedQty }, newValue: { allocationId: allocation.id, quantity }, note: this.optionalText(dto.note), actor },
       });
       return { allocation, inventory: this.toAllotmentInventory(updated, new Date()) };
     });
@@ -493,15 +487,15 @@ export class SuppliersService {
 
   private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto, user?: RequestUser) {
     const allocation = await this.prisma.supplierAllotmentAllocation.findUnique({ where: { id }, include: { allotment: true } });
-    if (!allocation) throw new NotFoundException('Allotment allocation not found');
-    await this.ensureAllocationScoped(allocation, user);
+    if (!allocation) throw new NotFoundException('Không tìm thấy phân bổ allotment');
     if (allocation.status === nextStatus) return allocation;
     if (!['LOCKED', 'CONFIRMED'].includes(allocation.status)) {
-      throw new BadRequestException('Allocation cannot be changed from current status');
+      throw new BadRequestException('Không thể thay đổi phân bổ ở trạng thái hiện tại');
     }
     if (nextStatus === 'CONFIRMED' && allocation.status !== 'LOCKED') {
-      throw new BadRequestException('Only locked allocations can be confirmed');
+      throw new BadRequestException('Chỉ các phân bổ đã khóa mới được xác nhận');
     }
+    const actor = this.actorFrom(dto.actor, user);
     return this.prisma.$transaction(async (tx) => {
       const allotmentUpdate =
         nextStatus === 'CONFIRMED'
@@ -530,65 +524,34 @@ export class SuppliersService {
           oldValue: { allocationId: id, status: allocation.status },
           newValue: { allocationId: id, status: nextStatus, quantity: allocation.quantity },
           note: this.optionalText(dto.note),
-          actor: this.optionalText(dto.actor),
+          actor,
         },
       });
       return { allocation: updatedAllocation, inventory: this.toAllotmentInventory(updated, new Date()) };
     });
   }
 
-  private async ensureAllocationLinks(dto: LockAllotmentDto, user?: RequestUser) {
-    if (this.requiresScopedOperationalLink(user) && !dto.orderId && !dto.bookingId && !dto.tourId) {
-      throw new BadRequestException('orderId, bookingId or tourId is required for scoped allotment writes');
-    }
+  private async ensureAllocationLinks(dto: LockAllotmentDto) {
     if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
-    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking', user);
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found', user);
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
+    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking');
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour');
   }
 
-  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string, user?: RequestUser) {
+  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string) {
     const row =
       model === 'supplierService'
         ? await this.prisma.supplierService.findUnique({ where: { id }, select: { id: true } })
         : model === 'order'
-          ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
+          ? await this.prisma.order.findUnique({ where: { id }, select: { id: true } })
           : model === 'booking'
-            ? await this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id }, user), select: { id: true } })
-            : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
+            ? await this.prisma.booking.findUnique({ where: { id }, select: { id: true } })
+            : await this.prisma.tour.findUnique({ where: { id }, select: { id: true } });
     if (!row) throw new NotFoundException(message);
   }
 
-  private async ensureAllocationScoped(
-    allocation: { orderId: string | null; bookingId: string | null; tourId: string | null },
-    user?: RequestUser,
-  ) {
-    if (!this.requiresScopedOperationalLink(user)) return;
-    const [order, booking, tour] = await Promise.all([
-      allocation.orderId ? this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id: allocation.orderId }, user), select: { id: true } }) : null,
-      allocation.bookingId ? this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id: allocation.bookingId }, user), select: { id: true } }) : null,
-      allocation.tourId ? this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id: allocation.tourId }, user), select: { id: true } }) : null,
-    ]);
-    if (!order && !booking && !tour) throw new NotFoundException('Allotment allocation not found');
-  }
-
-  private requiresScopedOperationalLink(user?: RequestUser) {
-    if (!user || hasUnrestrictedDataScope(user)) return false;
-    applyWriteDataScope({ branch: undefined, department: undefined }, user);
-    return true;
-  }
-
-  private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
-    if (!user || hasUnrestrictedDataScope(user)) return where;
-    const permissions = userPermissions(user);
-    const OR: Prisma.BookingWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
-  }
-
   private async ensureCategory(id: string) {
+    if (!this.optionalText(id)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
     const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
     if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
   }
@@ -603,9 +566,9 @@ export class SuppliersService {
 
   private toSupplierData(dto: UpdateSupplierDto & Partial<CreateHotelSupplierDto & CreateGenericSupplierDto>) {
     return {
-      ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+      ...(dto.categoryId !== undefined ? { categoryId: this.requiredText(dto.categoryId, 'Cần chọn loại nhà cung cấp') } : {}),
       ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalText(dto.supplierCode) } : {}),
-      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Tên nhà cung cấp phải có ít nhất 2 ký tự') } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode) } : {}),
       ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson) } : {}),
       ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone) } : {}),
@@ -770,7 +733,7 @@ export class SuppliersService {
   }
 
   private toAllotmentInventory(
-    item: Prisma.SupplierAllotmentGetPayload<{ include: { supplier: true; logs: true } }> & { allocations?: Array<{ status: string; quantity: number }> },
+    item: Prisma.SupplierAllotmentGetPayload<{ include: { supplier: true; logs: true; allocations: true } }>,
     today: Date,
   ) {
     const allotmentQty = item.allotmentQty || item.quantityLock || 0;
@@ -809,7 +772,115 @@ export class SuppliersService {
     return categoryName;
   }
 
-  private optionalText(value?: string) {
+  private requiredText(value: string | undefined, message: string) {
+    const text = this.optionalText(value);
+    if (!text) throw new BadRequestException(message);
+    return text;
+  }
+
+  private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false) {
+    if (!partial || dto.categoryId !== undefined) {
+      if (!this.optionalText(dto.categoryId)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
+    }
+
+    if (!partial || dto.name !== undefined) {
+      const name = this.optionalText(dto.name);
+      if (!name || name.length < 2) throw new BadRequestException('Tên nhà cung cấp phải có ít nhất 2 ký tự');
+    }
+
+    if (dto.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email.trim())) {
+      throw new BadRequestException('Email nhà cung cấp không hợp lệ');
+    }
+  }
+
+  private async supplierUsage(id: string) {
+    const [
+      orderSalesItems,
+      orderOperationItems,
+      operationVouchers,
+      financePayments,
+      financeCashflowEntries,
+      supplierLedgerEntries,
+      supplierPaymentItems,
+      operationServices,
+      quoteComboItems,
+      quotationItems,
+      tourSuppliers,
+      tourServices,
+      tourCosts,
+      fitBudgetServices,
+      fitOperationServices,
+      allotmentAllocations,
+    ] = await Promise.all([
+      this.prisma.orderSalesItem.count({ where: { supplierId: id } }),
+      this.prisma.orderOperationItem.count({ where: { supplierId: id } }),
+      this.prisma.operationVoucher.count({ where: { supplierId: id, deletedAt: null } }),
+      this.prisma.financePayment.count({ where: { supplierId: id, deletedAt: null } }),
+      this.prisma.financeCashflowEntry.count({ where: { supplierId: id } }),
+      this.prisma.supplierLedgerEntry.count({ where: { supplierId: id } }),
+      this.prisma.supplierPaymentItem.count({ where: { supplierId: id } }),
+      this.prisma.operationService.count({ where: { supplierId: id } }),
+      this.prisma.quoteComboItem.count({ where: { supplierId: id } }),
+      this.prisma.quotationItem.count({ where: { supplierId: id } }),
+      this.prisma.tourSupplier.count({ where: { supplierId: id } }),
+      this.prisma.tourService.count({ where: { supplierId: id } }),
+      this.prisma.tourCost.count({ where: { supplierId: id } }),
+      this.prisma.fitBudgetService.count({ where: { supplierId: id } }),
+      this.prisma.fitOperationService.count({ where: { supplierId: id } }),
+      this.prisma.supplierAllotmentAllocation.count({ where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
+    ]);
+    const usage = {
+      orderSalesItems,
+      orderOperationItems,
+      operationVouchers,
+      financePayments,
+      financeCashflowEntries,
+      supplierLedgerEntries,
+      supplierPaymentItems,
+      operationServices,
+      quoteComboItems,
+      quotationItems,
+      tourSuppliers,
+      tourServices,
+      tourCosts,
+      fitBudgetServices,
+      fitOperationServices,
+      allotmentAllocations,
+    };
+
+    return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };
+  }
+
+  private usageSummary(usage: Awaited<ReturnType<SuppliersService['supplierUsage']>>) {
+    const labels: Array<[Exclude<keyof typeof usage, 'total'>, string]> = [
+      ['orderSalesItems', 'dịch vụ bán trong đơn'],
+      ['orderOperationItems', 'dịch vụ điều hành trong đơn'],
+      ['operationVouchers', 'phiếu điều hành'],
+      ['financePayments', 'phiếu chi'],
+      ['financeCashflowEntries', 'dòng tiền'],
+      ['supplierLedgerEntries', 'sổ công nợ NCC'],
+      ['supplierPaymentItems', 'yêu cầu thanh toán'],
+      ['operationServices', 'dịch vụ điều hành'],
+      ['quoteComboItems', 'dịch vụ combo'],
+      ['quotationItems', 'item báo giá'],
+      ['tourSuppliers', 'NCC trong tour'],
+      ['tourServices', 'dịch vụ tour'],
+      ['tourCosts', 'chi phí tour'],
+      ['fitBudgetServices', 'dự toán FIT'],
+      ['fitOperationServices', 'điều hành FIT'],
+      ['allotmentAllocations', 'allotment đang khóa/xác nhận'],
+    ];
+    return labels
+      .filter(([key]) => usage[key] > 0)
+      .map(([key, label]) => `${usage[key]} ${label}`)
+      .join(', ');
+  }
+
+  private actorFrom(dtoActor?: string | null, user?: RequestUser) {
+    return this.optionalText(dtoActor) || this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || null;
+  }
+
+  private optionalText(value?: string | null) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
   }
