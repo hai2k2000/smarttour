@@ -5,6 +5,14 @@ import { OrderAllotmentService } from './order-allotment-sync';
 
 type SettledOrder = { id: string; settledAt: Date | null; status?: OrderStatus | string | null };
 type LifecycleOrder = SettledOrder & { type: OrderType };
+const ORDER_STATUS_TARGETS: Record<OrderType, ReadonlySet<OrderStatus>> = {
+  FIT_TOUR: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  GIT_COMBO: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  LANDTOUR: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  HOTEL_BOOKING: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  SINGLE_SERVICE: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  FLIGHT_ORDER: new Set(['DRAFT', 'UPCOMING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+};
 
 @Injectable()
 export class OrderLifecycleService {
@@ -20,6 +28,7 @@ export class OrderLifecycleService {
 
   async applyStatus(tx: Prisma.TransactionClient, order: LifecycleOrder, status: OrderStatus, include: Prisma.OrderInclude) {
     assertOrderNotSettled(order, 'changed');
+    assertValidStatusTarget(order, status);
     if (status === 'SETTLED') return this.settle(tx, order, include);
 
     if (order.type === 'HOTEL_BOOKING') await this.allotments.alignAutoLocksForStatus(tx, order.id, status, 'STATUS');
@@ -54,6 +63,9 @@ export function assertOrderNotSettled(order: SettledOrder, action: string) {
 
 export async function unlockSettledOrder(tx: Prisma.TransactionClient, order: LifecycleOrder, dto: UnlockOrderDto) {
   if (!order.settledAt) throw new BadRequestException('Order is not settled');
+  if (order.status !== 'SETTLED') throw new BadRequestException('Only settled orders can be unlocked');
+  if (!text(dto.actor)) throw new BadRequestException('Unlock actor is required');
+  if (!text(dto.reason)) throw new BadRequestException('Unlock reason is required');
   const updated = await tx.order.update({ where: { id: order.id }, data: { settledAt: null, status: 'COMPLETED' } });
   await tx.orderLog.create({
     data: {
@@ -65,6 +77,11 @@ export async function unlockSettledOrder(tx: Prisma.TransactionClient, order: Li
     },
   });
   return updated;
+}
+
+export function assertValidStatusTarget(order: LifecycleOrder, status: OrderStatus) {
+  const allowed = ORDER_STATUS_TARGETS[order.type];
+  if (!allowed?.has(status)) throw new BadRequestException(`Status ${status} is not valid for ${order.type}`);
 }
 
 function text(value?: string | null) {

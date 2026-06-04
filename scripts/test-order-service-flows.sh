@@ -120,6 +120,39 @@ async function main() {
   assert(created.customerEmail === customer.email, 'create should fill blank customer snapshot fields');
   assert(created.members.length === 1 && created.salesItems.length === 1 && created.operationItems.length === 1, 'create should sync children');
   assert(money(created.totalRevenue) === 2200000 && money(created.totalCost) === 700000 && money(created.profit) === 1500000, 'create should calculate totals');
+  const createLog = await prisma.orderLog.findFirst({ where: { orderId: created.id, action: 'CREATE' } });
+  assert(createLog?.newValue?.systemCode === run + '-ORD' && createLog.newValue.customerId === customer.id, 'create should write full create log payload');
+  const listRows = await service.list('single-services', run);
+  assert(listRows.some((row) => row.id === created.id), 'list should include created order');
+  assert(!Object.prototype.hasOwnProperty.call(listRows[0], 'customer'), 'list select should not include deep customer object');
+
+  const typeFixtures = [
+    ['fit-tours', 'FIT'],
+    ['git-combos', 'GIT'],
+    ['landtours', 'LAND'],
+    ['flight-orders', 'FLT'],
+    ['services', 'SVCALIAS'],
+  ];
+  for (const [typePath, suffix] of typeFixtures) {
+    const row = await service.create(typePath, {
+      systemCode: `${run}-${suffix}`,
+      name: `Order ${suffix}`,
+      customerId: customer.id,
+      startDate: '2026-10-12',
+      endDate: '2026-10-13',
+      salesItems: [{ description: suffix, quantity: 1, serviceCount: 1, unitPrice: 1000, vat: 0 }],
+      operationItems: [{ serviceType: 'OTHER', quantity: 1, netPrice: 400, vat: 0, status: 'WAITING' }],
+    });
+    assert(row.systemCode === `${run}-${suffix}` && money(row.profit) === 600, `create should work for ${typePath}`);
+  }
+  const createdSettled = await service.create('single-services', {
+    systemCode: run + '-CREATE-SETTLED',
+    name: 'Create Settled',
+    status: 'SETTLED',
+    customerId: customer.id,
+    salesItems: [{ description: 'settled', quantity: 1, serviceCount: 1, unitPrice: 100, vat: 0 }],
+  });
+  assert(createdSettled.status === 'SETTLED' && createdSettled.settledAt, 'create SETTLED should set settledAt');
 
   const partial = await service.update('single-services', created.id, { note: 'Partial update should not touch children' });
   assert(partial.salesItems[0].id === created.salesItems[0].id, 'partial update should preserve sales item id');
@@ -148,8 +181,19 @@ async function main() {
   const statusSettled = await service.updateStatus('single-services', copied.id, 'SETTLED');
   assert(statusSettled.status === 'SETTLED' && statusSettled.settledAt, 'updateStatus SETTLED should set settledAt');
   await rejects(() => service.update('single-services', copied.id, { name: 'Blocked By Status Settle' }), 'status-settled order update should be blocked');
+  await rejects(() => service.unlock('single-services', copied.id, { actor: '', reason: 'missing actor' }), 'unlock should require actor');
+  await rejects(() => service.unlock('single-services', copied.id, { actor: 'order-test', reason: '' }), 'unlock should require reason');
   const statusUnlocked = await service.unlock('single-services', copied.id, { actor: 'order-test', reason: 'test status unlock' });
   assert(statusUnlocked.status === 'COMPLETED' && !statusUnlocked.settledAt, 'unlock should clear status-settled orders');
+
+  const flight = await service.create('flight-orders', {
+    systemCode: run + '-FLIGHT-STATUS',
+    name: 'Flight Status Guard',
+    customerId: customer.id,
+  });
+  await rejects(() => service.updateStatus('flight-orders', flight.id, 'RUNNING'), 'flight orders should reject unsupported RUNNING status');
+  const flightCompleted = await service.updateStatus('flights', flight.id, 'COMPLETED');
+  assert(flightCompleted.status === 'COMPLETED', 'flight alias should resolve and allow completed status');
 
   const settled = await service.settle('single-services', created.id);
   assert(settled.status === 'SETTLED' && settled.settledAt, 'settle should mark order settled');

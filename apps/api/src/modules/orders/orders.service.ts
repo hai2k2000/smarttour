@@ -11,11 +11,18 @@ import { mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldR
 import { OrderLifecycleService } from './order-lifecycle';
 
 const ORDER_TYPES: Record<string, OrderType> = {
+  fit: 'FIT_TOUR',
   'fit-tours': 'FIT_TOUR',
+  git: 'GIT_COMBO',
+  combos: 'GIT_COMBO',
   'git-combos': 'GIT_COMBO',
+  landtour: 'LANDTOUR',
   landtours: 'LANDTOUR',
+  hotels: 'HOTEL_BOOKING',
   'hotel-bookings': 'HOTEL_BOOKING',
+  services: 'SINGLE_SERVICE',
   'single-services': 'SINGLE_SERVICE',
+  flights: 'FLIGHT_ORDER',
   'flight-orders': 'FLIGHT_ORDER',
 };
 
@@ -66,7 +73,6 @@ export class OrdersService {
       department: true,
       operatorOwner: true,
       updatedAt: true,
-      customer: { select: { id: true, code: true, fullName: true, phone: true, email: true, branch: true, department: true } },
       _count: { select: { members: true, salesItems: true, operationItems: true, allotmentLocks: true } },
     } satisfies Prisma.OrderSelect;
   }
@@ -98,7 +104,7 @@ export class OrdersService {
   async detail(typePath: string, id: string, user?: RequestUser) {
     const order = await this.prisma.order.findFirst({
       where: branchDepartmentScopeWhere({ id, type: this.resolveType(typePath), deletedAt: null }, user),
-      include: this.includeAll(),
+      include: this.detailInclude(),
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
@@ -122,7 +128,7 @@ export class OrdersService {
         await this.children.create(tx, order.id, orderDto);
         if (type === 'HOTEL_BOOKING') await this.allotments.alignAutoLocksForStatus(tx, order.id, orderDto.status ?? 'UPCOMING', 'CREATE');
         await tx.orderLog.create({ data: { orderId: order.id, action: 'CREATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
-        return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.includeAll() });
+        return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.writeInclude() });
       });
     } catch (error) {
       this.handleUniqueCodeError(error);
@@ -151,7 +157,7 @@ export class OrdersService {
         await this.children.sync(tx, id, orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.alignAutoLocksForStatus(tx, id, orderStatusForAllotment(current.status, orderDto), 'UPDATE');
         await tx.orderLog.create({ data: { orderId: id, action: 'UPDATE', newValue: orderDto as unknown as Prisma.InputJsonValue } });
-        return tx.order.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
+        return tx.order.findUniqueOrThrow({ where: { id }, include: this.writeInclude() });
       });
     } catch (error) {
       this.handleUniqueCodeError(error);
@@ -171,7 +177,7 @@ export class OrdersService {
   async updateStatus(typePath: string, id: string, status: OrderStatus, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return this.lifecycle.applyStatus(tx, order, status, this.includeAll());
+      return this.lifecycle.applyStatus(tx, order, status, this.writeInclude());
     });
   }
 
@@ -183,7 +189,7 @@ export class OrdersService {
   async settle(typePath: string, id: string, user?: RequestUser) {
     const order = await this.detail(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return this.lifecycle.settle(tx, order, this.includeAll());
+      return this.lifecycle.settle(tx, order, this.writeInclude());
     });
   }
 
@@ -194,13 +200,29 @@ export class OrdersService {
     });
   }
 
-  private includeAll() {
+  private detailInclude() {
     return {
       customer: true,
       guides: true,
       salesItems: { include: { supplier: true, service: true } },
       operationItems: { include: { supplier: true, service: true, allotmentLocks: true } },
       allotmentLocks: { include: { allotment: true, service: true, orderOperationItem: true }, orderBy: { createdAt: 'desc' } },
+      members: true,
+      itineraries: true,
+      handoverItems: true,
+      surveyQuestions: true,
+      terms: true,
+      files: true,
+    } satisfies Prisma.OrderInclude;
+  }
+
+  private writeInclude() {
+    return {
+      customer: true,
+      guides: true,
+      salesItems: true,
+      operationItems: { include: { allotmentLocks: true } },
+      allotmentLocks: { orderBy: { createdAt: 'desc' } },
       members: true,
       itineraries: true,
       handoverItems: true,
@@ -218,7 +240,8 @@ export class OrdersService {
 
   private handleUniqueCodeError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictException('Order code already exists');
+      const fields = Array.isArray(error.meta?.target) ? error.meta.target.join(', ') : String(error.meta?.target || 'unique field');
+      throw new ConflictException(`Order unique field already exists: ${fields}`);
     }
     throw error;
   }
