@@ -1,9 +1,17 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, Prisma } from '@prisma/client';
+import { BookingStatus, OperationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+
+const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatus>> = {
+  [BookingStatus.DRAFT]: new Set([BookingStatus.DRAFT, BookingStatus.CONFIRMED, BookingStatus.CANCELLED]),
+  [BookingStatus.CONFIRMED]: new Set([BookingStatus.CONFIRMED, BookingStatus.OPERATING, BookingStatus.COMPLETED, BookingStatus.CANCELLED]),
+  [BookingStatus.OPERATING]: new Set([BookingStatus.OPERATING, BookingStatus.COMPLETED, BookingStatus.CANCELLED]),
+  [BookingStatus.COMPLETED]: new Set([BookingStatus.COMPLETED]),
+  [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
+};
 
 @Injectable()
 export class BookingsService {
@@ -37,9 +45,10 @@ export class BookingsService {
     } satisfies Prisma.BookingSelect;
   }
 
-  list(search?: string, status?: BookingStatus, tourProgramId?: string, user?: RequestUser) {
+  list(search?: string, status?: string | BookingStatus, tourProgramId?: string, user?: RequestUser) {
+    const normalizedStatus = this.bookingStatus(status);
     const where: Prisma.BookingWhereInput = {
-      ...(status ? { status } : {}),
+      ...(normalizedStatus ? { status: normalizedStatus } : {}),
       ...(tourProgramId ? { tourProgramId } : {}),
       ...(search
         ? {
@@ -89,18 +98,19 @@ export class BookingsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Booking code already exists');
+        throw new ConflictException('Mã booking đã tồn tại');
       }
       throw error;
     }
   }
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
-    await this.detail(id, user);
+    const current = await this.detail(id, user);
     if (dto.tourProgramId) await this.ensureTourProgram(dto.tourProgramId);
     await this.ensureBookingLinks(dto, user, false);
+    this.ensureOperationFormLinkStable(current, dto);
+    if (dto.status !== undefined) this.ensureStatusTransition(current.status, dto.status, current.operationForm?.status);
     if (dto.startDate || dto.endDate) {
-      const current = await this.prisma.booking.findUniqueOrThrow({ where: { id } });
       this.ensureDateRange(dto.startDate ?? current.startDate.toISOString(), dto.endDate ?? current.endDate.toISOString());
     }
     try {
@@ -111,14 +121,19 @@ export class BookingsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Booking code already exists');
+        throw new ConflictException('Mã booking đã tồn tại');
       }
       throw error;
     }
   }
 
+  async updateStatus(id: string, status: BookingStatus, user?: RequestUser) {
+    return this.update(id, { status }, user);
+  }
+
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
+    await this.ensureCanDelete(id);
     return this.prisma.booking.delete({ where: { id } });
   }
 
@@ -135,16 +150,16 @@ export class BookingsService {
 
   private async ensureTourProgram(id: string) {
     const tourProgram = await this.prisma.tourProgram.findUnique({ where: { id } });
-    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    if (!tourProgram) throw new NotFoundException('Không tìm thấy tour mẫu');
   }
 
   private async ensureBookingLinks(dto: Partial<CreateBookingDto>, user: RequestUser | undefined, requireScopedLink: boolean) {
     if (this.requiresScopedLink(user) && requireScopedLink && !dto.customerId && !dto.orderId && !dto.tourId) {
       throw new BadRequestException('customerId, orderId or tourId is required for scoped booking writes');
     }
-    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Customer not found', user);
+    if (dto.customerId) await this.ensureExists('customer', dto.customerId, 'Không tìm thấy khách hàng', user);
     if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Tour not found', user);
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour vận hành', user);
   }
 
   private async ensureExists(model: 'customer' | 'order' | 'tour', id: string, message: string, user?: RequestUser) {
@@ -166,9 +181,81 @@ export class BookingsService {
     return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
+  private bookingStatus(status?: string | BookingStatus) {
+    const value = this.optionalText(status);
+    if (!value) return undefined;
+    if (Object.values(BookingStatus).includes(value as BookingStatus)) return value as BookingStatus;
+    throw new BadRequestException(`Trạng thái booking không hợp lệ: ${value}`);
+  }
+
+  private ensureStatusTransition(current: BookingStatus, target: BookingStatus, operationFormStatus?: OperationStatus | null) {
+    const allowed = BOOKING_STATUS_TRANSITIONS[current] || new Set<BookingStatus>([current]);
+    if (!allowed.has(target)) {
+      throw new BadRequestException(`Không thể chuyển booking từ ${current} sang ${target}`);
+    }
+    if (target === BookingStatus.OPERATING && !operationFormStatus) {
+      throw new BadRequestException('Booking cần có phiếu điều hành trước khi chuyển sang trạng thái đang vận hành');
+    }
+    if (target === BookingStatus.OPERATING && operationFormStatus === OperationStatus.CANCELLED) {
+      throw new BadRequestException('Không thể chuyển booking sang đang vận hành khi phiếu điều hành đã hủy');
+    }
+  }
+
+  private ensureOperationFormLinkStable(
+    current: {
+      operationForm?: { id: string } | null;
+      tourProgramId: string;
+      customerId: string | null;
+      orderId: string | null;
+      tourId: string | null;
+    },
+    dto: UpdateBookingDto,
+  ) {
+    if (!current.operationForm) return;
+    const blocked: string[] = [];
+    if (dto.tourProgramId !== undefined && dto.tourProgramId !== current.tourProgramId) blocked.push('tour mẫu');
+    if (dto.customerId !== undefined && this.optionalText(dto.customerId) !== current.customerId) blocked.push('khách hàng liên kết');
+    if (dto.orderId !== undefined && this.optionalText(dto.orderId) !== current.orderId) blocked.push('đơn hàng liên kết');
+    if (dto.tourId !== undefined && this.optionalText(dto.tourId) !== current.tourId) blocked.push('tour vận hành liên kết');
+    if (blocked.length) throw new ConflictException(`Booking đã có phiếu điều hành, không thể đổi ${blocked.join(', ')}`);
+  }
+
+  private async ensureCanDelete(id: string) {
+    const usage = await this.bookingUsage(id);
+    if (!usage.total) return;
+    throw new ConflictException(`Không thể xóa booking vì đang có ${this.usageSummary(usage)}.`);
+  }
+
+  private async bookingUsage(id: string) {
+    const [operationForms, operationVouchers, activeAllotmentLocks] = await Promise.all([
+      this.prisma.operationForm.count({ where: { bookingId: id } }),
+      this.prisma.operationVoucher.count({ where: { bookingId: id, deletedAt: null } }),
+      this.prisma.supplierAllotmentAllocation.count({ where: { bookingId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
+    ]);
+    const usage = { operationForms, operationVouchers, activeAllotmentLocks };
+    return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };
+  }
+
+  private usageSummary(usage: Awaited<ReturnType<BookingsService['bookingUsage']>>) {
+    const labels: Array<[Exclude<keyof typeof usage, 'total'>, string]> = [
+      ['operationForms', 'phiếu điều hành'],
+      ['operationVouchers', 'phiếu dịch vụ điều hành'],
+      ['activeAllotmentLocks', 'khóa allotment đang hiệu lực'],
+    ];
+    return labels
+      .filter(([key]) => usage[key] > 0)
+      .map(([key, label]) => `${usage[key]} ${label}`)
+      .join(', ');
+  }
+
   private ensureDateRange(startDate: string, endDate: string) {
-    if (new Date(startDate).getTime() > new Date(endDate).getTime()) {
-      throw new BadRequestException('Start date must be before or equal to end date');
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    if (Number.isNaN(start) || Number.isNaN(end)) {
+      throw new BadRequestException('Ngày khởi hành hoặc ngày kết thúc không hợp lệ');
+    }
+    if (start > end) {
+      throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
     }
   }
 
@@ -211,8 +298,8 @@ export class BookingsService {
     };
   }
 
-  private optionalText(value?: string) {
-    const trimmed = value?.trim();
+  private optionalText(value?: unknown) {
+    const trimmed = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     return trimmed ? trimmed : null;
   }
 }
