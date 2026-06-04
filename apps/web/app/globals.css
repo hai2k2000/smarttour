@@ -862,6 +862,28 @@ label { min-width: 0; }
 .modalFormGrid .span2 {
   grid-column: span 2;
 }
+.modalFormStack {
+  display: grid;
+  gap: 12px;
+}
+.modalFormStack fieldset {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--dn-border);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.modalFormStack legend {
+  padding: 0 6px;
+  color: var(--dn-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+.modalFormStack fieldset > label {
+  display: grid;
+  gap: 6px;
+}
 .modalActions {
   grid-column: 1 / -1;
   display: flex;
@@ -1108,6 +1130,9 @@ label { min-width: 0; }
   color: var(--dn-green);
   font-size: 12px;
   font-weight: 700;
+}
+.dangerText {
+  color: #b20000;
 }
 .financeFilePicker {
   padding: 3px 6px;

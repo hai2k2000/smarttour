@@ -16,6 +16,7 @@ type Invoice = { id: string; invoiceCode: string; invoiceNumber?: string; custom
 type Cashflow = { id: string; sourceType: string; entryType: string; amount: string; paymentMethod: string; paymentDate?: string; branch?: string; department?: string; staff?: string; note?: string };
 type DebtAging = { current: number; overdue1To30: number; overdue31To60: number; overdue61To90: number; overdueOver90: number; overdueTotal: number };
 type DebtRow = { id: string; name: string; phone?: string; debitTotal: number; creditTotal: number; balance: number; aging: DebtAging };
+type FinanceAction = 'save' | 'approve' | 'cancel' | 'reject' | 'import' | 'upload' | 'deleteFile' | 'adjustDebt';
 
 const emptySummary: Summary = { count: 0, totalAmount: 0 };
 const receiptTypes = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'];
@@ -25,6 +26,26 @@ const statuses = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 const financeTabs = ['pending', 'receipts', 'payments', 'invoices', 'cashflow', 'debt'] as const;
 type FinanceTab = typeof financeTabs[number];
 function normalizeTab(value: string | null): FinanceTab { return financeTabs.includes(value as FinanceTab) ? value as FinanceTab : 'receipts'; }
+
+const tabLabels: Record<FinanceTab, string> = {
+  pending: 'Phiếu thu chờ',
+  receipts: 'Phiếu thu',
+  payments: 'Phiếu chi',
+  invoices: 'Hóa đơn VAT',
+  cashflow: 'Dòng tiền',
+  debt: 'Công nợ',
+};
+
+const actionLabels: Record<FinanceAction, string> = {
+  save: 'lưu chứng từ',
+  approve: 'duyệt chứng từ',
+  cancel: 'hủy chứng từ',
+  reject: 'từ chối chứng từ',
+  import: 'nhập CSV',
+  upload: 'tải file',
+  deleteFile: 'xóa file',
+  adjustDebt: 'điều chỉnh công nợ',
+};
 
 export default function FinanceClient() {
   const { can, canAny } = usePermissions();
@@ -48,7 +69,6 @@ export default function FinanceClient() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     Object.entries(filter).forEach(([key, value]) => value && params.set(key, value));
-    if (tab === 'pending') params.set('status', 'PENDING');
     return params.toString();
   }, [filter, tab]);
 
@@ -61,24 +81,22 @@ export default function FinanceClient() {
   }
 
   async function load() {
-    const [receiptData, paymentData, invoiceData, cashData, custDebtData, suppDebtData] = await Promise.all([
-      getJson(`/api/finance/receipts?${query}`),
-      getJson(`/api/finance/payments?${query}`),
-      getJson(`/api/finance/invoices?${query}`),
-      getJson(`/api/finance/cashflow?${query}`),
-      getJson(`/api/finance/debt/customers`),
-      getJson(`/api/finance/debt/suppliers`),
-    ]);
-    setReceipts(receiptData.rows || []);
-    setPayments(paymentData.rows || []);
-    setInvoices(invoiceData.rows || []);
-    setCashflow(cashData.rows || []);
-    setReceiptSummary(receiptData.summary || emptySummary);
-    setPaymentSummary(paymentData.summary || emptySummary);
-    setInvoiceSummary(invoiceData.summary || emptySummary);
-    setCashSummary(cashData.summary || { totalReceipt: 0, totalPayment: 0, netCashflow: 0, byMethod: [] });
-    setCustomerDebt(custDebtData.rows || []);
-    setSupplierDebt(suppDebtData.rows || []);
+    const receiptQuery = tab === 'pending' ? mergeQuery(query, { status: 'PENDING' }) : query;
+    const branches = [
+      { label: 'Phiếu thu', run: () => getJson(`/api/finance/receipts?${receiptQuery}`), apply: (data: any) => { setReceipts(data.rows || []); setReceiptSummary(data.summary || emptySummary); } },
+      { label: 'Phiếu chi', run: () => getJson(`/api/finance/payments?${query}`), apply: (data: any) => { setPayments(data.rows || []); setPaymentSummary(data.summary || emptySummary); } },
+      { label: 'Hóa đơn VAT', run: () => getJson(`/api/finance/invoices?${query}`), apply: (data: any) => { setInvoices(data.rows || []); setInvoiceSummary(data.summary || emptySummary); } },
+      { label: 'Dòng tiền', run: () => getJson(`/api/finance/cashflow?${query}`), apply: (data: any) => { setCashflow(data.rows || []); setCashSummary(data.summary || { totalReceipt: 0, totalPayment: 0, netCashflow: 0, byMethod: [] }); } },
+      { label: 'Công nợ khách hàng', run: () => getJson('/api/finance/debt/customers'), apply: (data: any) => setCustomerDebt(data.rows || []) },
+      { label: 'Công nợ nhà cung cấp', run: () => getJson('/api/finance/debt/suppliers'), apply: (data: any) => setSupplierDebt(data.rows || []) },
+    ];
+    const results = await Promise.allSettled(branches.map((branch) => branch.run()));
+    const failed: string[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') branches[index].apply(result.value);
+      else failed.push(`${branches[index].label}: ${errorText(result.reason)}`);
+    });
+    if (failed.length) setMessage(`Không tải được ${failed.join('; ')}`);
   }
 
   async function createReceipt(formData: FormData) {
@@ -88,7 +106,7 @@ export default function FinanceClient() {
       payerName: text(formData.get('payerName')), payerPhone: text(formData.get('payerPhone')), payerEmail: text(formData.get('payerEmail')), reason: text(formData.get('reason')),
       totalAmount: number(formData.get('totalAmount')) || amount, paidBefore: number(formData.get('paidBefore')), receiptAmount: amount,
       branch: text(formData.get('branch')), assignedStaff: text(formData.get('assignedStaff')), orders: [{ tourCode: text(formData.get('tourCode')), tourName: text(formData.get('tourName')), amount }], createdBy: 'accounting',
-    });
+    }, 'save');
     return created ? uploadFinanceFile('receipts', created.id, formData.get('attachment')) : false;
   }
 
@@ -99,7 +117,7 @@ export default function FinanceClient() {
       receiverName: text(formData.get('receiverName')), receiverPhone: text(formData.get('receiverPhone')), reason: text(formData.get('reason')),
       totalAmount: number(formData.get('totalAmount')) || amount, paymentAmount: amount, bankAccountName: text(formData.get('bankAccountName')), bankAccountNumber: text(formData.get('bankAccountNumber')), bankName: text(formData.get('bankName')),
       branch: text(formData.get('branch')), assignedStaff: text(formData.get('assignedStaff')), createdBy: 'accounting',
-    });
+    }, 'save');
     return created ? uploadFinanceFile('payments', created.id, formData.get('attachment')) : false;
   }
 
@@ -109,20 +127,20 @@ export default function FinanceClient() {
       taxCode: text(formData.get('taxCode')), companyName: text(formData.get('companyName')), companyAddress: text(formData.get('companyAddress')), invoiceType: text(formData.get('invoiceType')), issuedDate: text(formData.get('issuedDate')),
       tourCode: text(formData.get('tourCode')), tourName: text(formData.get('tourName')), note: text(formData.get('note')),
       items: [{ itemName: text(formData.get('itemName')) || 'Dịch vụ du lịch', unit: text(formData.get('unit')) || 'gói', quantity: number(formData.get('quantity')) || 1, unitPrice: number(formData.get('unitPrice')), taxRate: number(formData.get('taxRate')) }], createdBy: 'accounting',
-    });
+    }, 'save');
     return created ? uploadInvoiceFiles(created.id, formData.getAll('attachments')) : false;
   }
 
-  async function post(path: string, payload: unknown) {
+  async function post(path: string, payload: unknown, actionType: FinanceAction = 'save') {
     setMessage('');
     const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setMessage(data.message || 'Không thực hiện được');
+      setMessage(`Không thể ${actionLabels[actionType]}: ${data.message || response.statusText || `HTTP ${response.status}`}`);
       return false as const;
     }
     const data = await response.json().catch(() => ({}));
-    setMessage('Đã cập nhật dữ liệu tài chính');
+    setMessage(actionType === 'save' ? 'Đã lưu chứng từ tài chính' : `Đã ${actionLabels[actionType]}`);
     await load();
     return data;
   }
@@ -133,7 +151,8 @@ export default function FinanceClient() {
     body.append('file', entry);
     const response = await fetch(`${API_URL}/api/finance/${kind}/${id}/file`, { method: 'POST', headers: authHeaders(false), body });
     if (!response.ok) {
-      setMessage(`Đã lưu chứng từ nhưng upload file thất bại: ${entry.name}`);
+      const data = await response.json().catch(() => ({}));
+      setMessage(`Đã lưu chứng từ nhưng tải file "${entry.name}" thất bại: ${data.message || response.statusText || `HTTP ${response.status}`}`);
       return false;
     }
     setMessage('Đã lưu chứng từ và file đính kèm');
@@ -143,25 +162,33 @@ export default function FinanceClient() {
 
   async function uploadInvoiceFiles(id: string, entries: ArrayLike<FormDataEntryValue> | null) {
     const files = entries ? Array.from(entries).filter((entry): entry is File => entry instanceof File && entry.size > 0) : [];
+    const uploaded: string[] = [];
+    const failed: string[] = [];
     for (const file of files) {
       const body = new FormData();
       body.append('file', file);
       const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files`, { method: 'POST', headers: authHeaders(false), body });
       if (!response.ok) {
-        setMessage(`Đã lưu hóa đơn nhưng upload file thất bại: ${file.name}`);
-        await load();
-        return false;
+        const data = await response.json().catch(() => ({}));
+        failed.push(`${file.name} (${data.message || response.statusText || `HTTP ${response.status}`})`);
+      } else {
+        uploaded.push(file.name);
       }
     }
-    setMessage(files.length ? 'Đã lưu hóa đơn và file đính kèm' : 'Đã lưu hóa đơn');
+    if (failed.length) {
+      setMessage(`Đã tải ${uploaded.length}/${files.length} file hóa đơn. Lỗi: ${failed.join('; ')}`);
+    } else {
+      setMessage(files.length ? `Đã tải ${uploaded.length} file hóa đơn` : 'Đã lưu hóa đơn');
+    }
     await load();
-    return true;
+    return failed.length === 0;
   }
 
   async function deleteInvoiceFile(id: string, fileId: string) {
     const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files/${fileId}`, { method: 'DELETE', headers: authHeaders(false) });
     if (!response.ok) {
-      setMessage('Không xóa được file hóa đơn');
+      const data = await response.json().catch(() => ({}));
+      setMessage(`Không thể xóa file hóa đơn: ${data.message || response.statusText || `HTTP ${response.status}`}`);
       return;
     }
     setMessage('Đã xóa file hóa đơn');
@@ -176,29 +203,46 @@ export default function FinanceClient() {
     const response = await fetch(`${API_URL}/api/finance/${kind}/import`, { method: 'POST', headers: authHeaders(false), body });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMessage(data.message || 'Không import được file CSV');
+      setMessage(`Không thể nhập CSV ${kind === 'receipts' ? 'phiếu thu' : 'phiếu chi'}: ${data.message || response.statusText || `HTTP ${response.status}`}`);
       return;
     }
-    setMessage(`Đã import ${data.imported || 0} dòng CSV`);
+    const imported = Number(data.imported || data.success || data.successCount || 0);
+    const failed = Number(data.failed || data.fail || data.failedCount || data.errors?.length || 0);
+    setMessage(failed > 0 ? `Đã nhập ${imported} dòng, ${failed} dòng lỗi` : `Đã nhập ${imported} dòng CSV`);
     await load();
   }
 
   async function adjustDebt(kind: 'customers' | 'suppliers', formData: FormData) {
     const partyId = text(formData.get('partyId'));
+    const direction = text(formData.get('direction'));
+    const amount = number(formData.get('amount'));
+    const description = text(formData.get('description'));
     if (!partyId) {
       setMessage(`Chưa có ${kind === 'customers' ? 'khách hàng' : 'nhà cung cấp'} để điều chỉnh`);
       return false;
     }
+    if (!['INCREASE', 'DECREASE'].includes(direction)) {
+      setMessage('Chọn loại điều chỉnh công nợ hợp lệ');
+      return false;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage('Số tiền điều chỉnh phải lớn hơn 0');
+      return false;
+    }
+    if (!description) {
+      setMessage('Nhập ghi chú điều chỉnh để dễ truy vết công nợ');
+      return false;
+    }
     return Boolean(await post(`/api/finance/debt/${kind}/${partyId}/adjustments`, {
-      direction: text(formData.get('direction')),
-      amount: number(formData.get('amount')),
+      direction,
+      amount,
       dueDate: text(formData.get('dueDate')),
-      description: text(formData.get('description')),
+      description,
       actor: 'accounting',
-    }));
+    }, 'adjustDebt'));
   }
 
-  async function action(kind: 'receipts' | 'payments' | 'invoices', id: string, actionName: 'approve' | 'reject' | 'cancel') { await post(`/api/finance/${kind}/${id}/${actionName}`, { actor: 'accounting' }); }
+  async function action(kind: 'receipts' | 'payments' | 'invoices', id: string, actionName: 'approve' | 'reject' | 'cancel') { await post(`/api/finance/${kind}/${id}/${actionName}`, { actor: 'accounting' }, actionName); }
   function exportUrl(kind: 'receipts' | 'payments' | 'invoices' | 'cashflow') { return `${API_URL}/api/finance/${kind}/export?${query}`; }
   const pendingReceipts = tab === 'pending' ? receipts.filter((row) => row.approvalStatus === 'PENDING') : receipts;
 
@@ -220,17 +264,17 @@ export default function FinanceClient() {
       <PermissionNotice allowed={canAny(['finance.receipt.view', 'finance.payment.view', 'finance.invoice.view', 'finance.cashflow.view'])} label="xem tài chính kế toán" />
 
       <section className="panel financeFilters">
-        <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Tên, SĐT, email, mã chứng từ, mã tour" /></label>
-        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
-        <label>Phương thức<select value={filter.paymentMethod} onChange={(event) => setFilter({ ...filter, paymentMethod: event.target.value })}><option value="">Tất cả</option>{methods.map((method) => <option key={method}>{method}</option>)}</select></label>
+        <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Tên, số điện thoại, email, mã chứng từ, mã tour" /></label>
+        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option>{statuses.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label>
+        <label>Phương thức thanh toán<select value={filter.paymentMethod} onChange={(event) => setFilter({ ...filter, paymentMethod: event.target.value })}><option value="">Tất cả</option>{methods.map((method) => <option key={method} value={method}>{viStatus(method)}</option>)}</select></label>
         <label>Từ ngày<input type="date" value={filter.from} onChange={(event) => setFilter({ ...filter, from: event.target.value })} /></label>
         <label>Đến ngày<input type="date" value={filter.to} onChange={(event) => setFilter({ ...filter, to: event.target.value })} /></label>
       </section>
 
       <div className="moduleTabs financeTabs">
         {[
-          ['pending', 'Phiếu thu chờ', ReceiptText], ['receipts', 'Phiếu thu', ReceiptText], ['payments', 'Phiếu chi', HandCoins], ['invoices', 'Hóa đơn VAT', FileText], ['cashflow', 'Dòng tiền', WalletCards],
-          ['debt', 'Công nợ', WalletCards],
+          ['pending', tabLabels.pending, ReceiptText], ['receipts', tabLabels.receipts, ReceiptText], ['payments', tabLabels.payments, HandCoins], ['invoices', tabLabels.invoices, FileText], ['cashflow', tabLabels.cashflow, WalletCards],
+          ['debt', tabLabels.debt, WalletCards],
         ].map(([key, label, Icon]) => { const tabKey = key as FinanceTab; const TabIcon = Icon as typeof ReceiptText; return <button key={tabKey} type="button" className={tab === tabKey ? 'active' : ''} onClick={() => openTab(tabKey)}><TabIcon size={16} /> {label as string}</button>; })}
       </div>
 
@@ -248,31 +292,31 @@ export default function FinanceClient() {
 }
 
 function ReceiptsTab({ rows, onCreateClick, onImportFile, onAction, can }: { rows: Receipt[]; onCreateClick: () => void; onImportFile: (files: FileList | null) => void; onAction: (id: string, action: 'approve' | 'reject' | 'cancel') => void; can: (permission: string) => boolean }) {
-  return <FinanceTable title="Danh sách phiếu thu" count={rows.length} action={<div className="sectionActions"><label className="secondaryButton financeFilePicker"><Download size={14} /> Nhập CSV<input hidden type="file" accept=".csv,text/csv" disabled={!can('finance.receipt.import')} onChange={(event) => { onImportFile(event.currentTarget.files); event.currentTarget.value = ''; }} /></label><button type="button" disabled={!can('finance.receipt.create')} onClick={onCreateClick}><Plus size={16} /> Tạo phiếu thu</button></div>}><thead><tr><th>Mã</th><th>Người nộp</th><th>Tour</th><th>Ngày</th><th>Loại</th><th>Số tiền</th><th>Còn thu</th><th>Trạng thái</th><th></th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.receiptCode}</strong><span>{row.receiptName}</span>{row.attachmentUrl ? <a href={`${API_URL}${row.attachmentUrl}`} target="_blank" rel="noreferrer">{row.attachmentName || 'Tải file'}</a> : null}</td><td>{row.payerName || '-'}<span>{row.payerPhone || ''}</span></td><td>{row.orders?.[0]?.tourCode || '-'}<span>{row.orders?.[0]?.tourName || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.receiptType)}</td><td>{money(Number(row.receiptAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className={`statusPill status-${row.approvalStatus.toLowerCase()}`}>{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button><button className="dangerButton iconButton" disabled={!can('finance.receipt.approve')} onClick={() => onAction(row.id, 'cancel')}><X size={16} /></button></td></tr>)}{rows.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không có phiếu thu nào.</td></tr> : null}</tbody></FinanceTable>;
+  return <FinanceTable title="Danh sách phiếu thu" count={rows.length} action={<div className="sectionActions"><label className="secondaryButton financeFilePicker"><Download size={14} /> Nhập CSV<input hidden type="file" accept=".csv,text/csv" disabled={!can('finance.receipt.import')} onChange={(event) => { onImportFile(event.currentTarget.files); event.currentTarget.value = ''; }} /></label><button type="button" disabled={!can('finance.receipt.create')} onClick={onCreateClick}><Plus size={16} /> Tạo phiếu thu</button></div>}><thead><tr><th>Mã phiếu</th><th>Người nộp</th><th>Tour</th><th>Ngày thanh toán</th><th>Loại phiếu</th><th>Số tiền</th><th>Còn phải thu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.receiptCode}</strong><span>{row.receiptName}</span>{row.attachmentUrl ? <a href={`${API_URL}${row.attachmentUrl}`} target="_blank" rel="noreferrer">{row.attachmentName || 'Tải file'}</a> : null}</td><td>{row.payerName || '-'}<span>{row.payerPhone || ''}</span></td><td>{row.orders?.[0]?.tourCode || '-'}<span>{row.orders?.[0]?.tourName || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.receiptType)}</td><td>{money(Number(row.receiptAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><StatusPill status={row.approvalStatus} /></td><td><RowActions disabled={!can('finance.receipt.approve')} status={row.approvalStatus} code={row.receiptCode} onAction={(type) => onAction(row.id, type)} /></td></tr>)}{rows.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không có phiếu thu nào.</td></tr> : null}</tbody></FinanceTable>;
 }
 
 function PaymentsTab({ rows, onCreateClick, onImportFile, onAction, can }: { rows: Payment[]; onCreateClick: () => void; onImportFile: (files: FileList | null) => void; onAction: (id: string, action: 'approve' | 'reject' | 'cancel') => void; can: (permission: string) => boolean }) {
-  return <FinanceTable title="Danh sách phiếu chi" count={rows.length} action={<div className="sectionActions"><label className="secondaryButton financeFilePicker"><Download size={14} /> Nhập CSV<input hidden type="file" accept=".csv,text/csv" disabled={!can('finance.payment.import')} onChange={(event) => { onImportFile(event.currentTarget.files); event.currentTarget.value = ''; }} /></label><button type="button" disabled={!can('finance.payment.create')} onClick={onCreateClick}><Plus size={16} /> Tạo phiếu chi</button></div>}><thead><tr><th>Mã</th><th>Người nhận</th><th>Ngày</th><th>Loại</th><th>Số tiền</th><th>Còn chi</th><th>Trạng thái</th><th></th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.voucherCode}</strong><span>{row.voucherName || ''}</span>{row.attachmentUrl ? <a href={`${API_URL}${row.attachmentUrl}`} target="_blank" rel="noreferrer">{row.attachmentName || 'Tải file'}</a> : null}</td><td>{row.receiverName || '-'}<span>{row.receiverPhone || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.voucherType)}</td><td>{money(Number(row.paymentAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><span className={`statusPill status-${row.approvalStatus.toLowerCase()}`}>{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button><button className="dangerButton iconButton" disabled={!can('finance.payment.approve')} onClick={() => onAction(row.id, 'cancel')}><X size={16} /></button></td></tr>)}{rows.length === 0 ? <tr><td colSpan={8} className="tableEmptyState">Không có phiếu chi nào.</td></tr> : null}</tbody></FinanceTable>;
+  return <FinanceTable title="Danh sách phiếu chi" count={rows.length} action={<div className="sectionActions"><label className="secondaryButton financeFilePicker"><Download size={14} /> Nhập CSV<input hidden type="file" accept=".csv,text/csv" disabled={!can('finance.payment.import')} onChange={(event) => { onImportFile(event.currentTarget.files); event.currentTarget.value = ''; }} /></label><button type="button" disabled={!can('finance.payment.create')} onClick={onCreateClick}><Plus size={16} /> Tạo phiếu chi</button></div>}><thead><tr><th>Mã phiếu</th><th>Người nhận</th><th>Ngày thanh toán</th><th>Loại phiếu</th><th>Số tiền</th><th>Còn phải chi</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.voucherCode}</strong><span>{row.voucherName || ''}</span>{row.attachmentUrl ? <a href={`${API_URL}${row.attachmentUrl}`} target="_blank" rel="noreferrer">{row.attachmentName || 'Tải file'}</a> : null}</td><td>{row.receiverName || '-'}<span>{row.receiverPhone || ''}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.voucherType)}</td><td>{money(Number(row.paymentAmount))}</td><td>{money(Number(row.remainingAmount))}</td><td><StatusPill status={row.approvalStatus} /></td><td><RowActions disabled={!can('finance.payment.approve')} status={row.approvalStatus} code={row.voucherCode} onAction={(type) => onAction(row.id, type)} /></td></tr>)}{rows.length === 0 ? <tr><td colSpan={8} className="tableEmptyState">Không có phiếu chi nào.</td></tr> : null}</tbody></FinanceTable>;
 }
 
 function InvoicesTab({ rows, onCreateClick, onAction, onUploadFiles, onDeleteFile, can }: { rows: Invoice[]; onCreateClick: () => void; onAction: (id: string, action: 'approve' | 'reject' | 'cancel') => void; onUploadFiles: (id: string, files: FileList | null) => Promise<boolean>; onDeleteFile: (id: string, fileId: string) => Promise<void>; can: (permission: string) => boolean }) {
-  return <FinanceTable title="Danh sách hóa đơn" count={rows.length} action={<button type="button" disabled={!can('finance.invoice.create')} onClick={onCreateClick}><Plus size={16} /> Tạo hóa đơn</button>}><thead><tr><th>Mã / tài liệu</th><th>Khách hàng</th><th>MST/Công ty</th><th>Tour</th><th>Ngày xuất</th><th>Giá trị</th><th>VAT</th><th>Trạng thái</th><th></th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.invoiceCode}</strong><span>{row.invoiceNumber || ''}</span><div className="financeInvoiceFiles">{row.files?.map((file) => <span key={file.id}><a href={`${API_URL}${file.fileUrl}`} target="_blank" rel="noreferrer">{file.fileName}</a><button type="button" className="iconButton" disabled={!can('finance.invoice.update')} onClick={() => void onDeleteFile(row.id, file.id)} aria-label={`Xóa ${file.fileName}`}><X size={13} /></button></span>)}<label className="secondaryButton financeFilePicker"><Plus size={13} /> File<input hidden type="file" multiple disabled={!can('finance.invoice.update')} onChange={(event) => { void onUploadFiles(row.id, event.currentTarget.files); event.currentTarget.value = ''; }} /></label></div></td><td>{row.customerName || '-'}<span>{row.customerPhone || ''}</span></td><td>{row.taxCode || '-'}<span>{row.companyName || ''}</span></td><td>{row.tourCode || '-'}<span>{row.tourName || ''}</span></td><td>{date(row.issuedDate)}</td><td>{money(Number(row.totalAfterTax))}</td><td>{money(Number(row.totalTax))}</td><td><span className={`statusPill status-${row.approvalStatus.toLowerCase()}`}>{viStatus(row.approvalStatus)}</span></td><td className="financeActions"><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'approve')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'reject')}><XCircle size={16} /></button><button className="dangerButton iconButton" disabled={!can('finance.invoice.approve')} onClick={() => onAction(row.id, 'cancel')}><X size={16} /></button></td></tr>)}{rows.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không có hóa đơn nào.</td></tr> : null}</tbody></FinanceTable>;
+  return <FinanceTable title="Danh sách hóa đơn VAT" count={rows.length} action={<button type="button" disabled={!can('finance.invoice.create')} onClick={onCreateClick}><Plus size={16} /> Tạo hóa đơn VAT</button>}><thead><tr><th>Mã hóa đơn / file</th><th>Khách hàng</th><th>Mã số thuế / Công ty</th><th>Tour</th><th>Ngày xuất</th><th>Giá trị sau thuế</th><th>Tiền VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.invoiceCode}</strong><span>{row.invoiceNumber || ''}</span><div className="financeInvoiceFiles">{row.files?.map((file) => <span key={file.id}><a href={`${API_URL}${file.fileUrl}`} target="_blank" rel="noreferrer">{file.fileName}</a><button type="button" className="iconButton" disabled={!can('finance.invoice.update')} onClick={() => { if (window.confirm(`Xóa file hóa đơn "${file.fileName}"?`)) void onDeleteFile(row.id, file.id); }} aria-label={`Xóa ${file.fileName}`} title="Xóa file"><X size={13} /></button></span>)}<label className="secondaryButton financeFilePicker"><Plus size={13} /> Thêm file<input hidden type="file" multiple disabled={!can('finance.invoice.update')} onChange={(event) => { void onUploadFiles(row.id, event.currentTarget.files); event.currentTarget.value = ''; }} /></label></div></td><td>{row.customerName || '-'}<span>{row.customerPhone || ''}</span></td><td>{row.taxCode || '-'}<span>{row.companyName || ''}</span></td><td>{row.tourCode || '-'}<span>{row.tourName || ''}</span></td><td>{date(row.issuedDate)}</td><td>{money(Number(row.totalAfterTax))}</td><td>{money(Number(row.totalTax))}</td><td><StatusPill status={row.approvalStatus} /></td><td><RowActions disabled={!can('finance.invoice.approve')} status={row.approvalStatus} code={row.invoiceCode} onAction={(type) => onAction(row.id, type)} /></td></tr>)}{rows.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không có hóa đơn VAT nào.</td></tr> : null}</tbody></FinanceTable>;
 }
 
 function ReceiptForm({ onCreate, onClose, can }: { onCreate: (formData: FormData) => Promise<boolean>; onClose: () => void; can: (permission: string) => boolean }) {
-  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="formGrid modalFormGrid"><label>Tên phiếu thu<input name="receiptName" required placeholder="Thu tiền tour" /></label><label>Loại phiếu thu<select name="receiptType" defaultValue="TOUR_PAYMENT">{receiptTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label>Phương thức<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method}>{method}</option>)}</select></label><label>Ngày thanh toán<input name="paymentDate" type="date" /></label><label>Người nộp<input name="payerName" /></label><label>SĐT<input name="payerPhone" /></label><label>Email<input name="payerEmail" type="email" /></label><label>Mã tour<input name="tourCode" /></label><label>Tên tour<input name="tourName" /></label><label>Tổng tiền<input name="totalAmount" type="number" min={0} defaultValue={0} /></label><label>Đã thu<input name="paidBefore" type="number" min={0} defaultValue={0} /></label><label>Số tiền thu<input name="receiptAmount" type="number" min={0} defaultValue={0} /></label><label>Chi nhánh<input name="branch" /></label><label>Nhân viên<input name="assignedStaff" /></label><label>File đính kèm<input name="attachment" type="file" /></label><label className="span2">Lý do<textarea name="reason" rows={3} /></label><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.receipt.create')}>Tạo phiếu thu</button></div></form>;
+  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="modalFormStack"><fieldset><legend>Thông tin phiếu thu</legend><div className="formGrid modalFormGrid"><label>Tên phiếu thu<input name="receiptName" required placeholder="Thu tiền tour" /></label><label>Loại phiếu thu<select name="receiptType" defaultValue="TOUR_PAYMENT">{receiptTypes.map((type) => <option key={type} value={type}>{viStatus(type)}</option>)}</select></label><label>Phương thức thanh toán<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method} value={method}>{viStatus(method)}</option>)}</select></label><label>Ngày thanh toán<input name="paymentDate" type="date" /></label></div></fieldset><fieldset><legend>Người nộp và tour</legend><div className="formGrid modalFormGrid"><label>Người nộp<input name="payerName" /></label><label>Số điện thoại<input name="payerPhone" /></label><label>Email<input name="payerEmail" type="email" /></label><label>Mã tour<input name="tourCode" /></label><label className="span2">Tên tour<input name="tourName" /></label></div></fieldset><fieldset><legend>Số tiền và phụ trách</legend><div className="formGrid modalFormGrid"><label>Tổng tiền<input name="totalAmount" type="number" min={0} defaultValue={0} /></label><label>Đã thu trước<input name="paidBefore" type="number" min={0} defaultValue={0} /></label><label>Số tiền thu<input name="receiptAmount" type="number" min={0} defaultValue={0} /></label><label>Chi nhánh<input name="branch" /></label><label>Nhân viên phụ trách<input name="assignedStaff" /></label><label>File đính kèm<input name="attachment" type="file" /></label></div></fieldset><fieldset><legend>Diễn giải</legend><label>Lý do thu<textarea name="reason" rows={3} /></label></fieldset><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.receipt.create')}>Tạo phiếu thu</button></div></form>;
 }
 
 function PaymentForm({ onCreate, onClose, can }: { onCreate: (formData: FormData) => Promise<boolean>; onClose: () => void; can: (permission: string) => boolean }) {
-  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="formGrid modalFormGrid"><label>Tên phiếu chi<input name="voucherName" placeholder="Chi thanh toán NCC" /></label><label>Loại phiếu chi<select name="voucherType" defaultValue="SUPPLIER_PAYMENT">{paymentTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label>Phương thức<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method}>{method}</option>)}</select></label><label>Ngày thanh toán<input name="paymentDate" type="date" /></label><label>Người nhận<input name="receiverName" /></label><label>SĐT<input name="receiverPhone" /></label><label>Tổng tiền<input name="totalAmount" type="number" min={0} defaultValue={0} /></label><label>Số tiền chi<input name="paymentAmount" type="number" min={0} defaultValue={0} /></label><label>Tên TK<input name="bankAccountName" /></label><label>Số TK<input name="bankAccountNumber" /></label><label>Ngân hàng<input name="bankName" /></label><label>Chi nhánh<input name="branch" /></label><label>Nhân viên<input name="assignedStaff" /></label><label>File đính kèm<input name="attachment" type="file" /></label><label className="span2">Lý do<textarea name="reason" rows={3} /></label><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.payment.create')}>Tạo phiếu chi</button></div></form>;
+  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="modalFormStack"><fieldset><legend>Thông tin phiếu chi</legend><div className="formGrid modalFormGrid"><label>Tên phiếu chi<input name="voucherName" placeholder="Chi thanh toán nhà cung cấp" /></label><label>Loại phiếu chi<select name="voucherType" defaultValue="SUPPLIER_PAYMENT">{paymentTypes.map((type) => <option key={type} value={type}>{viStatus(type)}</option>)}</select></label><label>Phương thức thanh toán<select name="paymentMethod" defaultValue="BANK_TRANSFER">{methods.map((method) => <option key={method} value={method}>{viStatus(method)}</option>)}</select></label><label>Ngày thanh toán<input name="paymentDate" type="date" /></label></div></fieldset><fieldset><legend>Người nhận</legend><div className="formGrid modalFormGrid"><label>Người nhận<input name="receiverName" /></label><label>Số điện thoại<input name="receiverPhone" /></label><label>Tổng tiền<input name="totalAmount" type="number" min={0} defaultValue={0} /></label><label>Số tiền chi<input name="paymentAmount" type="number" min={0} defaultValue={0} /></label></div></fieldset><fieldset><legend>Thông tin chuyển khoản</legend><div className="formGrid modalFormGrid"><label>Tên tài khoản<input name="bankAccountName" /></label><label>Số tài khoản<input name="bankAccountNumber" /></label><label>Ngân hàng<input name="bankName" /></label><label>Chi nhánh<input name="branch" /></label><label>Nhân viên phụ trách<input name="assignedStaff" /></label><label>File đính kèm<input name="attachment" type="file" /></label></div></fieldset><fieldset><legend>Diễn giải</legend><label>Lý do chi<textarea name="reason" rows={3} /></label></fieldset><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.payment.create')}>Tạo phiếu chi</button></div></form>;
 }
 
 function InvoiceForm({ onCreate, onClose, can }: { onCreate: (formData: FormData) => Promise<boolean>; onClose: () => void; can: (permission: string) => boolean }) {
-  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="formGrid modalFormGrid"><label>Tên KH<input name="customerName" /></label><label>SĐT<input name="customerPhone" /></label><label>Email<input name="customerEmail" type="email" /></label><label>MST<input name="taxCode" /></label><label>Tên đơn vị<input name="companyName" /></label><label>Địa chỉ<input name="companyAddress" /></label><label>Loại HĐ<select name="invoiceType" defaultValue="VAT"><option>VAT</option><option>NO_VAT</option><option>ADJUSTMENT</option><option>REPLACEMENT</option></select></label><label>Ngày xuất<input name="issuedDate" type="date" /></label><label>Mã tour<input name="tourCode" /></label><label>Tên tour<input name="tourName" /></label><label>Dịch vụ<input name="itemName" defaultValue="Dịch vụ du lịch" /></label><label>ĐVT<input name="unit" defaultValue="gói" /></label><label>SL<input name="quantity" type="number" min={1} defaultValue={1} /></label><label>Đơn giá<input name="unitPrice" type="number" min={0} defaultValue={0} /></label><label>VAT %<select name="taxRate" defaultValue="10"><option>0</option><option>5</option><option>8</option><option>10</option></select></label><label className="span2">Tài liệu hóa đơn<input name="attachments" type="file" multiple /></label><label className="span2">Ghi chú<textarea name="note" rows={3} /></label><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.invoice.create')}>Tạo hóa đơn</button></div></form>;
+  return <form action={async (formData) => { if (await onCreate(formData)) onClose(); }} className="modalFormStack"><fieldset><legend>Khách hàng và thông tin thuế</legend><div className="formGrid modalFormGrid"><label>Tên khách hàng<input name="customerName" /></label><label>Số điện thoại<input name="customerPhone" /></label><label>Email<input name="customerEmail" type="email" /></label><label>Mã số thuế<input name="taxCode" /></label><label>Tên đơn vị<input name="companyName" /></label><label>Địa chỉ<input name="companyAddress" /></label></div></fieldset><fieldset><legend>Thông tin hóa đơn</legend><div className="formGrid modalFormGrid"><label>Loại hóa đơn<select name="invoiceType" defaultValue="VAT"><option value="VAT">Hóa đơn VAT</option><option value="NO_VAT">Không VAT</option><option value="ADJUSTMENT">Điều chỉnh</option><option value="REPLACEMENT">Thay thế</option></select></label><label>Ngày xuất<input name="issuedDate" type="date" /></label><label>Mã tour<input name="tourCode" /></label><label>Tên tour<input name="tourName" /></label></div></fieldset><fieldset><legend>Dòng dịch vụ</legend><div className="formGrid modalFormGrid"><label>Dịch vụ<input name="itemName" defaultValue="Dịch vụ du lịch" /></label><label>Đơn vị tính<input name="unit" defaultValue="gói" /></label><label>Số lượng<input name="quantity" type="number" min={1} defaultValue={1} /></label><label>Đơn giá<input name="unitPrice" type="number" min={0} defaultValue={0} /></label><label>Thuế VAT (%)<select name="taxRate" defaultValue="10"><option>0</option><option>5</option><option>8</option><option>10</option></select></label></div></fieldset><fieldset><legend>File và ghi chú</legend><div className="formGrid modalFormGrid"><label className="span2">Tài liệu hóa đơn<input name="attachments" type="file" multiple /></label><label className="span2">Ghi chú<textarea name="note" rows={3} /></label></div></fieldset><div className="modalActions"><button type="button" className="secondaryButton" onClick={onClose}>Hủy</button><button type="submit" disabled={!can('finance.invoice.create')}>Tạo hóa đơn VAT</button></div></form>;
 }
 
 function CashflowTab({ rows, summary }: { rows: Cashflow[]; summary: { totalReceipt: number; totalPayment: number; netCashflow: number; byMethod: { method: string; receipt: number; payment: number }[] } }) {
-  return <section className="cashflowStack"><aside className="panel financeSide"><h2>Tổng hợp dòng tiền</h2><div className="summaryRows"><div><span>Tổng thu</span><strong>{money(summary.totalReceipt)}</strong></div><div><span>Tổng chi</span><strong>{money(summary.totalPayment)}</strong></div><div><span>Net</span><strong>{money(summary.netCashflow)}</strong></div></div><h2>Theo phương thức</h2><div className="summaryRows">{summary.byMethod.map((row) => <div key={row.method}><span>{row.method}</span><strong>{money(row.receipt - row.payment)}</strong></div>)}</div></aside><FinanceTable title="Dòng tiền đã duyệt" count={rows.length}><thead><tr><th>Nguồn</th><th>Loại</th><th>Ngày</th><th>Phương thức</th><th>Số tiền</th><th>Chi nhánh</th><th>Nhân viên</th><th>Ghi chú</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{viStatus(row.sourceType)}</td><td><span className="statusPill">{viStatus(row.entryType)}</span></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.paymentMethod)}</td><td>{money(Number(row.amount))}</td><td>{row.branch || '-'}</td><td>{row.staff || '-'}</td><td>{row.note || '-'}</td></tr>)}</tbody></FinanceTable></section>;
+  return <section className="cashflowStack"><aside className="panel financeSide"><h2>Tổng hợp dòng tiền</h2><div className="summaryRows"><div><span>Tổng thu</span><strong>{money(summary.totalReceipt)}</strong></div><div><span>Tổng chi</span><strong>{money(summary.totalPayment)}</strong></div><div><span>Dòng tiền ròng</span><strong>{money(summary.netCashflow)}</strong></div></div><h2>Theo phương thức thanh toán</h2><div className="summaryRows">{summary.byMethod.map((row) => <div key={row.method}><span>{viStatus(row.method)}</span><strong>{money(row.receipt - row.payment)}</strong></div>)}</div></aside><FinanceTable title="Dòng tiền đã duyệt" count={rows.length}><thead><tr><th>Nguồn chứng từ</th><th>Loại dòng tiền</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Số tiền</th><th>Chi nhánh</th><th>Nhân viên phụ trách</th><th>Ghi chú</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{viStatus(row.sourceType)}</td><td><StatusPill status={row.entryType} /></td><td>{date(row.paymentDate)}</td><td>{viStatus(row.paymentMethod)}</td><td>{money(Number(row.amount))}</td><td>{row.branch || '-'}</td><td>{row.staff || '-'}</td><td>{row.note || '-'}</td></tr>)}</tbody></FinanceTable></section>;
 }
 
 function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: DebtRow[]; supplierDebt: DebtRow[]; onAdjust: (kind: 'customers' | 'suppliers', formData: FormData) => Promise<boolean>; can: (permission: string) => boolean }) {
@@ -281,7 +325,7 @@ function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: 
   return (
     <>
       <section className="panel financeDebtAdjustment">
-        <div className="sectionHeader"><h2>Điều chỉnh công nợ thủ công</h2><span>Ghi nhận vào ledger để truy vết</span></div>
+        <div className="sectionHeader"><h2>Điều chỉnh công nợ thủ công</h2><span>Ghi nhận vào sổ công nợ để truy vết</span></div>
         <form action={async (formData) => { await onAdjust(adjustKind, formData); }} className="formGrid">
           <label>Đối tượng<select value={adjustKind} onChange={(event) => setAdjustKind(event.target.value as 'customers' | 'suppliers')}><option value="customers">Khách hàng</option><option value="suppliers">Nhà cung cấp</option></select></label>
           <label>Chọn hồ sơ<select name="partyId" required><option value="">Chọn hồ sơ</option>{adjustmentRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
@@ -294,21 +338,21 @@ function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: 
       </section>
       <div className="debtGrid">
       <section className="panel financeList">
-        <div className="sectionHeader"><h2>Công nợ khách hàng</h2><span>{customerDebt.length} khách</span></div>
+        <div className="sectionHeader"><h2>Công nợ khách hàng</h2><span>{customerDebt.length} khách hàng</span></div>
         <div className="fitTableWrap"><table className="financeTable">
-          <thead><tr><th>Khách hàng</th><th>SĐT</th><th>Tổng phải thu</th><th>Đã thu</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
+          <thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th>Tổng phải thu</th><th>Đã thu</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
           <tbody>
-            {customerDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td>{money(row.aging.overdueTotal)}</td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
+            {customerDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong>{row.aging.overdueTotal > 0 ? <StatusPill status="OVERDUE" /> : null}</td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td><strong className={row.aging.overdueTotal > 0 ? 'dangerText' : ''}>{money(row.aging.overdueTotal)}</strong></td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
             {customerDebt.length === 0 ? <tr><td colSpan={7} className="tableEmptyState">Không có công nợ khách hàng.</td></tr> : null}
           </tbody>
         </table></div>
       </section>
       <section className="panel financeList">
-        <div className="sectionHeader"><h2>Công nợ nhà cung cấp</h2><span>{supplierDebt.length} NCC</span></div>
+        <div className="sectionHeader"><h2>Công nợ nhà cung cấp</h2><span>{supplierDebt.length} nhà cung cấp</span></div>
         <div className="fitTableWrap"><table className="financeTable">
-          <thead><tr><th>Nhà cung cấp</th><th>SĐT</th><th>Tổng phải trả</th><th>Đã trả</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
+          <thead><tr><th>Nhà cung cấp</th><th>Số điện thoại</th><th>Tổng phải trả</th><th>Đã trả</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
           <tbody>
-            {supplierDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td>{money(row.aging.overdueTotal)}</td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
+            {supplierDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong>{row.aging.overdueTotal > 0 ? <StatusPill status="OVERDUE" /> : null}</td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td><strong className={row.aging.overdueTotal > 0 ? 'dangerText' : ''}>{money(row.aging.overdueTotal)}</strong></td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
             {supplierDebt.length === 0 ? <tr><td colSpan={7} className="tableEmptyState">Không có công nợ nhà cung cấp.</td></tr> : null}
           </tbody>
         </table></div>
@@ -318,7 +362,7 @@ function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: 
   );
 }
 function FinanceModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="modalOverlay" role="dialog" aria-modal="true" onMouseDown={onClose}><section className="modalPanel" onMouseDown={(event) => event.stopPropagation()}><header><h2>{title}</h2><button type="button" className="secondaryButton iconButton" onClick={onClose} aria-label="Đóng"><X size={18} /></button></header>{children}</section></div>;
+  return <div className="modalOverlay" role="dialog" aria-modal="true"><section className="modalPanel"><header><h2>{title}</h2><button type="button" className="secondaryButton iconButton" onClick={onClose} aria-label="Đóng"><X size={18} /></button></header>{children}</section></div>;
 }
 
 function FinanceTable({ title, count, action, children }: { title: string; count: number; action?: React.ReactNode; children: React.ReactNode }) {
@@ -326,8 +370,26 @@ function FinanceTable({ title, count, action, children }: { title: string; count
 }
 function Metric({ label, value }: { label: string; value: string | number }) { return <article className="metric"><span>{label}</span><strong>{value}</strong></article>; }
 function authHeaders(json = true) { const token = typeof window !== 'undefined' ? window.localStorage.getItem('smarttour.auth.token') : null; return { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }; }
-async function getJson(path: string) { const response = await fetch(`${API_URL}${path}`, { cache: 'no-store', headers: authHeaders() }); if (!response.ok) return {}; return response.json(); }
+async function getJson(path: string) { const response = await fetch(`${API_URL}${path}`, { cache: 'no-store', headers: authHeaders() }); if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || response.statusText || `HTTP ${response.status}`); } return response.json(); }
 function money(value: number) { return new Intl.NumberFormat('vi-VN').format(value || 0); }
 function date(value?: string) { return value ? new Date(value).toLocaleDateString('vi-VN') : '-'; }
 function text(value: FormDataEntryValue | null) { return typeof value === 'string' ? value : ''; }
 function number(value: FormDataEntryValue | null) { return Number(text(value) || 0); }
+function mergeQuery(query: string, values: Record<string, string>) { const params = new URLSearchParams(query); Object.entries(values).forEach(([key, value]) => params.set(key, value)); return params.toString(); }
+function errorText(error: unknown) { return error instanceof Error ? error.message : String(error || 'Lỗi không xác định'); }
+function canRunAction(status: string, action: 'approve' | 'reject' | 'cancel') {
+  if (action === 'approve' || action === 'reject') return ['DRAFT', 'PENDING'].includes(status);
+  if (action === 'cancel') return status === 'APPROVED';
+  return false;
+}
+function StatusPill({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
+  const extra = status === 'OVERDUE' ? 'status-rejected' : status === 'RECEIPT' ? 'status-approved' : status === 'PAYMENT' ? 'status-pending' : `status-${normalized}`;
+  return <span className={`statusPill ${extra}`}>{status === 'OVERDUE' ? 'Quá hạn' : viStatus(status)}</span>;
+}
+function RowActions({ disabled, status, code, onAction }: { disabled: boolean; status: string; code: string; onAction: (action: 'approve' | 'reject' | 'cancel') => void }) {
+  const run = (action: 'approve' | 'reject' | 'cancel', label: string) => {
+    if (window.confirm(`${label} chứng từ ${code}?`)) onAction(action);
+  };
+  return <div className="financeActions"><button className="secondaryButton iconButton" title="Duyệt" aria-label="Duyệt" disabled={disabled || !canRunAction(status, 'approve')} onClick={() => run('approve', 'Duyệt')}><CheckCircle2 size={16} /></button><button className="secondaryButton iconButton" title="Từ chối" aria-label="Từ chối" disabled={disabled || !canRunAction(status, 'reject')} onClick={() => run('reject', 'Từ chối')}><XCircle size={16} /></button><button className="dangerButton iconButton" title="Hủy" aria-label="Hủy" disabled={disabled || !canRunAction(status, 'cancel')} onClick={() => run('cancel', 'Hủy')}><X size={16} /></button></div>;
+}
