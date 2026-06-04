@@ -20,7 +20,7 @@ export class TourProgramsService {
       description: true,
       createdAt: true,
       updatedAt: true,
-      itineraryDays: { orderBy: { dayNumber: 'asc' as const }, select: { id: true, dayNumber: true, title: true } },
+      itineraryDays: { orderBy: { dayNumber: 'asc' as const }, select: { id: true, dayNumber: true, title: true, description: true } },
       _count: { select: { bookings: true } },
     } satisfies Prisma.TourProgramSelect;
   }
