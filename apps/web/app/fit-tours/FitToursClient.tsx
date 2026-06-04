@@ -58,12 +58,12 @@ export default function FitToursClient({ suppliers, tours }: { suppliers: Suppli
           <table className="fitTable orderListTable">
             <thead>
               <tr>
-                <th>Mã BG</th>
+                <th>Mã báo giá</th>
                 <th>Mã tour</th>
                 <th>Khách</th>
                 <th>Ngày đi</th>
-                <th>Pax</th>
-                <th>Giá/khách</th>
+                <th>Số khách</th>
+                <th>Giá bán / khách</th>
                 <th>Trạng thái</th>
                 <th>Dự toán / Điều hành</th>
                 <th>Thao tác</th>

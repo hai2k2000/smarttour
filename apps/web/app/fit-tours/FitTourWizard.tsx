@@ -2,8 +2,22 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Copy, FileUp, Plus, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  Calculator,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  ClipboardList,
+  Copy,
+  FileQuestion,
+  FileUp,
+  Info,
+  Plus,
+  Save,
+  Send,
+  Trash2,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -13,15 +27,51 @@ type FitTourSummary = { id: string; quoteCode: string; tourCode: string; custome
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
 const workflowSteps = [
-  { key: 'PRICING', label: 'Tính giá' },
-  { key: 'TOUR_INFO', label: 'Thông tin Tour' },
-  { key: 'BUDGET', label: 'Dự toán dịch vụ' },
-  { key: 'OPERATION', label: 'Điều hành dịch vụ' },
-  { key: 'HANDOVER', label: 'Phiếu bàn giao' },
-  { key: 'SURVEY', label: 'Phiếu đánh giá dịch vụ' },
+  { key: 'PRICING', label: 'Tính giá', Icon: Calculator },
+  { key: 'TOUR_INFO', label: 'Thông tin tour', Icon: Info },
+  { key: 'BUDGET', label: 'Dự toán dịch vụ', Icon: ClipboardList },
+  { key: 'OPERATION', label: 'Điều hành dịch vụ', Icon: Send },
+  { key: 'HANDOVER', label: 'Phiếu bàn giao', Icon: ClipboardCheck },
+  { key: 'SURVEY', label: 'Phiếu đánh giá dịch vụ', Icon: FileQuestion },
 ] as const;
 
 const serviceStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'];
+const serviceStatusLabels: Record<string, string> = {
+  WAITING: 'Chờ xử lý',
+  REQUESTED: 'Đã gửi yêu cầu',
+  CONFIRMED: 'Đã xác nhận',
+  OPERATING: 'Đang điều hành',
+  COMPLETED: 'Hoàn tất',
+  CANCELLED: 'Đã hủy',
+};
+const marketOptions = ['Nội địa', 'Inbound', 'Outbound', 'Corporate'];
+const tourTypeOptions = ['FIT', 'Free & Easy', 'Private Tour', 'Combo'];
+const currencyOptions = ['VND', 'USD', 'EUR', 'THB'];
+const defaultHandoverGuideRequest = [
+  '1. Liên hệ khách trước tour.',
+  '2. Tạo nhóm Zalo để cập nhật thông tin và hỗ trợ khách.',
+  '3. Hỗ trợ khách trong suốt hành trình.',
+  '4. Chụp hình tư liệu phục vụ báo cáo.',
+  '5. Báo cáo phát sinh cho điều hành.',
+].join('\n');
+const defaultHandoverItems = [
+  'Rooming list',
+  'Vé máy bay',
+  'Bảo hiểm du lịch',
+  'Chương trình tour',
+  'Final confirmation',
+];
+const defaultSurveyQuestions = [
+  'Chất lượng chương trình tour',
+  'Phương tiện vận chuyển',
+  'Chất lượng đồ ăn',
+  'Thái độ nhân viên tư vấn',
+  'Chất lượng khách sạn',
+  'Hướng dẫn viên',
+  'Công tác tổ chức',
+  'Mức độ hài lòng chung',
+];
+const autosaveDelayMs = 1800;
 
 const costLineSchema = z.object({
   serviceType: z.string().default(''),
@@ -96,7 +146,7 @@ const fitTourSchema = z.object({
   confirmedAt: z.string().default(''),
   allowOverbooking: z.boolean().default(false),
   closeAt: z.string().default(''),
-  handoverGuideRequest: z.string().default('1. Lien he khach truoc tour.\n2. Tao nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.'),
+  handoverGuideRequest: z.string().default(defaultHandoverGuideRequest),
   surveyDescription: z.string().default(''),
   commonCosts: z.array(costLineSchema).default([]),
   hotelCosts: z.array(costLineSchema).default([]),
@@ -110,8 +160,10 @@ const fitTourSchema = z.object({
 });
 
 type FitTourForm = z.infer<typeof fitTourSchema>;
+type WorkflowStepKey = (typeof workflowSteps)[number]['key'];
 type ArrayName = 'commonCosts' | 'hotelCosts' | 'privateCosts' | 'budgetServices' | 'operationServices' | 'guides' | 'handoverItems' | 'surveyQuestions' | 'attachments';
 type ColumnSpec = { key: string; label: string; type?: 'text' | 'number' | 'supplier' | 'status' | 'textarea' };
+type FieldOption = string | { value: string; label: string };
 
 const emptyCost = { serviceType: '', description: '', unit: '', quantity: 1, paxPerRoom: 1, times: 1, currency: 'VND', exchangeRate: 1, unitPrice: 0, vat: 0, amount: 0, notes: '' };
 const emptyService = { serviceType: '', supplierId: '', description: '', bookingCode: '', quantity: 1, unitPrice: 0, confirmedUnitPrice: 0, vat: 0, amount: 0, status: 'WAITING', notes: '' };
@@ -139,13 +191,101 @@ function normalizeDate(value: unknown) {
   return String(value).slice(0, 10);
 }
 
+function normalizeArray<T>(rows: unknown, fallback: T[]): T[] {
+  return Array.isArray(rows) ? rows as T[] : fallback;
+}
+
+function trimText(value: unknown) {
+  return String(value ?? '').trim();
+}
+
+function rowHasValue(row: Record<string, unknown>, keys: string[]) {
+  return keys.some((key) => {
+    const value = row[key];
+    if (typeof value === 'number') return value > 0;
+    return trimText(value).length > 0;
+  });
+}
+
+function cleanCostRows(rows: FitTourForm['commonCosts']) {
+  return rows
+    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row) }))
+    .filter((row) => rowHasValue(row, ['description', 'unitPrice', 'amount', 'notes']));
+}
+
+function cleanHotelRows(rows: FitTourForm['hotelCosts']) {
+  return rows
+    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row) }))
+    .filter((row) => rowHasValue(row, ['description', 'unitPrice', 'amount', 'notes']));
+}
+
+function cleanServiceRows(rows: FitTourForm['budgetServices'], confirmed = false) {
+  return rows
+    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row, confirmed) }))
+    .filter((row) => rowHasValue(row, ['supplierId', 'description', 'bookingCode', 'unitPrice', 'confirmedUnitPrice', 'amount', 'notes']));
+}
+
+function cleanTextRows<T extends Record<string, unknown>>(rows: T[], keys: string[]) {
+  return rows.filter((row) => rowHasValue(row, keys));
+}
+
+function canPersistTour(data: FitTourForm) {
+  return trimText(data.quoteCode).length >= 2 && trimText(data.tourCode).length >= 2 && trimText(data.customerName).length >= 2;
+}
+
+function validateBeforeSave(data: FitTourForm) {
+  const errors: string[] = [];
+  if (trimText(data.quoteCode).length < 2) errors.push('Mã báo giá cần ít nhất 2 ký tự');
+  if (trimText(data.tourCode).length < 2) errors.push('Mã tour cần ít nhất 2 ký tự');
+  if (trimText(data.customerName).length < 2) errors.push('Họ tên khách cần ít nhất 2 ký tự');
+  if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errors.push('Email không hợp lệ');
+  if (number(data.adultCount) + number(data.childCount) + number(data.infantCount) < 1) errors.push('Số khách phải lớn hơn 0');
+  if (data.startDate && data.endDate && data.startDate > data.endDate) errors.push('Ngày về phải sau hoặc bằng ngày khởi đi');
+  return errors;
+}
+
+function preparePayload(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT'): FitTourForm {
+  return {
+    ...data,
+    quoteCode: trimText(data.quoteCode).toUpperCase(),
+    tourCode: trimText(data.tourCode).toUpperCase(),
+    tourName: trimText(data.tourName),
+    marketGroup: trimText(data.marketGroup),
+    customerName: trimText(data.customerName),
+    phone: trimText(data.phone),
+    email: trimText(data.email),
+    notes: trimText(data.notes),
+    workflowStatus,
+    commonCosts: cleanCostRows(data.commonCosts),
+    hotelCosts: cleanHotelRows(data.hotelCosts),
+    privateCosts: cleanCostRows(data.privateCosts),
+    budgetServices: cleanServiceRows(data.budgetServices),
+    operationServices: cleanServiceRows(data.operationServices, true),
+    guides: cleanTextRows(data.guides, ['name', 'phone', 'notes']),
+    handoverItems: data.handoverItems.filter((row) => trimText(row.itemName)),
+    surveyQuestions: data.surveyQuestions.filter((row) => trimText(row.question)),
+    attachments: data.attachments.filter((row) => trimText(row.fileName)),
+  };
+}
+
+async function responseError(response: Response) {
+  const text = await response.text();
+  try {
+    const json = JSON.parse(text);
+    const message = Array.isArray(json.message) ? json.message.join(', ') : json.message;
+    return message || text || `${response.status} ${response.statusText}`;
+  } catch {
+    return text || `${response.status} ${response.statusText}`;
+  }
+}
+
 function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   const today = new Date().toISOString().slice(0, 10);
   const defaults: FitTourForm = {
     quoteCode: `FIT-Q-${today.replaceAll('-', '')}`,
     tourCode: `FIT-${today.replaceAll('-', '')}`,
     tourName: '',
-    marketGroup: 'Noi dia',
+    marketGroup: 'Nội địa',
     bookingDate: today,
     startDate: '',
     endDate: '',
@@ -184,37 +324,22 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     confirmedAt: '',
     allowOverbooking: false,
     closeAt: '',
-    handoverGuideRequest: '1. Lien he khach truoc tour.\n2. Tao nhom Zalo.\n3. Ho tro khach trong hanh trinh.\n4. Chup hinh tu lieu.\n5. Bao cao phat sinh.',
+    handoverGuideRequest: defaultHandoverGuideRequest,
     surveyDescription: '',
-    commonCosts: [{ ...emptyCost, serviceType: 'Xe', unit: 'goi' }],
-    hotelCosts: [{ ...emptyCost, serviceType: 'Khach san', unit: 'phong', paxPerRoom: 2 }],
-    privateCosts: [{ ...emptyCost, serviceType: 'Ve tham quan', unit: 'khach' }],
-    budgetServices: [{ ...emptyService, serviceType: 'Hotel' }],
+    commonCosts: [{ ...emptyCost, serviceType: 'Xe', unit: 'gói' }],
+    hotelCosts: [{ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 }],
+    privateCosts: [{ ...emptyCost, serviceType: 'Vé tham quan', unit: 'khách' }],
+    budgetServices: [{ ...emptyService, serviceType: 'Khách sạn' }],
     operationServices: [],
     guides: [{ name: '', phone: '', guideType: 'Local', notes: '' }],
-    handoverItems: [
-      { itemName: 'Rooming list', quantity: 1, notes: '' },
-      { itemName: 'Ve may bay', quantity: 1, notes: '' },
-      { itemName: 'Bao hiem du lich', quantity: 1, notes: '' },
-      { itemName: 'Chuong trinh tour', quantity: 1, notes: '' },
-      { itemName: 'Final confirmation', quantity: 1, notes: '' },
-    ],
-    surveyQuestions: [
-      { question: 'Chat luong chuong trinh tour', notes: '' },
-      { question: 'Phuong tien van chuyen', notes: '' },
-      { question: 'Chat luong do an', notes: '' },
-      { question: 'Thai do nhan vien tu van', notes: '' },
-      { question: 'Chat luong khach san', notes: '' },
-      { question: 'Huong dan vien', notes: '' },
-      { question: 'Cong tac to chuc', notes: '' },
-      { question: 'Muc do hai long chung', notes: '' },
-    ],
+    handoverItems: defaultHandoverItems.map((itemName) => ({ itemName, quantity: 1, notes: '' })),
+    surveyQuestions: defaultSurveyQuestions.map((question) => ({ question, notes: '' })),
     attachments: [],
   };
 
+  const merged = { ...defaults, ...tour };
   return {
-    ...defaults,
-    ...tour,
+    ...merged,
     bookingDate: normalizeDate(tour?.bookingDate) || today,
     startDate: normalizeDate(tour?.startDate),
     endDate: normalizeDate(tour?.endDate),
@@ -222,19 +347,29 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     holdUntil: normalizeDate(tour?.holdUntil),
     confirmedAt: normalizeDate(tour?.confirmedAt),
     closeAt: normalizeDate(tour?.closeAt),
+    commonCosts: normalizeArray(tour?.commonCosts, defaults.commonCosts),
+    hotelCosts: normalizeArray(tour?.hotelCosts, defaults.hotelCosts),
+    privateCosts: normalizeArray(tour?.privateCosts, defaults.privateCosts),
+    budgetServices: normalizeArray(tour?.budgetServices, defaults.budgetServices),
+    operationServices: normalizeArray(tour?.operationServices, defaults.operationServices),
+    guides: normalizeArray(tour?.guides, defaults.guides),
+    handoverItems: normalizeArray(tour?.handoverItems, defaults.handoverItems),
+    surveyQuestions: normalizeArray(tour?.surveyQuestions, defaults.surveyQuestions),
+    attachments: normalizeArray(tour?.attachments, defaults.attachments),
   };
 }
 
 export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: { suppliers: Supplier[]; tours: FitTourSummary[]; initialTourId?: string }) {
   const [activeStep, setActiveStep] = useState(0);
-  const [saveState, setSaveState] = useState('Chua luu');
+  const [saveState, setSaveState] = useState('Chưa lưu');
   const [selectedTourId, setSelectedTourId] = useState('');
+  const lastAutosaveSignature = useRef('');
   const form = useForm<FitTourForm>({
     resolver: zodResolver(fitTourSchema) as never,
     defaultValues: toFormDefaults(),
     mode: 'onChange',
   });
-  const { register, control, handleSubmit, watch, setValue, getValues, reset, formState } = form;
+  const { register, control, handleSubmit, watch, setValue, getValues, reset, formState, getFieldState } = form;
 
   const arrays = {
     commonCosts: useFieldArray({ control, name: 'commonCosts' }),
@@ -272,218 +407,285 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: 
       const index = Number(name.split('.')[1]);
       if (!Number.isInteger(index)) return;
       const row = getValues(`${tableName}.${index}` as never) as Record<string, unknown>;
+      const amountPath = `${tableName}.${index}.amount` as never;
+      if (getFieldState(amountPath).isDirty) return;
       const amount = lineAmount(row, tableName === 'operationServices');
-      setValue(`${tableName}.${index}.amount` as never, amount as never, { shouldDirty: true });
+      if (Math.abs(number(row.amount) - amount) > 0.5) {
+        setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false });
+      }
     });
     return () => subscription.unsubscribe();
-  }, [getValues, setValue, watch]);
+  }, [getFieldState, getValues, setValue, watch]);
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
       const current = getValues();
-      if (!formState.isDirty || current.quoteCode.length < 2 || current.tourCode.length < 2 || current.customerName.length < 2) return;
-      setSaveState('Dang autosave...');
-      try {
-        const saved = await saveTour(current);
-        if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
-        setSaveState(`Da autosave ${new Date().toLocaleTimeString('vi-VN')}`);
-      } catch {
-        setSaveState('Autosave loi');
+      if (!formState.isDirty) return;
+      if (!canPersistTour(current)) {
+        setSaveState('Chưa đủ thông tin để tự lưu');
+        return;
       }
-    }, 1200);
+      const payload = preparePayload(current);
+      const errors = validateBeforeSave(payload);
+      if (errors.length) {
+        setSaveState(`Chưa thể tự lưu: ${errors[0]}`);
+        return;
+      }
+      const signature = JSON.stringify(payload);
+      if (signature === lastAutosaveSignature.current) return;
+      setSaveState('Đang tự lưu...');
+      try {
+        const saved = await saveTour(payload);
+        if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
+        lastAutosaveSignature.current = JSON.stringify(preparePayload({ ...current, id: saved.id || current.id }));
+        setSaveState(`Đã tự lưu ${new Date().toLocaleTimeString('vi-VN')}`);
+      } catch (error) {
+        setSaveState(`Tự lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      }
+    }, autosaveDelayMs);
     return () => clearTimeout(timeout);
   }, [values, formState.isDirty, getValues, setValue]);
 
   async function saveTour(data: FitTourForm) {
-    const url = data.id ? `${apiBase}/api/fit-tours/${data.id}` : `${apiBase}/api/fit-tours`;
+    const payload = preparePayload(data);
+    const errors = validateBeforeSave(payload);
+    if (errors.length) throw new Error(errors.join('. '));
+    const url = payload.id ? `${apiBase}/api/fit-tours/${payload.id}` : `${apiBase}/api/fit-tours`;
     const response = await fetch(url, {
-      method: data.id ? 'PUT' : 'POST',
+      method: payload.id ? 'PUT' : 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) throw new Error(await responseError(response));
     return response.json();
   }
 
   async function submit(data: FitTourForm) {
-    setSaveState('Dang luu...');
-    const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key });
-    reset(toFormDefaults(saved), { keepDirty: false });
-    setSaveState('Da luu');
+    setSaveState('Đang lưu...');
+    try {
+      const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key });
+      reset(toFormDefaults(saved), { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(toFormDefaults(saved)));
+      setSelectedTourId(saved.id || '');
+      setSaveState(`Đã lưu bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
+    } catch (error) {
+      setSaveState(`Lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
   }
 
   async function loadTour(id: string) {
     setSelectedTourId(id);
+    setActiveStep(0);
+    lastAutosaveSignature.current = '';
     if (!id) {
       reset(toFormDefaults());
+      setSaveState('Chưa lưu');
       return;
     }
-    const response = await fetch(`${apiBase}/api/fit-tours/${id}`);
-    if (response.ok) reset(toFormDefaults(await response.json()));
+    setSaveState('Đang tải tour...');
+    try {
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}`);
+      if (!response.ok) throw new Error(await responseError(response));
+      const defaults = toFormDefaults(await response.json());
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSaveState('Đã tải tour');
+    } catch (error) {
+      setSaveState(`Tải tour lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
   }
 
   async function copyBudget() {
     const id = getValues('id');
-    if (!id) return;
-    const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sourceTourId: selectedTourId || undefined }),
-    });
-    if (response.ok) reset(toFormDefaults(await response.json()));
+    if (!id) {
+      setSaveState('Hãy lưu tour trước khi copy dự toán');
+      return;
+    }
+    setSaveState('Đang copy dự toán...');
+    try {
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const defaults = toFormDefaults(await response.json());
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSaveState('Đã copy dự toán dịch vụ');
+    } catch (error) {
+      setSaveState(`Copy dự toán lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
   }
 
   async function copyOperation() {
     const id = getValues('id');
-    if (!id) return;
-    const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sourceTourId: selectedTourId || undefined }),
-    });
-    if (response.ok) reset(toFormDefaults(await response.json()));
+    if (!id) {
+      setSaveState('Hãy lưu tour trước khi copy điều hành');
+      return;
+    }
+    setSaveState('Đang copy điều hành...');
+    try {
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const defaults = toFormDefaults(await response.json());
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSaveState('Đã copy điều hành dịch vụ');
+    } catch (error) {
+      setSaveState(`Copy điều hành lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
   }
 
   function addFiles(files: FileList | null) {
     if (!files) return;
-    Array.from(files).forEach((file) => arrays.attachments.append({ step: workflowSteps[activeStep].key, fileName: file.name, mimeType: file.type, size: file.size }));
+    const validFiles = Array.from(files).filter((file) => file.name);
+    validFiles.forEach((file) => arrays.attachments.append({ step: workflowSteps[activeStep].key, fileName: file.name, mimeType: file.type, size: file.size }));
+    if (validFiles.length) setSaveState(`Đã gắn ${validFiles.length} file vào bước ${workflowSteps[activeStep].label}`);
   }
 
   return (
     <form onSubmit={handleSubmit(submit)} className="fitWizard">
       <section className="fitToolbar">
         <div className="fitSteps">
-          {workflowSteps.map((step, index) => (
-            <button type="button" key={step.key} className={activeStep === index ? 'active' : ''} onClick={() => setActiveStep(index)}>
-              <span>{index + 1}</span>{step.label}
-            </button>
-          ))}
+          {workflowSteps.map((step, index) => {
+            const StepIcon = step.Icon;
+            return (
+              <button type="button" key={step.key} className={activeStep === index ? 'active' : ''} onClick={() => setActiveStep(index)}>
+                <span>{index + 1}</span><StepIcon size={15} />{step.label}
+              </button>
+            );
+          })}
         </div>
         <div className="fitActions">
-          <select value={selectedTourId} onChange={(event) => loadTour(event.target.value)} aria-label="Chon FIT tour">
-            <option value="">Tour FIT moi</option>
+          <select value={selectedTourId} onChange={(event) => loadTour(event.target.value)} aria-label="Chọn tour FIT">
+            <option value="">Tạo tour FIT mới</option>
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>
           <span>{saveState}</span>
-          <button type="submit"><Save size={15} /> Luu</button>
+          <button type="submit"><Save size={15} /> Lưu</button>
         </div>
       </section>
 
       {activeStep === 0 ? (
         <section className="fitStep">
           <SummaryCards items={[
-            ['Tong phi chung', money(totalCommonCost)],
-            ['Tong phi rieng', money(totalPrivateCost)],
-            ['Gia NET / khach', money(netPerGuest)],
-            ['Loi nhuan / khach', money(profitPerGuest)],
-            ['Hoa hong / khach', money(number(values.commissionPerGuest))],
-            ['Gia co hoa hong', money(priceWithCommission)],
+            ['Tổng phí chung', money(totalCommonCost)],
+            ['Tổng phí riêng', money(totalPrivateCost)],
+            ['Giá NET / khách', money(netPerGuest)],
+            ['Lợi nhuận / khách', money(profitPerGuest)],
+            ['Hoa hồng / khách', money(number(values.commissionPerGuest))],
+            ['Giá có hoa hồng', money(priceWithCommission)],
           ]} />
           <div className="fitFormGrid">
-            <Field label="Ma bao gia" name="quoteCode" register={register} required />
-            <Field label="Ma tour" name="tourCode" register={register} required />
-            <Field label="Nhom thi truong" name="marketGroup" register={register} as="select" options={['Noi dia', 'Inbound', 'Outbound', 'Corporate']} />
-            <Field label="Ngay dat" name="bookingDate" register={register} type="date" />
-            <Field label="Khoi di" name="startDate" register={register} type="date" />
-            <Field label="Ngay ve" name="endDate" register={register} type="date" />
-            <Field label="Ho ten khach" name="customerName" register={register} required />
-            <Field label="Dien thoai" name="phone" register={register} />
+            <Field label="Mã báo giá" name="quoteCode" register={register} required />
+            <Field label="Mã tour" name="tourCode" register={register} required />
+            <Field label="Nhóm thị trường" name="marketGroup" register={register} as="select" options={marketOptions} />
+            <Field label="Ngày đặt" name="bookingDate" register={register} type="date" />
+            <Field label="Khởi đi" name="startDate" register={register} type="date" />
+            <Field label="Ngày về" name="endDate" register={register} type="date" />
+            <Field label="Họ tên khách" name="customerName" register={register} required />
+            <Field label="Điện thoại" name="phone" register={register} />
             <Field label="Email" name="email" register={register} type="email" />
-            <Field label="Nguoi lon" name="adultCount" register={register} type="number" />
-            <Field label="Tre em" name="childCount" register={register} type="number" />
-            <Field label="Em be" name="infantCount" register={register} type="number" />
-            <Field label="Gia ban / khach" name="sellingPrice" register={register} type="number" />
-            <Field label="Hoa hong / khach" name="commissionPerGuest" register={register} type="number" />
-            <label className="span2">Ghi chu<textarea {...register('notes')} rows={4} /></label>
-            <label className="fileDrop"><FileUp size={16} /> File dinh kem<input type="file" multiple onChange={(event) => addFiles(event.target.files)} /></label>
+            <Field label="Số người lớn" name="adultCount" register={register} type="number" />
+            <Field label="Trẻ em" name="childCount" register={register} type="number" />
+            <Field label="Em bé" name="infantCount" register={register} type="number" />
+            <Field label="Giá bán / khách" name="sellingPrice" register={register} type="number" />
+            <Field label="Hoa hồng / khách" name="commissionPerGuest" register={register} type="number" />
+            <label className="span2">Ghi chú<textarea {...register('notes')} rows={4} /></label>
+            <label className="fileDrop"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
           </div>
-          <EditableTable title="Chi phi chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append(emptyCost)} remove={arrays.commonCosts.remove} columns={costColumns} />
-          <EditableTable title="Chi phi khach san" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append(emptyCost)} remove={arrays.hotelCosts.remove} columns={hotelColumns} />
-          <EditableTable title="Chi phi rieng khach" name="privateCosts" fields={arrays.privateCosts.fields} register={register} append={() => arrays.privateCosts.append(emptyCost)} remove={arrays.privateCosts.remove} columns={costColumns} />
+          <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={arrays.commonCosts.remove} columns={costColumns} />
+          <EditableTable title="Chi phí khách sạn" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append({ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 })} remove={arrays.hotelCosts.remove} columns={hotelColumns} />
+          <EditableTable title="Chi phí riêng khách" name="privateCosts" fields={arrays.privateCosts.fields} register={register} append={() => arrays.privateCosts.append({ ...emptyCost })} remove={arrays.privateCosts.remove} columns={costColumns} />
         </section>
       ) : null}
 
       {activeStep === 1 ? (
         <section className="fitStep">
           <div className="fitFormGrid">
-            <Field label="Ma tour" name="tourCode" register={register} required />
-            <Field label="Ten tour" name="tourName" register={register} />
-            <Field label="Hanh trinh bay" name="flightRoute" register={register} />
-            <Field label="Nhom thi truong" name="marketGroup" register={register} as="select" options={['Noi dia', 'Inbound', 'Outbound', 'Corporate']} />
-            <Field label="Khoi hanh" name="startDate" register={register} type="date" />
-            <Field label="Ngay ve" name="endDate" register={register} type="date" />
-            <Field label="Loai hinh" name="tourType" register={register} as="select" options={['FIT', 'Free & Easy', 'Private Tour', 'Combo']} />
-            <Field label="Ty gia" name="exchangeRateCode" register={register} as="select" options={['VND', 'USD', 'EUR', 'THB']} />
-            <Field label="Nhan vien dieu hanh" name="operatorOwner" register={register} />
-            <Field label="So cho nhan" name="seatCount" register={register} type="number" />
-            <Field label="Gia tour" name="tourPrice" register={register} type="number" />
-            <Field label="Giam gia" name="discount" register={register} type="number" />
-            <Field label="Gia nguoi lon" name="adultPrice" register={register} type="number" />
-            <Field label="Gia tre em 2-5" name="childPrice25" register={register} type="number" />
-            <Field label="Gia tre em 6-11" name="childPrice611" register={register} type="number" />
-            <Field label="Gia em be" name="infantPrice" register={register} type="number" />
-            <Field label="Phu thu tren tour" name="surcharge" register={register} type="number" />
-            <Field label="Phuong tien" name="transportMode" register={register} />
-            <Field label="Hanh trinh di" name="outboundRoute" register={register} />
-            <Field label="Hang di" name="outboundCarrier" register={register} />
-            <Field label="Hanh trinh ve" name="returnRoute" register={register} />
-            <Field label="Hang ve" name="returnCarrier" register={register} />
-            <Field label="Diem don" name="pickupPoint" register={register} />
-            <Field label="Diem tra" name="dropoffPoint" register={register} />
-            <Field label="Han xin visa" name="visaDeadline" register={register} type="date" />
-            <Field label="Thoi gian giu cho" name="holdUntil" register={register} type="date" />
-            <Field label="Thoi gian nhan cho" name="confirmedAt" register={register} type="date" />
-            <Field label="Thoi gian dong cho" name="closeAt" register={register} type="date" />
-            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho ban qua so ghe</label>
+            <Field label="Mã tour" name="tourCode" register={register} required />
+            <Field label="Tên tour" name="tourName" register={register} />
+            <Field label="Hành trình bay" name="flightRoute" register={register} />
+            <Field label="Nhóm thị trường" name="marketGroup" register={register} as="select" options={marketOptions} />
+            <Field label="Khởi đi" name="startDate" register={register} type="date" />
+            <Field label="Ngày về" name="endDate" register={register} type="date" />
+            <Field label="Loại hình" name="tourType" register={register} as="select" options={tourTypeOptions} />
+            <Field label="Tỷ giá" name="exchangeRateCode" register={register} as="select" options={currencyOptions} />
+            <Field label="Nhân viên điều hành" name="operatorOwner" register={register} />
+            <Field label="Số chỗ nhận" name="seatCount" register={register} type="number" />
+            <Field label="Giá tour" name="tourPrice" register={register} type="number" />
+            <Field label="Giảm giá" name="discount" register={register} type="number" />
+            <Field label="Giá người lớn" name="adultPrice" register={register} type="number" />
+            <Field label="Giá trẻ em 2-5" name="childPrice25" register={register} type="number" />
+            <Field label="Giá trẻ em 6-11" name="childPrice611" register={register} type="number" />
+            <Field label="Giá em bé" name="infantPrice" register={register} type="number" />
+            <Field label="Phụ thu trên tour" name="surcharge" register={register} type="number" />
+            <Field label="Phương tiện" name="transportMode" register={register} />
+            <Field label="Hành trình đi" name="outboundRoute" register={register} />
+            <Field label="Hãng đi" name="outboundCarrier" register={register} />
+            <Field label="Hành trình về" name="returnRoute" register={register} />
+            <Field label="Hãng về" name="returnCarrier" register={register} />
+            <Field label="Điểm đón" name="pickupPoint" register={register} />
+            <Field label="Điểm trả" name="dropoffPoint" register={register} />
+            <Field label="Hạn xin visa" name="visaDeadline" register={register} type="date" />
+            <Field label="Thời gian giữ chỗ" name="holdUntil" register={register} type="date" />
+            <Field label="Thời gian nhận chỗ" name="confirmedAt" register={register} type="date" />
+            <Field label="Thời gian đóng chỗ" name="closeAt" register={register} type="date" />
+            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép nhận vượt số chỗ khi điều hành xác nhận</label>
           </div>
-          <EditableTable title="Guide" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Local', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
+          <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Local', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
         </section>
       ) : null}
 
       {activeStep === 2 ? (
         <section className="fitStep">
           <SummaryCards items={[
-            ['Tong thu du kien', money(budgetRevenue)],
-            ['Tong chi du kien', money(budgetCost)],
-            ['Loi nhuan du kien', money(budgetProfit)],
-            ['Ty suat loi nhuan', `${budgetRevenue ? Math.round((budgetProfit / budgetRevenue) * 1000) / 10 : 0}%`],
+            ['Tổng thu dự kiến', money(budgetRevenue)],
+            ['Tổng chi dự kiến', money(budgetCost)],
+            ['Lợi nhuận dự kiến', money(budgetProfit)],
+            ['Tỷ suất lợi nhuận', `${budgetRevenue ? Math.round((budgetProfit / budgetRevenue) * 1000) / 10 : 0}%`],
           ]} />
-          <div className="copyBar"><button type="button" onClick={copyBudget}><Copy size={15} /> Copy du toan</button></div>
-          <EditableTable title="Du toan dich vu" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append(emptyService)} remove={arrays.budgetServices.remove} columns={budgetColumns} suppliers={suppliers} />
+          <div className="copyBar"><button type="button" onClick={copyBudget}><Copy size={15} /> Copy dự toán</button></div>
+          <EditableTable title="Dự toán dịch vụ" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append({ ...emptyService })} remove={arrays.budgetServices.remove} columns={budgetColumns} suppliers={suppliers} />
         </section>
       ) : null}
 
       {activeStep === 3 ? (
         <section className="fitStep">
           <SummaryCards items={[
-            ['Tong chi', money(operationCost)],
-            ['Loi nhuan du kien', money(budgetProfit)],
-            ['Loi nhuan thuc te', money(budgetRevenue - operationCost)],
+            ['Tổng chi điều hành', money(operationCost)],
+            ['Lợi nhuận dự kiến', money(budgetProfit)],
+            ['Lợi nhuận thực tế', money(budgetRevenue - operationCost)],
           ]} />
-          <div className="copyBar"><button type="button" onClick={copyOperation}><Copy size={15} /> Copy dieu hanh tu du toan</button></div>
-          <EditableTable title="Dieu hanh dich vu" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append(emptyService)} remove={arrays.operationServices.remove} columns={operationColumns} suppliers={suppliers} />
+          <div className="copyBar"><button type="button" onClick={copyOperation}><Copy size={15} /> Copy điều hành từ dự toán</button></div>
+          <EditableTable title="Điều hành dịch vụ" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append({ ...emptyService })} remove={arrays.operationServices.remove} columns={operationColumns} suppliers={suppliers} />
         </section>
       ) : null}
 
       {activeStep === 4 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Diem don', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
-          <label>Yeu cau huong dan vien<textarea {...register('handoverGuideRequest')} rows={8} /></label>
-          <EditableTable title="Vat dung va qua tang" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={arrays.handoverItems.remove} columns={handoverColumns} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['Số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên local', values.guides[0]?.name || '-']]} />
+          <label>Yêu cầu hướng dẫn viên<textarea {...register('handoverGuideRequest')} rows={8} /></label>
+          <EditableTable title="Vật dụng và quà tặng" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={arrays.handoverItems.remove} columns={handoverColumns} />
         </section>
       ) : null}
 
       {activeStep === 5 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['So khach', String(totalPax)], ['Ngay khoi hanh', values.startDate || '-'], ['Diem don', values.pickupPoint || '-'], ['Ngay ve', values.endDate || '-'], ['Local guide', values.guides[0]?.name || '-']]} />
-          <label>Mo ta chung<textarea {...register('surveyDescription')} rows={5} /></label>
-          <EditableTable title="Cau hoi khao sat" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['Số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên local', values.guides[0]?.name || '-']]} />
+          <label>Mô tả chung<textarea {...register('surveyDescription')} rows={5} /></label>
+          <EditableTable title="Câu hỏi khảo sát" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
         </section>
       ) : null}
 
       <section className="wizardFooter">
-        <button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}><ChevronLeft size={15} /> Truoc</button>
-        <button type="button" className="secondaryButton" disabled={activeStep === workflowSteps.length - 1} onClick={() => setActiveStep((step) => Math.min(workflowSteps.length - 1, step + 1))}>Tiep <ChevronRight size={15} /></button>
+        <button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}><ChevronLeft size={15} /> Trước</button>
+        <button type="button" className="secondaryButton" disabled={activeStep === workflowSteps.length - 1} onClick={() => setActiveStep((step) => Math.min(workflowSteps.length - 1, step + 1))}>Tiếp <ChevronRight size={15} /></button>
       </section>
     </form>
   );
@@ -493,11 +695,15 @@ function SummaryCards({ items }: { items: [string, string][] }) {
   return <div className="fitSummary">{items.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
 }
 
-function Field({ label, name, register, type = 'text', required, as, options = [] }: { label: string; name: keyof FitTourForm; register: UseFormRegister<FitTourForm>; type?: string; required?: boolean; as?: 'select'; options?: string[] }) {
+function Field({ label, name, register, type = 'text', required, as, options = [] }: { label: string; name: keyof FitTourForm; register: UseFormRegister<FitTourForm>; type?: string; required?: boolean; as?: 'select'; options?: FieldOption[] }) {
   return (
     <label>{label}
       {as === 'select' ? (
-        <select {...register(name)} required={required}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+        <select {...register(name)} required={required}>{options.map((option) => {
+          const value = typeof option === 'string' ? option : option.value;
+          const optionLabel = typeof option === 'string' ? option : option.label;
+          return <option key={value} value={value}>{optionLabel}</option>;
+        })}</select>
       ) : (
         <input type={type} {...register(name)} required={required} />
       )}
@@ -516,14 +722,14 @@ function EditableTable({ title, name, fields, register, append, remove, columns,
     columnHelper.display({
       id: 'actions',
       header: '',
-      cell: ({ row }) => <button type="button" className="iconButton dangerButton" onClick={() => remove(row.index)} aria-label="Xoa dong"><Trash2 size={14} /></button>,
+      cell: ({ row }) => <button type="button" className="iconButton dangerButton" onClick={() => remove(row.index)} aria-label="Xóa dòng" title="Xóa dòng"><Trash2 size={14} /></button>,
     }),
   ], [columnHelper, columns, name, register, remove, suppliers]);
   const table = useReactTable({ data: fields, columns: tableColumns, getCoreRowModel: getCoreRowModel() });
 
   return (
     <section className="fitTableBlock">
-      <div className="sectionHeader"><h2>{title}</h2><button type="button" onClick={append}><Plus size={15} /> Them dong</button></div>
+      <div className="sectionHeader"><h2>{title}</h2><button type="button" onClick={append}><Plus size={15} /> Thêm dòng</button></div>
       <div className="fitTableWrap">
         <table className="fitTable">
           <thead>{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}>{headerGroup.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
@@ -537,10 +743,10 @@ function EditableTable({ title, name, fields, register, append, remove, columns,
 function TableInput({ name, rowIndex, column, register, suppliers }: { name: ArrayName; rowIndex: number; column: ColumnSpec; register: UseFormRegister<FitTourForm>; suppliers: Supplier[] }) {
   const fieldName = `${name}.${rowIndex}.${column.key}` as never;
   if (column.type === 'supplier') {
-    return <select {...register(fieldName)}><option value="">Chon NCC</option>{suppliers.map((supplier) => <option value={supplier.id} key={supplier.id}>{supplier.name}</option>)}</select>;
+    return <select {...register(fieldName)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option value={supplier.id} key={supplier.id}>{supplier.name}</option>)}</select>;
   }
   if (column.type === 'status') {
-    return <select {...register(fieldName)}>{serviceStatuses.map((status) => <option value={status} key={status}>{status}</option>)}</select>;
+    return <select {...register(fieldName)}>{serviceStatuses.map((status) => <option value={status} key={status}>{serviceStatusLabels[status] || status}</option>)}</select>;
   }
   if (column.type === 'textarea') {
     return <textarea rows={2} {...register(fieldName)} />;
@@ -549,70 +755,70 @@ function TableInput({ name, rowIndex, column, register, suppliers }: { name: Arr
 }
 
 const costColumns: ColumnSpec[] = [
-  { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'description', label: 'Dien giai' },
-  { key: 'unit', label: 'Don vi tinh' },
-  { key: 'quantity', label: 'So luong', type: 'number' },
-  { key: 'times', label: 'So lan', type: 'number' },
-  { key: 'currency', label: 'Ngoai te' },
-  { key: 'exchangeRate', label: 'Ty gia', type: 'number' },
-  { key: 'unitPrice', label: 'Don gia', type: 'number' },
+  { key: 'serviceType', label: 'Loại dịch vụ' },
+  { key: 'description', label: 'Diễn giải' },
+  { key: 'unit', label: 'Đơn vị tính' },
+  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'times', label: 'Số lần', type: 'number' },
+  { key: 'currency', label: 'Ngoại tệ' },
+  { key: 'exchangeRate', label: 'Tỷ giá', type: 'number' },
+  { key: 'unitPrice', label: 'Đơn giá', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
-  { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'amount', label: 'Thành tiền', type: 'number' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const hotelColumns: ColumnSpec[] = [
-  { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'description', label: 'Dien giai' },
-  { key: 'unit', label: 'Don vi tinh' },
-  { key: 'paxPerRoom', label: 'So nguoi/phong', type: 'number' },
-  { key: 'times', label: 'So lan', type: 'number' },
-  { key: 'currency', label: 'Ngoai te' },
-  { key: 'exchangeRate', label: 'Ty gia', type: 'number' },
-  { key: 'unitPrice', label: 'Don gia', type: 'number' },
+  { key: 'serviceType', label: 'Loại dịch vụ' },
+  { key: 'description', label: 'Diễn giải' },
+  { key: 'unit', label: 'Đơn vị tính' },
+  { key: 'paxPerRoom', label: 'Số người/phòng', type: 'number' },
+  { key: 'times', label: 'Số lần', type: 'number' },
+  { key: 'currency', label: 'Ngoại tệ' },
+  { key: 'exchangeRate', label: 'Tỷ giá', type: 'number' },
+  { key: 'unitPrice', label: 'Đơn giá', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
-  { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'amount', label: 'Thành tiền', type: 'number' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const budgetColumns: ColumnSpec[] = [
-  { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'supplierId', label: 'Nha cung cap', type: 'supplier' },
-  { key: 'description', label: 'Dien giai' },
-  { key: 'quantity', label: 'So luong', type: 'number' },
-  { key: 'unitPrice', label: 'Don gia', type: 'number' },
+  { key: 'serviceType', label: 'Loại dịch vụ' },
+  { key: 'supplierId', label: 'Nhà cung cấp', type: 'supplier' },
+  { key: 'description', label: 'Diễn giải' },
+  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'unitPrice', label: 'Đơn giá', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
-  { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'amount', label: 'Thành tiền', type: 'number' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const operationColumns: ColumnSpec[] = [
-  { key: 'serviceType', label: 'Loai dich vu' },
-  { key: 'supplierId', label: 'Nha cung cap', type: 'supplier' },
-  { key: 'bookingCode', label: 'Booking code' },
-  { key: 'quantity', label: 'So luong', type: 'number' },
-  { key: 'confirmedUnitPrice', label: 'Gia xac nhan', type: 'number' },
+  { key: 'serviceType', label: 'Loại dịch vụ' },
+  { key: 'supplierId', label: 'Nhà cung cấp', type: 'supplier' },
+  { key: 'bookingCode', label: 'Mã booking' },
+  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'confirmedUnitPrice', label: 'Giá xác nhận', type: 'number' },
   { key: 'vat', label: 'VAT %', type: 'number' },
-  { key: 'amount', label: 'Thanh tien', type: 'number' },
-  { key: 'status', label: 'Trang thai', type: 'status' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'amount', label: 'Thành tiền', type: 'number' },
+  { key: 'status', label: 'Trạng thái', type: 'status' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const guideColumns: ColumnSpec[] = [
-  { key: 'name', label: 'Ten' },
-  { key: 'phone', label: 'Dien thoai' },
-  { key: 'guideType', label: 'Loai guide' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'name', label: 'Tên hướng dẫn viên' },
+  { key: 'phone', label: 'Điện thoại' },
+  { key: 'guideType', label: 'Loại HDV' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const handoverColumns: ColumnSpec[] = [
-  { key: 'itemName', label: 'Tai lieu ban giao' },
-  { key: 'quantity', label: 'So luong', type: 'number' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'itemName', label: 'Tài liệu bàn giao' },
+  { key: 'quantity', label: 'Số lượng', type: 'number' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
 
 const surveyColumns: ColumnSpec[] = [
-  { key: 'question', label: 'Cau hoi' },
-  { key: 'notes', label: 'Ghi chu' },
+  { key: 'question', label: 'Câu hỏi' },
+  { key: 'notes', label: 'Ghi chú' },
 ];
