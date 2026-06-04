@@ -41,6 +41,7 @@ export class OrderLifecycleService {
     if (order.settledAt) {
       return include ? tx.order.findUniqueOrThrow({ where: { id: order.id }, include }) : tx.order.findUniqueOrThrow({ where: { id: order.id } });
     }
+    if (order.status === 'CANCELLED') throw new BadRequestException('Cancelled order cannot be settled');
     if (order.type === 'HOTEL_BOOKING') await this.allotments.alignAutoLocksForStatus(tx, order.id, 'SETTLED', 'SETTLE');
     const data = { status: 'SETTLED' as OrderStatus, settledAt: new Date() };
     const settled = include ? await tx.order.update({ where: { id: order.id }, data, include }) : await tx.order.update({ where: { id: order.id }, data });

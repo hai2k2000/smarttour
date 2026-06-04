@@ -60,9 +60,10 @@ async function syncRows<T extends ChildInput>(delegate: ChildDelegate, orderId: 
   const existingIds = new Set(existing.map((item) => item.id));
   const seenIds = new Set<string>();
   const keepIds: string[] = [];
+  const mappedItems = items.map((item, index) => ({ item, data: mapData(item, index) }));
+  if (items.length > 0 && !mappedItems.some((row) => row.data) && items.every((item) => !text(item.id))) return;
 
-  for (const [index, item] of items.entries()) {
-    const data = mapData(item, index);
+  for (const { item, data } of mappedItems) {
     if (!data) continue;
     const id = text(item.id);
     if (!id) {
@@ -92,6 +93,8 @@ function guideData(item: { guideId?: string | null; guideName?: string | null; p
 }
 
 function salesItemData(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; description?: string | null; quantity?: number; serviceCount?: number; unitPrice?: number; vat?: number; note?: string | null }, index: number) {
+  const amount = salesAmount(item);
+  if (!text(item.serviceType) && !text(item.supplierId) && !text(item.serviceId) && !text(item.description) && !text(item.note) && amount === 0) return null;
   return {
     serviceType: text(item.serviceType),
     supplierId: text(item.supplierId),
@@ -101,13 +104,15 @@ function salesItemData(item: { serviceType?: string | null; supplierId?: string 
     serviceCount: item.serviceCount ?? 1,
     unitPrice: item.unitPrice ?? 0,
     vat: item.vat ?? 0,
-    amount: salesAmount(item),
+    amount,
     note: text(item.note),
     sortOrder: index,
   };
 }
 
 function operationItemData(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; bookingCode?: string | null; serviceDate?: string | Date | null; quantity?: number; netPrice?: number; vat?: number; status?: string; note?: string | null }, index: number) {
+  const amount = operationAmount(item);
+  if (!text(item.serviceType) && !text(item.supplierId) && !text(item.serviceId) && !text(item.bookingCode) && !text(item.note) && amount === 0) return null;
   return {
     serviceType: text(item.serviceType),
     supplierId: text(item.supplierId),
@@ -117,7 +122,7 @@ function operationItemData(item: { serviceType?: string | null; supplierId?: str
     quantity: item.quantity ?? 1,
     netPrice: item.netPrice ?? 0,
     vat: item.vat ?? 0,
-    amount: operationAmount(item),
+    amount,
     status: item.status ?? 'WAITING',
     note: text(item.note),
     sortOrder: index,

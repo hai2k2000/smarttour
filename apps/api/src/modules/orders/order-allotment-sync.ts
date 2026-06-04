@@ -114,9 +114,12 @@ export async function syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orde
   if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
   const operationRows = await tx.orderOperationItem.findMany({ where: { orderId }, orderBy: { sortOrder: 'asc' }, select: { id: true, sortOrder: true } });
   for (const [index, item] of (dto.operationItems ?? []).entries()) {
+    const serviceType = text(item.serviceType)?.toUpperCase();
+    if (serviceType && serviceType !== 'HOTEL') continue;
     const serviceId = text(item.serviceId);
     if (!serviceId) continue;
-    const quantity = Math.max(1, Math.ceil(Number(item.quantity ?? 1)));
+    const quantity = lockQuantity(item.quantity);
+    if (quantity === 0) continue;
     const serviceDate = date(item.serviceDate) ?? date(dto.startDate) ?? new Date();
     const allotment = await tx.supplierAllotment.findFirst({
       where: {
@@ -243,4 +246,12 @@ function text(value?: string | null) {
 
 function date(value?: string | Date | null) {
   return value ? new Date(value) : null;
+}
+
+function lockQuantity(value: unknown) {
+  if (value == null) return 1;
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity)) throw new BadRequestException('Hotel allotment quantity is invalid');
+  if (quantity <= 0) return 0;
+  return Math.ceil(quantity);
 }

@@ -43,5 +43,23 @@ const paid = calculateOrderTotals({
 assertEqual(paid.paymentStatus, 'PAID', 'paid payment status');
 assertEqual(paid.costStatus, 'PAID', 'paid cost status');
 
+const missingLines = calculateOrderTotals({});
+assertEqual(missingLines.totalRevenue, 0, 'missing sales should calculate zero revenue');
+assertEqual(missingLines.totalCost, 0, 'missing operations should calculate zero cost');
+assertEqual(missingLines.profit, 0, 'missing lines should calculate zero profit');
+assertEqual(missingLines.paymentStatus, 'UNPAID', 'missing revenue payment status');
+assertEqual(missingLines.costStatus, 'PENDING', 'missing cost status');
+
+const overpaid = calculateOrderTotals({
+  salesItems: [{ quantity: 1, serviceCount: 1, unitPrice: 100000, vat: 0 }],
+  operationItems: [{ quantity: 1, netPrice: 50000, vat: 0 }],
+  paidAmount: 120000,
+  paidCost: 60000,
+});
+assertEqual(overpaid.remainingRevenue, 0, 'overpaid revenue should not go negative');
+assertEqual(overpaid.remainingCost, 0, 'overpaid cost should not go negative');
+assertEqual(overpaid.paymentStatus, 'PAID', 'overpaid revenue should be paid');
+assertEqual(overpaid.costStatus, 'PAID', 'overpaid cost should be paid');
+
 console.log('TEST_ORDER_CALCULATOR_OK');
 NODE

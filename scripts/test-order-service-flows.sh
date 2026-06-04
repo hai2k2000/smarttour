@@ -145,6 +145,15 @@ async function main() {
     });
     assert(row.systemCode === `${run}-${suffix}` && money(row.profit) === 600, `create should work for ${typePath}`);
   }
+  const explicitCustomerSnapshot = await service.create('single-services', {
+    systemCode: run + '-CUS-OVERRIDE',
+    name: 'Customer Override',
+    customerId: customer.id,
+    customerName: 'Custom Customer Name',
+    customerPhone: '0999999999',
+    customerEmail: 'custom@example.test',
+  });
+  assert(explicitCustomerSnapshot.customerName === 'Custom Customer Name' && explicitCustomerSnapshot.customerPhone === '0999999999' && explicitCustomerSnapshot.customerEmail === 'custom@example.test', 'customer snapshot should not overwrite explicit customer fields');
   const createdSettled = await service.create('single-services', {
     systemCode: run + '-CREATE-SETTLED',
     name: 'Create Settled',
@@ -158,6 +167,10 @@ async function main() {
   assert(partial.salesItems[0].id === created.salesItems[0].id, 'partial update should preserve sales item id');
   assert(partial.operationItems[0].id === created.operationItems[0].id, 'partial update should preserve operation item id');
   assert(partial.members[0].id === created.members[0].id, 'partial update should preserve member id');
+  const blankChildPayload = await service.update('single-services', created.id, { members: [{ fullName: '   ' }], salesItems: [{ description: '   ', unitPrice: 0 }], operationItems: [{ serviceType: '   ', netPrice: 0 }] });
+  assert(blankChildPayload.members.length === partial.members.length, 'blank member row should not delete existing members');
+  assert(blankChildPayload.salesItems.length === partial.salesItems.length, 'blank sales row should not replace existing sales items');
+  assert(blankChildPayload.operationItems.length === partial.operationItems.length, 'blank operation row should not replace existing operation items');
 
   const updated = await service.update('single-services', created.id, {
     name: 'Order Service Flow Updated',
@@ -194,6 +207,13 @@ async function main() {
   await rejects(() => service.updateStatus('flight-orders', flight.id, 'RUNNING'), 'flight orders should reject unsupported RUNNING status');
   const flightCompleted = await service.updateStatus('flights', flight.id, 'COMPLETED');
   assert(flightCompleted.status === 'COMPLETED', 'flight alias should resolve and allow completed status');
+  const cancelledForSettle = await service.create('single-services', {
+    systemCode: run + '-CANCEL-SETTLE',
+    name: 'Cancelled Cannot Settle',
+    customerId: customer.id,
+  });
+  await service.updateStatus('single-services', cancelledForSettle.id, 'CANCELLED');
+  await rejects(() => service.settle('single-services', cancelledForSettle.id), 'cancelled order should not be settled');
 
   const settled = await service.settle('single-services', created.id);
   assert(settled.status === 'SETTLED' && settled.settledAt, 'settle should mark order settled');
@@ -289,6 +309,28 @@ async function main() {
   });
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel update without allotment service should release old lock');
+
+  const hotelOtherService = await service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-OTHER-SVC',
+    name: 'Hotel Other Service No Lock',
+    customerId: customer.id,
+    startDate: '2026-10-10',
+    operationItems: [{ serviceType: 'OTHER', supplierId: supplier.id, serviceId: hotelService.id, serviceDate: '2026-10-10', quantity: 3, netPrice: 100000, vat: 0, status: 'WAITING' }],
+  });
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel booking should not auto-lock non-hotel operation lines');
+  await service.remove('hotel-bookings', hotelOtherService.id);
+
+  const hotelZeroQty = await service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-ZERO-QTY',
+    name: 'Hotel Zero Quantity No Lock',
+    customerId: customer.id,
+    startDate: '2026-10-10',
+    operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: hotelService.id, serviceDate: '2026-10-10', quantity: 0, netPrice: 700000, vat: 0, status: 'WAITING' }],
+  });
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel booking should not auto-lock zero quantity lines');
+  await service.remove('hotel-bookings', hotelZeroQty.id);
 
   await prisma.$disconnect();
   console.log('TEST_ORDER_SERVICE_FLOWS_OK');
