@@ -359,7 +359,15 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   };
 }
 
-export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: { suppliers: Supplier[]; tours: FitTourSummary[]; initialTourId?: string }) {
+type SaveReason = 'autosave' | 'save' | 'copy-budget' | 'copy-operation';
+type FitTourWizardProps = {
+  suppliers: Supplier[];
+  tours: FitTourSummary[];
+  initialTourId?: string;
+  onSaved?: (tour: Partial<FitTourForm> & { id?: string }, reason: SaveReason) => void;
+};
+
+export default function FitTourWizard({ suppliers, tours, initialTourId = '', onSaved }: FitTourWizardProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [saveState, setSaveState] = useState('Chưa lưu');
   const [selectedTourId, setSelectedTourId] = useState('');
@@ -438,13 +446,14 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: 
         const saved = await saveTour(payload);
         if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
         lastAutosaveSignature.current = JSON.stringify(preparePayload({ ...current, id: saved.id || current.id }));
+        onSaved?.(saved, 'autosave');
         setSaveState(`Đã tự lưu ${new Date().toLocaleTimeString('vi-VN')}`);
       } catch (error) {
         setSaveState(`Tự lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
       }
     }, autosaveDelayMs);
     return () => clearTimeout(timeout);
-  }, [values, formState.isDirty, getValues, setValue]);
+  }, [values, formState.isDirty, getValues, setValue, onSaved]);
 
   async function saveTour(data: FitTourForm) {
     const payload = preparePayload(data);
@@ -467,6 +476,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: 
       reset(toFormDefaults(saved), { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(toFormDefaults(saved)));
       setSelectedTourId(saved.id || '');
+      onSaved?.(saved, 'save');
       setSaveState(`Đã lưu bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
     } catch (error) {
       setSaveState(`Lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
@@ -509,9 +519,11 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: 
         body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
       });
       if (!response.ok) throw new Error(await responseError(response));
-      const defaults = toFormDefaults(await response.json());
+      const saved = await response.json();
+      const defaults = toFormDefaults(saved);
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      onSaved?.(saved, 'copy-budget');
       setSaveState('Đã copy dự toán dịch vụ');
     } catch (error) {
       setSaveState(`Copy dự toán lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
@@ -532,9 +544,11 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '' }: 
         body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
       });
       if (!response.ok) throw new Error(await responseError(response));
-      const defaults = toFormDefaults(await response.json());
+      const saved = await response.json();
+      const defaults = toFormDefaults(saved);
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      onSaved?.(saved, 'copy-operation');
       setSaveState('Đã copy điều hành dịch vụ');
     } catch (error) {
       setSaveState(`Copy điều hành lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
