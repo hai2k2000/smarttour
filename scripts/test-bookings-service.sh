@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+TEST_DB="${TEST_DB:-smarttour_bookings_service_test}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
+POSTGRES_USER="${POSTGRES_USER:-smarttour}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-smarttour}"
+
+cd "$REPO_DIR"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(grep -E '^POSTGRES_PASSWORD=' .env | tail -1 | cut -d= -f2-)}"
+if [[ -z "$POSTGRES_PASSWORD" ]]; then
+  echo "FAIL_BOOKINGS_SERVICE_TEST missing POSTGRES_PASSWORD"
+  exit 1
+fi
+
+docker compose build api >/dev/null
+docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+docker exec "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$TEST_DB"
+
+cleanup() {
+  docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker compose run --rm \
+  -v "$PWD:/workspace:ro" \
+  -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
+  --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
+const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+
+function assert(condition, label) {
+  if (!condition) throw new Error(label);
+}
+
+async function rejects(action, label) {
+  let rejected = false;
+  try {
+    await action();
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, label);
+}
+
+function amount(value) {
+  return Number(value || 0);
+}
+
+function dateOnly(value) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+async function createTourProgram(prisma, run, suffix, durationDays = 3) {
+  return prisma.tourProgram.create({
+    data: {
+      code: `${run}-TP-${suffix}`,
+      name: `Bookings Service Tour Program ${suffix}`,
+      route: 'Ha Noi - Ha Long',
+      durationDays,
+      itineraryDays: {
+        create: Array.from({ length: durationDays }, (_, index) => ({
+          dayNumber: index + 1,
+          title: `Ngay ${index + 1}`,
+        })),
+      },
+    },
+  });
+}
+
+async function createLinkedData(prisma, run, suffix = 'MAIN') {
+  const customer = await prisma.customer.create({
+    data: {
+      code: `${run}-CUS-${suffix}`,
+      fullName: `Bookings Service Customer ${suffix}`,
+      phone: '090' + String(Date.now()).slice(-7),
+      email: `${run.toLowerCase()}-${suffix.toLowerCase()}@smarttour.local`,
+      branch: 'BOOK-BR',
+      department: 'BOOK-DEP',
+    },
+  });
+  const order = await prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-ORD-${suffix}`,
+      name: `Bookings Service Order ${suffix}`,
+      customerId: customer.id,
+      branch: 'BOOK-BR',
+      department: 'BOOK-DEP',
+    },
+  });
+  const tour = await prisma.tour.create({
+    data: {
+      type: 'FIT',
+      systemCode: `${run}-TOUR-SYS-${suffix}`,
+      tourCode: `${run}-TOUR-${suffix}`,
+      name: `Bookings Service Tour ${suffix}`,
+      orderId: order.id,
+      branch: 'BOOK-BR',
+      department: 'BOOK-DEP',
+    },
+  });
+  return { customer, order, tour };
+}
+
+function bookingDto(run, suffix, tourProgram, links, overrides = {}) {
+  return {
+    code: `${run}-BKG-${suffix}`,
+    tourProgramId: tourProgram.id,
+    customerId: links.customer.id,
+    orderId: links.order.id,
+    tourId: links.tour.id,
+    customerName: links.customer.fullName,
+    customerPhone: links.customer.phone,
+    customerEmail: links.customer.email,
+    paxCount: 2,
+    startDate: '2026-10-01',
+    endDate: '2026-10-03',
+    saleOwner: 'Sale Test',
+    operatorOwner: 'Operator Test',
+    totalSellPrice: 5000000,
+    ...overrides,
+  };
+}
+
+async function main() {
+  const prisma = new PrismaService();
+  await prisma.$connect();
+  const service = new BookingsService(prisma);
+  const run = 'BOOK-SVC-' + Date.now();
+  const links = await createLinkedData(prisma, run);
+  const tourProgram = await createTourProgram(prisma, run, 'MAIN', 3);
+
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-TP', { id: 'missing-tour-program-id' }, links)),
+    'create should reject missing tourProgramId',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-DATE-RANGE', tourProgram, links, { startDate: '2026-10-03', endDate: '2026-10-01' })),
+    'create should reject endDate before startDate',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-DURATION', tourProgram, links, { startDate: '2026-10-01', endDate: '2026-10-02' })),
+    'create should reject date range that does not match tour program duration',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-PAX-ZERO', tourProgram, links, { paxCount: 0 })),
+    'create should reject paxCount zero',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-PAX-NEGATIVE', tourProgram, links, { paxCount: -2 })),
+    'create should reject negative paxCount',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-MONEY', tourProgram, links, { totalSellPrice: -1 })),
+    'create should reject negative totalSellPrice',
+  );
+
+  const created = await service.create(bookingDto(run, '001', tourProgram, links));
+  assert(created.code === `${run}-BKG-001`, 'create should persist booking code');
+  assert(created.tourProgramId === tourProgram.id && created.tourProgram?.id === tourProgram.id, 'create should link tourProgram');
+  assert(created.customerId === links.customer.id && created.orderId === links.order.id && created.tourId === links.tour.id, 'create should persist linked customer/order/tour');
+  assert(created.paxCount === 2 && amount(created.totalSellPrice) === 5000000, 'create should persist paxCount and totalSellPrice');
+  assert(dateOnly(created.startDate) === '2026-10-01' && dateOnly(created.endDate) === '2026-10-03', 'create should persist startDate/endDate');
+  assert(created.operationForm === null, 'create response should include empty operationForm');
+
+  const listed = await service.list(run);
+  assert(listed.some((row) => row.id === created.id), 'list should include created booking');
+  assert((await service.list('Bookings Service Customer')).some((row) => row.id === created.id), 'list search should match customerName');
+  assert((await service.list('Operator Test')).some((row) => row.id === created.id), 'list search should match operatorOwner');
+  assert((await service.list(undefined, 'DRAFT')).some((row) => row.id === created.id), 'list status filter should match DRAFT');
+  assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
+  assert(listed.find((row) => row.id === created.id)?.tourProgram?.durationDays === 3, 'list should include tourProgram fields used by frontend');
+  assert(listed.find((row) => row.id === created.id)?.operationForm === null, 'list should include operationForm field used by frontend');
+  await rejects(() => service.list(undefined, 'NOT_A_STATUS'), 'list should reject invalid status filter');
+
+  const detail = await service.detail(created.id);
+  assert(detail.id === created.id, 'detail should load booking');
+  assert(detail.tourProgram?.durationDays === 3 && detail.tourProgram.itineraryDays.length === 3, 'detail should include tourProgram and itinerary');
+  assert(Array.isArray(detail.operationVouchers) && Array.isArray(detail.allotmentLocks), 'detail should include operation dependencies');
+
+  const updated = await service.update(created.id, {
+    customerName: 'Bookings Service Customer Updated',
+    paxCount: 4,
+    startDate: '2026-10-02',
+    endDate: '2026-10-04',
+    totalSellPrice: 7000000,
+    operatorOwner: 'Operator Updated',
+  });
+  assert(updated.customerName === 'Bookings Service Customer Updated', 'update should persist customerName');
+  assert(updated.paxCount === 4 && amount(updated.totalSellPrice) === 7000000, 'update should persist paxCount and totalSellPrice');
+  assert(dateOnly(updated.startDate) === '2026-10-02' && dateOnly(updated.endDate) === '2026-10-04', 'update should persist valid date range');
+  await rejects(
+    () => service.update(created.id, { startDate: '2026-10-02', endDate: '2026-10-03' }),
+    'update should reject duration mismatch',
+  );
+  await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
+  await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
+  await rejects(() => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }), 'update should reject missing tourProgramId');
+
+  const confirmed = await service.updateStatus(created.id, 'CONFIRMED');
+  assert(confirmed.status === 'CONFIRMED', 'updateStatus should move DRAFT to CONFIRMED');
+  await rejects(() => service.updateStatus(created.id, 'DRAFT'), 'updateStatus should reject invalid backward transition');
+  await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
+
+  const deletable = await service.create(bookingDto(run, 'DELETE', tourProgram, links, {
+    startDate: '2026-11-01',
+    endDate: '2026-11-03',
+  }));
+  await service.remove(deletable.id);
+  await rejects(() => service.detail(deletable.id), 'delete should remove booking without important dependencies');
+
+  const operationForm = await prisma.operationForm.create({
+    data: {
+      bookingId: created.id,
+      orderId: links.order.id,
+      tourId: links.tour.id,
+      status: 'PENDING',
+      notes: run + '-operation-form',
+    },
+  });
+  const afterOperationForm = await service.detail(created.id);
+  assert(afterOperationForm.operationForm?.id === operationForm.id, 'detail should include operationForm after it is created');
+  assert((await service.list(run)).find((row) => row.id === created.id)?.operationForm?.id === operationForm.id, 'list should include operationForm after it is created');
+  await rejects(() => service.update(created.id, { customerName: 'Blocked customer edit' }), 'update should reject customerName change after operationForm exists');
+  await rejects(() => service.update(created.id, { paxCount: 5 }), 'update should reject paxCount change after operationForm exists');
+  await rejects(() => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }), 'update should reject date change after operationForm exists');
+  await rejects(() => service.update(created.id, { totalSellPrice: 9000000 }), 'update should reject totalSellPrice change after operationForm exists');
+  await rejects(() => service.remove(created.id), 'delete should reject booking with operationForm');
+
+  const operating = await service.updateStatus(created.id, 'OPERATING');
+  assert(operating.status === 'OPERATING', 'updateStatus should allow CONFIRMED to OPERATING after operationForm exists');
+  const completed = await service.updateStatus(created.id, 'COMPLETED');
+  assert(completed.status === 'COMPLETED', 'updateStatus should allow OPERATING to COMPLETED');
+  await rejects(() => service.updateStatus(created.id, 'CANCELLED'), 'updateStatus should reject changing final COMPLETED status');
+
+  const cancelledFormBooking = await service.create(bookingDto(run, 'CANCELLED-FORM', tourProgram, links, {
+    startDate: '2026-12-01',
+    endDate: '2026-12-03',
+  }));
+  await service.updateStatus(cancelledFormBooking.id, 'CONFIRMED');
+  await prisma.operationForm.create({
+    data: {
+      bookingId: cancelledFormBooking.id,
+      orderId: links.order.id,
+      tourId: links.tour.id,
+      status: 'CANCELLED',
+      notes: run + '-cancelled-operation-form',
+    },
+  });
+  await rejects(
+    () => service.updateStatus(cancelledFormBooking.id, 'OPERATING'),
+    'updateStatus should reject OPERATING when operationForm is cancelled',
+  );
+
+  await prisma.$disconnect();
+  console.log('TEST_BOOKINGS_SERVICE_OK');
+}
+
+main().catch((error) => {
+  console.error(error.stack || error.message);
+  process.exit(1);
+});
+NODE
