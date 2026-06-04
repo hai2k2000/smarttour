@@ -65,3 +65,22 @@ export async function resolveInvoiceCustomer(
   const order = await tx.order.findUnique({ where: { id: invoice.orderId }, select: { customerId: true } });
   return order?.customerId || null;
 }
+
+export async function resolveInvoiceCustomerScope(
+  tx: Prisma.TransactionClient,
+  invoice: { customerId: string | null; orderId: string | null; receiptId?: string | null },
+) {
+  if (invoice.customerId) {
+    const customer = await tx.customer.findUnique({ where: { id: invoice.customerId }, select: { id: true, branch: true, department: true } });
+    if (customer) return { customerId: customer.id, branch: customer.branch, department: customer.department };
+  }
+  if (invoice.orderId) {
+    const order = await tx.order.findUnique({ where: { id: invoice.orderId }, select: { customerId: true, branch: true, department: true } });
+    if (order?.customerId) return { customerId: order.customerId, branch: order.branch, department: order.department };
+  }
+  if (invoice.receiptId) {
+    const receipt = await tx.financeReceipt.findUnique({ where: { id: invoice.receiptId }, select: { customerId: true, branch: true, department: true } });
+    if (receipt?.customerId) return { customerId: receipt.customerId, branch: receipt.branch, department: receipt.department };
+  }
+  return { customerId: null, branch: null, department: null };
+}

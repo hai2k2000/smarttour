@@ -24,6 +24,8 @@ type InvoiceForCustomerLedger = {
   note: string | null;
   companyName: string | null;
   customerName: string | null;
+  branch?: string | null;
+  department?: string | null;
 };
 
 export async function upsertReceiptCustomerLedger(
@@ -120,6 +122,8 @@ export async function upsertInvoiceCustomerLedger(
       debitAmount: invoice.totalAfterTax,
       documentCode: invoice.invoiceNumber || invoice.invoiceCode,
       documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
+      branch: invoice.branch,
+      department: invoice.department,
       description: invoice.note || invoice.companyName || invoice.customerName,
       createdBy: actor,
     },
@@ -128,6 +132,8 @@ export async function upsertInvoiceCustomerLedger(
       debitAmount: invoice.totalAfterTax,
       documentCode: invoice.invoiceNumber || invoice.invoiceCode,
       documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
+      branch: invoice.branch,
+      department: invoice.department,
       description: invoice.note || invoice.companyName || invoice.customerName,
     },
   });
@@ -158,6 +164,8 @@ export async function createInvoiceReversalCustomerLedger(
       creditAmount: invoice.totalAfterTax,
       documentCode: reversalCode,
       documentDate: new Date(),
+      branch: invoice.branch,
+      department: invoice.department,
       description: reason,
       reversedEntryId: original?.id,
       createdBy: actor,

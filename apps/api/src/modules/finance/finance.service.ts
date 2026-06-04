@@ -7,7 +7,7 @@ import { FilesService } from '../files/files.service';
 import { createPaymentReversalCashflow, createReceiptReversalCashflow, upsertPaymentCashflow, upsertReceiptCashflow } from './finance-cashflow-postings';
 import { createInvoiceReversalCustomerLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
 import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanRejectFinanceEntity } from './finance-final-state';
-import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomer, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
+import { applyOrderPayment, applyOrderReceipt, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 import { FinanceCashflowService } from './finance-cashflow.service';
@@ -322,6 +322,9 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!receipt) throw new NotFoundException('Receipt not found');
+      if (receipt.approvalStatus === FinanceApprovalStatus.CANCELLED || receipt.cancelledAt) {
+        return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
+      }
       assertCanCancelFinanceEntity(receipt, 'Receipt');
       const reversalCode = await this.nextCode(tx, 'FINANCE_RECEIPT', 'PTDC', new Date(), receipt.branch || undefined);
       const reversal = await tx.financeReceipt.create({
@@ -516,6 +519,9 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
       if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.approvalStatus === FinanceApprovalStatus.CANCELLED || payment.cancelledAt) {
+        return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
+      }
       assertCanCancelFinanceEntity(payment, 'Payment');
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
@@ -635,8 +641,8 @@ export class FinanceService {
       if (!current) throw new NotFoundException('Invoice not found');
       assertCanApproveFinanceEntity(current, 'Invoice');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
-      const customerId = await resolveInvoiceCustomer(tx, invoice);
-      await upsertInvoiceCustomerLedger(tx, invoice, customerId, actor);
+      const invoiceScope = await resolveInvoiceCustomerScope(tx, invoice);
+      await upsertInvoiceCustomerLedger(tx, { ...invoice, branch: invoiceScope.branch, department: invoiceScope.department }, invoiceScope.customerId, actor);
       await this.audit(tx, 'APPROVE', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
       return invoice;
     });
@@ -660,14 +666,17 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const invoice = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id }, user) });
       if (!invoice) throw new NotFoundException('Invoice not found');
+      if (invoice.approvalStatus === FinanceApprovalStatus.CANCELLED || invoice.cancelledAt) {
+        return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
+      }
       assertCanCancelFinanceEntity(invoice, 'Invoice');
       const reversalCode = await this.nextCode(tx, 'FINANCE_INVOICE', 'VATDC', new Date(), undefined);
       const reversal = await tx.financeInvoice.create({
         data: { invoiceCode: reversalCode, systemCode: invoice.systemCode, orderId: invoice.orderId, receiptId: invoice.receiptId, customerId: invoice.customerId, customerName: invoice.customerName, customerPhone: invoice.customerPhone, customerEmail: invoice.customerEmail, invoiceType: 'ADJUSTMENT', issuedDate: new Date(), totalBeforeTax: invoice.totalBeforeTax, totalTax: invoice.totalTax, totalAfterTax: invoice.totalAfterTax, amountInWords: invoice.amountInWords, status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), reversalOfId: id, note: reason, createdBy: actor },
       });
       await tx.financeInvoice.update({ where: { id }, data: { status: 'CANCELLED', approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      const customerId = await resolveInvoiceCustomer(tx, invoice);
-      await createInvoiceReversalCustomerLedger(tx, invoice, reversal.id, customerId, reversalCode, reason, actor);
+      const invoiceScope = await resolveInvoiceCustomerScope(tx, invoice);
+      await createInvoiceReversalCustomerLedger(tx, { ...invoice, branch: invoiceScope.branch, department: invoiceScope.department }, reversal.id, invoiceScope.customerId, reversalCode, reason, actor);
       await this.audit(tx, 'CANCEL', 'FinanceInvoice', id, { actor, reason, reversalId: reversal.id });
       return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
     });

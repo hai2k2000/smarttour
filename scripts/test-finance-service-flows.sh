@@ -149,7 +149,8 @@ async function main() {
   assert(receiptReversalLedger.branch === 'FIN-BR' && receiptReversalLedger.department === 'FIN-DEP' && receiptReversalLedger.orderId === order.id, 'receipt reversal ledger should preserve scope and order link');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidAmount) === 0 && amount(orderAfter.remainingRevenue) === 1000 && orderAfter.paymentStatus === 'UNPAID', 'receipt cancel should undo order revenue reconcile');
-  await rejects(() => finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' }), 'double cancel receipt should be blocked');
+  const cancelledReceiptAgain = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' });
+  assert(cancelledReceiptAgain.reversals.length === 1, 'double cancel receipt should be idempotent without duplicate reversal');
 
   const rejectedReceiptDraft = await finance.createReceipt({
     receiptCode: run + '-RCPT-REJECT',
@@ -208,7 +209,8 @@ async function main() {
   assert(amount(voucherAfter.paidAmount) === 0 && amount(voucherAfter.remainAmount) === 1000 && voucherAfter.status === 'PENDING', 'payment cancel should undo voucher reconcile');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidCost) === 0 && amount(orderAfter.remainingCost) === 700 && orderAfter.costStatus === 'PENDING', 'payment cancel should undo order cost reconcile');
-  await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be blocked');
+  const cancelledPaymentAgain = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' });
+  assert(cancelledPaymentAgain.reversals.length === 1, 'double cancel payment should be idempotent without duplicate reversal');
 
   const rejectedPaymentDraft = await finance.createPayment({
     voucherCode: run + '-PAY-REJECT',
@@ -241,12 +243,17 @@ async function main() {
   assert(approvedInvoice.approvalStatus === 'APPROVED', 'invoice should approve');
   assert(await prisma.customerLedgerEntry.count({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } }) === 1, 'invoice approve should create customer ledger');
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' }, 'debitAmount') === 1100, 'invoice customer ledger debit should match total after tax');
+  const invoiceLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } });
+  assert(invoiceLedger.branch === 'FIN-BR' && invoiceLedger.department === 'FIN-DEP', 'invoice customer ledger should preserve resolved customer scope');
   await rejects(() => finance.approveInvoice(invoice.id, { actor: 'finance-test' }), 'double approve invoice should be blocked');
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'debitAmount') === 1100, 'invoice original ledger debit should remain');
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'creditAmount') === 1100, 'invoice reversal ledger credit should match original debit');
-  await rejects(() => finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' }), 'double cancel invoice should be blocked');
+  const invoiceReversalLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: cancelledInvoice.reversals[0].id, entryType: 'REVERSAL' } });
+  assert(invoiceReversalLedger.branch === 'FIN-BR' && invoiceReversalLedger.department === 'FIN-DEP', 'invoice reversal ledger should preserve resolved customer scope');
+  const cancelledInvoiceAgain = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' });
+  assert(cancelledInvoiceAgain.reversals.length === 1, 'double cancel invoice should be idempotent without duplicate reversal');
 
   const rejectedInvoiceDraft = await finance.createInvoice({
     invoiceCode: run + '-INV-REJECT',

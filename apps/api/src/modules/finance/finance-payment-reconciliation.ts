@@ -4,7 +4,7 @@ export async function reconcileApprovedPayment(
   tx: Prisma.TransactionClient,
   payment: { id: string; operationVoucherId: string | null; paymentAmount: Prisma.Decimal },
 ) {
-  await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'PAID' } });
+  await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'APPROVED' }, data: { status: 'PAID' } });
   if (!payment.operationVoucherId) return;
 
   const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
@@ -42,7 +42,7 @@ export async function reconcileCancelledPayment(
   tx: Prisma.TransactionClient,
   payment: { id: string; operationVoucherId: string | null },
 ) {
-  await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'APPROVED', financePaymentId: null } });
+  await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'PAID' }, data: { status: 'APPROVED', financePaymentId: null } });
   if (!payment.operationVoucherId) return;
 
   const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
