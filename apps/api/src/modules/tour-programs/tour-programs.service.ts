@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateItineraryDayDto } from './dto/create-itinerary-day.dto';
@@ -9,6 +9,12 @@ import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 @Injectable()
 export class TourProgramsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly maxCodeLength = 50;
+  private readonly maxNameLength = 250;
+  private readonly maxRouteLength = 250;
+  private readonly maxTitleLength = 250;
+  private readonly maxDescriptionLength = 2000;
 
   private listSelect() {
     return {
@@ -56,6 +62,7 @@ export class TourProgramsService {
   }
 
   async create(dto: CreateTourProgramDto) {
+    this.validateTourProgramInput(dto);
     try {
       return await this.prisma.tourProgram.create({
         data: this.toTourProgramData(dto) as Prisma.TourProgramCreateInput,
@@ -70,7 +77,11 @@ export class TourProgramsService {
   }
 
   async update(id: string, dto: UpdateTourProgramDto) {
-    await this.detail(id);
+    const current = await this.detail(id);
+    this.validateTourProgramInput(dto);
+    if (dto.durationDays !== undefined) {
+      this.ensureDurationCoversItinerary(dto.durationDays, current.itineraryDays);
+    }
     try {
       return await this.prisma.tourProgram.update({
         where: { id },
@@ -86,12 +97,32 @@ export class TourProgramsService {
   }
 
   async remove(id: string) {
-    await this.detail(id);
+    const tourProgram = await this.prisma.tourProgram.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        _count: { select: { bookings: true, itineraryDays: true } },
+      },
+    });
+    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    if (tourProgram._count.bookings > 0) {
+      throw new ConflictException('Cannot delete tour program with existing bookings');
+    }
+    if (tourProgram._count.itineraryDays > 0) {
+      throw new ConflictException('Cannot delete tour program with existing itinerary days');
+    }
     return this.prisma.tourProgram.delete({ where: { id } });
   }
 
   async createItineraryDay(tourProgramId: string, dto: CreateItineraryDayDto) {
-    await this.detail(tourProgramId);
+    const tourProgram = await this.prisma.tourProgram.findUnique({
+      where: { id: tourProgramId },
+      select: { id: true, durationDays: true },
+    });
+    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    this.validateItineraryDayInput(dto);
+    this.ensureDayNumberWithinDuration(dto.dayNumber, tourProgram.durationDays);
+    await this.ensureUniqueItineraryDay(tourProgramId, dto.dayNumber);
     return this.prisma.tourItineraryDay.create({
       data: {
         tourProgramId,
@@ -103,7 +134,13 @@ export class TourProgramsService {
   }
 
   async updateItineraryDay(id: string, dto: UpdateItineraryDayDto) {
-    await this.ensureItineraryDay(id);
+    const current = await this.ensureItineraryDay(id);
+    this.validateItineraryDayInput(dto);
+    const nextDayNumber = dto.dayNumber ?? current.dayNumber;
+    this.ensureDayNumberWithinDuration(nextDayNumber, current.tourProgram.durationDays);
+    if (dto.dayNumber !== undefined && dto.dayNumber !== current.dayNumber) {
+      await this.ensureUniqueItineraryDay(current.tourProgramId, dto.dayNumber, id);
+    }
     return this.prisma.tourItineraryDay.update({
       where: { id },
       data: {
@@ -115,13 +152,85 @@ export class TourProgramsService {
   }
 
   async removeItineraryDay(id: string) {
-    await this.ensureItineraryDay(id);
+    const day = await this.prisma.tourItineraryDay.findUnique({
+      where: { id },
+      select: { id: true, _count: { select: { services: true } } },
+    });
+    if (!day) throw new NotFoundException('Itinerary day not found');
+    if (day._count.services > 0) {
+      throw new ConflictException('Cannot delete itinerary day with existing operation services');
+    }
     return this.prisma.tourItineraryDay.delete({ where: { id } });
   }
 
   private async ensureItineraryDay(id: string) {
-    const day = await this.prisma.tourItineraryDay.findUnique({ where: { id } });
+    const day = await this.prisma.tourItineraryDay.findUnique({
+      where: { id },
+      include: { tourProgram: { select: { durationDays: true } } },
+    });
     if (!day) throw new NotFoundException('Itinerary day not found');
+    return day;
+  }
+
+  private validateTourProgramInput(dto: UpdateTourProgramDto) {
+    if (dto.code !== undefined) this.validateRequiredText(dto.code, 'Tour program code', this.maxCodeLength);
+    if (dto.name !== undefined) this.validateRequiredText(dto.name, 'Tour program name', this.maxNameLength);
+    if (dto.route !== undefined) this.validateOptionalText(dto.route, 'Route', this.maxRouteLength);
+    if (dto.description !== undefined) {
+      this.validateOptionalText(dto.description, 'Description', this.maxDescriptionLength);
+    }
+    if (dto.durationDays !== undefined) this.validatePositiveInt(dto.durationDays, 'Duration days');
+  }
+
+  private validateItineraryDayInput(dto: UpdateItineraryDayDto) {
+    if (dto.dayNumber !== undefined) this.validatePositiveInt(dto.dayNumber, 'Itinerary day number');
+    if (dto.title !== undefined) this.validateRequiredText(dto.title, 'Itinerary day title', this.maxTitleLength);
+    if (dto.description !== undefined) {
+      this.validateOptionalText(dto.description, 'Itinerary day description', this.maxDescriptionLength);
+    }
+  }
+
+  private validateRequiredText(value: string, label: string, maxLength: number) {
+    const trimmed = value.trim();
+    if (trimmed.length < 2) throw new BadRequestException(`${label} must be at least 2 characters`);
+    if (trimmed.length > maxLength) throw new BadRequestException(`${label} is too long`);
+  }
+
+  private validateOptionalText(value: string | undefined, label: string, maxLength: number) {
+    const trimmed = value?.trim();
+    if (trimmed && trimmed.length > maxLength) throw new BadRequestException(`${label} is too long`);
+  }
+
+  private validatePositiveInt(value: number, label: string) {
+    if (!Number.isInteger(value) || value < 1) throw new BadRequestException(`${label} must be at least 1`);
+  }
+
+  private ensureDurationCoversItinerary(
+    durationDays: number,
+    itineraryDays: Array<{ dayNumber: number }>,
+  ) {
+    const maxExistingDay = itineraryDays.reduce((max, day) => Math.max(max, day.dayNumber), 0);
+    if (durationDays < maxExistingDay) {
+      throw new BadRequestException('Duration days cannot be smaller than existing itinerary days');
+    }
+  }
+
+  private ensureDayNumberWithinDuration(dayNumber: number, durationDays: number) {
+    if (dayNumber > durationDays) {
+      throw new BadRequestException('Itinerary day number cannot exceed tour duration days');
+    }
+  }
+
+  private async ensureUniqueItineraryDay(tourProgramId: string, dayNumber: number, excludeId?: string) {
+    const duplicate = await this.prisma.tourItineraryDay.findFirst({
+      where: {
+        tourProgramId,
+        dayNumber,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException('Itinerary day number already exists in this tour program');
   }
 
   private toTourProgramData(dto: UpdateTourProgramDto) {
