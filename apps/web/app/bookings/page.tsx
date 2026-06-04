@@ -1,5 +1,8 @@
-﻿import { CircleDollarSign, Pencil, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, ClipboardCheck, Pencil, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { viStatus } from '../i18n';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -15,127 +18,594 @@ type Booking = {
   saleOwner: string | null;
   operatorOwner: string | null;
   status: string;
-  totalSellPrice: string;
+  totalSellPrice: string | number | null;
   tourProgram: TourProgram;
   operationForm: { id: string; status: string } | null;
 };
+type BookingDeleteGuardDetail = {
+  operationForm?: unknown | null;
+  operationVouchers?: unknown[];
+  allotmentLocks?: unknown[];
+};
+type BookingPayload = {
+  code: string;
+  tourProgramId: string;
+  customerName: string;
+  paxCount: number;
+  startDate: string;
+  endDate: string;
+  totalSellPrice: number;
+  saleOwner?: string;
+  operatorOwner?: string;
+};
+type ApiResult<T> = { data: T; error?: string };
+type MutationResult = { ok: boolean; message: string };
+type BookingsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 const moneyFormatter = new Intl.NumberFormat('vi-VN');
-const dateFormatter = new Intl.DateTimeFormat('vi-VN');
-const bookingStatuses = ['DRAFT', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'];
+const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const bookingStatusOptions = [
+  'DRAFT',
+  'CONFIRMED',
+  'OPERATING',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+type BookingStatus = (typeof bookingStatusOptions)[number];
+const validBookingStatuses = new Set<string>(bookingStatusOptions);
 
-async function apiGet<T>(path: string, fallback: T): Promise<T> {
+async function responseError(response: Response) {
+  try {
+    const body = await response.clone().json();
+    const message = body?.message;
+    return Array.isArray(message) ? message.join(', ') : message || body?.error || response.statusText || `HTTP ${response.status}`;
+  } catch {
+    const text = await response.text().catch(() => '');
+    return text || response.statusText || `HTTP ${response.status}`;
+  }
+}
+
+async function apiGet<T>(path: string, fallback: T, label: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
-    if (!response.ok) return fallback;
-    return response.json();
-  } catch { return fallback; }
+    if (!response.ok) {
+      const error = `${label}: HTTP ${response.status} - ${await responseError(response)}`;
+      console.error(`[BookingsPage] ${error}`);
+      return { data: fallback, error };
+    }
+    return { data: await response.json() };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không rõ lỗi';
+    const detail = `${label}: ${message}`;
+    console.error(`[BookingsPage] ${detail}`);
+    return { data: fallback, error: detail };
+  }
+}
+
+async function apiMutation(path: string, init: RequestInit, successMessage: string, failureLabel: string): Promise<MutationResult> {
+  try {
+    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', ...init });
+    if (!response.ok) return { ok: false, message: `${failureLabel}: HTTP ${response.status} - ${await responseError(response)}` };
+    revalidatePath('/bookings');
+    return { ok: true, message: successMessage };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không rõ lỗi';
+    return { ok: false, message: `${failureLabel}: ${message}` };
+  }
+}
+
+function redirectWithResult(result: MutationResult): never {
+  const key = result.ok ? 'notice' : 'error';
+  redirect(`/bookings?${key}=${encodeURIComponent(result.message)}`);
+}
+
+function singleParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function field(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function optionalText(formData: FormData, key: string) {
+  return field(formData, key) || undefined;
+}
+
+function requiredText(formData: FormData, key: string, label: string, minLength = 1) {
+  const value = field(formData, key);
+  if (value.length < minLength) throw new Error(`${label} phải có tối thiểu ${minLength} ký tự.`);
+  return value;
+}
+
+function numberField(formData: FormData, key: string, label: string, options: { min?: number; integer?: boolean; fallback?: number } = {}) {
+  const raw = field(formData, key);
+  if (!raw && options.fallback !== undefined) return options.fallback;
+  const value = Number(raw.replace(/,/g, ''));
+  if (!Number.isFinite(value)) throw new Error(`${label} phải là số hợp lệ.`);
+  if (options.integer && !Number.isInteger(value)) throw new Error(`${label} phải là số nguyên.`);
+  if (options.min !== undefined && value < options.min) throw new Error(`${label} không được nhỏ hơn ${options.min}.`);
+  return value;
+}
+
+function dateField(formData: FormData, key: string, label: string) {
+  const value = field(formData, key);
+  if (!value) throw new Error(`${label} là bắt buộc.`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`${label} không đúng định dạng ngày.`);
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    throw new Error(`${label} không phải là ngày hợp lệ.`);
+  }
+  return value;
+}
+
+function dateTime(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day).getTime();
+}
+
+function bookingPayload(formData: FormData): BookingPayload {
+  const startDate = dateField(formData, 'startDate', 'Ngày khởi hành');
+  const endDate = dateField(formData, 'endDate', 'Ngày kết thúc');
+  if (dateTime(startDate) > dateTime(endDate)) throw new Error('Ngày kết thúc phải sau hoặc bằng ngày khởi hành.');
+
+  const payload: BookingPayload = {
+    code: requiredText(formData, 'code', 'Mã booking', 2),
+    tourProgramId: requiredText(formData, 'tourProgramId', 'Tour mẫu'),
+    customerName: requiredText(formData, 'customerName', 'Tên khách/đoàn', 2),
+    paxCount: numberField(formData, 'paxCount', 'Số khách', { min: 1, integer: true, fallback: 1 }),
+    startDate,
+    endDate,
+    totalSellPrice: numberField(formData, 'totalSellPrice', 'Giá bán tổng', { min: 0, fallback: 0 }),
+  };
+  const saleOwner = optionalText(formData, 'saleOwner');
+  const operatorOwner = optionalText(formData, 'operatorOwner');
+  if (saleOwner) payload.saleOwner = saleOwner;
+  if (operatorOwner) payload.operatorOwner = operatorOwner;
+  return payload;
+}
+
+function validationResult(error: unknown, label: string): MutationResult {
+  const message = error instanceof Error ? error.message : 'Dữ liệu không hợp lệ.';
+  return { ok: false, message: `${label}: ${message}` };
 }
 
 async function createBooking(formData: FormData) {
   'use server';
-  await fetch(`${apiBase}/api/bookings`, {
-    method: 'POST', headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({
-      code: String(formData.get('code') || ''), tourProgramId: String(formData.get('tourProgramId') || ''),
-      customerName: String(formData.get('customerName') || ''), paxCount: Number(formData.get('paxCount') || 1),
-      startDate: String(formData.get('startDate') || ''), endDate: String(formData.get('endDate') || ''),
-      saleOwner: String(formData.get('saleOwner') || ''), operatorOwner: String(formData.get('operatorOwner') || ''),
-      totalSellPrice: Number(formData.get('totalSellPrice') || 0),
-    }),
-  });
-  revalidatePath('/bookings');
+  let payload: BookingPayload;
+  try {
+    payload = bookingPayload(formData);
+  } catch (error) {
+    redirectWithResult(validationResult(error, 'Tạo booking thất bại'));
+  }
+  const result = await apiMutation(
+    '/bookings',
+    { method: 'POST', headers: await serverAuthJsonHeaders(), body: JSON.stringify(payload) },
+    'Đã tạo booking.',
+    'Tạo booking thất bại',
+  );
+  redirectWithResult(result);
 }
 
 async function updateBooking(formData: FormData) {
   'use server';
-  const id = String(formData.get('id') || '');
-  if (!id) return;
-  await fetch(`${apiBase}/api/bookings/${id}`, {
-    method: 'PATCH', headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({
-      code: String(formData.get('code') || ''), tourProgramId: String(formData.get('tourProgramId') || ''),
-      customerName: String(formData.get('customerName') || ''), paxCount: Number(formData.get('paxCount') || 1),
-      startDate: String(formData.get('startDate') || ''), endDate: String(formData.get('endDate') || ''),
-      saleOwner: String(formData.get('saleOwner') || ''), operatorOwner: String(formData.get('operatorOwner') || ''),
-      totalSellPrice: Number(formData.get('totalSellPrice') || 0),
-    }),
-  });
-  revalidatePath('/bookings');
+  const id = field(formData, 'id');
+  if (!id) redirectWithResult({ ok: false, message: 'Cập nhật booking thất bại: thiếu ID booking.' });
+  let payload: BookingPayload;
+  try {
+    payload = bookingPayload(formData);
+  } catch (error) {
+    redirectWithResult(validationResult(error, 'Cập nhật booking thất bại'));
+  }
+  const result = await apiMutation(
+    `/bookings/${encodeURIComponent(id)}`,
+    { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify(payload) },
+    'Đã cập nhật booking.',
+    'Cập nhật booking thất bại',
+  );
+  redirectWithResult(result);
 }
 
 async function updateBookingStatus(formData: FormData) {
   'use server';
-  const id = String(formData.get('id') || '');
-  if (!id) return;
-  await fetch(`${apiBase}/api/bookings/${id}`, { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify({ status: String(formData.get('status') || 'DRAFT') }) });
-  revalidatePath('/bookings');
+  const id = field(formData, 'id');
+  const status = field(formData, 'status');
+  if (!id) redirectWithResult({ ok: false, message: 'Cập nhật trạng thái thất bại: thiếu ID booking.' });
+  if (!validBookingStatuses.has(status)) {
+    redirectWithResult({ ok: false, message: `Cập nhật trạng thái thất bại: trạng thái "${status || 'trống'}" không hợp lệ.` });
+  }
+  const result = await apiMutation(
+    `/bookings/${encodeURIComponent(id)}`,
+    { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify({ status }) },
+    'Đã cập nhật trạng thái booking.',
+    'Cập nhật trạng thái thất bại',
+  );
+  redirectWithResult(result);
+}
+
+async function blockingDeleteReason(id: string, hasOperationFormFromList: boolean) {
+  if (hasOperationFormFromList) return 'Booking đã phát sinh phiếu điều hành, không thể xóa trực tiếp từ danh sách.';
+  const detailResult = await apiGet<BookingDeleteGuardDetail | null>(`/bookings/${encodeURIComponent(id)}`, null, 'Kiểm tra dữ liệu liên quan trước khi xóa');
+  if (detailResult.error) return `Không thể kiểm tra dữ liệu liên quan: ${detailResult.error}`;
+  const detail = detailResult.data;
+  if (!detail) return 'Không tìm thấy booking để kiểm tra trước khi xóa.';
+  if (detail.operationForm) return 'Booking đã có phiếu điều hành liên quan.';
+  if (detail.operationVouchers?.length) return 'Booking đã có phiếu điều hành dịch vụ liên quan.';
+  if (detail.allotmentLocks?.length) return 'Booking đã có khóa allotment khách sạn liên quan.';
+  return '';
 }
 
 async function deleteBooking(formData: FormData) {
   'use server';
-  const id = String(formData.get('id') || '');
-  if (!id) return;
-  await fetch(`${apiBase}/api/bookings/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
-  revalidatePath('/bookings');
+  const id = field(formData, 'id');
+  const code = field(formData, 'code') || 'booking';
+  if (!id) redirectWithResult({ ok: false, message: 'Xóa booking thất bại: thiếu ID booking.' });
+  const reason = await blockingDeleteReason(id, field(formData, 'hasOperationForm') === 'true');
+  if (reason) redirectWithResult({ ok: false, message: `Xóa ${code} thất bại: ${reason}` });
+  const result = await apiMutation(
+    `/bookings/${encodeURIComponent(id)}`,
+    { method: 'DELETE', headers: await serverAuthHeaders() },
+    `Đã xóa ${code}.`,
+    `Xóa ${code} thất bại`,
+  );
+  redirectWithResult(result);
 }
 
-function formatDate(value: string) { return dateFormatter.format(new Date(value)); }
-function formatMoney(value: string) { return moneyFormatter.format(Number(value || 0)); }
-function toDateInputValue(value: string) { return new Date(value).toISOString().slice(0, 10); }
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—';
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (match) {
+    const [, year, month, day] = match;
+    return dateFormatter.format(new Date(Number(year), Number(month) - 1, Number(day)));
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return dateFormatter.format(date);
+}
 
-function BookingForm({ tourPrograms, booking }: { tourPrograms: TourProgram[]; booking?: Booking }) {
+function formatMoney(value: string | number | null | undefined) {
+  const amount = Number(value ?? 0);
+  return `${moneyFormatter.format(Number.isFinite(amount) ? amount : 0)} đ`;
+}
+
+function toDateInputValue(value: string | null | undefined) {
+  if (!value) return '';
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  if (match) return match[1];
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function display(value: string | null | undefined) {
+  return value?.trim() || '—';
+}
+
+function bookingStatusClass(status: string) {
+  if (status === 'COMPLETED') return 'statusPill statusPillSuccess';
+  if (status === 'CANCELLED') return 'statusPill statusPillError';
+  if (status === 'OPERATING' || status === 'CONFIRMED') return 'statusPill statusPillWarning';
+  return 'statusPill statusPillNeutral';
+}
+
+function operationBadge(booking: Booking) {
+  if (!booking.operationForm) return <span className="statusPill statusPillNeutral">Chưa vào điều hành</span>;
+  return <span className="statusPill statusPillSuccess">Đã vào điều hành: {viStatus(booking.operationForm.status)}</span>;
+}
+
+function modalCloseHref() {
+  return '/bookings';
+}
+
+export default async function BookingsPage({ searchParams }: BookingsPageProps) {
+  const params = searchParams ? await searchParams : {};
+  const notice = singleParam(params.notice);
+  const error = singleParam(params.error);
+  const [tourProgramsResult, bookingsResult] = await Promise.all([
+    apiGet<TourProgram[]>('/tour-programs', [], 'Tải danh sách tour mẫu'),
+    apiGet<Booking[]>('/bookings', [], 'Tải danh sách booking'),
+  ]);
+  const tourPrograms = tourProgramsResult.data;
+  const bookings = bookingsResult.data;
+  const loadErrors = [tourProgramsResult.error, bookingsResult.error].filter(Boolean);
+
   return (
-    <form action={booking ? updateBooking : createBooking} className="bookingEditForm">
+    <section className="workspace">
+      <header className="pageHeader">
+        <div>
+          <p className="eyebrow">Quy trình booking</p>
+          <h1>Booking tour</h1>
+        </div>
+        <div className="pageHeaderActions">
+          <a className="secondaryButton iconTextButton" href="#create-booking"><Plus size={16} /> Thêm booking</a>
+          <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
+        </div>
+      </header>
+
+      {notice ? <div className="supplierNotice"><CheckCircle2 size={16} /> {notice}</div> : null}
+      {error ? <div className="supplierNotice supplierNoticeError"><AlertTriangle size={16} /> {error}</div> : null}
+      {loadErrors.length ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> {loadErrors.join(' ')}
+        </div>
+      ) : null}
+
+      <section className="panel listPanel">
+        <div className="sectionHeader">
+          <h2>Danh sách booking</h2>
+          <span>{bookings.length} booking</span>
+        </div>
+        <div className="fitTableWrap">
+          <table className="fitTable orderListTable">
+            <thead>
+              <tr>
+                <th>Mã booking</th>
+                <th>Tên khách/đoàn</th>
+                <th>Tour mẫu</th>
+                <th>Ngày khởi hành</th>
+                <th>Ngày kết thúc</th>
+                <th>Pax</th>
+                <th>Sale phụ trách</th>
+                <th>Điều hành phụ trách</th>
+                <th>Giá bán tổng</th>
+                <th>Trạng thái</th>
+                <th>Điều hành</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((booking) => (
+                <tr key={booking.id}>
+                  <td><strong>{booking.code}</strong></td>
+                  <td>{booking.customerName}</td>
+                  <td>
+                    <strong>{booking.tourProgram.code}</strong>
+                    <span>{booking.tourProgram.name}</span>
+                  </td>
+                  <td><CalendarDays size={14} /> {formatDate(booking.startDate)}</td>
+                  <td>{formatDate(booking.endDate)}</td>
+                  <td>{booking.paxCount}</td>
+                  <td>{display(booking.saleOwner)}</td>
+                  <td>{display(booking.operatorOwner)}</td>
+                  <td><CircleDollarSign size={14} /> {formatMoney(booking.totalSellPrice)}</td>
+                  <td><span className={bookingStatusClass(booking.status)}>{viStatus(booking.status)}</span></td>
+                  <td>{operationBadge(booking)}</td>
+                  <td className="actionsCell">
+                    <div className="rowActions">
+                      <a className="secondaryButton iconOnlyButton" href={`#status-${booking.id}`} title="Cập nhật trạng thái" aria-label={`Cập nhật trạng thái ${booking.code}`}>
+                        <ClipboardCheck size={14} />
+                      </a>
+                      <a className="secondaryButton iconOnlyButton" href={`#edit-${booking.id}`} title="Sửa booking" aria-label={`Sửa ${booking.code}`}>
+                        <Pencil size={14} />
+                      </a>
+                      <a className="dangerButton iconOnlyButton" href={`#delete-${booking.id}`} title="Xóa booking" aria-label={`Xóa ${booking.code}`}>
+                        <Trash2 size={14} />
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {bookings.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="tableEmptyState">Chưa có booking. Hãy tạo booking từ popup thêm mới.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <BookingModal id="create-booking" title="Tạo booking" icon={<Plus size={18} />}>
+        <BookingForm tourPrograms={tourPrograms} action={createBooking} submitLabel="Tạo booking" />
+      </BookingModal>
+      {bookings.map((booking) => (
+        <BookingModal id={`edit-${booking.id}`} title={`Sửa ${booking.code}`} icon={<Pencil size={18} />} key={`edit-${booking.id}`}>
+          <BookingForm tourPrograms={tourPrograms} booking={booking} action={updateBooking} submitLabel="Lưu booking" />
+        </BookingModal>
+      ))}
+      {bookings.map((booking) => (
+        <StatusBookingModal booking={booking} key={`status-${booking.id}`} />
+      ))}
+      {bookings.map((booking) => (
+        <DeleteBookingModal booking={booking} key={`delete-${booking.id}`} />
+      ))}
+    </section>
+  );
+}
+
+function BookingModal({ id, title, icon, children }: { id: string; title: string; icon: ReactNode; children: ReactNode }) {
+  return (
+    <div id={id} className="hashModal">
+      <a href={modalCloseHref()} className="hashModalBackdrop" aria-label="Đóng modal" />
+      <div className="hashModalPanel hashModalWide">
+        <div className="hashModalHeader">
+          <h2>{icon} {title}</h2>
+          <a className="secondaryButton iconOnlyButton" href={modalCloseHref()} aria-label="Đóng"><X size={14} /></a>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BookingForm({
+  tourPrograms,
+  booking,
+  action,
+  submitLabel,
+}: {
+  tourPrograms: TourProgram[];
+  booking?: Booking;
+  action: (formData: FormData) => Promise<void>;
+  submitLabel: string;
+}) {
+  const selectedTourProgramId = booking?.tourProgram.id || '';
+  const hasSelectedTour = !selectedTourProgramId || tourPrograms.some((tour) => tour.id === selectedTourProgramId);
+
+  return (
+    <form action={action} className="modalFormStack">
       {booking ? <input type="hidden" name="id" value={booking.id} /> : null}
-      <label>Mã booking<input name="code" defaultValue={booking?.code || ''} placeholder="BK-2026-0001" required minLength={2} /></label>
-      <label>Tour mẫu<select name="tourProgramId" defaultValue={booking?.tourProgram.id || ''} required><option value="">Chọn tour mẫu</option>{tourPrograms.map((tour) => (<option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>))}</select></label>
-      <label>Tên khách/đoàn<input name="customerName" defaultValue={booking?.customerName || ''} placeholder="Công ty ABC" required minLength={2} /></label>
-      <label>Số khách<input name="paxCount" type="number" min={1} defaultValue={booking?.paxCount || 1} required /></label>
-      <label>Ngày khởi hành<input name="startDate" type="date" defaultValue={booking ? toDateInputValue(booking.startDate) : ''} required /></label>
-      <label>Ngày kết thúc<input name="endDate" type="date" defaultValue={booking ? toDateInputValue(booking.endDate) : ''} required /></label>
-      <label>Sale phụ trách<input name="saleOwner" defaultValue={booking?.saleOwner || ''} /></label>
-      <label>Điều hành phụ trách<input name="operatorOwner" defaultValue={booking?.operatorOwner || ''} /></label>
-      <label>Giá bán tổng<input name="totalSellPrice" type="number" min={0} defaultValue={Number(booking?.totalSellPrice || 0)} /></label>
-      <button type="submit"><Save size={15} /> {booking ? 'Lưu booking' : 'Tạo booking'}</button>
+      {tourPrograms.length === 0 ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> Chưa tải được tour mẫu. Kiểm tra lỗi ở đầu trang trước khi tạo booking.
+        </div>
+      ) : null}
+
+      <fieldset>
+        <legend>Thông tin booking</legend>
+        <div className="supplierFieldGrid">
+          <label>
+            Mã booking
+            <input name="code" defaultValue={booking?.code || ''} placeholder="BK-2026-0001" required minLength={2} />
+          </label>
+          {booking ? (
+            <label>
+              Trạng thái hiện tại
+              <input value={viStatus(booking.status)} readOnly />
+            </label>
+          ) : null}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Tour mẫu</legend>
+        <label>
+          Tour mẫu
+          <select name="tourProgramId" defaultValue={selectedTourProgramId} required disabled={tourPrograms.length === 0}>
+            <option value="">Chọn tour mẫu</option>
+            {booking && !hasSelectedTour ? <option value={booking.tourProgram.id}>{booking.tourProgram.code} - {booking.tourProgram.name}</option> : null}
+            {tourPrograms.map((tour) => (
+              <option value={tour.id} key={tour.id}>{tour.code} - {tour.name} ({tour.durationDays} ngày)</option>
+            ))}
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Khách hàng</legend>
+        <div className="supplierFieldGrid">
+          <label>
+            Tên khách/đoàn
+            <input name="customerName" defaultValue={booking?.customerName || ''} placeholder="Công ty ABC" required minLength={2} />
+          </label>
+          <label>
+            Pax
+            <input name="paxCount" type="number" min={1} step={1} defaultValue={booking?.paxCount || 1} required />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Phân công</legend>
+        <div className="supplierFieldGrid">
+          <label>
+            Sale phụ trách
+            <input name="saleOwner" defaultValue={booking?.saleOwner || ''} placeholder="Tên nhân sự sale" />
+          </label>
+          <label>
+            Điều hành phụ trách
+            <input name="operatorOwner" defaultValue={booking?.operatorOwner || ''} placeholder="Tên nhân sự điều hành" />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Giá trị</legend>
+        <div className="supplierFieldGrid">
+          <label>
+            Ngày khởi hành
+            <input name="startDate" type="date" defaultValue={toDateInputValue(booking?.startDate)} required />
+          </label>
+          <label>
+            Ngày kết thúc
+            <input name="endDate" type="date" defaultValue={toDateInputValue(booking?.endDate)} required />
+          </label>
+          <label>
+            Giá bán tổng
+            <input name="totalSellPrice" type="number" min={0} step={1} defaultValue={Number(booking?.totalSellPrice || 0)} />
+          </label>
+        </div>
+      </fieldset>
+
+      <div className="modalActions">
+        <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
+        <button type="submit" disabled={tourPrograms.length === 0}><Save size={14} /> {submitLabel}</button>
+      </div>
     </form>
   );
 }
 
-export default async function BookingsPage() {
-  const [tourPrograms, bookings] = await Promise.all([apiGet<TourProgram[]>('/tour-programs', []), apiGet<Booking[]>('/bookings', [])]);
+function StatusBookingModal({ booking }: { booking: Booking }) {
   return (
-    <section className="workspace">
-      <header className="pageHeader">
-        <div><p className="eyebrow">Quy trình booking</p><h1>Booking tour</h1></div>
-        <div className="pageHeaderActions"><a className="secondaryButton iconTextButton" href="#create-booking"><Plus size={16} /> Thêm booking</a><span className="statusPill"><Users size={14} /> Nhân sự vận hành</span></div>
-      </header>
+    <div id={`status-${booking.id}`} className="hashModal">
+      <a href={modalCloseHref()} className="hashModalBackdrop" aria-label="Đóng modal" />
+      <div className="hashModalPanel">
+        <div className="hashModalHeader">
+          <h2><ClipboardCheck size={18} /> Cập nhật trạng thái</h2>
+          <a className="secondaryButton iconOnlyButton" href={modalCloseHref()} aria-label="Đóng"><X size={14} /></a>
+        </div>
+        <form action={updateBookingStatus} className="modalFormStack">
+          <input type="hidden" name="id" value={booking.id} />
+          <fieldset>
+            <legend>{booking.code}</legend>
+            <label>
+              Trạng thái
+              <select name="status" defaultValue={validBookingStatuses.has(booking.status) ? booking.status : 'DRAFT'}>
+                {bookingStatusOptions.map((status: BookingStatus) => (
+                  <option value={status} key={status}>{viStatus(status)}</option>
+                ))}
+              </select>
+            </label>
+          </fieldset>
+          <div className="modalActions">
+            <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
+            <button type="submit"><Save size={14} /> Cập nhật trạng thái</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
-      <section className="panel listPanel">
-        <div className="sectionHeader"><h2>Danh sách booking</h2><span>{bookings.length} booking</span></div>
-        <table className="bookingTable">
-          <thead><tr><th>Mã</th><th>Khách/đoàn</th><th>Tour</th><th>Ngày đi</th><th>Pax</th><th>Phụ trách</th><th>Giá bán</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-          <tbody>
-            {bookings.map((booking) => (
-              <tr key={booking.id}>
-                <td>{booking.code}</td><td>{booking.customerName}</td><td>{booking.tourProgram.code}</td><td>{formatDate(booking.startDate)} - {formatDate(booking.endDate)}</td><td>{booking.paxCount}</td><td>{booking.operatorOwner || booking.saleOwner || '-'}</td><td><CircleDollarSign size={14} /> {formatMoney(booking.totalSellPrice)}</td>
-                <td><span className={`statusBadge status-${booking.status.toLowerCase()}`}>{booking.status}</span></td>
-                <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${booking.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><a className="secondaryButton iconButton" href={`#edit-${booking.id}`} title="Sửa booking"><Pencil size={14} /></a><form action={deleteBooking}><input type="hidden" name="id" value={booking.id} /><button type="submit" className="dangerButton" title="Xóa booking"><Trash2 size={14} /></button></form></div></td>
-              </tr>
-            ))}
-            {bookings.length === 0 ? (<tr><td colSpan={9}>Chưa có booking. Hãy tạo booking từ popup thêm mới.</td></tr>) : null}
-          </tbody>
-        </table>
-      </section>
-
-      <section id="create-booking" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader"><h2><Plus size={18} /> Tạo booking</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><BookingForm tourPrograms={tourPrograms} /></div></section>
-      {bookings.map((booking) => (
-        <section id={`edit-${booking.id}`} className="hashModal" key={`edit-${booking.id}`}><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader"><h2><Pencil size={18} /> Sửa booking</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><BookingForm tourPrograms={tourPrograms} booking={booking} /></div></section>
-      ))}
-      {bookings.map((booking) => (
-        <section id={`status-${booking.id}`} className="hashModal" key={`status-${booking.id}`}><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel"><div className="hashModalHeader"><h2>Cập nhật trạng thái</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div><form action={updateBookingStatus} className="formStack"><input type="hidden" name="id" value={booking.id} /><label>Trạng thái<select name="status" defaultValue={booking.status}>{bookingStatuses.map((status) => (<option value={status} key={status}>{status}</option>))}</select></label><button type="submit"><Save size={15} /> Cập nhật</button></form></div></section>
-      ))}
-    </section>
+function DeleteBookingModal({ booking }: { booking: Booking }) {
+  const blocked = Boolean(booking.operationForm);
+  return (
+    <div id={`delete-${booking.id}`} className="hashModal">
+      <a href={modalCloseHref()} className="hashModalBackdrop" aria-label="Đóng modal" />
+      <div className="hashModalPanel">
+        <div className="hashModalHeader">
+          <h2><AlertTriangle size={18} /> Xóa booking</h2>
+          <a className="secondaryButton iconOnlyButton" href={modalCloseHref()} aria-label="Đóng"><X size={14} /></a>
+        </div>
+        <div className="supplierDeleteWarning">
+          <strong>{booking.code} - {booking.customerName}</strong>
+          {blocked ? (
+            <p>Booking này đã phát sinh phiếu điều hành ({viStatus(booking.operationForm?.status)}), không thể xóa trực tiếp từ danh sách.</p>
+          ) : (
+            <p>Hệ thống sẽ kiểm tra phiếu điều hành, phiếu dịch vụ và khóa allotment liên quan trước khi xóa.</p>
+          )}
+        </div>
+        {blocked ? (
+          <div className="modalActions">
+            <a className="secondaryButton" href={modalCloseHref()}>Đóng</a>
+          </div>
+        ) : (
+          <form action={deleteBooking} className="modalActions">
+            <input type="hidden" name="id" value={booking.id} />
+            <input type="hidden" name="code" value={booking.code} />
+            <input type="hidden" name="hasOperationForm" value={booking.operationForm ? 'true' : 'false'} />
+            <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
+            <button type="submit" className="dangerButton"><Trash2 size={14} /> Xóa booking</button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
