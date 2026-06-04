@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, OperationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { bookingScopeWhere } from './booking-scope';
 
 const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatus>> = {
   [BookingStatus.DRAFT]: new Set([BookingStatus.DRAFT, BookingStatus.CONFIRMED, BookingStatus.CANCELLED]),
@@ -175,14 +176,7 @@ export class BookingsService {
   }
 
   private scopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
-    if (!user || hasUnrestrictedDataScope(user)) return where;
-    const permissions = userPermissions(user);
-    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
-    const OR: Prisma.BookingWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    return bookingScopeWhere(where, user);
   }
 
   private async ensureTourProgram(id: string) {
@@ -263,10 +257,6 @@ export class BookingsService {
   private requiresScopedLink(user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return false;
     return true;
-  }
-
-  private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
-    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
   private bookingStatus(status?: string | BookingStatus) {
