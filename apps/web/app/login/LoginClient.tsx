@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const DEFAULT_AFTER_LOGIN_PATH = '/order-center';
 
 export default function LoginClient() {
   const searchParams = useSearchParams();
@@ -25,8 +26,8 @@ export default function LoginClient() {
     window.localStorage.setItem('smarttour.auth.token', data.token);
     window.localStorage.setItem('smarttour.auth.user', JSON.stringify(data.user));
     document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${60 * 60 * 24 * 14}; SameSite=Lax`;
-    const nextPath = searchParams.get('next') || '/';
-    window.location.assign(nextPath.startsWith('/') ? nextPath : '/');
+    const nextPath = safeNextPath(searchParams.get('next'));
+    window.location.assign(nextPath);
   }
 
   return (
@@ -53,4 +54,11 @@ export default function LoginClient() {
 
 function text(value: FormDataEntryValue | null) {
   return typeof value === 'string' ? value : '';
+}
+
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/login')) {
+    return DEFAULT_AFTER_LOGIN_PATH;
+  }
+  return value;
 }

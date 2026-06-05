@@ -7,7 +7,8 @@ import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 
 export const dynamic = 'force-dynamic';
 
-type TourProgram = { id: string; code: string; name: string; durationDays: number };
+type ItineraryDay = { id: string; dayNumber: number; title: string; description?: string | null };
+type TourProgram = { id: string; code: string; name: string; durationDays: number; itineraryDays?: ItineraryDay[] };
 type Booking = {
   id: string;
   code: string;
@@ -288,6 +289,25 @@ function display(value: string | null | undefined) {
   return value?.trim() || '—';
 }
 
+function missingItineraryDays(tourProgram: TourProgram) {
+  const days = new Set((tourProgram.itineraryDays || []).map((day) => day.dayNumber));
+  const missing: number[] = [];
+  for (let day = 1; day <= tourProgram.durationDays; day += 1) {
+    if (!days.has(day)) missing.push(day);
+  }
+  return missing;
+}
+
+function isTourProgramReadyForBooking(tourProgram: TourProgram) {
+  return missingItineraryDays(tourProgram).length === 0;
+}
+
+function tourProgramBookingLabel(tourProgram: TourProgram) {
+  const base = `${tourProgram.code} - ${tourProgram.name} (${tourProgram.durationDays} ngày)`;
+  const missing = missingItineraryDays(tourProgram);
+  return missing.length ? `${base} - thiếu ngày ${missing.join(', ')}` : base;
+}
+
 function bookingStatusClass(status: string) {
   if (status === 'COMPLETED') return 'statusPill statusPillSuccess';
   if (status === 'CANCELLED') return 'statusPill statusPillError';
@@ -448,6 +468,10 @@ function BookingForm({
 }) {
   const selectedTourProgramId = booking?.tourProgram.id || '';
   const hasSelectedTour = !selectedTourProgramId || tourPrograms.some((tour) => tour.id === selectedTourProgramId);
+  const readyTourPrograms = tourPrograms.filter(isTourProgramReadyForBooking);
+  const selectedTourProgram = tourPrograms.find((tour) => tour.id === selectedTourProgramId);
+  const selectedTourIsReady = selectedTourProgram ? isTourProgramReadyForBooking(selectedTourProgram) : true;
+  const canSubmit = tourPrograms.length > 0 && (booking ? selectedTourIsReady : readyTourPrograms.length > 0);
 
   return (
     <form action={action} className="modalFormStack">
@@ -455,6 +479,16 @@ function BookingForm({
       {tourPrograms.length === 0 ? (
         <div className="supplierNotice supplierNoticeError">
           <AlertTriangle size={16} /> Chưa tải được tour mẫu. Kiểm tra lỗi ở đầu trang trước khi tạo booking.
+        </div>
+      ) : null}
+      {tourPrograms.length > 0 && readyTourPrograms.length === 0 ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> Chưa có tour mẫu nào đủ lịch trình. Hãy vào Tour mẫu và tạo đủ ngày lịch trình trước khi tạo booking.
+        </div>
+      ) : null}
+      {booking && selectedTourProgram && !selectedTourIsReady ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> Tour mẫu đang chọn còn thiếu ngày {missingItineraryDays(selectedTourProgram).join(', ')}. Cần bổ sung lịch trình trước khi lưu booking.
         </div>
       ) : null}
 
@@ -482,7 +516,9 @@ function BookingForm({
             <option value="">Chọn tour mẫu</option>
             {booking && !hasSelectedTour ? <option value={booking.tourProgram.id}>{booking.tourProgram.code} - {booking.tourProgram.name}</option> : null}
             {tourPrograms.map((tour) => (
-              <option value={tour.id} key={tour.id}>{tour.code} - {tour.name} ({tour.durationDays} ngày)</option>
+              <option value={tour.id} key={tour.id} disabled={!isTourProgramReadyForBooking(tour)}>
+                {tourProgramBookingLabel(tour)}
+              </option>
             ))}
           </select>
         </label>
@@ -536,7 +572,7 @@ function BookingForm({
 
       <div className="modalActions">
         <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
-        <button type="submit" disabled={tourPrograms.length === 0}><Save size={14} /> {submitLabel}</button>
+        <button type="submit" disabled={!canSubmit}><Save size={14} /> {submitLabel}</button>
       </div>
     </form>
   );
