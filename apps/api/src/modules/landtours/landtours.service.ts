@@ -56,7 +56,7 @@ export class LandToursService {
 
   async detail(id: string, user?: RequestUser) {
     const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
-    if (!tour) throw new NotFoundException('LandTour not found');
+    if (!tour) throw new NotFoundException('Không tìm thấy landtour');
     return tour;
   }
 
@@ -78,7 +78,7 @@ export class LandToursService {
       return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('LandTour system code already exists');
+        throw new ConflictException('Mã hệ thống landtour đã tồn tại');
       }
       throw error;
     }
@@ -102,7 +102,7 @@ export class LandToursService {
       return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('LandTour system code already exists');
+        throw new ConflictException('Mã hệ thống landtour đã tồn tại');
       }
       throw error;
     }
@@ -116,7 +116,7 @@ export class LandToursService {
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
     const source = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id: sourceTourId || targetTourId, type: TourType.LANDTOUR }, user), include: { services: true } });
-    if (!source) throw new NotFoundException('Source tour not found');
+    if (!source) throw new NotFoundException('Không tìm thấy tour nguồn');
 
     await this.prisma.$transaction(async (tx) => {
       const services = source.services.map((service) => ({
@@ -149,7 +149,7 @@ export class LandToursService {
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto, creating = false) {
     if (creating || dto.customerName !== undefined) {
-      await this.tourCore.replaceCustomers(tx, tourId, [this.tourCore.primaryCustomer(dto as unknown as Row, 'LandTour Customer')]);
+      await this.tourCore.replaceCustomers(tx, tourId, [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khách hàng landtour')]);
     }
     if (creating || dto.revenues !== undefined) {
       await this.tourCore.replaceRevenues(tx, tourId, this.tourCore.mapRevenues(dto.revenues));

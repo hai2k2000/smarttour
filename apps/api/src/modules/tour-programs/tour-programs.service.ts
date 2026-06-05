@@ -57,7 +57,7 @@ export class TourProgramsService {
         bookings: { orderBy: { startDate: 'desc' } },
       },
     });
-    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
     return tourProgram;
   }
 
@@ -70,7 +70,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Tour program code already exists');
+        throw new ConflictException('Mã chương trình tour đã tồn tại');
       }
       throw error;
     }
@@ -91,7 +91,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Tour program code already exists');
+        throw new ConflictException('Mã chương trình tour đã tồn tại');
       }
       throw error;
     }
@@ -105,12 +105,12 @@ export class TourProgramsService {
         _count: { select: { bookings: true, itineraryDays: true } },
       },
     });
-    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
     if (tourProgram._count.bookings > 0) {
-      throw new ConflictException('Cannot delete tour program with existing bookings');
+      throw new ConflictException('Không thể xóa chương trình tour đã có booking');
     }
     if (tourProgram._count.itineraryDays > 0) {
-      throw new ConflictException('Cannot delete tour program with existing itinerary days');
+      throw new ConflictException('Không thể xóa chương trình tour đã có ngày hành trình');
     }
     return this.prisma.tourProgram.delete({ where: { id } });
   }
@@ -120,7 +120,7 @@ export class TourProgramsService {
       where: { id: tourProgramId },
       select: { id: true, durationDays: true },
     });
-    if (!tourProgram) throw new NotFoundException('Tour program not found');
+    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
     this.validateItineraryDayInput(dto);
     this.ensureDayNumberWithinDuration(dto.dayNumber, tourProgram.durationDays);
     await this.ensureUniqueItineraryDay(tourProgramId, dto.dayNumber);
@@ -135,7 +135,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
-        throw new ConflictException('Itinerary day number already exists in this tour program');
+        throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
       }
       throw error;
     }
@@ -160,7 +160,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
-        throw new ConflictException('Itinerary day number already exists in this tour program');
+        throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
       }
       throw error;
     }
@@ -171,9 +171,9 @@ export class TourProgramsService {
       where: { id },
       select: { id: true, _count: { select: { services: true } } },
     });
-    if (!day) throw new NotFoundException('Itinerary day not found');
+    if (!day) throw new NotFoundException('Không tìm thấy ngày hành trình');
     if (day._count.services > 0) {
-      throw new ConflictException('Cannot delete itinerary day with existing operation services');
+      throw new ConflictException('Không thể xóa ngày hành trình đã có dịch vụ điều hành');
     }
     return this.prisma.tourItineraryDay.delete({ where: { id } });
   }
@@ -183,41 +183,41 @@ export class TourProgramsService {
       where: { id },
       include: { tourProgram: { select: { durationDays: true } } },
     });
-    if (!day) throw new NotFoundException('Itinerary day not found');
+    if (!day) throw new NotFoundException('Không tìm thấy ngày hành trình');
     return day;
   }
 
   private validateTourProgramInput(dto: UpdateTourProgramDto) {
-    if (dto.code !== undefined) this.validateRequiredText(dto.code, 'Tour program code', this.maxCodeLength);
-    if (dto.name !== undefined) this.validateRequiredText(dto.name, 'Tour program name', this.maxNameLength);
-    if (dto.route !== undefined) this.validateOptionalText(dto.route, 'Route', this.maxRouteLength);
+    if (dto.code !== undefined) this.validateRequiredText(dto.code, 'Mã chương trình tour', this.maxCodeLength);
+    if (dto.name !== undefined) this.validateRequiredText(dto.name, 'Tên chương trình tour', this.maxNameLength);
+    if (dto.route !== undefined) this.validateOptionalText(dto.route, 'Tuyến điểm', this.maxRouteLength);
     if (dto.description !== undefined) {
-      this.validateOptionalText(dto.description, 'Description', this.maxDescriptionLength);
+      this.validateOptionalText(dto.description, 'Mô tả', this.maxDescriptionLength);
     }
-    if (dto.durationDays !== undefined) this.validatePositiveInt(dto.durationDays, 'Duration days');
+    if (dto.durationDays !== undefined) this.validatePositiveInt(dto.durationDays, 'Số ngày');
   }
 
   private validateItineraryDayInput(dto: UpdateItineraryDayDto) {
-    if (dto.dayNumber !== undefined) this.validatePositiveInt(dto.dayNumber, 'Itinerary day number');
-    if (dto.title !== undefined) this.validateRequiredText(dto.title, 'Itinerary day title', this.maxTitleLength);
+    if (dto.dayNumber !== undefined) this.validatePositiveInt(dto.dayNumber, 'Số thứ tự ngày hành trình');
+    if (dto.title !== undefined) this.validateRequiredText(dto.title, 'Tiêu đề ngày hành trình', this.maxTitleLength);
     if (dto.description !== undefined) {
-      this.validateOptionalText(dto.description, 'Itinerary day description', this.maxDescriptionLength);
+      this.validateOptionalText(dto.description, 'Mô tả ngày hành trình', this.maxDescriptionLength);
     }
   }
 
   private validateRequiredText(value: string, label: string, maxLength: number) {
     const trimmed = value.trim();
-    if (trimmed.length < 2) throw new BadRequestException(`${label} must be at least 2 characters`);
-    if (trimmed.length > maxLength) throw new BadRequestException(`${label} is too long`);
+    if (trimmed.length < 2) throw new BadRequestException(`${label} phải có ít nhất 2 ký tự`);
+    if (trimmed.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
   }
 
   private validateOptionalText(value: string | undefined, label: string, maxLength: number) {
     const trimmed = value?.trim();
-    if (trimmed && trimmed.length > maxLength) throw new BadRequestException(`${label} is too long`);
+    if (trimmed && trimmed.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
   }
 
   private validatePositiveInt(value: number, label: string) {
-    if (!Number.isInteger(value) || value < 1) throw new BadRequestException(`${label} must be at least 1`);
+    if (!Number.isInteger(value) || value < 1) throw new BadRequestException(`${label} phải lớn hơn hoặc bằng 1`);
   }
 
   private ensureDurationCoversItinerary(
@@ -226,19 +226,19 @@ export class TourProgramsService {
   ) {
     const maxExistingDay = itineraryDays.reduce((max, day) => Math.max(max, day.dayNumber), 0);
     if (durationDays < maxExistingDay) {
-      throw new BadRequestException('Duration days cannot be smaller than existing itinerary days');
+      throw new BadRequestException('Số ngày chương trình không được nhỏ hơn số ngày hành trình hiện có');
     }
   }
 
   private ensureDurationChangeAllowed(nextDurationDays: number, currentDurationDays: number, bookingCount: number) {
     if (bookingCount > 0 && nextDurationDays !== currentDurationDays) {
-      throw new ConflictException('Cannot change duration days because this tour program already has bookings');
+      throw new ConflictException('Không thể thay đổi số ngày chương trình vì tour đã có booking');
     }
   }
 
   private ensureDayNumberWithinDuration(dayNumber: number, durationDays: number) {
     if (dayNumber > durationDays) {
-      throw new BadRequestException('Itinerary day number cannot exceed tour duration days');
+      throw new BadRequestException('Số thứ tự ngày hành trình không được vượt quá số ngày tour');
     }
   }
 
@@ -251,7 +251,7 @@ export class TourProgramsService {
       },
       select: { id: true },
     });
-    if (duplicate) throw new ConflictException('Itinerary day number already exists in this tour program');
+    if (duplicate) throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
   }
 
   private isUniqueError(error: unknown) {

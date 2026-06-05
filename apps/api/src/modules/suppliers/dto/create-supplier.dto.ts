@@ -16,7 +16,7 @@ export class CreateSupplierDto {
   @MinLength(1)
   categoryId!: string;
 
-  @ApiProperty({ example: 'Ha Long Bay Hotel Partner' })
+  @ApiProperty({ example: 'Đối tác khách sạn Hạ Long Bay' })
   @Transform(trimRequired)
   @IsString()
   @MinLength(2)
