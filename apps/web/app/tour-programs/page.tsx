@@ -260,6 +260,10 @@ function modalCloseHref() {
   return '/tour-programs';
 }
 
+function itineraryPreview(days: ItineraryDay[]) {
+  return [...days].sort((left, right) => left.dayNumber - right.dayNumber).slice(0, 3);
+}
+
 export default async function TourProgramsPage({ searchParams }: TourProgramsPageProps) {
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
@@ -299,57 +303,76 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
         {tourPrograms.length === 0 ? (
           <div className="tableEmptyState"><Map size={20} /> Chưa có tour mẫu. Hãy tạo tour đầu tiên để tiếp tục luồng booking và điều hành.</div>
         ) : (
-          <div className="fitTableWrap">
-            <table className="fitTable orderListTable">
+          <div className="fitTableWrap tourProgramTableWrap">
+            <table className="fitTable orderListTable tourProgramTable">
               <thead>
                 <tr>
-                  <th>Mã tour</th>
+                  <th>Mã / số ngày</th>
                   <th>Tên tour</th>
                   <th>Tuyến điểm</th>
-                  <th>Số ngày</th>
                   <th>Lịch trình</th>
-                  <th>Booking liên quan</th>
+                  <th>Booking</th>
                   <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {tourPrograms.map((tour) => (
-                  <tr key={tour.id}>
-                    <td><span className="codeBadge">{tour.code}</span></td>
-                    <td>
-                      <strong>{tour.name}</strong>
-                      {tour.description ? <span className="mutedText">{tour.description}</span> : null}
-                    </td>
-                    <td>{tour.route ? <><Route size={13} /> {tour.route}</> : <span className="mutedText">—</span>}</td>
-                    <td>{tour.durationDays} ngày</td>
-                    <td>
-                      {tour.itineraryDays.length > 0 ? (
-                        <div className="chips">
-                          {tour.itineraryDays.map((day) => (
-                            <span key={day.id}>
-                              Ngày {day.dayNumber}: {day.title}
-                              {day.description ? ` - ${day.description}` : ''}
-                            </span>
-                          ))}
+                {tourPrograms.map((tour) => {
+                  const previewDays = itineraryPreview(tour.itineraryDays);
+                  const remainingDays = Math.max(0, tour.itineraryDays.length - previewDays.length);
+
+                  return (
+                    <tr key={tour.id}>
+                      <td>
+                        <div className="tourProgramCodeCell">
+                          <span className="codeBadge">{tour.code}</span>
+                          <span>{tour.durationDays} ngày</span>
                         </div>
-                      ) : <span className="mutedText">Chưa có lịch trình</span>}
-                    </td>
-                    <td><span className={tour._count?.bookings ? 'statusPill statusPillWarning' : 'statusPill statusPillNeutral'}>{tour._count?.bookings ?? 0} booking</span></td>
-                    <td className="actionsCell">
-                      <div className="rowActions">
-                        <a className="secondaryButton iconOnlyButton" href={`#add-day-${tour.id}`} title="Thêm ngày" aria-label={`Thêm ngày cho ${tour.code}`}>
-                          <CalendarDays size={14} />
-                        </a>
-                        <a className="secondaryButton iconOnlyButton" href={`#edit-${tour.id}`} title="Sửa tour mẫu" aria-label={`Sửa ${tour.code}`}>
-                          <Pencil size={14} />
-                        </a>
-                        <a className="dangerButton iconOnlyButton" href={`#delete-${tour.id}`} title="Xóa tour mẫu" aria-label={`Xóa ${tour.code}`}>
-                          <Trash2 size={14} />
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <div className="tourProgramNameCell">
+                          <strong>{tour.name}</strong>
+                          {tour.description ? <span>{tour.description}</span> : <span className="mutedText">Chưa có mô tả</span>}
+                        </div>
+                      </td>
+                      <td>
+                        {tour.route ? (
+                          <span className="tourProgramRoute"><Route size={14} /> {tour.route}</span>
+                        ) : <span className="mutedText">Chưa có tuyến điểm</span>}
+                      </td>
+                      <td>
+                        {previewDays.length > 0 ? (
+                          <div className="tourProgramItinerary">
+                            {previewDays.map((day) => (
+                              <span
+                                className="tourProgramDayPill"
+                                key={day.id}
+                                title={day.description ? `${day.title} - ${day.description}` : day.title}
+                              >
+                                <strong>Ngày {day.dayNumber}</strong>
+                                <span>{day.title}</span>
+                              </span>
+                            ))}
+                            {remainingDays > 0 ? <span className="tourProgramMoreDays">+{remainingDays} ngày</span> : null}
+                          </div>
+                        ) : <span className="mutedText">Chưa có lịch trình</span>}
+                      </td>
+                      <td><span className={tour._count?.bookings ? 'statusPill statusPillWarning' : 'statusPill statusPillNeutral'}>{tour._count?.bookings ?? 0} booking</span></td>
+                      <td className="actionsCell">
+                        <div className="tourProgramRowActions">
+                          <a className="secondaryButton iconTextButton" href={`#add-day-${tour.id}`} title="Thêm ngày" aria-label={`Thêm ngày cho ${tour.code}`}>
+                            <CalendarDays size={14} /> Thêm ngày
+                          </a>
+                          <a className="secondaryButton iconOnlyButton" href={`#edit-${tour.id}`} title="Sửa tour mẫu" aria-label={`Sửa ${tour.code}`}>
+                            <Pencil size={14} />
+                          </a>
+                          <a className="dangerButton iconOnlyButton" href={`#delete-${tour.id}`} title="Xóa tour mẫu" aria-label={`Xóa ${tour.code}`}>
+                            <Trash2 size={14} />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

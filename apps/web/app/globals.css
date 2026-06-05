@@ -1496,3 +1496,173 @@ label { min-width: 0; }
 .customerPage .miniTags {
   min-width: 0;
 }
+
+/* Tour programs list */
+.tourProgramTableWrap {
+  border: 1px solid #d7ebcd;
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+}
+.tourProgramTable {
+  width: 100%;
+  max-width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
+}
+.tourProgramTable th {
+  background: #f7fbf4;
+  color: #315f26;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.tourProgramTable th,
+.tourProgramTable td {
+  min-width: 0;
+}
+.tourProgramTable td {
+  vertical-align: middle;
+  padding: 12px 10px;
+  border-bottom: 1px solid #e3efd9;
+  overflow-wrap: anywhere;
+}
+.tourProgramTable tbody tr:hover td {
+  background: #fbfef8;
+}
+.tourProgramTable th:nth-child(1),
+.tourProgramTable td:nth-child(1) {
+  width: 116px;
+}
+.tourProgramTable th:nth-child(2),
+.tourProgramTable td:nth-child(2) {
+  width: 260px;
+}
+.tourProgramTable th:nth-child(3),
+.tourProgramTable td:nth-child(3) {
+  width: 230px;
+}
+.tourProgramTable th:nth-child(5),
+.tourProgramTable td:nth-child(5) {
+  width: 116px;
+}
+.tourProgramTable th:nth-child(6),
+.tourProgramTable td:nth-child(6) {
+  width: 182px;
+}
+.tourProgramTable td:last-child {
+  width: 182px;
+  min-width: 182px;
+  text-align: right;
+}
+.tourProgramCodeCell {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.tourProgramCodeCell > span:last-child {
+  color: #4b6b3d;
+  font-size: 12px;
+  font-weight: 800;
+}
+.tourProgramNameCell {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.tourProgramNameCell strong {
+  color: #053a3e;
+  font-size: 15px;
+  line-height: 1.25;
+}
+.tourProgramNameCell span {
+  color: #4b6b3d;
+  font-size: 12px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tourProgramRoute {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #276c72;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.tourProgramItinerary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+.tourProgramDayPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 250px;
+  border: 1px solid #d7ebcd;
+  border-radius: 999px;
+  background: #f7fbf4;
+  padding: 6px 9px;
+  color: #276c72;
+}
+.tourProgramDayPill strong {
+  color: #315f26;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tourProgramDayPill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.tourProgramMoreDays {
+  border: 1px dashed #b8d7ae;
+  border-radius: 999px;
+  background: #fff;
+  padding: 6px 9px;
+  color: #4b6b3d;
+  font-size: 12px;
+  font-weight: 800;
+}
+.tourProgramRowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.tourProgramRowActions .iconTextButton {
+  min-width: 102px;
+  padding-inline: 10px;
+}
+.tourProgramRowActions .iconOnlyButton,
+.tourProgramRowActions .dangerButton {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .tourProgramTable {
+    min-width: 820px;
+  }
+  .tourProgramTable th:nth-child(3),
+  .tourProgramTable td:nth-child(3) {
+    width: 180px;
+  }
+  .tourProgramTable th:nth-child(6),
+  .tourProgramTable td:nth-child(6),
+  .tourProgramTable td:last-child {
+    width: 150px;
+    min-width: 150px;
+  }
+  .tourProgramRowActions {
+    flex-wrap: wrap;
+  }
+  .tourProgramRowActions .iconTextButton {
+    min-width: 0;
+  }
+}
