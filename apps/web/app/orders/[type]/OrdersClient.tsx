@@ -107,6 +107,14 @@ const emptyMember = { id: '', fullName: '', gender: '', birthday: '', phone: '',
 const defaultHandoverItems = [{ id: '', itemName: 'Rooming list', quantity: 1, note: '' }, { id: '', itemName: 'Chương trình tour', quantity: 1, note: '' }];
 const defaultSurveyQuestions = [{ id: '', question: 'Chất lượng dịch vụ', note: '' }, { id: '', question: 'Mức độ hài lòng chung', note: '' }];
 const statusOptions = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED'];
+const stepDescriptions = [
+  'Nhập số lượng, chỗ và các dòng doanh thu để hệ thống tính tổng thu.',
+  'Hoàn thiện thông tin tour, khách hàng, lịch trình và danh sách thành viên.',
+  'Lập dự toán dịch vụ và chi phí dự kiến trước khi chuyển điều hành.',
+  'Theo dõi dịch vụ điều hành, hướng dẫn viên và trạng thái xác nhận.',
+  'Chuẩn bị nội dung bàn giao và danh sách tài liệu/quà tặng.',
+  'Thiết lập phiếu đánh giá dịch vụ và điều khoản sau tour.',
+];
 
 function makeDefaultValues(): OrderForm {
   return {
@@ -243,7 +251,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [formOpen, setFormOpen] = useState(false);
-  const { register, control, handleSubmit, reset, formState: { isSubmitting } } = useForm<OrderForm>({ resolver: zodResolver(orderSchema) as any, defaultValues: makeDefaultValues() });
+  const { register, control, handleSubmit, reset, formState: { isSubmitting } } = useForm<OrderForm>({ resolver: zodResolver(orderSchema) as any, defaultValues: makeDefaultValues(), shouldUnregister: false });
   const values = useWatch({ control });
   const arrays = {
     guides: useFieldArray({ control, name: 'guides', keyName: 'fieldId' }),
@@ -270,6 +278,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   const canUseOrderAction = Boolean(editingId) && !isSubmitting;
   const canSettle = canUseOrderAction && !['SETTLED', 'CANCELLED'].includes(currentStatus);
   const canUnlock = canUseOrderAction && currentStatus === 'SETTLED';
+  const lastStep = Math.max(0, config.steps.length - 1);
   const table = useReactTable({
     data: filtered,
     columns: useMemo(() => {
@@ -356,44 +365,72 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     <div className="orderPage">
       {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide tourWorkflowModal"><form onSubmit={handleSubmit(onSubmit)} className="orderForm">
         <section className="fitToolbar">
-          <div className="fitSteps">{config.steps.map((step, index) => <button type="button" key={step} className={activeStep === index ? 'active' : ''} onClick={() => setActiveStep(index)}><span>{index + 1}.</span>{step}</button>)}</div>
-          <div className="fitActions"><strong>{config.title}</strong><span>{message || 'Hệ thống tính lại thu, chi và lợi nhuận trước khi lưu.'}</span></div>
+          <div className="fitSteps" role="tablist" aria-label="Các bước tạo đơn">
+            {config.steps.map((step, index) => (
+              <button
+                type="button"
+                key={step}
+                role="tab"
+                aria-selected={activeStep === index}
+                className={activeStep === index ? 'active' : ''}
+                onClick={() => setActiveStep(index)}
+              >
+                <span>{index + 1}.</span>{step}
+              </button>
+            ))}
+          </div>
+          <div className="fitActions"><strong>{config.title}</strong><span>{message || stepDescriptions[activeStep] || 'Hệ thống tính lại thu, chi và lợi nhuận trước khi lưu.'}</span></div>
         </section>
         <section className="orderWorkArea">
           <div className="orderMain">
             <section className="panel">
-              <div className="sectionHeader"><h2>Thông tin đơn hàng</h2><span>{config.shortTitle}</span></div>
+              <div className="sectionHeader"><h2>{config.steps[activeStep] || 'Thông tin đơn hàng'}</h2><span>{config.shortTitle}</span></div>
               <div className="orderFormSections">
-                <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
-                  <label>Mã hệ thống<input {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
-                  <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
-                </div></fieldset>
-                <fieldset><legend>Khách hàng</legend><div className="quoteFormGrid">
-                  <label>Họ tên khách<input {...register('customerName')} /></label><label>Loại khách<input {...register('customerType')} /></label><label>Số điện thoại<input {...register('customerPhone')} /></label><label>Email<input type="email" {...register('customerEmail')} /></label><label>Địa chỉ<input {...register('customerAddress')} /></label><label>Đại lý<input {...register('agencyName')} /></label><label>Cộng tác viên<input {...register('collaborator')} /></label><label>Nhân viên điều hành<input {...register('operatorOwner')} /></label>
-                </div></fieldset>
-                <fieldset><legend>Số lượng / giá trị</legend><div className="quoteFormGrid">
+                {activeStep === 0 ? <fieldset><legend>Số lượng / giá trị</legend><div className="quoteFormGrid">
                   <label>Người lớn<input type="number" {...register('adultQty')} /></label><label>Trẻ em<input type="number" {...register('childQty')} /></label><label>Em bé<input type="number" {...register('infantQty')} /></label><label>Số lượng<input type="number" {...register('quantity')} /></label><label>Tổng chỗ<input type="number" {...register('seatTotal')} /></label><label>Đã giữ<input type="number" {...register('seatHeld')} /></label><label>Đã bán<input type="number" {...register('seatSold')} /></label><label>Đã thu<input type="number" {...register('paidAmount')} /></label><label>Đã chi<input type="number" {...register('paidCost')} /></label><label>Hoa hồng<input type="number" {...register('commission')} /></label>
-                </div></fieldset>
-                <fieldset><legend>Điều hành</legend><div className="quoteFormGrid">
+                </div></fieldset> : null}
+                {activeStep === 1 ? <>
+                  <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
+                    <label>Mã hệ thống<input {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
+                    <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
+                  </div></fieldset>
+                  <fieldset><legend>Khách hàng</legend><div className="quoteFormGrid">
+                    <label>Họ tên khách<input {...register('customerName')} /></label><label>Loại khách<input {...register('customerType')} /></label><label>Số điện thoại<input {...register('customerPhone')} /></label><label>Email<input type="email" {...register('customerEmail')} /></label><label>Địa chỉ<input {...register('customerAddress')} /></label><label>Đại lý<input {...register('agencyName')} /></label><label>Cộng tác viên<input {...register('collaborator')} /></label><label>Nhân viên điều hành<input {...register('operatorOwner')} /></label>
+                  </div></fieldset>
+                </> : null}
+                {activeStep === 3 ? <fieldset><legend>Điều hành</legend><div className="quoteFormGrid">
                   <label>Hạng phòng<input {...register('roomClass')} /></label><label>Gói dịch vụ<input {...register('servicePackage')} /></label><label>Phương tiện<input {...register('transportType')} /></label><label>Điểm đón<input {...register('pickupPoint')} /></label><label>Điểm trả<input {...register('dropoffPoint')} /></label><label>Hạn nhận<input type="datetime-local" {...register('receiveDeadline')} /></label><label>Hạn đóng<input type="datetime-local" {...register('closeDeadline')} /></label><label className="span2">Ghi chú<textarea rows={2} {...register('note')} /></label>
-                </div></fieldset>
+                </div></fieldset> : null}
+                {activeStep === 4 ? <fieldset><legend>Yêu cầu bàn giao</legend><div className="quoteFormGrid">
+                  <label className="span2">Nội dung bàn giao<textarea rows={5} {...register('handoverRequest')} /></label>
+                </div></fieldset> : null}
+                {activeStep === 5 ? <fieldset><legend>Mô tả đánh giá</legend><div className="quoteFormGrid">
+                  <label className="span2">Mô tả chung<textarea rows={4} {...register('surveyDescription')} /></label>
+                </div></fieldset> : null}
               </div>
             </section>
-            <Rows title="Hướng dẫn viên" name="guides" register={register} fieldArray={arrays.guides} emptyRow={{ id: '', guideName: '', phone: '', language: '', note: '' }} columns={[['guideName','Hướng dẫn viên'],['phone','Số điện thoại'],['language','Ngôn ngữ'],['note','Ghi chú']]} />
-            <Rows title="Dịch vụ sales / phần thu" name="salesItems" register={register} fieldArray={arrays.salesItems} emptyRow={emptySales} columns={[['serviceType','Loại dịch vụ'],['description','Diễn giải'],['quantity','Số lượng','number'],['serviceCount','Số lượt','number'],['unitPrice','Đơn giá','number'],['vat','VAT (%)','number'],['note','Ghi chú']]} />
-            <Rows title="Điều hành / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} />
-            <Rows title="Lịch trình" name="itineraries" register={register} fieldArray={arrays.itineraries} emptyRow={{ id: '', dayNo: 1, title: '', content: '', period: '', destination: '', meals: '', hotel: '', restaurant: '', services: '', note: '' }} columns={[['dayNo','Ngày','number'],['title','Tiêu đề'],['content','Nội dung','textarea'],['destination','Điểm đến'],['meals','Bữa ăn'],['hotel','Khách sạn'],['restaurant','Nhà hàng'],['note','Ghi chú']]} />
-            <Rows title="Thành viên / hành khách" name="members" register={register} fieldArray={arrays.members} emptyRow={emptyMember} columns={[['fullName','Họ tên'],['gender','Giới tính'],['birthday','Ngày sinh','date'],['phone','Số điện thoại'],['email','Email'],['identityNumber','CCCD / hộ chiếu'],['nationality','Quốc tịch'],['passengerType','Loại khách','passengerType']]} />
-            <Rows title="Bàn giao" name="handoverItems" register={register} fieldArray={arrays.handoverItems} emptyRow={{ id: '', itemName: '', quantity: 1, note: '' }} columns={[['itemName','Tài liệu'],['quantity','Số lượng','number'],['note','Ghi chú']]} />
-            <Rows title="Phiếu đánh giá dịch vụ" name="surveyQuestions" register={register} fieldArray={arrays.surveyQuestions} emptyRow={{ id: '', question: '', note: '' }} columns={[['question','Câu hỏi'],['note','Ghi chú']]} />
-            <Rows title="Điều khoản và lưu ý" name="terms" register={register} fieldArray={arrays.terms} emptyRow={{ id: '', language: 'VN', terms: '', notes: '' }} columns={[['language','Ngôn ngữ','language'],['terms','Điều khoản','textarea'],['notes','Lưu ý','textarea']]} />
+            {activeStep === 0 ? <Rows title="Dịch vụ sales / phần thu" name="salesItems" register={register} fieldArray={arrays.salesItems} emptyRow={emptySales} columns={[['serviceType','Loại dịch vụ'],['description','Diễn giải'],['quantity','Số lượng','number'],['serviceCount','Số lượt','number'],['unitPrice','Đơn giá','number'],['vat','VAT (%)','number'],['note','Ghi chú']]} /> : null}
+            {activeStep === 1 ? <>
+              <Rows title="Lịch trình" name="itineraries" register={register} fieldArray={arrays.itineraries} emptyRow={{ id: '', dayNo: 1, title: '', content: '', period: '', destination: '', meals: '', hotel: '', restaurant: '', services: '', note: '' }} columns={[['dayNo','Ngày','number'],['title','Tiêu đề'],['content','Nội dung','textarea'],['destination','Điểm đến'],['meals','Bữa ăn'],['hotel','Khách sạn'],['restaurant','Nhà hàng'],['note','Ghi chú']]} />
+              <Rows title="Thành viên / hành khách" name="members" register={register} fieldArray={arrays.members} emptyRow={emptyMember} columns={[['fullName','Họ tên'],['gender','Giới tính'],['birthday','Ngày sinh','date'],['phone','Số điện thoại'],['email','Email'],['identityNumber','CCCD / hộ chiếu'],['nationality','Quốc tịch'],['passengerType','Loại khách','passengerType']]} />
+            </> : null}
+            {activeStep === 2 ? <Rows title="Dự toán dịch vụ / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} /> : null}
+            {activeStep === 3 ? <>
+              <Rows title="Điều hành / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} />
+              <Rows title="Hướng dẫn viên" name="guides" register={register} fieldArray={arrays.guides} emptyRow={{ id: '', guideName: '', phone: '', language: '', note: '' }} columns={[['guideName','Hướng dẫn viên'],['phone','Số điện thoại'],['language','Ngôn ngữ'],['note','Ghi chú']]} />
+            </> : null}
+            {activeStep === 4 ? <Rows title="Bàn giao" name="handoverItems" register={register} fieldArray={arrays.handoverItems} emptyRow={{ id: '', itemName: '', quantity: 1, note: '' }} columns={[['itemName','Tài liệu'],['quantity','Số lượng','number'],['note','Ghi chú']]} /> : null}
+            {activeStep === 5 ? <>
+              <Rows title="Phiếu đánh giá dịch vụ" name="surveyQuestions" register={register} fieldArray={arrays.surveyQuestions} emptyRow={{ id: '', question: '', note: '' }} columns={[['question','Câu hỏi'],['note','Ghi chú']]} />
+              <Rows title="Điều khoản và lưu ý" name="terms" register={register} fieldArray={arrays.terms} emptyRow={{ id: '', language: 'VN', terms: '', notes: '' }} columns={[['language','Ngôn ngữ','language'],['terms','Điều khoản','textarea'],['notes','Lưu ý','textarea']]} />
+            </> : null}
           </div>
           <aside className="panel quoteSummaryBox">
             <h2>Tổng hợp đơn hàng</h2>
             <div className="summaryRows"><div><span>Tổng thu</span><strong>{money(totals.revenue)}</strong></div><div><span>Đã thu</span><strong>{money(values.paidAmount)}</strong></div><div><span>Còn thu</span><strong>{money(totals.remainRevenue)}</strong></div><div><span>Tổng chi</span><strong>{money(totals.cost)}</strong></div><div><span>Đã chi</span><strong>{money(values.paidCost)}</strong></div><div><span>Còn chi</span><strong>{money(totals.remainCost)}</strong></div><div><span>Lợi nhuận</span><strong>{money(totals.profit)}</strong></div><div><span>Số chỗ còn</span><strong>{totals.seatsLeft}</strong></div></div>
           </aside>
         </section>
-        <div className="hotelFormActions"><button type="submit" disabled={!canEdit}><Save size={17}/> Lưu</button><button type="button" className="secondaryButton" disabled={!canUseOrderAction} onClick={() => action('copy')}><Copy size={17}/> Sao chép</button><button type="button" className="secondaryButton" disabled={!canSettle} onClick={() => action('settle')}><Lock size={17}/> Chốt quyết toán</button><button type="button" className="secondaryButton" disabled={!canUnlock} onClick={unlockSettlement}><LockOpen size={17}/> Mở khóa</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
+        <div className="hotelFormActions"><button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}>Trước</button><button type="button" className="secondaryButton" disabled={activeStep >= lastStep} onClick={() => setActiveStep((step) => Math.min(lastStep, step + 1))}>Tiếp</button><button type="submit" disabled={!canEdit}><Save size={17}/> Lưu</button><button type="button" className="secondaryButton" disabled={!canUseOrderAction} onClick={() => action('copy')}><Copy size={17}/> Sao chép</button><button type="button" className="secondaryButton" disabled={!canSettle} onClick={() => action('settle')}><Lock size={17}/> Chốt quyết toán</button><button type="button" className="secondaryButton" disabled={!canUnlock} onClick={unlockSettlement}><LockOpen size={17}/> Mở khóa</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
       </form></div></div> : null}
       <section className="panel listPanel"><div className="sectionHeader orderListHeader"><h2>Danh sách {config.shortTitle}</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Thêm mới</button><label className="searchBox"><Search size={16}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Tìm mã, tên, số điện thoại..." /></label></div><div className="fitTableWrap"><table className="fitTable orderListTable"><thead>{table.getHeaderGroups().map((group)=><tr key={group.id}>{group.headers.map((header)=><th key={header.id}>{flexRender(header.column.columnDef.header,header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row)=><tr key={row.id}>{row.getVisibleCells().map((cell)=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}{table.getRowModel().rows.length === 0 ? <tr><td colSpan={orderListColumnCount} className="orderListEmptyCell"><div className="tableEmptyState">Không có đơn hàng phù hợp.</div></td></tr> : null}</tbody></table></div></section>
     </div>
