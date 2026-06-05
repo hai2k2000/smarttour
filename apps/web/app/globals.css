@@ -1507,7 +1507,7 @@ label { min-width: 0; }
 .tourProgramTable {
   width: 100%;
   max-width: 100%;
-  min-width: 980px;
+  min-width: 1180px;
   table-layout: fixed;
 }
 .tourProgramTable th {
@@ -1535,11 +1535,15 @@ label { min-width: 0; }
 }
 .tourProgramTable th:nth-child(2),
 .tourProgramTable td:nth-child(2) {
-  width: 260px;
+  width: 250px;
 }
 .tourProgramTable th:nth-child(3),
 .tourProgramTable td:nth-child(3) {
-  width: 230px;
+  width: 210px;
+}
+.tourProgramTable th:nth-child(4),
+.tourProgramTable td:nth-child(4) {
+  width: 330px;
 }
 .tourProgramTable th:nth-child(5),
 .tourProgramTable td:nth-child(5) {
@@ -1547,11 +1551,11 @@ label { min-width: 0; }
 }
 .tourProgramTable th:nth-child(6),
 .tourProgramTable td:nth-child(6) {
-  width: 182px;
+  width: 196px;
 }
 .tourProgramTable td:last-child {
-  width: 182px;
-  min-width: 182px;
+  width: 196px;
+  min-width: 196px;
   text-align: right;
 }
 .tourProgramCodeCell {
@@ -1647,17 +1651,21 @@ label { min-width: 0; }
 
 @media (max-width: 900px) {
   .tourProgramTable {
-    min-width: 820px;
+    min-width: 980px;
   }
   .tourProgramTable th:nth-child(3),
   .tourProgramTable td:nth-child(3) {
     width: 180px;
   }
+  .tourProgramTable th:nth-child(4),
+  .tourProgramTable td:nth-child(4) {
+    width: 280px;
+  }
   .tourProgramTable th:nth-child(6),
   .tourProgramTable td:nth-child(6),
   .tourProgramTable td:last-child {
-    width: 150px;
-    min-width: 150px;
+    width: 176px;
+    min-width: 176px;
   }
   .tourProgramRowActions {
     flex-wrap: wrap;
