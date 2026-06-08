@@ -2,6 +2,7 @@
 
 import { Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { authHeaders } from '../authFetch';
 import FitTourWizard from './FitTourWizard';
 
 type Supplier = { id: string; name: string };
@@ -131,7 +132,7 @@ export default function FitToursClient({ suppliers, tours }: { suppliers: Suppli
     setListBusy(true);
     setListMessage('Đang tải danh sách tour FIT...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours`, { cache: 'no-store' });
+      const response = await fetch(`${apiBase}/api/fit-tours`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const data = await response.json();
       setRows(Array.isArray(data) ? data : []);

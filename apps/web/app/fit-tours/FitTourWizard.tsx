@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
+import { authHeaders, authJsonHeaders } from '../authFetch';
 
 type Supplier = { id: string; name: string };
 type FitTourSummary = { id: string; quoteCode: string; tourCode: string; customerName: string };
@@ -462,7 +463,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     const url = payload.id ? `${apiBase}/api/fit-tours/${payload.id}` : `${apiBase}/api/fit-tours`;
     const response = await fetch(url, {
       method: payload.id ? 'PUT' : 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: authJsonHeaders(),
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(await responseError(response));
@@ -494,7 +495,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     }
     setSaveState('Đang tải tour...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}`);
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const defaults = toFormDefaults(await response.json());
       reset(defaults, { keepDirty: false });
@@ -515,7 +516,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: authJsonHeaders(),
         body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
       });
       if (!response.ok) throw new Error(await responseError(response));
@@ -540,7 +541,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: authJsonHeaders(),
         body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
       });
       if (!response.ok) throw new Error(await responseError(response));

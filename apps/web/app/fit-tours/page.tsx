@@ -1,4 +1,5 @@
 import { Route, Users } from 'lucide-react';
+import { serverAuthHeaders } from '../serverAuth';
 import FitToursClient from './FitToursClient';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store' });
+    const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
     if (!response.ok) return fallback;
     return response.json();
   } catch {

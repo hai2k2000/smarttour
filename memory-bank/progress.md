@@ -2,6 +2,20 @@
 
 ## Done
 
+- Reviewed and hardened Tour Program, FIT Tour, and GIT Tour modules on the VPS.
+- Confirmed Tour Program has backend validation, create/edit/delete UI guards,
+  itinerary-day add flows, and passing service coverage.
+- Added auth-token forwarding to FIT Tour server page fetches, client list
+  reload, wizard detail load, save/autosave, copy-budget, and copy-operation
+  requests so FIT works under enforced Auth/RBAC.
+- Added `PATCH /api/git-tours/:id` as a partial-update alias for GIT Tour and
+  kept existing `PUT /api/git-tours/:id`.
+- Added controlled validation for invalid GIT Tour `status` list filters.
+- Rebuilt and restarted API/web containers; authenticated smoke passed for Tour
+  Program create/list, FIT create/detail/update, GIT create/PATCH/detail,
+  invalid GIT status 400, and routes `/tour-programs`, `/fit-tours`,
+  `/git-tours`.
+
 - Added scheduled production operations and OS-reinstall readiness:
   - Systemd health check every 10 minutes.
   - Daily PostgreSQL backup at 02:15.
@@ -268,7 +282,7 @@
 - Finance deepening: expose ledger/debt aging screens in UI, add manual adjustment endpoints, real XLSX import/export, Word/PDF export, binary upload storage, approval permissions, and richer operation-voucher/payment-request reconciliation UI.
 - Commission RBAC scopes, real payment voucher integration, Excel/PDF commission exports, tier rule management UI, and AI forecast integration.
 - Customer binary uploads, real Excel/PDF import/export, RBAC data scopes, customer contracts/visa/booking normalized links, and AI lead scoring/insights.
-- Supplier and Tour Program edit/delete UI.
+- Supplier edit/delete UI.
 - Real binary/file storage for Supplier attachments; current Hotel Supplier screen only reserves the file input area.
 - Supplier import/export, debt links, payment totals, and transaction-aware soft delete.
 - Dedicated Supplier APIs for contact/service/allotment row-level CRUD.

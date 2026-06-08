@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
@@ -25,10 +25,11 @@ const gitTourInclude = {
 export class GitToursService {
   constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
-  list(search?: string, status?: TourStatus, user?: RequestUser) {
+  list(search?: string, status?: string | TourStatus, user?: RequestUser) {
+    const tourStatus = this.toTourStatus(status);
     const where: Prisma.TourWhereInput = {
       type: TourType.GIT,
-      ...(status ? { status } : {}),
+      ...(tourStatus ? { status: tourStatus } : {}),
       ...(search
         ? {
             OR: [
@@ -204,6 +205,13 @@ export class GitToursService {
   private optionalText(value: unknown) {
     const text = this.text(value);
     return text ? text : null;
+  }
+
+  private toTourStatus(status?: string | TourStatus | null) {
+    const value = this.text(status);
+    if (!value) return undefined;
+    if (Object.values(TourStatus).includes(value as TourStatus)) return value as TourStatus;
+    throw new BadRequestException('Trạng thái tour GIT không hợp lệ');
   }
 
 

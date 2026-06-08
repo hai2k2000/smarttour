@@ -20,6 +20,29 @@ Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking 
 
 ## Latest Session Notes
 
+- Reviewed Tour Program, FIT Tour, and GIT Tour modules directly on the VPS:
+  - Tour Program backend/service and dense UI already support create, edit,
+    guarded delete, itinerary-day add, auth-aware server actions, and service
+    test coverage.
+  - FIT Tour page/server fetch, list reload, wizard detail load, save/autosave,
+    copy-budget, and copy-operation now send the existing SmartTour auth token
+    from cookie/localStorage, so the screen works with
+    `SMARTTOUR_AUTH_ENFORCE=true`.
+  - GIT Tour API now accepts `PATCH /api/git-tours/:id` for partial updates,
+    matching the existing status modal behavior, while keeping the existing
+    `PUT` endpoint.
+  - GIT Tour list now validates `status` query values and returns a controlled
+    400 instead of leaking a Prisma enum error for invalid statuses.
+  - Rebuilt and restarted `smarttour-api-1` and `smarttour-web-1`.
+  - VPS verification passed on 2026-06-08: Docker build for API/web, Tour
+    Program service test, authenticated API smoke for Tour Program/FIT/GIT,
+    GIT PATCH status persistence, invalid GIT status 400, and route checks for
+    `/tour-programs`, `/fit-tours`, and `/git-tours`.
+  - Host-level `npm run build --workspace apps/api` and
+    `npm run build --workspace apps/web` currently fail because VPS
+    `node_modules/.bin` cannot resolve the `nest`/`next` CLI internals; Docker
+    build is the verified deploy path.
+
 - Added OS-reinstall readiness and scheduled operations tooling:
   - Health checks now verify all seven containers, root `/` mode, critical
     systemd units, PostgreSQL backup age/checksum, disk, HTTP, database, Redis,
