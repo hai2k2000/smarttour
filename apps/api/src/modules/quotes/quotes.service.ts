@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, QuoteComboStatus, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
 
@@ -13,15 +14,17 @@ export class QuotesService {
   constructor(private readonly prisma: PrismaService) {}
 
   listTourQuotes(search?: string) {
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.tourQuote.findMany({
-      where: search
+      where: contains
         ? {
             OR: [
-              { quoteCode: { contains: search, mode: 'insensitive' } },
-              { tourCode: { contains: search, mode: 'insensitive' } },
-              { tourName: { contains: search, mode: 'insensitive' } },
-              { customerName: { contains: search, mode: 'insensitive' } },
-              { customerPhone: { contains: search, mode: 'insensitive' } },
+              { quoteCode: contains },
+              { tourCode: contains },
+              { tourName: contains },
+              { customerName: contains },
+              { customerPhone: contains },
             ],
           }
         : {},
@@ -142,12 +145,14 @@ export class QuotesService {
   }
 
   listComboQuotes(search?: string) {
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.quoteCombo.findMany({
-      where: search
+      where: contains
         ? {
             OR: [
-              { comboCode: { contains: search, mode: 'insensitive' } },
-              { comboType: { contains: search, mode: 'insensitive' } },
+              { comboCode: contains },
+              { comboType: contains },
             ],
           }
         : {},

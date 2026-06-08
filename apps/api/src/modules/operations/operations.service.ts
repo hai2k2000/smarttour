@@ -3,6 +3,7 @@ import { OperationStatus, Prisma, SupplierPaymentStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 
 type AnyRecord = Record<string, unknown>;
 type FormWriteMode = 'create' | 'update';
@@ -72,20 +73,21 @@ export class OperationsService {
   }
 
   async listForms(query: Record<string, string>, user?: RequestUser) {
-    const search = this.text(query.search);
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return this.prisma.operationForm.findMany({
       where: this.formScopeWhere({
         ...(query.status ? { status: this.operationStatus(query.status, OperationStatus.PENDING) } : {}),
         ...(query.bookingId ? { bookingId: query.bookingId } : {}),
         ...(query.orderId ? { orderId: query.orderId } : {}),
         ...(query.tourId ? { tourId: query.tourId } : {}),
-        ...(search
+        ...(contains
           ? {
               OR: [
-                { booking: { code: { contains: search, mode: 'insensitive' } } },
-                { order: { systemCode: { contains: search, mode: 'insensitive' } } },
-                { tour: { tourCode: { contains: search, mode: 'insensitive' } } },
-                { notes: { contains: search, mode: 'insensitive' } },
+                { booking: { code: contains } },
+                { order: { systemCode: contains } },
+                { tour: { tourCode: contains } },
+                { notes: contains },
               ],
             }
           : {}),
@@ -173,12 +175,13 @@ export class OperationsService {
   }
 
   async listPaymentRequests(query: Record<string, string>, user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
     return this.prisma.supplierPaymentRequest.findMany({
       where: this.paymentRequestScopeWhere({
         ...(query.status ? { status: this.supplierPaymentStatus(query.status, SupplierPaymentStatus.DRAFT) } : {}),
         ...(query.supplierId ? { items: { some: { supplierId: query.supplierId } } } : {}),
         ...(query.financePaymentId ? { financePaymentId: query.financePaymentId } : {}),
-        ...(query.search ? { code: { contains: query.search, mode: 'insensitive' } } : {}),
+        ...(search ? { code: containsSearch(search) } : {}),
       }, user),
       include: this.paymentRequestInclude(),
       orderBy: [{ requestedAt: 'desc' }, { code: 'asc' }],

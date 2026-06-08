@@ -2,6 +2,20 @@
 
 ## Done
 
+- Standardized free-text search behavior in list/list-like APIs:
+  - Added shared list search normalization with trim, whitespace collapse,
+    min length 2, max length 80, and consistent insensitive `contains`.
+  - Applied it across Orders, Booking, Tours, FIT/GIT/LandTour, Operation
+    Vouchers, Operations, Suppliers, Tour Guides, Tour Programs, Order Center,
+    Quotations, Quotes, Customers, Commission, Finance, and Reports.
+  - Avoids unnecessary broad `OR contains` and nested relation search for
+    one-character or blank terms.
+  - Lightened Finance invoice/receipt list payloads so dense list calls do not
+    return heavy child arrays.
+  - Verified on VPS: API Docker build, `TEST_LIST_VIEW_PERFORMANCE_OK`,
+    `TEST_ORDERS_API_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API redeploy, and
+    `HEALTHCHECK_OK`.
+
 - Hardened read-side branch/department data scope:
   - `branchDepartmentScopeWhere()` now narrows reads by every enabled scope
     dimension, so users with both branch and department scope must match both.

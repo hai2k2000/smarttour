@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { OrderType, Prisma, QuotationStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateQuotationDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
 
 type QuotationItemInput = NonNullable<CreateQuotationDto['items']>[number];
@@ -34,17 +35,19 @@ export class QuotationsService {
   }
 
   list(query: { search?: string; productType?: string; status?: QuotationStatus; salesOwner?: string; branch?: string; marketGroup?: string }, user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     const where: Prisma.QuotationWhereInput = {
       ...(query.productType ? { productType: query.productType as any } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.salesOwner ? { salesOwner: { contains: query.salesOwner, mode: 'insensitive' } } : {}),
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
-      ...(query.search ? { OR: [
-        { quoteCode: { contains: query.search, mode: 'insensitive' } },
-        { customerName: { contains: query.search, mode: 'insensitive' } },
-        { customerPhone: { contains: query.search, mode: 'insensitive' } },
-        { route: { contains: query.search, mode: 'insensitive' } },
+      ...(contains ? { OR: [
+        { quoteCode: contains },
+        { customerName: contains },
+        { customerPhone: contains },
+        { route: contains },
       ] } : {}),
     };
     return this.prisma.quotation.findMany({

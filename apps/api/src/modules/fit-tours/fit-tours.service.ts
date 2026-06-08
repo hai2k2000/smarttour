@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService } from '../tours/tour-core.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
@@ -85,16 +86,18 @@ export class FitToursService {
 
   list(search?: string, status?: string, user?: RequestUser) {
     const workflowStatus = this.toWorkflowStatus(status);
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.FitTourWhereInput = {
       ...(workflowStatus ? { workflowStatus } : {}),
-      ...(search
+      ...(contains
         ? {
             OR: [
-              { quoteCode: { contains: search, mode: 'insensitive' } },
-              { tourCode: { contains: search, mode: 'insensitive' } },
-              { tourName: { contains: search, mode: 'insensitive' } },
-              { customerName: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
+              { quoteCode: contains },
+              { tourCode: contains },
+              { tourName: contains },
+              { customerName: contains },
+              { phone: contains },
             ],
           }
         : {}),

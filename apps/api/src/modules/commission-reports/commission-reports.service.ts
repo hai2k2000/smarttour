@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -236,6 +237,8 @@ export class CommissionReportsService {
 
   private where(query: Record<string, string>): Prisma.CommissionEntryWhereInput {
     const where: Prisma.CommissionEntryWhereInput = {};
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     if (query.status) where.status = query.status as CommissionStatus;
     if (query.paymentStatus) where.paymentStatus = query.paymentStatus as CommissionPaymentStatus;
     if (query.employee) where.salesOwner = { contains: query.employee, mode: 'insensitive' };
@@ -245,12 +248,12 @@ export class CommissionReportsService {
     if (query.market) where.marketGroup = { contains: query.market, mode: 'insensitive' };
     if (query.productType) where.orderType = query.productType as never;
     if (query.from || query.to) where.milestoneDate = { gte: this.date(query.from), lte: this.date(query.to) };
-    if (query.search) {
+    if (contains) {
       where.OR = [
-        { orderCode: { contains: query.search, mode: 'insensitive' } },
-        { tourCode: { contains: query.search, mode: 'insensitive' } },
-        { customerName: { contains: query.search, mode: 'insensitive' } },
-        { salesOwner: { contains: query.search, mode: 'insensitive' } },
+        { orderCode: contains },
+        { tourCode: contains },
+        { customerName: contains },
+        { salesOwner: contains },
       ];
     }
     return where;

@@ -3,6 +3,7 @@ import { CustomerStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -542,6 +543,8 @@ export class CustomersService {
 
   private customerWhere(query: Record<string, string>): Prisma.CustomerWhereInput {
     const where: Prisma.CustomerWhereInput = {};
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     const requestedStatus = this.text(query.status);
     if (requestedStatus && requestedStatus !== 'ALL') {
       if (!Object.values(CustomerStatus).includes(requestedStatus as CustomerStatus)) throw new BadRequestException('Invalid customer status filter');
@@ -549,13 +552,13 @@ export class CustomersService {
     } else if (!requestedStatus) {
       where.status = { not: CustomerStatus.MERGED };
     }
-    if (query.search) {
+    if (contains) {
       where.OR = [
-        { fullName: { contains: query.search, mode: 'insensitive' } },
-        { phone: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
-        { companyName: { contains: query.search, mode: 'insensitive' } },
-        { code: { contains: query.search, mode: 'insensitive' } },
+        { fullName: contains },
+        { phone: contains },
+        { email: contains },
+        { companyName: contains },
+        { code: contains },
       ];
     }
     for (const field of ['branch', 'department', 'owner', 'market', 'province', 'gender', 'source', 'groupName', 'createdBy', 'collaborator', 'agencyType', 'companyName', 'taxCode', 'email', 'phone'] as const) {

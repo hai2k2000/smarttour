@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
@@ -17,7 +18,7 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
     const rows = await this.prisma.financeReceipt.findMany({
       where,
-      include: { orders: true },
+      include: { orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } } },
       orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
       take: this.take(query.take),
     });
@@ -449,7 +450,7 @@ export class FinanceService {
 
   async listInvoices(query: Record<string, string>, user?: RequestUser) {
     const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
-    const rows = await this.prisma.financeInvoice.findMany({ where, include: { items: true, files: true }, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
+    const rows = await this.prisma.financeInvoice.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
     const summaryRows = await this.prisma.financeInvoice.findMany({ where });
     return { rows, summary: invoiceSummary(summaryRows) };
   }
@@ -1063,6 +1064,8 @@ export class FinanceService {
   }
 
   private receiptWhere(query: Record<string, string>): Prisma.FinanceReceiptWhereInput {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.status ? { approvalStatus: query.status as never } : {}),
@@ -1072,12 +1075,14 @@ export class FinanceService {
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.assignedStaff ? { assignedStaff: { contains: query.assignedStaff, mode: 'insensitive' } } : {}),
       ...(query.minAmount || query.maxAmount ? { receiptAmount: { gte: this.decimalOrUndefined(query.minAmount), lte: this.decimalOrUndefined(query.maxAmount) } } : {}),
-      ...(query.search ? { OR: [{ receiptCode: { contains: query.search, mode: 'insensitive' } }, { receiptName: { contains: query.search, mode: 'insensitive' } }, { payerName: { contains: query.search, mode: 'insensitive' } }, { payerPhone: { contains: query.search, mode: 'insensitive' } }, { payerEmail: { contains: query.search, mode: 'insensitive' } }, { orders: { some: { tourCode: { contains: query.search, mode: 'insensitive' } } } }] } : {}),
+      ...(contains ? { OR: [{ receiptCode: contains }, { receiptName: contains }, { payerName: contains }, { payerPhone: contains }, { payerEmail: contains }, { orders: { some: { tourCode: contains } } }] } : {}),
       ...this.dateRange('paymentDate', query.from, query.to),
     };
   }
 
   private paymentWhere(query: Record<string, string>): Prisma.FinancePaymentWhereInput {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.status ? { approvalStatus: query.status as never } : {}),
@@ -1087,19 +1092,21 @@ export class FinanceService {
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.assignedStaff ? { assignedStaff: { contains: query.assignedStaff, mode: 'insensitive' } } : {}),
       ...(query.minAmount || query.maxAmount ? { paymentAmount: { gte: this.decimalOrUndefined(query.minAmount), lte: this.decimalOrUndefined(query.maxAmount) } } : {}),
-      ...(query.search ? { OR: [{ voucherCode: { contains: query.search, mode: 'insensitive' } }, { voucherName: { contains: query.search, mode: 'insensitive' } }, { receiverName: { contains: query.search, mode: 'insensitive' } }, { receiverPhone: { contains: query.search, mode: 'insensitive' } }, { receiverEmail: { contains: query.search, mode: 'insensitive' } }] } : {}),
+      ...(contains ? { OR: [{ voucherCode: contains }, { voucherName: contains }, { receiverName: contains }, { receiverPhone: contains }, { receiverEmail: contains }] } : {}),
       ...this.dateRange('paymentDate', query.from, query.to),
     };
   }
 
   private invoiceWhere(query: Record<string, string>): Prisma.FinanceInvoiceWhereInput {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.status ? { approvalStatus: query.status as never } : {}),
       ...(query.invoiceType ? { invoiceType: query.invoiceType as never } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
       ...(query.minAmount || query.maxAmount ? { totalAfterTax: { gte: this.decimalOrUndefined(query.minAmount), lte: this.decimalOrUndefined(query.maxAmount) } } : {}),
-      ...(query.search ? { OR: [{ invoiceCode: { contains: query.search, mode: 'insensitive' } }, { invoiceNumber: { contains: query.search, mode: 'insensitive' } }, { systemCode: { contains: query.search, mode: 'insensitive' } }, { taxCode: { contains: query.search, mode: 'insensitive' } }, { customerName: { contains: query.search, mode: 'insensitive' } }, { customerPhone: { contains: query.search, mode: 'insensitive' } }, { note: { contains: query.search, mode: 'insensitive' } }] } : {}),
+      ...(contains ? { OR: [{ invoiceCode: contains }, { invoiceNumber: contains }, { systemCode: contains }, { taxCode: contains }, { customerName: contains }, { customerPhone: contains }, { note: contains }] } : {}),
       ...this.dateRange('issuedDate', query.from, query.to),
     };
   }

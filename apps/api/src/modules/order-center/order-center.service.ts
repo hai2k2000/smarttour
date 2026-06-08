@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 
 type OrderCenterQuery = {
   search?: string;
@@ -120,6 +121,8 @@ export class OrderCenterService {
   }
 
   private where(query: OrderCenterQuery): Prisma.OrderWhereInput {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.type ? { type: query.type } : {}),
@@ -141,14 +144,14 @@ export class OrderCenterService {
       ...(query.supplier
         ? { operationItems: { some: { supplier: { name: { contains: query.supplier, mode: 'insensitive' } } } } }
         : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { systemCode: { contains: query.search, mode: 'insensitive' } },
-              { tourCode: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { customerName: { contains: query.search, mode: 'insensitive' } },
-              { customerPhone: { contains: query.search, mode: 'insensitive' } },
+              { systemCode: contains },
+              { tourCode: contains },
+              { name: contains },
+              { customerName: contains },
+              { customerPhone: contains },
             ],
           }
         : {}),

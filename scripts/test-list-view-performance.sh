@@ -38,6 +38,7 @@ const { FinanceService } = require('./apps/api/dist/modules/finance/finance.serv
 const { CommissionReportsService } = require('./apps/api/dist/modules/commission-reports/commission-reports.service');
 const { CustomersService } = require('./apps/api/dist/modules/customers/customers.service');
 const { ToursService } = require('./apps/api/dist/modules/tours/tours.service');
+const { TourCoreService } = require('./apps/api/dist/modules/tours/tour-core.service');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
 
 function assert(condition, label) {
@@ -51,6 +52,16 @@ async function timed(label, action, maxMs) {
   console.log(`LIST_PERF ${label} rows=${Array.isArray(result) ? result.length : result.rows?.length ?? 'n/a'} ms=${elapsedMs.toFixed(1)}`);
   assert(elapsedMs <= maxMs, `${label} exceeded ${maxMs}ms`);
   return result;
+}
+
+async function rejects(action, label) {
+  let rejected = false;
+  try {
+    await action();
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, label);
 }
 
 async function main() {
@@ -277,11 +288,17 @@ async function main() {
   const financeService = new FinanceService(prisma, {});
   const commissionService = new CommissionReportsService(prisma);
   const customersService = new CustomersService(prisma, {});
-  const toursService = new ToursService(prisma);
+  const tourCore = new TourCoreService(prisma);
+  const toursService = new ToursService(prisma, tourCore);
   const tourProgramsService = new TourProgramsService(prisma);
 
   const orderRows = await timed('orders.list', () => ordersService.list('fit-tours', run), maxMs);
   assert(orderRows[0]._count && !orderRows[0].salesItems, 'orders list should not include child arrays');
+  const shortSearchRows = await timed('orders.list short search ignored', () => ordersService.list('fit-tours', 'L'), maxMs);
+  assert(shortSearchRows.length === rows, 'one-character list search should not add broad contains filters');
+  const trimmedSearchRows = await timed('orders.list trimmed search', () => ordersService.list('fit-tours', `  ${run}-ORD-1  `), maxMs);
+  assert(trimmedSearchRows.length > 0 && trimmedSearchRows.every((row) => row.systemCode.includes(`${run}-ORD-1`)), 'list search should trim leading and trailing whitespace');
+  await rejects(() => ordersService.list('fit-tours', 'x'.repeat(81)), 'overlong list search should be rejected');
 
   const customerResult = await timed('customers.list', () => customersService.list({ search: run, take: String(rows) }), maxMs);
   assert(customerResult.rows[0]._count && !customerResult.rows[0].contacts, 'customers list should not include contact/task arrays');

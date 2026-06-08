@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { OrderAllotmentService } from './order-allotment-sync';
 import { calculateOrderTotals } from './order-calculator';
@@ -79,17 +80,18 @@ export class OrdersService {
 
   list(typePath: string, search?: string, user?: RequestUser) {
     const type = this.resolveType(typePath);
+    const searchText = normalizeListSearch(search);
     const where: Prisma.OrderWhereInput = {
       type,
       deletedAt: null,
-      ...(search
+      ...(searchText
         ? {
             OR: [
-              { systemCode: { contains: search, mode: 'insensitive' } },
-              { tourCode: { contains: search, mode: 'insensitive' } },
-              { name: { contains: search, mode: 'insensitive' } },
-              { customerName: { contains: search, mode: 'insensitive' } },
-              { customerPhone: { contains: search, mode: 'insensitive' } },
+              { systemCode: containsSearch(searchText) },
+              { tourCode: containsSearch(searchText) },
+              { name: containsSearch(searchText) },
+              { customerName: containsSearch(searchText) },
+              { customerPhone: containsSearch(searchText) },
             ],
           }
         : {}),

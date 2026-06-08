@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Order, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 
 type ReportQuery = Record<string, string | undefined>;
 type TourFinanceRow = Prisma.TourGetPayload<{
@@ -216,6 +217,8 @@ export class ReportsService {
 
   private orderWhere(query: ReportQuery): Prisma.OrderWhereInput {
     const dateField = this.normalizeDateField(query.dateField);
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.type ? { type: query.type as OrderType } : {}),
@@ -232,15 +235,15 @@ export class ReportsService {
       ...(query.customerType ? { customerType: { contains: query.customerType, mode: 'insensitive' } } : {}),
       ...(query.settled === 'true' ? { settledAt: { not: null } } : {}),
       ...(query.settled === 'false' ? { settledAt: null } : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { systemCode: { contains: query.search, mode: 'insensitive' } },
-              { tourCode: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { customerName: { contains: query.search, mode: 'insensitive' } },
-              { customerPhone: { contains: query.search, mode: 'insensitive' } },
-              { customerEmail: { contains: query.search, mode: 'insensitive' } },
+              { systemCode: contains },
+              { tourCode: contains },
+              { name: contains },
+              { customerName: contains },
+              { customerPhone: contains },
+              { customerEmail: contains },
             ],
           }
         : {}),
@@ -250,6 +253,8 @@ export class ReportsService {
 
   private tourWhere(query: ReportQuery): Prisma.TourWhereInput {
     const dateField = this.normalizeTourDateField(query.dateField);
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       deletedAt: null,
       ...(query.tourId ? { id: query.tourId } : {}),
@@ -262,13 +267,13 @@ export class ReportsService {
       ...(query.employee
         ? { OR: [{ operatorOwner: { contains: query.employee, mode: 'insensitive' } }, { createdBy: { contains: query.employee, mode: 'insensitive' } }] }
         : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { systemCode: { contains: query.search, mode: 'insensitive' } },
-              { tourCode: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { customers: { some: { name: { contains: query.search, mode: 'insensitive' } } } },
+              { systemCode: contains },
+              { tourCode: contains },
+              { name: contains },
+              { customers: { some: { name: contains } } },
             ],
           }
         : {}),
@@ -278,6 +283,8 @@ export class ReportsService {
 
   private customerDebtWhere(query: ReportQuery): Prisma.CustomerLedgerEntryWhereInput {
     const orderWhere = this.orderRelationWhere(query);
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
@@ -285,17 +292,17 @@ export class ReportsService {
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.employee ? { staff: { contains: query.employee, mode: 'insensitive' } } : {}),
       ...(Object.keys(orderWhere).length ? { order: { is: orderWhere } } : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { documentCode: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-              { customer: { is: { code: { contains: query.search, mode: 'insensitive' } } } },
-              { customer: { is: { fullName: { contains: query.search, mode: 'insensitive' } } } },
-              { customer: { is: { phone: { contains: query.search, mode: 'insensitive' } } } },
-              { order: { is: { systemCode: { contains: query.search, mode: 'insensitive' } } } },
-              { tour: { is: { systemCode: { contains: query.search, mode: 'insensitive' } } } },
-              { tour: { is: { tourCode: { contains: query.search, mode: 'insensitive' } } } },
+              { documentCode: contains },
+              { description: contains },
+              { customer: { is: { code: contains } } },
+              { customer: { is: { fullName: contains } } },
+              { customer: { is: { phone: contains } } },
+              { order: { is: { systemCode: contains } } },
+              { tour: { is: { systemCode: contains } } },
+              { tour: { is: { tourCode: contains } } },
             ],
           }
         : {}),
@@ -305,6 +312,8 @@ export class ReportsService {
 
   private supplierDebtWhere(query: ReportQuery): Prisma.SupplierLedgerEntryWhereInput {
     const orderWhere = this.orderRelationWhere(query);
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return {
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
@@ -313,19 +322,19 @@ export class ReportsService {
       ...(query.employee ? { staff: { contains: query.employee, mode: 'insensitive' } } : {}),
       ...(Object.keys(orderWhere).length ? { order: { is: orderWhere } } : {}),
       ...(query.supplier ? { supplier: { is: { name: { contains: query.supplier, mode: 'insensitive' } } } } : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { documentCode: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-              { supplier: { is: { supplierCode: { contains: query.search, mode: 'insensitive' } } } },
-              { supplier: { is: { name: { contains: query.search, mode: 'insensitive' } } } },
-              { supplier: { is: { phone: { contains: query.search, mode: 'insensitive' } } } },
-              { order: { is: { systemCode: { contains: query.search, mode: 'insensitive' } } } },
-              { tour: { is: { systemCode: { contains: query.search, mode: 'insensitive' } } } },
-              { tour: { is: { tourCode: { contains: query.search, mode: 'insensitive' } } } },
-              { operationVoucher: { is: { voucherCode: { contains: query.search, mode: 'insensitive' } } } },
-              { operationVoucher: { is: { serviceName: { contains: query.search, mode: 'insensitive' } } } },
+              { documentCode: contains },
+              { description: contains },
+              { supplier: { is: { supplierCode: contains } } },
+              { supplier: { is: { name: contains } } },
+              { supplier: { is: { phone: contains } } },
+              { order: { is: { systemCode: contains } } },
+              { tour: { is: { systemCode: contains } } },
+              { tour: { is: { tourCode: contains } } },
+              { operationVoucher: { is: { voucherCode: contains } } },
+              { operationVoucher: { is: { serviceName: contains } } },
             ],
           }
         : {}),

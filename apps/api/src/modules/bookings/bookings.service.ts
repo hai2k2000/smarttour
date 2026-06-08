@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BookingStatus, OperationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import {
   BOOKING_CODE_MAX_LENGTH,
   BOOKING_CODE_PATTERN,
@@ -25,7 +26,6 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const BOOKING_CODE_CONFLICT_MESSAGE = 'Mã booking đã tồn tại';
-const BOOKING_SEARCH_MAX_LENGTH = 120;
 
 type BookingReferenceKey = 'tourProgramId' | 'customerId' | 'orderId' | 'tourId';
 type BookingLinkedReferenceKey = Exclude<BookingReferenceKey, 'tourProgramId'>;
@@ -255,16 +255,11 @@ export class BookingsService {
   }
 
   private searchText(search?: string) {
-    const text = this.optionalText(search);
-    if (!text) return undefined;
-    if (text.length > BOOKING_SEARCH_MAX_LENGTH) {
-      throw new BadRequestException(`Từ khóa tìm kiếm không được vượt quá ${BOOKING_SEARCH_MAX_LENGTH} ký tự`);
-    }
-    return text;
+    return normalizeListSearch(search);
   }
 
   private searchConditions(search: string): Prisma.BookingWhereInput[] {
-    const contains = { contains: search, mode: 'insensitive' as const };
+    const contains = containsSearch(search);
     return [
       { code: contains },
       { customerName: contains },

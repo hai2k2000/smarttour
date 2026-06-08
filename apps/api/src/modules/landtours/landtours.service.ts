@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
@@ -28,17 +29,19 @@ export class LandToursService {
 
   list(search?: string, status?: string | TourStatus, user?: RequestUser) {
     const tourStatus = this.toTourStatus(status);
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.TourWhereInput = {
       type: TourType.LANDTOUR,
       ...(tourStatus ? { status: tourStatus } : {}),
-      ...(search
+      ...(contains
         ? {
             OR: [
-              { systemCode: { contains: search, mode: 'insensitive' } },
-              { tourCode: { contains: search, mode: 'insensitive' } },
-              { name: { contains: search, mode: 'insensitive' } },
-              { route: { contains: search, mode: 'insensitive' } },
-              { customers: { some: { name: { contains: search, mode: 'insensitive' } } } },
+              { systemCode: contains },
+              { tourCode: contains },
+              { name: contains },
+              { route: contains },
+              { customers: { some: { name: contains } } },
             ],
           }
         : {}),

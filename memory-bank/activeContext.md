@@ -20,6 +20,23 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Standardized list free-text search filters:
+  - Added shared `apps/api/src/modules/list-search.ts` with trim,
+    whitespace-collapse, min length 2, max length 80, and common
+    case-insensitive contains behavior.
+  - Wired normalized search into Orders, Booking, Tours, FIT/GIT/LandTour,
+    Operation Vouchers, Operations, Suppliers, Tour Guides, Tour Programs,
+    Order Center, Quotations, Quotes, Customers, Commission, Finance, and
+    Reports list/search where helpers.
+  - One-character free-text search now avoids broad `OR contains` filters;
+    overlong terms return a controlled validation error.
+  - Finance invoice and receipt list payloads were lightened: invoice list no
+    longer includes item/file child arrays, and receipt list uses lightweight
+    order-line previews.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_LIST_VIEW_PERFORMANCE_OK`, `TEST_ORDERS_API_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API redeploy, and `HEALTHCHECK_OK`.
+
 - Hardened read data-scope composition for branch + department:
   - `branchDepartmentScopeWhere()` now treats enabled scope dimensions as
     required conditions. A user with both `data.scope.branch` and

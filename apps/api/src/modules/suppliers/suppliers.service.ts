@@ -3,6 +3,7 @@ import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -55,18 +56,20 @@ export class SuppliersService {
   }
 
   listSuppliers(search?: string, categoryId?: string) {
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       ...(categoryId ? { categoryId } : {}),
-      ...(search
+      ...(contains
         ? {
             OR: [
-              { supplierCode: { contains: search, mode: 'insensitive' } },
-              { name: { contains: search, mode: 'insensitive' } },
-              { taxCode: { contains: search, mode: 'insensitive' } },
-              { contactPerson: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
+              { supplierCode: contains },
+              { name: contains },
+              { taxCode: contains },
+              { contactPerson: contains },
+              { phone: contains },
+              { email: contains },
             ],
           }
         : {}),
@@ -165,20 +168,22 @@ export class SuppliersService {
 
   async listTypedSuppliers(type: string, query: { search?: string; province?: string; status?: SupplierStatus; market?: string }) {
     const categoryName = this.getTypeLabel(type);
+    const searchText = normalizeListSearch(query.search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       category: { name: categoryName },
       ...(query.province ? { province: { contains: query.province, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.market ? { market: { contains: query.market, mode: 'insensitive' } } : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { supplierCode: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { taxCode: { contains: query.search, mode: 'insensitive' } },
-              { phone: { contains: query.search, mode: 'insensitive' } },
-              { email: { contains: query.search, mode: 'insensitive' } },
+              { supplierCode: contains },
+              { name: contains },
+              { taxCode: contains },
+              { phone: contains },
+              { email: contains },
             ],
           }
         : {}),
@@ -253,6 +258,8 @@ export class SuppliersService {
     status?: SupplierStatus;
     market?: string;
   }) {
+    const searchText = normalizeListSearch(query.search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       hotelProfile: {
@@ -264,14 +271,14 @@ export class SuppliersService {
       },
       ...(query.province ? { province: { contains: query.province, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.search
+      ...(contains
         ? {
             OR: [
-              { supplierCode: { contains: query.search, mode: 'insensitive' } },
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { taxCode: { contains: query.search, mode: 'insensitive' } },
-              { phone: { contains: query.search, mode: 'insensitive' } },
-              { email: { contains: query.search, mode: 'insensitive' } },
+              { supplierCode: contains },
+              { name: contains },
+              { taxCode: contains },
+              { phone: contains },
+              { email: contains },
             ],
           }
         : {}),

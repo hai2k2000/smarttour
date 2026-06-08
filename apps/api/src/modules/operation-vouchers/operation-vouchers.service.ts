@@ -3,6 +3,7 @@ import { OperationVoucherStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 
 type OperationVoucherLinks = {
@@ -72,16 +73,18 @@ export class OperationVouchersService {
 
   list(search?: string, status?: string, user?: RequestUser) {
     const statusFilter = this.operationVoucherStatus(status);
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.operationVoucher.findMany({
       where: this.scopeWhere({
         deletedAt: null,
         ...(statusFilter ? { status: statusFilter } : {}),
-        ...(search
+        ...(contains
           ? {
               OR: [
-                { voucherCode: { contains: search, mode: 'insensitive' } },
-                { supplierName: { contains: search, mode: 'insensitive' } },
-                { serviceName: { contains: search, mode: 'insensitive' } },
+                { voucherCode: contains },
+                { supplierName: contains },
+                { serviceName: contains },
               ],
             }
           : {}),

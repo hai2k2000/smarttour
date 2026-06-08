@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateItineraryDayDto } from './dto/create-itinerary-day.dto';
 import { CreateTourProgramDto } from './dto/create-tour-program.dto';
 import { UpdateItineraryDayDto } from './dto/update-itinerary-day.dto';
@@ -32,12 +33,14 @@ export class TourProgramsService {
   }
 
   list(search?: string) {
-    const where: Prisma.TourProgramWhereInput = search
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
+    const where: Prisma.TourProgramWhereInput = contains
       ? {
           OR: [
-            { code: { contains: search, mode: 'insensitive' } },
-            { name: { contains: search, mode: 'insensitive' } },
-            { route: { contains: search, mode: 'insensitive' } },
+            { code: contains },
+            { name: contains },
+            { route: contains },
           ],
         }
       : {};

@@ -3,6 +3,7 @@ import { OrderStatus, Prisma, TourStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
+import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
@@ -19,18 +20,20 @@ export class TourGuidesService {
 
   list(search?: string, status?: string) {
     const normalizedStatus = status ? this.normalizeGuideStatus(status) : undefined;
+    const searchText = normalizeListSearch(search);
+    const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.guideProfile.findMany({
       where: {
         deletedAt: null,
         ...(normalizedStatus ? { status: normalizedStatus } : {}),
-        ...(search
+        ...(contains
           ? {
               OR: [
-                { guideCode: { contains: search, mode: 'insensitive' } },
-                { fullName: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { guideType: { contains: search, mode: 'insensitive' } },
+                { guideCode: contains },
+                { fullName: contains },
+                { phone: contains },
+                { email: contains },
+                { guideType: contains },
               ],
             }
           : {}),
