@@ -12,6 +12,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 install -d -m 0755 /var/log/smarttour
+install -d -m 0755 /var/log/smarttour/security
 install -d -m 0700 /var/backups/smarttour/disaster
 
 if [[ ! -f "$OPS_ENV" ]]; then
@@ -38,11 +39,13 @@ chmod +x \
   "$REPO_DIR/scripts/backup-postgres.sh" \
   "$REPO_DIR/scripts/disaster-backup.sh" \
   "$REPO_DIR/scripts/healthcheck.sh" \
+  "$REPO_DIR/scripts/nginx-host-report.sh" \
   "$REPO_DIR/scripts/restore-drill-postgres.sh"
 
 systemctl daemon-reload
 systemctl enable --now \
   smarttour-healthcheck.timer \
+  smarttour-nginx-host-report.timer \
   smarttour-postgres-backup.timer \
   smarttour-disaster-backup.timer \
   smarttour-restore-drill.timer

@@ -1,0 +1,10 @@
+[Unit]
+Description=Generate SmartTour Nginx host report daily
+
+[Timer]
+OnCalendar=*-*-* 06:10:00
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

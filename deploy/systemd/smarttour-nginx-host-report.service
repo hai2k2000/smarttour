@@ -1,0 +1,11 @@
+[Unit]
+Description=SmartTour Nginx host and bot traffic report
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/nginx-host-report.sh
+StandardOutput=append:/var/log/smarttour/nginx-host-report.log
+StandardError=append:/var/log/smarttour/nginx-host-report.log
