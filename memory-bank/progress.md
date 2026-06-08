@@ -2,6 +2,23 @@
 
 ## Done
 
+- Reviewed Booking and all current tour type APIs on the VPS.
+- Confirmed Booking service has active validation/scope coverage for linked
+  Customer/Order/Tour data, complete Tour Program itinerary days,
+  duration/date consistency, status transitions, and operation-form locks.
+- Added `PATCH /api/tours/:id`, `PATCH /api/fit-tours/:id`, and
+  `PATCH /api/landtours/:id` partial-update aliases; GIT already had `PATCH`.
+- Hardened common Tour list filters so invalid `type`/`status` values return
+  controlled 400 responses instead of Prisma enum errors.
+- Normalized lowercase status query values for FIT, GIT, LandTour, and common
+  Tour list endpoints while preserving controlled 400 responses for invalid
+  enum filters.
+- Added `scripts/test-tour-type-apis.sh` to integration-test authenticated
+  HTTP `PATCH` routes and enum query behavior on an isolated temp database.
+- Verified `TEST_BOOKINGS_SERVICE_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+  `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, production API restart, production
+  tour-type authenticated smoke with cleanup, and `HEALTHCHECK_OK`.
+
 - Hardened Auth/RBAC data-scope enforcement for Finance Invoice and supplier
   allotment allocations while production auth enforcement is enabled.
 - Finance Invoice APIs now scope list/detail/export, file operations,

@@ -210,7 +210,8 @@ export class GitToursService {
   private toTourStatus(status?: string | TourStatus | null) {
     const value = this.text(status);
     if (!value) return undefined;
-    if (Object.values(TourStatus).includes(value as TourStatus)) return value as TourStatus;
+    const normalized = value.toUpperCase();
+    if (Object.values(TourStatus).includes(normalized as TourStatus)) return normalized as TourStatus;
     throw new BadRequestException('Trạng thái tour GIT không hợp lệ');
   }
 

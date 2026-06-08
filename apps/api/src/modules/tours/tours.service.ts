@@ -71,10 +71,12 @@ export class ToursService {
     } satisfies Prisma.TourSelect;
   }
 
-  list(search?: string, type?: TourType, status?: TourStatus, user?: RequestUser) {
+  list(search?: string, type?: string | TourType, status?: string | TourStatus, user?: RequestUser) {
+    const tourType = this.toTourType(type);
+    const tourStatus = this.toTourStatus(status);
     const where: Prisma.TourWhereInput = {
-      ...(type ? { type } : {}),
-      ...(status ? { status } : {}),
+      ...(tourType ? { type: tourType } : {}),
+      ...(tourStatus ? { status: tourStatus } : {}),
       ...(search
         ? {
             OR: [
@@ -198,14 +200,30 @@ export class ToursService {
     return text.toUpperCase();
   }
 
-  private optionalText(value?: string) {
-    const text = value?.trim();
+  private optionalText(value?: unknown) {
+    const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     return text ? text : null;
   }
 
   private optionalDate(value?: string) {
     const text = value?.trim();
     return text ? new Date(text) : null;
+  }
+
+  private toTourType(type?: string | TourType | null) {
+    const value = this.optionalText(type);
+    if (!value) return undefined;
+    const normalized = value.toUpperCase();
+    if (Object.values(TourType).includes(normalized as TourType)) return normalized as TourType;
+    throw new BadRequestException('Loại tour không hợp lệ');
+  }
+
+  private toTourStatus(status?: string | TourStatus | null) {
+    const value = this.optionalText(status);
+    if (!value) return undefined;
+    const normalized = value.toUpperCase();
+    if (Object.values(TourStatus).includes(normalized as TourStatus)) return normalized as TourStatus;
+    throw new BadRequestException('Trạng thái tour không hợp lệ');
   }
 
   private number(value?: number) {

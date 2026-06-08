@@ -1,6 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TourStatus } from '@prisma/client';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
@@ -14,7 +13,7 @@ export class LandToursController {
   constructor(private readonly landToursService: LandToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: TourStatus, @Req() request?: { user?: RequestUser }) {
+  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
     return this.landToursService.list(search, status, request?.user);
   }
 
@@ -32,6 +31,12 @@ export class LandToursController {
   @Put(':id')
   @RequirePermissions('tour.manage')
   update(@Param('id') id: string, @Body() dto: UpdateLandTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.landToursService.update(id, dto, request?.user);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('tour.manage')
+  patch(@Param('id') id: string, @Body() dto: UpdateLandTourDto, @Req() request?: { user?: RequestUser }) {
     return this.landToursService.update(id, dto, request?.user);
   }
 

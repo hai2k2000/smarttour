@@ -711,9 +711,11 @@ export class FitToursService {
   }
 
   private toWorkflowStatus(status?: string) {
-    if (!status) return undefined;
-    if (!Object.values(FitTourWorkflowStatus).includes(status as FitTourWorkflowStatus)) return undefined;
-    return status as FitTourWorkflowStatus;
+    const value = this.text(status);
+    if (!value) return undefined;
+    const normalized = value.toUpperCase();
+    if (Object.values(FitTourWorkflowStatus).includes(normalized as FitTourWorkflowStatus)) return normalized as FitTourWorkflowStatus;
+    throw new BadRequestException('Trạng thái workflow FIT không hợp lệ');
   }
 
   private toWorkflowStatusStrict(status: unknown) {

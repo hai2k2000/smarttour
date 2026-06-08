@@ -16,9 +16,28 @@ Tour Management core redesign is now the active implementation area after the fi
 ## Notes
 
 The repository lives on the VPS under `/opt/smarttour` and tracks `git@github.com:hai2k2000/smarttour.git`.
-Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking CRUD should be smoke-tested before the next push.
+Docker build remains the verified deploy path for API/web on the VPS because host-level workspace builds still have broken `node_modules/.bin` CLI resolution. Booking service and tour-type APIs have current isolated coverage and production smoke coverage.
 
 ## Latest Session Notes
+
+- Reviewed Booking plus FIT/GIT/LandTour/common Tour APIs directly on the VPS:
+  - Booking service already enforces linked Customer/Order/Tour scope,
+    complete Tour Program itinerary days, date/duration consistency, guarded
+    status transitions, and operation-form edit/delete locks.
+  - Added `PATCH` partial-update aliases for common Tours, FIT Tours, and
+    LandTour to match existing UI/API update behavior; GIT already had
+    `PATCH`.
+  - Common Tours now validates `type` and `status` query values with controlled
+    400 errors and accepts lowercase enum input.
+  - FIT, GIT, and LandTour list filters now normalize lowercase status values
+    and return controlled 400 errors for invalid enum filters.
+  - Added `scripts/test-tour-type-apis.sh`, an isolated HTTP integration test
+    that creates a temp DB, auth token, FIT/GIT/LandTour/common Tour rows, and
+    verifies `PATCH` plus enum query behavior.
+  - VPS verification passed on 2026-06-08: `TEST_BOOKINGS_SERVICE_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, production API
+    restart, production tour-type authenticated smoke with cleanup, and
+    `HEALTHCHECK_OK`.
 
 - Continued Auth/RBAC and data-scope hardening after production enforcement:
   - Confirmed `SMARTTOUR_ENV=production` and

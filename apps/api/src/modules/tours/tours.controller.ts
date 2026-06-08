@@ -1,6 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TourStatus, TourType } from '@prisma/client';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateTourDto } from './dto/create-tour.dto';
@@ -14,7 +13,7 @@ export class ToursController {
   constructor(private readonly toursService: ToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('type') type?: TourType, @Query('status') status?: TourStatus, @Req() request?: { user?: RequestUser }) {
+  list(@Query('search') search?: string, @Query('type') type?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
     return this.toursService.list(search, type, status, request?.user);
   }
 
@@ -32,6 +31,12 @@ export class ToursController {
   @Put(':id')
   @RequirePermissions('tour.manage')
   update(@Param('id') id: string, @Body() dto: UpdateTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.toursService.update(id, dto, request?.user);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('tour.manage')
+  patch(@Param('id') id: string, @Body() dto: UpdateTourDto, @Req() request?: { user?: RequestUser }) {
     return this.toursService.update(id, dto, request?.user);
   }
 

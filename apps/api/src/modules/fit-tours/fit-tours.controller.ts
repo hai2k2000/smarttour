@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -43,6 +43,12 @@ export class FitToursController {
   @Put(':id')
   @RequirePermissions('tour.manage')
   update(@Param('id') id: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.update(id, dto, request?.user);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('tour.manage')
+  patch(@Param('id') id: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.update(id, dto, request?.user);
   }
 
