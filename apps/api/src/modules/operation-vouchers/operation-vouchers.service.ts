@@ -297,11 +297,11 @@ export class OperationVouchersService {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
     if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
-    const OR: Prisma.OperationVoucherWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    const AND: Prisma.OperationVoucherWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push({ OR: [{ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } }] });
+    if (permissions.has('data.scope.department') && user.department) AND.push({ OR: [{ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } }] });
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
   }
 
   private async ensureLinksScoped(links: OperationVoucherLinks, user?: RequestUser) {
@@ -320,10 +320,10 @@ export class OperationVouchersService {
     const tourWhere = links.tourId ? { id: links.tourId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
     const bookingWhere = links.bookingId
       ? {
-          id: links.bookingId,
-          OR: [
-            ...(permissions.has('data.scope.branch') && user.branch ? [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] : []),
-            ...(permissions.has('data.scope.department') && user.department ? [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] : []),
+          AND: [
+            { id: links.bookingId },
+            ...(permissions.has('data.scope.branch') && user.branch ? [{ OR: [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] }] : []),
+            ...(permissions.has('data.scope.department') && user.department ? [{ OR: [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] }] : []),
           ],
         }
       : undefined;

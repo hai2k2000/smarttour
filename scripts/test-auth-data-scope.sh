@@ -64,13 +64,13 @@ async function main() {
   assert(hasUnrestrictedDataScope(allUser), 'data.scope.all should be unrestricted');
 
   const branchWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, branchUser);
-  assert(branchWhere.AND?.[1]?.OR?.[0]?.branch === 'BR-A', 'branch scope should add branch filter');
+  assert(branchWhere.AND?.[1]?.branch === 'BR-A', 'branch scope should add branch filter');
 
   const departmentWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, departmentUser);
-  assert(departmentWhere.AND?.[1]?.OR?.[0]?.department === 'DEP-A', 'department scope should add department filter');
+  assert(departmentWhere.AND?.[1]?.department === 'DEP-A', 'department scope should add department filter');
 
   const mixedWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, mixedUser);
-  assert(mixedWhere.AND?.[1]?.OR?.length === 2, 'mixed scope should allow branch or department match');
+  assert(mixedWhere.AND?.[1]?.branch === 'BR-A' && mixedWhere.AND?.[2]?.department === 'DEP-A', 'mixed scope should require branch and department match');
 
   const deniedWhere = branchDepartmentScopeWhere({ status: 'ACTIVE' }, noScopeUser);
   assert(deniedWhere.AND?.[1]?.id === '__no_data_scope__', 'missing scope should deny reads');
@@ -104,19 +104,20 @@ async function main() {
   await prisma.customer.createMany({
     data: [
       { code: 'SCOPE-BR-A', fullName: 'Branch A', phone: '0900000001', branch: 'BR-A', department: 'DEP-X' },
+      { code: 'SCOPE-BOTH', fullName: 'Branch Department A', phone: '0900000004', branch: 'BR-A', department: 'DEP-A' },
       { code: 'SCOPE-DEP-A', fullName: 'Department A', phone: '0900000002', branch: 'BR-X', department: 'DEP-A' },
       { code: 'SCOPE-OUT', fullName: 'Out Of Scope', phone: '0900000003', branch: 'BR-X', department: 'DEP-X' },
     ],
   });
 
   const branchRows = await prisma.customer.findMany({ where: branchDepartmentScopeWhere({}, branchUser), orderBy: { code: 'asc' } });
-  assert(branchRows.map((row) => row.code).join(',') === 'SCOPE-BR-A', 'branch scoped read should only see branch rows');
+  assert(branchRows.map((row) => row.code).join(',') === 'SCOPE-BOTH,SCOPE-BR-A', 'branch scoped read should only see branch rows');
 
   const departmentRows = await prisma.customer.findMany({ where: branchDepartmentScopeWhere({}, departmentUser), orderBy: { code: 'asc' } });
-  assert(departmentRows.map((row) => row.code).join(',') === 'SCOPE-DEP-A', 'department scoped read should only see department rows');
+  assert(departmentRows.map((row) => row.code).join(',') === 'SCOPE-BOTH,SCOPE-DEP-A', 'department scoped read should only see department rows');
 
   const mixedRows = await prisma.customer.findMany({ where: branchDepartmentScopeWhere({}, mixedUser), orderBy: { code: 'asc' } });
-  assert(mixedRows.map((row) => row.code).join(',') === 'SCOPE-BR-A,SCOPE-DEP-A', 'mixed scoped read should see branch or department rows');
+  assert(mixedRows.map((row) => row.code).join(',') === 'SCOPE-BOTH', 'mixed scoped read should require both branch and department rows');
 
   const deniedRows = await prisma.customer.findMany({ where: branchDepartmentScopeWhere({}, noScopeUser) });
   assert(deniedRows.length === 0, 'missing scope should not see sensitive rows');

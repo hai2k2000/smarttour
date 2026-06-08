@@ -2,6 +2,17 @@
 
 ## Done
 
+- Hardened read-side branch/department data scope:
+  - `branchDepartmentScopeWhere()` now narrows reads by every enabled scope
+    dimension, so users with both branch and department scope must match both.
+  - Booking, Operation Voucher, and Operations list/detail helpers now apply
+    relation-based branch and department scopes as separate required groups.
+  - Updated data-scope tests and audit coverage for mixed branch+department
+    users, including Orders list/detail rows that match only one dimension.
+  - Verified on VPS: `TEST_AUTH_DATA_SCOPE_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `DATA_SCOPE_AUDIT_OK`, API Docker build,
+    API redeploy, and `HEALTHCHECK_OK`.
+
 - Fixed Orders client-side auth under production enforcement:
   - Browser fetches in `apps/web/app/orders/[type]/OrdersClient.tsx` now send
     `Authorization` through shared auth helpers for list reload, detail load,

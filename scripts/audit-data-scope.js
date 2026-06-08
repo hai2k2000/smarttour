@@ -4,17 +4,17 @@ const path = require('path');
 const root = process.cwd();
 const checks = [
   { file: 'apps/api/src/modules/customers/customers.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
-  { file: 'apps/api/src/modules/tours/tours.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
+  { file: 'apps/api/src/modules/tours/tours.service.ts', must: ['tourCore.scopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/orders/orders.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/order-center/order-center.service.ts', must: ['branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/quotations/quotations.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/bookings/bookings.service.ts', must: ['RequestUser', 'scopeWhere', 'branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/finance/finance.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope', 'invoiceScopeWhere', 'assertInvoiceWriteScope'] },
   { file: 'apps/api/src/modules/fit-tours/fit-tours.service.ts', must: ['RequestUser', 'fitTourScopeWhere', 'applyWriteDataScope'] },
-  { file: 'apps/api/src/modules/git-tours/git-tours.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
-  { file: 'apps/api/src/modules/landtours/landtours.service.ts', must: ['branchDepartmentScopeWhere', 'applyWriteDataScope'] },
+  { file: 'apps/api/src/modules/git-tours/git-tours.service.ts', must: ['tourCore.scopeWhere', 'applyWriteDataScope'] },
+  { file: 'apps/api/src/modules/landtours/landtours.service.ts', must: ['tourCore.scopeWhere', 'applyWriteDataScope'] },
   { file: 'apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts', must: ['RequestUser', 'scopeWhere', 'applyWriteDataScope', 'branchDepartmentScopeWhere'] },
-  { file: 'apps/api/src/modules/operations/operations.service.ts', must: ['RequestUser', 'formScopeWhere', 'paymentRequestScopeWhere', 'applyWriteDataScope', 'branchDepartmentScopeWhere'] },
+  { file: 'apps/api/src/modules/operations/operations.service.ts', must: ['RequestUser', 'formScopeWhere', 'paymentRequestScopeWhere', 'bookingScopeWhere', 'orderScopeWhere', 'tourScopeWhere', 'applyScopedWriteMeta'] },
   { file: 'apps/api/src/modules/reports/reports.service.ts', must: ['branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts', must: ['branchDepartmentScopeWhere'] },
 ];
@@ -35,7 +35,7 @@ const schemaScopeGaps = [
   {
     file: 'apps/api/src/modules/suppliers/suppliers.service.ts',
     reason: 'Supplier, SupplierService, and SupplierAllotment are global catalog models without branch/department fields; allotment allocation writes are scoped through linked order/booking/tour records',
-    must: ['listSuppliers', 'listTypedSuppliers', 'listHotelSuppliers', 'lockAllotment', 'RequestUser', 'branchDepartmentScopeWhere', 'applyWriteDataScope', 'bookingScopeWhere'],
+    must: ['listSuppliers', 'listTypedSuppliers', 'listHotelSuppliers', 'lockAllotment', 'RequestUser', 'branchDepartmentScopeWhere', 'bookingScopeWhere', 'allotmentAllocationScopeWhere'],
   },
   {
     file: 'apps/api/src/modules/tour-guides/tour-guides.service.ts',

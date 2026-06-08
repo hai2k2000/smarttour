@@ -22,11 +22,11 @@ export function branchDepartmentScopeWhere<T extends object>(where: T, user?: Re
   const permissions = userPermissions(user);
   const requirements = scopedRequirements(permissions);
   if (!requirements.length || hasMissingScopeValue(user, requirements)) return noDataScopeWhere(where);
-  const OR: ScopeFields[] = [];
-  if (permissions.has('data.scope.branch') && user.branch) OR.push({ branch: user.branch });
-  if (permissions.has('data.scope.department') && user.department) OR.push({ department: user.department });
-  if (!OR.length) return noDataScopeWhere(where);
-  return { AND: [where, { OR }] } as T;
+  const AND: Array<T | ScopeFields> = [where];
+  if (permissions.has('data.scope.branch') && user.branch) AND.push({ branch: user.branch });
+  if (permissions.has('data.scope.department') && user.department) AND.push({ department: user.department });
+  if (AND.length === 1) return noDataScopeWhere(where);
+  return { AND } as T;
 }
 
 export function applyWriteDataScope<T extends ScopeFields>(dto: T, user?: RequestUser | null): T {

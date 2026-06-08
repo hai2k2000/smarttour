@@ -20,6 +20,25 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Hardened read data-scope composition for branch + department:
+  - `branchDepartmentScopeWhere()` now treats enabled scope dimensions as
+    required conditions. A user with both `data.scope.branch` and
+    `data.scope.department` must match both values on list/detail reads,
+    instead of matching either value.
+  - Booking, Operation Voucher, and Operations scope helpers now compose
+    relation-based scopes as `branch-link OR` AND `department-link OR`, so
+    linked Customer/Order/Tour records can satisfy each dimension without
+    broadening reads.
+  - Updated `scripts/test-auth-data-scope.sh` and
+    `scripts/test-data-scope-module-flows.sh` to cover mixed branch+department
+    list/detail behavior.
+  - Refreshed `scripts/audit-data-scope.js` so it tracks the current
+    `TourCoreService.scopeWhere` and Operations/Supplier scope helper
+    architecture.
+  - VPS verification passed on 2026-06-09: `TEST_AUTH_DATA_SCOPE_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `DATA_SCOPE_AUDIT_OK`,
+    `docker compose build api`, API redeploy, and `HEALTHCHECK_OK`.
+
 - Continued Orders UI hardening under enforced Auth/RBAC:
   - Found `OrdersClient` browser-side fetches for reload, detail, create/update,
     copy/settle, and unlock were not sending the stored auth token. Initial SSR

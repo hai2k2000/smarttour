@@ -81,6 +81,7 @@ async function main() {
 
   const branchUser = user('BR-A', 'DEP-A', 'data.scope.branch');
   const departmentUser = user('BR-X', 'DEP-B', 'data.scope.department');
+  const mixedUser = user('BR-A', 'DEP-A', 'data.scope.branch', 'data.scope.department');
   const noScopeUser = user('BR-A', 'DEP-A', 'tour.view');
   const allUser = user(null, null, 'data.scope.all');
   const missingBranchUser = user(null, 'DEP-A', 'data.scope.branch');
@@ -125,6 +126,20 @@ async function main() {
   assert((await orders.list('fit-tours', run, noScopeUser)).length === 0, 'order list should return no sensitive rows for user without data scope');
   assert((await orders.detail('fit-tours', orderA.id, branchUser)).id === orderA.id, 'branch user should read scoped order detail');
   await rejects(() => orders.detail('fit-tours', orderB.id, branchUser), 'branch user should not read other branch order detail');
+  const mixedOrder = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-MIX-BOTH', name: 'Order Mixed Both', branch: 'BR-A', department: 'DEP-A' },
+  });
+  const branchOnlyOrder = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-MIX-BRANCH', name: 'Order Mixed Branch Only', branch: 'BR-A', department: 'DEP-X' },
+  });
+  const departmentOnlyOrder = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-MIX-DEPT', name: 'Order Mixed Department Only', branch: 'BR-X', department: 'DEP-A' },
+  });
+  const mixedRows = await orders.list('fit-tours', run + '-ORD-MIX', mixedUser);
+  assert(mixedRows.map((row) => row.id).join(',') === mixedOrder.id, 'mixed branch+department user should only list orders matching both scope values');
+  assert((await orders.detail('fit-tours', mixedOrder.id, mixedUser)).id === mixedOrder.id, 'mixed branch+department user should read order detail matching both scope values');
+  await rejects(() => orders.detail('fit-tours', branchOnlyOrder.id, mixedUser), 'mixed user should not read same-branch different-department order detail');
+  await rejects(() => orders.detail('fit-tours', departmentOnlyOrder.id, mixedUser), 'mixed user should not read same-department different-branch order detail');
   await rejects(() => orders.create('single-services', { systemCode: run + '-ORD-OUTSIDE', name: 'Outside order', branch: 'BR-B' }, branchUser), 'order create should reject explicit outside branch');
   await rejects(() => orders.create('single-services', { systemCode: run + '-ORD-NOSCOPE', name: 'No scope order' }, noScopeUser), 'order create should reject user without data scope');
   const scopedUpdatedOrder = await orders.update('fit-tours', orderA.id, { name: 'Order A Updated' }, branchUser);

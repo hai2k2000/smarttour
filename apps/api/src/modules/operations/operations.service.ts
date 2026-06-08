@@ -597,51 +597,72 @@ export class OperationsService {
   private formScopeWhere(where: Prisma.OperationFormWhereInput, user?: RequestUser): Prisma.OperationFormWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
-    const OR: Prisma.OperationFormWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ booking: { customer: { branch: user.branch } } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ booking: { customer: { department: user.department } } }, { order: { department: user.department } }, { tour: { department: user.department } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.OperationFormWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push(this.operationFormBranchScope(user.branch));
+    if (permissions.has('data.scope.department') && user.department) AND.push(this.operationFormDepartmentScope(user.department));
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
   }
 
   private paymentRequestScopeWhere(where: Prisma.SupplierPaymentRequestWhereInput, user?: RequestUser): Prisma.SupplierPaymentRequestWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
-    const OR: Prisma.SupplierPaymentRequestWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ financePayment: { branch: user.branch } }, { items: { some: { cost: { operationForm: this.formScopeWhere({}, user) } } } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ financePayment: { department: user.department } }, { items: { some: { cost: { operationForm: this.formScopeWhere({}, user) } } } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.SupplierPaymentRequestWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) {
+      AND.push({ OR: [{ financePayment: { branch: user.branch } }, { items: { some: { cost: { operationForm: this.operationFormBranchScope(user.branch) } } } }] });
+    }
+    if (permissions.has('data.scope.department') && user.department) {
+      AND.push({ OR: [{ financePayment: { department: user.department } }, { items: { some: { cost: { operationForm: this.operationFormDepartmentScope(user.department) } } } }] });
+    }
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
   }
 
   private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
-    const OR: Prisma.BookingWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.BookingWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push({ OR: [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] });
+    if (permissions.has('data.scope.department') && user.department) AND.push({ OR: [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] });
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
   }
 
   private orderScopeWhere(where: Prisma.OrderWhereInput, user?: RequestUser): Prisma.OrderWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
-    const OR: Prisma.OrderWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ branch: user.branch });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ department: user.department });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.OrderWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push({ branch: user.branch });
+    if (permissions.has('data.scope.department') && user.department) AND.push({ department: user.department });
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
   }
 
   private tourScopeWhere(where: Prisma.TourWhereInput, user?: RequestUser): Prisma.TourWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
-    const OR: Prisma.TourWhereInput[] = [];
-    if (permissions.has('data.scope.branch') && user.branch) OR.push({ branch: user.branch });
-    if (permissions.has('data.scope.department') && user.department) OR.push({ department: user.department });
-    if (!OR.length) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND: [where, { OR }] };
+    if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.TourWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push({ branch: user.branch });
+    if (permissions.has('data.scope.department') && user.department) AND.push({ department: user.department });
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
+  }
+
+  private operationFormBranchScope(branch: string): Prisma.OperationFormWhereInput {
+    return { OR: [{ booking: { customer: { branch } } }, { order: { branch } }, { tour: { branch } }] };
+  }
+
+  private operationFormDepartmentScope(department: string): Prisma.OperationFormWhereInput {
+    return { OR: [{ booking: { customer: { department } } }, { order: { department } }, { tour: { department } }] };
+  }
+
+  private hasMissingReadScopeValue(permissions: Set<string>, user: RequestUser) {
+    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
   private async ensureLinksScoped(links: { bookingId?: string | null; orderId?: string | null; tourId?: string | null }, user?: RequestUser) {
