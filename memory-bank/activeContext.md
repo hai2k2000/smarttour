@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued Orders UI hardening under enforced Auth/RBAC:
+  - Found `OrdersClient` browser-side fetches for reload, detail, create/update,
+    copy/settle, and unlock were not sending the stored auth token. Initial SSR
+    page loads could work, but follow-up actions could 401 with
+    `SMARTTOUR_AUTH_ENFORCE=true`.
+  - Wired the shared `authHeaders()` and `authJsonHeaders()` helpers into all
+    Orders browser fetches.
+  - Added `scripts/test-orders-ui-auth-contract.sh` to guard the Orders UI auth
+    fetch contract.
+  - VPS verification passed on 2026-06-09: `TEST_ORDERS_UI_AUTH_CONTRACT_OK`,
+    `docker compose build web`, isolated `TEST_ORDERS_API_OK`, web redeploy,
+    and `HEALTHCHECK_OK`.
+  - Credentialed UI page/lifecycle smoke scripts still require
+    `ADMIN_PASSWORD`; they were not run in this session to avoid changing
+    production admin credentials.
+
 - Refactored Booking API boundaries on the VPS:
   - `UpdateBookingDto` now only covers editable booking fields; status changes
     are handled by `UpdateBookingStatusDto` and

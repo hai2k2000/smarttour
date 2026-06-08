@@ -2,6 +2,17 @@
 
 ## Done
 
+- Fixed Orders client-side auth under production enforcement:
+  - Browser fetches in `apps/web/app/orders/[type]/OrdersClient.tsx` now send
+    `Authorization` through shared auth helpers for list reload, detail load,
+    create/update, copy/settle, and unlock.
+  - Added `scripts/test-orders-ui-auth-contract.sh` so this fetch/header wiring
+    is covered by a fast contract test.
+  - Verified on VPS: `TEST_ORDERS_UI_AUTH_CONTRACT_OK`, web Docker build,
+    isolated `TEST_ORDERS_API_OK`, web redeploy, and `HEALTHCHECK_OK`.
+  - `smoke-ui-pages.sh` and `smoke-order-lifecycle.sh` still need
+    `ADMIN_PASSWORD` before they can run against production.
+
 - Refactored Booking update/status boundaries:
   - `UpdateBookingDto` now excludes status; `UpdateBookingStatusDto` owns
     workflow status updates and normalizes status input.
@@ -345,6 +356,8 @@
 - Rich text editor for quote itinerary content.
 - Hotel booking dedicated room/NCC selector from Hotel Supplier service rows; current hotel booking uses shared sales/operation rows.
 - Orders receipts, payments, finance history, export Word/PDF/Excel, and approval workflow UI.
+- Credentialed production UI/page and order lifecycle smoke runs need the real
+  `ADMIN_PASSWORD`; do not reset production credentials just to run them.
 - HDV file upload binary storage and calendar conflict UI; current `/tour-guides` stores file URL fields and validates only overlapping schedules submitted in the same request.
 - Allotment calendar day/week/month UI, automatic booked quantity updates from hotel booking orders, COD enforcement in order create flow, and full stop-sell blocking rules.
 - Group Booking Engine, Tour Transfer, Refund Management, SmartLink Portal, Email/Notification Center, Bulk Tour Generator, Dynamic Code Generator, KPI dashboards, RBAC permissions, Excel import/export, and notification service from `tour/bosung.md`.

@@ -6,6 +6,7 @@ import { Copy, Lock, LockOpen, Pencil, Plus, Save, Search, Trash2, X } from 'luc
 import { useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { authHeaders, authJsonHeaders } from '../../authFetch';
 import { viStatus } from '../../i18n';
 import type { OrderConfig, OrderRouteType } from '../order-config';
 
@@ -300,12 +301,12 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   const orderListColumnCount = table.getVisibleLeafColumns().length;
   async function reload(search = '') {
     const suffix = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}${suffix}`, { cache: 'no-store' });
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}${suffix}`, { cache: 'no-store', headers: authHeaders() });
     if (response.ok) setOrders(await response.json());
   }
   async function loadOrder(id: string) {
     setMessage('');
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${id}`);
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${id}`, { cache: 'no-store', headers: authHeaders() });
     if (!response.ok) {
       setMessage(`Không tải được đơn hàng: ${await apiMessage(response)}`);
       return;
@@ -322,7 +323,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
       return;
     }
     const payload = buildPayload(data);
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       setMessage(`Không lưu được đơn hàng: ${await apiMessage(response)}`);
       return;
@@ -336,7 +337,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   }
   async function action(path: 'copy' | 'settle') {
     if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/${path}`, { method: 'POST' });
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/${path}`, { method: 'POST', headers: authHeaders() });
     if (!response.ok) {
       setMessage(`Không thể ${path === 'copy' ? 'sao chép' : 'chốt quyết toán'}: ${await apiMessage(response)}`);
       return;
@@ -349,7 +350,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   }
   async function unlockSettlement() {
     if (!editingId) return;
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/unlock`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ actor: 'Operator', reason: 'Mở khóa từ màn hình đơn hàng' }) });
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/unlock`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify({ actor: 'Operator', reason: 'Mở khóa từ màn hình đơn hàng' }) });
     if (!response.ok) {
       setMessage(`Không mở khóa được: ${await apiMessage(response)}`);
       return;
