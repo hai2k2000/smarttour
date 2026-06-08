@@ -65,7 +65,7 @@ docker exec "$POSTGRES_CONTAINER" pg_dumpall \
   --globals-only \
   > "$work_dir/database/postgres-globals.sql"
 
-docker exec "$POSTGRES_CONTAINER" pg_restore -l \
+docker exec -i "$POSTGRES_CONTAINER" pg_restore -l \
   < "$work_dir/database/smarttour.dump" \
   > "$work_dir/database/smarttour.dump.list"
 
