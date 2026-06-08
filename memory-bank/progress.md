@@ -2,6 +2,24 @@
 
 ## Done
 
+- Refactored Booking update/status boundaries:
+  - `UpdateBookingDto` now excludes status; `UpdateBookingStatusDto` owns
+    workflow status updates and normalizes status input.
+  - `PATCH /api/bookings/:id` now rejects status payloads; `/bookings` UI uses
+    `PATCH /api/bookings/:id/status` for status changes.
+  - Booking service now validates `tourProgramId`, `customerId`, `orderId`,
+    and `tourId` through one shared reference helper for create/update and
+    scoped-link checks.
+  - Create/update/status writes validate existing or incoming date ranges
+    before persistence, and partial date updates are checked against current
+    booking dates.
+  - Expanded Booking service tests for missing references, partial invalid
+    date updates, status rejection on general update, and lowercase
+    `updateStatus`.
+  - Verified API/web Docker builds, `TEST_BOOKINGS_SERVICE_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, production Booking smoke with cleanup,
+    and `HEALTHCHECK_OK`.
+
 - Reviewed Booking and all current tour type APIs on the VPS.
 - Confirmed Booking service has active validation/scope coverage for linked
   Customer/Order/Tour data, complete Tour Program itinerary days,

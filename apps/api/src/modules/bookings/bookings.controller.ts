@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -30,7 +30,15 @@ export class BookingsController {
 
   @Patch(':id')
   @RequirePermissions('booking.manage')
-  update(@Param('id') id: string, @Body() dto: UpdateBookingDto, @Req() request?: { user?: RequestUser }) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBookingDto,
+    @Body('status') status: unknown,
+    @Req() request?: { user?: RequestUser },
+  ) {
+    if (status !== undefined) {
+      throw new BadRequestException('Dùng PATCH /api/bookings/:id/status để cập nhật trạng thái booking');
+    }
     return this.bookingsService.update(id, dto, request?.user);
   }
 

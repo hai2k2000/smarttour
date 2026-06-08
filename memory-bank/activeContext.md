@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Refactored Booking API boundaries on the VPS:
+  - `UpdateBookingDto` now only covers editable booking fields; status changes
+    are handled by `UpdateBookingStatusDto` and
+    `PATCH /api/bookings/:id/status`.
+  - `PATCH /api/bookings/:id` rejects payloads containing `status` to avoid
+    accidental workflow overwrites from normal edit forms.
+  - Booking service now resolves and validates `tourProgramId`, `customerId`,
+    `orderId`, and `tourId` through a shared reference helper instead of
+    duplicating link checks across create/update/operation-form guards.
+  - Create/update paths validate date range before writes, including partial
+    date updates merged with the current booking dates.
+  - Web `/bookings` status action now calls the dedicated status endpoint.
+  - VPS verification passed on 2026-06-08: API Docker build, web Docker build,
+    `TEST_BOOKINGS_SERVICE_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, production
+    Booking reference/status smoke with cleanup, and `HEALTHCHECK_OK`.
+
 - Reviewed Booking plus FIT/GIT/LandTour/common Tour APIs directly on the VPS:
   - Booking service already enforces linked Customer/Order/Tour scope,
     complete Tour Program itinerary days, date/duration consistency, guarded

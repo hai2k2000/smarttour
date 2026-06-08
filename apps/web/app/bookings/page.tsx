@@ -220,7 +220,7 @@ async function updateBookingStatus(formData: FormData) {
     redirectWithResult({ ok: false, message: `Cập nhật trạng thái thất bại: trạng thái "${status || 'trống'}" không hợp lệ.` });
   }
   const result = await apiMutation(
-    `/bookings/${encodeURIComponent(id)}`,
+    `/bookings/${encodeURIComponent(id)}/status`,
     { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify({ status }) },
     'Đã cập nhật trạng thái booking.',
     'Cập nhật trạng thái thất bại',

@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
 import { BookingStatus } from '@prisma/client';
-import { IsEnum, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum } from 'class-validator';
 import { CreateBookingDto } from './create-booking.dto';
+
+const normalizeBookingStatus = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
 class UpdateBookingFieldsDto extends PartialType(
   PickType(CreateBookingDto, [
@@ -22,15 +25,11 @@ class UpdateBookingFieldsDto extends PartialType(
   ] as const),
 ) {}
 
-export class UpdateBookingDto extends UpdateBookingFieldsDto {
-  @ApiPropertyOptional({ enum: BookingStatus })
-  @IsOptional()
-  @IsEnum(BookingStatus)
-  status?: BookingStatus;
-}
+export class UpdateBookingDto extends UpdateBookingFieldsDto {}
 
 export class UpdateBookingStatusDto {
   @ApiProperty({ enum: BookingStatus })
+  @Transform(normalizeBookingStatus)
   @IsEnum(BookingStatus)
   status!: BookingStatus;
 }

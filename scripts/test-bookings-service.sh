@@ -252,8 +252,14 @@ async function main() {
   await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
   await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
   await rejects(() => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }), 'update should reject missing tourProgramId');
+  await rejects(() => service.update(created.id, { customerId: 'missing-customer-id' }), 'update should reject missing customerId');
+  await rejects(() => service.update(created.id, { orderId: 'missing-order-id' }), 'update should reject missing orderId');
+  await rejects(() => service.update(created.id, { tourId: 'missing-tour-id' }), 'update should reject missing tourId');
+  await rejects(() => service.update(created.id, { startDate: '2026-10-06' }), 'update should reject startDate after current endDate');
+  await rejects(() => service.update(created.id, { endDate: '2026-10-01' }), 'update should reject endDate before current startDate');
+  await rejects(() => service.update(created.id, { status: 'CANCELLED' }), 'general update should reject status changes');
 
-  const confirmed = await service.updateStatus(created.id, 'CONFIRMED');
+  const confirmed = await service.updateStatus(created.id, 'confirmed');
   assert(confirmed.status === 'CONFIRMED', 'updateStatus should move DRAFT to CONFIRMED');
   await rejects(() => service.updateStatus(created.id, 'DRAFT'), 'updateStatus should reject invalid backward transition');
   await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
