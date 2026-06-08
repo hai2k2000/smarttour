@@ -20,6 +20,24 @@ Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking 
 
 ## Latest Session Notes
 
+- Continued Auth/RBAC and data-scope hardening after production enforcement:
+  - Confirmed `SMARTTOUR_ENV=production` and
+    `SMARTTOUR_AUTH_ENFORCE=true` on `smarttour-api-1`.
+  - Hardened Finance Invoice data scope. Invoice list/detail/export,
+    file upload/delete, create/update/delete, approve/reject/cancel now honor
+    scoped users through linked Customer, Order, Tour, or Finance Receipt.
+  - Scoped invoice writes now require at least one linked Customer, Order, Tour,
+    or Finance Receipt in the user's branch/department scope.
+  - Hardened hotel allotment allocation scope. Scoped locks now require an
+    Order, Booking, or Tour link in scope, and confirm/release only operates on
+    scoped allocations.
+  - Updated `scripts/test-data-scope-module-flows.sh` for current constructor
+    dependencies and Booking itinerary requirements.
+  - VPS verification passed on 2026-06-08: API Docker build, isolated
+    data-scope module flow test (`TEST_DATA_SCOPE_MODULE_FLOWS_OK`),
+    production API restart, `HEALTHCHECK_OK`, and production scoped smoke for
+    Finance Invoice plus hotel allotment lock.
+
 - Reviewed Tour Program, FIT Tour, and GIT Tour modules directly on the VPS:
   - Tour Program backend/service and dense UI already support create, edit,
     guarded delete, itinerary-day add, auth-aware server actions, and service

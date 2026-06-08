@@ -36,6 +36,8 @@ const { OperationVouchersService } = require('./apps/api/dist/modules/operation-
 const { OrdersService } = require('./apps/api/dist/modules/orders/orders.service');
 const { SuppliersService } = require('./apps/api/dist/modules/suppliers/suppliers.service');
 const { TourGuidesService } = require('./apps/api/dist/modules/tour-guides/tour-guides.service');
+const { TourCoreService } = require('./apps/api/dist/modules/tours/tour-core.service');
+const { FitTourLegacyCompatService } = require('./apps/api/dist/modules/fit-tours/fit-tour-legacy-compat.service');
 
 function role(...permissions) {
   return { role: { permissions: permissions.map((permission) => ({ permission })) } };
@@ -64,10 +66,12 @@ async function main() {
   await prisma.$connect();
   await prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CodeSequence_scope_prefix_year_month_branch_expr_key" ON "CodeSequence"("scope", "prefix", "year", COALESCE("month", 0), COALESCE("branch", \'\'))');
 
+  const tourCore = new TourCoreService(prisma);
+  const fitLegacyCompat = new FitTourLegacyCompatService();
   const finance = new FinanceService(prisma, {});
-  const gitTours = new GitToursService(prisma);
-  const landTours = new LandToursService(prisma);
-  const fitTours = new FitToursService(prisma);
+  const gitTours = new GitToursService(prisma, tourCore);
+  const landTours = new LandToursService(prisma, tourCore);
+  const fitTours = new FitToursService(prisma, tourCore, fitLegacyCompat);
   const bookings = new BookingsService(prisma);
   const operationVouchers = new OperationVouchersService(prisma);
   const orders = new OrdersService(prisma);
@@ -90,6 +94,14 @@ async function main() {
   });
   const tourProgram = await prisma.tourProgram.create({
     data: { code: run + '-TP', name: 'Scoped Program', route: 'HAN-DAD', durationDays: 3 },
+  });
+  await prisma.tourItineraryDay.createMany({
+    data: [1, 2, 3].map((dayNumber) => ({
+      tourProgramId: tourProgram.id,
+      dayNumber,
+      title: `Scoped day ${dayNumber}`,
+      description: `Data-scope itinerary day ${dayNumber}`,
+    })),
   });
   const orderA = await prisma.order.create({
     data: { type: 'FIT_TOUR', systemCode: run + '-ORD-A', name: 'Order A', branch: 'BR-A', department: 'DEP-A', customerId: customerA.id },

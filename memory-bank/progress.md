@@ -2,6 +2,21 @@
 
 ## Done
 
+- Hardened Auth/RBAC data-scope enforcement for Finance Invoice and supplier
+  allotment allocations while production auth enforcement is enabled.
+- Finance Invoice APIs now scope list/detail/export, file operations,
+  create/update/delete, approve/reject/cancel through linked Customer, Order,
+  Tour, or Finance Receipt.
+- Scoped Finance Invoice writes now reject records without a scoped business
+  link and reject links outside the user's branch/department scope.
+- Hotel allotment locks now require a scoped Order, Booking, or Tour link for
+  scoped users, and allocation confirm/release respects the same scope.
+- Updated `scripts/test-data-scope-module-flows.sh` to instantiate current tour
+  services and create complete Tour Program itinerary setup for Booking tests.
+- Verified API Docker build, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+  production API restart, `HEALTHCHECK_OK`, and production scoped smoke for
+  invoice scope plus allotment lock scope.
+
 - Reviewed and hardened Tour Program, FIT Tour, and GIT Tour modules on the VPS.
 - Confirmed Tour Program has backend validation, create/edit/delete UI guards,
   itinerary-day add flows, and passing service coverage.
@@ -308,5 +323,5 @@
 - Full LandTour service views by service/supplier/day, SmartLink confirmation, export, and calendar.
 - Common finance/reporting UI from `tour_revenues`, `tour_costs`, `tour_receipts`, `tour_payments`, and `tour_expenses`.
 - Deeper Operation UI workflow: edit existing operation forms/payment requests, calendar/kanban assignment views, and operation voucher reconciliation view.
-- Full Auth/RBAC rollout: confirm/set real admin password flow, harden operation form/payment request validation, run authenticated mutation smoke tests with valid payloads across modules, enable `SMARTTOUR_AUTH_ENFORCE=true`, and add branch/department data scopes.
+- Full Auth/RBAC rollout: confirm/set real admin password flow, harden operation form/payment request validation, run authenticated mutation smoke tests with valid payloads across remaining modules, and broaden branch/department data scopes where modules still rely on legacy snapshots.
 - Broader automated tests beyond smoke coverage.

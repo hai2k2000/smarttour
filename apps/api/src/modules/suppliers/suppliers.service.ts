@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { RequestUser } from '../auth/data-scope';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -440,7 +440,7 @@ export class SuppliersService {
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('Không tìm thấy allotment');
     if (current.status !== 'ACTIVE') throw new BadRequestException('Allotment chưa ở trạng thái hoạt động');
-    await this.ensureAllocationLinks(dto);
+    await this.ensureAllocationLinks(dto, user);
     if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
       throw new BadRequestException('Service does not match allotment');
     }
@@ -486,7 +486,7 @@ export class SuppliersService {
   }
 
   private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto, user?: RequestUser) {
-    const allocation = await this.prisma.supplierAllotmentAllocation.findUnique({ where: { id }, include: { allotment: true } });
+    const allocation = await this.prisma.supplierAllotmentAllocation.findFirst({ where: this.allotmentAllocationScopeWhere({ id }, user), include: { allotment: true } });
     if (!allocation) throw new NotFoundException('Không tìm thấy phân bổ allotment');
     if (allocation.status === nextStatus) return allocation;
     if (!['LOCKED', 'CONFIRMED'].includes(allocation.status)) {
@@ -531,23 +531,58 @@ export class SuppliersService {
     });
   }
 
-  private async ensureAllocationLinks(dto: LockAllotmentDto) {
-    if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp');
-    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng');
-    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking');
-    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour');
+  private async ensureAllocationLinks(dto: LockAllotmentDto, user?: RequestUser) {
+    if (user && !hasUnrestrictedDataScope(user) && !dto.orderId && !dto.bookingId && !dto.tourId) {
+      throw new BadRequestException('Scoped allotment locks require an order, booking, or tour link');
+    }
+    if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp', user);
+    if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
+    if (dto.bookingId) await this.ensureExists('booking', dto.bookingId, 'Không tìm thấy booking', user);
+    if (dto.tourId) await this.ensureExists('tour', dto.tourId, 'Không tìm thấy tour', user);
   }
 
-  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string) {
+  private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string, user?: RequestUser) {
     const row =
       model === 'supplierService'
         ? await this.prisma.supplierService.findUnique({ where: { id }, select: { id: true } })
         : model === 'order'
-          ? await this.prisma.order.findUnique({ where: { id }, select: { id: true } })
-          : model === 'booking'
-            ? await this.prisma.booking.findUnique({ where: { id }, select: { id: true } })
-            : await this.prisma.tour.findUnique({ where: { id }, select: { id: true } });
+          ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id, deletedAt: null }, user), select: { id: true } })
+        : model === 'booking'
+            ? await this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id }, user), select: { id: true } })
+            : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id, deletedAt: null }, user), select: { id: true } });
     if (!row) throw new NotFoundException(message);
+  }
+
+  private allotmentAllocationScopeWhere(where: Prisma.SupplierAllotmentAllocationWhereInput, user?: RequestUser): Prisma.SupplierAllotmentAllocationWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { booking: { is: this.bookingScopeWhere({}, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+          ],
+        },
+      ],
+    };
   }
 
   private async ensureCategory(id: string) {

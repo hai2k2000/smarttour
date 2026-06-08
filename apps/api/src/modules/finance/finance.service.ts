@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FinanceApprovalStatus, FinanceCashflowEntryType, FinanceInvoiceStatus, OrderCostStatus, OrderPaymentStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
@@ -447,15 +447,15 @@ export class FinanceService {
     });
   }
 
-  async listInvoices(query: Record<string, string>, _user?: RequestUser) {
-    const where = this.invoiceWhere(query);
+  async listInvoices(query: Record<string, string>, user?: RequestUser) {
+    const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
     const rows = await this.prisma.financeInvoice.findMany({ where, include: { items: true, files: true }, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
     const summaryRows = await this.prisma.financeInvoice.findMany({ where });
     return { rows, summary: invoiceSummary(summaryRows) };
   }
 
-  async invoiceDetail(id: string, _user?: RequestUser) {
-    const row = await this.prisma.financeInvoice.findFirst({ where: { id, deletedAt: null }, include: { items: true, files: true } });
+  async invoiceDetail(id: string, user?: RequestUser) {
+    const row = await this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), include: { items: true, files: true } });
     if (!row) throw new NotFoundException('Invoice not found');
     return row;
   }
@@ -464,9 +464,9 @@ export class FinanceService {
     id: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     actorId?: string,
-    _user?: RequestUser,
+    user?: RequestUser,
   ) {
-    await this.invoiceDetail(id);
+    await this.invoiceDetail(id, user);
     const upload = await this.filesService.upload(file, `finance/invoices/${id}`, actorId);
     try {
       return await this.prisma.financeInvoiceFile.create({
@@ -478,8 +478,8 @@ export class FinanceService {
     }
   }
 
-  async deleteInvoiceFile(id: string, fileId: string, _user?: RequestUser) {
-    await this.invoiceDetail(id);
+  async deleteInvoiceFile(id: string, fileId: string, user?: RequestUser) {
+    await this.invoiceDetail(id, user);
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Invoice file not found');
     const objectKey = this.objectKey(file.fileUrl);
@@ -487,8 +487,10 @@ export class FinanceService {
     return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
   }
 
-  async createInvoice(dto: AnyRecord, _user?: RequestUser) {
+  async createInvoice(dto: AnyRecord, user?: RequestUser) {
+    dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     return this.prisma.$transaction(async (tx) => {
+      await this.assertInvoiceWriteScope(tx, dto, user);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
       const tourId = await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) });
       const calculated = this.invoiceData({ ...dto, tourId });
@@ -498,28 +500,35 @@ export class FinanceService {
     });
   }
 
-  async updateInvoice(id: string, dto: AnyRecord, _user?: RequestUser) {
-    const current = await this.invoiceDetail(id);
+  async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
+    const current = await this.invoiceDetail(id, user);
+    dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED && hasMoneyChange(dto)) throw new BadRequestException('Approved invoice amount cannot be edited');
     return this.prisma.$transaction(async (tx) => {
       await tx.financeInvoiceItem.deleteMany({ where: { invoiceId: id } });
       const tourId = await this.resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }) || current.tourId;
+      await this.assertInvoiceWriteScope(tx, {
+        customerId: this.text(dto.customerId) || current.customerId,
+        orderId: this.text(dto.orderId) || current.orderId,
+        tourId,
+        receiptId: this.text(dto.receiptId) || current.receiptId,
+      }, user);
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { ...this.invoiceData({ ...dto, invoiceCode: this.text(dto.invoiceCode) || current.invoiceCode, tourId }), items: { create: this.invoiceItems(dto) } }, include: { items: true } });
       await this.audit(tx, 'UPDATE', 'FinanceInvoice', id, dto);
       return invoice;
     });
   }
 
-  async deleteInvoice(id: string, _user?: RequestUser) {
-    const current = await this.invoiceDetail(id);
+  async deleteInvoice(id: string, user?: RequestUser) {
+    const current = await this.invoiceDetail(id, user);
     if (current.approvalStatus === FinanceApprovalStatus.APPROVED) throw new BadRequestException('Approved invoice cannot be deleted');
     return this.prisma.financeInvoice.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async approveInvoice(id: string, dto: AnyRecord, _user?: RequestUser) {
+  async approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.financeInvoice.findUnique({ where: { id } });
+      const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
       if (!current) throw new NotFoundException('Invoice not found');
       if (current.approvalStatus === FinanceApprovalStatus.APPROVED) return current;
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
@@ -558,20 +567,22 @@ export class FinanceService {
     });
   }
 
-  async rejectInvoice(id: string, dto: AnyRecord, _user?: RequestUser) {
+  async rejectInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), select: { id: true } });
+      if (!current) throw new NotFoundException('Invoice not found');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
       return invoice;
     });
   }
 
-  async cancelInvoice(id: string, dto: AnyRecord, _user?: RequestUser) {
+  async cancelInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Cancel approved invoice';
     return this.prisma.$transaction(async (tx) => {
-      const invoice = await tx.financeInvoice.findUnique({ where: { id } });
+      const invoice = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
       if (!invoice) throw new NotFoundException('Invoice not found');
       if (invoice.cancelledAt) return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
       if (invoice.approvalStatus !== FinanceApprovalStatus.APPROVED) throw new BadRequestException('Only approved invoice can be cancelled');
@@ -1091,6 +1102,50 @@ export class FinanceService {
       ...(query.search ? { OR: [{ invoiceCode: { contains: query.search, mode: 'insensitive' } }, { invoiceNumber: { contains: query.search, mode: 'insensitive' } }, { systemCode: { contains: query.search, mode: 'insensitive' } }, { taxCode: { contains: query.search, mode: 'insensitive' } }, { customerName: { contains: query.search, mode: 'insensitive' } }, { customerPhone: { contains: query.search, mode: 'insensitive' } }, { note: { contains: query.search, mode: 'insensitive' } }] } : {}),
       ...this.dateRange('issuedDate', query.from, query.to),
     };
+  }
+
+  private invoiceScopeWhere(where: Prisma.FinanceInvoiceWhereInput, user?: RequestUser): Prisma.FinanceInvoiceWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({}, user) } },
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+            { receipt: { is: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ deletedAt: null }, user) } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private async assertInvoiceWriteScope(tx: Prisma.TransactionClient, dto: AnyRecord, user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return;
+    const links = [
+      {
+        id: this.text(dto.customerId),
+        exists: async (id: string) => tx.customer.findFirst({ where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id, mergedIntoId: null }, user), select: { id: true } }),
+      },
+      {
+        id: this.text(dto.orderId),
+        exists: async (id: string) => tx.order.findFirst({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id, deletedAt: null }, user), select: { id: true } }),
+      },
+      {
+        id: this.text(dto.tourId),
+        exists: async (id: string) => tx.tour.findFirst({ where: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id, deletedAt: null }, user), select: { id: true } }),
+      },
+      {
+        id: this.text(dto.receiptId),
+        exists: async (id: string) => tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ id, deletedAt: null }, user), select: { id: true } }),
+      },
+    ].filter((link): link is { id: string; exists: (id: string) => Promise<{ id: string } | null> } => Boolean(link.id));
+
+    if (!links.length) throw new BadRequestException('Scoped invoice writes require a linked customer, order, tour, or receipt');
+    for (const link of links) {
+      if (!(await link.exists(link.id))) throw new BadRequestException('Cannot write invoice outside your data scope');
+    }
   }
 
   private cashflowWhere(query: Record<string, string>): Prisma.FinanceCashflowEntryWhereInput {
