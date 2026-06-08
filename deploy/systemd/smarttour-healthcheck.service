@@ -1,0 +1,12 @@
+[Unit]
+Description=SmartTour system and application health check
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/healthcheck.sh
+StandardOutput=append:/var/log/smarttour/healthcheck.log
+StandardError=append:/var/log/smarttour/healthcheck.log

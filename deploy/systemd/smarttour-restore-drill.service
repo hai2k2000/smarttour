@@ -1,0 +1,12 @@
+[Unit]
+Description=SmartTour weekly PostgreSQL restore drill
+After=docker.service smarttour-postgres-backup.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/restore-drill-postgres.sh
+TimeoutStartSec=30min
+StandardOutput=append:/var/log/smarttour/restore-drill.log
+StandardError=append:/var/log/smarttour/restore-drill.log

@@ -43,17 +43,31 @@ else
   echo "WARN_PORTS SmartTour publish state could not be confirmed"
 fi
 
-if [[ -f /etc/cron.d/smarttour-postgres-backup ]]; then
-  echo "OK_BACKUP_CRON installed"
+if systemctl is-enabled smarttour-postgres-backup.timer >/dev/null 2>&1; then
+  echo "OK_BACKUP_TIMER enabled"
 else
-  echo "FAIL_BACKUP_CRON missing"
+  echo "FAIL_BACKUP_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-if [[ -f /etc/cron.d/smarttour-healthcheck ]]; then
-  echo "OK_HEALTH_CRON installed"
+if systemctl is-enabled smarttour-healthcheck.timer >/dev/null 2>&1; then
+  echo "OK_HEALTH_TIMER enabled"
 else
-  echo "FAIL_HEALTH_CRON missing"
+  echo "FAIL_HEALTH_TIMER missing_or_disabled"
+  failures=$((failures + 1))
+fi
+
+if systemctl is-enabled smarttour-disaster-backup.timer >/dev/null 2>&1; then
+  echo "OK_DISASTER_BACKUP_TIMER enabled"
+else
+  echo "FAIL_DISASTER_BACKUP_TIMER missing_or_disabled"
+  failures=$((failures + 1))
+fi
+
+if systemctl is-enabled smarttour-restore-drill.timer >/dev/null 2>&1; then
+  echo "OK_RESTORE_DRILL_TIMER enabled"
+else
+  echo "FAIL_RESTORE_DRILL_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 

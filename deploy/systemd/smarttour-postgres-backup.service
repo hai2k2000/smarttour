@@ -1,0 +1,11 @@
+[Unit]
+Description=SmartTour daily PostgreSQL backup
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/backup-postgres.sh
+StandardOutput=append:/var/log/smarttour/postgres-backup.log
+StandardError=append:/var/log/smarttour/postgres-backup.log

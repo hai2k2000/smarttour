@@ -4,6 +4,7 @@ set -euo pipefail
 SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 API_URL="${API_URL:-https://aitour.io.vn/api}"
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 
 cd "$REPO_DIR"
 
@@ -57,6 +58,7 @@ check_container smarttour-nginx-1
 check_container smarttour-postgres-1
 check_container smarttour-redis-1
 check_container smarttour-minio-1
+check_container smarttour-n8n-1
 
 check_http site "$SITE_URL/" 307
 check_http login "$SITE_URL/login" 200
@@ -73,12 +75,52 @@ fi
 docker exec smarttour-postgres-1 pg_isready -U smarttour -d smarttour >/dev/null && echo "OK_POSTGRES pg_isready" || { echo "FAIL_POSTGRES pg_isready"; failures=$((failures + 1)); }
 docker exec smarttour-redis-1 redis-cli ping | grep -qx PONG && echo "OK_REDIS ping" || { echo "FAIL_REDIS ping"; failures=$((failures + 1)); }
 
+root_mode="$(stat -c '%a' /)"
+if [[ "$root_mode" == "755" ]]; then
+  echo "OK_ROOT_MODE /=$root_mode"
+else
+  echo "FAIL_ROOT_MODE expected=755 actual=$root_mode"
+  failures=$((failures + 1))
+fi
+
+critical_failed_units="$(
+  systemctl --failed --no-legend --plain 2>/dev/null \
+    | awk '{print $1}' \
+    | grep -E '^(dbus|polkit|systemd-networkd|systemd-resolved|networkd-dispatcher|docker|ssh)\.(service|socket)$' \
+    || true
+)"
+if [[ -n "$critical_failed_units" ]]; then
+  echo "FAIL_SYSTEMD critical_failed=$(echo "$critical_failed_units" | paste -sd, -)"
+  failures=$((failures + 1))
+else
+  echo "OK_SYSTEMD no critical failed units"
+fi
+
 disk_use=$(df -P / | awk 'NR==2 {gsub("%","",$5); print $5}')
 if [[ "$disk_use" -ge "${DISK_WARN_PERCENT:-85}" ]]; then
   echo "FAIL_DISK root=${disk_use}%"
   failures=$((failures + 1))
 else
   echo "OK_DISK root=${disk_use}%"
+fi
+
+latest_backup="$(find "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+if [[ -z "$latest_backup" ]]; then
+  echo "FAIL_BACKUP no PostgreSQL backup in $BACKUP_DIR"
+  failures=$((failures + 1))
+else
+  latest_backup_epoch="${latest_backup%% *}"
+  latest_backup_file="${latest_backup#* }"
+  backup_age_hours=$(( ($(date +%s) - ${latest_backup_epoch%.*}) / 3600 ))
+  if [[ "$backup_age_hours" -gt "${BACKUP_MAX_AGE_HOURS:-30}" ]]; then
+    echo "FAIL_BACKUP stale age=${backup_age_hours}h file=$latest_backup_file"
+    failures=$((failures + 1))
+  elif [[ -f "$latest_backup_file.sha256" ]] && sha256sum -c "$latest_backup_file.sha256" >/dev/null 2>&1; then
+    echo "OK_BACKUP age=${backup_age_hours}h checksum=valid file=$latest_backup_file"
+  else
+    echo "FAIL_BACKUP checksum missing_or_invalid file=$latest_backup_file"
+    failures=$((failures + 1))
+  fi
 fi
 
 if docker logs --since "${LOG_WINDOW:-10m}" smarttour-api-1 2>&1 | grep -Eiq 'error|exception|failed'; then

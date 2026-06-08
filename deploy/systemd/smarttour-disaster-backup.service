@@ -1,0 +1,13 @@
+[Unit]
+Description=SmartTour weekly full disaster backup
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/disaster-backup.sh
+TimeoutStartSec=45min
+StandardOutput=append:/var/log/smarttour/disaster-backup.log
+StandardError=append:/var/log/smarttour/disaster-backup.log

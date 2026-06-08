@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+BACKUP_ROOT="${DISASTER_BACKUP_ROOT:-/var/backups/smarttour/disaster}"
+KEEP_BACKUPS="${DISASTER_KEEP_BACKUPS:-4}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
+POSTGRES_USER="${POSTGRES_USER:-smarttour}"
+POSTGRES_DB="${POSTGRES_DB:-smarttour}"
+REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
+REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
+REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
+LOCK_FILE="${DISASTER_BACKUP_LOCK_FILE:-/run/lock/smarttour-disaster-backup.lock}"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "Disaster backup must run as root" >&2
+  exit 1
+fi
+
+mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Another SmartTour disaster backup is running" >&2
+  exit 1
+fi
+
+cd "$REPO_DIR"
+
+timestamp="$(date +%Y%m%d-%H%M%S)"
+name="smarttour-disaster-$timestamp"
+work_dir="$BACKUP_ROOT/$name"
+archive="$BACKUP_ROOT/$name.tar.gz"
+services_stopped=0
+
+mkdir -p "$work_dir"/{database,volumes,config,git}
+chmod 700 "$work_dir"
+
+restart_services() {
+  if [[ "$services_stopped" == "1" ]]; then
+    docker compose up -d
+  fi
+}
+trap restart_services EXIT
+
+echo "BACKUP_PHASE logical_database"
+docker exec "$POSTGRES_CONTAINER" pg_dump \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
+  -Fc \
+  --no-owner \
+  --no-privileges \
+  > "$work_dir/database/smarttour.dump"
+
+docker exec "$POSTGRES_CONTAINER" pg_dump \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
+  --clean \
+  --if-exists \
+  --no-owner \
+  --no-privileges \
+  | gzip -9 > "$work_dir/database/smarttour.sql.gz"
+
+docker exec "$POSTGRES_CONTAINER" pg_dumpall \
+  -U "$POSTGRES_USER" \
+  --globals-only \
+  > "$work_dir/database/postgres-globals.sql"
+
+docker exec "$POSTGRES_CONTAINER" pg_restore -l \
+  < "$work_dir/database/smarttour.dump" \
+  > "$work_dir/database/smarttour.dump.list"
+
+echo "BACKUP_PHASE git_and_config"
+git status --short --branch > "$work_dir/git/status.txt"
+git rev-parse HEAD > "$work_dir/git/commit.txt"
+git remote -v > "$work_dir/git/remotes.txt"
+git bundle create "$work_dir/git/smarttour.bundle" --all
+
+config_paths=(
+  AGENTS.md
+  docker-compose.yml
+  .env
+  .env.example
+  .env.production.example
+  package.json
+  package-lock.json
+  deploy
+  docs
+  memory-bank
+  prisma
+  scripts
+)
+existing_config_paths=()
+for path in "${config_paths[@]}"; do
+  if [[ -e "$path" ]]; then
+    existing_config_paths+=("$path")
+  fi
+done
+tar -czf "$work_dir/config/smarttour-config.tar.gz" "${existing_config_paths[@]}"
+
+tar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz" \
+  /etc/ssh \
+  /etc/netplan \
+  /etc/cloud \
+  /etc/docker \
+  /etc/nginx \
+  /etc/letsencrypt \
+  /etc/default/smarttour-ops \
+  /etc/systemd/system/smarttour-*.service \
+  /etc/systemd/system/smarttour-*.timer \
+  /root/.ssh \
+  /var/spool/cron 2>/dev/null || true
+
+hostnamectl > "$work_dir/config/hostnamectl.txt" 2>&1 || true
+ip addr > "$work_dir/config/ip-addresses.txt"
+ip route > "$work_dir/config/ip-routes.txt"
+df -hT > "$work_dir/config/disk.txt"
+docker ps -a > "$work_dir/config/docker-containers.txt"
+docker image ls > "$work_dir/config/docker-images.txt"
+docker volume ls > "$work_dir/config/docker-volumes.txt"
+systemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt" || true
+crontab -l > "$work_dir/config/root-crontab.txt" 2>/dev/null || true
+
+echo "BACKUP_PHASE consistent_volumes"
+docker compose stop
+services_stopped=1
+
+for volume in \
+  smarttour_smarttour_postgres \
+  smarttour_smarttour_minio \
+  smarttour_smarttour_n8n
+do
+  mountpoint="$(docker volume inspect "$volume" --format '{{.Mountpoint}}')"
+  if [[ -z "$mountpoint" || "$mountpoint" == "/" || ! -d "$mountpoint" ]]; then
+    echo "Invalid mountpoint for $volume: $mountpoint" >&2
+    exit 1
+  fi
+  tar -czf "$work_dir/volumes/$volume.tar.gz" -C "$mountpoint" .
+done
+
+docker compose up -d
+services_stopped=0
+
+cat > "$work_dir/MANIFEST.txt" <<EOF
+timestamp=$timestamp
+hostname=$(hostname)
+repo_commit=$(git rev-parse HEAD)
+root_mode=$(stat -c '%a %U:%G' /)
+archive=$archive
+EOF
+
+find "$work_dir" -type f ! -name SHA256SUMS -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$work_dir/SHA256SUMS"
+
+tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
+chmod 600 "$archive"
+sha256sum "$archive" > "$archive.sha256"
+
+mapfile -t old_archives < <(
+  find "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
+    -printf '%T@ %p\n' \
+    | sort -nr \
+    | tail -n "+$((KEEP_BACKUPS + 1))" \
+    | cut -d' ' -f2-
+)
+for old_archive in "${old_archives[@]}"; do
+  rm -f "$old_archive" "$old_archive.sha256"
+  rm -rf "${old_archive%.tar.gz}"
+done
+
+if [[ -n "$REMOTE_TARGET" ]]; then
+  scp_args=(-P "$REMOTE_PORT")
+  if [[ -n "$REMOTE_KEY" ]]; then
+    scp_args+=(-i "$REMOTE_KEY")
+  fi
+  scp "${scp_args[@]}" "$archive" "$archive.sha256" "$REMOTE_TARGET/"
+  echo "DISASTER_BACKUP_SYNC_OK $REMOTE_TARGET"
+fi
+
+echo "DISASTER_BACKUP_OK $archive"
+cat "$archive.sha256"

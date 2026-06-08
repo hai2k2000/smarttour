@@ -2,6 +2,18 @@
 
 ## Done
 
+- Added scheduled production operations and OS-reinstall readiness:
+  - Systemd health check every 10 minutes.
+  - Daily PostgreSQL backup at 02:15.
+  - Weekly full disaster backup at 03:30 Sunday.
+  - Weekly PostgreSQL restore drill at 05:00 Sunday.
+  - Full backup includes logical database dumps, consistent raw
+    PostgreSQL/MinIO/n8n volumes, Git bundle, secrets/configuration, host
+    configuration, inventory, and checksums.
+  - Health check detects the root-directory permission failure that caused the
+    June 8 systemd/network incident and rejects stale or invalid DB backups.
+  - Added `docs/operations-backup-reinstall.md`.
+
 - Created SmartTour monorepo structure.
 - Added Next.js web app skeleton.
 - Added NestJS API skeleton.

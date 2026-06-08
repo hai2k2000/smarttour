@@ -20,6 +20,18 @@ Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking 
 
 ## Latest Session Notes
 
+- Added OS-reinstall readiness and scheduled operations tooling:
+  - Health checks now verify all seven containers, root `/` mode, critical
+    systemd units, PostgreSQL backup age/checksum, disk, HTTP, database, Redis,
+    authentication enforcement, recent logs, and private port bindings.
+  - Added weekly full disaster backup for PostgreSQL logical dumps, consistent
+    PostgreSQL/MinIO/n8n raw volumes, Git bundle, `.env`, application config,
+    SSH/network/Nginx/Let's Encrypt/system configuration, inventory, and
+    checksums.
+  - Added systemd services/timers for 10-minute health checks, daily PostgreSQL
+    backup, weekly disaster backup, and weekly restore drill.
+  - Added schedule installer and operations/reinstall documentation.
+
 - Booking screen now exposes inline status updates, quick edit rows, and delete actions using the existing Booking PATCH/DELETE API.
 - API Docker build now regenerates Prisma Client for Alpine with `linux-musl-openssl-3.0.x`, fixing the container startup error found during verification.
 - Booking API smoke test passed: create, edit, status update, and delete all worked against Docker Postgres.
