@@ -31,6 +31,12 @@ Supplier and Tour Program CRUD have been smoke-tested against Postgres. Booking 
   - Added systemd services/timers for 10-minute health checks, daily PostgreSQL
     backup, weekly disaster backup, and weekly restore drill.
   - Added schedule installer and operations/reinstall documentation.
+  - VPS verification passed on 2026-06-08: healthcheck, PostgreSQL backup,
+    PostgreSQL restore drill, full consistent-volume disaster backup, internal
+    archive checksums, and complete Git bundle verification.
+  - Latest verified full archive:
+    `/var/backups/smarttour/disaster/smarttour-disaster-20260608-161016.tar.gz`.
+    A checksum-verified copy was downloaded to the administrator workstation.
 
 - Booking screen now exposes inline status updates, quick edit rows, and delete actions using the existing Booking PATCH/DELETE API.
 - API Docker build now regenerates Prisma Client for Alpine with `linux-musl-openssl-3.0.x`, fixing the container startup error found during verification.

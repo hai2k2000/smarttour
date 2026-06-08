@@ -13,6 +13,12 @@
   - Health check detects the root-directory permission failure that caused the
     June 8 systemd/network incident and rejects stale or invalid DB backups.
   - Added `docs/operations-backup-reinstall.md`.
+  - Installed and enabled all four timers on the VPS.
+  - Verified daily backup checksum and restore drill against 31 migrations,
+    4 users, 4 roles, and 120 role permissions.
+  - Created and verified full disaster archive
+    `smarttour-disaster-20260608-161016.tar.gz`, including internal checksums
+    and a complete Git bundle, then copied it off-server with matching SHA256.
 
 - Created SmartTour monorepo structure.
 - Added Next.js web app skeleton.
