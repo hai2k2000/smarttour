@@ -235,12 +235,12 @@ export const LANDTOUR_DETAIL_FIELDS = [
   'autoTermsEnabled',
   'smartLinkCode',
   'confirmationNote',
-  'termsVi',
-  'termsEn',
 ] as const satisfies readonly (keyof CreateLandTourDto)[];
 
 export const LANDTOUR_CHILD_FIELDS = [
   'guideName',
+  'termsVi',
+  'termsEn',
   'revenues',
   'costs',
   'salesServices',

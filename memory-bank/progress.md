@@ -2,6 +2,19 @@
 
 ## Done
 
+- Continued P2 FIT root-boundary cleanup and LandTour term ownership cleanup:
+  - FIT root writes now go through `TourCoreService.createRoot()` /
+    `updateRoot()`, keeping order/date-range/root mapping behind the common
+    Tour boundary.
+  - FIT validation and legacy compatibility fallback text no longer contain
+    mojibake strings; regressions guard the root boundary and text fallback.
+  - LandTour `termsVi` / `termsEn` now live in common `tour_terms`, with legacy
+    detail columns treated as read-only snapshots and response overlay kept for
+    current clients.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API deploy, and `HEALTHCHECK_OK`.
+
 - Continued FIT legacy read-side cleanup:
   - FIT detail/list now prefer common `Tour` root child data for service, guide,
     attachment, and survey response fields while preserving the existing FIT

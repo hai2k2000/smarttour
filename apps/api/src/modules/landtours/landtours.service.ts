@@ -17,7 +17,7 @@ const landTourInclude = {
   services: { include: { supplier: true } },
   costs: { include: { supplier: true } },
   guides: { orderBy: [{ guideType: 'asc' }, { name: 'asc' }] },
-  terms: true,
+  terms: { orderBy: [{ language: 'asc' }, { termType: 'asc' }] },
   attachments: true,
   surveys: true,
   logs: { orderBy: { createdAt: 'desc' } },
@@ -160,25 +160,31 @@ export class LandToursService {
       ...(dto.autoTermsEnabled !== undefined ? { autoTermsEnabled: Boolean(dto.autoTermsEnabled) } : {}),
       ...(dto.smartLinkCode !== undefined ? { smartLinkCode: this.optionalText(dto.smartLinkCode) } : {}),
       ...(dto.confirmationNote !== undefined ? { confirmationNote: this.optionalText(dto.confirmationNote) } : {}),
-      ...(dto.termsVi !== undefined ? { termsVi: this.optionalText(dto.termsVi) } : {}),
-      ...(dto.termsEn !== undefined ? { termsEn: this.optionalText(dto.termsEn) } : {}),
     };
   }
 
   private withLandGuideSnapshot<
     T extends {
-      landTour: (Record<string, unknown> & { guideName?: string | null }) | null;
+      landTour: (Record<string, unknown> & { guideName?: string | null; termsVi?: string | null; termsEn?: string | null }) | null;
       guides?: Array<{ guideType?: string | null; name?: string | null }>;
+      terms?: Array<{ language?: string | null; termType?: string | null; content?: string | null }>;
     },
   >(tour: T, keepGuides = true): T {
     const guides = Array.isArray(tour.guides) ? tour.guides : [];
+    const terms = Array.isArray(tour.terms) ? tour.terms : [];
     const guideName =
       this.optionalText(guides.find((guide) => guide.guideType === 'LANDTOUR')?.name) || this.optionalText(guides[0]?.name) || this.optionalText(tour.landTour?.guideName);
+    const termsVi = this.termContent(terms, 'VI') || this.optionalText(tour.landTour?.termsVi);
+    const termsEn = this.termContent(terms, 'EN') || this.optionalText(tour.landTour?.termsEn);
     return {
       ...tour,
       guides: keepGuides ? guides : undefined,
-      landTour: tour.landTour ? { ...tour.landTour, guideName } : tour.landTour,
+      landTour: tour.landTour ? { ...tour.landTour, guideName, termsVi, termsEn } : tour.landTour,
     } as T;
+  }
+
+  private termContent(terms: Array<{ language?: string | null; termType?: string | null; content?: string | null }>, language: string) {
+    return this.optionalText(terms.find((term) => term.language === language && term.termType === 'LANDTOUR')?.content) || this.optionalText(terms.find((term) => term.language === language)?.content);
   }
 
   private mapTourGuides(dto: UpdateLandTourDto): Prisma.TourGuideCreateManyInput[] {

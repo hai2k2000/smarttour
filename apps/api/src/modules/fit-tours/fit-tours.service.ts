@@ -3,7 +3,7 @@ import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, Tou
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService } from '../tours/tour-core.service';
+import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
@@ -205,7 +205,7 @@ export class FitToursService {
 
   private async createFitTourAggregate(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
     const fitDto = await this.prepareCreateFitDto(tx, dto, user);
-    const tour = await this.createTourRootFromFit(tx, fitDto);
+    const tour = await this.createTourRootFromFit(tx, fitDto, user);
     await this.syncTourCoreFromFit(tx, tour.id, fitDto);
     const fitTour = await this.createLegacyFitDetail(tx, tour.id, fitDto);
     await this.logFitTourAction(tx, tour.id, 'CREATE_FIT_TOUR', user, { fitTourId: fitTour.id });
@@ -220,7 +220,7 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user);
-    const tourId = await this.syncTourRootFromFit(tx, current, merged);
+    const tourId = await this.syncTourRootFromFit(tx, current, merged, user);
     await this.syncTourCoreFromFit(tx, tourId, merged);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
     await this.legacyCompat.syncChildren(tx, id, patch);
@@ -265,7 +265,6 @@ export class FitToursService {
 
   private async prepareCreateFitDto(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
     const fitDto = await this.withCustomerSnapshot(tx, dto);
-    await this.tourCore.ensureOrder(tx, fitDto.orderId, user);
     this.validateProvidedFields(fitDto, true);
     this.validateFitTourBusinessRules(fitDto, true);
     this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
@@ -279,7 +278,6 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const patch = await this.withCustomerSnapshot(tx, dto);
-    await this.tourCore.ensureOrder(tx, patch.orderId, user);
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
     this.validateProvidedFields(patch, false);
     this.validateFitTourBusinessRules(merged, false);
@@ -287,8 +285,8 @@ export class FitToursService {
     return { patch, merged };
   }
 
-  private createTourRootFromFit(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {
-    return tx.tour.create({ data: this.toTourCoreData(dto, true) as Prisma.TourUncheckedCreateInput });
+  private createTourRootFromFit(tx: Prisma.TransactionClient, dto: UpdateFitTourDto, user?: RequestUser) {
+    return this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
   }
 
   private createLegacyFitDetail(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
@@ -336,9 +334,9 @@ export class FitToursService {
   }
 
   private validateProvidedFields(dto: UpdateFitTourDto, creating: boolean) {
-    this.validateTextLength(dto.quoteCode, 'quoteCode', 'Mã báo giá', 2, creating);
-    this.validateTextLength(dto.tourCode, 'tourCode', 'Mã tour', 2, creating);
-    this.validateTextLength(dto.customerName, 'customerName', 'Họ tên khách', 2, creating);
+    this.validateTextLength(dto.quoteCode, 'Mã báo giá', 2, creating);
+    this.validateTextLength(dto.tourCode, 'Mã tour', 2, creating);
+    this.validateTextLength(dto.customerName, 'Họ tên khách', 2, creating);
   }
 
   private validateFitTourBusinessRules(dto: UpdateFitTourDto, creating: boolean) {
@@ -395,20 +393,20 @@ export class FitToursService {
     }
     if (next === FitTourWorkflowStatus.CANCELLED) return;
     if (next === FitTourWorkflowStatus.COMPLETED && current !== FitTourWorkflowStatus.SURVEY && current !== FitTourWorkflowStatus.COMPLETED) {
-      throw new BadRequestException('Ch c hon tt tour FIT sau bc Phiu nh gi dch v');
+      throw new BadRequestException('Chỉ có thể hoàn tất tour FIT sau bước Phiếu đánh giá dịch vụ');
     }
 
     const currentIndex = workflowOrder.indexOf(current as (typeof workflowOrder)[number]);
     const nextIndex = workflowOrder.indexOf(next as (typeof workflowOrder)[number]);
     if (currentIndex >= 0 && nextIndex >= 0 && nextIndex > currentIndex + 1) {
-      throw new BadRequestException('Khng c chuyn workflow FIT vt qu bc k tip');
+      throw new BadRequestException('Không được chuyển workflow FIT vượt quá bước kế tiếp');
     }
   }
 
-  private validateTextLength(dtoValue: unknown, field: string, label: string, minLength: number, required: boolean) {
+  private validateTextLength(dtoValue: unknown, label: string, minLength: number, required: boolean) {
     if (dtoValue === undefined && !required) return;
-    const text = this.requiredText(dtoValue, field);
-    if (text.length < minLength) throw new BadRequestException(`${label} cn t nht ${minLength} k t`);
+    const text = this.requiredText(dtoValue, label);
+    if (text.length < minLength) throw new BadRequestException(`${label} cần ít nhất ${minLength} ký tự`);
   }
 
   private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
@@ -580,23 +578,17 @@ export class FitToursService {
     };
   }
 
-  private async ensureOrder(tx: Prisma.TransactionClient, orderId?: string) {
-    const id = this.optionalText(orderId);
-    if (!id) return;
-    const order = await tx.order.findUnique({ where: { id }, select: { id: true } });
-    if (!order) throw new NotFoundException('Khng tm thy n hng');
-  }
-
   private async syncTourRootFromFit(
     tx: Prisma.TransactionClient,
     current: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>,
     dto: UpdateFitTourDto,
+    user?: RequestUser,
   ) {
     if (!current.tourId) {
-      const tour = await tx.tour.create({ data: this.toTourCoreData(dto, true) as Prisma.TourUncheckedCreateInput });
+      const tour = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
       return tour.id;
     }
-    await tx.tour.update({ where: { id: current.tourId }, data: this.toTourCoreData(dto, false) as Prisma.TourUncheckedUpdateInput });
+    await this.tourCore.updateRoot(tx, current.tourId, dto as unknown as Row, this.tourConfig(), user);
     return current.tourId;
   }
 
@@ -623,8 +615,8 @@ export class FitToursService {
     await this.tourCore.replaceServicesAndSuppliers(tx, tourId, this.mapTourServices(dto), 'FIT_SERVICE');
   }
 
-  private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return this.tourCore.toTourData(dto as unknown as Record<string, unknown>, creating, {
+  private tourConfig(): TourRootConfig {
+    return {
       type: TourType.FIT,
       systemCodeField: 'quoteCode',
       tourCodeField: 'tourCode',
@@ -635,7 +627,7 @@ export class FitToursService {
       statusFromWorkflow: (workflowStep) => this.toTourStatus(workflowStep),
       allowStatusInput: false,
       allowWorkflowStepInput: false,
-    });
+    };
   }
 
   private mapTourCustomer(dto: UpdateFitTourDto): Prisma.TourCustomerCreateManyInput {
@@ -816,14 +808,14 @@ export class FitToursService {
 
   private nonNegativeNumber(value: unknown, field: string) {
     const number = Number(value ?? 0);
-    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phi l s hp l`);
-    if (number < 0) throw new BadRequestException(`${field} khng c m`);
+    if (!Number.isFinite(number)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    if (number < 0) throw new BadRequestException(`${field} không được âm`);
     return number;
   }
 
   private nonNegativeInteger(value: unknown, field: string) {
     const number = this.nonNegativeNumber(value, field);
-    if (!Number.isInteger(number)) throw new BadRequestException(`${field} phi l s nguyn`);
+    if (!Number.isInteger(number)) throw new BadRequestException(`${field} phải là số nguyên`);
     return number;
   }
 
@@ -844,14 +836,14 @@ export class FitToursService {
     const value = this.text(status);
     if (!value) return undefined;
     if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value as FitTourWorkflowStatus;
-    throw new BadRequestException('Trng thi workflow FIT khng hp l');
+    throw new BadRequestException('Trạng thái workflow FIT không hợp lệ');
   }
 
   private toAttachmentStep(step: unknown) {
     const value = this.text(step);
     if (!value) return null;
     if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value;
-    throw new BadRequestException('Bc workflow ca file nh km khng hp l');
+    throw new BadRequestException('Bước workflow của file đính kèm không hợp lệ');
   }
 
   private toServiceStatus(status: unknown) {

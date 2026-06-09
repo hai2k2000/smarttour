@@ -2308,7 +2308,9 @@ model LandTourDetail {
   autoTermsEnabled Boolean  @default(false)
   smartLinkCode    String?
   confirmationNote String?
+  /// Legacy snapshot only. Canonical value is TourTerm where language is VI and termType is LANDTOUR; application services must not write this after the common-root migration.
   termsVi          String?
+  /// Legacy snapshot only. Canonical value is TourTerm where language is EN and termType is LANDTOUR; application services must not write this after the common-root migration.
   termsEn          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

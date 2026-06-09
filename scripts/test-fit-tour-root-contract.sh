@@ -75,6 +75,8 @@ function assertLegacyCompatBoundary() {
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
   const defaultsSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-defaults.ts', 'utf8');
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
+  assert(!serviceSource.includes('tx.tour.create') && !serviceSource.includes('tx.tour.update'), 'FitToursService should delegate Tour root create/update to TourCoreService');
+  assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
   assert(!serviceSource.includes('const defaultHandoverItems') && !legacyCompatSource.includes('const defaultHandoverItems'), 'FIT services should not duplicate default handover constants');
@@ -86,7 +88,11 @@ function assertLegacyCompatBoundary() {
   assert(!defaultsSource.includes('V my bay'), 'FIT default handover items should keep Vietnamese accents');
   assert(defaultsSource.includes('Vé máy bay'), 'FIT default handover items should include Vietnamese text');
   assert(defaultsSource.includes('Chất lượng chương trình tour'), 'FIT default survey questions should include Vietnamese text');
-  for (const mojibake of ['M bo gi', 'H tn khch', 'S khch phi ln hn 0', 'Ngy v phi sau', 'Tour FIT mi', 'Khng th i', 'C?n nh?p', 'ch?a li?n']) {
+  for (const mojibake of ['Dch v', 'Khch sn', 'Dich vu', 'Bc workflow ca file']) {
+    assert(!legacyCompatSource.includes(mojibake), `FIT legacy compatibility should not contain mojibake/fallback text ${mojibake}`);
+  }
+  assert(legacyCompatSource.includes('Dịch vụ') && legacyCompatSource.includes('Khách sạn'), 'FIT legacy compatibility should keep Vietnamese fallback service labels');
+  for (const mojibake of ['M bo gi', 'H tn khch', 'S khch phi ln hn 0', 'Ngy v phi sau', 'Tour FIT mi', 'Khng th i', 'C?n nh?p', 'ch?a li?n', 'Ch c hon', 'Khng c chuyn', 'cn t nht', 'phi l s', 'khng c m', 'Trng thi workflow FIT', 'Bc workflow ca file']) {
     assert(!serviceSource.includes(mojibake), `FIT service should not contain mojibake validation message ${mojibake}`);
   }
   assert(serviceSource.includes('M\u00e3 b\u00e1o gi\u00e1') && serviceSource.includes('C\u1ea7n nh\u1eadp t\u00ean kh\u00e1ch h\u00e0ng'), 'FIT service validation messages should keep Vietnamese text');

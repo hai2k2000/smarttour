@@ -136,7 +136,7 @@ export class FitTourLegacyCompatService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dch v'),
+        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dịch vụ'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         quantity,
@@ -160,7 +160,7 @@ export class FitTourLegacyCompatService {
       const vat = this.number(row.vat);
       return {
         orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || 'Khch sn'),
+        serviceType: this.text(row.serviceType || 'Khách sạn'),
         description: this.optionalText(row.description),
         unit: this.optionalText(row.unit),
         paxPerRoom,
@@ -185,7 +185,7 @@ export class FitTourLegacyCompatService {
       const unitPrice = this.number(row.unitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dch v'),
+        serviceType: this.text(row.serviceType || 'Dịch vụ'),
         supplierId: this.optionalText(row.supplierId),
         description: this.optionalText(row.description),
         quantity,
@@ -203,7 +203,7 @@ export class FitTourLegacyCompatService {
       const confirmedUnitPrice = this.number(row.confirmedUnitPrice);
       const vat = this.number(row.vat);
       return {
-        serviceType: this.text(row.serviceType || 'Dch v'),
+        serviceType: this.text(row.serviceType || 'Dịch vụ'),
         supplierId: this.optionalText(row.supplierId),
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         bookingCode: this.optionalText(row.bookingCode),
@@ -258,7 +258,7 @@ export class FitTourLegacyCompatService {
 
   toCopiedBudgetRows(rows: unknown[]) {
     return this.rows(rows).map((row) => ({
-      serviceType: this.text(row.serviceType || 'Dich vu'),
+      serviceType: this.text(row.serviceType || 'Dịch vụ'),
       supplierId: this.optionalText(row.supplierId),
       description: this.optionalText(row.description),
       quantity: this.number(row.quantity),
@@ -271,7 +271,7 @@ export class FitTourLegacyCompatService {
 
   toCopiedOperationRows(rows: unknown[]) {
     return this.rows(rows).map((row) => ({
-      serviceType: this.text(row.serviceType || 'Dich vu'),
+      serviceType: this.text(row.serviceType || 'Dịch vụ'),
       supplierId: this.optionalText(row.supplierId),
       supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
       bookingCode: this.optionalText(row.bookingCode),
@@ -333,7 +333,7 @@ export class FitTourLegacyCompatService {
     const value = this.text(step);
     if (!value) return null;
     if (Object.values(FitTourWorkflowStatus).includes(value as FitTourWorkflowStatus)) return value;
-    throw new BadRequestException('Bc workflow ca file nh km khng hp l');
+    throw new BadRequestException('Bước workflow của file đính kèm không hợp lệ');
   }
 
   private toServiceStatus(status: unknown) {
