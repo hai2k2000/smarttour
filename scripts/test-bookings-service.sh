@@ -29,20 +29,29 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+const { BOOKING_NOT_FOUND_MESSAGES } = require('./apps/api/dist/modules/bookings/booking-errors');
 const { BOOKING_UPDATE_FIELDS } = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
-async function rejects(action, label) {
+async function rejects(action, label, expectedMessage) {
   let rejected = false;
+  let actualMessage = '';
   try {
     await action();
-  } catch {
+  } catch (error) {
     rejected = true;
+    actualMessage = error?.message || '';
   }
   assert(rejected, label);
+  if (expectedMessage) {
+    assert(
+      actualMessage === expectedMessage,
+      `${label}: expected "${expectedMessage}", got "${actualMessage}"`,
+    );
+  }
 }
 
 function amount(value) {
@@ -179,8 +188,14 @@ async function main() {
   const tourProgram = await createTourProgram(prisma, run, 'MAIN', 3);
 
   await rejects(
+    () => service.detail('missing-booking-id'),
+    'detail should reject missing booking',
+    BOOKING_NOT_FOUND_MESSAGES.booking,
+  );
+  await rejects(
     () => service.create(bookingDto(run, 'BAD-TP', { id: 'missing-tour-program-id' }, links)),
     'create should reject missing tourProgramId',
+    BOOKING_NOT_FOUND_MESSAGES.tourProgram,
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-DATE-RANGE', tourProgram, links, { startDate: '2026-10-03', endDate: '2026-10-01' })),
@@ -297,10 +312,26 @@ async function main() {
   );
   await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
   await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
-  await rejects(() => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }), 'update should reject missing tourProgramId');
-  await rejects(() => service.update(created.id, { customerId: 'missing-customer-id' }), 'update should reject missing customerId');
-  await rejects(() => service.update(created.id, { orderId: 'missing-order-id' }), 'update should reject missing orderId');
-  await rejects(() => service.update(created.id, { tourId: 'missing-tour-id' }), 'update should reject missing tourId');
+  await rejects(
+    () => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }),
+    'update should reject missing tourProgramId',
+    BOOKING_NOT_FOUND_MESSAGES.tourProgram,
+  );
+  await rejects(
+    () => service.update(created.id, { customerId: 'missing-customer-id' }),
+    'update should reject missing customerId',
+    BOOKING_NOT_FOUND_MESSAGES.customer,
+  );
+  await rejects(
+    () => service.update(created.id, { orderId: 'missing-order-id' }),
+    'update should reject missing orderId',
+    BOOKING_NOT_FOUND_MESSAGES.order,
+  );
+  await rejects(
+    () => service.update(created.id, { tourId: 'missing-tour-id' }),
+    'update should reject missing tourId',
+    BOOKING_NOT_FOUND_MESSAGES.tour,
+  );
   await rejects(() => service.update(created.id, { startDate: '2026-10-06' }), 'update should reject startDate after current endDate');
   await rejects(() => service.update(created.id, { endDate: '2026-10-01' }), 'update should reject endDate before current startDate');
   await rejects(() => service.update(created.id, { status: 'CANCELLED' }), 'general update should reject status changes');

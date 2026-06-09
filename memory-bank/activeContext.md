@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Standardized Booking not-found messages for linked entities:
+  - Added `BOOKING_NOT_FOUND_MESSAGES` as the single source for Booking
+    service not-found responses.
+  - Booking `detail()`/mutation loading now uses the shared booking message.
+  - Booking create/update linked-reference checks now return stable entity
+    messages for tour program, customer, order, and tour instead of mixed
+    "linked" variants.
+  - Expanded `scripts/test-bookings-service.sh` to assert exact not-found
+    messages for missing booking and missing booking references.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`, API
+    redeploy, and `HEALTHCHECK_OK`.
+
 - Confirmed Booking delete guardrails:
   - Deleting a booking must remain blocked once the booking has generated
     `operationForm`, `operationVouchers`, or `allotmentLocks`

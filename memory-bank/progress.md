@@ -2,6 +2,17 @@
 
 ## Done
 
+- Standardized Booking not-found messages:
+  - Added a shared `BOOKING_NOT_FOUND_MESSAGES` map for Booking and its
+    linked entity checks.
+  - Booking detail/load mutations now use the same missing-booking message.
+  - Booking reference validation now returns consistent entity messages for
+    missing tour program, customer, order, and tour.
+  - Booking service tests assert the exact messages so FE-facing contracts do
+    not drift.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`, API redeploy, and
+    `HEALTHCHECK_OK`.
+
 - Confirmed Booking delete guardrails:
   - Booking delete remains blocked when `operationForm`,
     `operationVouchers`, or `allotmentLocks` exist.

@@ -15,6 +15,7 @@ import {
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { BOOKING_NOT_FOUND_MESSAGES } from './booking-errors';
 import { bookingScopeWhere } from './booking-scope';
 
 const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatus>> = {
@@ -165,7 +166,7 @@ export class BookingsService {
       where: this.scopeWhere({ id }, user),
       select: this.detailSelect(),
     });
-    if (!booking) throw new NotFoundException('Không tìm thấy booking');
+    if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
     return booking;
   }
 
@@ -250,7 +251,7 @@ export class BookingsService {
       where: this.scopeWhere({ id }, user),
       select: this.mutationSelect(),
     });
-    if (!booking) throw new NotFoundException('Không tìm thấy booking');
+    if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
     return booking;
   }
 
@@ -348,10 +349,10 @@ export class BookingsService {
 
   private referenceConfig(key: BookingReferenceKey): BookingReferenceConfig {
     const configs: Record<BookingReferenceKey, BookingReferenceConfig> = {
-      tourProgramId: { model: 'tourProgram', label: 'Tour mẫu', notFoundMessage: 'Không tìm thấy tour mẫu' },
-      customerId: { model: 'customer', label: 'Khách hàng liên kết', notFoundMessage: 'Không tìm thấy khách hàng liên kết' },
-      orderId: { model: 'order', label: 'Đơn hàng liên kết', notFoundMessage: 'Không tìm thấy đơn hàng liên kết' },
-      tourId: { model: 'tour', label: 'Tour vận hành liên kết', notFoundMessage: 'Không tìm thấy tour vận hành liên kết' },
+      tourProgramId: { model: 'tourProgram', label: 'Tour mẫu', notFoundMessage: BOOKING_NOT_FOUND_MESSAGES.tourProgram },
+      customerId: { model: 'customer', label: 'Khách hàng liên kết', notFoundMessage: BOOKING_NOT_FOUND_MESSAGES.customer },
+      orderId: { model: 'order', label: 'Đơn hàng liên kết', notFoundMessage: BOOKING_NOT_FOUND_MESSAGES.order },
+      tourId: { model: 'tour', label: 'Tour vận hành liên kết', notFoundMessage: BOOKING_NOT_FOUND_MESSAGES.tour },
     };
     return configs[key];
   }
