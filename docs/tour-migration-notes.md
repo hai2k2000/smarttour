@@ -12,6 +12,23 @@
 - `GitTourDetail` and `LandTourDetail` keep product-specific fields only. Shared fields should live on `Tour`.
 - Legacy child tables should be treated as compatibility/read-only data after shared `Tour` child tables are verified in production.
 
+
+## Field Ownership Matrix
+
+| Area | Canonical owner | Product extension owner | Legacy/read-only notes |
+| --- | --- | --- | --- |
+| Common identity/scope | `tours.systemCode`, `tourCode`, `name`, `branch`, `department`, `customerSource`, dates, owners, route, notes | none | Product detail tables must not write these after common-root migration. |
+| GIT detail | `tours` for shared identity/scope/route | `git_tour_details.holdCode`, `itinerarySummary`, `collaborator`, `commissionRate`, `invoiceStatus`, `accountCode`, `fileNote` | `git_tour_details.branch`, `department`, `customerSource` are legacy snapshots only and should stay read-only until column removal is scheduled. |
+| LandTour detail | `tours` for shared identity/scope/route | `land_tour_details.guideName`, `comboType`, `autoTermsEnabled`, `smartLinkCode`, `confirmationNote`, `termsVi`, `termsEn` | `itinerarySummary` remains a DTO alias for root `route`, not detail storage. |
+| FIT root/detail | `tours` for shared identity/scope/dates/customer/service/cost/revenue/guide/attachment/survey data | `fit_tours` keeps FIT workflow and FIT-only operational fields during compatibility phase | Legacy `fit_*` child tables are writable only through `FitTourLegacyCompatService` and should become read-only after production drift checks pass. |
+
+## Application Guardrails
+
+- DTO field groups must classify shared fields as root/link/common child data, not product detail data.
+- Product detail mappers must not write common root fields such as `branch`, `department`, `customerSource`, `operatorOwner`, dates, route, notes, or payment status.
+- Product copy actions may orchestrate product-specific behavior, but shared service rows should be refreshed through `TourCoreService` helpers.
+- Compatibility writes are allowed only where a named compatibility service owns the legacy surface.
+
 ## Shared Data Migration
 
 - Shared collections must be written through `TourCoreService.replace*` methods.

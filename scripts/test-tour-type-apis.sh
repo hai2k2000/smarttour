@@ -82,6 +82,10 @@ function assertTourTypeDtoContracts() {
   assert(!gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'GIT lifecycle fields should not include workflowStep');
   assert(gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15'), 'GIT date pattern should accept YYYY-MM-DD');
   assert(!gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'GIT date pattern should reject ISO datetime payloads');
+  for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
+    assert(gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS.includes(field), `GIT ${field} should be owned by common Tour root`);
+    assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes(field), `GIT ${field} should not be classified as detail data`);
+  }
 
   assertGroupedDtoContract(
     'LandTour',
@@ -106,6 +110,10 @@ function assertTourTypeDtoContracts() {
   assert(!landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'LandTour lifecycle fields should not include workflowStep');
   assert(landCreateDtoContract.LANDTOUR_DATE_PATTERN.test('2026-06-15'), 'LandTour date pattern should accept YYYY-MM-DD');
   assert(!landCreateDtoContract.LANDTOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'LandTour date pattern should reject ISO datetime payloads');
+  for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
+    assert(landCreateDtoContract.LANDTOUR_ROOT_FIELDS.includes(field), `LandTour ${field} should be owned by common Tour root`);
+    assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes(field), `LandTour ${field} should not be classified as detail data`);
+  }
 }
 
 function assertCommonToursServiceUsesTourCore() {
@@ -156,8 +164,23 @@ function assertTourRootOrchestrationBoundaries() {
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
     assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
     assert(!/source\.services\.map\(\(service\)/.test(source), `${label} should not inline common TourService copy mapping`);
+    const detailMapperName = label === 'GIT' ? 'private toGitDetailData' : 'private toLandDetailData';
+    const detailMapperStart = source.indexOf(detailMapperName);
+    assert(detailMapperStart >= 0, `${label} should keep a detail mapper boundary`);
+    const detailMapper = source.slice(detailMapperStart);
+    for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
+      const pattern = new RegExp('dto\\.' + field + '\\b');
+      assert(!pattern.test(detailMapper), `${label} detail mapper should not write common root field ${field}`);
+    }
     assert(!source.includes('Kh?ng t?m th?y') && !source.includes('M? h? th?ng'), `${label} should not contain mojibake Vietnamese messages`);
   }
+  const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
+  for (const field of ['branch', 'department', 'customerSource']) {
+    assert(schemaSource.includes(`Canonical value is Tour.${field}`), `GitTourDetail legacy ${field} schema note should point to Tour.${field}`);
+  }
+  const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
+  assert(migrationNotes.includes('Field Ownership Matrix'), 'Tour migration notes should document the field ownership matrix');
+  assert(migrationNotes.includes('git_tour_details.branch'), 'Tour migration notes should mark legacy GIT scope snapshots read-only');
 }
 
 async function jsonResponse(response) {

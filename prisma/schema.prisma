@@ -2286,8 +2286,11 @@ model GitTourDetail {
   commissionRate   Decimal  @default(0)
   invoiceStatus    String?
   accountCode      String?
+  /// Legacy snapshot only. Canonical value is Tour.branch; application services must not write this after the common-root migration.
   branch           String?
+  /// Legacy snapshot only. Canonical value is Tour.department; application services must not write this after the common-root migration.
   department       String?
+  /// Legacy snapshot only. Canonical value is Tour.customerSource; application services must not write this after the common-root migration.
   customerSource   String?
   fileNote         String?
   createdAt        DateTime @default(now())

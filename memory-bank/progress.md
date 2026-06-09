@@ -770,7 +770,7 @@
 - Fixed mojibake Vietnamese messages in `TourCoreService`, `GitToursService`, and FIT required-field validation.
 - Restored Vietnamese accents for FIT default handover items and survey questions in both FIT service and legacy compatibility service.
 - Added regression guards for mojibake Tour/FIT messages and FIT default handover/survey text.
-- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 - Continued P2 service cleanup for FIT defaults.
 - Added shared `fit-tour-defaults.ts` for FIT default handover items and survey questions.
@@ -783,6 +783,12 @@
 - Updated `mapTourServices()` to return common `TourService` create rows directly, and fixed remaining FIT validation/workflow messages with proper Vietnamese accents.
 - Extended FIT root contract regression to reject full common-child sync in copy actions, preserve copied budget rows after copy-operation, and catch mojibake validation messages.
 - Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
+- Continued P2 field ownership and legacy-read-only cleanup.
+- Documented the common Tour root vs product extension ownership matrix in `docs/tour-migration-notes.md`.
+- Marked legacy `GitTourDetail.branch`, `department`, and `customerSource` schema fields as read-only snapshots whose canonical values live on `Tour`.
+- Extended tour-type regression guards so GIT/LandTour DTO detail groups and detail mappers cannot reintroduce common root fields.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 ## Not Done
 

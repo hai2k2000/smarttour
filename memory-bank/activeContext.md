@@ -20,6 +20,17 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 field ownership and legacy-read-only cleanup:
+  - Documented the common Tour root vs product extension ownership matrix in
+    `docs/tour-migration-notes.md`.
+  - Marked legacy `GitTourDetail.branch`, `department`, and `customerSource`
+    schema fields as read-only snapshots whose canonical values live on `Tour`.
+  - Extended tour-type regression guards so GIT/LandTour DTO detail groups and
+    detail mappers cannot reintroduce common root fields.
+  - VPS verification passed on 2026-06-09: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT copy orchestration cleanup:
   - Changed FIT copy-budget/copy-operation to use a focused
     `replaceFitTourServices()` helper, which updates common `tour_services`
