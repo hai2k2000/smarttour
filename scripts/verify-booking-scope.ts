@@ -71,12 +71,9 @@ assert.deepEqual(scopedOr(bookingScopeWhere(baseWhere, mockUser({ permissions: [
 assert.deepEqual(
   scopedOr(bookingScopeWhere(baseWhere, mockUser({ permissions: ['data.scope.branch', 'data.scope.department'], branch: 'HN', department: 'OPS' }))),
   [
-    { customer: { branch: 'HN' } },
-    { order: { branch: 'HN' } },
-    { tour: { branch: 'HN' } },
-    { customer: { department: 'OPS' } },
-    { order: { department: 'OPS' } },
-    { tour: { department: 'OPS' } },
+    { customer: { branch: 'HN', department: 'OPS' } },
+    { order: { branch: 'HN', department: 'OPS' } },
+    { tour: { branch: 'HN', department: 'OPS' } },
   ],
 );
 

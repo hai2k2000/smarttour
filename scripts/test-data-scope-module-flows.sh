@@ -93,6 +93,9 @@ async function main() {
   const customerB = await prisma.customer.create({
     data: { code: run + '-CB', fullName: 'Customer B', phone: '091' + String(Date.now()).slice(-7), branch: 'BR-B', department: 'DEP-B' },
   });
+  const customerBranchOnly = await prisma.customer.create({
+    data: { code: run + '-CBR', fullName: 'Customer Branch Only', phone: '092' + String(Date.now()).slice(-7), branch: 'BR-A', department: 'DEP-X' },
+  });
   const tourProgram = await prisma.tourProgram.create({
     data: { code: run + '-TP', name: 'Scoped Program', route: 'HAN-DAD', durationDays: 3 },
   });
@@ -134,6 +137,28 @@ async function main() {
   });
   const departmentOnlyOrder = await prisma.order.create({
     data: { type: 'FIT_TOUR', systemCode: run + '-ORD-MIX-DEPT', name: 'Order Mixed Department Only', branch: 'BR-X', department: 'DEP-A' },
+  });
+  const tourA = await prisma.tour.create({
+    data: {
+      type: 'FIT',
+      systemCode: run + '-TOUR-SYS-A',
+      tourCode: run + '-TOUR-A',
+      name: 'Tour A',
+      orderId: orderA.id,
+      branch: 'BR-A',
+      department: 'DEP-A',
+    },
+  });
+  const tourB = await prisma.tour.create({
+    data: {
+      type: 'FIT',
+      systemCode: run + '-TOUR-SYS-B',
+      tourCode: run + '-TOUR-B',
+      name: 'Tour B',
+      orderId: orderB.id,
+      branch: 'BR-B',
+      department: 'DEP-B',
+    },
   });
   const mixedRows = await orders.list('fit-tours', run + '-ORD-MIX', mixedUser);
   assert(mixedRows.map((row) => row.id).join(',') === mixedOrder.id, 'mixed branch+department user should only list orders matching both scope values');
@@ -180,6 +205,8 @@ async function main() {
     code: run + '-BK-A',
     tourProgramId: tourProgram.id,
     customerId: customerA.id,
+    orderId: orderA.id,
+    tourId: tourA.id,
     customerName: customerA.fullName,
     paxCount: 2,
     startDate: '2026-12-03',
@@ -189,15 +216,32 @@ async function main() {
     code: run + '-BK-B',
     tourProgramId: tourProgram.id,
     customerId: customerB.id,
+    orderId: orderB.id,
+    tourId: tourB.id,
     customerName: customerB.fullName,
     paxCount: 2,
     startDate: '2026-12-04',
     endDate: '2026-12-06',
   }, allUser);
   assert((await bookings.list(run, undefined, undefined, branchUser)).map((row) => row.id).join(',') === bookingA.id, 'branch user should only list scoped bookings');
+  const crossScopedBooking = await bookings.create({
+    code: run + '-BK-CROSS',
+    tourProgramId: tourProgram.id,
+    customerId: customerBranchOnly.id,
+    orderId: departmentOnlyOrder.id,
+    customerName: customerBranchOnly.fullName,
+    paxCount: 2,
+    startDate: '2026-12-07',
+    endDate: '2026-12-09',
+  }, allUser);
+  assert((await bookings.list(run, undefined, undefined, mixedUser)).map((row) => row.id).join(',') === bookingA.id, 'mixed user should only list bookings with one linked row matching both branch and department');
+  await rejects(() => bookings.detail(crossScopedBooking.id, mixedUser), 'mixed user should not read booking whose branch and department match across different linked rows');
   await rejects(() => bookings.create({ code: run + '-BK-NOLINK', tourProgramId: tourProgram.id, customerName: 'No Link', paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, branchUser), 'branch scoped booking write should require scoped link');
   await rejects(() => bookings.create({ code: run + '-BK-OTHER', tourProgramId: tourProgram.id, customerId: customerB.id, customerName: customerB.fullName, paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, branchUser), 'branch scoped booking write should reject other branch customer');
   await rejects(() => bookings.create({ code: run + '-BK-NOSCOPE', tourProgramId: tourProgram.id, customerId: customerA.id, customerName: customerA.fullName, paxCount: 1, startDate: '2026-12-01', endDate: '2026-12-02' }, noScopeUser), 'booking write should reject users without data scope');
+  await rejects(() => bookings.update(bookingA.id, { customerId: customerB.id }, branchUser), 'booking update should reject customer outside branch scope');
+  await rejects(() => bookings.update(bookingA.id, { orderId: orderB.id }, branchUser), 'booking update should reject order outside branch scope');
+  await rejects(() => bookings.update(bookingA.id, { tourId: tourB.id }, branchUser), 'booking update should reject tour outside branch scope');
 
   const voucherA = await operationVouchers.create({
     voucherCode: run + '-VCH-A',

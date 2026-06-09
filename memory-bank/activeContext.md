@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Hardened Booking date and linked-data scope coverage:
+  - Booking date tests now lock date-only `YYYY-MM-DD` parsing, invalid
+    calendar dates, empty/null values, partial updates, and one-day tours
+    without timezone drift.
+  - `bookingScopeWhere()` now requires one linked Customer, Order, or Tour to
+    match all required branch/department scopes on the same relation.
+  - This prevents mixed-scope access where branch matched one linked row and
+    department matched a different linked row.
+  - Booking integration tests now reject out-of-scope Customer/Order/Tour
+    updates and linked-reference changes after operation vouchers, allotment
+    locks, or operation forms exist.
+  - VPS verification passed on 2026-06-09: `BOOKING_SCOPE_OK`,
+    `TEST_BOOKINGS_SERVICE_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Tightened Booking text-field validation:
   - Added shared Booking text validation constants for customer name min
     length, owner min length, safe text characters, stricter phone digit

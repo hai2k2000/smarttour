@@ -530,6 +530,10 @@ async function main() {
   });
   const voucherLockedDetail = await service.detail(voucherLockedBooking.id);
   assert(voucherLockedDetail.operationVouchers.length === 1, 'detail should expose operation voucher dependencies');
+  await rejects(
+    () => service.update(voucherLockedBooking.id, { customerId: null }),
+    'update should reject linked customer changes after an operation voucher exists',
+  );
   await rejects(() => service.remove(voucherLockedBooking.id), 'delete should reject booking with operationVouchers');
 
   const allotmentLockedBooking = await service.create(bookingDto(run, 'DELETE-ALLOTMENT', tourProgram, links, {
@@ -549,6 +553,10 @@ async function main() {
   });
   const allotmentLockedDetail = await service.detail(allotmentLockedBooking.id);
   assert(allotmentLockedDetail.allotmentLocks.length === 1, 'detail should expose allotment lock dependencies');
+  await rejects(
+    () => service.update(allotmentLockedBooking.id, { tourId: null }),
+    'update should reject linked tour changes after an allotment lock exists',
+  );
   await rejects(() => service.remove(allotmentLockedBooking.id), 'delete should reject booking with allotmentLocks');
 
   const operationForm = await prisma.operationForm.create({
@@ -567,6 +575,7 @@ async function main() {
   await rejects(() => service.update(created.id, { paxCount: 5 }), 'update should reject paxCount change after operationForm exists');
   await rejects(() => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }), 'update should reject date change after operationForm exists');
   await rejects(() => service.update(created.id, { totalSellPrice: 9000000 }), 'update should reject totalSellPrice change after operationForm exists');
+  await rejects(() => service.update(created.id, { orderId: null }), 'update should reject linked order changes after operationForm exists');
   await rejects(() => service.remove(created.id), 'delete should reject booking with operationForm');
 
   const operating = await service.updateStatus(created.id, 'OPERATING');

@@ -2,6 +2,17 @@
 
 ## Done
 
+- Hardened Booking dates and linked-data scope:
+  - Date validation coverage includes strict `YYYY-MM-DD`, invalid dates,
+    empty/null values, partial updates, and equal dates for one-day tours.
+  - Booking branch+department reads now require a single linked Customer,
+    Order, or Tour to match both scope values.
+  - Cross-relation scope combinations no longer expose bookings.
+  - Tests reject out-of-scope Customer/Order/Tour updates and reference
+    changes after operational dependencies exist.
+  - Verified on VPS: `BOOKING_SCOPE_OK`, `TEST_BOOKINGS_SERVICE_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Tightened Booking text-field validation:
   - DTO and service validation now reject unsafe `customerName`, `saleOwner`,
     and `operatorOwner` values containing control characters or `< >`.

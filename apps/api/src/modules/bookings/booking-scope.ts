@@ -16,16 +16,21 @@ export function bookingScopeRelationConditions(user: RequestUser): Prisma.Bookin
   const requiresDepartment = permissions.has('data.scope.department');
   if ((requiresBranch && !user.branch) || (requiresDepartment && !user.department)) return [];
 
-  const conditions: Prisma.BookingWhereInput[] = [];
-  if (requiresBranch && user.branch) {
-    conditions.push({ OR: [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] });
-  }
-  if (requiresDepartment && user.department) {
-    conditions.push(
-      { OR: [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] },
-    );
-  }
-  return conditions;
+  const relationScope = {
+    ...(requiresBranch ? { branch: user.branch as string } : {}),
+    ...(requiresDepartment ? { department: user.department as string } : {}),
+  };
+  if (!Object.keys(relationScope).length) return [];
+
+  return [
+    {
+      OR: [
+        { customer: relationScope },
+        { order: relationScope },
+        { tour: relationScope },
+      ],
+    },
+  ];
 }
 
 export function noBookingDataScopeWhere(where: Prisma.BookingWhereInput): Prisma.BookingWhereInput {
