@@ -354,7 +354,7 @@ export class FitToursService {
   }
 
   private async prepareCreateFitDto(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
-    const fitDto = await this.withCustomerSnapshot(tx, dto);
+    const fitDto = await this.withCustomerSnapshot(tx, dto, user);
     this.validateProvidedFields(fitDto, true);
     this.validateFitTourBusinessRules(fitDto, true);
     this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
@@ -368,7 +368,7 @@ export class FitToursService {
     user?: RequestUser,
     options: FitUpdateOptions = {},
   ) {
-    const patch = this.dropAttachmentPatch(await this.withCustomerSnapshot(tx, dto));
+    const patch = this.dropAttachmentPatch(await this.withCustomerSnapshot(tx, dto, user));
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
     if (options.step) {
       this.validateStepPatch(options.step, patch, merged);
@@ -764,11 +764,14 @@ export class FitToursService {
     return FitServiceStatus.WAITING;
   }
 
-  private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {
+  private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: UpdateFitTourDto, user?: RequestUser) {
     const customerId = this.optionalText(dto.customerId);
     if (!customerId) return dto;
-    const customer = await tx.customer.findUnique({ where: { id: customerId }, select: { fullName: true, phone: true, email: true } });
-    if (!customer) throw new NotFoundException('Không tìm thấy khách hàng');
+    const customer = await tx.customer.findFirst({
+      where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id: customerId, mergedIntoId: null }, user),
+      select: { fullName: true, phone: true, email: true },
+    });
+    if (!customer) throw new NotFoundException('Không tìm thấy khách hàng trong phạm vi dữ liệu');
     return {
       ...dto,
       customerId,

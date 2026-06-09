@@ -463,6 +463,12 @@ async function main() {
     tourCode: run + '-FITA',
     customerName: 'FIT Customer A',
   }, branchUser);
+  const fitWithCustomerA = await fitTours.create({
+    quoteCode: run + '-FIT-CUST-A',
+    tourCode: run + '-FIT-CUST-A',
+    customerId: customerA.id,
+    customerName: 'Submitted customer should be replaced',
+  }, branchUser);
   const fitB = await fitTours.create({
     quoteCode: run + '-FIT-B',
     tourCode: run + '-FITB',
@@ -471,8 +477,11 @@ async function main() {
     department: 'DEP-B',
   }, allUser);
   assert(fitA.tour.branch === 'BR-A', 'FIT create should inject branch into linked tour');
+  assert(fitWithCustomerA.customerId === customerA.id && fitWithCustomerA.tour.customers[0]?.crmCustomerId === customerA.id, 'FIT create should link scoped customer into common TourCustomer');
+  await rejects(() => fitTours.create({ quoteCode: run + '-FIT-OTHER-CUST', tourCode: run + '-FIT-OTHER-CUST', customerId: customerB.id, customerName: customerB.fullName }, branchUser), 'FIT create should reject customer outside branch scope');
+  await rejects(() => fitTours.update(fitA.id, { customerId: customerB.id }, branchUser), 'FIT update should reject customer outside branch scope');
   const fitRows = await fitTours.list(run, undefined, branchUser);
-  assert(fitRows.length === 1 && fitRows[0].id === fitA.id, 'FIT list should be branch scoped through tour');
+  assert(fitRows.length === 2 && fitRows.some((row) => row.id === fitA.id) && fitRows.some((row) => row.id === fitWithCustomerA.id), 'FIT list should be branch scoped through tour');
   await rejects(() => fitTours.detail(fitB.id, branchUser), 'FIT detail should reject other branch');
 
   await prisma.$disconnect();

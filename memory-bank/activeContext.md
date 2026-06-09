@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 FIT linked-customer data-scope cleanup:
+  - `FitToursService.withCustomerSnapshot()` now resolves `customerId` through
+    `branchDepartmentScopeWhere()` instead of `findUnique()`, so scoped users
+    cannot create or update a FIT tour with a customer outside their data scope.
+  - The customer link still feeds the common `TourCustomer.crmCustomerId` while
+    preserving the current editable FIT customer-name snapshot behavior.
+  - Data-scope regression now covers scoped FIT create/update customer links.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy,
+    and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT changed-field child sync and attachment ownership cleanup:
   - FIT update now syncs common Tour children by changed field groups instead
     of recreating every common child collection on every update.

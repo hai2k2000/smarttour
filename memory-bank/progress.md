@@ -2,6 +2,18 @@
 
 ## Done
 
+- Continued P2 FIT linked-customer data-scope cleanup:
+  - FIT `customerId` links are now checked with branch/department data scope
+    before snapshot/connect, matching the scoped-link behavior already used by
+    bookings and other sensitive modules.
+  - Branch-scoped users can link in-scope customers and are rejected when
+    creating/updating FIT tours with an out-of-scope customer id.
+  - Regression in `scripts/test-data-scope-module-flows.sh` locks the scoped
+    create/update customer-link behavior and common `TourCustomer` link.
+  - Verified on VPS: API Docker build, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT changed-field child sync and attachment ownership cleanup:
   - `FitToursService.syncTourCoreFromFit()` now passes only changed common child
     groups to `TourCoreService.replaceCommonChildren()` during updates, while
