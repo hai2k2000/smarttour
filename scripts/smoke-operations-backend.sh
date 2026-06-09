@@ -231,6 +231,11 @@ async function createBookingSet(token, suffix, branch, department) {
     route: 'HN',
     durationDays: 1,
   });
+  await request(token, 'POST', '/tour-programs/' + program.id + '/itinerary-days', {
+    dayNumber: 1,
+    title: 'Operations Smoke Day ' + suffix,
+    description: run + ' itinerary day ' + suffix,
+  });
   const booking = await request(token, 'POST', '/bookings', {
     code: run + '-BKG-' + suffix,
     tourProgramId: program.id,

@@ -57,7 +57,7 @@ export class TourProgramsService {
       where: { id },
       include: {
         itineraryDays: { orderBy: { dayNumber: 'asc' } },
-        bookings: { orderBy: { startDate: 'desc' } },
+        bookings: { orderBy: { startDate: 'desc' }, select: { id: true, code: true, customerName: true } },
       },
     });
     if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');

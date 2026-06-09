@@ -191,7 +191,7 @@ export class SuppliersService {
 
     return this.prisma.supplier.findMany({
       where,
-      include: this.genericInclude(),
+      include: this.genericListInclude(),
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { name: 'asc' }],
     });
   }
@@ -286,7 +286,7 @@ export class SuppliersService {
 
     return this.prisma.supplier.findMany({
       where,
-      include: this.hotelInclude(),
+      include: this.hotelListInclude(),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
   }
@@ -774,6 +774,15 @@ export class SuppliersService {
     } satisfies Prisma.SupplierInclude;
   }
 
+  private hotelListInclude() {
+    return {
+      hotelProfile: true,
+      contacts: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { orderBy: { createdAt: 'asc' } },
+      allotments: { orderBy: { createdAt: 'asc' } },
+    } satisfies Prisma.SupplierInclude;
+  }
+
   private toAllotmentInventory(
     item: Prisma.SupplierAllotmentGetPayload<{ include: { supplier: true; logs: true; allocations: true } }>,
     today: Date,
@@ -805,6 +814,13 @@ export class SuppliersService {
       contacts: { orderBy: { createdAt: 'asc' } },
       supplierServices: { orderBy: { createdAt: 'asc' } },
       files: { orderBy: { createdAt: 'desc' } },
+    } satisfies Prisma.SupplierInclude;
+  }
+
+  private genericListInclude() {
+    return {
+      contacts: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { orderBy: { createdAt: 'asc' } },
     } satisfies Prisma.SupplierInclude;
   }
 

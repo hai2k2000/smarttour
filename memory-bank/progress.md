@@ -2,6 +2,24 @@
 
 ## Done
 
+- Trimmed heavy include/select payloads in list/detail APIs:
+  - Operations form and supplier-payment-request list calls now use explicit
+    list `select` helpers; detail/mutation responses keep needed nested data
+    through narrowed relation selects.
+  - Supplier typed/hotel list calls now use list include helpers that omit
+    detail-only files/category/allotment log/allocation payloads while
+    preserving UI edit/list requirements.
+  - Tour Program detail now returns lightweight booking previews instead of
+    full booking rows.
+  - Updated list include audit coverage for operations, suppliers,
+    tour-program detail, and current finance list contracts.
+  - Refreshed Operations backend smoke fixture to create itinerary day 1 before
+    booking creation.
+  - Verified on VPS: `LIST_VIEW_INCLUDE_AUDIT_OK`, API Docker build,
+    `TEST_LIST_VIEW_PERFORMANCE_OK`, API redeploy,
+    `SMOKE_OPERATIONS_BACKEND_OK`, `SMOKE_SUPPLIERS_OK`,
+    `TEST_TOUR_PROGRAMS_SERVICE_OK`, and `HEALTHCHECK_OK`.
+
 - Standardized free-text search behavior in list/list-like APIs:
   - Added shared list search normalization with trim, whitespace collapse,
     min length 2, max length 80, and consistent insensitive `contains`.

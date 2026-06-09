@@ -92,14 +92,14 @@ export class OperationsService {
             }
           : {}),
       }, user),
-      include: this.formInclude(),
+      select: this.formListSelect(),
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       take: this.take(query.take),
     });
   }
 
   async formDetail(id: string, user?: RequestUser) {
-    const row = await this.prisma.operationForm.findFirst({ where: this.formScopeWhere({ id }, user), include: this.formInclude() });
+    const row = await this.prisma.operationForm.findFirst({ where: this.formScopeWhere({ id }, user), include: this.formDetailInclude() });
     if (!row) throw new NotFoundException('Không tìm thấy phiếu điều hành');
     return row;
   }
@@ -122,7 +122,7 @@ export class OperationsService {
         });
         await this.replaceFormChildren(tx, form.id, dto);
         await this.audit(tx, 'CREATE', 'OperationForm', form.id, dto);
-        return tx.operationForm.findUniqueOrThrow({ where: { id: form.id }, include: this.formInclude() });
+        return tx.operationForm.findUniqueOrThrow({ where: { id: form.id }, include: this.formDetailInclude() });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Booking đã có phiếu điều hành');
@@ -154,7 +154,7 @@ export class OperationsService {
       });
       if (dto.services !== undefined || dto.tasks !== undefined || dto.costs !== undefined) await this.replaceFormChildren(tx, id, dto);
       await this.audit(tx, 'UPDATE', 'OperationForm', id, dto);
-      return tx.operationForm.findUniqueOrThrow({ where: { id }, include: this.formInclude() });
+      return tx.operationForm.findUniqueOrThrow({ where: { id }, include: this.formDetailInclude() });
     });
   }
 
@@ -167,7 +167,7 @@ export class OperationsService {
       const form = await tx.operationForm.update({
         where: { id },
         data: { status: OperationStatus.CANCELLED, notes: this.text(dto.reason) ?? this.text(dto.notes) ?? undefined },
-        include: this.formInclude(),
+        include: this.formDetailInclude(),
       });
       await this.audit(tx, 'CANCEL', 'OperationForm', id, dto);
       return form;
@@ -183,14 +183,14 @@ export class OperationsService {
         ...(query.financePaymentId ? { financePaymentId: query.financePaymentId } : {}),
         ...(search ? { code: containsSearch(search) } : {}),
       }, user),
-      include: this.paymentRequestInclude(),
+      select: this.paymentRequestListSelect(),
       orderBy: [{ requestedAt: 'desc' }, { code: 'asc' }],
       take: this.take(query.take),
     });
   }
 
   async paymentRequestDetail(id: string, user?: RequestUser) {
-    const row = await this.prisma.supplierPaymentRequest.findFirst({ where: this.paymentRequestScopeWhere({ id }, user), include: this.paymentRequestInclude() });
+    const row = await this.prisma.supplierPaymentRequest.findFirst({ where: this.paymentRequestScopeWhere({ id }, user), include: this.paymentRequestDetailInclude() });
     if (!row) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
     return row;
   }
@@ -211,7 +211,7 @@ export class OperationsService {
           requestedBy: this.text(dto.requestedBy) || this.text(dto.actor),
           items: { create: items },
         },
-        include: this.paymentRequestInclude(),
+        include: this.paymentRequestDetailInclude(),
       });
       await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, dto);
       return request;
@@ -239,7 +239,7 @@ export class OperationsService {
           ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: this.text(dto.requestedBy) || this.text(dto.actor) } : {}),
           ...(items ? { items: { create: items } } : {}),
         },
-        include: this.paymentRequestInclude(),
+        include: this.paymentRequestDetailInclude(),
       });
       await this.audit(tx, 'UPDATE', 'SupplierPaymentRequest', id, dto);
       return request;
@@ -258,7 +258,7 @@ export class OperationsService {
       if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
       if (request.status !== SupplierPaymentStatus.REQUESTED) throw new BadRequestException('Chỉ yêu cầu đã gửi mới được duyệt');
       if (!request.items.length) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp chưa có dòng nào');
-      const approved = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: SupplierPaymentStatus.APPROVED, approvedBy: actor }, include: this.paymentRequestInclude() });
+      const approved = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: SupplierPaymentStatus.APPROVED, approvedBy: actor }, include: this.paymentRequestDetailInclude() });
       for (const item of request.items) {
         await tx.supplierLedgerEntry.upsert({
           where: { sourceType_sourceId_entryType: { sourceType: 'MANUAL', sourceId: item.id, entryType: 'CREDIT' } },
@@ -350,7 +350,7 @@ export class OperationsService {
         await tx.financePayment.delete({ where: { id: payment.id } });
         throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
       }
-      const updated = await tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestInclude() });
+      const updated = await tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestDetailInclude() });
       await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id });
       return updated;
     });
@@ -390,7 +390,7 @@ export class OperationsService {
           ...(status === SupplierPaymentStatus.REQUESTED ? { requestedBy: actor, requestedAt: new Date() } : {}),
           ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: actor } : {}),
         },
-        include: this.paymentRequestInclude(),
+        include: this.paymentRequestDetailInclude(),
       });
       await this.audit(tx, status, 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) });
       return request;
@@ -735,21 +735,113 @@ export class OperationsService {
     throw new BadRequestException(`Cannot change supplier payment request from ${current} to ${next}`);
   }
 
-  private formInclude() {
+  private formListSelect() {
     return {
-      booking: true,
-      order: true,
-      tour: true,
-      services: { include: { supplier: true, supplierService: true }, orderBy: { serviceName: 'asc' } },
+      id: true,
+      bookingId: true,
+      orderId: true,
+      tourId: true,
+      status: true,
+      notes: true,
+      createdAt: true,
+      updatedAt: true,
+      booking: { select: { id: true, code: true, customerName: true, orderId: true, tourId: true } },
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+      tour: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+      services: {
+        select: {
+          id: true,
+          supplierId: true,
+          supplierServiceId: true,
+          serviceType: true,
+          serviceName: true,
+          confirmationStatus: true,
+          expectedCost: true,
+          actualCost: true,
+          supplier: { select: { id: true, supplierCode: true, name: true } },
+          supplierService: { select: { id: true, sku: true, serviceName: true } },
+        },
+        orderBy: { serviceName: 'asc' },
+      },
+      tasks: { select: { id: true, title: true, assignee: true, dueDate: true, status: true }, orderBy: [{ dueDate: 'asc' }, { title: 'asc' }] },
+      costs: { select: { id: true, costName: true, expectedAmount: true, actualAmount: true, currency: true, notes: true }, orderBy: { costName: 'asc' } },
+    } satisfies Prisma.OperationFormSelect;
+  }
+
+  private formDetailInclude() {
+    return {
+      booking: { select: { id: true, code: true, customerName: true, customerPhone: true, orderId: true, tourId: true, startDate: true, endDate: true, status: true } },
+      order: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      tour: { select: { id: true, systemCode: true, tourCode: true, name: true, status: true, branch: true, department: true } },
+      services: {
+        include: {
+          supplier: { select: { id: true, supplierCode: true, name: true, phone: true, email: true } },
+          supplierService: { select: { id: true, sku: true, serviceName: true, netPrice: true, sellingPrice: true } },
+        },
+        orderBy: { serviceName: 'asc' },
+      },
       tasks: { orderBy: [{ dueDate: 'asc' }, { title: 'asc' }] },
-      costs: { include: { service: true, paymentItems: true }, orderBy: { costName: 'asc' } },
+      costs: {
+        include: {
+          service: { select: { id: true, serviceName: true, serviceType: true, supplierId: true } },
+          paymentItems: { select: { id: true, requestId: true, amount: true, notes: true } },
+        },
+        orderBy: { costName: 'asc' },
+      },
     } satisfies Prisma.OperationFormInclude;
   }
 
-  private paymentRequestInclude() {
+  private paymentRequestListSelect() {
     return {
-      financePayment: true,
-      items: { include: { supplier: true, cost: { include: { operationForm: { include: { booking: true, order: true, tour: true } } } } }, orderBy: { id: 'asc' } },
+      id: true,
+      code: true,
+      status: true,
+      requestedBy: true,
+      approvedBy: true,
+      requestedAt: true,
+      financePaymentId: true,
+      financePayment: { select: { id: true, voucherCode: true, approvalStatus: true, paymentAmount: true } },
+      items: {
+        select: {
+          id: true,
+          supplierId: true,
+          costId: true,
+          amount: true,
+          notes: true,
+          supplier: { select: { id: true, supplierCode: true, name: true } },
+          cost: {
+            select: {
+              id: true,
+              costName: true,
+              operationForm: { select: { id: true, booking: { select: { id: true, code: true } } } },
+            },
+          },
+        },
+        orderBy: { id: 'asc' },
+      },
+    } satisfies Prisma.SupplierPaymentRequestSelect;
+  }
+
+  private paymentRequestDetailInclude() {
+    return {
+      financePayment: { select: { id: true, voucherCode: true, approvalStatus: true, paymentAmount: true, paymentDate: true, paymentMethod: true } },
+      items: {
+        include: {
+          supplier: { select: { id: true, supplierCode: true, name: true, phone: true, email: true } },
+          cost: {
+            include: {
+              operationForm: {
+                include: {
+                  booking: { select: { id: true, code: true, customerName: true } },
+                  order: { select: { id: true, systemCode: true, tourCode: true, name: true, branch: true, department: true } },
+                  tour: { select: { id: true, systemCode: true, tourCode: true, name: true, branch: true, department: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { id: 'asc' },
+      },
     } satisfies Prisma.SupplierPaymentRequestInclude;
   }
 

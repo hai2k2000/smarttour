@@ -47,31 +47,66 @@ const checks = [
   },
   {
     file: 'apps/api/src/modules/finance/finance.service.ts',
-    sectionStart: 'async listReceiptsCore',
-    sectionEnd: 'async receiptDetailCore',
-    must: ['private receiptListSelect()', 'select: this.receiptListSelect()'],
+    sectionStart: 'async listReceipts(query',
+    sectionEnd: 'async receiptDetail',
+    must: ['orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } }'],
     forbidden: ['include: { orders: true }', 'cashflowEntries: true', 'customerLedger: true'],
   },
   {
     file: 'apps/api/src/modules/finance/finance.service.ts',
-    sectionStart: 'async listPaymentsCore',
-    sectionEnd: 'async paymentDetailCore',
-    must: ['private paymentListSelect()', 'select: this.paymentListSelect()'],
-    forbidden: ['include: {\n        operationVoucher', 'cashflowEntries: true', 'supplierLedger: true', 'operationVoucherPayments: true'],
+    sectionStart: 'async listPayments(query',
+    sectionEnd: 'async paymentDetail',
+    must: ['operationVoucher: { select: { voucherCode: true, status: true } }', 'supplierPaymentRequests: { select: { code: true, status: true } }'],
+    forbidden: ['operationVoucher: true', 'supplierPaymentRequests: true', 'cashflowEntries: true', 'supplierLedger: true', 'operationVoucherPayments: true'],
   },
   {
     file: 'apps/api/src/modules/finance/finance.service.ts',
     sectionStart: 'async listInvoices',
     sectionEnd: 'async invoiceDetail',
-    must: ['private invoiceListSelect()', 'select: this.invoiceListSelect()'],
+    must: ['financeInvoice.findMany({ where, orderBy:'],
     forbidden: ['include: { items: true, files: true }, orderBy'],
   },
   {
     file: 'apps/api/src/modules/finance/finance.service.ts',
-    sectionStart: 'async cashflowCore',
-    sectionEnd: 'async exportReceiptsCore',
-    must: ['private cashflowListSelect()', 'select: this.cashflowListSelect()'],
+    sectionStart: 'async cashflow(query',
+    sectionEnd: 'async exportReceipts',
+    must: ['financeCashflowEntry.findMany({ where, orderBy:'],
     forbidden: ['include:', 'order: true', 'supplier: true', 'customer: true'],
+  },
+  {
+    file: 'apps/api/src/modules/operations/operations.service.ts',
+    sectionStart: 'async listForms(query',
+    sectionEnd: 'async formDetail',
+    must: ['private formListSelect()', 'select: this.formListSelect()'],
+    forbidden: ['include: this.formDetailInclude()', 'include: this.formInclude()', 'paymentItems: true', 'supplier: true, supplierService: true'],
+  },
+  {
+    file: 'apps/api/src/modules/operations/operations.service.ts',
+    sectionStart: 'async listPaymentRequests(query',
+    sectionEnd: 'async paymentRequestDetail',
+    must: ['private paymentRequestListSelect()', 'select: this.paymentRequestListSelect()'],
+    forbidden: ['include: this.paymentRequestDetailInclude()', 'include: this.paymentRequestInclude()', 'financePayment: true', 'supplier: true, cost: { include:'],
+  },
+  {
+    file: 'apps/api/src/modules/suppliers/suppliers.service.ts',
+    sectionStart: 'async listTypedSuppliers',
+    sectionEnd: 'async getTypedSupplier',
+    must: ['private genericListInclude()', 'include: this.genericListInclude()'],
+    forbidden: ['include: this.genericInclude()', 'files: { orderBy: { createdAt: \'desc\' }', 'category: true'],
+  },
+  {
+    file: 'apps/api/src/modules/suppliers/suppliers.service.ts',
+    sectionStart: 'async listHotelSuppliers',
+    sectionEnd: 'async getHotelSupplier',
+    must: ['private hotelListInclude()', 'include: this.hotelListInclude()'],
+    forbidden: ['include: this.hotelInclude()', 'allocations: { orderBy: { createdAt: \'desc\' }', 'logs: { orderBy: { createdAt: \'desc\' }', 'files: { orderBy: { createdAt: \'desc\' }'],
+  },
+  {
+    file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
+    sectionStart: 'async detail',
+    sectionEnd: 'async create',
+    must: ['bookings: { orderBy: { startDate: \'desc\' }, select: { id: true, code: true, customerName: true } }'],
+    forbidden: ['bookings: { orderBy: { startDate: \'desc\' } }'],
   },
   {
     file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts',
@@ -112,6 +147,8 @@ for (const check of checks) {
   }
   const start = source.indexOf(check.sectionStart);
   const end = source.indexOf(check.sectionEnd, start);
+  if (start < 0) failures.push(`${check.file}: missing section start ${check.sectionStart}`);
+  if (start >= 0 && end <= start) failures.push(`${check.file}: missing section end ${check.sectionEnd}`);
   const section = start >= 0 && end > start ? source.slice(start, end) : source;
   for (const token of check.forbidden) {
     if (section.includes(token)) failures.push(`${check.file}: forbidden deep list include ${token}`);

@@ -20,6 +20,26 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Trimmed unused list/detail include payloads for dense modules:
+  - Operations list APIs now use explicit list `select` helpers for operation
+    forms and supplier payment requests, while detail/mutation responses keep
+    detail-shaped includes with scoped nested selects instead of full related
+    entities.
+  - Supplier typed/hotel list APIs now use list include helpers that keep the
+    UI-required contacts/services/allotments but omit detail-only files,
+    category, allotment logs, and allocation histories.
+  - Tour Program detail now returns booking previews (`id`, `code`,
+    `customerName`) instead of full booking records.
+  - `scripts/audit-list-view-includes.js` was updated to guard the new
+    operations/suppliers/tour-program include contracts and to align stale
+    finance checks with the current lightweight list behavior.
+  - `scripts/smoke-operations-backend.sh` fixture now creates itinerary day 1
+    before booking creation, matching current Booking validation.
+  - VPS verification passed on 2026-06-09: `LIST_VIEW_INCLUDE_AUDIT_OK`,
+    API Docker build, `TEST_LIST_VIEW_PERFORMANCE_OK`,
+    `SMOKE_OPERATIONS_BACKEND_OK`, `SMOKE_SUPPLIERS_OK`,
+    `TEST_TOUR_PROGRAMS_SERVICE_OK`, API redeploy, and `HEALTHCHECK_OK`.
+
 - Standardized list free-text search filters:
   - Added shared `apps/api/src/modules/list-search.ts` with trim,
     whitespace-collapse, min length 2, max length 80, and common
