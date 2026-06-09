@@ -481,8 +481,7 @@ export class FitToursService {
     await this.tourCore.replaceRevenues(tx, tourId, this.mapTourRevenues(dto));
     await this.tourCore.replaceCosts(tx, tourId, this.mapTourCosts(dto));
     const services = this.mapTourServices(dto).map((row) => ({ ...row, tourId: '' }));
-    await this.tourCore.replaceServices(tx, tourId, services);
-    await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'FIT_SERVICE'));
+    await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'FIT_SERVICE');
   }
 
   private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {

@@ -119,8 +119,7 @@ export class GitToursService {
 
     await this.prisma.$transaction(async (tx) => {
       const services = this.tourCore.cloneServicesForCopy(source.services);
-      await this.tourCore.replaceServices(tx, targetTourId, services);
-      await this.tourCore.replaceSuppliers(tx, targetTourId, this.tourCore.suppliersFromServices(services, 'GIT_SERVICE'));
+      await this.tourCore.replaceServicesAndSuppliers(tx, targetTourId, services, 'GIT_SERVICE');
     });
     return this.detail(targetTourId, user);
   }
@@ -140,8 +139,7 @@ export class GitToursService {
     }
     if (creating || dto.budgetServices !== undefined || dto.operationServices !== undefined) {
       const services = [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
-      await this.tourCore.replaceServices(tx, tourId, services);
-      await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'GIT_SERVICE'));
+      await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'GIT_SERVICE');
     }
     if (creating || dto.guides !== undefined) {
       await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));

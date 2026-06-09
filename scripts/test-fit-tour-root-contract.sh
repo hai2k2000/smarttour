@@ -81,6 +81,9 @@ function assertLegacyCompatBoundary() {
   }
   assert(serviceSource.includes('allowStatusInput: false'), 'FIT Tour root sync should reject direct TourStatus payloads at TourCore boundary');
   assert(serviceSource.includes('allowWorkflowStepInput: false'), 'FIT Tour root sync should reject raw workflowStep payloads at TourCore boundary');
+  assert(serviceSource.includes('tourCore.replaceServicesAndSuppliers'), 'FIT should sync common TourService/TourSupplier through TourCoreService.replaceServicesAndSuppliers');
+  assert(!/tourCore\.replaceServices\s*\(/.test(serviceSource), 'FIT should not call replaceServices directly from module service');
+  assert(!/tourCore\.replaceSuppliers\s*\(/.test(serviceSource), 'FIT should not call replaceSuppliers directly from module service');
 }
 
 async function main() {

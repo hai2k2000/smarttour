@@ -138,6 +138,11 @@ export class TourCoreService {
     if (services.length) await tx.tourService.createMany({ data: services.map((row) => ({ ...row, tourId })) });
   }
 
+  async replaceServicesAndSuppliers(tx: Prisma.TransactionClient, tourId: string, services: Prisma.TourServiceCreateManyInput[], supplierRole = 'SERVICE') {
+    await this.replaceServices(tx, tourId, services);
+    await this.replaceSuppliers(tx, tourId, this.suppliersFromServices(services, supplierRole));
+  }
+
   async replaceRevenues(tx: Prisma.TransactionClient, tourId: string, revenues: Prisma.TourRevenueCreateManyInput[]) {
     await tx.tourRevenue.deleteMany({ where: { tourId } });
     if (revenues.length) await tx.tourRevenue.createMany({ data: revenues.map((row) => ({ ...row, tourId })) });

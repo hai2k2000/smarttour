@@ -54,6 +54,9 @@ function assertTourRootOrchestrationBoundaries() {
     assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
     assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
     assert(source.includes('tourCore.cloneServicesForCopy'), `${label} copyServices should use TourCoreService.cloneServicesForCopy`);
+    assert(source.includes('tourCore.replaceServicesAndSuppliers'), `${label} should sync common services and derived suppliers through TourCoreService.replaceServicesAndSuppliers`);
+    assert(!/tourCore\.replaceServices\s*\(/.test(source), `${label} should not call replaceServices directly from module service`);
+    assert(!/tourCore\.replaceSuppliers\s*\(/.test(source), `${label} should not call replaceSuppliers directly from module service`);
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
     assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
     assert(!/source\.services\.map\(\(service\)/.test(source), `${label} should not inline common TourService copy mapping`);

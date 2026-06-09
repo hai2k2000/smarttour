@@ -120,8 +120,7 @@ export class LandToursService {
 
     await this.prisma.$transaction(async (tx) => {
       const services = this.tourCore.cloneServicesForCopy(source.services);
-      await this.tourCore.replaceServices(tx, targetTourId, services);
-      await this.tourCore.replaceSuppliers(tx, targetTourId, this.tourCore.suppliersFromServices(services, 'LANDTOUR_SERVICE'));
+      await this.tourCore.replaceServicesAndSuppliers(tx, targetTourId, services, 'LANDTOUR_SERVICE');
     });
     return this.detail(targetTourId, user);
   }
@@ -138,8 +137,7 @@ export class LandToursService {
     }
     if (creating || dto.salesServices !== undefined || dto.operationServices !== undefined) {
       const services = [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
-      await this.tourCore.replaceServices(tx, tourId, services);
-      await this.tourCore.replaceSuppliers(tx, tourId, this.tourCore.suppliersFromServices(services, 'LANDTOUR_SERVICE'));
+      await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'LANDTOUR_SERVICE');
     }
     if (creating || dto.guideName !== undefined || dto.guides !== undefined) {
       await this.tourCore.replaceGuides(tx, tourId, this.mapTourGuides(dto));

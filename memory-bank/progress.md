@@ -2,6 +2,15 @@
 
 ## Done
 
+- Centralized common service/supplier sync in TourCore:
+  - `TourCoreService.replaceServicesAndSuppliers()` now owns the paired
+    replacement of `tour_services` and derived `tour_suppliers`.
+  - FIT, GIT, and LandTour delegate service/supplier sync to the shared helper.
+  - Regression tests guard against product modules calling `replaceServices()`
+    or `replaceSuppliers()` directly.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Standardized GIT/LandTour copy-services mapping through TourCore:
   - `TourCoreService.cloneServicesForCopy()` now owns the common
     `tour_services` clone row shape.
