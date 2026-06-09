@@ -31,6 +31,8 @@ const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { FitTourLegacyCompatService } = require('./apps/api/dist/modules/fit-tours/fit-tour-legacy-compat.service');
 const { FitToursService } = require('./apps/api/dist/modules/fit-tours/fit-tours.service');
 const { TourCoreService } = require('./apps/api/dist/modules/tours/tour-core.service');
+const fitCreateDtoContract = require('./apps/api/dist/modules/fit-tours/dto/create-fit-tour.dto');
+const fitUpdateDtoContract = require('./apps/api/dist/modules/fit-tours/dto/update-fit-tour.dto');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -42,6 +44,27 @@ function decimal(value) {
 
 function rootCode(value) {
   return String(value).toUpperCase();
+}
+
+function assertFitDtoContract() {
+  const groups = [
+    fitCreateDtoContract.FIT_TOUR_ROOT_FIELDS,
+    fitCreateDtoContract.FIT_TOUR_LINK_AND_CUSTOMER_FIELDS,
+    fitCreateDtoContract.FIT_TOUR_WORKFLOW_FIELDS,
+    fitCreateDtoContract.FIT_TOUR_DETAIL_FIELDS,
+    fitCreateDtoContract.FIT_TOUR_CHILD_FIELDS,
+  ];
+  const groupedFields = groups.flat();
+  assert(groupedFields.length === new Set(groupedFields).size, 'FIT DTO field groups should not overlap');
+  assert(JSON.stringify(groupedFields) === JSON.stringify(fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS), 'FIT create fields should be exactly grouped root/link/workflow/detail/child fields');
+  assert(JSON.stringify(fitUpdateDtoContract.FIT_TOUR_UPDATE_FIELDS) === JSON.stringify(fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS), 'FIT update should reuse the approved create/edit field surface');
+  for (const field of fitCreateDtoContract.FIT_TOUR_REJECTED_ROOT_WORKFLOW_FIELDS) {
+    assert(!fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS.includes(field), `FIT DTO should not expose root workflow/lifecycle field ${field}`);
+  }
+  assert(fitCreateDtoContract.FIT_TOUR_WORKFLOW_FIELDS.length === 1 && fitCreateDtoContract.FIT_TOUR_WORKFLOW_FIELDS[0] === 'workflowStatus', 'FIT workflow DTO surface should only expose workflowStatus');
+  assert(fitCreateDtoContract.FIT_TOUR_ROOT_FIELDS.includes('paymentStatus'), 'FIT root field group should keep root paymentStatus explicit');
+  assert(fitCreateDtoContract.FIT_TOUR_DETAIL_FIELDS.includes('seatCount'), 'FIT-specific detail group should include seatCount');
+  assert(fitCreateDtoContract.FIT_TOUR_CHILD_FIELDS.includes('operationServices'), 'FIT child group should include operationServices');
 }
 
 function assertLegacyCompatBoundary() {
@@ -59,6 +82,7 @@ function assertLegacyCompatBoundary() {
 }
 
 async function main() {
+  assertFitDtoContract();
   assertLegacyCompatBoundary();
   const prisma = new PrismaService();
   await prisma.$connect();
@@ -98,6 +122,8 @@ async function main() {
     commonCosts: [{ serviceType: 'CAR', description: 'Source car', quantity: 1, times: 1, unitPrice: 1000, vat: 0, amount: 1000 }],
     budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Budget hotel', quantity: 2, unitPrice: 1000, vat: 10, amount: 2200 }],
     operationServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, supplierServiceId: supplierService.id, bookingCode: `${run}-BK`, quantity: 2, confirmedUnitPrice: 1200, vat: 10, amount: 2640, status: FitServiceStatus.CONFIRMED }],
+    status: TourStatus.CANCELLED,
+    workflowStep: 'MANUAL_ROOT_WORKFLOW_SHOULD_BE_IGNORED',
   });
   assert(source.tourId, 'FIT create should return linked Tour root id');
 
@@ -111,6 +137,7 @@ async function main() {
   assert(createdRoot.tourCode === rootCode(`${run}-SRC-T`), 'Tour root tourCode should use FIT tourCode');
   assert(createdRoot.name === 'FIT Root Contract Source', 'Tour root should own common tour name');
   assert(createdRoot.workflowStep === FitTourWorkflowStatus.DRAFT, 'Tour root should store FIT workflow step separately');
+  assert(createdRoot.status === TourStatus.UPCOMING, 'Tour root status should be derived from FIT workflow and ignore FIT DTO status payload');
   assert(createdRoot.fitTour.id === source.id, 'Tour root should link back to FIT detail');
   assert(createdRoot.customers.length === 1 && createdRoot.customers[0].name === 'FIT Root Customer', 'Tour root should own primary customer');
   assert(createdRoot.revenues.length === 1 && decimal(createdRoot.revenues[0].amount) === 5000000, 'Tour root should own revenue rows');

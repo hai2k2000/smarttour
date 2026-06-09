@@ -486,7 +486,10 @@ export class FitToursService {
   }
 
   private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return this.tourCore.toTourData(dto as Record<string, unknown>, creating, {
+    const fitDto = { ...(dto as Record<string, unknown>) };
+    delete fitDto.status;
+    delete fitDto.workflowStep;
+    return this.tourCore.toTourData(fitDto, creating, {
       type: TourType.FIT,
       systemCodeField: 'quoteCode',
       tourCodeField: 'tourCode',

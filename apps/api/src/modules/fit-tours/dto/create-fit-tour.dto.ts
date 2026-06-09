@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { FitTourWorkflowStatus, PaymentStatus, TourStatus } from '@prisma/client';
+import { FitTourWorkflowStatus, PaymentStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
@@ -108,22 +108,10 @@ export class CreateFitTourDto {
   @IsOptional()
   @IsEnum(FitTourWorkflowStatus)
   workflowStatus?: FitTourWorkflowStatus;
-
-  @ApiPropertyOptional({ enum: TourStatus })
-  @IsOptional()
-  @IsEnum(TourStatus)
-  status?: TourStatus;
-
   @ApiPropertyOptional({ enum: PaymentStatus })
   @IsOptional()
   @IsEnum(PaymentStatus)
   paymentStatus?: PaymentStatus;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  workflowStep?: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -346,3 +334,89 @@ export class CreateFitTourDto {
   @IsArray()
   attachments?: unknown[];
 }
+
+export const FIT_TOUR_ROOT_FIELDS = [
+  'quoteCode',
+  'tourCode',
+  'tourName',
+  'marketGroup',
+  'bookingDate',
+  'startDate',
+  'endDate',
+  'paymentStatus',
+  'branch',
+  'department',
+  'customerSource',
+  'flightRoute',
+  'tourType',
+  'exchangeRateCode',
+  'exchangeRate',
+  'operatorOwner',
+  'pickupPoint',
+  'dropoffPoint',
+  'notes',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_LINK_AND_CUSTOMER_FIELDS = [
+  'customerId',
+  'orderId',
+  'customerName',
+  'phone',
+  'email',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_WORKFLOW_FIELDS = [
+  'workflowStatus',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_DETAIL_FIELDS = [
+  'adultCount',
+  'childCount',
+  'infantCount',
+  'sellingPrice',
+  'commissionPerGuest',
+  'allowOverbooking',
+  'seatCount',
+  'tourPrice',
+  'discount',
+  'adultPrice',
+  'childPrice25',
+  'childPrice611',
+  'infantPrice',
+  'surcharge',
+  'transportMode',
+  'outboundRoute',
+  'outboundCarrier',
+  'returnRoute',
+  'returnCarrier',
+  'visaDeadline',
+  'holdUntil',
+  'confirmedAt',
+  'closeAt',
+  'handoverGuideRequest',
+  'surveyDescription',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_CHILD_FIELDS = [
+  'commonCosts',
+  'hotelCosts',
+  'privateCosts',
+  'revenues',
+  'costs',
+  'budgetServices',
+  'operationServices',
+  'guides',
+  'handoverItems',
+  'surveyQuestions',
+  'attachments',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_CREATE_FIELDS = [
+  ...FIT_TOUR_ROOT_FIELDS,
+  ...FIT_TOUR_LINK_AND_CUSTOMER_FIELDS,
+  ...FIT_TOUR_WORKFLOW_FIELDS,
+  ...FIT_TOUR_DETAIL_FIELDS,
+  ...FIT_TOUR_CHILD_FIELDS,
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_REJECTED_ROOT_WORKFLOW_FIELDS = ['status', 'workflowStep'] as const;

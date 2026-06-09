@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued the `tour-backend-issues.md` P0 FIT DTO/source-of-truth cleanup:
+  - `CreateFitTourDto` now publishes explicit field groups for common Tour
+    root fields, link/customer fields, FIT workflow, FIT detail fields, and
+    legacy child collections.
+  - `UpdateFitTourDto` reuses the same approved field surface so create/edit
+    contracts do not drift.
+  - FIT DTOs no longer expose common Tour lifecycle/workflow override fields
+    (`status` and `workflowStep`); `FitToursService` also strips those keys
+    from direct service payloads before syncing the common Tour root.
+  - `scripts/test-fit-tour-root-contract.sh` now locks the DTO grouping
+    contract and verifies runtime payloads cannot override derived common
+    `Tour.status` / `Tour.workflowStep`.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued standardizing FIT create/update/remove/copy orchestration:
   - `FitToursService` public create/update/remove/copy methods now delegate to
     explicit aggregate helpers: `createFitTourAggregate`,

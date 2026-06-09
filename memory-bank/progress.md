@@ -2,6 +2,16 @@
 
 ## Done
 
+- Clarified the FIT DTO contract around the common Tour root:
+  - FIT create/update fields are grouped into root, link/customer, workflow,
+    FIT detail, and child collection surfaces.
+  - `status` and `workflowStep` are no longer accepted DTO fields for FIT and
+    are stripped at the service boundary before syncing the common Tour root.
+  - Regression coverage locks the DTO field groups and verifies common
+    `Tour.status` / `Tour.workflowStep` are derived from FIT workflow rules.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Standardized FIT orchestration helpers:
   - Public FIT create/update/remove/copy methods now delegate to aggregate
     helpers instead of carrying transaction internals inline.
