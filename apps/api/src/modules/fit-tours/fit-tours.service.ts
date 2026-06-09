@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
-import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
+import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN, FIT_TOUR_STEP_FIELDS } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
 import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
@@ -12,6 +12,8 @@ import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 type Row = Record<string, unknown>;
 type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
 type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
+type FitTourStep = keyof typeof FIT_TOUR_STEP_FIELDS;
+type FitUpdateOptions = { step?: FitTourStep };
 
 const fitCostGroupTags: Record<FitCostGroupField, string> = {
   commonCosts: 'FIT_COMMON_COST',
@@ -176,6 +178,22 @@ export class FitToursService {
     }
   }
 
+  async saveStep(id: string, step: string, dto: UpdateFitTourDto, user?: RequestUser) {
+    const workflowStep = this.toEditableWorkflowStep(step);
+    const current = await this.detail(id, user);
+    const scopedDto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
+    const stepPatch = this.pickStepPatch(workflowStep, scopedDto);
+    const nextWorkflow = this.workflowStepForSave(current.workflowStatus, workflowStep);
+    if (nextWorkflow) stepPatch.workflowStatus = nextWorkflow;
+    try {
+      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, stepPatch, user, { step: workflowStep }));
+      return this.detail(id, user);
+    } catch (error) {
+      this.rethrowFitUniqueConflict(error);
+      throw error;
+    }
+  }
+
   async remove(id: string, user?: RequestUser) {
     const fitTour = await this.detail(id, user);
     return this.prisma.$transaction((tx) => this.removeFitTourAggregate(tx, id, fitTour, user));
@@ -218,9 +236,11 @@ export class FitToursService {
     current: Awaited<ReturnType<FitToursService['detail']>>,
     dto: UpdateFitTourDto,
     user?: RequestUser,
+    options: FitUpdateOptions = {},
   ) {
-    const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user);
-    const tourId = await this.syncTourRootFromFit(tx, current, merged, user);
+    const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user, options);
+    const rootDto = current.tourId ? patch : merged;
+    const tourId = await this.syncTourRootFromFit(tx, current, rootDto, user);
     await this.syncTourCoreFromFit(tx, tourId, merged);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
     await this.legacyCompat.syncChildren(tx, id, patch);
@@ -276,11 +296,16 @@ export class FitToursService {
     current: Awaited<ReturnType<FitToursService['detail']>>,
     dto: UpdateFitTourDto,
     user?: RequestUser,
+    options: FitUpdateOptions = {},
   ) {
     const patch = await this.withCustomerSnapshot(tx, dto);
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
-    this.validateProvidedFields(patch, false);
-    this.validateFitTourBusinessRules(merged, false);
+    if (options.step) {
+      this.validateStepPatch(options.step, patch, merged);
+    } else {
+      this.validateProvidedFields(patch, false);
+      this.validateFitTourBusinessRules(merged, false);
+    }
     this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
     return { patch, merged };
   }
@@ -327,6 +352,29 @@ export class FitToursService {
     return user?.username || user?.email || user?.id || 'system';
   }
 
+  private pickStepPatch(step: FitTourStep, dto: UpdateFitTourDto): UpdateFitTourDto {
+    const patch: Row = {};
+    for (const field of FIT_TOUR_STEP_FIELDS[step]) {
+      if (field in dto) patch[field] = (dto as Row)[field];
+    }
+    return patch as UpdateFitTourDto;
+  }
+
+  private toEditableWorkflowStep(step: string): FitTourStep {
+    const value = this.text(step).toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(FIT_TOUR_STEP_FIELDS, value)) return value as FitTourStep;
+    throw new BadRequestException('Bước workflow FIT không hợp lệ');
+  }
+
+  private workflowStepForSave(currentStatus: FitTourWorkflowStatus | null | undefined, step: FitTourStep): FitTourWorkflowStatus | undefined {
+    const current = this.toWorkflowStatusStrict(currentStatus) || FitTourWorkflowStatus.DRAFT;
+    const currentIndex = workflowOrder.indexOf(current as (typeof workflowOrder)[number]);
+    const stepIndex = workflowOrder.indexOf(step as (typeof workflowOrder)[number]);
+    if (stepIndex < 0) return undefined;
+    if (currentIndex < 0 || stepIndex > currentIndex) return step as FitTourWorkflowStatus;
+    return undefined;
+  }
+
   private rethrowFitUniqueConflict(error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ConflictException('Mã báo giá FIT đã tồn tại');
@@ -337,6 +385,49 @@ export class FitToursService {
     this.validateTextLength(dto.quoteCode, 'Mã báo giá', 2, creating);
     this.validateTextLength(dto.tourCode, 'Mã tour', 2, creating);
     this.validateTextLength(dto.customerName, 'Họ tên khách', 2, creating);
+  }
+
+  private validateStepPatch(_step: FitTourStep, patch: UpdateFitTourDto, merged: UpdateFitTourDto) {
+    this.validateProvidedFields(patch, false);
+    this.validateFitTourBusinessRulesForPatch(patch, merged);
+    if (patch.workflowStatus !== undefined) this.toWorkflowStatusStrict(patch.workflowStatus);
+  }
+
+  private validateFitTourBusinessRulesForPatch(patch: UpdateFitTourDto, merged: UpdateFitTourDto) {
+    const paxFields = ['adultCount', 'childCount', 'infantCount'];
+    const numericFields = [
+      ...paxFields,
+      'sellingPrice',
+      'commissionPerGuest',
+      'exchangeRate',
+      'seatCount',
+      'tourPrice',
+      'discount',
+      'adultPrice',
+      'childPrice25',
+      'childPrice611',
+      'infantPrice',
+      'surcharge',
+    ];
+    for (const field of numericFields) {
+      if (Object.prototype.hasOwnProperty.call(patch as Row, field)) this.nonNegativeNumber((patch as Row)[field], field);
+    }
+    if (paxFields.some((field) => Object.prototype.hasOwnProperty.call(patch as Row, field))) {
+      const adultCount = this.nonNegativeInteger(merged.adultCount, 'adultCount');
+      const childCount = this.nonNegativeInteger(merged.childCount, 'childCount');
+      const infantCount = this.nonNegativeInteger(merged.infantCount, 'infantCount');
+      if (adultCount + childCount + infantCount < 1) throw new BadRequestException('Số khách phải lớn hơn 0');
+    }
+
+    const dateFields = ['bookingDate', 'startDate', 'endDate', 'visaDeadline', 'holdUntil', 'confirmedAt', 'closeAt'];
+    for (const field of dateFields) {
+      if (Object.prototype.hasOwnProperty.call(patch as Row, field)) this.optionalDate((patch as Row)[field], field);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch as Row, 'startDate') || Object.prototype.hasOwnProperty.call(patch as Row, 'endDate')) {
+      const startDate = this.optionalDate(merged.startDate, 'startDate');
+      const endDate = this.optionalDate(merged.endDate, 'endDate');
+      if (startDate && endDate && startDate > endDate) throw new BadRequestException('Ngày về phải sau hoặc bằng ngày khởi đi');
+    }
   }
 
   private validateFitTourBusinessRules(dto: UpdateFitTourDto, creating: boolean) {

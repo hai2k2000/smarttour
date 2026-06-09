@@ -166,6 +166,67 @@ type ArrayName = 'commonCosts' | 'hotelCosts' | 'privateCosts' | 'budgetServices
 type ColumnSpec = { key: string; label: string; type?: 'text' | 'number' | 'supplier' | 'status' | 'textarea' };
 type FieldOption = string | { value: string; label: string };
 
+const stepPayloadFields: Record<WorkflowStepKey, (keyof FitTourForm)[]> = {
+  PRICING: [
+    'quoteCode',
+    'tourCode',
+    'marketGroup',
+    'bookingDate',
+    'startDate',
+    'endDate',
+    'customerName',
+    'phone',
+    'email',
+    'adultCount',
+    'childCount',
+    'infantCount',
+    'sellingPrice',
+    'commissionPerGuest',
+    'notes',
+    'commonCosts',
+    'hotelCosts',
+    'privateCosts',
+    'attachments',
+  ],
+  TOUR_INFO: [
+    'tourCode',
+    'tourName',
+    'flightRoute',
+    'marketGroup',
+    'startDate',
+    'endDate',
+    'tourType',
+    'exchangeRateCode',
+    'exchangeRate',
+    'operatorOwner',
+    'seatCount',
+    'tourPrice',
+    'discount',
+    'adultPrice',
+    'childPrice25',
+    'childPrice611',
+    'infantPrice',
+    'surcharge',
+    'transportMode',
+    'outboundRoute',
+    'outboundCarrier',
+    'returnRoute',
+    'returnCarrier',
+    'pickupPoint',
+    'dropoffPoint',
+    'visaDeadline',
+    'holdUntil',
+    'confirmedAt',
+    'closeAt',
+    'allowOverbooking',
+    'guides',
+  ],
+  BUDGET: ['budgetServices'],
+  OPERATION: ['operationServices'],
+  HANDOVER: ['handoverGuideRequest', 'handoverItems'],
+  SURVEY: ['surveyDescription', 'surveyQuestions'],
+};
+
 const emptyCost = { serviceType: '', description: '', unit: '', quantity: 1, paxPerRoom: 1, times: 1, currency: 'VND', exchangeRate: 1, unitPrice: 0, vat: 0, amount: 0, notes: '' };
 const emptyService = { serviceType: '', supplierId: '', description: '', bookingCode: '', quantity: 1, unitPrice: 0, confirmedUnitPrice: 0, vat: 0, amount: 0, status: 'WAITING', notes: '' };
 
@@ -234,15 +295,28 @@ function canPersistTour(data: FitTourForm) {
   return trimText(data.quoteCode).length >= 2 && trimText(data.tourCode).length >= 2 && trimText(data.customerName).length >= 2;
 }
 
-function validateBeforeSave(data: FitTourForm) {
+
+function validateBeforeSave(data: FitTourForm, step?: WorkflowStepKey, creating = false) {
   const errors: string[] = [];
-  if (trimText(data.quoteCode).length < 2) errors.push('Mã báo giá cần ít nhất 2 ký tự');
-  if (trimText(data.tourCode).length < 2) errors.push('Mã tour cần ít nhất 2 ký tự');
-  if (trimText(data.customerName).length < 2) errors.push('Họ tên khách cần ít nhất 2 ký tự');
+  const requiresIdentity = creating || !step || step === 'PRICING';
+  if (requiresIdentity && trimText(data.quoteCode).length < 2) errors.push('Mã báo giá cần ít nhất 2 ký tự');
+  if (requiresIdentity && trimText(data.tourCode).length < 2) errors.push('Mã tour cần ít nhất 2 ký tự');
+  if (requiresIdentity && trimText(data.customerName).length < 2) errors.push('Họ tên khách cần ít nhất 2 ký tự');
   if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errors.push('Email không hợp lệ');
   if (number(data.adultCount) + number(data.childCount) + number(data.infantCount) < 1) errors.push('Số khách phải lớn hơn 0');
   if (data.startDate && data.endDate && data.startDate > data.endDate) errors.push('Ngày về phải sau hoặc bằng ngày khởi đi');
   return errors;
+}
+
+
+
+function stepPayload(data: FitTourForm, step?: WorkflowStepKey) {
+  if (!step) return data;
+  const payload: Record<string, unknown> = {};
+  for (const field of stepPayloadFields[step]) {
+    payload[field] = data[field];
+  }
+  return payload;
 }
 
 function preparePayload(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT'): FitTourForm {
@@ -434,19 +508,22 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         setSaveState('Chưa đủ thông tin để tự lưu');
         return;
       }
-      const payload = preparePayload(current);
-      const errors = validateBeforeSave(payload);
+      const step = workflowSteps[activeStep].key;
+      const payload = preparePayload(current, step);
+      const creating = !payload.id;
+      const errors = validateBeforeSave(payload, step, creating);
       if (errors.length) {
         setSaveState(`Chưa thể tự lưu: ${errors[0]}`);
         return;
       }
-      const signature = JSON.stringify(payload);
+      const signature = JSON.stringify(creating ? payload : stepPayload(payload, step));
       if (signature === lastAutosaveSignature.current) return;
       setSaveState('Đang tự lưu...');
       try {
-        const saved = await saveTour(payload);
+        const saved = await saveTour(payload, step);
         if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
-        lastAutosaveSignature.current = JSON.stringify(preparePayload({ ...current, id: saved.id || current.id }));
+        const savedPayload = preparePayload({ ...current, id: saved.id || current.id }, step);
+        lastAutosaveSignature.current = JSON.stringify(creating ? savedPayload : stepPayload(savedPayload, step));
         onSaved?.(saved, 'autosave');
         setSaveState(`Đã tự lưu ${new Date().toLocaleTimeString('vi-VN')}`);
       } catch (error) {
@@ -454,26 +531,30 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       }
     }, autosaveDelayMs);
     return () => clearTimeout(timeout);
-  }, [values, formState.isDirty, getValues, setValue, onSaved]);
+  }, [values, activeStep, formState.isDirty, getValues, setValue, onSaved]);
 
-  async function saveTour(data: FitTourForm) {
-    const payload = preparePayload(data);
-    const errors = validateBeforeSave(payload);
+
+  async function saveTour(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT') {
+    const payload = preparePayload(data, workflowStatus);
+    const step = workflowSteps.some((item) => item.key === workflowStatus) ? workflowStatus as WorkflowStepKey : undefined;
+    const creating = !payload.id;
+    const errors = validateBeforeSave(payload, step, creating);
     if (errors.length) throw new Error(errors.join('. '));
-    const url = payload.id ? `${apiBase}/api/fit-tours/${payload.id}` : `${apiBase}/api/fit-tours`;
+    const url = creating || !step ? `${apiBase}/api/fit-tours` : `${apiBase}/api/fit-tours/${payload.id}/steps/${step}`;
     const response = await fetch(url, {
-      method: payload.id ? 'PUT' : 'POST',
+      method: creating || !step ? 'POST' : 'PATCH',
       headers: authJsonHeaders(),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(creating || !step ? payload : stepPayload(payload, step)),
     });
     if (!response.ok) throw new Error(await responseError(response));
     return response.json();
   }
 
+
   async function submit(data: FitTourForm) {
     setSaveState('Đang lưu...');
     try {
-      const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key });
+      const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key }, workflowSteps[activeStep].key);
       reset(toFormDefaults(saved), { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(toFormDefaults(saved)));
       setSelectedTourId(saved.id || '');

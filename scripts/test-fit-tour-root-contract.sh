@@ -65,6 +65,10 @@ function assertFitDtoContract() {
   assert(fitCreateDtoContract.FIT_TOUR_ROOT_FIELDS.includes('paymentStatus'), 'FIT root field group should keep root paymentStatus explicit');
   assert(fitCreateDtoContract.FIT_TOUR_DETAIL_FIELDS.includes('seatCount'), 'FIT-specific detail group should include seatCount');
   assert(fitCreateDtoContract.FIT_TOUR_CHILD_FIELDS.includes('operationServices'), 'FIT child group should include operationServices');
+  assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.PRICING.includes('commonCosts'), 'FIT step fields should keep pricing cost groups');
+  assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.TOUR_INFO.includes('tourName'), 'FIT step fields should keep tour info root fields');
+  assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.BUDGET.length === 1 && fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.BUDGET[0] === 'budgetServices', 'FIT budget step should only accept budget services');
+  assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.OPERATION.length === 1 && fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.OPERATION[0] === 'operationServices', 'FIT operation step should only accept operation services');
   assert(fitCreateDtoContract.FIT_TOUR_DATE_PATTERN.test('2026-06-15'), 'FIT date pattern should accept YYYY-MM-DD');
   assert(!fitCreateDtoContract.FIT_TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'FIT date pattern should reject ISO datetimes');
 }
@@ -72,11 +76,16 @@ function assertFitDtoContract() {
 function assertLegacyCompatBoundary() {
   const fs = require('fs');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
+  const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'utf8');
+  const fitWizardSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitTourWizard.tsx', 'utf8');
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
   const defaultsSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-defaults.ts', 'utf8');
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('tx.tour.create') && !serviceSource.includes('tx.tour.update'), 'FitToursService should delegate Tour root create/update to TourCoreService');
   assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
+  assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard saves');
+  assert(serviceSource.includes('async saveStep'), 'FIT service should expose step-scoped save orchestration');
+  assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}'), 'FIT wizard should save existing records through step-scoped payloads');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
   assert(!serviceSource.includes('const defaultHandoverItems') && !legacyCompatSource.includes('const defaultHandoverItems'), 'FIT services should not duplicate default handover constants');
@@ -232,6 +241,29 @@ async function main() {
   assert(rootSourcedChildren.budgetServices[0].description === 'Updated budget hotel', 'FIT detail should expose common TourService budget description over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].supplierServiceId === supplierService.id, 'FIT detail should expose common TourService operation supplier service over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].bookingCode === `${run}-BK`, 'FIT detail should expose common TourService operation booking code over stale legacy rows');
+
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.TOUR_INFO, {
+    tourName: 'FIT Step Tour Info Name',
+    budgetServices: [{ serviceType: 'WRONG_STEP_BUDGET', description: 'Wrong tour info step', quantity: 1, unitPrice: 999, amount: 999 }],
+  });
+  const stepInfoDetail = await fitTours.detail(source.id);
+  assert(stepInfoDetail.tourName === 'FIT Step Tour Info Name', 'saveStep TOUR_INFO should update allowed tourName');
+  assert(!stepInfoDetail.budgetServices.some((row) => row.description === 'Wrong tour info step'), 'saveStep TOUR_INFO should ignore budgetServices outside step field contract');
+  assert(stepInfoDetail.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'saveStep TOUR_INFO should advance workflow');
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, {
+    commonCosts: [{ serviceType: 'CAR', description: 'Step repriced car', quantity: 1, times: 1, unitPrice: 1100, vat: 0, amount: 1100 }],
+  });
+  const stepPricingBack = await fitTours.detail(source.id);
+  assert(stepPricingBack.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'saveStep earlier step should not regress workflow');
+  assert(stepPricingBack.commonCosts[0].description === 'Step repriced car', 'saveStep earlier step should still update allowed pricing fields');
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.BUDGET, {
+    budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Step budget hotel', quantity: 3, unitPrice: 1000, vat: 0, amount: 3000 }],
+    operationServices: [{ serviceType: 'WRONG_STEP_OPERATION', description: 'Wrong budget step', amount: 999 }],
+  });
+  const stepBudgetDetail = await fitTours.detail(source.id);
+  assert(stepBudgetDetail.workflowStatus === FitTourWorkflowStatus.BUDGET, 'saveStep BUDGET should advance workflow');
+  assert(stepBudgetDetail.budgetServices[0].description === 'Step budget hotel', 'saveStep BUDGET should update budget rows');
+  assert(!stepBudgetDetail.operationServices.some((row) => row.description === 'Wrong budget step'), 'saveStep BUDGET should ignore operation rows outside step field contract');
 
   const pricingOnlySource = await fitTours.create({
     quoteCode: `${run}-PRICE-Q`,

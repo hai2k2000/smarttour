@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 FIT wizard step-save contract cleanup:
+  - Added `FIT_TOUR_STEP_FIELDS` and `PATCH /api/fit-tours/:id/steps/:step`
+    so existing FIT wizard records can save only the current workflow step.
+  - `FitToursService.saveStep()` now filters payloads by step, advances the
+    workflow only forward, and ignores fields outside the active step while
+    preserving common Tour root/child sync.
+  - The FIT wizard now autosaves/submits existing records with step-scoped
+    PATCH payloads instead of sending the whole aggregate through `PUT` on
+    every step.
+  - VPS verification passed on 2026-06-09: API/web Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT and LandTour ownership cleanup:
   - FIT root create/update now delegates to `TourCoreService.createRoot()` /
     `updateRoot()` instead of direct `tx.tour.create()` / `tx.tour.update()`

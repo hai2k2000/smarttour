@@ -2,6 +2,20 @@
 
 ## Done
 
+- Continued P2 FIT wizard step-save contract cleanup:
+  - FIT DTOs now declare `FIT_TOUR_STEP_FIELDS` for pricing, tour info,
+    budget, operation, handover, and survey step payload boundaries.
+  - Added `PATCH /api/fit-tours/:id/steps/:step` and service orchestration that
+    filters writes to the active step, prevents workflow regression, and keeps
+    wrong-step child arrays from mutating the aggregate.
+  - FIT wizard autosave/manual save now sends step-scoped PATCH payloads for
+    existing records while new records still use the full create payload.
+  - Regression covers static endpoint/frontend contracts and runtime wrong-step
+    payload filtering for TOUR_INFO, PRICING, and BUDGET saves.
+  - Verified on VPS: API/web Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT root-boundary cleanup and LandTour term ownership cleanup:
   - FIT root writes now go through `TourCoreService.createRoot()` /
     `updateRoot()`, keeping order/date-range/root mapping behind the common
