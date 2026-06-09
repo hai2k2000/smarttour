@@ -36,7 +36,7 @@ type BookingPayload = {
   paxCount: number;
   startDate: string;
   endDate: string;
-  totalSellPrice: number;
+  totalSellPrice?: number;
   saleOwner?: string;
   operatorOwner?: string;
 };
@@ -49,6 +49,10 @@ type BookingsPageProps = {
 const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 const moneyFormatter = new Intl.NumberFormat('vi-VN');
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const bookingCodeMinLength = 2;
+const bookingCodeMaxLength = 64;
+const bookingCodeInputPattern = '[A-Za-z0-9][A-Za-z0-9_-]*';
+const bookingCodeRegex = /^[A-Z0-9][A-Z0-9_-]*$/;
 const bookingSafeTextPattern = '[^\\x00-\\x1F\\x7F<>]+';
 const bookingSafeTextRegex = /^[^\u0000-\u001F\u007F<>]+$/;
 const bookingStatusOptions = [
@@ -141,6 +145,14 @@ function requiredText(formData: FormData, key: string, label: string, minLength 
   return value;
 }
 
+function bookingCode(formData: FormData) {
+  const code = requiredText(formData, 'code', 'Mã booking', bookingCodeMinLength, bookingCodeMaxLength).toUpperCase();
+  if (!bookingCodeRegex.test(code)) {
+    throw new Error('Mã booking chỉ được dùng chữ cái không dấu, số, dấu gạch ngang hoặc gạch dưới, không có khoảng trắng.');
+  }
+  return code;
+}
+
 function numberField(formData: FormData, key: string, label: string, options: { min?: number; integer?: boolean; fallback?: number } = {}) {
   const raw = field(formData, key);
   if (!raw && options.fallback !== undefined) return options.fallback;
@@ -149,6 +161,11 @@ function numberField(formData: FormData, key: string, label: string, options: { 
   if (options.integer && !Number.isInteger(value)) throw new Error(`${label} phải là số nguyên.`);
   if (options.min !== undefined && value < options.min) throw new Error(`${label} không được nhỏ hơn ${options.min}.`);
   return value;
+}
+
+function optionalNumberField(formData: FormData, key: string, label: string, options: { min?: number; integer?: boolean } = {}) {
+  if (!field(formData, key)) return undefined;
+  return numberField(formData, key, label, options);
 }
 
 function dateField(formData: FormData, key: string, label: string) {
@@ -174,16 +191,17 @@ function bookingPayload(formData: FormData): BookingPayload {
   if (dateTime(startDate) > dateTime(endDate)) throw new Error('Ngày kết thúc phải sau hoặc bằng ngày khởi hành.');
 
   const payload: BookingPayload = {
-    code: requiredText(formData, 'code', 'Mã booking', 2),
+    code: bookingCode(formData),
     tourProgramId: requiredText(formData, 'tourProgramId', 'Tour mẫu'),
     customerName: requiredText(formData, 'customerName', 'Tên khách/đoàn', 2, 180),
     paxCount: numberField(formData, 'paxCount', 'Số khách', { min: 1, integer: true, fallback: 1 }),
     startDate,
     endDate,
-    totalSellPrice: numberField(formData, 'totalSellPrice', 'Giá bán tổng', { min: 0, fallback: 0 }),
   };
+  const totalSellPrice = optionalNumberField(formData, 'totalSellPrice', 'Giá bán tổng', { min: 0 });
   const saleOwner = optionalText(formData, 'saleOwner', 'Sale phụ trách', 2, 120);
   const operatorOwner = optionalText(formData, 'operatorOwner', 'Điều hành phụ trách', 2, 120);
+  if (totalSellPrice !== undefined) payload.totalSellPrice = totalSellPrice;
   if (saleOwner) payload.saleOwner = saleOwner;
   if (operatorOwner) payload.operatorOwner = operatorOwner;
   return payload;
@@ -525,7 +543,18 @@ function BookingForm({
         <div className="supplierFieldGrid">
           <label>
             Mã booking
-            <input name="code" defaultValue={booking?.code || ''} placeholder="BK-2026-0001" required minLength={2} />
+            <input
+              name="code"
+              defaultValue={booking?.code || ''}
+              placeholder="BK-2026-0001"
+              required
+              minLength={bookingCodeMinLength}
+              maxLength={bookingCodeMaxLength}
+              pattern={bookingCodeInputPattern}
+              title="Chỉ dùng chữ cái không dấu, số, dấu gạch ngang hoặc gạch dưới; không có khoảng trắng"
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
           </label>
           {booking ? (
             <label>
@@ -593,7 +622,15 @@ function BookingForm({
           </label>
           <label>
             Giá bán tổng
-            <input name="totalSellPrice" type="number" min={0} step={1} defaultValue={Number(booking?.totalSellPrice || 0)} />
+            <input
+              name="totalSellPrice"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={booking ? Number(booking.totalSellPrice || 0) : undefined}
+              placeholder="0"
+            />
+            <span className="mutedText">Có thể để trống khi booking còn nháp; hệ thống sẽ lưu 0.</span>
           </label>
         </div>
       </fieldset>

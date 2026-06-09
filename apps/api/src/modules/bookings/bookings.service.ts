@@ -5,6 +5,7 @@ import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } fro
 import { containsSearch, normalizeListSearch } from '../list-search';
 import {
   BOOKING_CODE_MAX_LENGTH,
+  BOOKING_DEFAULT_TOTAL_SELL_PRICE,
   BOOKING_CODE_PATTERN,
   BOOKING_CUSTOMER_NAME_MAX_LENGTH,
   BOOKING_CUSTOMER_NAME_MIN_LENGTH,
@@ -749,7 +750,7 @@ export class BookingsService {
       endDate: this.dateOnlyDate(dto.endDate, 'Ngày kết thúc'),
       saleOwner: this.ownerName(dto.saleOwner, 'Sale phụ trách'),
       operatorOwner: this.ownerName(dto.operatorOwner, 'Điều hành phụ trách'),
-      totalSellPrice: this.numberValue(dto.totalSellPrice ?? 0, 'Giá bán tổng'),
+      totalSellPrice: this.numberValue(dto.totalSellPrice ?? BOOKING_DEFAULT_TOTAL_SELL_PRICE, 'Giá bán tổng'),
     };
   }
 

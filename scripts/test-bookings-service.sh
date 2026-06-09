@@ -36,9 +36,12 @@ const {
   BOOKING_NOT_FOUND_MESSAGES,
 } = require('./apps/api/dist/modules/bookings/booking-errors');
 const {
+  BOOKING_CODE_MAX_LENGTH,
+  BOOKING_CODE_MIN_LENGTH,
   BOOKING_CORE_FIELDS,
   BOOKING_CREATE_FIELDS,
   BOOKING_CROSS_REFERENCE_FIELDS,
+  BOOKING_DEFAULT_TOTAL_SELL_PRICE,
   CreateBookingDto,
 } = require('./apps/api/dist/modules/bookings/dto/create-booking.dto');
 const {
@@ -241,6 +244,8 @@ async function main() {
   assert(!BOOKING_UPDATE_FIELDS.includes('operationForm'), 'UpdateBookingDto should not expose operationForm');
   assert(!BOOKING_UPDATE_FIELDS.includes('operationFormId'), 'UpdateBookingDto should not expose operationFormId');
   assert(BOOKING_CODE_CONFLICT_MESSAGE === 'Mã booking đã tồn tại', 'booking code conflict message should be Vietnamese');
+  assert(BOOKING_CODE_MIN_LENGTH === 2 && BOOKING_CODE_MAX_LENGTH === 64, 'booking code length contract should remain 2-64 characters');
+  assert(BOOKING_DEFAULT_TOTAL_SELL_PRICE === 0, 'draft booking price should default to zero');
   assert(BOOKING_NOT_FOUND_MESSAGES.booking === 'Không tìm thấy booking', 'booking not-found message should use sentence case');
   assert(
     BOOKING_NOT_FOUND_MESSAGES.tourProgram === 'Không tìm thấy chương trình tour',
@@ -260,6 +265,19 @@ async function main() {
     totalSellPrice: 1000,
   };
   assert((await validationMessages(CreateBookingDto, validDtoPayload)).length === 0, 'CreateBookingDto should accept a valid payload');
+  assert(
+    (await validationMessages(CreateBookingDto, { ...validDtoPayload, totalSellPrice: undefined })).length === 0,
+    'CreateBookingDto should allow draft booking without totalSellPrice',
+  );
+  const normalizedDto = plainToInstance(CreateBookingDto, {
+    ...validDtoPayload,
+    code: '  bk-dto-normalized  ',
+    customerName: '  Khách hàng DTO  ',
+    customerEmail: '  CUSTOMER@EXAMPLE.COM  ',
+  });
+  assert(normalizedDto.code === 'BK-DTO-NORMALIZED', 'CreateBookingDto should trim and uppercase booking code');
+  assert(normalizedDto.customerName === 'Khách hàng DTO', 'CreateBookingDto should trim customer name');
+  assert(normalizedDto.customerEmail === 'customer@example.com', 'CreateBookingDto should trim and lowercase customer email');
   await assertValidationMessage(
     CreateBookingDto,
     { ...validDtoPayload, code: 'MÃ BOOKING' },

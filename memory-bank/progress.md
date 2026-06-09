@@ -2,6 +2,19 @@
 
 ## Done
 
+- Standardized Booking input normalization:
+  - The active Booking web form now applies the backend code contract before
+    submission and exposes matching HTML min/max/pattern constraints.
+  - Booking code normalization remains trim plus uppercase; spaces,
+    diacritics, and unsupported punctuation are rejected.
+  - Confirmed DTO/service limits for customer name, owners, phone, and email.
+  - Named and documented the intentional `0` default for a missing draft
+    `totalSellPrice`; the web form may leave it blank and lets the API own the
+    default.
+  - Tests cover DTO normalization and an omitted draft price.
+  - Verified on VPS: API/web Docker builds and
+    `TEST_BOOKINGS_SERVICE_OK`.
+
 - Expanded the Booking authorization test matrix:
   - Covered branch-only, department-only, combined, missing-value, no-scope,
     and unrestricted users.

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
 
+export const BOOKING_CODE_MIN_LENGTH = 2;
 export const BOOKING_CODE_MAX_LENGTH = 64;
 export const BOOKING_CUSTOMER_NAME_MIN_LENGTH = 2;
 export const BOOKING_CUSTOMER_NAME_MAX_LENGTH = 180;
@@ -17,6 +18,7 @@ export const BOOKING_TEXT_PATTERN = /^[^\u0000-\u001F\u007F<>]+$/;
 export const BOOKING_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[0-9+().\-\s]{6,32}$/;
 export const BOOKING_EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 export const BOOKING_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const BOOKING_DEFAULT_TOTAL_SELL_PRICE = 0;
 
 export const BOOKING_CORE_FIELDS = [
   'code',
@@ -69,10 +71,13 @@ const trimOptionalEmail = ({ value }: { value: unknown }) => {
 };
 
 export class CreateBookingDto {
-  @ApiProperty({ example: 'BK-2026-0001' })
+  @ApiProperty({
+    example: 'BK-2026-0001',
+    description: 'Mã được trim, chuyển thành chữ hoa và chỉ nhận chữ cái ASCII không dấu, số, dấu gạch ngang hoặc gạch dưới',
+  })
   @Transform(normalizeCode)
   @IsString({ message: 'Mã booking phải là chuỗi' })
-  @MinLength(2, { message: 'Mã booking phải có ít nhất 2 ký tự' })
+  @MinLength(BOOKING_CODE_MIN_LENGTH, { message: `Mã booking phải có ít nhất ${BOOKING_CODE_MIN_LENGTH} ký tự` })
   @MaxLength(BOOKING_CODE_MAX_LENGTH, { message: `Mã booking không được vượt quá ${BOOKING_CODE_MAX_LENGTH} ký tự` })
   @Matches(BOOKING_CODE_PATTERN, { message: 'Mã booking chỉ được dùng chữ cái không dấu, số, dấu gạch ngang hoặc gạch dưới, không có khoảng trắng' })
   code!: string;
@@ -163,7 +168,11 @@ export class CreateBookingDto {
   @Matches(BOOKING_TEXT_PATTERN, { message: 'Điều hành phụ trách không được chứa ký tự điều khiển hoặc dấu < >' })
   operatorOwner?: string;
 
-  @ApiPropertyOptional({ example: 125000000 })
+  @ApiPropertyOptional({
+    example: 125000000,
+    default: BOOKING_DEFAULT_TOTAL_SELL_PRICE,
+    description: 'Có thể bỏ trống khi tạo booking nháp; hệ thống lưu 0 cho đến khi giá bán được cập nhật',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá bán tổng phải là số hợp lệ' })

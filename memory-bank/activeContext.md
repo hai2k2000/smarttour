@@ -20,6 +20,23 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Standardized Booking input normalization across API and web:
+  - Booking codes are now validated consistently in the active web form and
+    backend: trim, uppercase, 2-64 ASCII letters/digits, hyphen, or underscore,
+    with no spaces or diacritics.
+  - Confirmed and retained existing customer/owner/contact validation:
+    customer names are 2-180 characters, owner names are 2-120, phone numbers
+    contain 6-15 digits, and emails are normalized to lowercase with a
+    160-character maximum.
+  - `totalSellPrice` remains optional for newly created `DRAFT` bookings.
+    Missing values intentionally default to `0` in both the service contract
+    and database schema so an initial draft can be saved before pricing is
+    finalized.
+  - The Booking form now explains the draft-price behavior and lets the API
+    apply the default instead of silently inserting a web-only fallback.
+  - VPS verification passed on 2026-06-09: API/web Docker builds and
+    `TEST_BOOKINGS_SERVICE_OK`.
+
 - Expanded Booking data-scope regression coverage without changing production
   behavior:
   - Branch-only, department-only, combined branch+department, missing-scope,
