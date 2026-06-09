@@ -15,6 +15,6 @@ export class UpdateBookingDto extends UpdateBookingFieldsDto {}
 export class UpdateBookingStatusDto {
   @ApiProperty({ enum: BookingStatus })
   @Transform(normalizeBookingStatus)
-  @IsEnum(BookingStatus)
+  @IsEnum(BookingStatus, { message: 'Trạng thái booking không hợp lệ' })
   status!: BookingStatus;
 }

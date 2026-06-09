@@ -29,6 +29,8 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+const { plainToInstance } = require('class-transformer');
+const { validate } = require('class-validator');
 const {
   BOOKING_CODE_CONFLICT_MESSAGE,
   BOOKING_NOT_FOUND_MESSAGES,
@@ -37,8 +39,13 @@ const {
   BOOKING_CORE_FIELDS,
   BOOKING_CREATE_FIELDS,
   BOOKING_CROSS_REFERENCE_FIELDS,
+  CreateBookingDto,
 } = require('./apps/api/dist/modules/bookings/dto/create-booking.dto');
-const { BOOKING_UPDATE_FIELDS } = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
+const {
+  BOOKING_UPDATE_FIELDS,
+  UpdateBookingDto,
+  UpdateBookingStatusDto,
+} = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -68,6 +75,16 @@ function amount(value) {
 
 function dateOnly(value) {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+async function validationMessages(DtoClass, payload) {
+  const errors = await validate(plainToInstance(DtoClass, payload));
+  return errors.flatMap((error) => Object.values(error.constraints || {}));
+}
+
+async function assertValidationMessage(DtoClass, payload, expectedMessage, label) {
+  const messages = await validationMessages(DtoClass, payload);
+  assert(messages.includes(expectedMessage), `${label}: expected "${expectedMessage}", got "${messages.join('; ')}"`);
 }
 
 async function createTourProgram(prisma, run, suffix, durationDays = 3) {
@@ -232,6 +249,65 @@ async function main() {
   assert(BOOKING_NOT_FOUND_MESSAGES.customer === 'Không tìm thấy khách hàng', 'customer not-found message should be Vietnamese');
   assert(BOOKING_NOT_FOUND_MESSAGES.order === 'Không tìm thấy đơn hàng', 'order not-found message should use sentence case');
   assert(BOOKING_NOT_FOUND_MESSAGES.tour === 'Không tìm thấy tour', 'tour not-found message should be Vietnamese');
+
+  const validDtoPayload = {
+    code: 'BK-DTO-VALID',
+    tourProgramId: 'tour-program-id',
+    customerName: 'Khách hàng DTO',
+    paxCount: 2,
+    startDate: '2026-10-01',
+    endDate: '2026-10-03',
+    totalSellPrice: 1000,
+  };
+  assert((await validationMessages(CreateBookingDto, validDtoPayload)).length === 0, 'CreateBookingDto should accept a valid payload');
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, code: 'MÃ BOOKING' },
+    'Mã booking chỉ được dùng chữ cái không dấu, số, dấu gạch ngang hoặc gạch dưới, không có khoảng trắng',
+    'CreateBookingDto should localize booking code validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, customerName: 'Khách <xấu>' },
+    'Tên khách/đoàn không được chứa ký tự điều khiển hoặc dấu < >',
+    'CreateBookingDto should localize customer name validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, customerPhone: '------' },
+    'Điện thoại khách phải có 6-15 chữ số và chỉ được dùng số, khoảng trắng, + ( ) . -',
+    'CreateBookingDto should localize customer phone validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, customerEmail: 'email-khong-hop-le' },
+    'Email khách không hợp lệ',
+    'CreateBookingDto should localize customer email validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, paxCount: 0 },
+    'Số khách phải lớn hơn 0',
+    'CreateBookingDto should localize pax validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, startDate: '2026-10-01T00:00:00Z' },
+    'Ngày khởi hành phải có định dạng YYYY-MM-DD',
+    'CreateBookingDto should enforce date-only startDate',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { endDate: '2026/10/03' },
+    'Ngày kết thúc phải có định dạng YYYY-MM-DD',
+    'UpdateBookingDto should inherit localized date-only validation',
+  );
+  await assertValidationMessage(
+    UpdateBookingStatusDto,
+    { status: 'UNKNOWN' },
+    'Trạng thái booking không hợp lệ',
+    'UpdateBookingStatusDto should localize enum validation',
+  );
 
   const prisma = new PrismaService();
   await prisma.$connect();

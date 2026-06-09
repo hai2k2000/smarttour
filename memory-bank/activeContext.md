@@ -20,6 +20,17 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Localized Booking DTO validation:
+  - Added Vietnamese `class-validator` messages for Booking codes, linked IDs,
+    customer/contact fields, pax, dates, owners, price, and status.
+  - Booking dates now enforce date-only `YYYY-MM-DD` format at the DTO
+    boundary; calendar validity remains enforced by `BookingsService`.
+  - `UpdateBookingDto` inherits the same localized validation contract through
+    the approved partial field set.
+  - Booking tests now execute DTO transforms and validators directly for
+    create, update, and status payloads.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Hardened Booking date and linked-data scope coverage:
   - Booking date tests now lock date-only `YYYY-MM-DD` parsing, invalid
     calendar dates, empty/null values, partial updates, and one-day tours

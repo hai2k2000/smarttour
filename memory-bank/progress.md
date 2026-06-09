@@ -2,6 +2,15 @@
 
 ## Done
 
+- Localized Booking DTO validation:
+  - Booking create/update/status DTOs now return Vietnamese validation
+    messages instead of `class-validator` defaults.
+  - DTO date fields only accept `YYYY-MM-DD`; service validation continues to
+    reject non-existent calendar dates and invalid ranges.
+  - Tests cover localized code, customer, phone, email, pax, date, partial
+    update, and status validation.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Hardened Booking dates and linked-data scope:
   - Date validation coverage includes strict `YYYY-MM-DD`, invalid dates,
     empty/null values, partial updates, and equal dates for one-day tours.
