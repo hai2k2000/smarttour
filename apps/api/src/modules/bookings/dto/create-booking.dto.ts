@@ -3,13 +3,19 @@ import { Transform, Type } from 'class-transformer';
 import { IsDateString, IsEmail, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
 
 export const BOOKING_CODE_MAX_LENGTH = 64;
+export const BOOKING_CUSTOMER_NAME_MIN_LENGTH = 2;
 export const BOOKING_CUSTOMER_NAME_MAX_LENGTH = 180;
+export const BOOKING_OWNER_MIN_LENGTH = 2;
 export const BOOKING_OWNER_MAX_LENGTH = 120;
 export const BOOKING_PHONE_MAX_LENGTH = 32;
+export const BOOKING_PHONE_DIGIT_MIN_LENGTH = 6;
+export const BOOKING_PHONE_DIGIT_MAX_LENGTH = 15;
 export const BOOKING_EMAIL_MAX_LENGTH = 160;
 export const BOOKING_ID_MAX_LENGTH = 80;
 export const BOOKING_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]*$/;
-export const BOOKING_PHONE_PATTERN = /^[0-9+().\-\s]{6,32}$/;
+export const BOOKING_TEXT_PATTERN = /^[^\u0000-\u001F\u007F<>]+$/;
+export const BOOKING_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[0-9+().\-\s]{6,32}$/;
+export const BOOKING_EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 export const BOOKING_CORE_FIELDS = [
   'code',
@@ -101,8 +107,9 @@ export class CreateBookingDto {
   @ApiProperty({ example: 'Đoàn khách Công ty ABC' })
   @Transform(trimRequired)
   @IsString()
-  @MinLength(2)
+  @MinLength(BOOKING_CUSTOMER_NAME_MIN_LENGTH)
   @MaxLength(BOOKING_CUSTOMER_NAME_MAX_LENGTH)
+  @Matches(BOOKING_TEXT_PATTERN)
   customerName!: string;
 
   @ApiPropertyOptional()
@@ -118,6 +125,7 @@ export class CreateBookingDto {
   @IsOptional()
   @IsEmail()
   @MaxLength(BOOKING_EMAIL_MAX_LENGTH)
+  @Matches(BOOKING_EMAIL_PATTERN)
   customerEmail?: string;
 
   @ApiProperty({ example: 18 })
@@ -138,14 +146,18 @@ export class CreateBookingDto {
   @Transform(trimOptional)
   @IsOptional()
   @IsString()
+  @MinLength(BOOKING_OWNER_MIN_LENGTH)
   @MaxLength(BOOKING_OWNER_MAX_LENGTH)
+  @Matches(BOOKING_TEXT_PATTERN)
   saleOwner?: string;
 
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
   @IsString()
+  @MinLength(BOOKING_OWNER_MIN_LENGTH)
   @MaxLength(BOOKING_OWNER_MAX_LENGTH)
+  @Matches(BOOKING_TEXT_PATTERN)
   operatorOwner?: string;
 
   @ApiPropertyOptional({ example: 125000000 })

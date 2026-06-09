@@ -48,6 +48,8 @@ type BookingsPageProps = {
 const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 const moneyFormatter = new Intl.NumberFormat('vi-VN');
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const bookingSafeTextPattern = '[^\\x00-\\x1F\\x7F<>]+';
+const bookingSafeTextRegex = /^[^\u0000-\u001F\u007F<>]+$/;
 const bookingStatusOptions = [
   'DRAFT',
   'CONFIRMED',
@@ -112,13 +114,23 @@ function field(formData: FormData, key: string) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function optionalText(formData: FormData, key: string) {
-  return field(formData, key) || undefined;
+function ensureSafeText(value: string, label: string, maxLength?: number) {
+  if (maxLength !== undefined && value.length > maxLength) throw new Error(`${label} không được vượt quá ${maxLength} ký tự.`);
+  if (!bookingSafeTextRegex.test(value)) throw new Error(`${label} không được chứa ký tự điều khiển hoặc dấu < >.`);
 }
 
-function requiredText(formData: FormData, key: string, label: string, minLength = 1) {
+function optionalText(formData: FormData, key: string, label: string, minLength = 1, maxLength?: number) {
+  const value = field(formData, key);
+  if (!value) return undefined;
+  if (value.length < minLength) throw new Error(`${label} phải có tối thiểu ${minLength} ký tự.`);
+  ensureSafeText(value, label, maxLength);
+  return value;
+}
+
+function requiredText(formData: FormData, key: string, label: string, minLength = 1, maxLength?: number) {
   const value = field(formData, key);
   if (value.length < minLength) throw new Error(`${label} phải có tối thiểu ${minLength} ký tự.`);
+  ensureSafeText(value, label, maxLength);
   return value;
 }
 
@@ -157,14 +169,14 @@ function bookingPayload(formData: FormData): BookingPayload {
   const payload: BookingPayload = {
     code: requiredText(formData, 'code', 'Mã booking', 2),
     tourProgramId: requiredText(formData, 'tourProgramId', 'Tour mẫu'),
-    customerName: requiredText(formData, 'customerName', 'Tên khách/đoàn', 2),
+    customerName: requiredText(formData, 'customerName', 'Tên khách/đoàn', 2, 180),
     paxCount: numberField(formData, 'paxCount', 'Số khách', { min: 1, integer: true, fallback: 1 }),
     startDate,
     endDate,
     totalSellPrice: numberField(formData, 'totalSellPrice', 'Giá bán tổng', { min: 0, fallback: 0 }),
   };
-  const saleOwner = optionalText(formData, 'saleOwner');
-  const operatorOwner = optionalText(formData, 'operatorOwner');
+  const saleOwner = optionalText(formData, 'saleOwner', 'Sale phụ trách', 2, 120);
+  const operatorOwner = optionalText(formData, 'operatorOwner', 'Điều hành phụ trách', 2, 120);
   if (saleOwner) payload.saleOwner = saleOwner;
   if (operatorOwner) payload.operatorOwner = operatorOwner;
   return payload;
@@ -529,7 +541,7 @@ function BookingForm({
         <div className="supplierFieldGrid">
           <label>
             Tên khách/đoàn
-            <input name="customerName" defaultValue={booking?.customerName || ''} placeholder="Công ty ABC" required minLength={2} />
+            <input name="customerName" defaultValue={booking?.customerName || ''} placeholder="Công ty ABC" required minLength={2} maxLength={180} pattern={bookingSafeTextPattern} />
           </label>
           <label>
             Pax
@@ -543,11 +555,11 @@ function BookingForm({
         <div className="supplierFieldGrid">
           <label>
             Sale phụ trách
-            <input name="saleOwner" defaultValue={booking?.saleOwner || ''} placeholder="Tên nhân sự sale" />
+            <input name="saleOwner" defaultValue={booking?.saleOwner || ''} placeholder="Tên nhân sự sale" minLength={2} maxLength={120} pattern={bookingSafeTextPattern} />
           </label>
           <label>
             Điều hành phụ trách
-            <input name="operatorOwner" defaultValue={booking?.operatorOwner || ''} placeholder="Tên nhân sự điều hành" />
+            <input name="operatorOwner" defaultValue={booking?.operatorOwner || ''} placeholder="Tên nhân sự điều hành" minLength={2} maxLength={120} pattern={bookingSafeTextPattern} />
           </label>
         </div>
       </fieldset>

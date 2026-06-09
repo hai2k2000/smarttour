@@ -7,11 +7,15 @@ import {
   BOOKING_CODE_MAX_LENGTH,
   BOOKING_CODE_PATTERN,
   BOOKING_CUSTOMER_NAME_MAX_LENGTH,
+  BOOKING_CUSTOMER_NAME_MIN_LENGTH,
   BOOKING_EMAIL_MAX_LENGTH,
+  BOOKING_EMAIL_PATTERN,
   BOOKING_ID_MAX_LENGTH,
   BOOKING_OWNER_MAX_LENGTH,
+  BOOKING_OWNER_MIN_LENGTH,
   BOOKING_PHONE_MAX_LENGTH,
   BOOKING_PHONE_PATTERN,
+  BOOKING_TEXT_PATTERN,
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
@@ -492,7 +496,7 @@ export class BookingsService {
     if (references.customerId !== undefined && (references.customerId || null) !== current.customerId) blocked.push('khách hàng liên kết');
     if (references.orderId !== undefined && (references.orderId || null) !== current.orderId) blocked.push('đơn hàng liên kết');
     if (references.tourId !== undefined && (references.tourId || null) !== current.tourId) blocked.push('tour vận hành liên kết');
-    if (dto.customerName !== undefined && this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) !== current.customerName) blocked.push('tên khách/đoàn');
+    if (dto.customerName !== undefined && this.customerName(dto.customerName) !== current.customerName) blocked.push('tên khách/đoàn');
     if (dto.customerPhone !== undefined && this.customerPhone(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
     if (dto.customerEmail !== undefined && this.customerEmail(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
     if (dto.paxCount !== undefined && this.paxCountValue(dto.paxCount) !== current.paxCount) blocked.push('số khách');
@@ -621,28 +625,56 @@ export class BookingsService {
   private customerPhone(value: unknown) {
     const phone = this.optionalLimitedText(value, 'Điện thoại khách', BOOKING_PHONE_MAX_LENGTH);
     if (phone && !BOOKING_PHONE_PATTERN.test(phone)) {
-      throw new BadRequestException('Điện thoại khách chỉ được dùng số, khoảng trắng và các ký tự + ( ) . - từ 6 đến 32 ký tự');
+      throw new BadRequestException('Điện thoại khách phải có 6-15 chữ số và chỉ được dùng số, khoảng trắng, + ( ) . -');
     }
     return phone;
   }
 
   private customerEmail(value: unknown) {
     const email = this.optionalLimitedText(value, 'Email khách', BOOKING_EMAIL_MAX_LENGTH)?.toLowerCase() || null;
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && !BOOKING_EMAIL_PATTERN.test(email)) {
       throw new BadRequestException('Email khách không hợp lệ');
     }
     return email;
   }
 
-  private requiredText(value: unknown, label: string, maxLength: number) {
+  private customerName(value: unknown) {
+    return this.safeRequiredText(value, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MIN_LENGTH, BOOKING_CUSTOMER_NAME_MAX_LENGTH);
+  }
+
+  private ownerName(value: unknown, label: string) {
+    return this.safeOptionalText(value, label, BOOKING_OWNER_MIN_LENGTH, BOOKING_OWNER_MAX_LENGTH);
+  }
+
+  private safeRequiredText(value: unknown, label: string, minLength: number, maxLength: number) {
+    const text = this.requiredText(value, label, maxLength, minLength);
+    this.ensureSafeText(text, label);
+    return text;
+  }
+
+  private safeOptionalText(value: unknown, label: string, minLength: number, maxLength: number) {
+    const text = this.optionalLimitedText(value, label, maxLength, minLength);
+    if (text) this.ensureSafeText(text, label);
+    return text;
+  }
+
+  private ensureSafeText(text: string, label: string) {
+    if (!BOOKING_TEXT_PATTERN.test(text)) {
+      throw new BadRequestException(`${label} không được chứa ký tự điều khiển hoặc dấu < >`);
+    }
+  }
+
+  private requiredText(value: unknown, label: string, maxLength: number, minLength = 1) {
     const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     if (!text) throw new BadRequestException(`${label} không được để trống`);
+    if (text.length < minLength) throw new BadRequestException(`${label} phải có ít nhất ${minLength} ký tự`);
     if (text.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
     return text;
   }
 
-  private optionalLimitedText(value: unknown, label: string, maxLength: number) {
+  private optionalLimitedText(value: unknown, label: string, maxLength: number, minLength = 0) {
     const text = this.optionalText(value);
+    if (text && text.length < minLength) throw new BadRequestException(`${label} phải có ít nhất ${minLength} ký tự`);
     if (text && text.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
     return text;
   }
@@ -662,14 +694,14 @@ export class BookingsService {
       customerId: references.customerId,
       orderId: references.orderId,
       tourId: references.tourId,
-      customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH),
+      customerName: this.customerName(dto.customerName),
       customerPhone: this.customerPhone(dto.customerPhone),
       customerEmail: this.customerEmail(dto.customerEmail),
       paxCount: this.paxCountValue(dto.paxCount),
       startDate: this.dateOnlyDate(dto.startDate, 'Ngày khởi hành'),
       endDate: this.dateOnlyDate(dto.endDate, 'Ngày kết thúc'),
-      saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH),
-      operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH),
+      saleOwner: this.ownerName(dto.saleOwner, 'Sale phụ trách'),
+      operatorOwner: this.ownerName(dto.operatorOwner, 'Điều hành phụ trách'),
       totalSellPrice: this.numberValue(dto.totalSellPrice ?? 0, 'Giá bán tổng'),
     };
   }
@@ -681,14 +713,14 @@ export class BookingsService {
       ...(references.customerId !== undefined ? { customerId: references.customerId } : {}),
       ...(references.orderId !== undefined ? { orderId: references.orderId } : {}),
       ...(references.tourId !== undefined ? { tourId: references.tourId } : {}),
-      ...(dto.customerName !== undefined ? { customerName: this.requiredText(dto.customerName, 'Tên khách/đoàn', BOOKING_CUSTOMER_NAME_MAX_LENGTH) } : {}),
+      ...(dto.customerName !== undefined ? { customerName: this.customerName(dto.customerName) } : {}),
       ...(dto.customerPhone !== undefined ? { customerPhone: this.customerPhone(dto.customerPhone) } : {}),
       ...(dto.customerEmail !== undefined ? { customerEmail: this.customerEmail(dto.customerEmail) } : {}),
       ...(dto.paxCount !== undefined ? { paxCount: this.paxCountValue(dto.paxCount) } : {}),
       ...(dto.startDate !== undefined ? { startDate: this.dateOnlyDate(dto.startDate, 'Ngày khởi hành') } : {}),
       ...(dto.endDate !== undefined ? { endDate: this.dateOnlyDate(dto.endDate, 'Ngày kết thúc') } : {}),
-      ...(dto.saleOwner !== undefined ? { saleOwner: this.optionalLimitedText(dto.saleOwner, 'Sale phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalLimitedText(dto.operatorOwner, 'Điều hành phụ trách', BOOKING_OWNER_MAX_LENGTH) } : {}),
+      ...(dto.saleOwner !== undefined ? { saleOwner: this.ownerName(dto.saleOwner, 'Sale phụ trách') } : {}),
+      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.ownerName(dto.operatorOwner, 'Điều hành phụ trách') } : {}),
       ...(dto.totalSellPrice !== undefined ? { totalSellPrice: this.numberValue(dto.totalSellPrice, 'Giá bán tổng') } : {}),
     };
   }

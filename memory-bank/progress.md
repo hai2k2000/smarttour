@@ -2,6 +2,19 @@
 
 ## Done
 
+- Tightened Booking text-field validation:
+  - DTO and service validation now reject unsafe `customerName`, `saleOwner`,
+    and `operatorOwner` values containing control characters or `< >`.
+  - Owner fields remain optional but must be at least 2 characters when set.
+  - `customerPhone` now requires 6-15 actual digits while preserving common
+    formatting characters; `customerEmail` uses the shared stricter pattern.
+  - `/bookings` UI form and server action mirror min/max/safe-text constraints
+    for customer/owner fields currently exposed by the stable screen.
+  - Booking service tests cover short/unsafe text, digitless phones, and
+    unsafe emails on create/update paths.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`, web/API Docker builds,
+    API/web redeploy, and `HEALTHCHECK_OK`.
+
 - Classified Booking DTO fields:
   - `CreateBookingDto` now explicitly separates booking-core fields from
     cross-reference fields.

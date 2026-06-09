@@ -20,6 +20,23 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Tightened Booking text-field validation:
+  - Added shared Booking text validation constants for customer name min
+    length, owner min length, safe text characters, stricter phone digit
+    count, and email pattern.
+  - `CreateBookingDto` now rejects unsafe `customerName`, `saleOwner`, and
+    `operatorOwner` values containing control characters or `< >`; owners must
+    be at least 2 characters when provided.
+  - `BookingsService` now enforces the same rules for direct service writes,
+    including 6-15 actual digits for `customerPhone` and stricter
+    `customerEmail` validation.
+  - `/bookings` server action and form inputs now mirror customer/owner
+    min/max/safe-text constraints for the stable UI fields.
+  - Expanded `scripts/test-bookings-service.sh` with create/update rejection
+    cases for short, unsafe, and digitless text/contact inputs.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`, web/API
+    Docker builds, API/web redeploy, and `HEALTHCHECK_OK`.
+
 - Classified Booking DTO fields into core and cross-reference groups:
   - `CreateBookingDto` now exports `BOOKING_CORE_FIELDS`,
     `BOOKING_CROSS_REFERENCE_FIELDS`, and `BOOKING_CREATE_FIELDS`.

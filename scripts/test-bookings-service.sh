@@ -274,8 +274,20 @@ async function main() {
     'create should reject customerName longer than 180 characters',
   );
   await rejects(
+    () => service.create(bookingDto(run, 'BAD-NAME-SHORT', tourProgram, links, { customerName: 'A' })),
+    'create should reject customerName shorter than 2 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-NAME-UNSAFE', tourProgram, links, { customerName: 'Khach <script>' })),
+    'create should reject unsafe customerName characters',
+  );
+  await rejects(
     () => service.create(bookingDto(run, 'BAD-PHONE', tourProgram, links, { customerPhone: '123' })),
     'create should reject invalid customerPhone',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-PHONE-NO-DIGITS', tourProgram, links, { customerPhone: '------' })),
+    'create should reject customerPhone without enough digits',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-EMAIL', tourProgram, links, { customerEmail: 'bad-email' })),
@@ -286,8 +298,24 @@ async function main() {
     'create should reject saleOwner longer than 120 characters',
   );
   await rejects(
+    () => service.create(bookingDto(run, 'BAD-SALE-OWNER-SHORT', tourProgram, links, { saleOwner: 'S' })),
+    'create should reject saleOwner shorter than 2 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-SALE-OWNER-UNSAFE', tourProgram, links, { saleOwner: '<Sale>' })),
+    'create should reject unsafe saleOwner characters',
+  );
+  await rejects(
     () => service.create(bookingDto(run, 'BAD-OPERATOR-OWNER-LONG', tourProgram, links, { operatorOwner: 'x'.repeat(121) })),
     'create should reject operatorOwner longer than 120 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-OPERATOR-OWNER-SHORT', tourProgram, links, { operatorOwner: 'O' })),
+    'create should reject operatorOwner shorter than 2 characters',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-OPERATOR-OWNER-UNSAFE', tourProgram, links, { operatorOwner: '<Operator>' })),
+    'create should reject unsafe operatorOwner characters',
   );
 
   const normalized = await service.create(bookingDto(run, 'NORMALIZED', tourProgram, links, {
@@ -376,6 +404,12 @@ async function main() {
   );
   await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
   await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
+  await rejects(() => service.update(created.id, { customerName: 'B' }), 'update should reject customerName shorter than 2 characters');
+  await rejects(() => service.update(created.id, { customerName: 'Khach <bad>' }), 'update should reject unsafe customerName characters');
+  await rejects(() => service.update(created.id, { customerPhone: '------' }), 'update should reject customerPhone without enough digits');
+  await rejects(() => service.update(created.id, { customerEmail: 'bad <bad>@smarttour.local' }), 'update should reject unsafe customerEmail');
+  await rejects(() => service.update(created.id, { saleOwner: 'S' }), 'update should reject saleOwner shorter than 2 characters');
+  await rejects(() => service.update(created.id, { operatorOwner: '<Operator>' }), 'update should reject unsafe operatorOwner characters');
   await rejects(
     () => service.update(created.id, { tourProgramId: 'missing-tour-program-id' }),
     'update should reject missing tourProgramId',
