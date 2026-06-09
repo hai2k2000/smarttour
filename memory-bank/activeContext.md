@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 common child orchestration cleanup:
+  - Added `TourCommonChildren` and `TourCoreService.replaceCommonChildren()`
+    so common customer, revenue, cost, service/supplier, guide, attachment,
+    survey, and term replacement can be orchestrated through the Tour core.
+  - FIT, GIT, and LandTour now build a common child payload and delegate the
+    replace sequence to Tour core instead of calling individual common child
+    replace helpers from product services.
+  - Tour-type and FIT root-contract tests now statically guard this boundary
+    while still allowing copy-services actions to use
+    `replaceServicesAndSuppliers()` directly.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1 service/supplier common ownership cleanup:
   - Added `TourCoreService.replaceServicesAndSuppliers()` to keep common
     `tour_services` replacement and derived `tour_suppliers` replacement as

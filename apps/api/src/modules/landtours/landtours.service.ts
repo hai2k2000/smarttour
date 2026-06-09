@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
+import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
@@ -126,31 +126,19 @@ export class LandToursService {
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto, creating = false) {
-    if (creating || dto.customerName !== undefined) {
-      await this.tourCore.replaceCustomers(tx, tourId, [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khách hàng landtour')]);
-    }
-    if (creating || dto.revenues !== undefined) {
-      await this.tourCore.replaceRevenues(tx, tourId, this.tourCore.mapRevenues(dto.revenues));
-    }
-    if (creating || dto.costs !== undefined) {
-      await this.tourCore.replaceCosts(tx, tourId, this.tourCore.mapCosts(dto.costs, 'LANDTOUR_COST'));
-    }
+    const children: TourCommonChildren = {};
+    if (creating || dto.customerName !== undefined) children.customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang landtour')];
+    if (creating || dto.revenues !== undefined) children.revenues = this.tourCore.mapRevenues(dto.revenues);
+    if (creating || dto.costs !== undefined) children.costs = this.tourCore.mapCosts(dto.costs, 'LANDTOUR_COST');
     if (creating || dto.salesServices !== undefined || dto.operationServices !== undefined) {
-      const services = [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
-      await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'LANDTOUR_SERVICE');
+      children.services = [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      children.serviceSupplierRole = 'LANDTOUR_SERVICE';
     }
-    if (creating || dto.guideName !== undefined || dto.guides !== undefined) {
-      await this.tourCore.replaceGuides(tx, tourId, this.mapTourGuides(dto));
-    }
-    if (creating || dto.attachments !== undefined) {
-      await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
-    }
-    if (creating || dto.surveyQuestions !== undefined) {
-      await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions));
-    }
-    if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) {
-      await this.tourCore.replaceTerms(tx, tourId, this.mapTerms(dto));
-    }
+    if (creating || dto.guideName !== undefined || dto.guides !== undefined) children.guides = this.mapTourGuides(dto);
+    if (creating || dto.attachments !== undefined) children.attachments = this.tourCore.mapAttachments(dto.attachments);
+    if (creating || dto.surveyQuestions !== undefined) children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions);
+    if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) children.terms = this.mapTerms(dto);
+    await this.tourCore.replaceCommonChildren(tx, tourId, children);
   }
 
   private tourConfig(): TourRootConfig {

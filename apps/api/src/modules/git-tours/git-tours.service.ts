@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
+import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 
@@ -125,31 +125,23 @@ export class GitToursService {
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto, creating = false) {
+    const children: TourCommonChildren = {};
     if (creating || dto.customerName !== undefined || dto.agentName !== undefined) {
       const customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang GIT')];
       const agent = this.tourCore.agentCustomer(dto as unknown as Row);
       if (agent) customers.push(agent);
-      await this.tourCore.replaceCustomers(tx, tourId, customers);
+      children.customers = customers;
     }
-    if (creating || dto.revenues !== undefined) {
-      await this.tourCore.replaceRevenues(tx, tourId, this.tourCore.mapRevenues(dto.revenues));
-    }
-    if (creating || dto.costs !== undefined) {
-      await this.tourCore.replaceCosts(tx, tourId, this.tourCore.mapCosts(dto.costs, 'GIT_COST'));
-    }
+    if (creating || dto.revenues !== undefined) children.revenues = this.tourCore.mapRevenues(dto.revenues);
+    if (creating || dto.costs !== undefined) children.costs = this.tourCore.mapCosts(dto.costs, 'GIT_COST');
     if (creating || dto.budgetServices !== undefined || dto.operationServices !== undefined) {
-      const services = [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
-      await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'GIT_SERVICE');
+      children.services = [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      children.serviceSupplierRole = 'GIT_SERVICE';
     }
-    if (creating || dto.guides !== undefined) {
-      await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
-    }
-    if (creating || dto.attachments !== undefined) {
-      await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
-    }
-    if (creating || dto.surveyQuestions !== undefined) {
-      await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions));
-    }
+    if (creating || dto.guides !== undefined) children.guides = this.tourCore.mapGuides(dto.guides);
+    if (creating || dto.attachments !== undefined) children.attachments = this.tourCore.mapAttachments(dto.attachments);
+    if (creating || dto.surveyQuestions !== undefined) children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions);
+    await this.tourCore.replaceCommonChildren(tx, tourId, children);
   }
 
   private tourConfig(): TourRootConfig {

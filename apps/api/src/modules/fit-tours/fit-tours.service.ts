@@ -474,14 +474,17 @@ export class FitToursService {
   }
 
   private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
-    await this.tourCore.replaceCustomers(tx, tourId, [this.mapTourCustomer(dto)]);
-    await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
-    await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
-    await this.tourCore.replaceSurveys(tx, tourId, this.tourCore.mapSurveys(dto.surveyQuestions, defaultSurveyQuestions));
-    await this.tourCore.replaceRevenues(tx, tourId, this.mapTourRevenues(dto));
-    await this.tourCore.replaceCosts(tx, tourId, this.mapTourCosts(dto));
     const services = this.mapTourServices(dto).map((row) => ({ ...row, tourId: '' }));
-    await this.tourCore.replaceServicesAndSuppliers(tx, tourId, services, 'FIT_SERVICE');
+    await this.tourCore.replaceCommonChildren(tx, tourId, {
+      customers: [this.mapTourCustomer(dto)],
+      guides: this.tourCore.mapGuides(dto.guides),
+      attachments: this.tourCore.mapAttachments(dto.attachments),
+      surveys: this.tourCore.mapSurveys(dto.surveyQuestions, defaultSurveyQuestions),
+      revenues: this.mapTourRevenues(dto),
+      costs: this.mapTourCosts(dto),
+      services,
+      serviceSupplierRole: 'FIT_SERVICE',
+    });
   }
 
   private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {

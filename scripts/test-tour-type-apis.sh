@@ -54,7 +54,11 @@ function assertTourRootOrchestrationBoundaries() {
     assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
     assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
     assert(source.includes('tourCore.cloneServicesForCopy'), `${label} copyServices should use TourCoreService.cloneServicesForCopy`);
-    assert(source.includes('tourCore.replaceServicesAndSuppliers'), `${label} should sync common services and derived suppliers through TourCoreService.replaceServicesAndSuppliers`);
+    assert(source.includes('tourCore.replaceServicesAndSuppliers'), `${label} copyServices should refresh common services and derived suppliers through TourCoreService.replaceServicesAndSuppliers`);
+    assert(source.includes('tourCore.replaceCommonChildren'), `${label} should sync common child groups through TourCoreService.replaceCommonChildren`);
+    for (const helper of ['replaceCustomers', 'replaceRevenues', 'replaceCosts', 'replaceGuides', 'replaceAttachments', 'replaceSurveys', 'replaceTerms']) {
+      assert(!new RegExp(`tourCore\\.${helper}\\s*\\(`).test(source), `${label} should not call ${helper} directly from module service`);
+    }
     assert(!/tourCore\.replaceServices\s*\(/.test(source), `${label} should not call replaceServices directly from module service`);
     assert(!/tourCore\.replaceSuppliers\s*\(/.test(source), `${label} should not call replaceSuppliers directly from module service`);
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);

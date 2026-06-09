@@ -2,6 +2,16 @@
 
 ## Done
 
+- Centralized common Tour child replacement orchestration:
+  - `TourCoreService.replaceCommonChildren()` now owns the replace sequence for
+    common customers, revenues, costs, services/suppliers, guides,
+    attachments, surveys, and terms.
+  - FIT, GIT, and LandTour prepare child payloads and delegate common child
+    persistence to Tour core rather than calling individual replace helpers.
+  - Static regression tests guard the new boundary for FIT, GIT, and LandTour.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Centralized common service/supplier sync in TourCore:
   - `TourCoreService.replaceServicesAndSuppliers()` now owns the paired
     replacement of `tour_services` and derived `tour_suppliers`.

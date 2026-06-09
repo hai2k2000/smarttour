@@ -22,6 +22,19 @@ export type TourRootConfig = {
   allowWorkflowStepInput?: boolean;
 };
 
+export type TourCommonChildren = {
+  customers?: Prisma.TourCustomerCreateManyInput[];
+  suppliers?: Prisma.TourSupplierCreateManyInput[];
+  services?: Prisma.TourServiceCreateManyInput[];
+  serviceSupplierRole?: string;
+  revenues?: Prisma.TourRevenueCreateManyInput[];
+  costs?: Prisma.TourCostCreateManyInput[];
+  guides?: Prisma.TourGuideCreateManyInput[];
+  attachments?: Prisma.TourAttachmentCreateManyInput[];
+  surveys?: Prisma.TourSurveyCreateManyInput[];
+  terms?: Prisma.TourTermCreateManyInput[];
+};
+
 @Injectable()
 export class TourCoreService {
   constructor(private readonly prisma: PrismaService) {}
@@ -141,6 +154,22 @@ export class TourCoreService {
   async replaceServicesAndSuppliers(tx: Prisma.TransactionClient, tourId: string, services: Prisma.TourServiceCreateManyInput[], supplierRole = 'SERVICE') {
     await this.replaceServices(tx, tourId, services);
     await this.replaceSuppliers(tx, tourId, this.suppliersFromServices(services, supplierRole));
+  }
+
+
+  async replaceCommonChildren(tx: Prisma.TransactionClient, tourId: string, children: TourCommonChildren) {
+    if (children.customers !== undefined) await this.replaceCustomers(tx, tourId, children.customers);
+    if (children.revenues !== undefined) await this.replaceRevenues(tx, tourId, children.revenues);
+    if (children.costs !== undefined) await this.replaceCosts(tx, tourId, children.costs);
+    if (children.services !== undefined) {
+      await this.replaceServicesAndSuppliers(tx, tourId, children.services, children.serviceSupplierRole);
+    } else if (children.suppliers !== undefined) {
+      await this.replaceSuppliers(tx, tourId, children.suppliers);
+    }
+    if (children.guides !== undefined) await this.replaceGuides(tx, tourId, children.guides);
+    if (children.attachments !== undefined) await this.replaceAttachments(tx, tourId, children.attachments);
+    if (children.surveys !== undefined) await this.replaceSurveys(tx, tourId, children.surveys);
+    if (children.terms !== undefined) await this.replaceTerms(tx, tourId, children.terms);
   }
 
   async replaceRevenues(tx: Prisma.TransactionClient, tourId: string, revenues: Prisma.TourRevenueCreateManyInput[]) {
