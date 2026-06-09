@@ -2,6 +2,20 @@
 
 ## Done
 
+- Locked Booking update/status boundaries:
+  - `UpdateBookingDto` remains limited to approved booking edit fields and does
+    not expose `status`.
+  - `BOOKING_UPDATE_FIELDS` now makes the editable field list explicit for DTO
+    and tests.
+  - `UpdateBookingStatusDto` remains the only DTO for status changes through
+    `PATCH /api/bookings/:id/status`.
+  - Booking service tests now assert the exact update field list and ensure
+    general update rejects status changes.
+  - Legacy `bookings-page.tsx` status action now calls `/bookings/:id/status`
+    instead of the general booking update endpoint.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`, web Docker build, API/web
+    redeploy, and `HEALTHCHECK_OK`.
+
 - Trimmed heavy include/select payloads in list/detail APIs:
   - Operations form and supplier-payment-request list calls now use explicit
     list `select` helpers; detail/mutation responses keep needed nested data

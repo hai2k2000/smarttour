@@ -219,7 +219,7 @@ async function updateBookingStatus(formData: FormData) {
     redirectWithResult({ ok: false, message: `Cáº­p nháº­t tráº¡ng thÃ¡i tháº¥t báº¡i: tráº¡ng thÃ¡i "${status || 'trá»‘ng'}" khÃ´ng há»£p lá»‡.` });
   }
   const result = await apiMutation(
-    `/bookings/${encodeURIComponent(id)}`,
+    `/bookings/${encodeURIComponent(id)}/status`,
     { method: 'PATCH', headers: await serverAuthJsonHeaders(), body: JSON.stringify({ status }) },
     'ÄÃ£ cáº­p nháº­t tráº¡ng thÃ¡i booking.',
     'Cáº­p nháº­t tráº¡ng thÃ¡i tháº¥t báº¡i',

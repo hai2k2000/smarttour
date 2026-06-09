@@ -29,6 +29,7 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
+const { BOOKING_UPDATE_FIELDS } = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -125,6 +126,28 @@ function bookingDto(run, suffix, tourProgram, links, overrides = {}) {
 }
 
 async function main() {
+  const expectedUpdateFields = [
+    'code',
+    'tourProgramId',
+    'customerId',
+    'orderId',
+    'tourId',
+    'customerName',
+    'customerPhone',
+    'customerEmail',
+    'paxCount',
+    'startDate',
+    'endDate',
+    'saleOwner',
+    'operatorOwner',
+    'totalSellPrice',
+  ];
+  assert(
+    JSON.stringify(BOOKING_UPDATE_FIELDS) === JSON.stringify(expectedUpdateFields),
+    'UpdateBookingDto should only expose the approved booking update fields',
+  );
+  assert(!BOOKING_UPDATE_FIELDS.includes('status'), 'UpdateBookingDto should not expose status; use UpdateBookingStatusDto');
+
   const prisma = new PrismaService();
   await prisma.$connect();
   const service = new BookingsService(prisma);

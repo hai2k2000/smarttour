@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Locked the Booking update/status contract:
+  - Confirmed `UpdateBookingDto` should remain a narrow booking edit DTO and
+    should not include `status`; status updates stay isolated in
+    `UpdateBookingStatusDto` and `PATCH /api/bookings/:id/status`.
+  - Exported `BOOKING_UPDATE_FIELDS` so the allowed update surface is explicit
+    and cannot silently grow from `CreateBookingDto`.
+  - Extended `scripts/test-bookings-service.sh` to assert the exact
+    `UpdateBookingDto` field list and to keep rejecting status changes through
+    general `update()`.
+  - Fixed legacy `apps/web/app/bookings-page.tsx` to call
+    `/api/bookings/:id/status` for booking status changes instead of sending
+    `{ status }` to the general update route.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`, web
+    Docker build, API/web redeploy, and `HEALTHCHECK_OK`.
+
 - Trimmed unused list/detail include payloads for dense modules:
   - Operations list APIs now use explicit list `select` helpers for operation
     forms and supplier payment requests, while detail/mutation responses keep
