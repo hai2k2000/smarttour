@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Confirmed Booking delete guardrails:
+  - Deleting a booking must remain blocked once the booking has generated
+    `operationForm`, `operationVouchers`, or `allotmentLocks`
+    (`SupplierAllotmentAllocation`) because those relations use nullable links
+    and `onDelete: SetNull`; deleting would orphan operational history.
+  - Existing `BookingsService.ensureCanDelete()` already counts all three
+    dependency groups through `bookingUsage()`, so no service behavior change
+    was needed.
+  - Expanded `scripts/test-bookings-service.sh` with delete-block tests for
+    operation vouchers and allotment allocations, in addition to the existing
+    operation form delete guard.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Locked the Booking update/status contract:
   - Confirmed `UpdateBookingDto` should remain a narrow booking edit DTO and
     should not include `status`; status updates stay isolated in

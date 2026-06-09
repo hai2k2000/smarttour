@@ -2,6 +2,16 @@
 
 ## Done
 
+- Confirmed Booking delete guardrails:
+  - Booking delete remains blocked when `operationForm`,
+    `operationVouchers`, or `allotmentLocks` exist.
+  - This is required because the underlying relations are nullable and would
+    otherwise be set to null, losing the booking link from operational history.
+  - Existing `BookingsService.bookingUsage()` already checks all three groups.
+  - Added service-test coverage for operation-voucher and allotment-allocation
+    delete blockers.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Locked Booking update/status boundaries:
   - `UpdateBookingDto` remains limited to approved booking edit fields and does
     not expose `status`.

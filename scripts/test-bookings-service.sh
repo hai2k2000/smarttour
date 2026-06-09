@@ -105,6 +105,29 @@ async function createLinkedData(prisma, run, suffix = 'MAIN') {
   return { customer, order, tour };
 }
 
+async function createAllotmentSupplier(prisma, run) {
+  const category = await prisma.supplierCategory.create({ data: { name: `${run}-Allotment Supplier Category` } });
+  const supplier = await prisma.supplier.create({
+    data: {
+      categoryId: category.id,
+      supplierCode: `${run}-ALLOT-SUP`,
+      name: 'Bookings Service Allotment Supplier',
+      status: 'ACTIVE',
+    },
+  });
+  const allotment = await prisma.supplierAllotment.create({
+    data: {
+      supplierId: supplier.id,
+      serviceName: 'Bookings Service Allotment',
+      allotmentQty: 5,
+      lockedQty: 0,
+      bookedQty: 0,
+      status: 'ACTIVE',
+    },
+  });
+  return { supplier, allotment };
+}
+
 function bookingDto(run, suffix, tourProgram, links, overrides = {}) {
   return {
     code: `${run}-BKG-${suffix}`,
@@ -302,6 +325,45 @@ async function main() {
   }));
   await service.remove(linkedDeletable.id);
   await rejects(() => service.detail(linkedDeletable.id), 'delete should allow linked booking when no operation data exists');
+
+  const voucherLockedBooking = await service.create(bookingDto(run, 'DELETE-VOUCHER', tourProgram, links, {
+    startDate: '2026-11-09',
+    endDate: '2026-11-11',
+  }));
+  await prisma.operationVoucher.create({
+    data: {
+      voucherCode: `${run}-VCH-DELETE`,
+      bookingId: voucherLockedBooking.id,
+      serviceType: 'HOTEL',
+      serviceName: 'Bookings Service Voucher Lock',
+      serviceDate: new Date('2026-11-10'),
+      totalAmount: 1000,
+      remainAmount: 1000,
+      status: 'PENDING',
+    },
+  });
+  const voucherLockedDetail = await service.detail(voucherLockedBooking.id);
+  assert(voucherLockedDetail.operationVouchers.length === 1, 'detail should expose operation voucher dependencies');
+  await rejects(() => service.remove(voucherLockedBooking.id), 'delete should reject booking with operationVouchers');
+
+  const allotmentLockedBooking = await service.create(bookingDto(run, 'DELETE-ALLOTMENT', tourProgram, links, {
+    startDate: '2026-11-13',
+    endDate: '2026-11-15',
+  }));
+  const { supplier: allotmentSupplier, allotment } = await createAllotmentSupplier(prisma, run);
+  await prisma.supplierAllotmentAllocation.create({
+    data: {
+      allotmentId: allotment.id,
+      supplierId: allotmentSupplier.id,
+      bookingId: allotmentLockedBooking.id,
+      quantity: 1,
+      status: 'LOCKED',
+      lockedAt: new Date('2026-11-01'),
+    },
+  });
+  const allotmentLockedDetail = await service.detail(allotmentLockedBooking.id);
+  assert(allotmentLockedDetail.allotmentLocks.length === 1, 'detail should expose allotment lock dependencies');
+  await rejects(() => service.remove(allotmentLockedBooking.id), 'delete should reject booking with allotmentLocks');
 
   const operationForm = await prisma.operationForm.create({
     data: {
