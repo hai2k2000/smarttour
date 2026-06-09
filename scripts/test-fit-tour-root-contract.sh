@@ -103,6 +103,28 @@ async function main() {
   assert(createdRoot.services.length === 2, 'Tour root should own budget and operation services');
   assert(createdRoot.suppliers.length === 1 && createdRoot.suppliers[0].supplierId === supplier.id, 'Tour root should derive suppliers from services');
 
+  await prisma.fitTour.update({
+    where: { id: source.id },
+    data: {
+      tourCode: `${run}-LEGACY-STALE`,
+      tourName: 'Legacy stale source name',
+      customerName: 'Legacy stale customer',
+      startDate: new Date('2035-01-01T00:00:00.000Z'),
+      endDate: new Date('2035-01-02T00:00:00.000Z'),
+    },
+  });
+  const rootSourcedDetail = await fitTours.detail(source.id);
+  assert(rootSourcedDetail.tourCode === rootCode(`${run}-SRC-T`), 'FIT detail should expose Tour root tourCode over stale legacy value');
+  assert(rootSourcedDetail.tourName === 'FIT Root Contract Source', 'FIT detail should expose Tour root name over stale legacy value');
+  assert(rootSourcedDetail.customerName === 'FIT Root Customer', 'FIT detail should expose TourCustomer name over stale legacy value');
+  assert(rootSourcedDetail.startDate.toISOString().startsWith('2026-08-01'), 'FIT detail should expose Tour root startDate over stale legacy value');
+  const rootSourcedList = await fitTours.list('FIT Root Contract Source');
+  const rootSourcedListRow = rootSourcedList.find((row) => row.id === source.id);
+  assert(rootSourcedListRow, 'FIT list should search by common Tour root name');
+  assert(rootSourcedListRow.tourName === 'FIT Root Contract Source', 'FIT list should expose Tour root name over stale legacy value');
+  assert(rootSourcedListRow.customerName === 'FIT Root Customer', 'FIT list should expose TourCustomer name over stale legacy value');
+  assert(!('tour' in rootSourcedListRow), 'FIT list should not expose nested Tour root payload');
+
   await fitTours.update(source.id, {
     workflowStatus: FitTourWorkflowStatus.PRICING,
     tourName: 'FIT Root Contract Source Updated',

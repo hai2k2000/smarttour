@@ -20,6 +20,23 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued the `tour-backend-issues.md` P0 FIT read-side root-source work:
+  - FIT list now selects the linked common `Tour` root only for internal
+    snapshot overlay, then returns the existing lightweight list shape without
+    exposing nested `tour` payloads.
+  - FIT list search now checks common `Tour.systemCode`, `Tour.tourCode`,
+    `Tour.name`, and `TourCustomer` name/phone in addition to legacy FIT
+    fields.
+  - FIT detail/list now overlay common fields from `Tour` / `TourCustomer`
+    (`quoteCode`, `tourCode`, `tourName`, dates, owner/route fields, and
+    primary customer snapshot) so stale legacy common fields do not become
+    the source of truth.
+  - `scripts/test-fit-tour-root-contract.sh` now corrupts legacy FIT common
+    fields and verifies list/detail still return/search by the common root.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Started the `tour-backend-issues.md` P0 Tour-root refactor in FIT:
   - Confirmed the common `Tour` root, common child tables, and separate
     `TourStatus` / `FitTourWorkflowStatus` enums already exist in schema.

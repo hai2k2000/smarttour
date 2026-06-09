@@ -27,6 +27,7 @@ const fitTourInclude = {
 
 const fitTourListSelect = {
   id: true,
+  tourId: true,
   quoteCode: true,
   tourCode: true,
   tourName: true,
@@ -41,6 +42,21 @@ const fitTourListSelect = {
   commissionPerGuest: true,
   workflowStatus: true,
   updatedAt: true,
+  tour: {
+    select: {
+      systemCode: true,
+      tourCode: true,
+      name: true,
+      startDate: true,
+      endDate: true,
+      updatedAt: true,
+      customers: {
+        where: { isPrimary: true },
+        take: 1,
+        select: { name: true, phone: true },
+      },
+    },
+  },
   _count: {
     select: {
       commonCosts: true,
@@ -84,7 +100,7 @@ export class FitToursService {
     private readonly legacyCompat: FitTourLegacyCompatService,
   ) {}
 
-  list(search?: string, status?: string, user?: RequestUser) {
+  async list(search?: string, status?: string, user?: RequestUser) {
     const workflowStatus = this.toWorkflowStatus(status);
     const searchText = normalizeListSearch(search);
     const contains = searchText ? containsSearch(searchText) : undefined;
@@ -98,22 +114,32 @@ export class FitToursService {
               { tourName: contains },
               { customerName: contains },
               { phone: contains },
+              { tour: { is: { systemCode: contains } } },
+              { tour: { is: { tourCode: contains } } },
+              { tour: { is: { name: contains } } },
+              { tour: { is: { customers: { some: { name: contains } } } } },
+              { tour: { is: { customers: { some: { phone: contains } } } } },
             ],
           }
         : {}),
     };
 
-    return this.prisma.fitTour.findMany({
+    const rows = await this.prisma.fitTour.findMany({
       where: this.fitTourScopeWhere(where, user),
       select: fitTourListSelect,
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
+    });
+    return rows.map((row) => {
+      const snapshot = this.withTourRootSnapshot(row) as Row;
+      const { tour: _tour, ...listRow } = snapshot;
+      return listRow;
     });
   }
 
   async detail(id: string, user?: RequestUser) {
     const fitTour = await this.prisma.fitTour.findFirst({ where: this.fitTourScopeWhere({ id }, user), include: fitTourInclude });
     if (!fitTour) throw new NotFoundException('Không tìm thấy tour FIT');
-    return fitTour;
+    return this.withTourRootSnapshot(fitTour);
   }
 
   async create(dto: CreateFitTourDto, user?: RequestUser) {
@@ -323,6 +349,34 @@ export class FitToursService {
     if (!user || hasUnrestrictedDataScope(user)) return { AND: [where, { tour: { is: { deletedAt: null } } }] };
     const scopedTour = branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user);
     return { AND: [where, { tour: { is: scopedTour } }] };
+  }
+
+  private withTourRootSnapshot<T extends Row>(fitTour: T): T {
+    const tour = fitTour.tour as Row | null | undefined;
+    if (!tour) return fitTour;
+    const customers = Array.isArray(tour.customers) ? (tour.customers as Row[]) : [];
+    const primaryCustomer = customers.find((customer) => customer.isPrimary === true) || customers[0];
+    return {
+      ...fitTour,
+      quoteCode: tour.systemCode ?? fitTour.quoteCode,
+      tourCode: tour.tourCode ?? fitTour.tourCode,
+      tourName: tour.name ?? fitTour.tourName,
+      marketGroup: tour.marketGroup ?? fitTour.marketGroup,
+      bookingDate: tour.bookingDate ?? fitTour.bookingDate,
+      startDate: tour.startDate ?? fitTour.startDate,
+      endDate: tour.endDate ?? fitTour.endDate,
+      flightRoute: tour.flightRoute ?? fitTour.flightRoute,
+      exchangeRateCode: tour.exchangeRateCode ?? fitTour.exchangeRateCode,
+      exchangeRate: tour.exchangeRate ?? fitTour.exchangeRate,
+      operatorOwner: tour.operatorOwner ?? fitTour.operatorOwner,
+      pickupPoint: tour.pickupPoint ?? fitTour.pickupPoint,
+      dropoffPoint: tour.dropoffPoint ?? fitTour.dropoffPoint,
+      notes: tour.notes ?? fitTour.notes,
+      updatedAt: tour.updatedAt ?? fitTour.updatedAt,
+      customerName: primaryCustomer?.name ?? fitTour.customerName,
+      phone: primaryCustomer?.phone ?? fitTour.phone,
+      email: primaryCustomer?.email ?? fitTour.email,
+    };
   }
 
   private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {

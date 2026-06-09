@@ -2,6 +2,17 @@
 
 ## Done
 
+- Continued FIT Tour-root read-side normalization:
+  - FIT list/detail now use common `Tour` / `TourCustomer` values as the
+    response source for common fields while preserving the existing list
+    summary shape.
+  - FIT list search now includes common Tour root codes/name and common
+    TourCustomer name/phone so stale legacy common fields do not hide rows.
+  - Added regression coverage that intentionally stales legacy FIT common
+    fields and verifies list/detail still read/search from the common root.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Started the FIT Tour-root P0 refactor from `tour-backend-issues.md`:
   - Confirmed schema already has the common `Tour` root, common child tables,
     and separate `TourStatus` / `FitTourWorkflowStatus` enums.
