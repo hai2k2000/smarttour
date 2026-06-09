@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 finance/report and FIT date hardening:
+  - Finance receipt/payment/invoice create/update/import/approve/cancel paths now
+    require a resolvable common `tourId`; linked customer/order/supplier/voucher
+    consistency is validated before writes.
+  - Finance file cleanup uses `removeIfPresent()` and parses both current
+    `/api/files/download?key=...` URLs and legacy `/files/...` URLs.
+  - Reversal records now preserve scope/link data and receipt order allocations,
+    keeping cashflow and debt reports tied back to the same tour/order context.
+  - FIT DTO/service/legacy date handling now matches the date-only
+    `YYYY-MM-DD` contract used by common/GIT/LandTour and avoids direct
+    timezone-prone `new Date(text)` parsing.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_FIT_TOUR_ROOT_CONTRACT_OK`.
+
 - Continued common Tour DTO date-only contract normalization:
   - Common `CreateTourDto` now exports `TOUR_DATE_PATTERN` and uses
     `IsString` + `Matches(YYYY-MM-DD)` for booking, payment due, start, and

@@ -2,6 +2,21 @@
 
 ## Done
 
+- Tightened P1 finance tour linkage and FIT date contracts:
+  - Finance receipts, payments, invoices, approvals, cancellations, and CSV
+    imports now require a resolvable common `tourId` and validate linked
+    customer/order/supplier/voucher/receipt consistency before writes.
+  - Finance file cleanup now removes stored objects through `removeIfPresent()`
+    and supports both current download URLs and legacy `/files/...` URLs.
+  - Finance reversal rows now preserve branch/department/order/voucher links and
+    receipt order allocations so reports and ledgers stay scoped.
+  - FIT DTOs now use an explicit `YYYY-MM-DD` date contract, and FIT
+    service/legacy compatibility parsing validates real calendar dates with UTC
+    date-only construction instead of direct `new Date(text)`.
+  - Verified on VPS: API Docker build, `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`.
+
 - Normalized common Tour DTO date contract:
   - `CreateTourDto` now uses an explicit `YYYY-MM-DD` regex for root date
     fields instead of `IsDateString()`.

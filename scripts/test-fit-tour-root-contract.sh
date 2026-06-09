@@ -65,11 +65,16 @@ function assertFitDtoContract() {
   assert(fitCreateDtoContract.FIT_TOUR_ROOT_FIELDS.includes('paymentStatus'), 'FIT root field group should keep root paymentStatus explicit');
   assert(fitCreateDtoContract.FIT_TOUR_DETAIL_FIELDS.includes('seatCount'), 'FIT-specific detail group should include seatCount');
   assert(fitCreateDtoContract.FIT_TOUR_CHILD_FIELDS.includes('operationServices'), 'FIT child group should include operationServices');
+  assert(fitCreateDtoContract.FIT_TOUR_DATE_PATTERN.test('2026-06-15'), 'FIT date pattern should accept YYYY-MM-DD');
+  assert(!fitCreateDtoContract.FIT_TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'FIT date pattern should reject ISO datetimes');
 }
 
 function assertLegacyCompatBoundary() {
   const fs = require('fs');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
+  const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
+  assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
+  assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   const directLegacyChildWrites = /tx\.fit(?:CommonCost|HotelCost|PrivateCost|BudgetService|OperationService|TourGuide|HandoverItem|SurveyQuestion|Attachment)\./;
   assert(!directLegacyChildWrites.test(serviceSource), 'FitToursService should not write legacy FIT child tables directly');
   assert(serviceSource.includes('legacyCompat.toChildCreateData'), 'FIT create should delegate legacy child create data to compatibility service');

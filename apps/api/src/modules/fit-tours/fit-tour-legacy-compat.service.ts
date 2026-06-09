@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma } from '@prisma/client';
+import { FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 
 type Row = Record<string, unknown>;
@@ -313,10 +314,20 @@ export class FitTourLegacyCompatService {
     return text ? text : null;
   }
 
-  private optionalDate(value: unknown) {
-    if (value instanceof Date) return value;
+  private optionalDate(value: unknown, field = 'date') {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+      return value;
+    }
     const text = this.text(value);
-    return text ? new Date(text) : null;
+    if (!text) return null;
+    if (!FIT_TOUR_DATE_PATTERN.test(text)) throw new BadRequestException(`${field} phải có định dạng YYYY-MM-DD`);
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException(`${field} không hợp lệ`);
+    }
+    return date;
   }
 
   private number(value: unknown) {
@@ -351,6 +362,6 @@ export class FitTourLegacyCompatService {
   }
 
   private pickOptionalDates(dto: Record<string, unknown>, fields: string[]) {
-    return Object.fromEntries(fields.filter((field) => dto[field] !== undefined).map((field) => [field, this.optionalDate(dto[field])]));
+    return Object.fromEntries(fields.filter((field) => dto[field] !== undefined).map((field) => [field, this.optionalDate(dto[field], field)]));
   }
 }

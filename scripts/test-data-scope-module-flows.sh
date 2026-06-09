@@ -181,6 +181,7 @@ async function main() {
     customerName: customerA.fullName,
     invoiceType: 'VAT',
     issuedDate: '2026-12-01',
+    tourId: tourA.id,
     items: [{ itemName: 'Tour A', quantity: 1, unitPrice: 100, taxRate: 10 }],
   }, branchUser);
   const invoiceB = await finance.createInvoice({
@@ -189,6 +190,7 @@ async function main() {
     customerName: customerB.fullName,
     invoiceType: 'VAT',
     issuedDate: '2026-12-02',
+    tourId: tourB.id,
     items: [{ itemName: 'Tour B', quantity: 1, unitPrice: 200, taxRate: 10 }],
   }, allUser);
 

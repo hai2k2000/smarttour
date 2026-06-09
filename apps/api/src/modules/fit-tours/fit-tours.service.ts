@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService } from '../tours/tour-core.service';
-import { CreateFitTourDto } from './dto/create-fit-tour.dto';
+import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 
@@ -652,13 +652,17 @@ export class FitToursService {
 
   private optionalDate(value: unknown, field = 'date') {
     if (value instanceof Date) {
-      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} khng hp l`);
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
       return value;
     }
     const text = this.text(value);
     if (!text) return null;
-    const date = new Date(text);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} khng hp l`);
+    if (!FIT_TOUR_DATE_PATTERN.test(text)) throw new BadRequestException(`${field} phải có định dạng YYYY-MM-DD`);
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException(`${field} không hợp lệ`);
+    }
     return date;
   }
 

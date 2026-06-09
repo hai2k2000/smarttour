@@ -173,6 +173,18 @@ async function main() {
       department: 'OTHER-DEP',
     },
   });
+  const tour = await prisma.tour.create({
+    data: {
+      type: 'FIT',
+      systemCode: run + '-TOUR',
+      tourCode: run + '-TOUR',
+      name: 'Finance Linked Tour',
+      orderId: order.id,
+      branch: 'FIN-BR',
+      department: 'FIN-DEP',
+    },
+  });
+  await prisma.operationVoucher.update({ where: { id: voucher.id }, data: { orderId: order.id, tourId: tour.id } });
 
   const branchUser = scopedUser('FIN-BR', 'FIN-DEP', 'data.scope.branch');
   const outOfScopeUser = scopedUser('OTHER-BR', 'OTHER-DEP', 'data.scope.branch');
@@ -187,6 +199,7 @@ async function main() {
     totalAmount: 500,
     paidBefore: 100,
     receiptAmount: 200,
+    tourId: tour.id,
     branch: 'FIN-BR',
     department: 'FIN-DEP',
   });
@@ -211,6 +224,7 @@ async function main() {
     supplierId: supplier.id,
     totalAmount: 700,
     paymentAmount: 300,
+    tourId: tour.id,
     branch: 'FIN-BR',
     department: 'FIN-DEP',
   });
@@ -232,6 +246,7 @@ async function main() {
     customerName: customer.fullName,
     invoiceType: 'VAT',
     issuedDate: '2026-10-03',
+    tourId: tour.id,
     branch: 'FIN-BR',
     department: 'FIN-DEP',
     items: [{ itemName: 'Invoice CRUD', unit: 'pax', quantity: 1, unitPrice: 100, taxRate: 10 }],
@@ -276,6 +291,9 @@ async function main() {
     invoiceType: 'VAT',
     items: [{ itemName: 'Bad invoice link', quantity: 1, unitPrice: 100, taxRate: 10 }],
   }), 'invoice should reject mismatched customer/order links');
+  await rejects(() => finance.createReceipt({ receiptCode: run + '-NO-TOUR-RCPT', receiptName: 'No Tour Receipt', receiptType: 'TOUR_PAYMENT', receiptAmount: 1 }), 'receipt should require a tour link');
+  await rejects(() => finance.createPayment({ voucherCode: run + '-NO-TOUR-PAY', voucherName: 'No Tour Payment', voucherType: 'SUPPLIER_PAYMENT', paymentAmount: 1 }), 'payment should require a tour link');
+  await rejects(() => finance.createInvoice({ invoiceCode: run + '-NO-TOUR-INV', invoiceType: 'VAT', items: [{ itemName: 'No tour invoice', quantity: 1, unitPrice: 1 }] }), 'invoice should require a tour link');
 
   const receipt = await finance.createReceipt({
     receiptCode: run + '-RCPT',
@@ -310,7 +328,8 @@ async function main() {
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_RECEIPT', sourceId: receipt.id, entryType: 'CREDIT' }, 'creditAmount') === 1000, 'receipt customer ledger credit should match receipt amount');
   let orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidAmount) === 1000 && amount(orderAfter.remainingRevenue) === 0 && orderAfter.paymentStatus === 'PAID', 'receipt approve should reconcile order revenue');
-  await rejects(() => finance.approveReceipt(receipt.id, { actor: 'finance-test' }), 'double approve receipt should be blocked');
+  const approvedReceiptAgain = await finance.approveReceipt(receipt.id, { actor: 'finance-test' });
+  assert(approvedReceiptAgain.id === receipt.id && approvedReceiptAgain.approvalStatus === 'APPROVED', 'double approve receipt should be idempotent');
   const cancelledReceipt = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'cancel receipt' });
   assert(cancelledReceipt.approvalStatus === 'CANCELLED' && cancelledReceipt.reversals.length === 1, 'receipt should cancel with reversal');
   const receiptReversal = await prisma.financeReceipt.findUniqueOrThrow({ where: { id: cancelledReceipt.reversals[0].id }, include: { orders: true } });
@@ -338,6 +357,7 @@ async function main() {
     totalAmount: 100,
     paidBefore: 0,
     receiptAmount: 100,
+    tourId: tour.id,
     branch: 'FIN-BR',
     department: 'FIN-DEP',
   });
@@ -379,7 +399,8 @@ async function main() {
   assert(await sum(prisma, 'supplierLedgerEntry', { sourceType: 'FINANCE_PAYMENT', sourceId: payment.id, entryType: 'DEBIT' }, 'debitAmount') === 600, 'payment supplier ledger debit should match payment amount');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidCost) === 600 && amount(orderAfter.remainingCost) === 100 && orderAfter.costStatus === 'PARTIAL', 'payment approve should reconcile order cost');
-  await rejects(() => finance.approvePayment(payment.id, { actor: 'finance-test' }), 'double approve payment should be blocked');
+  const approvedPaymentAgain = await finance.approvePayment(payment.id, { actor: 'finance-test' });
+  assert(approvedPaymentAgain.id === payment.id && approvedPaymentAgain.approvalStatus === 'APPROVED', 'double approve payment should be idempotent');
   const cancelledPayment = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'cancel payment' });
   assert(cancelledPayment.approvalStatus === 'CANCELLED' && cancelledPayment.reversals.length === 1, 'payment should cancel with reversal');
   const paymentReversal = await prisma.financePayment.findUniqueOrThrow({ where: { id: cancelledPayment.reversals[0].id } });
@@ -414,6 +435,7 @@ async function main() {
     receiverName: supplier.name,
     totalAmount: 100,
     paymentAmount: 100,
+    tourId: tour.id,
     branch: 'FIN-BR',
     department: 'FIN-DEP',
   });
@@ -429,6 +451,7 @@ async function main() {
     customerPhone: customer.phone,
     invoiceType: 'VAT',
     issuedDate: '2026-11-04',
+    tourId: tour.id,
     items: [{ itemName: 'Tour service', unit: 'pax', quantity: 2, unitPrice: 500, taxRate: 10 }],
   });
   const approvedInvoice = await finance.approveInvoice(invoice.id, { actor: 'finance-test' });
@@ -445,7 +468,8 @@ async function main() {
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' }, 'debitAmount') === 1100, 'invoice customer ledger debit should match total after tax');
   const invoiceLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } });
   assert(invoiceLedger.branch === 'FIN-BR' && invoiceLedger.department === 'FIN-DEP', 'invoice customer ledger should preserve resolved customer scope');
-  await rejects(() => finance.approveInvoice(invoice.id, { actor: 'finance-test' }), 'double approve invoice should be blocked');
+  const approvedInvoiceAgain = await finance.approveInvoice(invoice.id, { actor: 'finance-test' });
+  assert(approvedInvoiceAgain.id === invoice.id && approvedInvoiceAgain.approvalStatus === 'APPROVED', 'double approve invoice should be idempotent');
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'debitAmount') === 1100, 'invoice original ledger debit should remain');
@@ -464,6 +488,7 @@ async function main() {
     customerName: customer.fullName,
     invoiceType: 'VAT',
     issuedDate: '2026-11-04',
+    tourId: tour.id,
     items: [{ itemName: 'Reject invoice service', unit: 'pax', quantity: 1, unitPrice: 100, taxRate: 10 }],
   });
   const rejectedInvoice = await finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test', note: 'reject invoice' });
@@ -471,8 +496,8 @@ async function main() {
   await rejects(() => finance.approveInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not approve');
 
   const receiptImportCsv = [
-    'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department',
-    `${run}-IMP-RCPT,"Import, Receipt",TOUR_PAYMENT,BANK_TRANSFER,2026-11-05,100,25,50,CSV Customer,FIN-BR,FIN-DEP`,
+    'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department,tourId',
+    `${run}-IMP-RCPT,"Import, Receipt",TOUR_PAYMENT,BANK_TRANSFER,2026-11-05,100,25,50,CSV Customer,FIN-BR,FIN-DEP,${tour.id}`,
   ].join('\n');
   const receiptImport = await finance.importReceipts({ csv: receiptImportCsv });
   assert(receiptImport.imported === 1 && receiptImport.rows[0].receiptCode === `${run}-IMP-RCPT`, 'receipt CSV import should accept quoted commas');
@@ -483,8 +508,8 @@ async function main() {
   await rejects(() => finance.importReceipts({ csv: 'receiptCode,receiptName,totalAmount,receiptAmount\nBAD,Bad,-1,1' }), 'receipt CSV import should reject negative amount');
 
   const paymentImportCsv = [
-    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department',
-    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV,FIN-BR,FIN-DEP`,
+    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId',
+    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV,FIN-BR,FIN-DEP,${tour.id}`,
   ].join('\n');
   const paymentImport = await finance.importPayments({ csv: paymentImportCsv });
   assert(paymentImport.imported === 1 && paymentImport.rows[0].voucherCode === `${run}-IMP-PAY`, 'payment CSV import should accept valid data');
@@ -497,15 +522,15 @@ async function main() {
   const controller = new FinanceController(finance);
   const controllerReceiptImport = await controller.importReceipts({
     csv: [
-      'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department',
-      `${run}-IMP-RCPT-CTRL,Controller Receipt,TOUR_PAYMENT,CASH,2026-11-07,120,0,120,Controller Customer,FIN-BR,FIN-DEP`,
+      'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department,tourId',
+      `${run}-IMP-RCPT-CTRL,Controller Receipt,TOUR_PAYMENT,CASH,2026-11-07,120,0,120,Controller Customer,FIN-BR,FIN-DEP,${tour.id}`,
     ].join('\n'),
   }, { user: undefined });
   assert(controllerReceiptImport.imported === 1 && controllerReceiptImport.rows[0].department === 'FIN-DEP', 'receipt controller import should call real import flow');
   const controllerPaymentImport = await controller.importPayments({
     csv: [
-      'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department',
-      `${run}-IMP-PAY-CTRL,Controller Payment,SUPPLIER_PAYMENT,CASH,2026-11-08,220,200,Controller Supplier,FIN-BR,FIN-DEP`,
+      'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId',
+      `${run}-IMP-PAY-CTRL,Controller Payment,SUPPLIER_PAYMENT,CASH,2026-11-08,220,200,Controller Supplier,FIN-BR,FIN-DEP,${tour.id}`,
     ].join('\n'),
   }, { user: undefined });
   assert(controllerPaymentImport.imported === 1 && controllerPaymentImport.rows[0].branch === 'FIN-BR', 'payment controller import should call real import flow');
