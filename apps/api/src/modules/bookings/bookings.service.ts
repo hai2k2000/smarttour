@@ -240,9 +240,18 @@ export class BookingsService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    await this.loadForMutation(id, user);
-    await this.ensureCanDelete(id);
-    return this.prisma.booking.delete({ where: { id } });
+    const booking = await this.loadForMutation(id, user);
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Booking"
+        WHERE "id" = ${booking.id}
+        FOR UPDATE
+      `;
+      if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
+      await this.ensureCanDelete(booking.id, tx);
+      return tx.booking.delete({ where: { id: booking.id } });
+    });
   }
 
   private scopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
@@ -518,17 +527,17 @@ export class BookingsService {
     }
   }
 
-  private async ensureCanDelete(id: string) {
-    const usage = await this.bookingUsage(id);
+  private async ensureCanDelete(id: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const usage = await this.bookingUsage(id, client);
     if (!usage.total) return;
     throw new ConflictException(`Không thể xóa booking vì đang có ${this.usageSummary(usage)}.`);
   }
 
-  private async bookingUsage(id: string) {
+  private async bookingUsage(id: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     const [operationForms, operationVouchers, allotmentLocks] = await Promise.all([
-      this.prisma.operationForm.count({ where: { bookingId: id } }),
-      this.prisma.operationVoucher.count({ where: { bookingId: id } }),
-      this.prisma.supplierAllotmentAllocation.count({ where: { bookingId: id } }),
+      client.operationForm.count({ where: { bookingId: id } }),
+      client.operationVoucher.count({ where: { bookingId: id } }),
+      client.supplierAllotmentAllocation.count({ where: { bookingId: id } }),
     ]);
     const usage = { operationForms, operationVouchers, allotmentLocks };
     return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };

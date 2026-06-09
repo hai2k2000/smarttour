@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Made Booking deletion atomic and dependency-safe:
+  - `BookingsService.remove()` now locks the Booking row and checks operational
+    dependencies inside one database transaction before hard deletion.
+  - Deletion remains blocked for operation forms, operation vouchers, and
+    supplier allotment allocations so `SET NULL` relations cannot erase
+    operational history.
+  - Customer, Order, and Tour are parent links and remain intact when an
+    otherwise unused Booking is deleted.
+  - Booking currently has no `deletedAt`; soft delete was not introduced
+    because it would require a schema migration plus consistent filtering and
+    unique-code behavior across all Booking reads/writes.
+  - Tests verify exact conflict messages, rollback integrity, and preservation
+    of linked Customer/Order/Tour records.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Localized Booking DTO validation:
   - Added Vietnamese `class-validator` messages for Booking codes, linked IDs,
     customer/contact fields, pax, dates, owners, price, and status.

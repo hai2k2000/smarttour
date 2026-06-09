@@ -2,6 +2,17 @@
 
 ## Done
 
+- Made Booking deletion atomic and dependency-safe:
+  - Booking deletion now uses a transaction and row lock before dependency
+    counts and hard deletion.
+  - Operation forms, operation vouchers, and allotment allocations block
+    deletion and keep their Booking links after a rejected attempt.
+  - Linked Customer, Order, and Tour records are parent references and are
+    preserved when deleting an unused Booking.
+  - Booking has no `deletedAt`, so soft delete was intentionally deferred
+    rather than added inconsistently.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`.
+
 - Localized Booking DTO validation:
   - Booking create/update/status DTOs now return Vietnamese validation
     messages instead of `class-validator` defaults.

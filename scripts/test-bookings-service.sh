@@ -587,6 +587,9 @@ async function main() {
   }));
   await service.remove(linkedDeletable.id);
   await rejects(() => service.detail(linkedDeletable.id), 'delete should allow linked booking when no operation data exists');
+  assert((await prisma.customer.findUnique({ where: { id: links.customer.id } }))?.id === links.customer.id, 'delete should preserve linked customer');
+  assert((await prisma.order.findUnique({ where: { id: links.order.id } }))?.id === links.order.id, 'delete should preserve linked order');
+  assert((await prisma.tour.findUnique({ where: { id: links.tour.id } }))?.id === links.tour.id, 'delete should preserve linked tour');
 
   const voucherLockedBooking = await service.create(bookingDto(run, 'DELETE-VOUCHER', tourProgram, links, {
     startDate: '2026-11-09',
@@ -610,7 +613,13 @@ async function main() {
     () => service.update(voucherLockedBooking.id, { customerId: null }),
     'update should reject linked customer changes after an operation voucher exists',
   );
-  await rejects(() => service.remove(voucherLockedBooking.id), 'delete should reject booking with operationVouchers');
+  await rejects(
+    () => service.remove(voucherLockedBooking.id),
+    'delete should reject booking with operationVouchers',
+    'Không thể xóa booking vì đang có 1 phiếu dịch vụ điều hành.',
+  );
+  assert((await prisma.booking.findUnique({ where: { id: voucherLockedBooking.id } }))?.id === voucherLockedBooking.id, 'failed voucher-guarded delete should preserve booking');
+  assert((await prisma.operationVoucher.findFirst({ where: { bookingId: voucherLockedBooking.id } }))?.bookingId === voucherLockedBooking.id, 'failed delete should preserve operation voucher link');
 
   const allotmentLockedBooking = await service.create(bookingDto(run, 'DELETE-ALLOTMENT', tourProgram, links, {
     startDate: '2026-11-13',
@@ -633,7 +642,13 @@ async function main() {
     () => service.update(allotmentLockedBooking.id, { tourId: null }),
     'update should reject linked tour changes after an allotment lock exists',
   );
-  await rejects(() => service.remove(allotmentLockedBooking.id), 'delete should reject booking with allotmentLocks');
+  await rejects(
+    () => service.remove(allotmentLockedBooking.id),
+    'delete should reject booking with allotmentLocks',
+    'Không thể xóa booking vì đang có 1 khóa allotment.',
+  );
+  assert((await prisma.booking.findUnique({ where: { id: allotmentLockedBooking.id } }))?.id === allotmentLockedBooking.id, 'failed allotment-guarded delete should preserve booking');
+  assert((await prisma.supplierAllotmentAllocation.findFirst({ where: { bookingId: allotmentLockedBooking.id } }))?.bookingId === allotmentLockedBooking.id, 'failed delete should preserve allotment link');
 
   const operationForm = await prisma.operationForm.create({
     data: {
@@ -652,7 +667,13 @@ async function main() {
   await rejects(() => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }), 'update should reject date change after operationForm exists');
   await rejects(() => service.update(created.id, { totalSellPrice: 9000000 }), 'update should reject totalSellPrice change after operationForm exists');
   await rejects(() => service.update(created.id, { orderId: null }), 'update should reject linked order changes after operationForm exists');
-  await rejects(() => service.remove(created.id), 'delete should reject booking with operationForm');
+  await rejects(
+    () => service.remove(created.id),
+    'delete should reject booking with operationForm',
+    'Không thể xóa booking vì đang có 1 phiếu điều hành.',
+  );
+  assert((await prisma.booking.findUnique({ where: { id: created.id } }))?.id === created.id, 'failed operation-form-guarded delete should preserve booking');
+  assert((await prisma.operationForm.findUnique({ where: { bookingId: created.id } }))?.bookingId === created.id, 'failed delete should preserve operation form link');
 
   const operating = await service.updateStatus(created.id, 'OPERATING');
   assert(operating.status === 'OPERATING', 'updateStatus should allow CONFIRMED to OPERATING after operationForm exists');
