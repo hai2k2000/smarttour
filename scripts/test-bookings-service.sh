@@ -29,7 +29,10 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { BookingsService } = require('./apps/api/dist/modules/bookings/bookings.service');
-const { BOOKING_NOT_FOUND_MESSAGES } = require('./apps/api/dist/modules/bookings/booking-errors');
+const {
+  BOOKING_CODE_CONFLICT_MESSAGE,
+  BOOKING_NOT_FOUND_MESSAGES,
+} = require('./apps/api/dist/modules/bookings/booking-errors');
 const { BOOKING_UPDATE_FIELDS } = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
 
 function assert(condition, label) {
@@ -263,6 +266,15 @@ async function main() {
   assert(normalized.customerEmail === 'customer.normalized@smarttour.local', 'create should trim and lowercase customerEmail');
   assert(normalized.saleOwner === 'Sale Normalized' && normalized.operatorOwner === 'Operator Normalized', 'create should trim owner fields');
   assert(amount(normalized.totalSellPrice) === 0, 'create should default missing totalSellPrice to zero');
+  await rejects(
+    () => service.create(bookingDto(run, 'DUPLICATE-CREATE', tourProgram, links, {
+      code: ` ${run.toLowerCase()}-bkg-normalized `,
+      startDate: '2026-09-05',
+      endDate: '2026-09-07',
+    })),
+    'create should reject duplicate booking code after normalization',
+    BOOKING_CODE_CONFLICT_MESSAGE,
+  );
 
   const created = await service.create(bookingDto(run, '001', tourProgram, links));
   assert(created.code === `${run}-BKG-001`, 'create should persist booking code');
@@ -271,6 +283,17 @@ async function main() {
   assert(created.paxCount === 2 && amount(created.totalSellPrice) === 5000000, 'create should persist paxCount and totalSellPrice');
   assert(dateOnly(created.startDate) === '2026-10-01' && dateOnly(created.endDate) === '2026-10-03', 'create should persist startDate/endDate');
   assert(created.operationForm === null, 'create response should include empty operationForm');
+  const codeUpdated = await service.update(created.id, { code: ` ${run.toLowerCase()}-bkg-updated ` });
+  assert(codeUpdated.code === `${run}-BKG-UPDATED`, 'update should trim and uppercase booking code');
+  const duplicateUpdateSource = await service.create(bookingDto(run, 'DUPLICATE-UPDATE', tourProgram, links, {
+    startDate: '2026-10-05',
+    endDate: '2026-10-07',
+  }));
+  await rejects(
+    () => service.update(duplicateUpdateSource.id, { code: ` ${run.toLowerCase()}-bkg-updated ` }),
+    'update should reject duplicate booking code after normalization',
+    BOOKING_CODE_CONFLICT_MESSAGE,
+  );
 
   const listed = await service.list(run);
   assert(listed.some((row) => row.id === created.id), 'list should include created booking');

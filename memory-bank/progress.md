@@ -2,6 +2,18 @@
 
 ## Done
 
+- Locked Booking code normalization and unique-conflict message:
+  - Runtime writes to `Booking.code` are centralized through
+    `BookingsService.create()` and `BookingsService.update()`.
+  - Service-level `bookingCode()` keeps trim + uppercase + code-pattern
+    validation at the write boundary.
+  - `BOOKING_CODE_CONFLICT_MESSAGE` is now exported from the shared booking
+    error contract.
+  - Booking service tests assert exact duplicate-code conflict messages for
+    normalized create and update writes.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`, API redeploy, and
+    `HEALTHCHECK_OK`.
+
 - Standardized Booking not-found messages:
   - Added a shared `BOOKING_NOT_FOUND_MESSAGES` map for Booking and its
     linked entity checks.

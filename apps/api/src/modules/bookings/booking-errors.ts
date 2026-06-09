@@ -6,6 +6,8 @@ export const BOOKING_NOT_FOUND_MESSAGES = {
   tour: 'Không tìm thấy tour',
 } as const;
 
+export const BOOKING_CODE_CONFLICT_MESSAGE = 'Mã booking đã tồn tại';
+
 export type BookingNotFoundEntity = keyof typeof BOOKING_NOT_FOUND_MESSAGES;
 
 export function bookingNotFoundMessage(entity: BookingNotFoundEntity) {

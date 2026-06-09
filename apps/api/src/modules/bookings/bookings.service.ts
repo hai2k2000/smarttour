@@ -15,7 +15,7 @@ import {
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
-import { BOOKING_NOT_FOUND_MESSAGES } from './booking-errors';
+import { BOOKING_CODE_CONFLICT_MESSAGE, BOOKING_NOT_FOUND_MESSAGES } from './booking-errors';
 import { bookingScopeWhere } from './booking-scope';
 
 const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatus>> = {
@@ -26,7 +26,6 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const BOOKING_CODE_CONFLICT_MESSAGE = 'Mã booking đã tồn tại';
 
 type BookingReferenceKey = 'tourProgramId' | 'customerId' | 'orderId' | 'tourId';
 type BookingLinkedReferenceKey = Exclude<BookingReferenceKey, 'tourProgramId'>;

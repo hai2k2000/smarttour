@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Locked Booking code normalization and duplicate-code message:
+  - Confirmed runtime writes to `Booking.code` go through
+    `BookingsService.create()` and `BookingsService.update()`; status updates
+    do not write code.
+  - Kept service-level `bookingCode()` normalization as the write boundary:
+    trim, uppercase, ASCII code-pattern validation.
+  - Moved `BOOKING_CODE_CONFLICT_MESSAGE` into the shared booking error
+    contract next to not-found messages.
+  - Expanded Booking service tests to assert duplicate-code conflicts after
+    normalization on both create and update paths.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`, API
+    redeploy, and `HEALTHCHECK_OK`.
+
 - Standardized Booking not-found messages for linked entities:
   - Added `BOOKING_NOT_FOUND_MESSAGES` as the single source for Booking
     service not-found responses.
