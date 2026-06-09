@@ -2,6 +2,16 @@
 
 ## Done
 
+- Normalized Tour date validation:
+  - Tour core date parsing now requires `YYYY-MM-DD` and rejects non-existent
+    calendar dates without timezone drift from JavaScript `Date` parsing.
+  - GIT and LandTour DTOs expose explicit date-only regex contracts for
+    booking, payment due, start, and end dates.
+  - Tour-type tests cover DTO date patterns, rejected ISO datetimes, and
+    rejected invalid calendar dates.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Standardized GIT/LandTour DTO field contracts:
   - GIT and LandTour DTOs now export grouped create/update field contracts for
     common root fields, lifecycle status, workflow step, linked/customer data,

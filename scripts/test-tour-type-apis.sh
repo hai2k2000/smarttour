@@ -76,6 +76,8 @@ function assertTourTypeDtoContracts() {
   assert(!gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('status'), 'GIT workflow fields should not include lifecycle status');
   assert(gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'GIT workflowStep should be grouped as workflow');
   assert(!gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'GIT lifecycle fields should not include workflowStep');
+  assert(gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15'), 'GIT date pattern should accept YYYY-MM-DD');
+  assert(!gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'GIT date pattern should reject ISO datetime payloads');
 
   assertGroupedDtoContract(
     'LandTour',
@@ -98,6 +100,8 @@ function assertTourTypeDtoContracts() {
   assert(!landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('status'), 'LandTour workflow fields should not include lifecycle status');
   assert(landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'LandTour workflowStep should be grouped as workflow');
   assert(!landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'LandTour lifecycle fields should not include workflowStep');
+  assert(landCreateDtoContract.LANDTOUR_DATE_PATTERN.test('2026-06-15'), 'LandTour date pattern should accept YYYY-MM-DD');
+  assert(!landCreateDtoContract.LANDTOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'LandTour date pattern should reject ISO datetime payloads');
 }
 
 function assertTourRootOrchestrationBoundaries() {
@@ -251,6 +255,21 @@ async function main() {
   await expect('/api/fit-tours?status=pricing', {}, 200, 'FIT lowercase workflow status query');
   await expect('/api/fit-tours?status=WRONG', {}, 400, 'FIT invalid workflow status query');
 
+  await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-DATE-SYS`,
+        tourCode: `${run}-GIT-BAD-DATE`,
+        name: 'Tour type API GIT bad date',
+        startDate: '2026-06-15T00:00:00.000Z',
+      }),
+    },
+    400,
+    'GIT should reject ISO datetime startDate',
+  );
+
   const gitTour = await expect(
     '/api/git-tours',
     {
@@ -308,6 +327,21 @@ async function main() {
   assert(copiedGitServices.services[0].serviceType === 'GIT_HOTEL', 'GIT copy-services should preserve serviceType through TourCore clone helper');
   await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
+
+  await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-DATE-SYS`,
+        tourCode: `${run}-LAND-BAD-DATE`,
+        name: 'Tour type API LandTour bad date',
+        startDate: '2026-02-30',
+      }),
+    },
+    400,
+    'LandTour should reject non-existent calendar dates',
+  );
 
   const landTour = await expect(
     '/api/landtours',

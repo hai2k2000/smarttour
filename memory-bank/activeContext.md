@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 date validation normalization for Tour core, GIT, and LandTour:
+  - `TourCoreService.optionalDate()` now accepts date-only `YYYY-MM-DD` strings
+    and validates the real calendar date with UTC components instead of using
+    `new Date(text)` directly.
+  - GIT and LandTour DTO date fields now use explicit `YYYY-MM-DD` regex
+    contracts instead of `IsDateString()`, so ISO datetime payloads are
+    rejected before root sync.
+  - Tour-type API regression now checks the date regex contract, rejects GIT
+    ISO datetime payloads, and rejects non-existent LandTour calendar dates.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1 DTO/validation contract normalization for GIT and LandTour:
   - Added explicit DTO field groups for GIT and LandTour create/update
     contracts: common Tour root, lifecycle status, workflow step,

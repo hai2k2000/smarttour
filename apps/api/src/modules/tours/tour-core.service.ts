@@ -417,13 +417,18 @@ export class TourCoreService {
 
   private optionalDate(value: unknown, field: string) {
     if (value instanceof Date) {
-      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(`${field} kh\u00f4ng h\u1ee3p l\u1ec7`);
       return value;
     }
     const text = this.optionalText(value);
     if (!text) return null;
-    const date = new Date(text);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new BadRequestException(`${field} ph\u1ea3i c\u00f3 \u0111\u1ecbnh d\u1ea1ng YYYY-MM-DD`);
+    const [year, month, day] = text.split('-').map(Number);
+    const time = Date.UTC(year, month - 1, day);
+    const date = new Date(time);
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException(`${field} kh\u00f4ng h\u1ee3p l\u1ec7`);
+    }
     return date;
   }
 
