@@ -114,10 +114,7 @@ export class GitToursService {
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    const source = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id: sourceTourId || targetTourId, type: TourType.GIT }, user), include: { services: true } });
-    if (!source) throw new NotFoundException('Kh?ng t?m th?y tour ngu?n');
-
-    await this.prisma.$transaction((tx) => this.tourCore.copyServices(tx, targetTourId, source.services, 'GIT_SERVICE'));
+    await this.prisma.$transaction((tx) => this.tourCore.copyServicesFromTour(tx, targetTourId, sourceTourId || targetTourId, TourType.GIT, 'GIT_SERVICE', user));
     return this.detail(targetTourId, user);
   }
 

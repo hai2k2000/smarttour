@@ -119,6 +119,7 @@ function assertCommonToursServiceUsesTourCore() {
   assert(!/tourCore\.ensureDateRange\s*\(/.test(source), 'Common ToursService should not validate create date ranges outside createRoot');
   assert(!/tourCore\.ensureUpdatedDateRange\s*\(/.test(source), 'Common ToursService should not validate update date ranges outside updateRoot');
   const coreSource = fs.readFileSync('/workspace/apps/api/src/modules/tours/tour-core.service.ts', 'utf8');
+  assert(coreSource.includes('async copyServicesFromTour'), 'TourCoreService should own source lookup for common service copy');
   assert(coreSource.includes('async copyServices'), 'TourCoreService should own common service copy orchestration');
   assert(coreSource.includes('cloneServicesForCopy'), 'TourCoreService should keep service clone mapping behind the copy boundary');
   assert(coreSource.includes('replaceServicesAndSuppliers'), 'TourCoreService.copyServices should refresh services and derived suppliers together');
@@ -139,9 +140,11 @@ function assertTourRootOrchestrationBoundaries() {
     const source = fs.readFileSync(file, 'utf8');
     assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
     assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
-    assert(source.includes('tourCore.copyServices'), `${label} copyServices should delegate common service copy orchestration to TourCoreService.copyServices`);
+    assert(source.includes('tourCore.copyServicesFromTour'), `${label} copyServices should delegate source lookup and copy orchestration to TourCoreService.copyServicesFromTour`);
+    assert(!source.includes('tourCore.copyServices(tx'), `${label} copyServices should not call the lower-level copy helper directly from module service`);
     assert(!source.includes('tourCore.cloneServicesForCopy'), `${label} copyServices should not call the clone helper directly from module service`);
     assert(!source.includes('tourCore.replaceServicesAndSuppliers(tx, targetTourId'), `${label} copyServices should not refresh target services directly from module service`);
+    assert(!/prisma\.tour\.findFirst\(\{ where: this\.tourCore\.scopeWhere\(\{ id: sourceTourId/.test(source), `${label} copyServices should not query source Tour services directly from module service`);
     assert(source.includes('tourCore.replaceCommonChildren'), `${label} should sync common child groups through TourCoreService.replaceCommonChildren`);
     for (const helper of ['replaceCustomers', 'replaceRevenues', 'replaceCosts', 'replaceGuides', 'replaceAttachments', 'replaceSurveys', 'replaceTerms']) {
       assert(!new RegExp(`tourCore\\.${helper}\\s*\\(`).test(source), `${label} should not call ${helper} directly from module service`);

@@ -115,10 +115,7 @@ export class LandToursService {
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    const source = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id: sourceTourId || targetTourId, type: TourType.LANDTOUR }, user), include: { services: true } });
-    if (!source) throw new NotFoundException('Không tìm thấy tour nguồn');
-
-    await this.prisma.$transaction((tx) => this.tourCore.copyServices(tx, targetTourId, source.services, 'LANDTOUR_SERVICE'));
+    await this.prisma.$transaction((tx) => this.tourCore.copyServicesFromTour(tx, targetTourId, sourceTourId || targetTourId, TourType.LANDTOUR, 'LANDTOUR_SERVICE', user));
     return this.detail(targetTourId, user);
   }
 

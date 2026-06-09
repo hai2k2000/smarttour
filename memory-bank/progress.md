@@ -752,12 +752,18 @@
 - FIT detail now prefers tagged common `TourCost` rows over stale legacy FIT cost tables for `commonCosts`, `hotelCosts`, and `privateCosts`.
 - FIT list cost counts now come from tagged common `TourCost` rows when available while keeping the nested Tour root payload hidden.
 - Updated FIT root contract regression to stale legacy cost rows and verify common `TourCost` wins.
-- Verified on VPS: API Docker build/deploy, `HEALTHCHECK_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+- Verified on VPS: API Docker build/deploy, `HEALTHCHECK_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 - Continued P1 common tour copy boundary cleanup.
 - Added `TourCoreService.copyServices()` so common service clone and service/supplier replacement are owned by the Tour core boundary.
 - Updated GIT and LandTour `copyServices()` actions to delegate to `tourCore.copyServices()` instead of coordinating clone and replace helpers directly.
 - Added FIT regression coverage for `copyBudget()` fallback from pricing-only common `TourCost` rows when legacy FIT cost rows are stale.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
+- Continued P1 copy-service source boundary cleanup.
+- Added `TourCoreService.copyServicesFromTour()` so source Tour lookup, type filtering, data-scope filtering, clone, and service/supplier replacement are owned by Tour core.
+- Updated GIT and LandTour `copyServices()` actions to only validate the target then delegate source lookup/copy orchestration to Tour core.
+- Updated tour-type regression to guard against product modules querying source Tour services directly for copy actions.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
 
 ## Not Done

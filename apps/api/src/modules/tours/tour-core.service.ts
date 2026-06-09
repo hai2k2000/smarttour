@@ -376,6 +376,19 @@ export class TourCoreService {
     }));
   }
 
+  async copyServicesFromTour(
+    tx: Prisma.TransactionClient,
+    targetTourId: string,
+    sourceTourId: string,
+    type: TourType,
+    supplierRole = 'SERVICE',
+    user?: RequestUser,
+  ) {
+    const source = await tx.tour.findFirst({ where: this.scopeWhere({ id: sourceTourId, type }, user), include: { services: true } });
+    if (!source) throw new NotFoundException('Kh?ng t?m th?y tour ngu?n');
+    await this.copyServices(tx, targetTourId, source.services, supplierRole);
+  }
+
   async copyServices(tx: Prisma.TransactionClient, targetTourId: string, sourceServices: Prisma.TourServiceCreateManyInput[], supplierRole = 'SERVICE') {
     const services = this.cloneServicesForCopy(sourceServices);
     await this.replaceServicesAndSuppliers(tx, targetTourId, services, supplierRole);
