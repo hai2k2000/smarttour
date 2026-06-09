@@ -256,6 +256,11 @@ export class FitTourLegacyCompatService {
     }));
   }
 
+  async addAttachment(tx: Prisma.TransactionClient, fitTourId: string, attachment: unknown) {
+    const [row] = this.mapAttachments([attachment]);
+    return tx.fitAttachment.create({ data: { ...row, fitTourId } });
+  }
+
   toCopiedBudgetRows(rows: unknown[]) {
     return this.rows(rows).map((row) => ({
       serviceType: this.text(row.serviceType || 'Dịch vụ'),

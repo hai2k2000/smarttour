@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitToursService } from './fit-tours.service';
@@ -44,6 +46,19 @@ export class FitToursController {
   @RequirePermissions('tour.manage')
   update(@Param('id') id: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.update(id, dto, request?.user);
+  }
+
+  @Post(':id/attachments')
+  @RequirePermissions('tour.manage')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
+  uploadAttachment(
+    @Param('id') id: string,
+    @Body('step') step: string | undefined,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request?: { user?: RequestUser },
+  ) {
+    return this.fitToursService.uploadAttachment(id, step, file, request?.user);
   }
 
   @Post(':id/steps/:step/confirm')

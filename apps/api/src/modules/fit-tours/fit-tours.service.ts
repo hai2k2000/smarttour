@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN, FIT_TOUR_STEP_FIELDS } from './dto/create-fit-tour.dto';
@@ -14,6 +15,7 @@ type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
 type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
 type FitTourStep = keyof typeof FIT_TOUR_STEP_FIELDS;
 type FitUpdateOptions = { step?: FitTourStep; confirm?: boolean };
+type UploadedFitFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 const fitCostGroupTags: Record<FitCostGroupField, string> = {
   commonCosts: 'FIT_COMMON_COST',
@@ -111,6 +113,7 @@ export class FitToursService {
     private readonly prisma: PrismaService,
     private readonly tourCore: TourCoreService,
     private readonly legacyCompat: FitTourLegacyCompatService,
+    private readonly filesService: FilesService,
   ) {}
 
   async list(search?: string, status?: string, user?: RequestUser) {
@@ -184,6 +187,34 @@ export class FitToursService {
 
   async confirmStep(id: string, step: string, dto: UpdateFitTourDto, user?: RequestUser) {
     return this.persistStep(id, step, dto, user, true);
+  }
+
+  async uploadAttachment(id: string, step: string | undefined, file: UploadedFitFile | undefined, user?: RequestUser) {
+    const workflowStep = this.toEditableWorkflowStep(this.requiredText(step, 'Cần chọn bước để tải file FIT'));
+    const fitTour = await this.detail(id, user);
+    const tourId = this.requiredTourRootId(fitTour);
+    const actorId = user?.id || this.actor(user);
+    const upload = await this.filesService.upload(file, `fit-tours/${id}/${workflowStep}`, actorId);
+    const attachment = {
+      step: workflowStep,
+      fileName: upload.fileName,
+      fileUrl: upload.url,
+      mimeType: upload.mimeType,
+      size: upload.size,
+      uploadedBy: actorId,
+    };
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const [tourAttachment] = this.tourCore.mapAttachments([attachment]);
+        await this.tourCore.addAttachment(tx, tourId, tourAttachment);
+        await this.legacyCompat.addAttachment(tx, id, attachment);
+        await this.logFitTourAction(tx, tourId, 'UPLOAD_FIT_ATTACHMENT', user, { fitTourId: id, workflowStep, fileName: upload.fileName, fileUrl: upload.url });
+      });
+      return this.detail(id, user);
+    } catch (error) {
+      await this.filesService.removeQuietly(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
   }
 
   async remove(id: string, user?: RequestUser) {

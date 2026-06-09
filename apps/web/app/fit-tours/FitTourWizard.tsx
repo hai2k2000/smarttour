@@ -157,7 +157,7 @@ const fitTourSchema = z.object({
   guides: z.array(z.object({ name: z.string().default(''), phone: z.string().default(''), guideType: z.string().default('Local'), notes: z.string().default('') })).default([]),
   handoverItems: z.array(z.object({ itemName: z.string().default(''), quantity: z.coerce.number().default(1), notes: z.string().default('') })).default([]),
   surveyQuestions: z.array(z.object({ question: z.string().default(''), notes: z.string().default('') })).default([]),
-  attachments: z.array(z.object({ step: z.string().default(''), fileName: z.string().default(''), mimeType: z.string().default(''), size: z.coerce.number().default(0) })).default([]),
+  attachments: z.array(z.object({ step: z.string().default(''), fileName: z.string().default(''), fileUrl: z.string().default(''), mimeType: z.string().default(''), size: z.coerce.number().default(0), uploadedBy: z.string().default('') })).default([]),
 });
 
 type FitTourForm = z.infer<typeof fitTourSchema>;
@@ -434,7 +434,7 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   };
 }
 
-type SaveReason = 'autosave' | 'save' | 'confirm' | 'copy-budget' | 'copy-operation';
+type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'copy-budget' | 'copy-operation';
 type FitTourWizardProps = {
   suppliers: Supplier[];
   tours: FitTourSummary[];
@@ -669,12 +669,53 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     }
   }
 
-  function addFiles(files: FileList | null) {
+  async function uploadAttachmentFile(file: File, step: WorkflowStepKey) {
+    let id = getValues('id');
+    if (!id) {
+      const created = await saveTour(getValues(), step, 'draft');
+      const defaults = toFormDefaults(created);
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSelectedTourId(created.id || '');
+      id = created.id;
+    }
+    if (!id) throw new Error('Chưa có tour FIT để tải file');
+    const body = new FormData();
+    body.append('file', file);
+    body.append('step', step);
+    const response = await fetch(`${apiBase}/api/fit-tours/${id}/attachments`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body,
+    });
+    if (!response.ok) throw new Error(await responseError(response));
+    return response.json();
+  }
+
+  async function addFiles(files: FileList | null) {
     if (!files) return;
     const validFiles = Array.from(files).filter((file) => file.name);
-    validFiles.forEach((file) => arrays.attachments.append({ step: workflowSteps[activeStep].key, fileName: file.name, mimeType: file.type, size: file.size }));
-    if (validFiles.length) setSaveState(`Đã gắn ${validFiles.length} file vào bước ${workflowSteps[activeStep].label}`);
+    if (!validFiles.length) return;
+    const step = workflowSteps[activeStep].key;
+    setSaveState(`Đang tải ${validFiles.length} file...`);
+    try {
+      let saved: Partial<FitTourForm> & { id?: string } | undefined;
+      for (const file of validFiles) {
+        saved = await uploadAttachmentFile(file, step);
+      }
+      if (saved) {
+        const defaults = toFormDefaults(saved);
+        reset(defaults, { keepDirty: false });
+        lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+        setSelectedTourId(saved.id || '');
+        onSaved?.(saved, 'upload');
+      }
+      setSaveState(`Đã tải ${validFiles.length} file vào bước ${workflowSteps[activeStep].label}`);
+    } catch (error) {
+      setSaveState(`Tải file lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
   }
+
 
   return (
     <form onSubmit={handleSubmit(submit)} className="fitWizard">
@@ -726,7 +767,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Giá bán / khách" name="sellingPrice" register={register} type="number" />
             <Field label="Hoa hồng / khách" name="commissionPerGuest" register={register} type="number" />
             <label className="span2">Ghi chú<textarea {...register('notes')} rows={4} /></label>
-            <label className="fileDrop"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
+            <label className="fileDrop"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
           </div>
           <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={arrays.commonCosts.remove} columns={costColumns} />
           <EditableTable title="Chi phí khách sạn" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append({ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 })} remove={arrays.hotelCosts.remove} columns={hotelColumns} />

@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 FIT attachment upload workflow:
+  - Added multipart `POST /api/fit-tours/:id/attachments` for real FIT file
+    uploads through `FilesService` / MinIO, scoped by `fitTourId` and workflow
+    step.
+  - Upload persistence now writes canonical metadata to common
+    `tour_attachments` through `TourCoreService.addAttachment()` and keeps a
+    legacy `fit_attachments` snapshot through `FitTourLegacyCompatService`.
+  - The FIT wizard now uploads selected files immediately, refreshes from the
+    returned FIT detail, and keeps `fileUrl` / `uploadedBy` metadata in the form
+    schema.
+  - VPS verification passed on 2026-06-09: API/web Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT draft/confirm flow separation:
   - `PATCH /api/fit-tours/:id/steps/:step` now saves only a draft of the
     current wizard step and no longer advances `workflowStatus`.

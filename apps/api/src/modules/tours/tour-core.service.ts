@@ -218,6 +218,11 @@ export class TourCoreService {
     if (attachments.length) await tx.tourAttachment.createMany({ data: attachments.map((row) => ({ ...row, tourId })) });
   }
 
+  async addAttachment(tx: Prisma.TransactionClient, tourId: string, attachment: Prisma.TourAttachmentCreateManyInput) {
+    const { tourId: _ignoredTourId, ...data } = attachment as Prisma.TourAttachmentCreateManyInput & { tourId?: string };
+    return tx.tourAttachment.create({ data: { ...data, tourId } });
+  }
+
   async replaceSurveys(tx: Prisma.TransactionClient, tourId: string, surveys: Prisma.TourSurveyCreateManyInput[]) {
     await tx.tourSurvey.deleteMany({ where: { tourId } });
     if (surveys.length) await tx.tourSurvey.createMany({ data: surveys.map((row) => ({ ...row, tourId })) });

@@ -2,6 +2,20 @@
 
 ## Done
 
+- Continued P2 FIT attachment upload workflow:
+  - Added real multipart FIT attachment upload using the existing `FilesService`
+    and object storage path `fit-tours/:fitTourId/:workflowStep`.
+  - Common `TourAttachment` is now the canonical uploaded file metadata source;
+    legacy `FitAttachment` is still written as a compatibility snapshot.
+  - FIT wizard file selection now uploads files instead of only appending local
+    metadata, then reloads the saved FIT detail so common attachment rows win on
+    reads.
+  - Regression verifies static upload boundaries and runtime creation of both
+    common and legacy attachment metadata with a mocked file service.
+  - Verified on VPS: API/web Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT draft/confirm flow separation:
   - Split step persistence into draft save and explicit confirm endpoints.
   - Draft step saves are step-scoped and do not advance workflow; confirm step

@@ -85,9 +85,13 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
+  assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
+  assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
+  assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
+  assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
@@ -139,7 +143,23 @@ async function main() {
   await prisma.$connect();
 
   const tourCore = new TourCoreService(prisma);
-  const fitTours = new FitToursService(prisma, tourCore, new FitTourLegacyCompatService());
+  const uploadedScopes = [];
+  const filesService = {
+    upload: async (file, scope, actorId) => {
+      if (!file) throw new Error('missing upload file');
+      uploadedScopes.push({ scope, actorId });
+      return {
+        bucket: 'test',
+        objectKey: `${scope}/mock-upload.pdf`,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        url: `/api/files/download?key=${encodeURIComponent(`${scope}/mock-upload.pdf`)}`,
+      };
+    },
+    removeQuietly: async () => undefined,
+  };
+  const fitTours = new FitToursService(prisma, tourCore, new FitTourLegacyCompatService(), filesService);
   const run = 'FTR-' + Date.now();
 
   const category = await prisma.supplierCategory.create({ data: { name: `${run} Supplier Category` } });
@@ -177,6 +197,18 @@ async function main() {
     workflowStep: 'MANUAL_ROOT_WORKFLOW_SHOULD_BE_IGNORED',
   });
   assert(source.tourId, 'FIT create should return linked Tour root id');
+
+  const attachedDetail = await fitTours.uploadAttachment(
+    source.id,
+    FitTourWorkflowStatus.PRICING,
+    { originalname: 'fit-pricing.pdf', mimetype: 'application/pdf', size: 1234, buffer: Buffer.from('fit-pricing') },
+  );
+  assert(uploadedScopes.some((entry) => entry.scope === `fit-tours/${source.id}/${FitTourWorkflowStatus.PRICING}`), 'FIT upload should scope stored file by fitTourId and workflow step');
+  assert(attachedDetail.attachments.some((row) => row.fileName === 'fit-pricing.pdf' && row.fileUrl && row.step === FitTourWorkflowStatus.PRICING), 'FIT detail should expose uploaded attachment from common TourAttachment');
+  const commonAttachment = await prisma.tourAttachment.findFirst({ where: { tourId: source.tourId, fileName: 'fit-pricing.pdf' } });
+  const legacyAttachment = await prisma.fitAttachment.findFirst({ where: { fitTourId: source.id, fileName: 'fit-pricing.pdf' } });
+  assert(commonAttachment && commonAttachment.fileUrl && commonAttachment.uploadedBy === 'system', 'FIT upload should write common TourAttachment metadata');
+  assert(legacyAttachment && legacyAttachment.fileUrl, 'FIT upload should keep legacy FitAttachment snapshot metadata');
 
   const createdRoot = await prisma.tour.findUnique({
     where: { id: source.tourId },
