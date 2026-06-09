@@ -207,6 +207,30 @@ async function main() {
   assert(rootSourcedChildren.operationServices[0].supplierServiceId === supplierService.id, 'FIT detail should expose common TourService operation supplier service over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].bookingCode === `${run}-BK`, 'FIT detail should expose common TourService operation booking code over stale legacy rows');
 
+  const pricingOnlySource = await fitTours.create({
+    quoteCode: `${run}-PRICE-Q`,
+    tourCode: `${run}-PRICE-T`,
+    tourName: 'FIT Root Contract Pricing Only Source',
+    customerName: 'FIT Root Pricing Customer',
+    adultCount: 1,
+    commonCosts: [{ serviceType: 'CAR', description: 'Pricing-only car', quantity: 2, times: 1, unitPrice: 750, vat: 0, amount: 1500 }],
+  });
+  const pricingOnlyTarget = await fitTours.create({
+    quoteCode: `${run}-PRICE-TGT-Q`,
+    tourCode: `${run}-PRICE-TGT-T`,
+    tourName: 'FIT Root Contract Pricing Only Target',
+    customerName: 'FIT Root Pricing Target Customer',
+    adultCount: 1,
+    budgetServices: [{ serviceType: 'MEAL', description: 'Old pricing target budget', quantity: 1, unitPrice: 100, vat: 0, amount: 100 }],
+  });
+  await prisma.fitCommonCost.updateMany({ where: { fitTourId: pricingOnlySource.id }, data: { description: 'Legacy stale pricing-only cost', unitPrice: 999, amount: 999 } });
+  await fitTours.copyBudget(pricingOnlyTarget.id, pricingOnlySource.id);
+  const copiedPricingBudgetLegacyRows = await prisma.fitBudgetService.findMany({ where: { fitTourId: pricingOnlyTarget.id } });
+  const copiedPricingBudgetServices = await prisma.tourService.findMany({ where: { tourId: pricingOnlyTarget.tourId, budgetAmount: { gt: 0 } } });
+  assert(copiedPricingBudgetLegacyRows.length === 1 && copiedPricingBudgetLegacyRows[0].description === 'Pricing-only car', 'copyBudget pricing fallback should use common TourCost description over stale legacy cost rows');
+  assert(decimal(copiedPricingBudgetLegacyRows[0].amount) === 1500, 'copyBudget pricing fallback should update legacy budget rows from common TourCost');
+  assert(copiedPricingBudgetServices.length === 1 && decimal(copiedPricingBudgetServices[0].budgetAmount) === 1500, 'copyBudget pricing fallback should update common TourService budget rows from common TourCost');
+
   const target = await fitTours.create({
     quoteCode: `${run}-TGT-Q`,
     tourCode: `${run}-TGT-T`,

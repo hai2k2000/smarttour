@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 common tour copy boundary cleanup:
+  - `TourCoreService` now owns `copyServices()`, wrapping service clone and
+    service/supplier replacement in one common helper.
+  - GIT and LandTour `copyServices()` actions now delegate to
+    `tourCore.copyServices()` instead of directly coordinating
+    `cloneServicesForCopy()` plus `replaceServicesAndSuppliers()` in each
+    product module.
+  - FIT root contract coverage now also verifies `copyBudget()` fallback from
+    pricing-only common `TourCost` rows when legacy FIT cost rows are stale.
+  - VPS verification passed on 2026-06-09: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 - Continued FIT common-root cost read cleanup:
   - FIT common/hotel/private pricing rows now sync to common `TourCost` with
     tagged `costType` values like `FIT_COMMON_COST:CAR`, preserving both the

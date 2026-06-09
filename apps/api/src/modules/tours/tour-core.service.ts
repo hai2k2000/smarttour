@@ -376,6 +376,11 @@ export class TourCoreService {
     }));
   }
 
+  async copyServices(tx: Prisma.TransactionClient, targetTourId: string, sourceServices: Prisma.TourServiceCreateManyInput[], supplierRole = 'SERVICE') {
+    const services = this.cloneServicesForCopy(sourceServices);
+    await this.replaceServicesAndSuppliers(tx, targetTourId, services, supplierRole);
+  }
+
   cloneServicesForCopy(services: Prisma.TourServiceCreateManyInput[]): Prisma.TourServiceCreateManyInput[] {
     return services.map((service) => ({
       tourId: '',
