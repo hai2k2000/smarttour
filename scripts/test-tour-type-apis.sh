@@ -123,6 +123,8 @@ function assertCommonToursServiceUsesTourCore() {
   assert(coreSource.includes('async copyServices'), 'TourCoreService should own common service copy orchestration');
   assert(coreSource.includes('cloneServicesForCopy'), 'TourCoreService should keep service clone mapping behind the copy boundary');
   assert(coreSource.includes('replaceServicesAndSuppliers'), 'TourCoreService.copyServices should refresh services and derived suppliers together');
+  assert(!coreSource.includes('Kh?ng t?m th?y'), 'TourCoreService should not contain mojibake Vietnamese messages');
+  assert(coreSource.includes('Không tìm thấy tour nguồn'), 'TourCoreService should keep copy source error message in Vietnamese');
   assert(!/private\s+toTourData\s*\(/.test(source), 'Common ToursService should not keep a duplicate private toTourData mapper');
   assert(!/private\s+optionalDate\s*\(/.test(source), 'Common ToursService should not keep a private date parser');
   assert(!/private\s+requiredText\s*\(/.test(source), 'Common ToursService should not keep duplicate root requiredText validation');
@@ -154,6 +156,7 @@ function assertTourRootOrchestrationBoundaries() {
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
     assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
     assert(!/source\.services\.map\(\(service\)/.test(source), `${label} should not inline common TourService copy mapping`);
+    assert(!source.includes('Kh?ng t?m th?y') && !source.includes('M? h? th?ng'), `${label} should not contain mojibake Vietnamese messages`);
   }
 }
 

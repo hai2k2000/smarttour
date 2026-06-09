@@ -59,7 +59,7 @@ export class GitToursService {
 
   async detail(id: string, user?: RequestUser) {
     const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.GIT }, user), include: gitTourInclude });
-    if (!tour) throw new NotFoundException('Kh?ng t?m th?y tour GIT');
+    if (!tour) throw new NotFoundException('Không tìm thấy tour GIT');
     return tour;
   }
 
@@ -78,7 +78,7 @@ export class GitToursService {
       return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('M? h? th?ng tour GIT ?? t?n t?i');
+        throw new ConflictException('Mã hệ thống tour GIT đã tồn tại');
       }
       throw error;
     }
@@ -101,7 +101,7 @@ export class GitToursService {
       return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('M? h? th?ng tour GIT ?? t?n t?i');
+        throw new ConflictException('Mã hệ thống tour GIT đã tồn tại');
       }
       throw error;
     }

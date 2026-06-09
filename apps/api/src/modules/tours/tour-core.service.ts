@@ -385,7 +385,7 @@ export class TourCoreService {
     user?: RequestUser,
   ) {
     const source = await tx.tour.findFirst({ where: this.scopeWhere({ id: sourceTourId, type }, user), include: { services: true } });
-    if (!source) throw new NotFoundException('Kh?ng t?m th?y tour ngu?n');
+    if (!source) throw new NotFoundException('Không tìm thấy tour nguồn');
     await this.copyServices(tx, targetTourId, source.services, supplierRole);
   }
 

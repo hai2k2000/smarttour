@@ -75,6 +75,10 @@ function assertLegacyCompatBoundary() {
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
+  assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
+  assert(!serviceSource.includes('V my bay') && !legacyCompatSource.includes('V my bay'), 'FIT default handover items should keep Vietnamese accents');
+  assert(serviceSource.includes('Vé máy bay') && legacyCompatSource.includes('Vé máy bay'), 'FIT default handover items should include Vietnamese text');
+  assert(serviceSource.includes('Chất lượng chương trình tour') && legacyCompatSource.includes('Chất lượng chương trình tour'), 'FIT default survey questions should include Vietnamese text');
   const directLegacyChildWrites = /tx\.fit(?:CommonCost|HotelCost|PrivateCost|BudgetService|OperationService|TourGuide|HandoverItem|SurveyQuestion|Attachment)\./;
   assert(!directLegacyChildWrites.test(serviceSource), 'FitToursService should not write legacy FIT child tables directly');
   assert(serviceSource.includes('legacyCompat.toChildCreateData'), 'FIT create should delegate legacy child create data to compatibility service');

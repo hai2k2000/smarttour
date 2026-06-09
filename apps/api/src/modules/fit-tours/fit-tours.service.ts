@@ -102,16 +102,16 @@ const workflowOrder = [
 ] as const;
 const terminalWorkflowStatuses = new Set<FitTourWorkflowStatus>([FitTourWorkflowStatus.COMPLETED, FitTourWorkflowStatus.CANCELLED]);
 
-const defaultHandoverItems = ['Rooming list', 'V my bay', 'Bo him du lch', 'Chng trnh tour', 'Final confirmation'];
+const defaultHandoverItems = ['Rooming list', 'Vé máy bay', 'Bảo hiểm du lịch', 'Chương trình tour', 'Final confirmation'];
 const defaultSurveyQuestions = [
-  'Cht lng chng trnh tour',
-  'Phng tin vn chuyn',
-  'Cht lng  n',
-  'Thi  nhn vin t vn',
-  'Cht lng khch sn',
-  'Hng dn vin',
-  'Cng tc t chc',
-  'Mc  hi lng chung',
+  'Chất lượng chương trình tour',
+  'Phương tiện vận chuyển',
+  'Chất lượng ăn uống',
+  'Thái độ nhân viên tư vấn',
+  'Chất lượng khách sạn',
+  'Hướng dẫn viên',
+  'Công tác tổ chức',
+  'Mức độ hài lòng chung',
 ];
 
 @Injectable()
@@ -789,7 +789,7 @@ export class FitToursService {
 
   private requiredText(value: unknown, field: string) {
     const text = this.text(value);
-    if (!text) throw new BadRequestException(`${field} l? b?t bu?c`);
+    if (!text) throw new BadRequestException(`${field} là bắt buộc`);
     return text;
   }
 

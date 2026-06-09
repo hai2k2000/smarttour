@@ -758,12 +758,18 @@
 - Added `TourCoreService.copyServices()` so common service clone and service/supplier replacement are owned by the Tour core boundary.
 - Updated GIT and LandTour `copyServices()` actions to delegate to `tourCore.copyServices()` instead of coordinating clone and replace helpers directly.
 - Added FIT regression coverage for `copyBudget()` fallback from pricing-only common `TourCost` rows when legacy FIT cost rows are stale.
-- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 - Continued P1 copy-service source boundary cleanup.
 - Added `TourCoreService.copyServicesFromTour()` so source Tour lookup, type filtering, data-scope filtering, clone, and service/supplier replacement are owned by Tour core.
 - Updated GIT and LandTour `copyServices()` actions to only validate the target then delegate source lookup/copy orchestration to Tour core.
 - Updated tour-type regression to guard against product modules querying source Tour services directly for copy actions.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
+- Started P2 backend cleanup after P1 pass.
+- Fixed mojibake Vietnamese messages in `TourCoreService`, `GitToursService`, and FIT required-field validation.
+- Restored Vietnamese accents for FIT default handover items and survey questions in both FIT service and legacy compatibility service.
+- Added regression guards for mojibake Tour/FIT messages and FIT default handover/survey text.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
 
 ## Not Done
