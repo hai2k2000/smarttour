@@ -110,15 +110,9 @@ export class ToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, dto.orderId, user);
-        const data = this.tourCore.toTourData(dto as unknown as Record<string, unknown>, true, { type: dto.type }) as Prisma.TourCreateInput;
-        this.tourCore.ensureDateRange((data as Record<string, unknown>).startDate, (data as Record<string, unknown>).endDate);
-        const tour = await tx.tour.create({
-          data,
-          include: tourInclude,
-        });
-        await this.tourCore.log(tx, tour.id, 'CREATE_TOUR', { actor: this.actor(user), type: dto.type });
-        return tour;
+        const created = await this.tourCore.createRoot(tx, dto as unknown as Record<string, unknown>, { type: dto.type }, user);
+        await this.tourCore.log(tx, created.id, 'CREATE_TOUR', { actor: this.actor(user), type: dto.type });
+        return tx.tour.findUniqueOrThrow({ where: { id: created.id }, include: tourInclude });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -133,16 +127,9 @@ export class ToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, dto.orderId, user);
-        const data = this.tourCore.toTourData(dto as Record<string, unknown>, false, { type: current.type }) as Prisma.TourUpdateInput;
-        await this.tourCore.ensureUpdatedDateRange(tx, id, data as Record<string, unknown>);
-        const tour = await tx.tour.update({
-          where: { id },
-          data,
-          include: tourInclude,
-        });
+        await this.tourCore.updateRoot(tx, id, dto as Record<string, unknown>, { type: current.type }, user);
         await this.tourCore.log(tx, id, 'UPDATE_TOUR', { actor: this.actor(user) });
-        return tour;
+        return tx.tour.findUniqueOrThrow({ where: { id }, include: tourInclude });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

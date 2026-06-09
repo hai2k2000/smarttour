@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued common Tour root write boundary cleanup:
+  - Common `ToursService.create()` now creates root rows through
+    `TourCoreService.createRoot()` and fetches the full include payload after
+    logging so the API response shape stays stable.
+  - Common `ToursService.update()` now updates root rows through
+    `TourCoreService.updateRoot()` and then fetches the full include payload,
+    so order validation, date-only parsing, and date-range validation all live
+    behind the Tour core boundary.
+  - `scripts/test-tour-type-apis.sh` now guards common `ToursService` against
+    direct `tx.tour.create()` / `tx.tour.update()` root writes and direct
+    `tourCore.toTourData()` calls.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1/P2 duplicate root mapping cleanup:
   - Removed the stale private Tour root mapper and duplicate order/date/number
     helpers from common `ToursService` after its create/update flow had moved

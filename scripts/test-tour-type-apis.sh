@@ -107,9 +107,13 @@ function assertTourTypeDtoContracts() {
 function assertCommonToursServiceUsesTourCore() {
   const fs = require('fs');
   const source = fs.readFileSync('/workspace/apps/api/src/modules/tours/tours.service.ts', 'utf8');
-  assert(source.includes('tourCore.toTourData'), 'Common ToursService should map root writes through TourCoreService.toTourData');
-  assert(source.includes('tourCore.ensureDateRange'), 'Common ToursService should validate create date ranges through TourCoreService.ensureDateRange');
-  assert(source.includes('tourCore.ensureUpdatedDateRange'), 'Common ToursService should validate update date ranges through TourCoreService.ensureUpdatedDateRange');
+  assert(source.includes('tourCore.createRoot'), 'Common ToursService should create root rows through TourCoreService.createRoot');
+  assert(source.includes('tourCore.updateRoot'), 'Common ToursService should update root rows through TourCoreService.updateRoot');
+  assert(!/tx\.tour\.create\s*\(/.test(source), 'Common ToursService should not create Tour root directly');
+  assert(!/tx\.tour\.update\s*\(/.test(source), 'Common ToursService should not update Tour root directly');
+  assert(!/tourCore\.toTourData\s*\(/.test(source), 'Common ToursService should not map root data directly');
+  assert(!/tourCore\.ensureDateRange\s*\(/.test(source), 'Common ToursService should not validate create date ranges outside createRoot');
+  assert(!/tourCore\.ensureUpdatedDateRange\s*\(/.test(source), 'Common ToursService should not validate update date ranges outside updateRoot');
   assert(!/private\s+toTourData\s*\(/.test(source), 'Common ToursService should not keep a duplicate private toTourData mapper');
   assert(!/private\s+optionalDate\s*\(/.test(source), 'Common ToursService should not keep a private date parser');
   assert(!/private\s+requiredText\s*\(/.test(source), 'Common ToursService should not keep duplicate root requiredText validation');

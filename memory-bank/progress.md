@@ -2,6 +2,16 @@
 
 ## Done
 
+- Moved common Tour root writes fully behind TourCore:
+  - Common `ToursService` create/update now delegate to
+    `TourCoreService.createRoot()` / `updateRoot()` instead of directly calling
+    `tx.tour.create()` / `tx.tour.update()` or `toTourData()`.
+  - Response shape remains stable by fetching the full include payload after
+    the shared root write and log operation.
+  - Tour-type tests statically guard the common root write boundary.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Removed duplicate common Tour root mapping from ToursService:
   - Common `ToursService` now relies on `TourCoreService.toTourData()` and the
     shared range helpers instead of keeping a stale private root mapper.
