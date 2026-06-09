@@ -89,6 +89,12 @@ export class TourCoreService {
     if (!row) throw new NotFoundException('Không tìm thấy đơn hàng trong phạm vi dữ liệu');
   }
 
+  async createRoot(tx: Prisma.TransactionClient, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
+    await this.ensureOrder(tx, dto.orderId, user);
+    const data = this.toTourData(dto, true, config) as Prisma.TourUncheckedCreateInput;
+    return tx.tour.create({ data });
+  }
+
   async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;

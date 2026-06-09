@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued standardizing Tour-root orchestration across tour-type modules:
+  - Added `TourCoreService.createRoot()` as the shared root creation boundary
+    next to `updateRoot()`.
+  - GIT and LandTour create/update now write the common `Tour` root through
+    `TourCoreService.createRoot()` / `updateRoot()` before writing their
+    type-specific detail rows and children.
+  - `scripts/test-tour-type-apis.sh` now statically guards GIT and LandTour
+    against direct `tx.tour.create()` / `tx.tour.update()` calls in module
+    services.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued separating common `TourStatus` lifecycle from tour workflow:
   - `TourCoreService` no longer derives `Tour.status` from an arbitrary
     `workflowStep`; lifecycle status is now derived from workflow only when a

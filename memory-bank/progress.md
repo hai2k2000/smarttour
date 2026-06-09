@@ -2,6 +2,16 @@
 
 ## Done
 
+- Standardized GIT and LandTour root writes through TourCore:
+  - `TourCoreService.createRoot()` now owns common Tour root creation, matching
+    the existing `updateRoot()` path.
+  - GIT and LandTour create/update transactions now use the shared root
+    boundary, then write type-specific detail rows and child collections.
+  - Tour-type API tests include static guards against direct root create/update
+    calls inside GIT/LandTour services.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Separated common Tour lifecycle status from workflow-step updates:
   - Generic `workflowStep` writes no longer reset `Tour.status` to
     `UPCOMING`; only modules with an explicit workflow-to-status mapper may

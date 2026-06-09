@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService } from '../tours/tour-core.service';
+import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 
@@ -67,12 +67,9 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
-        const created = await tx.tour.create({
-          data: {
-            ...this.toTourData(dto, true),
-            gitTour: { create: this.toGitDetailData(dto) },
-          } as Prisma.TourCreateInput,
+        const created = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
+        await tx.gitTourDetail.create({
+          data: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.GitTourDetailUncheckedCreateInput,
         });
         await this.replaceChildren(tx, created.id, dto, true);
         await this.tourCore.log(tx, created.id, 'CREATE_GIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system' });
@@ -92,8 +89,7 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
-        await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
+        await this.tourCore.updateRoot(tx, id, dto as unknown as Row, this.tourConfig(), user);
         await tx.gitTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.GitTourDetailUncheckedCreateInput,
@@ -179,13 +175,13 @@ export class GitToursService {
     }
   }
 
-  private toTourData(dto: UpdateGitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return this.tourCore.toTourData(dto as unknown as Record<string, unknown>, creating, {
+  private tourConfig(): TourRootConfig {
+    return {
       type: TourType.GIT,
       routeField: 'itinerarySummary',
       defaultWorkflowStep: 'GIT_INFO',
       defaultStatus: TourStatus.UPCOMING,
-    });
+    };
   }
 
   private toGitDetailData(dto: UpdateGitTourDto): Prisma.GitTourDetailUncheckedCreateInput | Prisma.GitTourDetailUncheckedUpdateInput {

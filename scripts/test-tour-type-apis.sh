@@ -43,6 +43,21 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function assertTourRootOrchestrationBoundaries() {
+  const fs = require('fs');
+  const services = [
+    ['GIT', '/workspace/apps/api/src/modules/git-tours/git-tours.service.ts'],
+    ['LandTour', '/workspace/apps/api/src/modules/landtours/landtours.service.ts'],
+  ];
+  for (const [label, file] of services) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
+    assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
+    assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
+    assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
+  }
+}
+
 async function jsonResponse(response) {
   const text = await response.text();
   if (!text) return null;
@@ -54,6 +69,7 @@ async function jsonResponse(response) {
 }
 
 async function main() {
+  assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

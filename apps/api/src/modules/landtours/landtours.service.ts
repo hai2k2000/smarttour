@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService } from '../tours/tour-core.service';
+import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
@@ -68,12 +68,9 @@ export class LandToursService {
     dto = applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user) as CreateLandTourDto;
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
-        const created = await tx.tour.create({
-          data: {
-            ...this.toTourData(dto, true),
-            landTour: { create: this.toLandDetailData(dto) },
-          } as Prisma.TourCreateInput,
+        const created = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
+        await tx.landTourDetail.create({
+          data: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.LandTourDetailUncheckedCreateInput,
         });
         await this.replaceChildren(tx, created.id, dto, true);
         await this.tourCore.log(tx, created.id, 'CREATE_LANDTOUR', { actor: user?.username || user?.email || user?.id || 'system' });
@@ -93,8 +90,7 @@ export class LandToursService {
     dto = applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user) as UpdateLandTourDto;
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.ensureOrder(tx, (dto as unknown as Record<string, unknown>).orderId, user);
-        await tx.tour.update({ where: { id }, data: this.toTourData(dto, false) as Prisma.TourUpdateInput });
+        await this.tourCore.updateRoot(tx, id, dto as unknown as Row, this.tourConfig(), user);
         await tx.landTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.LandTourDetailUncheckedCreateInput,
@@ -180,14 +176,14 @@ export class LandToursService {
     }
   }
 
-  private toTourData(dto: UpdateLandTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return this.tourCore.toTourData(dto as unknown as Record<string, unknown>, creating, {
+  private tourConfig(): TourRootConfig {
+    return {
       type: TourType.LANDTOUR,
       routeField: 'itinerarySummary',
       defaultWorkflowStep: 'LANDTOUR_INFO',
       defaultProductType: 'LANDTOUR',
       defaultStatus: TourStatus.UPCOMING,
-    });
+    };
   }
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {
