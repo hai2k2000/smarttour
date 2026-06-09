@@ -46,6 +46,12 @@ export class FitToursController {
     return this.fitToursService.update(id, dto, request?.user);
   }
 
+  @Post(':id/steps/:step/confirm')
+  @RequirePermissions('tour.manage')
+  confirmStep(@Param('id') id: string, @Param('step') step: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.confirmStep(id, step, dto, request?.user);
+  }
+
   @Patch(':id/steps/:step')
   @RequirePermissions('tour.manage')
   saveStep(@Param('id') id: string, @Param('step') step: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {

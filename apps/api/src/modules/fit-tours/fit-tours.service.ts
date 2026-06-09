@@ -13,7 +13,7 @@ type Row = Record<string, unknown>;
 type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
 type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
 type FitTourStep = keyof typeof FIT_TOUR_STEP_FIELDS;
-type FitUpdateOptions = { step?: FitTourStep };
+type FitUpdateOptions = { step?: FitTourStep; confirm?: boolean };
 
 const fitCostGroupTags: Record<FitCostGroupField, string> = {
   commonCosts: 'FIT_COMMON_COST',
@@ -179,19 +179,11 @@ export class FitToursService {
   }
 
   async saveStep(id: string, step: string, dto: UpdateFitTourDto, user?: RequestUser) {
-    const workflowStep = this.toEditableWorkflowStep(step);
-    const current = await this.detail(id, user);
-    const scopedDto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
-    const stepPatch = this.pickStepPatch(workflowStep, scopedDto);
-    const nextWorkflow = this.workflowStepForSave(current.workflowStatus, workflowStep);
-    if (nextWorkflow) stepPatch.workflowStatus = nextWorkflow;
-    try {
-      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, stepPatch, user, { step: workflowStep }));
-      return this.detail(id, user);
-    } catch (error) {
-      this.rethrowFitUniqueConflict(error);
-      throw error;
-    }
+    return this.persistStep(id, step, dto, user, false);
+  }
+
+  async confirmStep(id: string, step: string, dto: UpdateFitTourDto, user?: RequestUser) {
+    return this.persistStep(id, step, dto, user, true);
   }
 
   async remove(id: string, user?: RequestUser) {
@@ -221,6 +213,24 @@ export class FitToursService {
     return this.detail(targetId, user);
   }
 
+  private async persistStep(id: string, step: string, dto: UpdateFitTourDto, user: RequestUser | undefined, confirm: boolean) {
+    const workflowStep = this.toEditableWorkflowStep(step);
+    const current = await this.detail(id, user);
+    const scopedDto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
+    const stepPatch = this.pickStepPatch(workflowStep, scopedDto);
+    if (confirm) {
+      const nextWorkflow = this.workflowStepForConfirm(current.workflowStatus, workflowStep);
+      if (nextWorkflow) stepPatch.workflowStatus = nextWorkflow;
+    }
+    try {
+      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, stepPatch, user, { step: workflowStep, confirm }));
+      return this.detail(id, user);
+    } catch (error) {
+      this.rethrowFitUniqueConflict(error);
+      throw error;
+    }
+  }
+
   private async createFitTourAggregate(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
     const fitDto = await this.prepareCreateFitDto(tx, dto, user);
     const tour = await this.createTourRootFromFit(tx, fitDto, user);
@@ -244,7 +254,8 @@ export class FitToursService {
     await this.syncTourCoreFromFit(tx, tourId, merged);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
     await this.legacyCompat.syncChildren(tx, id, patch);
-    await this.logFitTourAction(tx, tourId, 'UPDATE_FIT_TOUR', user, { fitTourId: id });
+    const action = options.step ? (options.confirm ? 'CONFIRM_FIT_STEP' : 'SAVE_FIT_STEP_DRAFT') : 'UPDATE_FIT_TOUR';
+    await this.logFitTourAction(tx, tourId, action, user, { fitTourId: id, ...(options.step ? { workflowStep: options.step } : {}) });
   }
 
   private async removeFitTourAggregate(
@@ -366,7 +377,7 @@ export class FitToursService {
     throw new BadRequestException('Bước workflow FIT không hợp lệ');
   }
 
-  private workflowStepForSave(currentStatus: FitTourWorkflowStatus | null | undefined, step: FitTourStep): FitTourWorkflowStatus | undefined {
+  private workflowStepForConfirm(currentStatus: FitTourWorkflowStatus | null | undefined, step: FitTourStep): FitTourWorkflowStatus | undefined {
     const current = this.toWorkflowStatusStrict(currentStatus) || FitTourWorkflowStatus.DRAFT;
     const currentIndex = workflowOrder.indexOf(current as (typeof workflowOrder)[number]);
     const stepIndex = workflowOrder.indexOf(step as (typeof workflowOrder)[number]);

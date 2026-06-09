@@ -30,7 +30,7 @@ type FitTourSaved = Partial<FitTourSummary> & {
   budgetServices?: unknown[];
   operationServices?: unknown[];
 };
-type SaveReason = 'autosave' | 'save' | 'copy-budget' | 'copy-operation';
+type SaveReason = 'autosave' | 'save' | 'confirm' | 'copy-budget' | 'copy-operation';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 const money = new Intl.NumberFormat('vi-VN');

@@ -83,9 +83,12 @@ function assertLegacyCompatBoundary() {
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('tx.tour.create') && !serviceSource.includes('tx.tour.update'), 'FitToursService should delegate Tour root create/update to TourCoreService');
   assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
-  assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard saves');
-  assert(serviceSource.includes('async saveStep'), 'FIT service should expose step-scoped save orchestration');
-  assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}'), 'FIT wizard should save existing records through step-scoped payloads');
+  assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
+  assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
+  assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
+  assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
+  assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
+  assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
   assert(!serviceSource.includes('const defaultHandoverItems') && !legacyCompatSource.includes('const defaultHandoverItems'), 'FIT services should not duplicate default handover constants');
@@ -249,7 +252,15 @@ async function main() {
   const stepInfoDetail = await fitTours.detail(source.id);
   assert(stepInfoDetail.tourName === 'FIT Step Tour Info Name', 'saveStep TOUR_INFO should update allowed tourName');
   assert(!stepInfoDetail.budgetServices.some((row) => row.description === 'Wrong tour info step'), 'saveStep TOUR_INFO should ignore budgetServices outside step field contract');
-  assert(stepInfoDetail.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'saveStep TOUR_INFO should advance workflow');
+  assert(stepInfoDetail.workflowStatus === FitTourWorkflowStatus.PRICING, 'saveStep TOUR_INFO should save draft without advancing workflow');
+  await fitTours.confirmStep(source.id, FitTourWorkflowStatus.TOUR_INFO, {
+    tourName: 'FIT Step Tour Info Confirmed',
+    budgetServices: [{ serviceType: 'WRONG_CONFIRM_BUDGET', description: 'Wrong confirm tour info step', quantity: 1, unitPrice: 999, amount: 999 }],
+  });
+  const stepInfoConfirmed = await fitTours.detail(source.id);
+  assert(stepInfoConfirmed.tourName === 'FIT Step Tour Info Confirmed', 'confirmStep TOUR_INFO should update allowed tourName');
+  assert(!stepInfoConfirmed.budgetServices.some((row) => row.description === 'Wrong confirm tour info step'), 'confirmStep TOUR_INFO should ignore budgetServices outside step field contract');
+  assert(stepInfoConfirmed.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'confirmStep TOUR_INFO should advance workflow');
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, {
     commonCosts: [{ serviceType: 'CAR', description: 'Step repriced car', quantity: 1, times: 1, unitPrice: 1100, vat: 0, amount: 1100 }],
   });
@@ -261,9 +272,13 @@ async function main() {
     operationServices: [{ serviceType: 'WRONG_STEP_OPERATION', description: 'Wrong budget step', amount: 999 }],
   });
   const stepBudgetDetail = await fitTours.detail(source.id);
-  assert(stepBudgetDetail.workflowStatus === FitTourWorkflowStatus.BUDGET, 'saveStep BUDGET should advance workflow');
+  assert(stepBudgetDetail.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'saveStep BUDGET should save draft without advancing workflow');
   assert(stepBudgetDetail.budgetServices[0].description === 'Step budget hotel', 'saveStep BUDGET should update budget rows');
   assert(!stepBudgetDetail.operationServices.some((row) => row.description === 'Wrong budget step'), 'saveStep BUDGET should ignore operation rows outside step field contract');
+  await fitTours.confirmStep(source.id, FitTourWorkflowStatus.BUDGET, {});
+  const stepBudgetConfirmed = await fitTours.detail(source.id);
+  assert(stepBudgetConfirmed.workflowStatus === FitTourWorkflowStatus.BUDGET, 'confirmStep BUDGET should advance workflow');
+  assert(stepBudgetConfirmed.budgetServices[0].description === 'Step budget hotel', 'confirmStep BUDGET should keep drafted budget rows');
 
   const pricingOnlySource = await fitTours.create({
     quoteCode: `${run}-PRICE-Q`,

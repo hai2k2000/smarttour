@@ -434,7 +434,7 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   };
 }
 
-type SaveReason = 'autosave' | 'save' | 'copy-budget' | 'copy-operation';
+type SaveReason = 'autosave' | 'save' | 'confirm' | 'copy-budget' | 'copy-operation';
 type FitTourWizardProps = {
   suppliers: Supplier[];
   tours: FitTourSummary[];
@@ -520,7 +520,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       if (signature === lastAutosaveSignature.current) return;
       setSaveState('Đang tự lưu...');
       try {
-        const saved = await saveTour(payload, step);
+        const saved = await saveTour(payload, step, 'draft');
         if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
         const savedPayload = preparePayload({ ...current, id: saved.id || current.id }, step);
         lastAutosaveSignature.current = JSON.stringify(creating ? savedPayload : stepPayload(savedPayload, step));
@@ -534,15 +534,20 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }, [values, activeStep, formState.isDirty, getValues, setValue, onSaved]);
 
 
-  async function saveTour(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT') {
-    const payload = preparePayload(data, workflowStatus);
+  async function saveTour(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT', mode: 'draft' | 'confirm' = 'draft') {
     const step = workflowSteps.some((item) => item.key === workflowStatus) ? workflowStatus as WorkflowStepKey : undefined;
-    const creating = !payload.id;
+    const creating = !data.id;
+    const payloadWorkflowStatus = creating && mode === 'draft' ? data.workflowStatus || 'DRAFT' : workflowStatus;
+    const payload = preparePayload(data, payloadWorkflowStatus);
     const errors = validateBeforeSave(payload, step, creating);
     if (errors.length) throw new Error(errors.join('. '));
-    const url = creating || !step ? `${apiBase}/api/fit-tours` : `${apiBase}/api/fit-tours/${payload.id}/steps/${step}`;
+    const url = creating || !step
+      ? `${apiBase}/api/fit-tours`
+      : mode === 'confirm'
+        ? `${apiBase}/api/fit-tours/${payload.id}/steps/${step}/confirm`
+        : `${apiBase}/api/fit-tours/${payload.id}/steps/${step}`;
     const response = await fetch(url, {
-      method: creating || !step ? 'POST' : 'PATCH',
+      method: creating || !step ? 'POST' : mode === 'confirm' ? 'POST' : 'PATCH',
       headers: authJsonHeaders(),
       body: JSON.stringify(creating || !step ? payload : stepPayload(payload, step)),
     });
@@ -552,16 +557,43 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
 
   async function submit(data: FitTourForm) {
-    setSaveState('Đang lưu...');
+    setSaveState('Đang lưu nháp...');
     try {
-      const saved = await saveTour({ ...data, workflowStatus: workflowSteps[activeStep].key }, workflowSteps[activeStep].key);
-      reset(toFormDefaults(saved), { keepDirty: false });
-      lastAutosaveSignature.current = JSON.stringify(preparePayload(toFormDefaults(saved)));
+      const step = workflowSteps[activeStep].key;
+      const saved = await saveTour(data, step, 'draft');
+      const defaults = toFormDefaults(saved);
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
       setSelectedTourId(saved.id || '');
       onSaved?.(saved, 'save');
-      setSaveState(`Đã lưu bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
+      setSaveState(`Đã lưu nháp bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
     } catch (error) {
-      setSaveState(`Lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      setSaveState(`Lưu nháp lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
+  }
+
+  async function confirmCurrentStep(data: FitTourForm) {
+    setSaveState('Đang xác nhận bước...');
+    try {
+      const step = workflowSteps[activeStep].key;
+      let draft = data;
+      if (!draft.id) {
+        const created = await saveTour(draft, step, 'draft');
+        draft = toFormDefaults(created);
+        setSelectedTourId(created.id || '');
+        setValue('id', created.id || '', { shouldDirty: false });
+      }
+      const saved = await saveTour({ ...draft, workflowStatus: step }, step, 'confirm');
+      const defaults = toFormDefaults(saved);
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSelectedTourId(saved.id || '');
+      onSaved?.(saved, 'confirm');
+      const nextStep = Math.min(workflowSteps.length - 1, activeStep + 1);
+      if (nextStep !== activeStep) setActiveStep(nextStep);
+      setSaveState(`Đã xác nhận bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
+    } catch (error) {
+      setSaveState(`Xác nhận bước lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
   }
 
@@ -663,7 +695,8 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>
           <span>{saveState}</span>
-          <button type="submit"><Save size={15} /> Lưu</button>
+          <button type="submit"><Save size={15} /> Lưu nháp</button>
+          <button type="button" onClick={handleSubmit(confirmCurrentStep)}><Send size={15} /> Xác nhận bước</button>
         </div>
       </section>
 

@@ -2,6 +2,20 @@
 
 ## Done
 
+- Continued P2 FIT draft/confirm flow separation:
+  - Split step persistence into draft save and explicit confirm endpoints.
+  - Draft step saves are step-scoped and do not advance workflow; confirm step
+    saves reuse the same step field boundary and then advance workflow only by
+    the permitted next step.
+  - FIT wizard buttons now separate `Lưu nháp` from `Xác nhận bước`, while
+    autosave continues to write draft payloads only.
+  - Regression verifies static endpoint/frontend contracts plus runtime behavior
+    where `saveStep()` does not advance TOUR_INFO/BUDGET but `confirmStep()`
+    does.
+  - Verified on VPS: API/web Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT wizard step-save contract cleanup:
   - FIT DTOs now declare `FIT_TOUR_STEP_FIELDS` for pricing, tour info,
     budget, operation, handover, and survey step payload boundaries.
