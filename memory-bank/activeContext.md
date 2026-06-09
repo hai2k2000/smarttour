@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Started P1 Tour backend normalization:
+  - GIT and LandTour DTOs now expose `route` as the common Tour-root route
+    field.
+  - GIT/LandTour root sync now maps `Tour.route` from `route`, while keeping
+    `itinerarySummary` as a legacy alias fallback for existing clients.
+  - GIT keeps `itinerarySummary` on `gitTourDetail` as the type-specific
+    itinerary summary, so common route and detail itinerary are no longer
+    collapsed into one field.
+  - `scripts/test-tour-type-apis.sh` now asserts GIT route/detail separation
+    and LandTour route precedence over the legacy alias.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued standardizing Tour-root orchestration across tour-type modules:
   - Added `TourCoreService.createRoot()` as the shared root creation boundary
     next to `updateRoot()`.

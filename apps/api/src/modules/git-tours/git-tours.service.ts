@@ -67,7 +67,7 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
-        const created = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
+        const created = await this.tourCore.createRoot(tx, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.gitTourDetail.create({
           data: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.GitTourDetailUncheckedCreateInput,
         });
@@ -89,7 +89,7 @@ export class GitToursService {
     dto = applyWriteDataScope(dto, user);
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.updateRoot(tx, id, dto as unknown as Row, this.tourConfig(), user);
+        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.gitTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.GitTourDetailUncheckedCreateInput,
@@ -178,10 +178,16 @@ export class GitToursService {
   private tourConfig(): TourRootConfig {
     return {
       type: TourType.GIT,
-      routeField: 'itinerarySummary',
+      routeField: 'route',
       defaultWorkflowStep: 'GIT_INFO',
       defaultStatus: TourStatus.UPCOMING,
     };
+  }
+
+  private toTourRootDto(dto: UpdateGitTourDto): Row {
+    const rootDto = { ...(dto as unknown as Row) };
+    if (rootDto.route === undefined && rootDto.itinerarySummary !== undefined) rootDto.route = rootDto.itinerarySummary;
+    return rootDto;
   }
 
   private toGitDetailData(dto: UpdateGitTourDto): Prisma.GitTourDetailUncheckedCreateInput | Prisma.GitTourDetailUncheckedUpdateInput {

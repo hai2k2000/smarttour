@@ -68,7 +68,7 @@ export class LandToursService {
     dto = applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user) as CreateLandTourDto;
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
-        const created = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
+        const created = await this.tourCore.createRoot(tx, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.landTourDetail.create({
           data: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.LandTourDetailUncheckedCreateInput,
         });
@@ -90,7 +90,7 @@ export class LandToursService {
     dto = applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user) as UpdateLandTourDto;
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.updateRoot(tx, id, dto as unknown as Row, this.tourConfig(), user);
+        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.landTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.LandTourDetailUncheckedCreateInput,
@@ -179,11 +179,17 @@ export class LandToursService {
   private tourConfig(): TourRootConfig {
     return {
       type: TourType.LANDTOUR,
-      routeField: 'itinerarySummary',
+      routeField: 'route',
       defaultWorkflowStep: 'LANDTOUR_INFO',
       defaultProductType: 'LANDTOUR',
       defaultStatus: TourStatus.UPCOMING,
     };
+  }
+
+  private toTourRootDto(dto: UpdateLandTourDto): Row {
+    const rootDto = { ...(dto as unknown as Row) };
+    if (rootDto.route === undefined && rootDto.itinerarySummary !== undefined) rootDto.route = rootDto.itinerarySummary;
+    return rootDto;
   }
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {

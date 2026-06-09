@@ -2,6 +2,17 @@
 
 ## Done
 
+- Began P1 by separating common route from itinerary summary:
+  - `CreateGitTourDto` and `CreateLandTourDto` now accept `route` for the
+    common `Tour.route` field.
+  - GIT/LandTour services prefer `route` for root sync and only fall back to
+    `itinerarySummary` for backward compatibility with older clients.
+  - GIT detail still owns `itinerarySummary`; LandTour treats
+    `itinerarySummary` as a legacy alias because its detail table has no such
+    field.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Standardized GIT and LandTour root writes through TourCore:
   - `TourCoreService.createRoot()` now owns common Tour root creation, matching
     the existing `updateRoot()` path.

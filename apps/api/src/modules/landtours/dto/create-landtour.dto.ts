@@ -42,6 +42,11 @@ export class CreateLandTourDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  route?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   itinerarySummary?: string;
 
   @ApiPropertyOptional()

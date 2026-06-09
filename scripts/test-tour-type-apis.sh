@@ -192,12 +192,16 @@ async function main() {
         systemCode: `${run}-GIT-SYS`,
         tourCode: `${run}-GIT`,
         name: 'Tour type API GIT tour',
+        route: 'Tour type API GIT common route',
+        itinerarySummary: 'Tour type API GIT detail itinerary',
       }),
     },
     201,
     'create GIT tour',
   );
   assert(gitTour.id, 'GIT create should return id');
+  assert(gitTour.route === 'Tour type API GIT common route', 'GIT root route should use the common route field');
+  assert(gitTour.gitTour.itinerarySummary === 'Tour type API GIT detail itinerary', 'GIT detail should keep itinerarySummary separate from root route');
   const patchedGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -224,12 +228,15 @@ async function main() {
         systemCode: `${run}-LAND-SYS`,
         tourCode: `${run}-LAND`,
         name: 'Tour type API LandTour',
+        route: 'Tour type API LandTour common route',
+        itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
       }),
     },
     201,
     'create LandTour',
   );
   assert(landTour.id, 'LandTour create should return id');
+  assert(landTour.route === 'Tour type API LandTour common route', 'LandTour root route should prefer the common route field over itinerarySummary alias');
   const patchedLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
