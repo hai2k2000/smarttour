@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued isolating FIT legacy dual-write behavior:
+  - Moved FIT legacy child create/sync/copy responsibilities into
+    `FitTourLegacyCompatService` (`toChildCreateData`, `syncChildren`,
+    `replaceBudgetServices`, and `replaceOperationServices`).
+  - `FitToursService` now orchestrates `Tour` root/common sync first, then
+    delegates legacy FIT child persistence to the compatibility layer.
+  - Common FIT mappers in `FitToursService` now delegate row-shape mapping to
+    the compatibility service so legacy row mapping has one owner.
+  - Added a static boundary assertion in `scripts/test-fit-tour-root-contract.sh`
+    to prevent direct legacy FIT child table writes from returning to
+    `FitToursService`.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued the `tour-backend-issues.md` P0 FIT read-side root-source work:
   - FIT list now selects the linked common `Tour` root only for internal
     snapshot overlay, then returns the existing lightweight list shape without

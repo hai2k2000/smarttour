@@ -44,7 +44,19 @@ function rootCode(value) {
   return String(value).toUpperCase();
 }
 
+function assertLegacyCompatBoundary() {
+  const fs = require('fs');
+  const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
+  const directLegacyChildWrites = /tx\.fit(?:CommonCost|HotelCost|PrivateCost|BudgetService|OperationService|TourGuide|HandoverItem|SurveyQuestion|Attachment)\./;
+  assert(!directLegacyChildWrites.test(serviceSource), 'FitToursService should not write legacy FIT child tables directly');
+  assert(serviceSource.includes('legacyCompat.toChildCreateData'), 'FIT create should delegate legacy child create data to compatibility service');
+  assert(serviceSource.includes('legacyCompat.syncChildren'), 'FIT update should delegate legacy child sync to compatibility service');
+  assert(serviceSource.includes('legacyCompat.replaceBudgetServices'), 'FIT copyBudget should delegate legacy budget replacement to compatibility service');
+  assert(serviceSource.includes('legacyCompat.replaceOperationServices'), 'FIT copyOperation should delegate legacy operation replacement to compatibility service');
+}
+
 async function main() {
+  assertLegacyCompatBoundary();
   const prisma = new PrismaService();
   await prisma.$connect();
 

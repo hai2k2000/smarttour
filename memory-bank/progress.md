@@ -2,6 +2,17 @@
 
 ## Done
 
+- Isolated FIT legacy child writes behind the compatibility layer:
+  - `FitTourLegacyCompatService` now owns legacy child create/sync/copy writes
+    and row-shape mapping for FIT common costs, budget services, operation
+    services, guides, handover items, survey questions, and attachments.
+  - `FitToursService` delegates legacy persistence to compat helpers after
+    syncing the common `Tour` root/common children.
+  - Added a static test guard so `FitToursService` cannot directly write
+    legacy FIT child delegates again.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued FIT Tour-root read-side normalization:
   - FIT list/detail now use common `Tour` / `TourCustomer` values as the
     response source for common fields while preserving the existing list

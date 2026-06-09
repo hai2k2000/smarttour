@@ -159,15 +159,7 @@ export class FitToursService {
             tour: { connect: { id: tour.id } },
             ...(fitDto.customerId ? { customer: { connect: { id: fitDto.customerId } } } : {}),
             ...(fitDto.orderId ? { order: { connect: { id: fitDto.orderId } } } : {}),
-            commonCosts: { create: this.mapCommonCosts(fitDto.commonCosts) },
-            hotelCosts: { create: this.mapHotelCosts(fitDto.hotelCosts) },
-            privateCosts: { create: this.mapPrivateCosts(fitDto.privateCosts) },
-            budgetServices: { create: this.mapBudgetServices(fitDto.budgetServices) },
-            operationServices: { create: this.mapOperationServices(fitDto.operationServices) },
-            guides: { create: this.mapGuides(fitDto.guides) },
-            handoverItems: { create: this.mapHandoverItems(fitDto.handoverItems) },
-            surveyQuestions: { create: this.mapSurveyQuestions(fitDto.surveyQuestions) },
-            attachments: { create: this.mapAttachments(fitDto.attachments) },
+            ...this.legacyCompat.toChildCreateData(fitDto),
           } as Prisma.FitTourCreateInput,
         });
         await this.tourCore.log(tx, tour.id, 'CREATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: fitTour.id });
@@ -204,7 +196,7 @@ export class FitToursService {
             ...(patch.orderId !== undefined ? (patch.orderId ? { order: { connect: { id: patch.orderId } } } : { order: { disconnect: true } }) : {}),
           } as Prisma.FitTourUpdateInput,
         });
-        await this.syncLegacyFitChildren(tx, id, patch);
+        await this.legacyCompat.syncChildren(tx, id, patch);
         await this.tourCore.log(tx, tourId, 'UPDATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: id });
       });
       return this.detail(id, user);
@@ -231,17 +223,11 @@ export class FitToursService {
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
     const targetRootId = this.requiredTourRootId(target);
-    const budgetRows = this.toCopiedBudgetRows(source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source));
+    const budgetRows = this.legacyCompat.toCopiedBudgetRows(source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source));
 
     await this.prisma.$transaction(async (tx) => {
       await this.syncTourCoreFromFit(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
-      await tx.fitBudgetService.deleteMany({ where: { fitTourId: targetId } });
-      await tx.fitBudgetService.createMany({
-        data: budgetRows.map((row) => ({
-          fitTourId: targetId,
-          ...row,
-        })),
-      });
+      await this.legacyCompat.replaceBudgetServices(tx, targetId, budgetRows);
       await this.tourCore.log(tx, targetRootId, 'COPY_FIT_BUDGET', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
     });
     return this.detail(targetId, user);
@@ -253,17 +239,11 @@ export class FitToursService {
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
     const targetRootId = this.requiredTourRootId(target);
-    const rows = this.toCopiedOperationRows(source.operationServices.length > 0 ? source.operationServices : source.budgetServices);
+    const rows = this.legacyCompat.toCopiedOperationRows(source.operationServices.length > 0 ? source.operationServices : source.budgetServices);
 
     await this.prisma.$transaction(async (tx) => {
       await this.syncTourCoreFromFit(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
-      await tx.fitOperationService.deleteMany({ where: { fitTourId: targetId } });
-      await tx.fitOperationService.createMany({
-        data: rows.map((row) => ({
-          fitTourId: targetId,
-          ...row,
-        })),
-      });
+      await this.legacyCompat.replaceOperationServices(tx, targetId, rows);
       await this.tourCore.log(tx, targetRootId, 'COPY_FIT_OPERATION', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
     });
     return this.detail(targetId, user);
@@ -418,45 +398,6 @@ export class FitToursService {
     return fitTour.tourId;
   }
 
-  private async syncLegacyFitChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
-    if (dto.commonCosts !== undefined) {
-      await tx.fitCommonCost.deleteMany({ where: { fitTourId } });
-      await tx.fitCommonCost.createMany({ data: this.mapCommonCosts(dto.commonCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.hotelCosts !== undefined) {
-      await tx.fitHotelCost.deleteMany({ where: { fitTourId } });
-      await tx.fitHotelCost.createMany({ data: this.mapHotelCosts(dto.hotelCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.privateCosts !== undefined) {
-      await tx.fitPrivateCost.deleteMany({ where: { fitTourId } });
-      await tx.fitPrivateCost.createMany({ data: this.mapPrivateCosts(dto.privateCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.budgetServices !== undefined) {
-      await tx.fitBudgetService.deleteMany({ where: { fitTourId } });
-      await tx.fitBudgetService.createMany({ data: this.mapBudgetServices(dto.budgetServices).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.operationServices !== undefined) {
-      await tx.fitOperationService.deleteMany({ where: { fitTourId } });
-      await tx.fitOperationService.createMany({ data: this.mapOperationServices(dto.operationServices).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.guides !== undefined) {
-      await tx.fitTourGuide.deleteMany({ where: { fitTourId } });
-      await tx.fitTourGuide.createMany({ data: this.mapGuides(dto.guides).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.handoverItems !== undefined) {
-      await tx.fitHandoverItem.deleteMany({ where: { fitTourId } });
-      await tx.fitHandoverItem.createMany({ data: this.mapHandoverItems(dto.handoverItems).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.surveyQuestions !== undefined) {
-      await tx.fitSurveyQuestion.deleteMany({ where: { fitTourId } });
-      await tx.fitSurveyQuestion.createMany({ data: this.mapSurveyQuestions(dto.surveyQuestions).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.attachments !== undefined) {
-      await tx.fitAttachment.deleteMany({ where: { fitTourId } });
-      await tx.fitAttachment.createMany({ data: this.mapAttachments(dto.attachments).map((row) => ({ ...row, fitTourId })) });
-    }
-  }
-
   private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
     await this.tourCore.replaceCustomers(tx, tourId, [this.mapTourCustomer(dto)]);
     await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
@@ -579,160 +520,23 @@ export class FitToursService {
   }
 
   private mapCommonCosts(rows?: unknown[]) {
-    return this.rows(rows).map((row, index) => {
-      const quantity = this.number(row.quantity);
-      const times = this.number(row.times || 1);
-      const exchangeRate = this.number(row.exchangeRate || 1);
-      const unitPrice = this.number(row.unitPrice);
-      const vat = this.number(row.vat);
-      return {
-        orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || row.loaiDichVu || 'Dch v'),
-        description: this.optionalText(row.description),
-        unit: this.optionalText(row.unit),
-        quantity,
-        times,
-        currency: this.text(row.currency || 'VND'),
-        exchangeRate,
-        unitPrice,
-        vat,
-        amount: this.money(row.amount, quantity * times * exchangeRate * unitPrice, vat),
-        notes: this.optionalText(row.notes),
-      };
-    });
+    return this.legacyCompat.mapCommonCosts(rows);
   }
 
   private mapHotelCosts(rows?: unknown[]) {
-    return this.rows(rows).map((row, index) => {
-      const paxPerRoom = this.number(row.paxPerRoom);
-      const times = this.number(row.times || 1);
-      const exchangeRate = this.number(row.exchangeRate || 1);
-      const unitPrice = this.number(row.unitPrice);
-      const vat = this.number(row.vat);
-      return {
-        orderNo: this.number(row.orderNo || row.stt || index + 1),
-        serviceType: this.text(row.serviceType || 'Khch sn'),
-        description: this.optionalText(row.description),
-        unit: this.optionalText(row.unit),
-        paxPerRoom,
-        times,
-        currency: this.text(row.currency || 'VND'),
-        exchangeRate,
-        unitPrice,
-        vat,
-        amount: this.money(row.amount, times * exchangeRate * unitPrice, vat),
-        notes: this.optionalText(row.notes),
-      };
-    });
+    return this.legacyCompat.mapHotelCosts(rows);
   }
 
   private mapPrivateCosts(rows?: unknown[]) {
-    return this.mapCommonCosts(rows);
+    return this.legacyCompat.mapPrivateCosts(rows);
   }
 
   private mapBudgetServices(rows?: unknown[]) {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity);
-      const unitPrice = this.number(row.unitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Dch v'),
-        supplierId: this.optionalText(row.supplierId),
-        description: this.optionalText(row.description),
-        quantity,
-        unitPrice,
-        vat,
-        amount: this.money(row.amount, quantity * unitPrice, vat),
-        notes: this.optionalText(row.notes),
-      };
-    });
+    return this.legacyCompat.mapBudgetServices(rows);
   }
 
   private mapOperationServices(rows?: unknown[]) {
-    return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity);
-      const confirmedUnitPrice = this.number(row.confirmedUnitPrice);
-      const vat = this.number(row.vat);
-      return {
-        serviceType: this.text(row.serviceType || 'Dch v'),
-        supplierId: this.optionalText(row.supplierId),
-        supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
-        bookingCode: this.optionalText(row.bookingCode),
-        quantity,
-        confirmedUnitPrice,
-        vat,
-        amount: this.money(row.amount, quantity * confirmedUnitPrice, vat),
-        status: this.toServiceStatus(row.status),
-        notes: this.optionalText(row.notes),
-      };
-    });
-  }
-
-  private mapGuides(rows?: unknown[]) {
-    return this.rows(rows).map((row) => ({
-      guideId: this.optionalText(row.guideId),
-      name: this.text(row.name || row.ten || 'Guide'),
-      phone: this.optionalText(row.phone),
-      guideType: this.optionalText(row.guideType),
-      notes: this.optionalText(row.notes),
-    }));
-  }
-
-  private mapHandoverItems(rows?: unknown[]) {
-    const source = rows === undefined ? defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 })) : rows;
-    return this.rows(source).map((row, index) => ({
-      orderNo: this.number(row.orderNo || row.stt || index + 1),
-      itemName: this.text(row.itemName || row.name || 'Ti liu bn giao'),
-      quantity: this.number(row.quantity || 1),
-      notes: this.optionalText(row.notes),
-    }));
-  }
-
-  private mapSurveyQuestions(rows?: unknown[]) {
-    const source = rows === undefined ? defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
-    return this.rows(source).map((row, index) => ({
-      orderNo: this.number(row.orderNo || row.stt || index + 1),
-      question: this.text(row.question || 'Cu hi'),
-      notes: this.optionalText(row.notes),
-    }));
-  }
-
-  private mapAttachments(rows?: unknown[]) {
-    return this.rows(rows).map((row) => ({
-      step: this.toAttachmentStep(row.step),
-      fileName: this.text(row.fileName || row.name || 'attachment'),
-      fileUrl: this.optionalText(row.fileUrl),
-      mimeType: this.optionalText(row.mimeType),
-      size: row.size === undefined || row.size === null ? null : this.number(row.size),
-    }));
-  }
-
-  private toCopiedBudgetRows(rows: unknown[]) {
-    return this.rows(rows).map((row) => ({
-      serviceType: this.text(row.serviceType || 'Dich vu'),
-      supplierId: this.optionalText(row.supplierId),
-      description: this.optionalText(row.description),
-      quantity: this.number(row.quantity),
-      unitPrice: this.number(row.unitPrice),
-      vat: this.number(row.vat),
-      amount: this.number(row.amount),
-      notes: this.optionalText(row.notes),
-    }));
-  }
-
-  private toCopiedOperationRows(rows: unknown[]) {
-    return this.rows(rows).map((row) => ({
-      serviceType: this.text(row.serviceType || 'Dich vu'),
-      supplierId: this.optionalText(row.supplierId),
-      supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
-      bookingCode: this.optionalText(row.bookingCode),
-      quantity: this.number(row.quantity),
-      confirmedUnitPrice: this.number(row.confirmedUnitPrice ?? row.unitPrice),
-      vat: this.number(row.vat),
-      amount: this.number(row.amount),
-      status: this.toServiceStatus(row.status || FitServiceStatus.WAITING),
-      notes: this.optionalText(row.notes),
-    }));
+    return this.legacyCompat.mapOperationServices(rows);
   }
 
   private pricingRowsToBudget(source: Awaited<ReturnType<FitToursService['detail']>>) {
