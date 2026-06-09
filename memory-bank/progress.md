@@ -2,6 +2,17 @@
 
 ## Done
 
+- Expanded the Booking authorization test matrix:
+  - Covered branch-only, department-only, combined, missing-value, no-scope,
+    and unrestricted users.
+  - Covered Customer-only, Order-only, Tour-only, cross-relation, and
+    no-relation Bookings for list and detail reads.
+  - Confirmed combined scope requires one linked row to match both values.
+  - Confirmed all explicitly supplied write links must pass scope checks.
+  - No production logic change was needed.
+  - Verified on VPS: `BOOKING_SCOPE_OK`, `TEST_AUTH_DATA_SCOPE_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Optimized Booking list/detail usage:
   - Booking list uses a frontend-focused summary select and omits linked IDs,
     contact detail, timestamps, and Tour Program detail fields.

@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Expanded Booking data-scope regression coverage without changing production
+  behavior:
+  - Branch-only, department-only, combined branch+department, missing-scope,
+    and unrestricted users now have explicit list/detail/write assertions.
+  - Customer-only, Order-only, and Tour-only Booking links are covered
+    independently so all three authorization paths remain visible.
+  - Combined scope still requires one relation to match both branch and
+    department; matching those values across different relations is denied.
+  - Scoped users cannot read or create a Booking without a scoped Customer,
+    Order, or Tour link, while unrestricted users retain access.
+  - Every explicitly supplied linked entity must be in scope, preventing an
+    allowed relation from masking another out-of-scope relation.
+  - VPS verification passed on 2026-06-09: `BOOKING_SCOPE_OK`,
+    `TEST_AUTH_DATA_SCOPE_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Optimized Booking list/detail usage:
   - Booking list now returns a dedicated summary shape containing only fields
     used by `/bookings` and the Operations booking selector.

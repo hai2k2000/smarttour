@@ -79,6 +79,12 @@ assert.deepEqual(
 
 assertNoDataScope(bookingScopeWhere(baseWhere, mockUser({ permissions: ['data.scope.branch'] })));
 assertNoDataScope(bookingScopeWhere(baseWhere, mockUser({ permissions: ['data.scope.department'] })));
+assertNoDataScope(
+  bookingScopeWhere(
+    baseWhere,
+    mockUser({ permissions: ['data.scope.branch', 'data.scope.department'], branch: 'HN' }),
+  ),
+);
 assertNoDataScope(bookingScopeWhere(baseWhere, mockUser({ permissions: [] })));
 
 console.log('BOOKING_SCOPE_OK');
