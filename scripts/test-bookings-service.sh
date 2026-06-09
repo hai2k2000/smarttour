@@ -33,6 +33,11 @@ const {
   BOOKING_CODE_CONFLICT_MESSAGE,
   BOOKING_NOT_FOUND_MESSAGES,
 } = require('./apps/api/dist/modules/bookings/booking-errors');
+const {
+  BOOKING_CORE_FIELDS,
+  BOOKING_CREATE_FIELDS,
+  BOOKING_CROSS_REFERENCE_FIELDS,
+} = require('./apps/api/dist/modules/bookings/dto/create-booking.dto');
 const { BOOKING_UPDATE_FIELDS } = require('./apps/api/dist/modules/bookings/dto/update-booking.dto');
 
 function assert(condition, label) {
@@ -161,7 +166,25 @@ function bookingDto(run, suffix, tourProgram, links, overrides = {}) {
 }
 
 async function main() {
-  const expectedUpdateFields = [
+  const expectedCoreFields = [
+    'code',
+    'customerName',
+    'customerPhone',
+    'customerEmail',
+    'paxCount',
+    'startDate',
+    'endDate',
+    'saleOwner',
+    'operatorOwner',
+    'totalSellPrice',
+  ];
+  const expectedCrossReferenceFields = [
+    'tourProgramId',
+    'customerId',
+    'orderId',
+    'tourId',
+  ];
+  const expectedCreateFields = [
     'code',
     'tourProgramId',
     'customerId',
@@ -178,10 +201,28 @@ async function main() {
     'totalSellPrice',
   ];
   assert(
-    JSON.stringify(BOOKING_UPDATE_FIELDS) === JSON.stringify(expectedUpdateFields),
+    JSON.stringify(BOOKING_CORE_FIELDS) === JSON.stringify(expectedCoreFields),
+    'CreateBookingDto should declare booking-core fields separately',
+  );
+  assert(
+    JSON.stringify(BOOKING_CROSS_REFERENCE_FIELDS) === JSON.stringify(expectedCrossReferenceFields),
+    'CreateBookingDto should declare cross-reference fields separately',
+  );
+  assert(
+    JSON.stringify(BOOKING_CREATE_FIELDS) === JSON.stringify(expectedCreateFields),
+    'CreateBookingDto should expose the approved create field order',
+  );
+  assert(
+    JSON.stringify(BOOKING_UPDATE_FIELDS) === JSON.stringify(expectedCreateFields),
     'UpdateBookingDto should only expose the approved booking update fields',
   );
+  const groupedFields = new Set([...BOOKING_CORE_FIELDS, ...BOOKING_CROSS_REFERENCE_FIELDS]);
+  assert(groupedFields.size === BOOKING_CORE_FIELDS.length + BOOKING_CROSS_REFERENCE_FIELDS.length, 'booking field groups should not overlap');
+  assert(BOOKING_CREATE_FIELDS.every((field) => groupedFields.has(field)), 'all create fields should be classified as core or cross-reference');
+  assert(groupedFields.size === BOOKING_CREATE_FIELDS.length, 'field groups should cover every create field');
   assert(!BOOKING_UPDATE_FIELDS.includes('status'), 'UpdateBookingDto should not expose status; use UpdateBookingStatusDto');
+  assert(!BOOKING_UPDATE_FIELDS.includes('operationForm'), 'UpdateBookingDto should not expose operationForm');
+  assert(!BOOKING_UPDATE_FIELDS.includes('operationFormId'), 'UpdateBookingDto should not expose operationFormId');
 
   const prisma = new PrismaService();
   await prisma.$connect();

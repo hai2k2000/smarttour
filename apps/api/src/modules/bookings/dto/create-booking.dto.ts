@@ -11,6 +11,43 @@ export const BOOKING_ID_MAX_LENGTH = 80;
 export const BOOKING_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]*$/;
 export const BOOKING_PHONE_PATTERN = /^[0-9+().\-\s]{6,32}$/;
 
+export const BOOKING_CORE_FIELDS = [
+  'code',
+  'customerName',
+  'customerPhone',
+  'customerEmail',
+  'paxCount',
+  'startDate',
+  'endDate',
+  'saleOwner',
+  'operatorOwner',
+  'totalSellPrice',
+] as const;
+
+export const BOOKING_CROSS_REFERENCE_FIELDS = [
+  'tourProgramId',
+  'customerId',
+  'orderId',
+  'tourId',
+] as const;
+
+export const BOOKING_CREATE_FIELDS = [
+  'code',
+  'tourProgramId',
+  'customerId',
+  'orderId',
+  'tourId',
+  'customerName',
+  'customerPhone',
+  'customerEmail',
+  'paxCount',
+  'startDate',
+  'endDate',
+  'saleOwner',
+  'operatorOwner',
+  'totalSellPrice',
+] as const;
+
 const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const normalizeCode = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 const trimOptional = ({ value }: { value: unknown }) => {

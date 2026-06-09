@@ -2,6 +2,19 @@
 
 ## Done
 
+- Classified Booking DTO fields:
+  - `CreateBookingDto` now explicitly separates booking-core fields from
+    cross-reference fields.
+  - Booking-core fields are `code`, contact snapshot, pax/date/owner/price
+    fields.
+  - Cross-reference fields are `tourProgramId`, `customerId`, `orderId`, and
+    `tourId`.
+  - `UpdateBookingDto` reuses the approved create/edit field list and continues
+    excluding status and operation-form fields.
+  - Booking service tests assert the exact grouping contract and coverage.
+  - Verified on VPS: `TEST_BOOKINGS_SERVICE_OK`, API redeploy, and
+    `HEALTHCHECK_OK`.
+
 - Locked Booking code normalization and unique-conflict message:
   - Runtime writes to `Booking.code` are centralized through
     `BookingsService.create()` and `BookingsService.update()`.

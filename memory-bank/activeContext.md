@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Classified Booking DTO fields into core and cross-reference groups:
+  - `CreateBookingDto` now exports `BOOKING_CORE_FIELDS`,
+    `BOOKING_CROSS_REFERENCE_FIELDS`, and `BOOKING_CREATE_FIELDS`.
+  - Booking-core fields are the booking-owned values and snapshots:
+    `code`, customer contact snapshot, pax/date/owner/price fields.
+  - Cross-reference fields are `tourProgramId`, `customerId`, `orderId`, and
+    `tourId`.
+  - `UpdateBookingDto` now reuses `BOOKING_CREATE_FIELDS` for the normal edit
+    surface; status remains isolated in `UpdateBookingStatusDto`, and
+    operation-form fields are not exposed.
+  - Expanded `scripts/test-bookings-service.sh` to assert the DTO field groups,
+    no group overlap, full create/update field coverage, and excluded
+    workflow/operation-form fields.
+  - VPS verification passed on 2026-06-09: `TEST_BOOKINGS_SERVICE_OK`, API
+    redeploy, and `HEALTHCHECK_OK`.
+
 - Locked Booking code normalization and duplicate-code message:
   - Confirmed runtime writes to `Booking.code` go through
     `BookingsService.create()` and `BookingsService.update()`; status updates
