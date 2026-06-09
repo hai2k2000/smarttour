@@ -9,6 +9,14 @@ import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 
 type Row = Record<string, unknown>;
+type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
+type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
+
+const fitCostGroupTags: Record<FitCostGroupField, string> = {
+  commonCosts: 'FIT_COMMON_COST',
+  hotelCosts: 'FIT_HOTEL_COST',
+  privateCosts: 'FIT_PRIVATE_COST',
+};
 
 const fitTourInclude = {
   tour: {
@@ -16,6 +24,7 @@ const fitTourInclude = {
       order: true,
       customers: { include: { crmCustomer: true } },
       services: { include: { supplier: true, supplierService: true }, orderBy: { serviceType: 'asc' } },
+      costs: { orderBy: { costType: 'asc' } },
       guides: { orderBy: { name: 'asc' } },
       attachments: { orderBy: { createdAt: 'desc' } },
       surveys: { orderBy: { orderNo: 'asc' } },
@@ -67,6 +76,7 @@ const fitTourListSelect = {
       services: {
         select: { budgetAmount: true, budgetUnitPrice: true, confirmedAmount: true, confirmedUnitPrice: true, bookingCode: true },
       },
+      costs: { select: { costType: true } },
     },
   },
   _count: {
@@ -426,6 +436,7 @@ export class FitToursService {
     const services = Array.isArray(tour.services) ? (tour.services as Row[]) : [];
     const budgetServices = this.rootBudgetServices(services);
     const operationServices = this.rootOperationServices(services);
+    const rootCostGroups = this.rootFitCostGroups(Array.isArray(tour.costs) ? (tour.costs as Row[]) : []);
     const guides = this.rootGuides(Array.isArray(tour.guides) ? (tour.guides as Row[]) : []);
     const attachments = this.rootAttachments(Array.isArray(tour.attachments) ? (tour.attachments as Row[]) : []);
     const surveyQuestions = this.rootSurveyQuestions(Array.isArray(tour.surveys) ? (tour.surveys as Row[]) : []);
@@ -449,22 +460,66 @@ export class FitToursService {
       customerName: primaryCustomer?.name ?? fitTour.customerName,
       phone: primaryCustomer?.phone ?? fitTour.phone,
       email: primaryCustomer?.email ?? fitTour.email,
-      budgetServices: budgetServices.length ? budgetServices : fitTour.budgetServices,
-      operationServices: operationServices.length ? operationServices : fitTour.operationServices,
-      guides: guides.length ? guides : fitTour.guides,
-      attachments: attachments.length ? attachments : fitTour.attachments,
-      surveyQuestions: surveyQuestions.length ? surveyQuestions : fitTour.surveyQuestions,
-      _count: this.withRootServiceCounts(fitTour._count, budgetServices, operationServices),
+      ...('commonCosts' in fitTour ? { commonCosts: rootCostGroups.commonCosts.length ? rootCostGroups.commonCosts : fitTour.commonCosts } : {}),
+      ...('hotelCosts' in fitTour ? { hotelCosts: rootCostGroups.hotelCosts.length ? rootCostGroups.hotelCosts : fitTour.hotelCosts } : {}),
+      ...('privateCosts' in fitTour ? { privateCosts: rootCostGroups.privateCosts.length ? rootCostGroups.privateCosts : fitTour.privateCosts } : {}),
+      ...('budgetServices' in fitTour ? { budgetServices: budgetServices.length ? budgetServices : fitTour.budgetServices } : {}),
+      ...('operationServices' in fitTour ? { operationServices: operationServices.length ? operationServices : fitTour.operationServices } : {}),
+      ...('guides' in fitTour ? { guides: guides.length ? guides : fitTour.guides } : {}),
+      ...('attachments' in fitTour ? { attachments: attachments.length ? attachments : fitTour.attachments } : {}),
+      ...('surveyQuestions' in fitTour ? { surveyQuestions: surveyQuestions.length ? surveyQuestions : fitTour.surveyQuestions } : {}),
+      _count: this.withRootChildCounts(fitTour._count, budgetServices, operationServices, rootCostGroups),
     };
   }
 
-  private withRootServiceCounts(counts: unknown, budgetServices: Row[], operationServices: Row[]) {
+  private withRootChildCounts(counts: unknown, budgetServices: Row[], operationServices: Row[], costGroups: RootFitCostGroups) {
     if (!counts || typeof counts !== 'object' || Array.isArray(counts)) return counts;
     return {
       ...(counts as Row),
+      ...(costGroups.commonCosts.length ? { commonCosts: costGroups.commonCosts.length } : {}),
+      ...(costGroups.hotelCosts.length ? { hotelCosts: costGroups.hotelCosts.length } : {}),
+      ...(costGroups.privateCosts.length ? { privateCosts: costGroups.privateCosts.length } : {}),
       ...(budgetServices.length ? { budgetServices: budgetServices.length } : {}),
       ...(operationServices.length ? { operationServices: operationServices.length } : {}),
     };
+  }
+
+  private rootFitCostGroups(costs: Row[]): RootFitCostGroups {
+    const groups: RootFitCostGroups = { commonCosts: [], hotelCosts: [], privateCosts: [] };
+    for (const row of costs) {
+      const parsed = this.parseFitCostType(row.costType);
+      if (!parsed) continue;
+      groups[parsed.group].push(this.rootFitCostRow(row, parsed));
+    }
+    return groups;
+  }
+
+  private rootFitCostRow(row: Row, parsed: { group: FitCostGroupField; serviceType: string }): Row {
+    const amount = this.number(row.actualAmount) > 0 ? row.actualAmount : row.expectedAmount;
+    const base = {
+      id: row.id,
+      serviceType: parsed.serviceType,
+      description: row.description,
+      unit: null,
+      times: 1,
+      currency: row.currency,
+      exchangeRate: row.exchangeRate,
+      unitPrice: row.expectedAmount,
+      vat: row.vat,
+      amount,
+      notes: row.notes,
+    };
+    if (parsed.group === 'hotelCosts') return { ...base, paxPerRoom: 1 };
+    return { ...base, quantity: 1 };
+  }
+
+  private parseFitCostType(costType: unknown): { group: FitCostGroupField; serviceType: string } | null {
+    const text = this.text(costType);
+    for (const [group, tag] of Object.entries(fitCostGroupTags) as Array<[FitCostGroupField, string]>) {
+      if (text === tag) return { group, serviceType: tag };
+      if (text.startsWith(`${tag}:`)) return { group, serviceType: text.slice(tag.length + 1).trim() || tag };
+    }
+    return null;
   }
 
   private rootBudgetServices(services: Row[]): Row[] {
@@ -630,7 +685,7 @@ export class FitToursService {
     ) =>
       rows.map((row) => ({
         tourId: '',
-        costType: row.serviceType || costType,
+        costType: this.fitCostType(costType, row.serviceType),
         description: row.description,
         expectedAmount: row.amount,
         actualAmount: row.amount,
@@ -644,6 +699,11 @@ export class FitToursService {
       ...mapRows(this.mapHotelCosts(dto.hotelCosts), 'FIT_HOTEL_COST'),
       ...mapRows(this.mapPrivateCosts(dto.privateCosts), 'FIT_PRIVATE_COST'),
     ];
+  }
+
+  private fitCostType(tag: string, serviceType: unknown) {
+    const text = this.optionalText(serviceType);
+    return text ? `${tag}:${text}` : tag;
   }
 
   private mapTourServices(dto: UpdateFitTourDto): Array<Omit<Prisma.TourServiceCreateManyInput, 'tourId'>> {

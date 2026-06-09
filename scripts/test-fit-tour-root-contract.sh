@@ -155,6 +155,7 @@ async function main() {
   assert(createdRoot.customers.length === 1 && createdRoot.customers[0].name === 'FIT Root Customer', 'Tour root should own primary customer');
   assert(createdRoot.revenues.length === 1 && decimal(createdRoot.revenues[0].amount) === 5000000, 'Tour root should own revenue rows');
   assert(createdRoot.costs.length === 1 && decimal(createdRoot.costs[0].expectedAmount) === 1000, 'Tour root should own cost rows');
+  assert(createdRoot.costs[0].costType === 'FIT_COMMON_COST:CAR', 'Tour root costType should preserve FIT cost group and service type');
   assert(createdRoot.services.length === 2, 'Tour root should own budget and operation services');
   assert(createdRoot.suppliers.length === 1 && createdRoot.suppliers[0].supplierId === supplier.id, 'Tour root should derive suppliers from services');
 
@@ -194,9 +195,13 @@ async function main() {
   assert(updatedRoot.services.filter((service) => decimal(service.budgetAmount) > 0).length === 1, 'FIT update should resync common budget services');
   assert(decimal(updatedRoot.services.find((service) => decimal(service.budgetAmount) > 0).budgetAmount) === 3000, 'Common budget amount should match updated FIT budget');
 
+  await prisma.fitCommonCost.updateMany({ where: { fitTourId: source.id }, data: { description: 'Legacy stale common cost', unitPrice: 999, amount: 999 } });
   await prisma.fitBudgetService.updateMany({ where: { fitTourId: source.id }, data: { description: 'Legacy stale budget row', unitPrice: 999, amount: 999 } });
   await prisma.fitOperationService.updateMany({ where: { fitTourId: source.id }, data: { supplierServiceId: null, bookingCode: `${run}-STALE-OP`, confirmedUnitPrice: 999, amount: 999 } });
   const rootSourcedChildren = await fitTours.detail(source.id);
+  assert(rootSourcedChildren.commonCosts[0].serviceType === 'CAR', 'FIT detail should expose common TourCost service type over stale legacy cost rows');
+  assert(rootSourcedChildren.commonCosts[0].description === 'Source car', 'FIT detail should expose common TourCost description over stale legacy cost rows');
+  assert(decimal(rootSourcedChildren.commonCosts[0].amount) === 1000, 'FIT detail should expose common TourCost amount over stale legacy cost rows');
   assert(decimal(rootSourcedChildren.budgetServices[0].amount) === 3000, 'FIT detail should expose common TourService budget rows over stale legacy rows');
   assert(rootSourcedChildren.budgetServices[0].description === 'Updated budget hotel', 'FIT detail should expose common TourService budget description over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].supplierServiceId === supplierService.id, 'FIT detail should expose common TourService operation supplier service over stale legacy rows');

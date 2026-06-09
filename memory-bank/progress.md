@@ -747,6 +747,13 @@
 - Added stable Operations UI `data-testid` anchors and `smoke:operations:ui` npm script.
 - Verified on VPS: Operations backend smoke passed with `SMOKE_OPERATIONS_BACKEND_OK`, web Docker build passed, and Operations UI smoke passed with `SMOKE_OPERATIONS_UI_OK` against `https://aitour.io.vn`.
 
+- Continued FIT common-root cost cleanup.
+- FIT common/hotel/private pricing rows now write tagged common `TourCost.costType` values so the common Tour root preserves both cost group and service type.
+- FIT detail now prefers tagged common `TourCost` rows over stale legacy FIT cost tables for `commonCosts`, `hotelCosts`, and `privateCosts`.
+- FIT list cost counts now come from tagged common `TourCost` rows when available while keeping the nested Tour root payload hidden.
+- Updated FIT root contract regression to stale legacy cost rows and verify common `TourCost` wins.
+- Verified on VPS: API Docker build/deploy, `HEALTHCHECK_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

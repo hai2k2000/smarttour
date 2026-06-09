@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued FIT common-root cost read cleanup:
+  - FIT common/hotel/private pricing rows now sync to common `TourCost` with
+    tagged `costType` values like `FIT_COMMON_COST:CAR`, preserving both the
+    FIT cost group and service type in the common root table.
+  - FIT detail now rebuilds `commonCosts`, `hotelCosts`, and `privateCosts`
+    from tagged common `TourCost` rows when present, so stale legacy FIT cost
+    tables no longer win on reads.
+  - FIT list uses common `TourCost.costType` tags to refresh cost `_count`
+    values without exposing the nested Tour root payload.
+  - Regression now stales legacy FIT cost rows and verifies detail reads the
+    common `TourCost` source instead. VPS verification passed on 2026-06-09:
+    API Docker build/deploy, `HEALTHCHECK_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 - Continued FIT legacy read-side cleanup:
   - FIT detail/list now overlay service, guide, attachment, and survey response
     fields from the common `Tour` root when those common rows exist. The API
