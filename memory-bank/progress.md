@@ -778,6 +778,12 @@
 - Updated FIT root contract regression to require shared defaults and reject duplicated default constants in service files.
 - Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
+- Continued P2 FIT copy orchestration cleanup.
+- Changed FIT copy-budget/copy-operation to update only common `tour_services` and derived suppliers through `TourCoreService.replaceServicesAndSuppliers`, avoiding a full `syncTourCoreFromFit()` pass for copy actions.
+- Updated `mapTourServices()` to return common `TourService` create rows directly, and fixed remaining FIT validation/workflow messages with proper Vietnamese accents.
+- Extended FIT root contract regression to reject full common-child sync in copy actions, preserve copied budget rows after copy-operation, and catch mojibake validation messages.
+- Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

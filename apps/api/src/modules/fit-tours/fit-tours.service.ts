@@ -245,7 +245,7 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const targetRootId = this.requiredTourRootId(target);
-    await this.syncTourCoreFromFit(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
+    await this.replaceFitTourServices(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
     await this.legacyCompat.replaceBudgetServices(tx, target.id, budgetRows);
     await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_BUDGET', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
   }
@@ -258,7 +258,7 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const targetRootId = this.requiredTourRootId(target);
-    await this.syncTourCoreFromFit(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
+    await this.replaceFitTourServices(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
     await this.legacyCompat.replaceOperationServices(tx, target.id, rows);
     await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_OPERATION', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
   }
@@ -336,9 +336,9 @@ export class FitToursService {
   }
 
   private validateProvidedFields(dto: UpdateFitTourDto, creating: boolean) {
-    this.validateTextLength(dto.quoteCode, 'quoteCode', 'M bo gi', 2, creating);
-    this.validateTextLength(dto.tourCode, 'tourCode', 'M tour', 2, creating);
-    this.validateTextLength(dto.customerName, 'customerName', 'H tn khch', 2, creating);
+    this.validateTextLength(dto.quoteCode, 'quoteCode', 'Mã báo giá', 2, creating);
+    this.validateTextLength(dto.tourCode, 'tourCode', 'Mã tour', 2, creating);
+    this.validateTextLength(dto.customerName, 'customerName', 'Họ tên khách', 2, creating);
   }
 
   private validateFitTourBusinessRules(dto: UpdateFitTourDto, creating: boolean) {
@@ -346,7 +346,7 @@ export class FitToursService {
     const childCount = this.nonNegativeInteger(dto.childCount, 'childCount');
     const infantCount = this.nonNegativeInteger(dto.infantCount, 'infantCount');
     if (adultCount + childCount + infantCount < 1) {
-      throw new BadRequestException('S khch phi ln hn 0');
+      throw new BadRequestException('Số khách phải lớn hơn 0');
     }
 
     for (const field of [
@@ -368,7 +368,7 @@ export class FitToursService {
     const startDate = this.optionalDate(dto.startDate, 'startDate');
     const endDate = this.optionalDate(dto.endDate, 'endDate');
     if (startDate && endDate && startDate > endDate) {
-      throw new BadRequestException('Ngy v phi sau hoc bng ngy khi i');
+      throw new BadRequestException('Ngày về phải sau hoặc bằng ngày khởi đi');
     }
 
     if (dto.bookingDate !== undefined) this.optionalDate(dto.bookingDate, 'bookingDate');
@@ -383,7 +383,7 @@ export class FitToursService {
     const next = this.toWorkflowStatusStrict(nextStatus) || FitTourWorkflowStatus.DRAFT;
     if (creating) {
       if (next !== FitTourWorkflowStatus.DRAFT && next !== FitTourWorkflowStatus.PRICING) {
-        throw new BadRequestException('Tour FIT mi ch c to  trng thi Nhp hoc Tnh gi');
+        throw new BadRequestException('Tour FIT mới chỉ có thể tạo ở trạng thái Nháp hoặc Tính giá');
       }
       return;
     }
@@ -391,7 +391,7 @@ export class FitToursService {
     if (nextStatus === undefined) return;
     const current = currentStatus || FitTourWorkflowStatus.DRAFT;
     if (terminalWorkflowStatuses.has(current) && next !== current) {
-      throw new BadRequestException('Khng th i trng thi ca tour FIT   trng thi cui');
+      throw new BadRequestException('Không thể đổi trạng thái của tour FIT đã ở trạng thái cuối');
     }
     if (next === FitTourWorkflowStatus.CANCELLED) return;
     if (next === FitTourWorkflowStatus.COMPLETED && current !== FitTourWorkflowStatus.SURVEY && current !== FitTourWorkflowStatus.COMPLETED) {
@@ -601,12 +601,12 @@ export class FitToursService {
   }
 
   private requiredTourRootId(fitTour: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>) {
-    if (!fitTour.tourId) throw new BadRequestException('Tour FIT chua lien ket Tour chung');
+    if (!fitTour.tourId) throw new BadRequestException('Tour FIT chưa liên kết Tour chung');
     return fitTour.tourId;
   }
 
   private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
-    const services = this.mapTourServices(dto).map((row) => ({ ...row, tourId: '' }));
+    const services = this.mapTourServices(dto);
     await this.tourCore.replaceCommonChildren(tx, tourId, {
       customers: [this.mapTourCustomer(dto)],
       guides: this.tourCore.mapGuides(dto.guides),
@@ -617,6 +617,10 @@ export class FitToursService {
       services,
       serviceSupplierRole: 'FIT_SERVICE',
     });
+  }
+
+  private async replaceFitTourServices(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
+    await this.tourCore.replaceServicesAndSuppliers(tx, tourId, this.mapTourServices(dto), 'FIT_SERVICE');
   }
 
   private toTourCoreData(dto: UpdateFitTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
@@ -639,7 +643,7 @@ export class FitToursService {
       tourId: '',
       crmCustomerId: this.optionalText(dto.customerId),
       customerType: 'CUSTOMER',
-      name: this.requiredText(dto.customerName, 'Can nhap ten khach hang'),
+      name: this.requiredText(dto.customerName, 'Cần nhập tên khách hàng'),
       phone: this.optionalText(dto.phone),
       email: this.optionalText(dto.email),
       isPrimary: true,
@@ -695,8 +699,9 @@ export class FitToursService {
     return text ? `${tag}:${text}` : tag;
   }
 
-  private mapTourServices(dto: UpdateFitTourDto): Array<Omit<Prisma.TourServiceCreateManyInput, 'tourId'>> {
+  private mapTourServices(dto: UpdateFitTourDto): Prisma.TourServiceCreateManyInput[] {
     const budgetServices = this.mapBudgetServices(dto.budgetServices).map((row) => ({
+      tourId: '',
       serviceType: row.serviceType,
       supplierId: row.supplierId,
       description: row.description,
@@ -712,6 +717,7 @@ export class FitToursService {
     }));
 
     const operationServices = this.mapOperationServices(dto.operationServices).map((row) => ({
+      tourId: '',
       serviceType: row.serviceType,
       supplierId: row.supplierId,
       supplierServiceId: row.supplierServiceId,

@@ -86,6 +86,15 @@ function assertLegacyCompatBoundary() {
   assert(!defaultsSource.includes('V my bay'), 'FIT default handover items should keep Vietnamese accents');
   assert(defaultsSource.includes('Vé máy bay'), 'FIT default handover items should include Vietnamese text');
   assert(defaultsSource.includes('Chất lượng chương trình tour'), 'FIT default survey questions should include Vietnamese text');
+  for (const mojibake of ['M bo gi', 'H tn khch', 'S khch phi ln hn 0', 'Ngy v phi sau', 'Tour FIT mi', 'Khng th i', 'C?n nh?p', 'ch?a li?n']) {
+    assert(!serviceSource.includes(mojibake), `FIT service should not contain mojibake validation message ${mojibake}`);
+  }
+  assert(serviceSource.includes('M\u00e3 b\u00e1o gi\u00e1') && serviceSource.includes('C\u1ea7n nh\u1eadp t\u00ean kh\u00e1ch h\u00e0ng'), 'FIT service validation messages should keep Vietnamese text');
+  const copyBudgetBlock = serviceSource.slice(serviceSource.indexOf('private async copyFitBudgetAggregate'), serviceSource.indexOf('private async copyFitOperationAggregate'));
+  const copyOperationBlock = serviceSource.slice(serviceSource.indexOf('private async copyFitOperationAggregate'), serviceSource.indexOf('private async prepareCreateFitDto'));
+  assert(!copyBudgetBlock.includes('syncTourCoreFromFit') && !copyOperationBlock.includes('syncTourCoreFromFit'), 'FIT copy actions should not resync all common Tour children');
+  assert(copyBudgetBlock.includes('replaceFitTourServices') && copyOperationBlock.includes('replaceFitTourServices'), 'FIT copy actions should only replace common service rows through a focused helper');
+  assert(serviceSource.includes('tourCore.replaceServicesAndSuppliers'), 'FIT service copy helper should update common Tour services and suppliers through TourCoreService');
   const directLegacyChildWrites = /tx\.fit(?:CommonCost|HotelCost|PrivateCost|BudgetService|OperationService|TourGuide|HandoverItem|SurveyQuestion|Attachment)\./;
   assert(!directLegacyChildWrites.test(serviceSource), 'FitToursService should not write legacy FIT child tables directly');
   assert(serviceSource.includes('legacyCompat.toChildCreateData'), 'FIT create should delegate legacy child create data to compatibility service');
@@ -261,9 +270,11 @@ async function main() {
   await fitTours.copyOperation(target.id, source.id);
   const copiedOperationLegacyRows = await prisma.fitOperationService.findMany({ where: { fitTourId: target.id } });
   const targetOperationServices = await prisma.tourService.findMany({ where: { tourId: target.tourId, confirmedAmount: { gt: 0 } } });
+  const targetBudgetServicesAfterOperation = await prisma.tourService.findMany({ where: { tourId: target.tourId, budgetAmount: { gt: 0 } } });
   assert(copiedOperationLegacyRows.length === 1 && copiedOperationLegacyRows[0].supplierServiceId === supplierService.id, 'copyOperation should update legacy FIT operation rows');
   assert(targetOperationServices.length === 1 && targetOperationServices[0].supplierServiceId === supplierService.id, 'copyOperation should update common TourService operation rows');
   assert(targetOperationServices[0].confirmationStatus === TourServiceStatus.CONFIRMED, 'copyOperation should map FIT service status to common TourService status');
+  assert(targetBudgetServicesAfterOperation.length === 1 && decimal(targetBudgetServicesAfterOperation[0].budgetAmount) === 3000, 'copyOperation should preserve copied common budget services');
 
   const removed = await fitTours.remove(target.id);
   const removedRoot = await prisma.tour.findUnique({ where: { id: target.tourId } });
