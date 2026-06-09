@@ -231,7 +231,6 @@ export const LANDTOUR_LEGACY_ALIAS_FIELDS = [
 ] as const satisfies readonly (keyof CreateLandTourDto)[];
 
 export const LANDTOUR_DETAIL_FIELDS = [
-  'guideName',
   'comboType',
   'autoTermsEnabled',
   'smartLinkCode',
@@ -241,6 +240,7 @@ export const LANDTOUR_DETAIL_FIELDS = [
 ] as const satisfies readonly (keyof CreateLandTourDto)[];
 
 export const LANDTOUR_CHILD_FIELDS = [
+  'guideName',
   'revenues',
   'costs',
   'salesServices',

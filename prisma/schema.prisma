@@ -2302,6 +2302,7 @@ model LandTourDetail {
   id               String   @id @default(uuid())
   tourId           String   @unique
   tour             Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  /// Legacy snapshot only. Canonical value is TourGuide where guideType is LANDTOUR; application services must not write this after the common-root migration.
   guideName        String?
   comboType        String?
   autoTermsEnabled Boolean  @default(false)

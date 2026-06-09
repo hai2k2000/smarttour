@@ -16,7 +16,7 @@ const landTourInclude = {
   revenues: true,
   services: { include: { supplier: true } },
   costs: { include: { supplier: true } },
-  guides: true,
+  guides: { orderBy: [{ guideType: 'asc' }, { name: 'asc' }] },
   terms: true,
   attachments: true,
   surveys: true,
@@ -27,7 +27,7 @@ const landTourInclude = {
 export class LandToursService {
   constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
-  list(search?: string, status?: string | TourStatus, user?: RequestUser) {
+  async list(search?: string, status?: string | TourStatus, user?: RequestUser) {
     const tourStatus = this.toTourStatus(status);
     const searchText = normalizeListSearch(search);
     const contains = searchText ? containsSearch(searchText) : undefined;
@@ -42,26 +42,29 @@ export class LandToursService {
               { name: contains },
               { route: contains },
               { customers: { some: { name: contains } } },
+              { guides: { some: { name: contains } } },
             ],
           }
         : {}),
     };
 
-    return this.prisma.tour.findMany({
+    const tours = await this.prisma.tour.findMany({
       where: this.tourCore.scopeWhere(where, user),
       include: {
         landTour: true,
         customers: { where: { isPrimary: true }, take: 1 },
+        guides: { orderBy: [{ guideType: 'asc' }, { name: 'asc' }] },
         _count: { select: { services: true, terms: true } },
       },
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
+    return tours.map((tour) => this.withLandGuideSnapshot(tour, false));
   }
 
   async detail(id: string, user?: RequestUser) {
     const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
     if (!tour) throw new NotFoundException('Không tìm thấy landtour');
-    return tour;
+    return this.withLandGuideSnapshot(tour);
   }
 
   async create(dto: CreateLandTourDto, user?: RequestUser) {
@@ -153,7 +156,6 @@ export class LandToursService {
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {
     return {
-      ...(dto.guideName !== undefined ? { guideName: this.optionalText(dto.guideName) } : {}),
       ...(dto.comboType !== undefined ? { comboType: this.optionalText(dto.comboType) } : {}),
       ...(dto.autoTermsEnabled !== undefined ? { autoTermsEnabled: Boolean(dto.autoTermsEnabled) } : {}),
       ...(dto.smartLinkCode !== undefined ? { smartLinkCode: this.optionalText(dto.smartLinkCode) } : {}),
@@ -161,6 +163,22 @@ export class LandToursService {
       ...(dto.termsVi !== undefined ? { termsVi: this.optionalText(dto.termsVi) } : {}),
       ...(dto.termsEn !== undefined ? { termsEn: this.optionalText(dto.termsEn) } : {}),
     };
+  }
+
+  private withLandGuideSnapshot<
+    T extends {
+      landTour: (Record<string, unknown> & { guideName?: string | null }) | null;
+      guides?: Array<{ guideType?: string | null; name?: string | null }>;
+    },
+  >(tour: T, keepGuides = true): T {
+    const guides = Array.isArray(tour.guides) ? tour.guides : [];
+    const guideName =
+      this.optionalText(guides.find((guide) => guide.guideType === 'LANDTOUR')?.name) || this.optionalText(guides[0]?.name) || this.optionalText(tour.landTour?.guideName);
+    return {
+      ...tour,
+      guides: keepGuides ? guides : undefined,
+      landTour: tour.landTour ? { ...tour.landTour, guideName } : tour.landTour,
+    } as T;
   }
 
   private mapTourGuides(dto: UpdateLandTourDto): Prisma.TourGuideCreateManyInput[] {

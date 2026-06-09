@@ -104,6 +104,8 @@ function assertTourTypeDtoContracts() {
   assert(landCreateDtoContract.LANDTOUR_ROOT_FIELDS.includes('route'), 'LandTour route should be a common Tour root field');
   assert(landCreateDtoContract.LANDTOUR_LEGACY_ALIAS_FIELDS.includes('itinerarySummary'), 'LandTour itinerarySummary should only remain a legacy route alias');
   assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('itinerarySummary'), 'LandTour itinerarySummary should not be classified as detail data');
+  assert(landCreateDtoContract.LANDTOUR_CHILD_FIELDS.includes('guideName'), 'LandTour guideName should be grouped with common guide child data');
+  assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('guideName'), 'LandTour guideName should not be classified as detail data');
   assert(landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('status'), 'LandTour status should be grouped as lifecycle status');
   assert(!landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('status'), 'LandTour workflow fields should not include lifecycle status');
   assert(landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'LandTour workflowStep should be grouped as workflow');
@@ -167,9 +169,13 @@ function assertTourRootOrchestrationBoundaries() {
     const detailMapperName = label === 'GIT' ? 'private toGitDetailData' : 'private toLandDetailData';
     const detailMapperStart = source.indexOf(detailMapperName);
     assert(detailMapperStart >= 0, `${label} should keep a detail mapper boundary`);
-    const detailMapper = source.slice(detailMapperStart);
+    const detailMapperEndMarker = label === 'GIT' ? 'private withGitCustomerSnapshot' : 'private withLandGuideSnapshot';
+    const detailMapperEnd = source.indexOf(detailMapperEndMarker, detailMapperStart);
+    assert(detailMapperEnd > detailMapperStart, `${label} should keep detail mapper separated from common child helpers`);
+    const detailMapper = source.slice(detailMapperStart, detailMapperEnd);
     const forbiddenDetailFields = ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes'];
     if (label === 'GIT') forbiddenDetailFields.push('agentName');
+    if (label === 'LandTour') forbiddenDetailFields.push('guideName');
     for (const field of forbiddenDetailFields) {
       const pattern = new RegExp('dto\\.' + field + '\\b');
       assert(!pattern.test(detailMapper), `${label} detail mapper should not write common root/link field ${field}`);
@@ -181,10 +187,12 @@ function assertTourRootOrchestrationBoundaries() {
     assert(schemaSource.includes(`Canonical value is Tour.${field}`), `GitTourDetail legacy ${field} schema note should point to Tour.${field}`);
   }
   assert(schemaSource.includes('Canonical value is TourCustomer where customerType is AGENT'), 'GitTourDetail legacy agentName schema note should point to TourCustomer AGENT');
+  assert(schemaSource.includes('Canonical value is TourGuide where guideType is LANDTOUR'), 'LandTourDetail legacy guideName schema note should point to TourGuide LANDTOUR');
   const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
   assert(migrationNotes.includes('Field Ownership Matrix'), 'Tour migration notes should document the field ownership matrix');
   assert(migrationNotes.includes('git_tour_details.agentName'), 'Tour migration notes should mark legacy GIT agent snapshot read-only');
   assert(migrationNotes.includes('git_tour_details.branch'), 'Tour migration notes should mark legacy GIT scope snapshots read-only');
+  assert(migrationNotes.includes('land_tour_details.guideName'), 'Tour migration notes should mark legacy LandTour guide snapshot read-only');
 }
 
 async function jsonResponse(response) {
@@ -502,6 +510,8 @@ async function main() {
         name: 'Tour type API LandTour',
         route: 'Tour type API LandTour common route',
         itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
+        customerName: 'Tour type API LandTour customer',
+        guideName: 'Tour type API LandTour guide',
         startDate: '2026-09-01',
         endDate: '2026-09-01',
         salesServices: [{ serviceType: 'LAND_CAR', description: 'LandTour copied sales service', quantity: 1, unitPrice: 1500, amount: 1500 }],
@@ -512,6 +522,15 @@ async function main() {
   );
   assert(landTour.id, 'LandTour create should return id');
   assert(landTour.route === 'Tour type API LandTour common route', 'LandTour root route should prefer the common route field over itinerarySummary alias');
+  assert(landTour.landTour.guideName === 'Tour type API LandTour guide', 'LandTour response should expose guideName from common TourGuide row');
+  const rawLandDetail = await prisma.landTourDetail.findUnique({ where: { tourId: landTour.id } });
+  const landGuide = await prisma.tourGuide.findFirst({ where: { tourId: landTour.id, guideType: 'LANDTOUR' } });
+  assert(rawLandDetail && rawLandDetail.guideName === null, 'LandTour detail should not write legacy guideName snapshot');
+  assert(landGuide && landGuide.name === 'Tour type API LandTour guide', 'LandTour guideName should be stored as common TourGuide LANDTOUR row');
+  const landListRows = await expect('/api/landtours?search=Tour%20type%20API%20LandTour%20guide', {}, 200, 'LandTour list should search common guide name');
+  const landListRow = landListRows.find((row) => row.id === landTour.id);
+  assert(landListRow && landListRow.landTour.guideName === 'Tour type API LandTour guide', 'LandTour list should overlay guideName from common TourGuide row');
+  assert(!('guides' in landListRow), 'LandTour list should not expose guide payload just for guideName overlay');
   assert(String(landTour.startDate).startsWith('2026-09-01') && String(landTour.endDate).startsWith('2026-09-01'), 'LandTour should allow equal startDate/endDate for one-day tours');
   const patchedLandTour = await expect(
     `/api/landtours/${landTour.id}`,

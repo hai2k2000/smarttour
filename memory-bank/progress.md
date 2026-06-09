@@ -797,6 +797,13 @@
 - Extended tour-type regression to verify legacy detail `agentName` stays null, the common AGENT customer row is written, list search finds the agent, and list responses keep the primary customer focused.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
+- Continued P2 LandTour guide ownership cleanup.
+- Stopped writing `guideName` into `LandTourDetail`; LandTour guides now live in common `tour_guides` rows with `guideType = LANDTOUR`.
+- Added a response overlay so existing LandTour API/UI consumers still receive `landTour.guideName`, derived from the common guide row.
+- Reclassified `guideName` into LandTour child/common guide DTO fields and marked legacy `LandTourDetail.guideName` as a read-only snapshot in schema comments and migration notes.
+- Extended tour-type regression to verify legacy detail `guideName` stays null, the common LANDTOUR guide row is written, list search finds the guide, and list responses do not expose guide payload just for overlay.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

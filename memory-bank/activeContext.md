@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 LandTour guide ownership cleanup:
+  - Stopped writing `guideName` into `LandTourDetail`; LandTour guides now live
+    in common `tour_guides` rows with `guideType = LANDTOUR`.
+  - Added a response overlay so existing LandTour API/UI consumers still receive
+    `landTour.guideName`, derived from the common guide row.
+  - Reclassified `guideName` into LandTour child/common guide DTO fields and
+    marked legacy `LandTourDetail.guideName` as a read-only snapshot in schema
+    comments and migration notes.
+  - Extended tour-type regression to verify legacy detail `guideName` stays
+    null, the common LANDTOUR guide row is written, list search finds the
+    guide, and list responses do not expose guide payload just for overlay.
+  - VPS verification passed on 2026-06-09: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 GIT link/customer ownership cleanup:
   - Stopped writing `agentName` into `GitTourDetail`; GIT agents now live in
     common `tour_customers` rows with `customerType = AGENT`.

@@ -19,7 +19,7 @@
 | --- | --- | --- | --- |
 | Common identity/scope | `tours.systemCode`, `tourCode`, `name`, `branch`, `department`, `customerSource`, dates, owners, route, notes | none | Product detail tables must not write these after common-root migration. |
 | GIT detail | `tours` for shared identity/scope/route and `tour_customers` for customer/agent rows | `git_tour_details.holdCode`, `itinerarySummary`, `collaborator`, `commissionRate`, `invoiceStatus`, `accountCode`, `fileNote` | `git_tour_details.agentName`, `git_tour_details.branch`, `git_tour_details.department`, and `git_tour_details.customerSource` are legacy snapshots only and should stay read-only until column removal is scheduled. |
-| LandTour detail | `tours` for shared identity/scope/route | `land_tour_details.guideName`, `comboType`, `autoTermsEnabled`, `smartLinkCode`, `confirmationNote`, `termsVi`, `termsEn` | `itinerarySummary` remains a DTO alias for root `route`, not detail storage. |
+| LandTour detail | `tours` for shared identity/scope/route and `tour_guides` for guide rows | `land_tour_details.comboType`, `autoTermsEnabled`, `smartLinkCode`, `confirmationNote`, `termsVi`, `termsEn` | `land_tour_details.guideName` is a legacy snapshot only; `itinerarySummary` remains a DTO alias for root `route`, not detail storage. |
 | FIT root/detail | `tours` for shared identity/scope/dates/customer/service/cost/revenue/guide/attachment/survey data | `fit_tours` keeps FIT workflow and FIT-only operational fields during compatibility phase | Legacy `fit_*` child tables are writable only through `FitTourLegacyCompatService` and should become read-only after production drift checks pass. |
 
 ## Application Guardrails
