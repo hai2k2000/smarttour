@@ -444,7 +444,6 @@ export const FIT_TOUR_STEP_FIELDS = {
     'commonCosts',
     'hotelCosts',
     'privateCosts',
-    'attachments',
   ],
   [FitTourWorkflowStatus.TOUR_INFO]: [
     'tourCode',

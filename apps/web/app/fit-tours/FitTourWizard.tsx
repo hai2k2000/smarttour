@@ -186,7 +186,6 @@ const stepPayloadFields: Record<WorkflowStepKey, (keyof FitTourForm)[]> = {
     'commonCosts',
     'hotelCosts',
     'privateCosts',
-    'attachments',
   ],
   TOUR_INFO: [
     'tourCode',

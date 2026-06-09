@@ -66,6 +66,7 @@ function assertFitDtoContract() {
   assert(fitCreateDtoContract.FIT_TOUR_DETAIL_FIELDS.includes('seatCount'), 'FIT-specific detail group should include seatCount');
   assert(fitCreateDtoContract.FIT_TOUR_CHILD_FIELDS.includes('operationServices'), 'FIT child group should include operationServices');
   assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.PRICING.includes('commonCosts'), 'FIT step fields should keep pricing cost groups');
+  assert(!fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.PRICING.includes('attachments'), 'FIT step saves should not accept attachment metadata; upload endpoint owns FIT attachments');
   assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.TOUR_INFO.includes('tourName'), 'FIT step fields should keep tour info root fields');
   assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.BUDGET.length === 1 && fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.BUDGET[0] === 'budgetServices', 'FIT budget step should only accept budget services');
   assert(fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.OPERATION.length === 1 && fitCreateDtoContract.FIT_TOUR_STEP_FIELDS.OPERATION[0] === 'operationServices', 'FIT operation step should only accept operation services');
@@ -94,6 +95,8 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
   assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
+  const pricingStepBlock = fitWizardSource.slice(fitWizardSource.indexOf('PRICING: ['), fitWizardSource.indexOf('TOUR_INFO: ['));
+  assert(!pricingStepBlock.includes("'attachments'"), 'FIT wizard step payload should not send attachment metadata during pricing autosave');
   const fitToursClientSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitToursClient.tsx', 'utf8');
   assert(fitToursClientSource.includes('/export') && fitToursClientSource.includes('URL.createObjectURL'), 'FIT list UI should download exported CSV from the FIT export endpoint');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
@@ -133,6 +136,7 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('allowStatusInput: false'), 'FIT Tour root sync should reject direct TourStatus payloads at TourCore boundary');
   assert(serviceSource.includes('allowWorkflowStepInput: false'), 'FIT Tour root sync should reject raw workflowStep payloads at TourCore boundary');
   assert(serviceSource.includes('tourCore.replaceCommonChildren'), 'FIT should sync common Tour children through TourCoreService.replaceCommonChildren');
+  assert(serviceSource.includes('dropAttachmentPatch') && serviceSource.includes('hasAnyChanged'), 'FIT update should strip upload-only attachment patches and sync common children by changed field groups');
   for (const helper of ['replaceCustomers', 'replaceRevenues', 'replaceCosts', 'replaceGuides', 'replaceAttachments', 'replaceSurveys']) {
     assert(!new RegExp(`tourCore\\.${helper}\\s*\\(`).test(serviceSource), `FIT should not call ${helper} directly from module service`);
   }
@@ -214,6 +218,12 @@ async function main() {
   assert(commonAttachment && commonAttachment.fileUrl && commonAttachment.uploadedBy === 'system', 'FIT upload should write common TourAttachment metadata');
   assert(legacyAttachment && legacyAttachment.fileUrl, 'FIT upload should keep legacy FitAttachment snapshot metadata');
 
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, { attachments: [{ step: FitTourWorkflowStatus.PRICING, fileName: 'tampered.pdf', fileUrl: '/tampered.pdf' }] });
+  const attachmentsAfterStepPatch = await prisma.tourAttachment.findMany({ where: { tourId: source.tourId } });
+  const legacyAttachmentsAfterStepPatch = await prisma.fitAttachment.findMany({ where: { fitTourId: source.id } });
+  assert(attachmentsAfterStepPatch.length === 1 && attachmentsAfterStepPatch[0].fileName === 'fit-pricing.pdf', 'FIT step save should not overwrite uploaded common attachments');
+  assert(legacyAttachmentsAfterStepPatch.length === 1 && legacyAttachmentsAfterStepPatch[0].fileName === 'fit-pricing.pdf', 'FIT step save should not overwrite uploaded legacy attachment snapshot');
+
   const exportedCsv = await fitTours.exportCsv(source.id);
   assert(exportedCsv.includes(`tour,tourId,${source.tourId},common Tour root`), 'FIT export should include common tourId');
   assert(exportedCsv.includes('FIT Root Contract Source'), 'FIT export should include common Tour root name');
@@ -265,6 +275,7 @@ async function main() {
     workflowStatus: FitTourWorkflowStatus.PRICING,
     tourName: 'FIT Root Contract Source Updated',
     budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Updated budget hotel', quantity: 3, unitPrice: 1000, vat: 0, amount: 3000 }],
+    attachments: [{ step: FitTourWorkflowStatus.PRICING, fileName: 'tampered-update.pdf', fileUrl: '/tampered-update.pdf' }],
   });
   const updatedRoot = await prisma.tour.findUnique({ where: { id: source.tourId }, include: { services: true } });
   const updatedFit = await prisma.fitTour.findUnique({ where: { id: source.id } });
@@ -274,6 +285,8 @@ async function main() {
   assert(updatedFit.workflowStatus === FitTourWorkflowStatus.PRICING, 'FIT workflow status should remain on FIT detail');
   assert(updatedRoot.services.filter((service) => decimal(service.budgetAmount) > 0).length === 1, 'FIT update should resync common budget services');
   assert(decimal(updatedRoot.services.find((service) => decimal(service.budgetAmount) > 0).budgetAmount) === 3000, 'Common budget amount should match updated FIT budget');
+  const attachmentsAfterFullUpdate = await prisma.tourAttachment.findMany({ where: { tourId: source.tourId } });
+  assert(attachmentsAfterFullUpdate.length === 1 && attachmentsAfterFullUpdate[0].fileName === 'fit-pricing.pdf', 'FIT full update should not overwrite uploaded common attachments');
 
   await prisma.fitCommonCost.updateMany({ where: { fitTourId: source.id }, data: { description: 'Legacy stale common cost', unitPrice: 999, amount: 999 } });
   await prisma.fitBudgetService.updateMany({ where: { fitTourId: source.id }, data: { description: 'Legacy stale budget row', unitPrice: 999, amount: 999 } });

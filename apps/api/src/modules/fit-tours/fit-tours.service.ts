@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService, TourRootConfig } from '../tours/tour-core.service';
+import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN, FIT_TOUR_STEP_FIELDS } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
@@ -310,7 +310,7 @@ export class FitToursService {
     const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user, options);
     const rootDto = current.tourId ? patch : merged;
     const tourId = await this.syncTourRootFromFit(tx, current, rootDto, user);
-    await this.syncTourCoreFromFit(tx, tourId, merged);
+    await this.syncTourCoreFromFit(tx, tourId, merged, patch);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
     await this.legacyCompat.syncChildren(tx, id, patch);
     const action = options.step ? (options.confirm ? 'CONFIRM_FIT_STEP' : 'SAVE_FIT_STEP_DRAFT') : 'UPDATE_FIT_TOUR';
@@ -368,7 +368,7 @@ export class FitToursService {
     user?: RequestUser,
     options: FitUpdateOptions = {},
   ) {
-    const patch = await this.withCustomerSnapshot(tx, dto);
+    const patch = this.dropAttachmentPatch(await this.withCustomerSnapshot(tx, dto));
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
     if (options.step) {
       this.validateStepPatch(options.step, patch, merged);
@@ -378,6 +378,18 @@ export class FitToursService {
     }
     this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
     return { patch, merged };
+  }
+
+  private dropAttachmentPatch(dto: UpdateFitTourDto): UpdateFitTourDto {
+    if (!Object.prototype.hasOwnProperty.call(dto as Row, 'attachments')) return dto;
+    const patch = { ...(dto as Row) };
+    delete patch.attachments;
+    return patch as UpdateFitTourDto;
+  }
+
+  private hasAnyChanged(dto: UpdateFitTourDto | undefined, fields: string[]) {
+    if (!dto) return true;
+    return fields.some((field) => Object.prototype.hasOwnProperty.call(dto as Row, field));
   }
 
   private createTourRootFromFit(tx: Prisma.TransactionClient, dto: UpdateFitTourDto, user?: RequestUser) {
@@ -785,18 +797,31 @@ export class FitToursService {
     return fitTour.tourId;
   }
 
-  private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
-    const services = this.mapTourServices(dto);
-    await this.tourCore.replaceCommonChildren(tx, tourId, {
-      customers: [this.mapTourCustomer(dto)],
-      guides: this.tourCore.mapGuides(dto.guides),
-      attachments: this.tourCore.mapAttachments(dto.attachments),
-      surveys: this.tourCore.mapSurveys(dto.surveyQuestions, FIT_DEFAULT_SURVEY_QUESTIONS),
-      revenues: this.mapTourRevenues(dto),
-      costs: this.mapTourCosts(dto),
-      services,
-      serviceSupplierRole: 'FIT_SERVICE',
-    });
+  private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto, changedDto?: UpdateFitTourDto) {
+    const children: TourCommonChildren = {};
+    if (this.hasAnyChanged(changedDto, ['customerId', 'customerName', 'phone', 'email', 'notes'])) {
+      children.customers = [this.mapTourCustomer(dto)];
+    }
+    if (this.hasAnyChanged(changedDto, ['guides'])) {
+      children.guides = this.tourCore.mapGuides(dto.guides);
+    }
+    if (this.hasAnyChanged(changedDto, ['attachments'])) {
+      children.attachments = this.tourCore.mapAttachments(dto.attachments);
+    }
+    if (this.hasAnyChanged(changedDto, ['surveyQuestions'])) {
+      children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions, FIT_DEFAULT_SURVEY_QUESTIONS);
+    }
+    if (this.hasAnyChanged(changedDto, ['revenues', 'sellingPrice', 'tourPrice', 'tourName', 'tourCode', 'notes'])) {
+      children.revenues = this.mapTourRevenues(dto);
+    }
+    if (this.hasAnyChanged(changedDto, ['costs', 'commonCosts', 'hotelCosts', 'privateCosts'])) {
+      children.costs = this.mapTourCosts(dto);
+    }
+    if (this.hasAnyChanged(changedDto, ['budgetServices', 'operationServices'])) {
+      children.services = this.mapTourServices(dto);
+      children.serviceSupplierRole = 'FIT_SERVICE';
+    }
+    await this.tourCore.replaceCommonChildren(tx, tourId, children);
   }
 
   private async replaceFitTourServices(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {

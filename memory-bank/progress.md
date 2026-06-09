@@ -2,6 +2,20 @@
 
 ## Done
 
+- Continued P2 FIT changed-field child sync and attachment ownership cleanup:
+  - `FitToursService.syncTourCoreFromFit()` now passes only changed common child
+    groups to `TourCoreService.replaceCommonChildren()` during updates, while
+    create still initializes every common child group.
+  - FIT attachment metadata is protected from step autosave/full update payloads;
+    only the multipart upload flow appends uploaded files after create/import.
+  - Backend DTO step fields and frontend step payload fields both exclude
+    `attachments` from PRICING autosave.
+  - Regression verifies attachment tamper payloads through step save and full
+    update do not overwrite uploaded common or legacy attachment metadata.
+  - Verified on VPS: API/web Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT export CSV workflow:
   - FIT exports now use a real CSV service path backed by scoped FIT detail and
     the common Tour root id.
