@@ -11,7 +11,16 @@ import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 type Row = Record<string, unknown>;
 
 const fitTourInclude = {
-  tour: { include: { order: true, customers: { include: { crmCustomer: true } } } },
+  tour: {
+    include: {
+      order: true,
+      customers: { include: { crmCustomer: true } },
+      services: { include: { supplier: true, supplierService: true }, orderBy: { serviceType: 'asc' } },
+      guides: { orderBy: { name: 'asc' } },
+      attachments: { orderBy: { createdAt: 'desc' } },
+      surveys: { orderBy: { orderNo: 'asc' } },
+    },
+  },
   customer: true,
   order: true,
   commonCosts: { orderBy: { orderNo: 'asc' } },
@@ -54,6 +63,9 @@ const fitTourListSelect = {
         where: { isPrimary: true },
         take: 1,
         select: { name: true, phone: true },
+      },
+      services: {
+        select: { budgetAmount: true, budgetUnitPrice: true, confirmedAmount: true, confirmedUnitPrice: true, bookingCode: true },
       },
     },
   },
@@ -411,6 +423,12 @@ export class FitToursService {
     if (!tour) return fitTour;
     const customers = Array.isArray(tour.customers) ? (tour.customers as Row[]) : [];
     const primaryCustomer = customers.find((customer) => customer.isPrimary === true) || customers[0];
+    const services = Array.isArray(tour.services) ? (tour.services as Row[]) : [];
+    const budgetServices = this.rootBudgetServices(services);
+    const operationServices = this.rootOperationServices(services);
+    const guides = this.rootGuides(Array.isArray(tour.guides) ? (tour.guides as Row[]) : []);
+    const attachments = this.rootAttachments(Array.isArray(tour.attachments) ? (tour.attachments as Row[]) : []);
+    const surveyQuestions = this.rootSurveyQuestions(Array.isArray(tour.surveys) ? (tour.surveys as Row[]) : []);
     return {
       ...fitTour,
       quoteCode: tour.systemCode ?? fitTour.quoteCode,
@@ -431,7 +449,77 @@ export class FitToursService {
       customerName: primaryCustomer?.name ?? fitTour.customerName,
       phone: primaryCustomer?.phone ?? fitTour.phone,
       email: primaryCustomer?.email ?? fitTour.email,
+      budgetServices: budgetServices.length ? budgetServices : fitTour.budgetServices,
+      operationServices: operationServices.length ? operationServices : fitTour.operationServices,
+      guides: guides.length ? guides : fitTour.guides,
+      attachments: attachments.length ? attachments : fitTour.attachments,
+      surveyQuestions: surveyQuestions.length ? surveyQuestions : fitTour.surveyQuestions,
+      _count: this.withRootServiceCounts(fitTour._count, budgetServices, operationServices),
     };
+  }
+
+  private withRootServiceCounts(counts: unknown, budgetServices: Row[], operationServices: Row[]) {
+    if (!counts || typeof counts !== 'object' || Array.isArray(counts)) return counts;
+    return {
+      ...(counts as Row),
+      ...(budgetServices.length ? { budgetServices: budgetServices.length } : {}),
+      ...(operationServices.length ? { operationServices: operationServices.length } : {}),
+    };
+  }
+
+  private rootBudgetServices(services: Row[]): Row[] {
+    return services
+      .filter((row) => this.number(row.budgetAmount) > 0 || this.number(row.budgetUnitPrice) > 0)
+      .map((row) => ({
+        id: row.id,
+        serviceType: row.serviceType,
+        supplierId: row.supplierId,
+        supplier: row.supplier,
+        description: row.description,
+        quantity: row.quantity,
+        unitPrice: row.budgetUnitPrice,
+        vat: row.vat,
+        amount: row.budgetAmount,
+        notes: row.notes,
+      }));
+  }
+
+  private rootOperationServices(services: Row[]): Row[] {
+    return services
+      .filter((row) => this.number(row.confirmedAmount) > 0 || this.number(row.confirmedUnitPrice) > 0 || this.optionalText(row.bookingCode))
+      .map((row) => ({
+        id: row.id,
+        serviceType: row.serviceType,
+        supplierId: row.supplierId,
+        supplier: row.supplier,
+        supplierServiceId: row.supplierServiceId,
+        supplierService: row.supplierService,
+        bookingCode: row.bookingCode,
+        quantity: row.quantity,
+        confirmedUnitPrice: row.confirmedUnitPrice,
+        vat: row.vat,
+        amount: row.confirmedAmount,
+        status: this.toFitServiceStatus(row.confirmationStatus),
+        notes: row.notes,
+      }));
+  }
+
+  private rootGuides(guides: Row[]): Row[] {
+    return guides.map((row) => ({ id: row.id, guideId: row.guideId, name: row.name, phone: row.phone, guideType: row.guideType, notes: row.notes }));
+  }
+
+  private rootAttachments(attachments: Row[]): Row[] {
+    return attachments.map((row) => ({ id: row.id, step: row.step, fileName: row.fileName, fileUrl: row.fileUrl, mimeType: row.mimeType, size: row.size, uploadedBy: row.uploadedBy, createdAt: row.createdAt }));
+  }
+
+  private rootSurveyQuestions(surveys: Row[]): Row[] {
+    return surveys.map((row) => ({ id: row.id, orderNo: row.orderNo, question: row.question, notes: row.notes }));
+  }
+
+  private toFitServiceStatus(status: unknown) {
+    const value = this.text(status);
+    if (Object.values(FitServiceStatus).includes(value as FitServiceStatus)) return value as FitServiceStatus;
+    return FitServiceStatus.WAITING;
   }
 
   private async withCustomerSnapshot(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {

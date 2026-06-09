@@ -2,6 +2,21 @@
 
 ## Done
 
+- Continued FIT legacy read-side cleanup:
+  - FIT detail/list now prefer common `Tour` root child data for service, guide,
+    attachment, and survey response fields while preserving the existing FIT
+    response shape consumed by the wizard.
+  - Budget/operation service rows are mapped back from common `TourService`
+    rows, so stale legacy `fit_budget_services` / `fit_operation_services`
+    no longer drive FIT detail or copy source data when common rows exist.
+  - FIT list counts for budget/operation services are overlaid from common
+    Tour services when available.
+  - Regression now intentionally stales legacy FIT service rows and verifies
+    detail/copy read from the common Tour root.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 - Tightened P1 finance tour linkage and FIT date contracts:
   - Finance receipts, payments, invoices, approvals, cancellations, and CSV
     imports now require a resolvable common `tourId` and validate linked

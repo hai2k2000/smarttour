@@ -194,6 +194,14 @@ async function main() {
   assert(updatedRoot.services.filter((service) => decimal(service.budgetAmount) > 0).length === 1, 'FIT update should resync common budget services');
   assert(decimal(updatedRoot.services.find((service) => decimal(service.budgetAmount) > 0).budgetAmount) === 3000, 'Common budget amount should match updated FIT budget');
 
+  await prisma.fitBudgetService.updateMany({ where: { fitTourId: source.id }, data: { description: 'Legacy stale budget row', unitPrice: 999, amount: 999 } });
+  await prisma.fitOperationService.updateMany({ where: { fitTourId: source.id }, data: { supplierServiceId: null, bookingCode: `${run}-STALE-OP`, confirmedUnitPrice: 999, amount: 999 } });
+  const rootSourcedChildren = await fitTours.detail(source.id);
+  assert(decimal(rootSourcedChildren.budgetServices[0].amount) === 3000, 'FIT detail should expose common TourService budget rows over stale legacy rows');
+  assert(rootSourcedChildren.budgetServices[0].description === 'Updated budget hotel', 'FIT detail should expose common TourService budget description over stale legacy rows');
+  assert(rootSourcedChildren.operationServices[0].supplierServiceId === supplierService.id, 'FIT detail should expose common TourService operation supplier service over stale legacy rows');
+  assert(rootSourcedChildren.operationServices[0].bookingCode === `${run}-BK`, 'FIT detail should expose common TourService operation booking code over stale legacy rows');
+
   const target = await fitTours.create({
     quoteCode: `${run}-TGT-Q`,
     tourCode: `${run}-TGT-T`,

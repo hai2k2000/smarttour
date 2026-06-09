@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued FIT legacy read-side cleanup:
+  - FIT detail/list now overlay service, guide, attachment, and survey response
+    fields from the common `Tour` root when those common rows exist. The API
+    keeps the existing FIT wizard response shape, but stale legacy child rows no
+    longer win for budget/operation services.
+  - Copy-budget/copy-operation source data now benefits from the same common
+    root overlay, reducing dependency on legacy FIT child tables while legacy
+    writes remain isolated for compatibility.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 - Continued P1 finance/report and FIT date hardening:
   - Finance receipt/payment/invoice create/update/import/approve/cancel paths now
     require a resolvable common `tourId`; linked customer/order/supplier/voucher
