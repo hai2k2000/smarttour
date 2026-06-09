@@ -45,6 +45,13 @@ const {
   CreateBookingDto,
 } = require('./apps/api/dist/modules/bookings/dto/create-booking.dto');
 const {
+  ListBookingsQueryDto,
+} = require('./apps/api/dist/modules/bookings/dto/list-bookings-query.dto');
+const {
+  BOOKING_CLEARABLE_UPDATE_FIELDS,
+  BOOKING_NON_NULLABLE_UPDATE_FIELDS,
+  BOOKING_OPERATIONAL_EDITABLE_FIELDS,
+  BOOKING_OPERATIONAL_LOCKED_FIELDS,
   BOOKING_UPDATE_FIELDS,
   UpdateBookingDto,
   UpdateBookingStatusDto,
@@ -78,6 +85,10 @@ function amount(value) {
 
 function dateOnly(value) {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function sortedKeys(value) {
+  return Object.keys(value || {}).sort();
 }
 
 async function validationMessages(DtoClass, payload) {
@@ -236,6 +247,20 @@ async function main() {
     JSON.stringify(BOOKING_UPDATE_FIELDS) === JSON.stringify(expectedCreateFields),
     'UpdateBookingDto should only expose the approved booking update fields',
   );
+  assert(
+    JSON.stringify([...BOOKING_NON_NULLABLE_UPDATE_FIELDS, ...BOOKING_CLEARABLE_UPDATE_FIELDS].sort()) ===
+      JSON.stringify([...expectedCreateFields].sort()),
+    'booking update nullability groups should cover every approved update field',
+  );
+  assert(
+    JSON.stringify(BOOKING_OPERATIONAL_EDITABLE_FIELDS) === JSON.stringify(['saleOwner', 'operatorOwner']),
+    'only owner assignments should remain editable after operational data exists',
+  );
+  assert(
+    JSON.stringify([...BOOKING_OPERATIONAL_LOCKED_FIELDS, ...BOOKING_OPERATIONAL_EDITABLE_FIELDS].sort()) ===
+      JSON.stringify([...expectedCreateFields].sort()),
+    'operational edit policy should classify every approved update field',
+  );
   const groupedFields = new Set([...BOOKING_CORE_FIELDS, ...BOOKING_CROSS_REFERENCE_FIELDS]);
   assert(groupedFields.size === BOOKING_CORE_FIELDS.length + BOOKING_CROSS_REFERENCE_FIELDS.length, 'booking field groups should not overlap');
   assert(BOOKING_CREATE_FIELDS.every((field) => groupedFields.has(field)), 'all create fields should be classified as core or cross-reference');
@@ -286,6 +311,12 @@ async function main() {
   );
   await assertValidationMessage(
     CreateBookingDto,
+    { ...validDtoPayload, tourProgramId: '' },
+    'Tour mẫu không được để trống',
+    'CreateBookingDto should localize tour program validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
     { ...validDtoPayload, customerName: 'Khách <xấu>' },
     'Tên khách/đoàn không được chứa ký tự điều khiển hoặc dấu < >',
     'CreateBookingDto should localize customer name validation',
@@ -304,6 +335,12 @@ async function main() {
   );
   await assertValidationMessage(
     CreateBookingDto,
+    { ...validDtoPayload, paxCount: 2.5 },
+    'Số khách phải là số nguyên',
+    'CreateBookingDto should reject fractional pax',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
     { ...validDtoPayload, paxCount: 0 },
     'Số khách phải lớn hơn 0',
     'CreateBookingDto should localize pax validation',
@@ -313,6 +350,54 @@ async function main() {
     { ...validDtoPayload, startDate: '2026-10-01T00:00:00Z' },
     'Ngày khởi hành phải có định dạng YYYY-MM-DD',
     'CreateBookingDto should enforce date-only startDate',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, endDate: '03/10/2026' },
+    'Ngày kết thúc phải có định dạng YYYY-MM-DD',
+    'CreateBookingDto should enforce date-only endDate',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, saleOwner: 'S' },
+    'Sale phụ trách phải có ít nhất 2 ký tự',
+    'CreateBookingDto should localize sale owner validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, operatorOwner: 'O' },
+    'Điều hành phụ trách phải có ít nhất 2 ký tự',
+    'CreateBookingDto should localize operator owner validation',
+  );
+  await assertValidationMessage(
+    CreateBookingDto,
+    { ...validDtoPayload, totalSellPrice: 'không-phải-số' },
+    'Giá bán tổng phải là số hợp lệ',
+    'CreateBookingDto should localize total sell price validation',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { paxCount: null },
+    'Số khách phải là số nguyên',
+    'UpdateBookingDto should reject null for non-nullable paxCount',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { totalSellPrice: null },
+    'Giá bán tổng phải là số hợp lệ',
+    'UpdateBookingDto should reject null for non-nullable totalSellPrice',
+  );
+  assert(
+    (await validationMessages(UpdateBookingDto, {
+      customerId: null,
+      orderId: null,
+      tourId: null,
+      customerPhone: null,
+      customerEmail: null,
+      saleOwner: null,
+      operatorOwner: null,
+    })).length === 0,
+    'UpdateBookingDto should allow clearing nullable links, contacts, and owners',
   );
   await assertValidationMessage(
     UpdateBookingDto,
@@ -325,6 +410,34 @@ async function main() {
     { status: 'UNKNOWN' },
     'Trạng thái booking không hợp lệ',
     'UpdateBookingStatusDto should localize enum validation',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { status: 'CANCELLED' },
+    'Dùng PATCH /api/bookings/:id/status để cập nhật trạng thái booking',
+    'UpdateBookingDto should reject status changes through the general update contract',
+  );
+  const normalizedListQuery = plainToInstance(ListBookingsQueryDto, {
+    search: '  booking dto  ',
+    status: ' draft ',
+    tourProgramId: '  tour-program-id  ',
+    take: '50',
+    skip: '10',
+  });
+  assert(
+    normalizedListQuery.search === 'booking dto' &&
+      normalizedListQuery.status === 'DRAFT' &&
+      normalizedListQuery.tourProgramId === 'tour-program-id' &&
+      normalizedListQuery.take === 50 &&
+      normalizedListQuery.skip === 10,
+    'ListBookingsQueryDto should normalize search, filters, and paging',
+  );
+  assert((await validationMessages(ListBookingsQueryDto, normalizedListQuery)).length === 0, 'ListBookingsQueryDto should accept normalized query values');
+  await assertValidationMessage(
+    ListBookingsQueryDto,
+    { take: '501' },
+    'Số booking mỗi trang không được vượt quá 500',
+    'ListBookingsQueryDto should localize paging validation',
   );
 
   const prisma = new PrismaService();
@@ -500,6 +613,27 @@ async function main() {
   assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
   const listedCreated = listed.find((row) => row.id === created.id);
   assert(listedCreated?.tourProgram?.code === tourProgram.code, 'list should include tourProgram summary used by frontend');
+  assert(
+    JSON.stringify(sortedKeys(listedCreated)) === JSON.stringify([
+      'code',
+      'customerName',
+      'endDate',
+      'id',
+      'operationForm',
+      'operatorOwner',
+      'paxCount',
+      'saleOwner',
+      'startDate',
+      'status',
+      'totalSellPrice',
+      'tourProgram',
+    ]),
+    'list response shape should remain a stable frontend summary',
+  );
+  assert(
+    JSON.stringify(sortedKeys(listedCreated.tourProgram)) === JSON.stringify(['code', 'id', 'name']),
+    'list tourProgram response should remain summary-only',
+  );
   assert(!('customerId' in listedCreated) && !('customerPhone' in listedCreated) && !('createdAt' in listedCreated), 'list should omit booking detail-only fields');
   assert(!('durationDays' in listedCreated.tourProgram) && !('itineraryDays' in listedCreated.tourProgram), 'list should omit tour program detail fields');
   assert(listed.find((row) => row.id === created.id)?.operationForm === null, 'list should include operationForm field used by frontend');
@@ -510,11 +644,61 @@ async function main() {
 
   const detail = await service.detail(created.id);
   assert(detail.id === created.id, 'detail should load booking');
+  assert(
+    JSON.stringify(sortedKeys(detail)) === JSON.stringify([
+      'allotmentLocks',
+      'code',
+      'createdAt',
+      'customer',
+      'customerEmail',
+      'customerId',
+      'customerName',
+      'customerPhone',
+      'endDate',
+      'id',
+      'operationForm',
+      'operationVouchers',
+      'operatorOwner',
+      'order',
+      'orderId',
+      'paxCount',
+      'saleOwner',
+      'startDate',
+      'status',
+      'totalSellPrice',
+      'tour',
+      'tourId',
+      'tourProgram',
+      'tourProgramId',
+      'updatedAt',
+    ]),
+    'detail response shape should remain stable for API consumers',
+  );
   assert(detail.tourProgram?.durationDays === 3 && detail.tourProgram.itineraryDays.length === 3, 'detail should include tourProgram and itinerary');
   assert(Array.isArray(detail.operationVouchers) && Array.isArray(detail.allotmentLocks), 'detail should include operation dependencies');
   assert(!detail.operationForm || (!('tasks' in detail.operationForm) && !('services' in detail.operationForm) && !('costs' in detail.operationForm)), 'detail should not include operation form child arrays');
   const initialDeleteGuard = await service.deleteGuard(created.id);
   assert(initialDeleteGuard.canDelete && initialDeleteGuard.operationForms === 0 && initialDeleteGuard.operationVouchers === 0 && initialDeleteGuard.allotmentLocks === 0, 'delete guard should return lightweight zero dependency counts');
+
+  const beforeEmptyUpdate = await service.detail(created.id);
+  const emptyUpdated = await service.update(created.id, {});
+  assert(
+    emptyUpdated.code === beforeEmptyUpdate.code &&
+      emptyUpdated.customerName === beforeEmptyUpdate.customerName &&
+      emptyUpdated.paxCount === beforeEmptyUpdate.paxCount &&
+      amount(emptyUpdated.totalSellPrice) === amount(beforeEmptyUpdate.totalSellPrice),
+    'empty partial update should preserve existing booking data',
+  );
+  await rejects(
+    () => service.update(created.id, { paxCount: null }),
+    'direct service update should reject null paxCount',
+    'Số khách không được là null',
+  );
+  await rejects(
+    () => service.update(created.id, { totalSellPrice: null }),
+    'direct service update should reject null totalSellPrice',
+    'Giá bán tổng không được là null',
+  );
 
   const updated = await service.update(created.id, {
     customerName: 'Bookings Service Customer Updated',
@@ -543,7 +727,7 @@ async function main() {
   await rejects(
     () => service.update(created.id, { endDate: null }),
     'update should reject null endDate instead of falling back to the current value',
-    'Ngày kết thúc không được để trống',
+    'Ngày kết thúc không được là null',
   );
   await rejects(
     () => service.update(created.id, { startDate: '2026/10/02' }),
@@ -643,6 +827,10 @@ async function main() {
     'update should reject linked customer changes after an operation voucher exists',
   );
   await rejects(
+    () => service.update(voucherLockedBooking.id, { customerName: 'Blocked after voucher' }),
+    'update should reject customer snapshot changes after an operation voucher exists',
+  );
+  await rejects(
     () => service.remove(voucherLockedBooking.id),
     'delete should reject booking with operationVouchers',
     'Không thể xóa booking vì đang có 1 phiếu dịch vụ điều hành.',
@@ -674,6 +862,10 @@ async function main() {
     'update should reject linked tour changes after an allotment lock exists',
   );
   await rejects(
+    () => service.update(allotmentLockedBooking.id, { totalSellPrice: 8000000 }),
+    'update should reject price changes after an allotment lock exists',
+  );
+  await rejects(
     () => service.remove(allotmentLockedBooking.id),
     'delete should reject booking with allotmentLocks',
     'Không thể xóa booking vì đang có 1 khóa allotment.',
@@ -700,6 +892,14 @@ async function main() {
   await rejects(() => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }), 'update should reject date change after operationForm exists');
   await rejects(() => service.update(created.id, { totalSellPrice: 9000000 }), 'update should reject totalSellPrice change after operationForm exists');
   await rejects(() => service.update(created.id, { orderId: null }), 'update should reject linked order changes after operationForm exists');
+  const reassigned = await service.update(created.id, {
+    saleOwner: 'Sale Reassigned',
+    operatorOwner: 'Operator Reassigned',
+  });
+  assert(
+    reassigned.saleOwner === 'Sale Reassigned' && reassigned.operatorOwner === 'Operator Reassigned',
+    'owner assignments should remain editable after operation data exists',
+  );
   await rejects(
     () => service.remove(created.id),
     'delete should reject booking with operationForm',

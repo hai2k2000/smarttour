@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingDto, UpdateBookingStatusDto } from './dto/update-booking.dto';
 import { BookingsService } from './bookings.service';
 
@@ -13,18 +14,12 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Get()
-  list(
-    @Query('search') search?: string,
-    @Query('status') status?: string,
-    @Query('tourProgramId') tourProgramId?: string,
-    @Query('take') take?: string,
-    @Query('skip') skip?: string,
-    @Req() request?: { user?: RequestUser },
-  ) {
-    return this.bookingsService.list(search, status, tourProgramId, request?.user, take, skip);
+  list(@Query() query: ListBookingsQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.bookingsService.list(query.search, query.status, query.tourProgramId, request?.user, query.take, query.skip);
   }
 
   @Get(':id/delete-guard')
+  @RequirePermissions('booking.manage')
   deleteGuard(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.bookingsService.deleteGuard(id, request?.user);
   }
@@ -45,12 +40,8 @@ export class BookingsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateBookingDto,
-    @Body('status') status: unknown,
     @Req() request?: { user?: RequestUser },
   ) {
-    if (status !== undefined) {
-      throw new BadRequestException('Dùng PATCH /api/bookings/:id/status để cập nhật trạng thái booking');
-    }
     return this.bookingsService.update(id, dto, request?.user);
   }
 

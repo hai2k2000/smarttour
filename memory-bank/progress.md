@@ -2,6 +2,23 @@
 
 ## Done
 
+- Hardened Booking DTO and API contract:
+  - Added explicit list query DTO validation for search/status/tour-program
+    filters and `take`/`skip` bounds.
+  - Added a Booking controller contract audit covering route order, methods,
+    permissions, and `PATCH` partial-update semantics.
+  - Update DTO now preserves omitted fields, rejects `null` for non-nullable
+    booking-core fields, allows clearing nullable links/contact/owner fields,
+    and keeps status changes isolated to the status endpoint.
+  - Response-shape regression tests now lock lightweight list payloads and the
+    detail payload used by API consumers.
+  - Operational dependencies now lock structural/snapshot fields for operation
+    forms, operation vouchers, and allotment locks while allowing owner
+    reassignment.
+  - Verified on VPS: API Docker build, `TEST_BOOKINGS_CONTROLLER_CONTRACT_OK`,
+    `TEST_ROUTE_PERMISSIONS_OK`, `TEST_BOOKINGS_SERVICE_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API redeploy, and `HEALTHCHECK_OK`.
+
 - Standardized Booking input normalization:
   - The active Booking web form now applies the backend code contract before
     submission and exposes matching HTML min/max/pattern constraints.

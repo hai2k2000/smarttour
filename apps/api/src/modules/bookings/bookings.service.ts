@@ -19,7 +19,8 @@ import {
   BOOKING_TEXT_PATTERN,
   CreateBookingDto,
 } from './dto/create-booking.dto';
-import { UpdateBookingDto } from './dto/update-booking.dto';
+import { BOOKING_LIST_DEFAULT_TAKE, BOOKING_LIST_MAX_TAKE } from './dto/list-bookings-query.dto';
+import { BOOKING_NON_NULLABLE_UPDATE_FIELDS, UpdateBookingDto } from './dto/update-booking.dto';
 import { BOOKING_CODE_CONFLICT_MESSAGE, BOOKING_NOT_FOUND_MESSAGES } from './booking-errors';
 import { bookingScopeWhere } from './booking-scope';
 
@@ -31,8 +32,6 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const BOOKING_LIST_DEFAULT_TAKE = 100;
-const BOOKING_LIST_MAX_TAKE = 500;
 
 type BookingReferenceKey = 'tourProgramId' | 'customerId' | 'orderId' | 'tourId';
 type BookingLinkedReferenceKey = Exclude<BookingReferenceKey, 'tourProgramId'>;
@@ -48,10 +47,18 @@ type BookingTourProgramSnapshot = {
 };
 type BookingMutationState = {
   id: string;
+  code: string;
   tourProgramId: string;
   customerId: string | null;
   orderId: string | null;
   tourId: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  paxCount: number;
+  startDate: Date;
+  endDate: Date;
+  totalSellPrice: unknown;
   tourProgram: BookingTourProgramSnapshot;
 };
 
@@ -212,10 +219,10 @@ export class BookingsService {
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
     this.ensureNoStatusInBookingUpdate(dto);
+    this.ensureNoNullBookingUpdate(dto);
     const current = await this.loadForMutation(id, user);
     const references = await this.resolveBookingReferences(dto, user, { creating: false, current });
-    await this.ensureLinkedDataEditAllowed(current, references.changedReferenceLabels);
-    this.ensureOperationFormEditAllowed(current, dto, references.values);
+    await this.ensureOperationalDataEditAllowed(current, dto, references.values);
     this.ensureBookingValues(
       {
         startDate: dto.startDate !== undefined ? dto.startDate : current.startDate,
@@ -349,7 +356,6 @@ export class BookingsService {
     return {
       values,
       tourProgram,
-      changedReferenceLabels: options.creating ? [] : this.changedReferenceLabels(options.current, values),
     };
   }
 
@@ -470,19 +476,6 @@ export class BookingsService {
     return BOOKING_LINKED_REFERENCE_KEYS.some((key) => Boolean(links[key]));
   }
 
-  private changedReferenceLabels(current: BookingMutationState, values: BookingReferenceValues) {
-    const changed: string[] = [];
-    if (values.tourProgramId !== undefined && values.tourProgramId !== current.tourProgramId) {
-      changed.push(this.referenceConfig('tourProgramId').label.toLowerCase());
-    }
-    for (const key of BOOKING_LINKED_REFERENCE_KEYS) {
-      if (values[key] !== undefined && (values[key] || null) !== current[key]) {
-        changed.push(this.referenceConfig(key).label.toLowerCase());
-      }
-    }
-    return changed;
-  }
-
   private requiresScopedLink(user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return false;
     return true;
@@ -491,6 +484,21 @@ export class BookingsService {
   private ensureNoStatusInBookingUpdate(dto: UpdateBookingDto) {
     if ((dto as Record<string, unknown>).status !== undefined) {
       throw new BadRequestException('Dùng updateStatus hoặc PATCH /api/bookings/:id/status để cập nhật trạng thái booking');
+    }
+  }
+
+  private ensureNoNullBookingUpdate(dto: UpdateBookingDto) {
+    const labels: Record<(typeof BOOKING_NON_NULLABLE_UPDATE_FIELDS)[number], string> = {
+      code: 'Mã booking',
+      tourProgramId: 'Tour mẫu',
+      customerName: 'Tên khách/đoàn',
+      paxCount: 'Số khách',
+      startDate: 'Ngày khởi hành',
+      endDate: 'Ngày kết thúc',
+      totalSellPrice: 'Giá bán tổng',
+    };
+    for (const field of BOOKING_NON_NULLABLE_UPDATE_FIELDS) {
+      if (dto[field] === null) throw new BadRequestException(`${labels[field]} không được là null`);
     }
   }
 
@@ -518,9 +526,8 @@ export class BookingsService {
     }
   }
 
-  private ensureOperationFormEditAllowed(
+  private changedOperationalFieldLabels(
     current: {
-      operationForm?: { id: string } | null;
       code: string;
       tourProgramId: string;
       customerId: string | null;
@@ -537,31 +544,27 @@ export class BookingsService {
     dto: UpdateBookingDto,
     references: BookingReferenceValues,
   ) {
-    if (!current.operationForm) return;
-    const blocked: string[] = [];
-    if (dto.code !== undefined && this.bookingCode(dto.code) !== current.code) blocked.push('mã booking');
-    if (references.tourProgramId !== undefined && references.tourProgramId !== current.tourProgramId) blocked.push('tour mẫu');
-    if (references.customerId !== undefined && (references.customerId || null) !== current.customerId) blocked.push('khách hàng liên kết');
-    if (references.orderId !== undefined && (references.orderId || null) !== current.orderId) blocked.push('đơn hàng liên kết');
-    if (references.tourId !== undefined && (references.tourId || null) !== current.tourId) blocked.push('tour vận hành liên kết');
-    if (dto.customerName !== undefined && this.customerName(dto.customerName) !== current.customerName) blocked.push('tên khách/đoàn');
-    if (dto.customerPhone !== undefined && this.customerPhone(dto.customerPhone) !== current.customerPhone) blocked.push('điện thoại khách');
-    if (dto.customerEmail !== undefined && this.customerEmail(dto.customerEmail) !== current.customerEmail) blocked.push('email khách');
-    if (dto.paxCount !== undefined && this.paxCountValue(dto.paxCount) !== current.paxCount) blocked.push('số khách');
-    if (dto.startDate !== undefined && this.dateKey(dto.startDate) !== this.dateKey(current.startDate)) blocked.push('ngày khởi hành');
-    if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) blocked.push('ngày kết thúc');
-    if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'Giá bán tổng') !== this.numberValue(current.totalSellPrice, 'Giá bán tổng')) blocked.push('giá bán tổng');
-    if (blocked.length) throw new ConflictException(`Booking đã có phiếu điều hành, không thể đổi ${blocked.join(', ')}`);
+    const changed: string[] = [];
+    if (dto.code !== undefined && this.bookingCode(dto.code) !== current.code) changed.push('mã booking');
+    if (references.tourProgramId !== undefined && references.tourProgramId !== current.tourProgramId) changed.push('tour mẫu');
+    if (references.customerId !== undefined && (references.customerId || null) !== current.customerId) changed.push('khách hàng liên kết');
+    if (references.orderId !== undefined && (references.orderId || null) !== current.orderId) changed.push('đơn hàng liên kết');
+    if (references.tourId !== undefined && (references.tourId || null) !== current.tourId) changed.push('tour vận hành liên kết');
+    if (dto.customerName !== undefined && this.customerName(dto.customerName) !== current.customerName) changed.push('tên khách/đoàn');
+    if (dto.customerPhone !== undefined && this.customerPhone(dto.customerPhone) !== current.customerPhone) changed.push('điện thoại khách');
+    if (dto.customerEmail !== undefined && this.customerEmail(dto.customerEmail) !== current.customerEmail) changed.push('email khách');
+    if (dto.paxCount !== undefined && this.paxCountValue(dto.paxCount) !== current.paxCount) changed.push('số khách');
+    if (dto.startDate !== undefined && this.dateKey(dto.startDate) !== this.dateKey(current.startDate)) changed.push('ngày khởi hành');
+    if (dto.endDate !== undefined && this.dateKey(dto.endDate) !== this.dateKey(current.endDate)) changed.push('ngày kết thúc');
+    if (dto.totalSellPrice !== undefined && this.numberValue(dto.totalSellPrice, 'Giá bán tổng') !== this.numberValue(current.totalSellPrice, 'Giá bán tổng')) changed.push('giá bán tổng');
+    return changed;
   }
 
-  private async ensureLinkedDataEditAllowed(
-    current: { id: string },
-    changed: string[],
-  ) {
-    if (!changed.length) return;
-
+  private async ensureOperationalDataEditAllowed(current: BookingMutationState, dto: UpdateBookingDto, references: BookingReferenceValues) {
     const usage = await this.bookingUsage(current.id);
-    if (usage.total) {
+    if (!usage.total) return;
+    const changed = this.changedOperationalFieldLabels(current, dto, references);
+    if (changed.length) {
       throw new ConflictException(`Booking đã phát sinh ${this.usageSummary(usage)}, không thể đổi ${changed.join(', ')}`);
     }
   }

@@ -41,6 +41,7 @@ fi
 
 run_step "backend module wiring audit" run_node_audit scripts/audit-backend-module-wiring.js
 run_step "route permission audit" bash scripts/test-route-permissions.sh
+run_step "booking controller contract" bash scripts/test-bookings-controller-contract.sh
 run_step "data scope audit" run_node_audit scripts/audit-data-scope.js
 run_step "list view include audit" run_node_audit scripts/audit-list-view-includes.js
 

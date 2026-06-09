@@ -20,6 +20,29 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Hardened Booking DTO and controller/API contract:
+  - Added `ListBookingsQueryDto` for `/api/bookings` query validation:
+    normalized search/status filters and bounded `take`/`skip` paging.
+  - Locked Booking controller route contract with an audit script: list/detail
+    use `booking.view`, create/update/status/delete use `booking.manage`, the
+    lightweight delete guard also requires `booking.manage`, and partial
+    booking updates remain `PATCH` rather than `PUT`.
+  - Split `UpdateBookingDto` into non-nullable fields and clearable fields so
+    partial updates preserve omitted data but reject `null` for core fields
+    such as dates, pax, and total sell price.
+  - Status remains rejected from the general update DTO and must use
+    `PATCH /api/bookings/:id/status`.
+  - Booking list response remains a stable, lightweight frontend summary
+    without contact details, linked IDs, timestamps, or tour-program detail.
+  - Booking detail response shape is now explicitly regression-tested.
+  - Once a booking has an operation form, operation voucher, or allotment lock,
+    structural fields and customer/contact snapshots are locked; `saleOwner`
+    and `operatorOwner` remain editable for assignment changes.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_BOOKINGS_CONTROLLER_CONTRACT_OK`, `TEST_ROUTE_PERMISSIONS_OK`,
+    `TEST_BOOKINGS_SERVICE_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API
+    redeploy, and `HEALTHCHECK_OK`.
+
 - Standardized Booking input normalization across API and web:
   - Booking codes are now validated consistently in the active web form and
     backend: trim, uppercase, 2-64 ASCII letters/digits, hyphen, or underscore,
