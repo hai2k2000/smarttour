@@ -126,6 +126,7 @@ export class FitToursService {
         this.validateFitTourBusinessRules(fitDto, true);
         this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
         const tour = await tx.tour.create({ data: this.toTourCoreData(fitDto, true) as Prisma.TourUncheckedCreateInput });
+        await this.syncTourCoreFromFit(tx, tour.id, fitDto);
         const fitTour = await tx.fitTour.create({
           data: {
             ...this.toFitTourData(fitDto, true),
@@ -143,7 +144,6 @@ export class FitToursService {
             attachments: { create: this.mapAttachments(fitDto.attachments) },
           } as Prisma.FitTourCreateInput,
         });
-        await this.replaceTourCoreChildren(tx, tour.id, fitDto);
         await this.tourCore.log(tx, tour.id, 'CREATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: fitTour.id });
         return fitTour;
       });
@@ -167,7 +167,8 @@ export class FitToursService {
         this.validateProvidedFields(patch, false);
         this.validateFitTourBusinessRules(merged, false);
         this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
-        const tourId = current.tourId || (await tx.tour.create({ data: this.toTourCoreData(merged, true) as Prisma.TourUncheckedCreateInput })).id;
+        const tourId = await this.syncTourRootFromFit(tx, current, merged);
+        await this.syncTourCoreFromFit(tx, tourId, merged);
         await tx.fitTour.update({
           where: { id },
           data: {
@@ -177,9 +178,7 @@ export class FitToursService {
             ...(patch.orderId !== undefined ? (patch.orderId ? { order: { connect: { id: patch.orderId } } } : { order: { disconnect: true } }) : {}),
           } as Prisma.FitTourUpdateInput,
         });
-        await tx.tour.update({ where: { id: tourId }, data: this.toTourCoreData(merged, false) as Prisma.TourUncheckedUpdateInput });
-        await this.replaceChildren(tx, id, patch);
-        await this.replaceTourCoreChildren(tx, tourId, merged);
+        await this.syncLegacyFitChildren(tx, id, patch);
         await this.tourCore.log(tx, tourId, 'UPDATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: id });
       });
       return this.detail(id, user);
@@ -204,24 +203,20 @@ export class FitToursService {
     const targetId = this.requiredText(targetTourId, 'Cần chọn tour đích');
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
-    await this.detail(targetId, user);
-    const budgetRows = source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source);
+    const target = await this.detail(targetId, user);
+    const targetRootId = this.requiredTourRootId(target);
+    const budgetRows = this.toCopiedBudgetRows(source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source));
 
     await this.prisma.$transaction(async (tx) => {
+      await this.syncTourCoreFromFit(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
       await tx.fitBudgetService.deleteMany({ where: { fitTourId: targetId } });
       await tx.fitBudgetService.createMany({
         data: budgetRows.map((row) => ({
           fitTourId: targetId,
-          serviceType: row.serviceType,
-          supplierId: row.supplierId || null,
-          description: row.description || null,
-          quantity: this.number(row.quantity),
-          unitPrice: this.number('unitPrice' in row ? row.unitPrice : 0),
-          vat: this.number(row.vat),
-          amount: this.number(row.amount),
-          notes: row.notes || null,
+          ...row,
         })),
       });
+      await this.tourCore.log(tx, targetRootId, 'COPY_FIT_BUDGET', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
     });
     return this.detail(targetId, user);
   }
@@ -230,26 +225,20 @@ export class FitToursService {
     const targetId = this.requiredText(targetTourId, 'Cần chọn tour đích');
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
-    await this.detail(targetId, user);
-    const rows = source.operationServices.length > 0 ? source.operationServices : source.budgetServices;
+    const target = await this.detail(targetId, user);
+    const targetRootId = this.requiredTourRootId(target);
+    const rows = this.toCopiedOperationRows(source.operationServices.length > 0 ? source.operationServices : source.budgetServices);
 
     await this.prisma.$transaction(async (tx) => {
+      await this.syncTourCoreFromFit(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
       await tx.fitOperationService.deleteMany({ where: { fitTourId: targetId } });
       await tx.fitOperationService.createMany({
         data: rows.map((row) => ({
           fitTourId: targetId,
-          serviceType: row.serviceType,
-          supplierId: row.supplierId || null,
-          supplierServiceId: 'supplierServiceId' in row ? row.supplierServiceId || null : null,
-          bookingCode: 'bookingCode' in row ? row.bookingCode || null : null,
-          quantity: this.number(row.quantity),
-          confirmedUnitPrice: this.number('confirmedUnitPrice' in row ? row.confirmedUnitPrice : row.unitPrice),
-          vat: this.number(row.vat),
-          amount: this.number(row.amount),
-          status: this.toServiceStatus('status' in row ? row.status : FitServiceStatus.WAITING),
-          notes: row.notes || null,
+          ...row,
         })),
       });
+      await this.tourCore.log(tx, targetRootId, 'COPY_FIT_OPERATION', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
     });
     return this.detail(targetId, user);
   }
@@ -357,7 +346,25 @@ export class FitToursService {
     if (!order) throw new NotFoundException('Khng tm thy n hng');
   }
 
-  private async replaceChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
+  private async syncTourRootFromFit(
+    tx: Prisma.TransactionClient,
+    current: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>,
+    dto: UpdateFitTourDto,
+  ) {
+    if (!current.tourId) {
+      const tour = await tx.tour.create({ data: this.toTourCoreData(dto, true) as Prisma.TourUncheckedCreateInput });
+      return tour.id;
+    }
+    await tx.tour.update({ where: { id: current.tourId }, data: this.toTourCoreData(dto, false) as Prisma.TourUncheckedUpdateInput });
+    return current.tourId;
+  }
+
+  private requiredTourRootId(fitTour: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>) {
+    if (!fitTour.tourId) throw new BadRequestException('Tour FIT chua lien ket Tour chung');
+    return fitTour.tourId;
+  }
+
+  private async syncLegacyFitChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
     if (dto.commonCosts !== undefined) {
       await tx.fitCommonCost.deleteMany({ where: { fitTourId } });
       await tx.fitCommonCost.createMany({ data: this.mapCommonCosts(dto.commonCosts).map((row) => ({ ...row, fitTourId })) });
@@ -396,7 +403,7 @@ export class FitToursService {
     }
   }
 
-  private async replaceTourCoreChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
+  private async syncTourCoreFromFit(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
     await this.tourCore.replaceCustomers(tx, tourId, [this.mapTourCustomer(dto)]);
     await this.tourCore.replaceGuides(tx, tourId, this.tourCore.mapGuides(dto.guides));
     await this.tourCore.replaceAttachments(tx, tourId, this.tourCore.mapAttachments(dto.attachments));
@@ -643,6 +650,34 @@ export class FitToursService {
       fileUrl: this.optionalText(row.fileUrl),
       mimeType: this.optionalText(row.mimeType),
       size: row.size === undefined || row.size === null ? null : this.number(row.size),
+    }));
+  }
+
+  private toCopiedBudgetRows(rows: unknown[]) {
+    return this.rows(rows).map((row) => ({
+      serviceType: this.text(row.serviceType || 'Dich vu'),
+      supplierId: this.optionalText(row.supplierId),
+      description: this.optionalText(row.description),
+      quantity: this.number(row.quantity),
+      unitPrice: this.number(row.unitPrice),
+      vat: this.number(row.vat),
+      amount: this.number(row.amount),
+      notes: this.optionalText(row.notes),
+    }));
+  }
+
+  private toCopiedOperationRows(rows: unknown[]) {
+    return this.rows(rows).map((row) => ({
+      serviceType: this.text(row.serviceType || 'Dich vu'),
+      supplierId: this.optionalText(row.supplierId),
+      supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
+      bookingCode: this.optionalText(row.bookingCode),
+      quantity: this.number(row.quantity),
+      confirmedUnitPrice: this.number(row.confirmedUnitPrice ?? row.unitPrice),
+      vat: this.number(row.vat),
+      amount: this.number(row.amount),
+      status: this.toServiceStatus(row.status || FitServiceStatus.WAITING),
+      notes: this.optionalText(row.notes),
     }));
   }
 

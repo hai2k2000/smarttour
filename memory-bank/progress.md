@@ -2,6 +2,22 @@
 
 ## Done
 
+- Started the FIT Tour-root P0 refactor from `tour-backend-issues.md`:
+  - Confirmed schema already has the common `Tour` root, common child tables,
+    and separate `TourStatus` / `FitTourWorkflowStatus` enums.
+  - FIT create/update now writes/syncs the common `Tour` root and common child
+    rows before writing the legacy FIT detail/child rows.
+  - FIT compatibility writes are isolated behind clearer helpers:
+    `syncTourRootFromFit`, `syncTourCoreFromFit`, and
+    `syncLegacyFitChildren`.
+  - `copyBudget()` and `copyOperation()` now keep common `tour_services` and
+    derived `tour_suppliers` in sync with legacy FIT copied rows.
+  - Added `scripts/test-fit-tour-root-contract.sh` for FIT create/update,
+    copy-budget, copy-operation, and remove behavior against the common
+    `Tour` aggregate.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Hardened Booking DTO and API contract:
   - Added explicit list query DTO validation for search/status/tour-program
     filters and `take`/`skip` bounds.

@@ -20,6 +20,24 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Started the `tour-backend-issues.md` P0 Tour-root refactor in FIT:
+  - Confirmed the common `Tour` root, common child tables, and separate
+    `TourStatus` / `FitTourWorkflowStatus` enums already exist in schema.
+  - Reordered FIT create/update so the common `Tour` root and common child
+    sync run before the legacy FIT detail/child writes.
+  - Renamed the FIT sync helpers around explicit ownership:
+    `syncTourRootFromFit`, `syncTourCoreFromFit`, and
+    `syncLegacyFitChildren`.
+  - Updated `copyBudget()` and `copyOperation()` so copy actions also refresh
+    common `tour_services` and derived `tour_suppliers`, not only the legacy
+    `fit_budget_services` / `fit_operation_services` rows.
+  - Added `scripts/test-fit-tour-root-contract.sh` to lock FIT create/update,
+    copy budget, copy operation, and remove behavior against the common
+    `Tour` root.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Hardened Booking DTO and controller/API contract:
   - Added `ListBookingsQueryDto` for `/api/bookings` query validation:
     normalized search/status filters and bounded `take`/`skip` paging.
