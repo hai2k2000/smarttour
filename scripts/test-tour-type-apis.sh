@@ -104,6 +104,19 @@ function assertTourTypeDtoContracts() {
   assert(!landCreateDtoContract.LANDTOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'LandTour date pattern should reject ISO datetime payloads');
 }
 
+function assertCommonToursServiceUsesTourCore() {
+  const fs = require('fs');
+  const source = fs.readFileSync('/workspace/apps/api/src/modules/tours/tours.service.ts', 'utf8');
+  assert(source.includes('tourCore.toTourData'), 'Common ToursService should map root writes through TourCoreService.toTourData');
+  assert(source.includes('tourCore.ensureDateRange'), 'Common ToursService should validate create date ranges through TourCoreService.ensureDateRange');
+  assert(source.includes('tourCore.ensureUpdatedDateRange'), 'Common ToursService should validate update date ranges through TourCoreService.ensureUpdatedDateRange');
+  assert(!/private\s+toTourData\s*\(/.test(source), 'Common ToursService should not keep a duplicate private toTourData mapper');
+  assert(!/private\s+optionalDate\s*\(/.test(source), 'Common ToursService should not keep a private date parser');
+  assert(!/private\s+requiredText\s*\(/.test(source), 'Common ToursService should not keep duplicate root requiredText validation');
+  assert(!/private\s+number\s*\(/.test(source), 'Common ToursService should not keep duplicate root number parsing');
+  assert(!/private\s+async\s+ensureOrder\s*\(/.test(source), 'Common ToursService should not keep duplicate order link validation');
+}
+
 function assertTourRootOrchestrationBoundaries() {
   const fs = require('fs');
   const services = [
@@ -140,6 +153,7 @@ async function jsonResponse(response) {
 
 async function main() {
   assertTourTypeDtoContracts();
+  assertCommonToursServiceUsesTourCore();
   assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');

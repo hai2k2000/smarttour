@@ -2,6 +2,14 @@
 
 ## Done
 
+- Removed duplicate common Tour root mapping from ToursService:
+  - Common `ToursService` now relies on `TourCoreService.toTourData()` and the
+    shared range helpers instead of keeping a stale private root mapper.
+  - Static tour-type tests guard against duplicate root mapping/date parsing
+    returning to common `ToursService`.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Normalized Tour date range validation:
   - Tour core now rejects `startDate > endDate` for root create/update writes
     and checks partial updates against existing stored dates.

@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1/P2 duplicate root mapping cleanup:
+  - Removed the stale private Tour root mapper and duplicate order/date/number
+    helpers from common `ToursService` after its create/update flow had moved
+    to `TourCoreService.toTourData()` and shared date-range helpers.
+  - Kept only the small query-normalization helper needed for `type`/`status`
+    filters in `ToursService`.
+  - `scripts/test-tour-type-apis.sh` now statically guards common
+    `ToursService` against reintroducing duplicate root mappers, private date
+    parsers, number parsers, required-text validation, or duplicate order-link
+    validation.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1 Tour date range validation normalization:
   - Added shared `TourCoreService.ensureDateRange()` and
     `ensureUpdatedDateRange()` so common Tour root writes reject

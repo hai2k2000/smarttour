@@ -162,59 +162,9 @@ export class ToursService {
     return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
   }
 
-  private toTourData(dto: UpdateTourDto, creating: boolean): Prisma.TourUncheckedCreateInput | Prisma.TourUncheckedUpdateInput {
-    return {
-      ...(creating ? { type: dto.type, systemCode: this.requiredText(dto.systemCode), tourCode: this.requiredText(dto.tourCode) } : {}),
-      ...(dto.type !== undefined ? { type: dto.type } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
-      ...(dto.paymentStatus !== undefined ? { paymentStatus: dto.paymentStatus } : {}),
-      ...(dto.workflowStep !== undefined ? { workflowStep: this.optionalText(dto.workflowStep) } : {}),
-      ...(dto.systemCode !== undefined ? { systemCode: dto.systemCode.trim().toUpperCase() } : {}),
-      ...(dto.orderId !== undefined ? { orderId: this.optionalText(dto.orderId) } : {}),
-      ...(dto.tourCode !== undefined ? { tourCode: dto.tourCode.trim().toUpperCase() } : {}),
-      ...(dto.name !== undefined ? { name: this.optionalText(dto.name) } : {}),
-      ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
-      ...(dto.productType !== undefined ? { productType: this.optionalText(dto.productType) } : {}),
-      ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
-      ...(dto.paymentDueDate !== undefined ? { paymentDueDate: this.optionalDate(dto.paymentDueDate) } : {}),
-      ...(dto.startDate !== undefined ? { startDate: this.optionalDate(dto.startDate) } : {}),
-      ...(dto.endDate !== undefined ? { endDate: this.optionalDate(dto.endDate) } : {}),
-      ...(dto.createdBy !== undefined ? { createdBy: this.optionalText(dto.createdBy) } : {}),
-      ...(dto.operatorOwner !== undefined ? { operatorOwner: this.optionalText(dto.operatorOwner) } : {}),
-      ...(dto.branch !== undefined ? { branch: this.optionalText(dto.branch) } : {}),
-      ...(dto.department !== undefined ? { department: this.optionalText(dto.department) } : {}),
-      ...(dto.customerSource !== undefined ? { customerSource: this.optionalText(dto.customerSource) } : {}),
-      ...(dto.exchangeRateCode !== undefined ? { exchangeRateCode: this.optionalText(dto.exchangeRateCode) } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.number(dto.exchangeRate) } : {}),
-      ...(dto.route !== undefined ? { route: this.optionalText(dto.route) } : {}),
-      ...(dto.flightRoute !== undefined ? { flightRoute: this.optionalText(dto.flightRoute) } : {}),
-      ...(dto.pickupPoint !== undefined ? { pickupPoint: this.optionalText(dto.pickupPoint) } : {}),
-      ...(dto.dropoffPoint !== undefined ? { dropoffPoint: this.optionalText(dto.dropoffPoint) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
-    };
-  }
-
-  private async ensureOrder(orderId?: string) {
-    const id = this.optionalText(orderId);
-    if (!id) return;
-    const row = await this.prisma.order.findUnique({ where: { id }, select: { id: true } });
-    if (!row) throw new NotFoundException('Không tìm thấy đơn hàng');
-  }
-
-  private requiredText(value?: string) {
-    const text = value?.trim();
-    if (!text) throw new BadRequestException('Thiếu trường bắt buộc của tour');
-    return text.toUpperCase();
-  }
-
   private optionalText(value?: unknown) {
     const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     return text ? text : null;
-  }
-
-  private optionalDate(value?: string) {
-    const text = value?.trim();
-    return text ? new Date(text) : null;
   }
 
   private toTourType(type?: string | TourType | null) {
@@ -231,11 +181,6 @@ export class ToursService {
     const normalized = value.toUpperCase();
     if (Object.values(TourStatus).includes(normalized as TourStatus)) return normalized as TourStatus;
     throw new BadRequestException('Trạng thái tour không hợp lệ');
-  }
-
-  private number(value?: number) {
-    const parsed = Number(value || 0);
-    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private actor(user?: RequestUser) {
