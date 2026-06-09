@@ -2,6 +2,15 @@
 
 ## Done
 
+- Standardized GIT/LandTour DTO field contracts:
+  - GIT and LandTour DTOs now export grouped create/update field contracts for
+    common root fields, lifecycle status, workflow step, linked/customer data,
+    product detail fields, legacy aliases, and child collections.
+  - Tour-type tests lock route/itinerary ownership and keep lifecycle
+    `status` separate from `workflowStep`.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Centralized common Tour child replacement orchestration:
   - `TourCoreService.replaceCommonChildren()` now owns the replace sequence for
     common customers, revenues, costs, services/suppliers, guides,

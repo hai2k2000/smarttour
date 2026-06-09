@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 DTO/validation contract normalization for GIT and LandTour:
+  - Added explicit DTO field groups for GIT and LandTour create/update
+    contracts: common Tour root, lifecycle status, workflow step,
+    linked/customer data, product detail fields, legacy aliases, and child
+    collections.
+  - GIT now classifies `route` as common Tour root data,
+    `itinerarySummary` as GIT detail data, and `agentName` as linked/customer
+    data rather than a pure detail field.
+  - LandTour now classifies `route` as common Tour root data and keeps
+    `itinerarySummary` only as a legacy route alias, not detail data.
+  - `scripts/test-tour-type-apis.sh` now guards the GIT/LandTour DTO field
+    groups and verifies `status` stays separate from `workflowStep`.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1 common child orchestration cleanup:
   - Added `TourCommonChildren` and `TourCoreService.replaceCommonChildren()`
     so common customer, revenue, cost, service/supplier, guide, attachment,

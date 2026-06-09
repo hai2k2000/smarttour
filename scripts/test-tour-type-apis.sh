@@ -34,6 +34,10 @@ const { ValidationPipe } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('./apps/api/dist/app.module');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const gitCreateDtoContract = require('./apps/api/dist/modules/git-tours/dto/create-git-tour.dto');
+const gitUpdateDtoContract = require('./apps/api/dist/modules/git-tours/dto/update-git-tour.dto');
+const landCreateDtoContract = require('./apps/api/dist/modules/landtours/dto/create-landtour.dto');
+const landUpdateDtoContract = require('./apps/api/dist/modules/landtours/dto/update-landtour.dto');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -41,6 +45,59 @@ function assert(condition, label) {
 
 function tokenHash(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function assertGroupedDtoContract(label, groups, createFields, updateFields) {
+  const groupedFields = groups.flat();
+  assert(groupedFields.length === new Set(groupedFields).size, `${label} DTO field groups should not overlap`);
+  assert(JSON.stringify(groupedFields) === JSON.stringify(createFields), `${label} create fields should be exactly grouped fields`);
+  assert(JSON.stringify(updateFields) === JSON.stringify(createFields), `${label} update should reuse the approved create/edit field surface`);
+}
+
+function assertTourTypeDtoContracts() {
+  assertGroupedDtoContract(
+    'GIT',
+    [
+      gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS,
+      gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS,
+      gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS,
+      gitCreateDtoContract.GIT_TOUR_LINK_AND_CUSTOMER_FIELDS,
+      gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS,
+      gitCreateDtoContract.GIT_TOUR_CHILD_FIELDS,
+    ],
+    gitCreateDtoContract.GIT_TOUR_CREATE_FIELDS,
+    gitUpdateDtoContract.GIT_TOUR_UPDATE_FIELDS,
+  );
+  assert(gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS.includes('route'), 'GIT route should be a common Tour root field');
+  assert(gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('itinerarySummary'), 'GIT itinerarySummary should remain a GIT detail field');
+  assert(gitCreateDtoContract.GIT_TOUR_LINK_AND_CUSTOMER_FIELDS.includes('agentName'), 'GIT agentName should be grouped with linked/customer data');
+  assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('agentName'), 'GIT agentName should not be classified as a pure detail field');
+  assert(gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('status'), 'GIT status should be grouped as lifecycle status');
+  assert(!gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('status'), 'GIT workflow fields should not include lifecycle status');
+  assert(gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'GIT workflowStep should be grouped as workflow');
+  assert(!gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'GIT lifecycle fields should not include workflowStep');
+
+  assertGroupedDtoContract(
+    'LandTour',
+    [
+      landCreateDtoContract.LANDTOUR_ROOT_FIELDS,
+      landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS,
+      landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS,
+      landCreateDtoContract.LANDTOUR_LINK_AND_CUSTOMER_FIELDS,
+      landCreateDtoContract.LANDTOUR_LEGACY_ALIAS_FIELDS,
+      landCreateDtoContract.LANDTOUR_DETAIL_FIELDS,
+      landCreateDtoContract.LANDTOUR_CHILD_FIELDS,
+    ],
+    landCreateDtoContract.LANDTOUR_CREATE_FIELDS,
+    landUpdateDtoContract.LANDTOUR_UPDATE_FIELDS,
+  );
+  assert(landCreateDtoContract.LANDTOUR_ROOT_FIELDS.includes('route'), 'LandTour route should be a common Tour root field');
+  assert(landCreateDtoContract.LANDTOUR_LEGACY_ALIAS_FIELDS.includes('itinerarySummary'), 'LandTour itinerarySummary should only remain a legacy route alias');
+  assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('itinerarySummary'), 'LandTour itinerarySummary should not be classified as detail data');
+  assert(landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('status'), 'LandTour status should be grouped as lifecycle status');
+  assert(!landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('status'), 'LandTour workflow fields should not include lifecycle status');
+  assert(landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'LandTour workflowStep should be grouped as workflow');
+  assert(!landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'LandTour lifecycle fields should not include workflowStep');
 }
 
 function assertTourRootOrchestrationBoundaries() {
@@ -78,6 +135,7 @@ async function jsonResponse(response) {
 }
 
 async function main() {
+  assertTourTypeDtoContracts();
   assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');

@@ -186,3 +186,70 @@ export class CreateLandTourDto {
   @IsArray()
   surveyQuestions?: unknown[];
 }
+
+export const LANDTOUR_ROOT_FIELDS = [
+  'systemCode',
+  'tourCode',
+  'orderId',
+  'name',
+  'paymentStatus',
+  'route',
+  'marketGroup',
+  'bookingDate',
+  'paymentDueDate',
+  'startDate',
+  'endDate',
+  'operatorOwner',
+  'branch',
+  'department',
+  'customerSource',
+  'exchangeRateCode',
+  'exchangeRate',
+  'notes',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_LIFECYCLE_FIELDS = [
+  'status',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_WORKFLOW_FIELDS = [
+  'workflowStep',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_LINK_AND_CUSTOMER_FIELDS = [
+  'customerName',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_LEGACY_ALIAS_FIELDS = [
+  'itinerarySummary',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_DETAIL_FIELDS = [
+  'guideName',
+  'comboType',
+  'autoTermsEnabled',
+  'smartLinkCode',
+  'confirmationNote',
+  'termsVi',
+  'termsEn',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_CHILD_FIELDS = [
+  'revenues',
+  'costs',
+  'salesServices',
+  'operationServices',
+  'guides',
+  'attachments',
+  'surveyQuestions',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_CREATE_FIELDS = [
+  ...LANDTOUR_ROOT_FIELDS,
+  ...LANDTOUR_LIFECYCLE_FIELDS,
+  ...LANDTOUR_WORKFLOW_FIELDS,
+  ...LANDTOUR_LINK_AND_CUSTOMER_FIELDS,
+  ...LANDTOUR_LEGACY_ALIAS_FIELDS,
+  ...LANDTOUR_DETAIL_FIELDS,
+  ...LANDTOUR_CHILD_FIELDS,
+] as const satisfies readonly (keyof CreateLandTourDto)[];

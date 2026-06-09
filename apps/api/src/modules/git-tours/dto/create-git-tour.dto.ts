@@ -188,3 +188,66 @@ export class CreateGitTourDto {
   @IsArray()
   surveyQuestions?: unknown[];
 }
+
+export const GIT_TOUR_ROOT_FIELDS = [
+  'systemCode',
+  'tourCode',
+  'orderId',
+  'name',
+  'paymentStatus',
+  'route',
+  'marketGroup',
+  'bookingDate',
+  'paymentDueDate',
+  'startDate',
+  'endDate',
+  'operatorOwner',
+  'branch',
+  'department',
+  'customerSource',
+  'exchangeRateCode',
+  'exchangeRate',
+  'notes',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_LIFECYCLE_FIELDS = [
+  'status',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_WORKFLOW_FIELDS = [
+  'workflowStep',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_LINK_AND_CUSTOMER_FIELDS = [
+  'customerName',
+  'agentName',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_DETAIL_FIELDS = [
+  'holdCode',
+  'itinerarySummary',
+  'collaborator',
+  'commissionRate',
+  'invoiceStatus',
+  'accountCode',
+  'fileNote',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_CHILD_FIELDS = [
+  'revenues',
+  'costs',
+  'budgetServices',
+  'operationServices',
+  'guides',
+  'attachments',
+  'surveyQuestions',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_CREATE_FIELDS = [
+  ...GIT_TOUR_ROOT_FIELDS,
+  ...GIT_TOUR_LIFECYCLE_FIELDS,
+  ...GIT_TOUR_WORKFLOW_FIELDS,
+  ...GIT_TOUR_LINK_AND_CUSTOMER_FIELDS,
+  ...GIT_TOUR_DETAIL_FIELDS,
+  ...GIT_TOUR_CHILD_FIELDS,
+] as const satisfies readonly (keyof CreateGitTourDto)[];
