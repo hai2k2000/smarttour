@@ -130,6 +130,14 @@ async function main() {
     'patch common tour',
   );
   assert(patchedCommonTour.status === 'RUNNING', 'common tour PATCH should update status');
+  const workflowPatchedCommonTour = await expect(
+    `/api/tours/${commonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ workflowStep: 'COMMON_REVIEW' }) },
+    200,
+    'patch common tour workflow step',
+  );
+  assert(workflowPatchedCommonTour.workflowStep === 'COMMON_REVIEW', 'common tour PATCH should update workflowStep');
+  assert(workflowPatchedCommonTour.status === 'RUNNING', 'common tour workflowStep PATCH should not change lifecycle status');
   await expect('/api/tours?type=fit', {}, 200, 'common tours lowercase type query');
   await expect('/api/tours?status=running', {}, 200, 'common tours lowercase status query');
   await expect('/api/tours?type=WRONG', {}, 400, 'common tours invalid type query');
@@ -174,7 +182,21 @@ async function main() {
     'create GIT tour',
   );
   assert(gitTour.id, 'GIT create should return id');
-  await expect(`/api/git-tours/${gitTour.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) }, 200, 'patch GIT tour');
+  const patchedGitTour = await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    200,
+    'patch GIT tour',
+  );
+  assert(patchedGitTour.status === 'RUNNING', 'GIT PATCH should update lifecycle status');
+  const workflowPatchedGitTour = await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ workflowStep: 'GIT_COSTING' }) },
+    200,
+    'patch GIT workflow step',
+  );
+  assert(workflowPatchedGitTour.workflowStep === 'GIT_COSTING', 'GIT PATCH should update workflowStep');
+  assert(workflowPatchedGitTour.status === 'RUNNING', 'GIT workflowStep PATCH should not change lifecycle status');
   await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
 
@@ -199,6 +221,14 @@ async function main() {
     'patch LandTour',
   );
   assert(patchedLandTour.status === 'RUNNING', 'LandTour PATCH should update status');
+  const workflowPatchedLandTour = await expect(
+    `/api/landtours/${landTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ workflowStep: 'LANDTOUR_COSTING' }) },
+    200,
+    'patch LandTour workflow step',
+  );
+  assert(workflowPatchedLandTour.workflowStep === 'LANDTOUR_COSTING', 'LandTour PATCH should update workflowStep');
+  assert(workflowPatchedLandTour.status === 'RUNNING', 'LandTour workflowStep PATCH should not change lifecycle status');
   await expect('/api/landtours?status=running', {}, 200, 'LandTour lowercase status query');
   await expect('/api/landtours?status=WRONG', {}, 400, 'LandTour invalid status query');
 

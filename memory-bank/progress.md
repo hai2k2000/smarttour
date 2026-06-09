@@ -2,6 +2,17 @@
 
 ## Done
 
+- Separated common Tour lifecycle status from workflow-step updates:
+  - Generic `workflowStep` writes no longer reset `Tour.status` to
+    `UPCOMING`; only modules with an explicit workflow-to-status mapper may
+    derive lifecycle status from workflow.
+  - FIT declares `allowStatusInput: false` and `allowWorkflowStepInput: false`
+    at the Tour core boundary while retaining its `workflowStatus` mapper.
+  - Common Tour, GIT, and LandTour tests now assert workflow-step patches
+    preserve lifecycle status.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Clarified the FIT DTO contract around the common Tour root:
   - FIT create/update fields are grouped into root, link/customer, workflow,
     FIT detail, and child collection surfaces.

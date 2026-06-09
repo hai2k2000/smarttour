@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued separating common `TourStatus` lifecycle from tour workflow:
+  - `TourCoreService` no longer derives `Tour.status` from an arbitrary
+    `workflowStep`; lifecycle status is now derived from workflow only when a
+    module provides an explicit `statusFromWorkflow` mapper.
+  - FIT keeps the explicit workflow-to-lifecycle mapper and now declares at
+    the Tour core boundary that raw `status` and `workflowStep` payload fields
+    are not accepted for FIT root sync.
+  - Common Tour, GIT, and LandTour workflow-step updates now preserve existing
+    lifecycle `status`; lifecycle updates continue to use explicit `status`
+    writes.
+  - Regression coverage was added to `scripts/test-tour-type-apis.sh` and the
+    FIT root contract guard was tightened.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued the `tour-backend-issues.md` P0 FIT DTO/source-of-truth cleanup:
   - `CreateFitTourDto` now publishes explicit field groups for common Tour
     root fields, link/customer fields, FIT workflow, FIT detail fields, and

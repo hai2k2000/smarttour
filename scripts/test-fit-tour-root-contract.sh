@@ -79,6 +79,8 @@ function assertLegacyCompatBoundary() {
   for (const helper of ['createFitTourAggregate', 'updateFitTourAggregate', 'removeFitTourAggregate', 'copyFitBudgetAggregate', 'copyFitOperationAggregate']) {
     assert(serviceSource.includes(helper), `FitToursService should keep orchestration helper ${helper}`);
   }
+  assert(serviceSource.includes('allowStatusInput: false'), 'FIT Tour root sync should reject direct TourStatus payloads at TourCore boundary');
+  assert(serviceSource.includes('allowWorkflowStepInput: false'), 'FIT Tour root sync should reject raw workflowStep payloads at TourCore boundary');
 }
 
 async function main() {

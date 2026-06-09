@@ -18,6 +18,8 @@ export type TourRootConfig = {
   defaultStatus?: TourStatus;
   defaultProductType?: string;
   statusFromWorkflow?: (workflowStep: string) => TourStatus;
+  allowStatusInput?: boolean;
+  allowWorkflowStepInput?: boolean;
 };
 
 @Injectable()
@@ -36,8 +38,12 @@ export class TourCoreService {
     const routeField = config.routeField || 'route';
     const notesField = config.notesField || 'notes';
     const workflowField = config.workflowField || 'workflowStep';
-    const workflowStep = this.pickText(dto, workflowField) || this.pickText(dto, 'workflowStep') || (creating ? config.defaultWorkflowStep : undefined);
-    const status = this.pickText(dto, 'status') as TourStatus | undefined;
+    const workflowStep =
+      this.pickText(dto, workflowField) ||
+      (config.allowWorkflowStepInput === false ? undefined : this.pickText(dto, 'workflowStep')) ||
+      (creating ? config.defaultWorkflowStep : undefined);
+    const status = config.allowStatusInput === false ? undefined : (this.pickText(dto, 'status') as TourStatus | undefined);
+    const statusFromWorkflow = workflowStep ? this.statusFromWorkflow(workflowStep, config) : undefined;
 
     return {
       ...(creating
@@ -48,7 +54,7 @@ export class TourCoreService {
           }
         : {}),
       ...(dto.type !== undefined ? { type: config.type } : {}),
-      ...(status ? { status } : workflowStep ? { status: this.statusFromWorkflow(workflowStep, config) } : creating ? { status: config.defaultStatus || TourStatus.UPCOMING } : {}),
+      ...(status ? { status } : statusFromWorkflow ? { status: statusFromWorkflow } : creating ? { status: config.defaultStatus || TourStatus.UPCOMING } : {}),
       ...(dto.paymentStatus !== undefined ? { paymentStatus: dto.paymentStatus as PaymentStatus } : creating ? { paymentStatus: PaymentStatus.UNPAID } : {}),
       ...(workflowStep !== undefined ? { workflowStep } : {}),
       ...(dto[systemCodeField] !== undefined ? { systemCode: this.requiredText(dto[systemCodeField], 'systemCode').toUpperCase() } : {}),
@@ -322,7 +328,7 @@ export class TourCoreService {
   }
 
   private statusFromWorkflow(workflowStep: string, config: TourRootConfig) {
-    return config.statusFromWorkflow ? config.statusFromWorkflow(workflowStep) : TourStatus.UPCOMING;
+    return config.statusFromWorkflow ? config.statusFromWorkflow(workflowStep) : undefined;
   }
 
   private pickText(dto: AnyRecord, field: string) {
