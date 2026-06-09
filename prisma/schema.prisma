@@ -2281,6 +2281,7 @@ model GitTourDetail {
   tour             Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
   holdCode         String?
   itinerarySummary String?
+  /// Legacy snapshot only. Canonical value is TourCustomer where customerType is AGENT; application services must not write this after the common-root migration.
   agentName        String?
   collaborator     String?
   commissionRate   Decimal  @default(0)

@@ -20,6 +20,20 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 GIT link/customer ownership cleanup:
+  - Stopped writing `agentName` into `GitTourDetail`; GIT agents now live in
+    common `tour_customers` rows with `customerType = AGENT`.
+  - Added a response overlay so existing GIT API/UI consumers still receive
+    `gitTour.agentName`, derived from the common agent customer row.
+  - Marked legacy `GitTourDetail.agentName` as a read-only snapshot in schema
+    comments and migration notes.
+  - Extended tour-type regression to verify legacy detail `agentName` stays
+    null, the common AGENT customer row is written, list search finds the
+    agent, and list responses keep the primary customer focused.
+  - VPS verification passed on 2026-06-09: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 field ownership and legacy-read-only cleanup:
   - Documented the common Tour root vs product extension ownership matrix in
     `docs/tour-migration-notes.md`.

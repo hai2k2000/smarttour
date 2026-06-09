@@ -168,9 +168,11 @@ function assertTourRootOrchestrationBoundaries() {
     const detailMapperStart = source.indexOf(detailMapperName);
     assert(detailMapperStart >= 0, `${label} should keep a detail mapper boundary`);
     const detailMapper = source.slice(detailMapperStart);
-    for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
+    const forbiddenDetailFields = ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes'];
+    if (label === 'GIT') forbiddenDetailFields.push('agentName');
+    for (const field of forbiddenDetailFields) {
       const pattern = new RegExp('dto\\.' + field + '\\b');
-      assert(!pattern.test(detailMapper), `${label} detail mapper should not write common root field ${field}`);
+      assert(!pattern.test(detailMapper), `${label} detail mapper should not write common root/link field ${field}`);
     }
     assert(!source.includes('Kh?ng t?m th?y') && !source.includes('M? h? th?ng'), `${label} should not contain mojibake Vietnamese messages`);
   }
@@ -178,8 +180,10 @@ function assertTourRootOrchestrationBoundaries() {
   for (const field of ['branch', 'department', 'customerSource']) {
     assert(schemaSource.includes(`Canonical value is Tour.${field}`), `GitTourDetail legacy ${field} schema note should point to Tour.${field}`);
   }
+  assert(schemaSource.includes('Canonical value is TourCustomer where customerType is AGENT'), 'GitTourDetail legacy agentName schema note should point to TourCustomer AGENT');
   const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
   assert(migrationNotes.includes('Field Ownership Matrix'), 'Tour migration notes should document the field ownership matrix');
+  assert(migrationNotes.includes('git_tour_details.agentName'), 'Tour migration notes should mark legacy GIT agent snapshot read-only');
   assert(migrationNotes.includes('git_tour_details.branch'), 'Tour migration notes should mark legacy GIT scope snapshots read-only');
 }
 
@@ -391,6 +395,8 @@ async function main() {
         name: 'Tour type API GIT tour',
         route: 'Tour type API GIT common route',
         itinerarySummary: 'Tour type API GIT detail itinerary',
+        customerName: 'Tour type API GIT customer',
+        agentName: 'Tour type API GIT agent',
         startDate: '2026-08-01',
         endDate: '2026-08-03',
         budgetServices: [{ serviceType: 'GIT_HOTEL', description: 'GIT copied budget service', quantity: 2, unitPrice: 1000, amount: 2000 }],
@@ -402,6 +408,15 @@ async function main() {
   assert(gitTour.id, 'GIT create should return id');
   assert(gitTour.route === 'Tour type API GIT common route', 'GIT root route should use the common route field');
   assert(gitTour.gitTour.itinerarySummary === 'Tour type API GIT detail itinerary', 'GIT detail should keep itinerarySummary separate from root route');
+  assert(gitTour.gitTour.agentName === 'Tour type API GIT agent', 'GIT response should expose agentName from common TourCustomer AGENT row');
+  const rawGitDetail = await prisma.gitTourDetail.findUnique({ where: { tourId: gitTour.id } });
+  const gitAgentCustomer = await prisma.tourCustomer.findFirst({ where: { tourId: gitTour.id, customerType: 'AGENT' } });
+  assert(rawGitDetail && rawGitDetail.agentName === null, 'GIT detail should not write legacy agentName snapshot');
+  assert(gitAgentCustomer && gitAgentCustomer.name === 'Tour type API GIT agent', 'GIT agentName should be stored as common TourCustomer AGENT row');
+  const gitListRows = await expect('/api/git-tours?search=Tour%20type%20API%20GIT%20agent', {}, 200, 'GIT list should search common agent customer');
+  const gitListRow = gitListRows.find((row) => row.id === gitTour.id);
+  assert(gitListRow && gitListRow.gitTour.agentName === 'Tour type API GIT agent', 'GIT list should overlay agentName from common TourCustomer AGENT row');
+  assert(gitListRow.customers.length === 1 && gitListRow.customers[0].name === 'Tour type API GIT customer', 'GIT list should keep customer list focused on the primary customer');
   await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ endDate: '2026-07-31' }) },

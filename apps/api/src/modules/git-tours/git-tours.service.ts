@@ -11,7 +11,7 @@ type Row = Record<string, unknown>;
 
 const gitTourInclude = {
   gitTour: true,
-  customers: true,
+  customers: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
   suppliers: true,
   revenues: true,
   services: { include: { supplier: true } },
@@ -26,7 +26,7 @@ const gitTourInclude = {
 export class GitToursService {
   constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
-  list(search?: string, status?: string | TourStatus, user?: RequestUser) {
+  async list(search?: string, status?: string | TourStatus, user?: RequestUser) {
     const tourStatus = this.toTourStatus(status);
     const searchText = normalizeListSearch(search);
     const contains = searchText ? containsSearch(searchText) : undefined;
@@ -46,21 +46,25 @@ export class GitToursService {
         : {}),
     };
 
-    return this.prisma.tour.findMany({
+    const tours = await this.prisma.tour.findMany({
       where: this.tourCore.scopeWhere(where, user),
       include: {
         gitTour: true,
-        customers: { where: { isPrimary: true }, take: 1 },
+        customers: {
+          where: { OR: [{ isPrimary: true }, { customerType: 'AGENT' }] },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        },
         _count: { select: { revenues: true, services: true, costs: true } },
       },
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
+    return tours.map((tour) => this.withGitCustomerSnapshot(tour, false));
   }
 
   async detail(id: string, user?: RequestUser) {
     const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.GIT }, user), include: gitTourInclude });
     if (!tour) throw new NotFoundException('Không tìm thấy tour GIT');
-    return tour;
+    return this.withGitCustomerSnapshot(tour);
   }
 
   async create(dto: CreateGitTourDto, user?: RequestUser) {
@@ -157,13 +161,28 @@ export class GitToursService {
     return {
       ...(dto.holdCode !== undefined ? { holdCode: this.optionalText(dto.holdCode) } : {}),
       ...(dto.itinerarySummary !== undefined ? { itinerarySummary: this.optionalText(dto.itinerarySummary) } : {}),
-      ...(dto.agentName !== undefined ? { agentName: this.optionalText(dto.agentName) } : {}),
       ...(dto.collaborator !== undefined ? { collaborator: this.optionalText(dto.collaborator) } : {}),
       ...(dto.commissionRate !== undefined ? { commissionRate: this.number(dto.commissionRate) } : {}),
       ...(dto.invoiceStatus !== undefined ? { invoiceStatus: this.optionalText(dto.invoiceStatus) } : {}),
       ...(dto.accountCode !== undefined ? { accountCode: this.optionalText(dto.accountCode) } : {}),
       ...(dto.fileNote !== undefined ? { fileNote: this.optionalText(dto.fileNote) } : {}),
     };
+  }
+
+  private withGitCustomerSnapshot<
+    T extends {
+      gitTour: (Record<string, unknown> & { agentName?: string | null }) | null;
+      customers?: Array<{ customerType?: string | null; isPrimary?: boolean | null; name?: string | null }>;
+    },
+  >(tour: T, keepAgentCustomer = true): T {
+    const customers = Array.isArray(tour.customers) ? tour.customers : [];
+    const agentName = this.optionalText(customers.find((customer) => customer.customerType === 'AGENT')?.name) || this.optionalText(tour.gitTour?.agentName);
+    const visibleCustomers = keepAgentCustomer ? customers : customers.filter((customer) => customer.customerType !== 'AGENT');
+    return {
+      ...tour,
+      customers: visibleCustomers,
+      gitTour: tour.gitTour ? { ...tour.gitTour, agentName } : tour.gitTour,
+    } as T;
   }
 
   private text(value: unknown) {

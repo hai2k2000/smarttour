@@ -790,6 +790,13 @@
 - Extended tour-type regression guards so GIT/LandTour DTO detail groups and detail mappers cannot reintroduce common root fields.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
+- Continued P2 GIT link/customer ownership cleanup.
+- Stopped writing `agentName` into `GitTourDetail`; GIT agents now live in common `tour_customers` rows with `customerType = AGENT`.
+- Added a response overlay so existing GIT API/UI consumers still receive `gitTour.agentName`, derived from the common agent customer row.
+- Marked legacy `GitTourDetail.agentName` as a read-only snapshot in schema comments and migration notes.
+- Extended tour-type regression to verify legacy detail `agentName` stays null, the common AGENT customer row is written, list search finds the agent, and list responses keep the primary customer focused.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.
