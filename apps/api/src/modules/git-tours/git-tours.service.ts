@@ -118,28 +118,7 @@ export class GitToursService {
     if (!source) throw new NotFoundException('Kh?ng t?m th?y tour ngu?n');
 
     await this.prisma.$transaction(async (tx) => {
-      const services = source.services.map((service) => ({
-          tourId: '',
-          serviceType: service.serviceType,
-          supplierId: service.supplierId,
-          supplierServiceId: service.supplierServiceId,
-          serviceDate: service.serviceDate,
-          description: service.description,
-          quantity: service.quantity,
-          unit: service.unit,
-          currency: service.currency,
-          exchangeRate: service.exchangeRate,
-          salesUnitPrice: service.salesUnitPrice,
-          budgetUnitPrice: service.budgetUnitPrice,
-          confirmedUnitPrice: service.confirmedUnitPrice,
-          vat: service.vat,
-          salesAmount: service.salesAmount,
-          budgetAmount: service.budgetAmount,
-          confirmedAmount: service.confirmedAmount,
-          confirmationStatus: service.confirmationStatus,
-          bookingCode: service.bookingCode,
-          notes: service.notes,
-      }));
+      const services = this.tourCore.cloneServicesForCopy(source.services);
       await this.tourCore.replaceServices(tx, targetTourId, services);
       await this.tourCore.replaceSuppliers(tx, targetTourId, this.tourCore.suppliersFromServices(services, 'GIT_SERVICE'));
     });

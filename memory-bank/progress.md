@@ -2,6 +2,16 @@
 
 ## Done
 
+- Standardized GIT/LandTour copy-services mapping through TourCore:
+  - `TourCoreService.cloneServicesForCopy()` now owns the common
+    `tour_services` clone row shape.
+  - GIT and LandTour copy actions use the shared helper and no longer inline
+    common service mapping.
+  - Tour-type API tests cover static boundaries and runtime copy-services for
+    both modules.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Began P1 by separating common route from itinerary summary:
   - `CreateGitTourDto` and `CreateLandTourDto` now accept `route` for the
     common `Tour.route` field.

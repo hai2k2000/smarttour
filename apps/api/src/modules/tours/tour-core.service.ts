@@ -316,6 +316,31 @@ export class TourCoreService {
     }));
   }
 
+  cloneServicesForCopy(services: Prisma.TourServiceCreateManyInput[]): Prisma.TourServiceCreateManyInput[] {
+    return services.map((service) => ({
+      tourId: '',
+      serviceType: service.serviceType,
+      supplierId: service.supplierId,
+      supplierServiceId: service.supplierServiceId,
+      serviceDate: service.serviceDate,
+      description: service.description,
+      quantity: service.quantity,
+      unit: service.unit,
+      currency: service.currency,
+      exchangeRate: service.exchangeRate,
+      salesUnitPrice: service.salesUnitPrice,
+      budgetUnitPrice: service.budgetUnitPrice,
+      confirmedUnitPrice: service.confirmedUnitPrice,
+      vat: service.vat,
+      salesAmount: service.salesAmount,
+      budgetAmount: service.budgetAmount,
+      confirmedAmount: service.confirmedAmount,
+      confirmationStatus: service.confirmationStatus,
+      bookingCode: service.bookingCode,
+      notes: service.notes,
+    }));
+  }
+
   suppliersFromServices(services: Prisma.TourServiceCreateManyInput[], defaultRole = 'SERVICE'): Prisma.TourSupplierCreateManyInput[] {
     const suppliers = new Map<string, Prisma.TourSupplierCreateManyInput>();
     for (const service of services) {

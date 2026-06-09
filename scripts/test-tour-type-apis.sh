@@ -53,8 +53,10 @@ function assertTourRootOrchestrationBoundaries() {
     const source = fs.readFileSync(file, 'utf8');
     assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
     assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
+    assert(source.includes('tourCore.cloneServicesForCopy'), `${label} copyServices should use TourCoreService.cloneServicesForCopy`);
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
     assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
+    assert(!/source\.services\.map\(\(service\)/.test(source), `${label} should not inline common TourService copy mapping`);
   }
 }
 
@@ -194,6 +196,7 @@ async function main() {
         name: 'Tour type API GIT tour',
         route: 'Tour type API GIT common route',
         itinerarySummary: 'Tour type API GIT detail itinerary',
+        budgetServices: [{ serviceType: 'GIT_HOTEL', description: 'GIT copied budget service', quantity: 2, unitPrice: 1000, amount: 2000 }],
       }),
     },
     201,
@@ -217,6 +220,27 @@ async function main() {
   );
   assert(workflowPatchedGitTour.workflowStep === 'GIT_COSTING', 'GIT PATCH should update workflowStep');
   assert(workflowPatchedGitTour.status === 'RUNNING', 'GIT workflowStep PATCH should not change lifecycle status');
+  const gitCopyTarget = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-COPY-SYS`,
+        tourCode: `${run}-GIT-COPY`,
+        name: 'Tour type API GIT copy target',
+      }),
+    },
+    201,
+    'create GIT copy target',
+  );
+  const copiedGitServices = await expect(
+    `/api/git-tours/${gitCopyTarget.id}/copy-services`,
+    { method: 'POST', body: JSON.stringify({ sourceTourId: gitTour.id }) },
+    201,
+    'copy GIT services',
+  );
+  assert(copiedGitServices.services.length === 1, 'GIT copy-services should copy common TourService rows');
+  assert(copiedGitServices.services[0].serviceType === 'GIT_HOTEL', 'GIT copy-services should preserve serviceType through TourCore clone helper');
   await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
 
@@ -230,6 +254,7 @@ async function main() {
         name: 'Tour type API LandTour',
         route: 'Tour type API LandTour common route',
         itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
+        salesServices: [{ serviceType: 'LAND_CAR', description: 'LandTour copied sales service', quantity: 1, unitPrice: 1500, amount: 1500 }],
       }),
     },
     201,
@@ -252,6 +277,27 @@ async function main() {
   );
   assert(workflowPatchedLandTour.workflowStep === 'LANDTOUR_COSTING', 'LandTour PATCH should update workflowStep');
   assert(workflowPatchedLandTour.status === 'RUNNING', 'LandTour workflowStep PATCH should not change lifecycle status');
+  const landCopyTarget = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-COPY-SYS`,
+        tourCode: `${run}-LAND-COPY`,
+        name: 'Tour type API LandTour copy target',
+      }),
+    },
+    201,
+    'create LandTour copy target',
+  );
+  const copiedLandServices = await expect(
+    `/api/landtours/${landCopyTarget.id}/copy-services`,
+    { method: 'POST', body: JSON.stringify({ sourceTourId: landTour.id }) },
+    201,
+    'copy LandTour services',
+  );
+  assert(copiedLandServices.services.length === 1, 'LandTour copy-services should copy common TourService rows');
+  assert(copiedLandServices.services[0].serviceType === 'LAND_CAR', 'LandTour copy-services should preserve serviceType through TourCore clone helper');
   await expect('/api/landtours?status=running', {}, 200, 'LandTour lowercase status query');
   await expect('/api/landtours?status=WRONG', {}, 400, 'LandTour invalid status query');
 

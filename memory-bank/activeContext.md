@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 common child-service normalization:
+  - Added `TourCoreService.cloneServicesForCopy()` to own common
+    `tour_services` clone mapping for copy actions.
+  - GIT and LandTour `copyServices()` now delegate service-row cloning to the
+    Tour core helper, then refresh common services and derived suppliers.
+  - `scripts/test-tour-type-apis.sh` now statically rejects inline
+    `source.services.map(...)` copy mapping in GIT/LandTour services and
+    runtime-tests both copy-services endpoints.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Started P1 Tour backend normalization:
   - GIT and LandTour DTOs now expose `route` as the common Tour-root route
     field.
