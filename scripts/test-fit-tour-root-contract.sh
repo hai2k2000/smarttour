@@ -53,6 +53,9 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('legacyCompat.syncChildren'), 'FIT update should delegate legacy child sync to compatibility service');
   assert(serviceSource.includes('legacyCompat.replaceBudgetServices'), 'FIT copyBudget should delegate legacy budget replacement to compatibility service');
   assert(serviceSource.includes('legacyCompat.replaceOperationServices'), 'FIT copyOperation should delegate legacy operation replacement to compatibility service');
+  for (const helper of ['createFitTourAggregate', 'updateFitTourAggregate', 'removeFitTourAggregate', 'copyFitBudgetAggregate', 'copyFitOperationAggregate']) {
+    assert(serviceSource.includes(helper), `FitToursService should keep orchestration helper ${helper}`);
+  }
 }
 
 async function main() {

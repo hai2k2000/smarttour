@@ -20,6 +20,24 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued standardizing FIT create/update/remove/copy orchestration:
+  - `FitToursService` public create/update/remove/copy methods now delegate to
+    explicit aggregate helpers: `createFitTourAggregate`,
+    `updateFitTourAggregate`, `removeFitTourAggregate`,
+    `copyFitBudgetAggregate`, and `copyFitOperationAggregate`.
+  - Added preparation helpers for create/update validation and snapshot merge,
+    plus focused helpers for common Tour root creation, legacy FIT detail
+    creation/update, action logging, actor resolution, and unique-code conflict
+    handling.
+  - The FIT workflow now reads as common Tour orchestration first, legacy FIT
+    compatibility second, then log.
+  - `scripts/test-fit-tour-root-contract.sh` now statically asserts the
+    orchestration helper boundary in addition to the legacy compatibility
+    boundary.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued isolating FIT legacy dual-write behavior:
   - Moved FIT legacy child create/sync/copy responsibilities into
     `FitTourLegacyCompatService` (`toChildCreateData`, `syncChildren`,

@@ -2,6 +2,17 @@
 
 ## Done
 
+- Standardized FIT orchestration helpers:
+  - Public FIT create/update/remove/copy methods now delegate to aggregate
+    helpers instead of carrying transaction internals inline.
+  - Added helper boundaries for create/update preparation, Tour root creation,
+    legacy detail writes, action logging, actor resolution, and duplicate-code
+    conflicts.
+  - Test coverage now locks both the legacy compatibility boundary and the
+    orchestration helper boundary.
+  - Verified on VPS: API Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Isolated FIT legacy child writes behind the compatibility layer:
   - `FitTourLegacyCompatService` now owns legacy child create/sync/copy writes
     and row-shape mapping for FIT common costs, budget services, operation

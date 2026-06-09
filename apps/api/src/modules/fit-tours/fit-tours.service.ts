@@ -143,78 +143,31 @@ export class FitToursService {
   }
 
   async create(dto: CreateFitTourDto, user?: RequestUser) {
-    dto = applyWriteDataScope(dto as CreateFitTourDto & { branch?: string | null; department?: string | null }, user) as CreateFitTourDto;
+    const scopedDto = applyWriteDataScope(dto as CreateFitTourDto & { branch?: string | null; department?: string | null }, user) as CreateFitTourDto;
     try {
-      const created = await this.prisma.$transaction(async (tx) => {
-        const fitDto = await this.withCustomerSnapshot(tx, dto);
-        await this.tourCore.ensureOrder(tx, fitDto.orderId, user);
-        this.validateProvidedFields(fitDto, true);
-        this.validateFitTourBusinessRules(fitDto, true);
-        this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
-        const tour = await tx.tour.create({ data: this.toTourCoreData(fitDto, true) as Prisma.TourUncheckedCreateInput });
-        await this.syncTourCoreFromFit(tx, tour.id, fitDto);
-        const fitTour = await tx.fitTour.create({
-          data: {
-            ...this.toFitTourData(fitDto, true),
-            tour: { connect: { id: tour.id } },
-            ...(fitDto.customerId ? { customer: { connect: { id: fitDto.customerId } } } : {}),
-            ...(fitDto.orderId ? { order: { connect: { id: fitDto.orderId } } } : {}),
-            ...this.legacyCompat.toChildCreateData(fitDto),
-          } as Prisma.FitTourCreateInput,
-        });
-        await this.tourCore.log(tx, tour.id, 'CREATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: fitTour.id });
-        return fitTour;
-      });
+      const created = await this.prisma.$transaction((tx) => this.createFitTourAggregate(tx, scopedDto, user));
       return this.detail(created.id, user);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã báo giá FIT đã tồn tại');
-      }
+      this.rethrowFitUniqueConflict(error);
       throw error;
     }
   }
 
   async update(id: string, dto: UpdateFitTourDto, user?: RequestUser) {
     const current = await this.detail(id, user);
-    dto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
+    const scopedDto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const patch = await this.withCustomerSnapshot(tx, dto);
-        await this.tourCore.ensureOrder(tx, patch.orderId, user);
-        const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
-        this.validateProvidedFields(patch, false);
-        this.validateFitTourBusinessRules(merged, false);
-        this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
-        const tourId = await this.syncTourRootFromFit(tx, current, merged);
-        await this.syncTourCoreFromFit(tx, tourId, merged);
-        await tx.fitTour.update({
-          where: { id },
-          data: {
-            ...this.toFitTourData(patch, false),
-            ...(current.tourId ? {} : { tour: { connect: { id: tourId } } }),
-            ...(patch.customerId !== undefined ? (patch.customerId ? { customer: { connect: { id: patch.customerId } } } : { customer: { disconnect: true } }) : {}),
-            ...(patch.orderId !== undefined ? (patch.orderId ? { order: { connect: { id: patch.orderId } } } : { order: { disconnect: true } }) : {}),
-          } as Prisma.FitTourUpdateInput,
-        });
-        await this.legacyCompat.syncChildren(tx, id, patch);
-        await this.tourCore.log(tx, tourId, 'UPDATE_FIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system', fitTourId: id });
-      });
+      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, scopedDto, user));
       return this.detail(id, user);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã báo giá FIT đã tồn tại');
-      }
+      this.rethrowFitUniqueConflict(error);
       throw error;
     }
   }
 
   async remove(id: string, user?: RequestUser) {
     const fitTour = await this.detail(id, user);
-    return this.prisma.$transaction(async (tx) => {
-      if (fitTour.tourId) await this.tourCore.softDelete(tx, fitTour.tourId, user?.username || user?.email || user?.id || 'system');
-      const updated = await tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
-      return updated;
-    });
+    return this.prisma.$transaction((tx) => this.removeFitTourAggregate(tx, id, fitTour, user));
   }
 
   async copyBudget(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
@@ -222,14 +175,9 @@ export class FitToursService {
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
-    const targetRootId = this.requiredTourRootId(target);
     const budgetRows = this.legacyCompat.toCopiedBudgetRows(source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source));
 
-    await this.prisma.$transaction(async (tx) => {
-      await this.syncTourCoreFromFit(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
-      await this.legacyCompat.replaceBudgetServices(tx, targetId, budgetRows);
-      await this.tourCore.log(tx, targetRootId, 'COPY_FIT_BUDGET', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
-    });
+    await this.prisma.$transaction((tx) => this.copyFitBudgetAggregate(tx, source, target, budgetRows, user));
     return this.detail(targetId, user);
   }
 
@@ -238,15 +186,142 @@ export class FitToursService {
     const sourceId = this.optionalText(sourceTourId) || targetId;
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
-    const targetRootId = this.requiredTourRootId(target);
     const rows = this.legacyCompat.toCopiedOperationRows(source.operationServices.length > 0 ? source.operationServices : source.budgetServices);
 
-    await this.prisma.$transaction(async (tx) => {
-      await this.syncTourCoreFromFit(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
-      await this.legacyCompat.replaceOperationServices(tx, targetId, rows);
-      await this.tourCore.log(tx, targetRootId, 'COPY_FIT_OPERATION', { actor: user?.username || user?.email || user?.id || 'system', sourceFitTourId: source.id, targetFitTourId: target.id });
-    });
+    await this.prisma.$transaction((tx) => this.copyFitOperationAggregate(tx, source, target, rows, user));
     return this.detail(targetId, user);
+  }
+
+  private async createFitTourAggregate(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
+    const fitDto = await this.prepareCreateFitDto(tx, dto, user);
+    const tour = await this.createTourRootFromFit(tx, fitDto);
+    await this.syncTourCoreFromFit(tx, tour.id, fitDto);
+    const fitTour = await this.createLegacyFitDetail(tx, tour.id, fitDto);
+    await this.logFitTourAction(tx, tour.id, 'CREATE_FIT_TOUR', user, { fitTourId: fitTour.id });
+    return fitTour;
+  }
+
+  private async updateFitTourAggregate(
+    tx: Prisma.TransactionClient,
+    id: string,
+    current: Awaited<ReturnType<FitToursService['detail']>>,
+    dto: UpdateFitTourDto,
+    user?: RequestUser,
+  ) {
+    const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user);
+    const tourId = await this.syncTourRootFromFit(tx, current, merged);
+    await this.syncTourCoreFromFit(tx, tourId, merged);
+    await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
+    await this.legacyCompat.syncChildren(tx, id, patch);
+    await this.logFitTourAction(tx, tourId, 'UPDATE_FIT_TOUR', user, { fitTourId: id });
+  }
+
+  private async removeFitTourAggregate(
+    tx: Prisma.TransactionClient,
+    id: string,
+    fitTour: Awaited<ReturnType<FitToursService['detail']>>,
+    user?: RequestUser,
+  ) {
+    if (fitTour.tourId) await this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user));
+    return tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
+  }
+
+  private async copyFitBudgetAggregate(
+    tx: Prisma.TransactionClient,
+    source: Awaited<ReturnType<FitToursService['detail']>>,
+    target: Awaited<ReturnType<FitToursService['detail']>>,
+    budgetRows: ReturnType<FitTourLegacyCompatService['toCopiedBudgetRows']>,
+    user?: RequestUser,
+  ) {
+    const targetRootId = this.requiredTourRootId(target);
+    await this.syncTourCoreFromFit(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
+    await this.legacyCompat.replaceBudgetServices(tx, target.id, budgetRows);
+    await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_BUDGET', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
+  }
+
+  private async copyFitOperationAggregate(
+    tx: Prisma.TransactionClient,
+    source: Awaited<ReturnType<FitToursService['detail']>>,
+    target: Awaited<ReturnType<FitToursService['detail']>>,
+    rows: ReturnType<FitTourLegacyCompatService['toCopiedOperationRows']>,
+    user?: RequestUser,
+  ) {
+    const targetRootId = this.requiredTourRootId(target);
+    await this.syncTourCoreFromFit(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
+    await this.legacyCompat.replaceOperationServices(tx, target.id, rows);
+    await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_OPERATION', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
+  }
+
+  private async prepareCreateFitDto(tx: Prisma.TransactionClient, dto: CreateFitTourDto, user?: RequestUser) {
+    const fitDto = await this.withCustomerSnapshot(tx, dto);
+    await this.tourCore.ensureOrder(tx, fitDto.orderId, user);
+    this.validateProvidedFields(fitDto, true);
+    this.validateFitTourBusinessRules(fitDto, true);
+    this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
+    return fitDto;
+  }
+
+  private async prepareUpdateFitDto(
+    tx: Prisma.TransactionClient,
+    current: Awaited<ReturnType<FitToursService['detail']>>,
+    dto: UpdateFitTourDto,
+    user?: RequestUser,
+  ) {
+    const patch = await this.withCustomerSnapshot(tx, dto);
+    await this.tourCore.ensureOrder(tx, patch.orderId, user);
+    const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
+    this.validateProvidedFields(patch, false);
+    this.validateFitTourBusinessRules(merged, false);
+    this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
+    return { patch, merged };
+  }
+
+  private createTourRootFromFit(tx: Prisma.TransactionClient, dto: UpdateFitTourDto) {
+    return tx.tour.create({ data: this.toTourCoreData(dto, true) as Prisma.TourUncheckedCreateInput });
+  }
+
+  private createLegacyFitDetail(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
+    return tx.fitTour.create({
+      data: {
+        ...this.toFitTourData(dto, true),
+        tour: { connect: { id: tourId } },
+        ...(dto.customerId ? { customer: { connect: { id: dto.customerId } } } : {}),
+        ...(dto.orderId ? { order: { connect: { id: dto.orderId } } } : {}),
+        ...this.legacyCompat.toChildCreateData(dto),
+      } as Prisma.FitTourCreateInput,
+    });
+  }
+
+  private updateLegacyFitDetail(
+    tx: Prisma.TransactionClient,
+    id: string,
+    current: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>,
+    patch: UpdateFitTourDto,
+    tourId: string,
+  ) {
+    return tx.fitTour.update({
+      where: { id },
+      data: {
+        ...this.toFitTourData(patch, false),
+        ...(current.tourId ? {} : { tour: { connect: { id: tourId } } }),
+        ...(patch.customerId !== undefined ? (patch.customerId ? { customer: { connect: { id: patch.customerId } } } : { customer: { disconnect: true } }) : {}),
+        ...(patch.orderId !== undefined ? (patch.orderId ? { order: { connect: { id: patch.orderId } } } : { order: { disconnect: true } }) : {}),
+      } as Prisma.FitTourUpdateInput,
+    });
+  }
+
+  private async logFitTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user: RequestUser | undefined, metadata: Row) {
+    await this.tourCore.log(tx, tourId, action, { actor: this.actor(user), ...metadata });
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
+  }
+
+  private rethrowFitUniqueConflict(error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException('Mã báo giá FIT đã tồn tại');
+    }
   }
 
   private validateProvidedFields(dto: UpdateFitTourDto, creating: boolean) {
