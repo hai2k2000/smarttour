@@ -256,6 +256,26 @@ async function main() {
     'Ngày khởi hành phải trước hoặc bằng ngày kết thúc',
   );
   await rejects(
+    () => service.create(bookingDto(run, 'EMPTY-START-DATE', tourProgram, links, { startDate: '' })),
+    'create should reject empty startDate',
+    'Ngày khởi hành không được để trống',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'NULL-END-DATE', tourProgram, links, { endDate: null })),
+    'create should reject null endDate',
+    'Ngày kết thúc không được để trống',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'DATETIME-START-DATE', tourProgram, links, { startDate: '2026-10-01T00:00:00Z' })),
+    'create should reject datetime startDate',
+    'Ngày khởi hành phải có định dạng YYYY-MM-DD',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'INVALID-END-DATE', tourProgram, links, { endDate: '2026-02-30' })),
+    'create should reject a non-existent calendar date',
+    'Ngày kết thúc không hợp lệ',
+  );
+  await rejects(
     () => service.create(bookingDto(run, 'BAD-DURATION', tourProgram, links, { startDate: '2026-10-01', endDate: '2026-10-02' })),
     'create should reject date range that does not match tour program duration',
   );
@@ -412,6 +432,21 @@ async function main() {
     () => service.update(created.id, { startDate: '2026-10-06', endDate: '2026-10-04' }),
     'update should reject endDate before startDate',
   );
+  await rejects(
+    () => service.update(created.id, { startDate: '' }),
+    'update should reject empty startDate instead of falling back to the current value',
+    'Ngày khởi hành không được để trống',
+  );
+  await rejects(
+    () => service.update(created.id, { endDate: null }),
+    'update should reject null endDate instead of falling back to the current value',
+    'Ngày kết thúc không được để trống',
+  );
+  await rejects(
+    () => service.update(created.id, { startDate: '2026/10/02' }),
+    'update should reject non-ISO date-only format',
+    'Ngày khởi hành phải có định dạng YYYY-MM-DD',
+  );
   await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
   await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
   await rejects(() => service.update(created.id, { customerName: 'B' }), 'update should reject customerName shorter than 2 characters');
@@ -443,6 +478,18 @@ async function main() {
   await rejects(() => service.update(created.id, { startDate: '2026-10-06' }), 'update should reject startDate after current endDate');
   await rejects(() => service.update(created.id, { endDate: '2026-10-01' }), 'update should reject endDate before current startDate');
   await rejects(() => service.update(created.id, { status: 'CANCELLED' }), 'general update should reject status changes');
+
+  const oneDayTourProgram = await createTourProgram(prisma, run, 'ONE-DAY', 1);
+  const oneDayBooking = await service.create(
+    bookingDto(run, 'ONE-DAY', oneDayTourProgram, links, {
+      startDate: '2026-10-20',
+      endDate: '2026-10-20',
+    }),
+  );
+  assert(
+    dateOnly(oneDayBooking.startDate) === '2026-10-20' && dateOnly(oneDayBooking.endDate) === '2026-10-20',
+    'create should allow equal startDate/endDate for a one-day tour without timezone drift',
+  );
 
   const confirmed = await service.updateStatus(created.id, 'confirmed');
   assert(confirmed.status === 'CONFIRMED', 'updateStatus should move DRAFT to CONFIRMED');
