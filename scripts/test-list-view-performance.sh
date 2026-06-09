@@ -309,8 +309,14 @@ async function main() {
   const tourProgramRows = await timed('tourPrograms.list', () => tourProgramsService.list(run), maxMs);
   assert(tourProgramRows[0]._count && !tourProgramRows[0].itineraryDays[0]?.description, 'tour program list should only include itinerary preview fields');
 
-  const bookingRows = await timed('bookings.list', () => bookingsService.list(run), maxMs);
+  const defaultBookingRows = await timed('bookings.list default page', () => bookingsService.list(run), maxMs);
+  assert(defaultBookingRows.length === Math.min(rows, 100), 'bookings list should cap the default page size');
+  const bookingRows = await timed('bookings.list requested page', () => bookingsService.list(run, undefined, undefined, undefined, rows), maxMs);
   assert(bookingRows[0].tourProgram && !bookingRows[0].tourProgram.itineraryDays, 'bookings list should not include itinerary days');
+  assert(!('customerId' in bookingRows[0]) && !('createdAt' in bookingRows[0]), 'bookings list should omit detail-only fields');
+  const bookingBytesPerRow = Buffer.byteLength(JSON.stringify(bookingRows)) / bookingRows.length;
+  console.log(`LIST_PERF bookings.payload bytes_per_row=${bookingBytesPerRow.toFixed(1)}`);
+  assert(bookingBytesPerRow < 700, 'bookings list payload should remain lightweight');
 
   const voucherRows = await timed('operationVouchers.list', () => vouchersService.list(run), maxMs);
   assert(voucherRows[0]._count && !voucherRows[0].details, 'voucher list should not include detail arrays');

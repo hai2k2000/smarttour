@@ -26,10 +26,24 @@ const checks = [
   },
   {
     file: 'apps/api/src/modules/bookings/bookings.service.ts',
-    sectionStart: 'list(search?: string',
+    sectionStart: '  list(\n',
     sectionEnd: 'async detail',
     must: ['private listSelect()', 'select: this.listSelect()'],
     forbidden: ['include: { tourProgram: true, customer: true, order: true, tour: true, operationForm: true }'],
+  },
+  {
+    file: 'apps/api/src/modules/bookings/bookings.service.ts',
+    sectionStart: 'private listSelect()',
+    sectionEnd: 'private detailSelect()',
+    must: ['tourProgram: { select: { id: true, code: true, name: true } }', 'operationForm: { select: { id: true, status: true } }'],
+    forbidden: ['customerId: true', 'customerPhone: true', 'createdAt: true', 'itineraryDays:'],
+  },
+  {
+    file: 'apps/api/src/modules/bookings/bookings.service.ts',
+    sectionStart: 'private detailSelect()',
+    sectionEnd: 'private mutationSelect()',
+    must: ['operationVouchers: { orderBy:', 'take: 20', 'operationForm: { select: { id: true, status: true } }'],
+    forbidden: ['tasks:', 'services:', 'costs:'],
   },
   {
     file: 'apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts',

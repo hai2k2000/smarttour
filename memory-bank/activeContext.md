@@ -20,6 +20,27 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Optimized Booking list/detail usage:
+  - Booking list now returns a dedicated summary shape containing only fields
+    used by `/bookings` and the Operations booking selector.
+  - Added validated `take`/`skip` paging with a default limit of 100 and a
+    maximum of 500; `/bookings` renders 50 rows per page and Operations
+    requests exactly 80 rows.
+  - Added a lightweight `/bookings/:id/delete-guard` endpoint returning
+    dependency counts so the Booking page no longer loads full detail before
+    deletion.
+  - Full detail remains available for API consumers, but its operation form is
+    summary-only and voucher/allotment previews remain capped at 20.
+  - Added Booking indexes for start-date ordering plus status/tour-program
+    filters.
+  - With 300 test rows, Booking list measured 20.3 ms for the default 100-row
+    page and 26.2 ms for 300 requested rows, with a 439.6-byte average row
+    payload.
+  - VPS verification passed on 2026-06-09: API/web builds,
+    `LIST_VIEW_INCLUDE_AUDIT_OK`, `TEST_BOOKINGS_SERVICE_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_LIST_VIEW_PERFORMANCE_OK`.
+
 - Made Booking deletion atomic and dependency-safe:
   - `BookingsService.remove()` now locks the Booking row and checks operational
     dependencies inside one database transaction before hard deletion.

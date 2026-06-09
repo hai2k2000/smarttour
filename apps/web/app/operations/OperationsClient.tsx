@@ -144,12 +144,12 @@ export default function OperationsClient() {
     setIsLoadingStatic(true);
     const errors: string[] = [];
     const [bookingResult, supplierResult] = await Promise.allSettled([
-      fetchJson<unknown>('/api/bookings', 'danh sách booking'),
+      fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
       fetchJson<unknown>('/api/suppliers/hotels', 'danh sách NCC khách sạn'),
     ]);
 
     if (bookingResult.status === 'fulfilled') {
-      setBookings(asRows<Booking>(bookingResult.value).slice(0, 80));
+      setBookings(asRows<Booking>(bookingResult.value));
     } else {
       errors.push(`Booking: ${bookingResult.reason.message || 'không tải được dữ liệu'}`);
     }

@@ -13,8 +13,20 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string, @Query('tourProgramId') tourProgramId?: string, @Req() request?: { user?: RequestUser }) {
-    return this.bookingsService.list(search, status, tourProgramId, request?.user);
+  list(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('tourProgramId') tourProgramId?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+    @Req() request?: { user?: RequestUser },
+  ) {
+    return this.bookingsService.list(search, status, tourProgramId, request?.user, take, skip);
+  }
+
+  @Get(':id/delete-guard')
+  deleteGuard(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.bookingsService.deleteGuard(id, request?.user);
   }
 
   @Get(':id')

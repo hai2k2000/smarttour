@@ -24,9 +24,10 @@ type Booking = {
   operationForm: { id: string; status: string } | null;
 };
 type BookingDeleteGuardDetail = {
-  operationForm?: unknown | null;
-  operationVouchers?: unknown[];
-  allotmentLocks?: unknown[];
+  canDelete: boolean;
+  operationForms: number;
+  operationVouchers: number;
+  allotmentLocks: number;
 };
 type BookingPayload = {
   code: string;
@@ -59,6 +60,7 @@ const bookingStatusOptions = [
 ] as const;
 type BookingStatus = (typeof bookingStatusOptions)[number];
 const validBookingStatuses = new Set<string>(bookingStatusOptions);
+const bookingPageSize = 50;
 
 async function responseError(response: Response) {
   try {
@@ -107,6 +109,11 @@ function redirectWithResult(result: MutationResult): never {
 
 function singleParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function pageParam(value: string | string[] | undefined) {
+  const page = Number(singleParam(value));
+  return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function field(formData: FormData, key: string) {
@@ -242,13 +249,13 @@ async function updateBookingStatus(formData: FormData) {
 
 async function blockingDeleteReason(id: string, hasOperationFormFromList: boolean) {
   if (hasOperationFormFromList) return 'Booking đã phát sinh phiếu điều hành, không thể xóa trực tiếp từ danh sách.';
-  const detailResult = await apiGet<BookingDeleteGuardDetail | null>(`/bookings/${encodeURIComponent(id)}`, null, 'Kiểm tra dữ liệu liên quan trước khi xóa');
+  const detailResult = await apiGet<BookingDeleteGuardDetail | null>(`/bookings/${encodeURIComponent(id)}/delete-guard`, null, 'Kiểm tra dữ liệu liên quan trước khi xóa');
   if (detailResult.error) return `Không thể kiểm tra dữ liệu liên quan: ${detailResult.error}`;
   const detail = detailResult.data;
   if (!detail) return 'Không tìm thấy booking để kiểm tra trước khi xóa.';
-  if (detail.operationForm) return 'Booking đã có phiếu điều hành liên quan.';
-  if (detail.operationVouchers?.length) return 'Booking đã có phiếu điều hành dịch vụ liên quan.';
-  if (detail.allotmentLocks?.length) return 'Booking đã có khóa allotment khách sạn liên quan.';
+  if (detail.operationForms > 0) return `Booking đã có ${detail.operationForms} phiếu điều hành liên quan.`;
+  if (detail.operationVouchers > 0) return `Booking đã có ${detail.operationVouchers} phiếu điều hành dịch vụ liên quan.`;
+  if (detail.allotmentLocks > 0) return `Booking đã có ${detail.allotmentLocks} khóa allotment khách sạn liên quan.`;
   return '';
 }
 
@@ -340,12 +347,15 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
   const error = singleParam(params.error);
+  const page = pageParam(params.page);
+  const skip = (page - 1) * bookingPageSize;
   const [tourProgramsResult, bookingsResult] = await Promise.all([
     apiGet<TourProgram[]>('/tour-programs', [], 'Tải danh sách tour mẫu'),
-    apiGet<Booking[]>('/bookings', [], 'Tải danh sách booking'),
+    apiGet<Booking[]>(`/bookings?skip=${skip}&take=${bookingPageSize + 1}`, [], 'Tải danh sách booking'),
   ]);
   const tourPrograms = tourProgramsResult.data;
-  const bookings = bookingsResult.data;
+  const hasNextPage = bookingsResult.data.length > bookingPageSize;
+  const bookings = bookingsResult.data.slice(0, bookingPageSize);
   const loadErrors = [tourProgramsResult.error, bookingsResult.error].filter(Boolean);
 
   return (
@@ -372,7 +382,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sách booking</h2>
-          <span>{bookings.length} booking</span>
+          <span>Trang {page} · {bookings.length} booking</span>
         </div>
         <div className="fitTableWrap">
           <table className="fitTable orderListTable">
@@ -432,6 +442,12 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
             </tbody>
           </table>
         </div>
+        {page > 1 || hasNextPage ? (
+          <div className="modalActions">
+            {page > 1 ? <a className="secondaryButton" href={`/bookings?page=${page - 1}`}>Trang trước</a> : <span />}
+            {hasNextPage ? <a className="secondaryButton" href={`/bookings?page=${page + 1}`}>Trang sau</a> : null}
+          </div>
+        ) : null}
       </section>
 
       <BookingModal id="create-booking" title="Tạo booking" icon={<Plus size={18} />}>

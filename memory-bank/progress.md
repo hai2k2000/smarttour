@@ -2,6 +2,21 @@
 
 ## Done
 
+- Optimized Booking list/detail usage:
+  - Booking list uses a frontend-focused summary select and omits linked IDs,
+    contact detail, timestamps, and Tour Program detail fields.
+  - Added validated paging (`take`/`skip`), a 100-row default cap, 50-row
+    Booking UI pages, and an 80-row Operations selector request.
+  - Added `/bookings/:id/delete-guard` for lightweight dependency counts.
+  - Full detail remains bounded and excludes operation tasks/services/costs.
+  - Added indexes for Booking start-date order, status filter, and Tour
+    Program filter.
+  - 300-row benchmark: 20.3 ms default page, 26.2 ms requested full set,
+    439.6 bytes per row.
+  - Verified on VPS: API/web builds, `LIST_VIEW_INCLUDE_AUDIT_OK`,
+    `TEST_BOOKINGS_SERVICE_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_LIST_VIEW_PERFORMANCE_OK`.
+
 - Made Booking deletion atomic and dependency-safe:
   - Booking deletion now uses a transaction and row lock before dependency
     counts and hard deletion.

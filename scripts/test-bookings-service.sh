@@ -480,14 +480,23 @@ async function main() {
   assert((await service.list('Ha Long')).some((row) => row.id === created.id), 'list search should match tourProgram route');
   assert((await service.list(undefined, 'DRAFT')).some((row) => row.id === created.id), 'list status filter should match DRAFT');
   assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
-  assert(listed.find((row) => row.id === created.id)?.tourProgram?.durationDays === 3, 'list should include tourProgram fields used by frontend');
+  const listedCreated = listed.find((row) => row.id === created.id);
+  assert(listedCreated?.tourProgram?.code === tourProgram.code, 'list should include tourProgram summary used by frontend');
+  assert(!('customerId' in listedCreated) && !('customerPhone' in listedCreated) && !('createdAt' in listedCreated), 'list should omit booking detail-only fields');
+  assert(!('durationDays' in listedCreated.tourProgram) && !('itineraryDays' in listedCreated.tourProgram), 'list should omit tour program detail fields');
   assert(listed.find((row) => row.id === created.id)?.operationForm === null, 'list should include operationForm field used by frontend');
   await rejects(() => service.list(undefined, 'NOT_A_STATUS'), 'list should reject invalid status filter');
+  await rejects(() => service.list(undefined, undefined, undefined, undefined, 0), 'list should reject take below one');
+  await rejects(() => service.list(undefined, undefined, undefined, undefined, 501), 'list should reject take above maximum');
+  await rejects(() => service.list(undefined, undefined, undefined, undefined, 10, -1), 'list should reject negative skip');
 
   const detail = await service.detail(created.id);
   assert(detail.id === created.id, 'detail should load booking');
   assert(detail.tourProgram?.durationDays === 3 && detail.tourProgram.itineraryDays.length === 3, 'detail should include tourProgram and itinerary');
   assert(Array.isArray(detail.operationVouchers) && Array.isArray(detail.allotmentLocks), 'detail should include operation dependencies');
+  assert(!detail.operationForm || (!('tasks' in detail.operationForm) && !('services' in detail.operationForm) && !('costs' in detail.operationForm)), 'detail should not include operation form child arrays');
+  const initialDeleteGuard = await service.deleteGuard(created.id);
+  assert(initialDeleteGuard.canDelete && initialDeleteGuard.operationForms === 0 && initialDeleteGuard.operationVouchers === 0 && initialDeleteGuard.allotmentLocks === 0, 'delete guard should return lightweight zero dependency counts');
 
   const updated = await service.update(created.id, {
     customerName: 'Bookings Service Customer Updated',
@@ -609,6 +618,8 @@ async function main() {
   });
   const voucherLockedDetail = await service.detail(voucherLockedBooking.id);
   assert(voucherLockedDetail.operationVouchers.length === 1, 'detail should expose operation voucher dependencies');
+  const voucherDeleteGuard = await service.deleteGuard(voucherLockedBooking.id);
+  assert(!voucherDeleteGuard.canDelete && voucherDeleteGuard.operationVouchers === 1, 'delete guard should count operation vouchers');
   await rejects(
     () => service.update(voucherLockedBooking.id, { customerId: null }),
     'update should reject linked customer changes after an operation voucher exists',
@@ -638,6 +649,8 @@ async function main() {
   });
   const allotmentLockedDetail = await service.detail(allotmentLockedBooking.id);
   assert(allotmentLockedDetail.allotmentLocks.length === 1, 'detail should expose allotment lock dependencies');
+  const allotmentDeleteGuard = await service.deleteGuard(allotmentLockedBooking.id);
+  assert(!allotmentDeleteGuard.canDelete && allotmentDeleteGuard.allotmentLocks === 1, 'delete guard should count allotment locks');
   await rejects(
     () => service.update(allotmentLockedBooking.id, { tourId: null }),
     'update should reject linked tour changes after an allotment lock exists',
@@ -661,6 +674,8 @@ async function main() {
   });
   const afterOperationForm = await service.detail(created.id);
   assert(afterOperationForm.operationForm?.id === operationForm.id, 'detail should include operationForm after it is created');
+  const operationFormDeleteGuard = await service.deleteGuard(created.id);
+  assert(!operationFormDeleteGuard.canDelete && operationFormDeleteGuard.operationForms === 1, 'delete guard should count operation forms');
   assert((await service.list(run)).find((row) => row.id === created.id)?.operationForm?.id === operationForm.id, 'list should include operationForm after it is created');
   await rejects(() => service.update(created.id, { customerName: 'Blocked customer edit' }), 'update should reject customerName change after operationForm exists');
   await rejects(() => service.update(created.id, { paxCount: 5 }), 'update should reject paxCount change after operationForm exists');

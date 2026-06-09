@@ -30,6 +30,8 @@ const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatu
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const BOOKING_LIST_DEFAULT_TAKE = 100;
+const BOOKING_LIST_MAX_TAKE = 500;
 
 type BookingReferenceKey = 'tourProgramId' | 'customerId' | 'orderId' | 'tourId';
 type BookingLinkedReferenceKey = Exclude<BookingReferenceKey, 'tourProgramId'>;
@@ -62,13 +64,7 @@ export class BookingsService {
     return {
       id: true,
       code: true,
-      tourProgramId: true,
-      customerId: true,
-      orderId: true,
-      tourId: true,
       customerName: true,
-      customerPhone: true,
-      customerEmail: true,
       paxCount: true,
       startDate: true,
       endDate: true,
@@ -76,9 +72,7 @@ export class BookingsService {
       operatorOwner: true,
       status: true,
       totalSellPrice: true,
-      createdAt: true,
-      updatedAt: true,
-      tourProgram: { select: { id: true, code: true, name: true, route: true, durationDays: true } },
+      tourProgram: { select: { id: true, code: true, name: true } },
       operationForm: { select: { id: true, status: true } },
     } satisfies Prisma.BookingSelect;
   }
@@ -145,10 +139,19 @@ export class BookingsService {
     } satisfies Prisma.BookingSelect;
   }
 
-  list(search?: string, status?: string | BookingStatus, tourProgramId?: string, user?: RequestUser) {
+  list(
+    search?: string,
+    status?: string | BookingStatus,
+    tourProgramId?: string,
+    user?: RequestUser,
+    take?: string | number,
+    skip?: string | number,
+  ) {
     const normalizedStatus = this.bookingStatus(status);
     const normalizedSearch = this.searchText(search);
     const normalizedTourProgramId = this.optionalId(tourProgramId, 'Tour mẫu');
+    const normalizedTake = this.listTake(take);
+    const normalizedSkip = this.listSkip(skip);
     const where: Prisma.BookingWhereInput = {
       ...(normalizedStatus ? { status: normalizedStatus } : {}),
       ...(normalizedTourProgramId ? { tourProgramId: normalizedTourProgramId } : {}),
@@ -161,7 +164,24 @@ export class BookingsService {
       where: this.scopeWhere(where, user),
       select: this.listSelect(),
       orderBy: [{ startDate: 'asc' }, { code: 'asc' }],
+      take: normalizedTake,
+      skip: normalizedSkip,
     });
+  }
+
+  async deleteGuard(id: string, user?: RequestUser) {
+    const booking = await this.prisma.booking.findFirst({
+      where: this.scopeWhere({ id }, user),
+      select: { id: true },
+    });
+    if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
+    const usage = await this.bookingUsage(booking.id);
+    return {
+      canDelete: usage.total === 0,
+      operationForms: usage.operationForms,
+      operationVouchers: usage.operationVouchers,
+      allotmentLocks: usage.allotmentLocks,
+    };
   }
 
   async detail(id: string, user?: RequestUser) {
@@ -269,6 +289,24 @@ export class BookingsService {
 
   private searchText(search?: string) {
     return normalizeListSearch(search);
+  }
+
+  private listTake(value?: string | number) {
+    if (value === undefined || value === null || value === '') return BOOKING_LIST_DEFAULT_TAKE;
+    const take = Number(value);
+    if (!Number.isInteger(take) || take < 1 || take > BOOKING_LIST_MAX_TAKE) {
+      throw new BadRequestException(`Số booking mỗi trang phải là số nguyên từ 1 đến ${BOOKING_LIST_MAX_TAKE}`);
+    }
+    return take;
+  }
+
+  private listSkip(value?: string | number) {
+    if (value === undefined || value === null || value === '') return 0;
+    const skip = Number(value);
+    if (!Number.isInteger(skip) || skip < 0) {
+      throw new BadRequestException('Vị trí bắt đầu danh sách booking phải là số nguyên không âm');
+    }
+    return skip;
   }
 
   private searchConditions(search: string): Prisma.BookingWhereInput[] {

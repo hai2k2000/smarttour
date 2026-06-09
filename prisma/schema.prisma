@@ -1973,6 +1973,9 @@ model Booking {
   @@index([customerId])
   @@index([orderId])
   @@index([tourId])
+  @@index([startDate, code])
+  @@index([status, startDate])
+  @@index([tourProgramId, startDate])
 }
 
 model Tour {
