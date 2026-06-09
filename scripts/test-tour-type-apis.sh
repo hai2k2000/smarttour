@@ -195,6 +195,23 @@ async function main() {
     return response.body;
   }
 
+  await expect(
+    '/api/tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'FIT',
+        systemCode: `${run}-BAD-RANGE-SYS`,
+        tourCode: `${run}-BAD-RANGE-TOUR`,
+        name: 'Tour type API common bad range',
+        startDate: '2026-07-05',
+        endDate: '2026-07-04',
+      }),
+    },
+    400,
+    'common tour should reject startDate after endDate on create',
+  );
+
   const commonTour = await expect(
     '/api/tours',
     {
@@ -204,12 +221,20 @@ async function main() {
         systemCode: `${run}-SYS`,
         tourCode: `${run}-TOUR`,
         name: 'Tour type API common tour',
+        startDate: '2026-07-01',
+        endDate: '2026-07-03',
       }),
     },
     201,
     'create common tour',
   );
   assert(commonTour.id, 'common tour create should return id');
+  await expect(
+    `/api/tours/${commonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ startDate: '2026-07-04' }) },
+    400,
+    'common tour partial update should reject startDate after current endDate',
+  );
   const patchedCommonTour = await expect(
     `/api/tours/${commonTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -269,6 +294,21 @@ async function main() {
     400,
     'GIT should reject ISO datetime startDate',
   );
+  await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-RANGE-SYS`,
+        tourCode: `${run}-GIT-BAD-RANGE`,
+        name: 'Tour type API GIT bad range',
+        startDate: '2026-08-05',
+        endDate: '2026-08-04',
+      }),
+    },
+    400,
+    'GIT should reject startDate after endDate on create',
+  );
 
   const gitTour = await expect(
     '/api/git-tours',
@@ -280,6 +320,8 @@ async function main() {
         name: 'Tour type API GIT tour',
         route: 'Tour type API GIT common route',
         itinerarySummary: 'Tour type API GIT detail itinerary',
+        startDate: '2026-08-01',
+        endDate: '2026-08-03',
         budgetServices: [{ serviceType: 'GIT_HOTEL', description: 'GIT copied budget service', quantity: 2, unitPrice: 1000, amount: 2000 }],
       }),
     },
@@ -289,6 +331,12 @@ async function main() {
   assert(gitTour.id, 'GIT create should return id');
   assert(gitTour.route === 'Tour type API GIT common route', 'GIT root route should use the common route field');
   assert(gitTour.gitTour.itinerarySummary === 'Tour type API GIT detail itinerary', 'GIT detail should keep itinerarySummary separate from root route');
+  await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ endDate: '2026-07-31' }) },
+    400,
+    'GIT partial update should reject endDate before current startDate',
+  );
   const patchedGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -342,6 +390,21 @@ async function main() {
     400,
     'LandTour should reject non-existent calendar dates',
   );
+  await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-RANGE-SYS`,
+        tourCode: `${run}-LAND-BAD-RANGE`,
+        name: 'Tour type API LandTour bad range',
+        startDate: '2026-09-02',
+        endDate: '2026-09-01',
+      }),
+    },
+    400,
+    'LandTour should reject startDate after endDate on create',
+  );
 
   const landTour = await expect(
     '/api/landtours',
@@ -353,6 +416,8 @@ async function main() {
         name: 'Tour type API LandTour',
         route: 'Tour type API LandTour common route',
         itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
+        startDate: '2026-09-01',
+        endDate: '2026-09-01',
         salesServices: [{ serviceType: 'LAND_CAR', description: 'LandTour copied sales service', quantity: 1, unitPrice: 1500, amount: 1500 }],
       }),
     },
@@ -361,6 +426,7 @@ async function main() {
   );
   assert(landTour.id, 'LandTour create should return id');
   assert(landTour.route === 'Tour type API LandTour common route', 'LandTour root route should prefer the common route field over itinerarySummary alias');
+  assert(String(landTour.startDate).startsWith('2026-09-01') && String(landTour.endDate).startsWith('2026-09-01'), 'LandTour should allow equal startDate/endDate for one-day tours');
   const patchedLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },

@@ -111,8 +111,10 @@ export class ToursService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.tourCore.ensureOrder(tx, dto.orderId, user);
+        const data = this.tourCore.toTourData(dto as unknown as Record<string, unknown>, true, { type: dto.type }) as Prisma.TourCreateInput;
+        this.tourCore.ensureDateRange((data as Record<string, unknown>).startDate, (data as Record<string, unknown>).endDate);
         const tour = await tx.tour.create({
-          data: this.tourCore.toTourData(dto as unknown as Record<string, unknown>, true, { type: dto.type }) as Prisma.TourCreateInput,
+          data,
           include: tourInclude,
         });
         await this.tourCore.log(tx, tour.id, 'CREATE_TOUR', { actor: this.actor(user), type: dto.type });
@@ -132,9 +134,11 @@ export class ToursService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.tourCore.ensureOrder(tx, dto.orderId, user);
+        const data = this.tourCore.toTourData(dto as Record<string, unknown>, false, { type: current.type }) as Prisma.TourUpdateInput;
+        await this.tourCore.ensureUpdatedDateRange(tx, id, data as Record<string, unknown>);
         const tour = await tx.tour.update({
           where: { id },
-          data: this.tourCore.toTourData(dto as Record<string, unknown>, false, { type: current.type }) as Prisma.TourUpdateInput,
+          data,
           include: tourInclude,
         });
         await this.tourCore.log(tx, id, 'UPDATE_TOUR', { actor: this.actor(user) });

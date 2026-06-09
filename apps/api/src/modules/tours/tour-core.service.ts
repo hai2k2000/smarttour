@@ -105,13 +105,39 @@ export class TourCoreService {
   async createRoot(tx: Prisma.TransactionClient, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, true, config) as Prisma.TourUncheckedCreateInput;
+    this.ensureDateRange((data as AnyRecord).startDate, (data as AnyRecord).endDate);
     return tx.tour.create({ data });
   }
 
   async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;
+    await this.ensureUpdatedDateRange(tx, tourId, data as AnyRecord);
     return tx.tour.update({ where: { id: tourId }, data });
+  }
+
+  ensureDateRange(startDate: unknown, endDate: unknown) {
+    const start = this.dateOnlyTime(startDate, 'startDate');
+    const end = this.dateOnlyTime(endDate, 'endDate');
+    if (start === null || end === null) return;
+    if (start > end) {
+      throw new BadRequestException('Ngày khởi hành phải trước hoặc bằng ngày kết thúc');
+    }
+  }
+
+  async ensureUpdatedDateRange(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord) {
+    const hasStartDate = Object.prototype.hasOwnProperty.call(data, 'startDate');
+    const hasEndDate = Object.prototype.hasOwnProperty.call(data, 'endDate');
+    if (!hasStartDate && !hasEndDate) return;
+
+    let startDate = data.startDate;
+    let endDate = data.endDate;
+    if (!hasStartDate || !hasEndDate) {
+      const current = await tx.tour.findUnique({ where: { id: tourId }, select: { startDate: true, endDate: true } });
+      startDate = hasStartDate ? startDate : current?.startDate;
+      endDate = hasEndDate ? endDate : current?.endDate;
+    }
+    this.ensureDateRange(startDate, endDate);
   }
 
   async softDelete(tx: Prisma.TransactionClient, tourId: string, actor?: string, reason?: string) {
@@ -430,6 +456,14 @@ export class TourCoreService {
       throw new BadRequestException(`${field} kh\u00f4ng h\u1ee3p l\u1ec7`);
     }
     return date;
+  }
+
+  private dateOnlyTime(value: unknown, field: string) {
+    if (value === null || value === undefined) return null;
+    const date = value instanceof Date ? value : this.optionalDate(value, field);
+    if (!date) return null;
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} kh\u00f4ng h\u1ee3p l\u1ec7`);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
   }
 
   private number(value: unknown, field: string) {

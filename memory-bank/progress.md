@@ -2,6 +2,16 @@
 
 ## Done
 
+- Normalized Tour date range validation:
+  - Tour core now rejects `startDate > endDate` for root create/update writes
+    and checks partial updates against existing stored dates.
+  - Common ToursService now uses the shared range helpers in addition to
+    GIT/LandTour root orchestration.
+  - Tour-type regression covers invalid create ranges, invalid partial update
+    ranges, and one-day equal start/end dates.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Normalized Tour date validation:
   - Tour core date parsing now requires `YYYY-MM-DD` and rejects non-existent
     calendar dates without timezone drift from JavaScript `Date` parsing.

@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P1 Tour date range validation normalization:
+  - Added shared `TourCoreService.ensureDateRange()` and
+    `ensureUpdatedDateRange()` so common Tour root writes reject
+    `startDate > endDate` and also validate partial updates against the
+    existing stored counterpart date.
+  - GIT and LandTour already write through `TourCore.createRoot()` /
+    `updateRoot()`, and common `ToursService` now calls the same range helpers
+    around its direct root writes.
+  - Tour-type API regression now covers invalid common Tour create ranges,
+    invalid common/GIT partial date updates, invalid GIT/LandTour create
+    ranges, and equal LandTour start/end dates for one-day tours.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued P1 date validation normalization for Tour core, GIT, and LandTour:
   - `TourCoreService.optionalDate()` now accepts date-only `YYYY-MM-DD` strings
     and validates the real calendar date with UTC components instead of using
