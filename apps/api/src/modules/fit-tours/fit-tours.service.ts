@@ -6,6 +6,7 @@ import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService } from '../tours/tour-core.service';
 import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
+import { FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
 import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
 
 type Row = Record<string, unknown>;
@@ -101,18 +102,6 @@ const workflowOrder = [
   FitTourWorkflowStatus.COMPLETED,
 ] as const;
 const terminalWorkflowStatuses = new Set<FitTourWorkflowStatus>([FitTourWorkflowStatus.COMPLETED, FitTourWorkflowStatus.CANCELLED]);
-
-const defaultHandoverItems = ['Rooming list', 'Vé máy bay', 'Bảo hiểm du lịch', 'Chương trình tour', 'Final confirmation'];
-const defaultSurveyQuestions = [
-  'Chất lượng chương trình tour',
-  'Phương tiện vận chuyển',
-  'Chất lượng ăn uống',
-  'Thái độ nhân viên tư vấn',
-  'Chất lượng khách sạn',
-  'Hướng dẫn viên',
-  'Công tác tổ chức',
-  'Mức độ hài lòng chung',
-];
 
 @Injectable()
 export class FitToursService {
@@ -622,7 +611,7 @@ export class FitToursService {
       customers: [this.mapTourCustomer(dto)],
       guides: this.tourCore.mapGuides(dto.guides),
       attachments: this.tourCore.mapAttachments(dto.attachments),
-      surveys: this.tourCore.mapSurveys(dto.surveyQuestions, defaultSurveyQuestions),
+      surveys: this.tourCore.mapSurveys(dto.surveyQuestions, FIT_DEFAULT_SURVEY_QUESTIONS),
       revenues: this.mapTourRevenues(dto),
       costs: this.mapTourCosts(dto),
       services,

@@ -764,13 +764,19 @@
 - Added `TourCoreService.copyServicesFromTour()` so source Tour lookup, type filtering, data-scope filtering, clone, and service/supplier replacement are owned by Tour core.
 - Updated GIT and LandTour `copyServices()` actions to only validate the target then delegate source lookup/copy orchestration to Tour core.
 - Updated tour-type regression to guard against product modules querying source Tour services directly for copy actions.
-- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 - Started P2 backend cleanup after P1 pass.
 - Fixed mojibake Vietnamese messages in `TourCoreService`, `GitToursService`, and FIT required-field validation.
 - Restored Vietnamese accents for FIT default handover items and survey questions in both FIT service and legacy compatibility service.
 - Added regression guards for mojibake Tour/FIT messages and FIT default handover/survey text.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
+- Continued P2 service cleanup for FIT defaults.
+- Added shared `fit-tour-defaults.ts` for FIT default handover items and survey questions.
+- Removed duplicated default handover/survey constants from the main FIT service and legacy compatibility service, and fixed accented fallback text for legacy handover/survey rows.
+- Updated FIT root contract regression to require shared defaults and reject duplicated default constants in service files.
+- Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
 ## Not Done
 

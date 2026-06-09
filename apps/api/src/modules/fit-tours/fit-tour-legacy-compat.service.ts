@@ -2,20 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma } from '@prisma/client';
 import { FIT_TOUR_DATE_PATTERN } from './dto/create-fit-tour.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
+import { FIT_DEFAULT_HANDOVER_ITEMS, FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
 
 type Row = Record<string, unknown>;
-
-const defaultHandoverItems = ['Rooming list', 'Vé máy bay', 'Bảo hiểm du lịch', 'Chương trình tour', 'Final confirmation'];
-const defaultSurveyQuestions = [
-  'Chất lượng chương trình tour',
-  'Phương tiện vận chuyển',
-  'Chất lượng ăn uống',
-  'Thái độ nhân viên tư vấn',
-  'Chất lượng khách sạn',
-  'Hướng dẫn viên',
-  'Công tác tổ chức',
-  'Mức độ hài lòng chung',
-];
 
 @Injectable()
 export class FitTourLegacyCompatService {
@@ -239,20 +228,20 @@ export class FitTourLegacyCompatService {
   }
 
   mapHandoverItems(rows?: unknown[]) {
-    const source = rows === undefined ? defaultHandoverItems.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 })) : rows;
+    const source = rows === undefined ? FIT_DEFAULT_HANDOVER_ITEMS.map((itemName, index) => ({ itemName, quantity: 1, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      itemName: this.text(row.itemName || row.name || 'Ti liu bn giao'),
+      itemName: this.text(row.itemName || row.name || 'Tài liệu bàn giao'),
       quantity: this.number(row.quantity || 1),
       notes: this.optionalText(row.notes),
     }));
   }
 
   mapSurveyQuestions(rows?: unknown[]) {
-    const source = rows === undefined ? defaultSurveyQuestions.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
+    const source = rows === undefined ? FIT_DEFAULT_SURVEY_QUESTIONS.map((question, index) => ({ question, orderNo: index + 1 })) : rows;
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
-      question: this.text(row.question || 'Cu hi'),
+      question: this.text(row.question || 'Câu hỏi'),
       notes: this.optionalText(row.notes),
     }));
   }

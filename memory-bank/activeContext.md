@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 service cleanup for FIT defaults:
+  - Added shared `fit-tour-defaults.ts` for FIT default handover items and
+    survey questions.
+  - Removed duplicated default handover/survey constants from the main FIT
+    service and legacy compatibility service, and fixed accented fallback text
+    for legacy handover/survey rows.
+  - Updated FIT regression guards so service files must import shared defaults
+    and cannot reintroduce duplicate default constants.
+  - VPS verification passed on 2026-06-09: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
+
 - Started P2 backend cleanup after P1 pass:
   - Fixed mojibake Vietnamese messages in `TourCoreService`, `GitToursService`,
     and FIT required-field validation.
