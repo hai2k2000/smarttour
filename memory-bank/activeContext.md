@@ -20,6 +20,17 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued common Tour DTO date-only contract normalization:
+  - Common `CreateTourDto` now exports `TOUR_DATE_PATTERN` and uses
+    `IsString` + `Matches(YYYY-MM-DD)` for booking, payment due, start, and
+    end dates instead of `IsDateString()`.
+  - Tour-type regression now guards the common Tour date pattern and verifies
+    common `/api/tours` rejects ISO datetime date payloads at the API contract
+    layer.
+  - VPS verification passed on 2026-06-09: API Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Continued common Tour root write boundary cleanup:
   - Common `ToursService.create()` now creates root rows through
     `TourCoreService.createRoot()` and fetches the full include payload after

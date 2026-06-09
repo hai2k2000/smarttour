@@ -34,6 +34,7 @@ const { ValidationPipe } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('./apps/api/dist/app.module');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const tourCreateDtoContract = require('./apps/api/dist/modules/tours/dto/create-tour.dto');
 const gitCreateDtoContract = require('./apps/api/dist/modules/git-tours/dto/create-git-tour.dto');
 const gitUpdateDtoContract = require('./apps/api/dist/modules/git-tours/dto/update-git-tour.dto');
 const landCreateDtoContract = require('./apps/api/dist/modules/landtours/dto/create-landtour.dto');
@@ -55,6 +56,9 @@ function assertGroupedDtoContract(label, groups, createFields, updateFields) {
 }
 
 function assertTourTypeDtoContracts() {
+  assert(tourCreateDtoContract.TOUR_DATE_PATTERN.test('2026-06-15'), 'Common Tour date pattern should accept YYYY-MM-DD');
+  assert(!tourCreateDtoContract.TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'Common Tour date pattern should reject ISO datetime payloads');
+
   assertGroupedDtoContract(
     'GIT',
     [
@@ -228,6 +232,21 @@ async function main() {
     },
     400,
     'common tour should reject startDate after endDate on create',
+  );
+  await expect(
+    '/api/tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'FIT',
+        systemCode: `${run}-BAD-DATETIME-SYS`,
+        tourCode: `${run}-BAD-DATETIME-TOUR`,
+        name: 'Tour type API common bad datetime',
+        startDate: '2026-07-01T00:00:00.000Z',
+      }),
+    },
+    400,
+    'common tour should reject ISO datetime startDate',
   );
 
   const commonTour = await expect(

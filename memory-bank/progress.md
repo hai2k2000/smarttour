@@ -2,6 +2,14 @@
 
 ## Done
 
+- Normalized common Tour DTO date contract:
+  - `CreateTourDto` now uses an explicit `YYYY-MM-DD` regex for root date
+    fields instead of `IsDateString()`.
+  - Tour-type tests guard the common date pattern and rejected ISO datetime
+    payloads for `/api/tours`.
+  - Verified on VPS: API Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 - Moved common Tour root writes fully behind TourCore:
   - Common `ToursService` create/update now delegate to
     `TourCoreService.createRoot()` / `updateRoot()` instead of directly calling
