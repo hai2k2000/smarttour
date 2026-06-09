@@ -12,6 +12,8 @@
     `syncLegacyFitChildren`.
   - `copyBudget()` and `copyOperation()` now keep common `tour_services` and
     derived `tour_suppliers` in sync with legacy FIT copied rows.
+  - FIT remove now soft-deletes the common `Tour` root before cancelling the
+    legacy FIT workflow detail.
   - Added `scripts/test-fit-tour-root-contract.sh` for FIT create/update,
     copy-budget, copy-operation, and remove behavior against the common
     `Tour` aggregate.

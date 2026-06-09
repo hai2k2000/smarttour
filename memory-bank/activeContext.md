@@ -31,6 +31,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated `copyBudget()` and `copyOperation()` so copy actions also refresh
     common `tour_services` and derived `tour_suppliers`, not only the legacy
     `fit_budget_services` / `fit_operation_services` rows.
+  - FIT remove now soft-deletes the common `Tour` root before cancelling the
+    legacy FIT workflow detail.
   - Added `scripts/test-fit-tour-root-contract.sh` to lock FIT create/update,
     copy budget, copy operation, and remove behavior against the common
     `Tour` root.

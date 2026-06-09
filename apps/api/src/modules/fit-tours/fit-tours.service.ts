@@ -193,8 +193,8 @@ export class FitToursService {
   async remove(id: string, user?: RequestUser) {
     const fitTour = await this.detail(id, user);
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
       if (fitTour.tourId) await this.tourCore.softDelete(tx, fitTour.tourId, user?.username || user?.email || user?.id || 'system');
+      const updated = await tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
       return updated;
     });
   }
