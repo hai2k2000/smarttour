@@ -223,6 +223,13 @@ async function main() {
   assert(!BOOKING_UPDATE_FIELDS.includes('status'), 'UpdateBookingDto should not expose status; use UpdateBookingStatusDto');
   assert(!BOOKING_UPDATE_FIELDS.includes('operationForm'), 'UpdateBookingDto should not expose operationForm');
   assert(!BOOKING_UPDATE_FIELDS.includes('operationFormId'), 'UpdateBookingDto should not expose operationFormId');
+  assert(BOOKING_CODE_CONFLICT_MESSAGE === 'Mã booking đã tồn tại', 'booking code conflict message should be Vietnamese');
+  assert(
+    BOOKING_NOT_FOUND_MESSAGES.tourProgram === 'Không tìm thấy chương trình tour',
+    'tour program not-found message should be Vietnamese',
+  );
+  assert(BOOKING_NOT_FOUND_MESSAGES.customer === 'Không tìm thấy khách hàng', 'customer not-found message should be Vietnamese');
+  assert(BOOKING_NOT_FOUND_MESSAGES.tour === 'Không tìm thấy tour', 'tour not-found message should be Vietnamese');
 
   const prisma = new PrismaService();
   await prisma.$connect();
@@ -244,6 +251,7 @@ async function main() {
   await rejects(
     () => service.create(bookingDto(run, 'BAD-DATE-RANGE', tourProgram, links, { startDate: '2026-10-03', endDate: '2026-10-01' })),
     'create should reject endDate before startDate',
+    'Ngày khởi hành phải trước hoặc bằng ngày kết thúc',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-DURATION', tourProgram, links, { startDate: '2026-10-01', endDate: '2026-10-02' })),
