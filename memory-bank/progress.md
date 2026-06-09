@@ -2,6 +2,18 @@
 
 ## Done
 
+- Continued P2 FIT export CSV workflow:
+  - FIT exports now use a real CSV service path backed by scoped FIT detail and
+    the common Tour root id.
+  - Added authenticated `GET /api/fit-tours/:id/export` for direct downloads
+    while retaining the existing POST export route for compatibility.
+  - FIT list actions now include a CSV download button using the new endpoint.
+  - Regression verifies export endpoint/static frontend contracts and runtime
+    CSV content for common tour root data, budget services, and attachments.
+  - Verified on VPS: API/web Docker build, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT attachment upload workflow:
   - Added real multipart FIT attachment upload using the existing `FilesService`
     and object storage path `fit-tours/:fitTourId/:workflowStep`.

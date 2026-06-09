@@ -189,6 +189,34 @@ export class FitToursService {
     return this.persistStep(id, step, dto, user, true);
   }
 
+  async exportCsv(id: string, user?: RequestUser) {
+    const fitTour = await this.detail(this.requiredText(id, 'Cần chọn tour FIT để export'), user);
+    const tourId = this.requiredTourRootId(fitTour);
+    const totalPax = this.numberValue(fitTour.adultCount) + this.numberValue(fitTour.childCount) + this.numberValue(fitTour.infantCount);
+    const rows: unknown[][] = [
+      ['section', 'field', 'value', 'extra', 'extra2', 'extra3'],
+      ['tour', 'tourId', tourId, 'common Tour root', '', ''],
+      ['tour', 'fitTourId', fitTour.id, 'FIT extension', '', ''],
+      ['tour', 'quoteCode', fitTour.quoteCode, '', '', ''],
+      ['tour', 'tourCode', fitTour.tourCode, '', '', ''],
+      ['tour', 'tourName', fitTour.tourName, '', '', ''],
+      ['tour', 'customerName', fitTour.customerName, '', '', ''],
+      ['tour', 'workflowStatus', fitTour.workflowStatus, '', '', ''],
+      ['tour', 'startDate', this.exportDate(fitTour.startDate), '', '', ''],
+      ['tour', 'endDate', this.exportDate(fitTour.endDate), '', '', ''],
+      ['tour', 'totalPax', totalPax, 'adult+child+infant', '', ''],
+      ['tour', 'sellingPrice', fitTour.sellingPrice, 'per guest', '', ''],
+    ];
+    this.appendExportRows(rows, 'pricing.commonCosts', fitTour.commonCosts, (row) => [row.serviceType, row.description, row.amount, row.notes]);
+    this.appendExportRows(rows, 'pricing.hotelCosts', fitTour.hotelCosts, (row) => [row.serviceType, row.description, row.amount, row.notes]);
+    this.appendExportRows(rows, 'pricing.privateCosts', fitTour.privateCosts, (row) => [row.serviceType, row.description, row.amount, row.notes]);
+    this.appendExportRows(rows, 'budget.services', fitTour.budgetServices, (row) => [row.serviceType, row.description, row.amount, row.supplierId]);
+    this.appendExportRows(rows, 'operation.services', fitTour.operationServices, (row) => [row.serviceType, row.bookingCode, row.amount, row.status]);
+    this.appendExportRows(rows, 'attachments', fitTour.attachments, (row) => [row.step, row.fileName, row.fileUrl, row.uploadedBy]);
+    this.appendExportRows(rows, 'survey.questions', fitTour.surveyQuestions, (row) => [row.orderNo, row.question, row.notes, '']);
+    return `\ufeff${rows.map((row) => row.map((cell) => this.csvCell(cell)).join(',')).join('\n')}\n`;
+  }
+
   async uploadAttachment(id: string, step: string | undefined, file: UploadedFitFile | undefined, user?: RequestUser) {
     const workflowStep = this.toEditableWorkflowStep(this.requiredText(step, 'Cần chọn bước để tải file FIT'));
     const fitTour = await this.detail(id, user);
@@ -540,6 +568,33 @@ export class FitToursService {
     if (dtoValue === undefined && !required) return;
     const text = this.requiredText(dtoValue, label);
     if (text.length < minLength) throw new BadRequestException(`${label} cần ít nhất ${minLength} ký tự`);
+  }
+
+  private appendExportRows(rows: unknown[][], section: string, values: unknown, mapper: (row: Row) => unknown[]) {
+    if (!Array.isArray(values)) return;
+    values.forEach((value, index) => rows.push([section, index + 1, ...mapper(value as Row)]));
+  }
+
+  private exportDate(value: unknown) {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return this.optionalText(value);
+  }
+
+  private csvCell(value: unknown) {
+    const text = this.csvText(value);
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  private csvText(value: unknown) {
+    if (value === null || value === undefined) return '';
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+  private numberValue(value: unknown) {
+    const number = Number(value ?? 0);
+    return Number.isFinite(number) ? number : 0;
   }
 
   private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {

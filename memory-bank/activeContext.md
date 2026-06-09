@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued P2 FIT export CSV workflow:
+  - Added CSV download `GET /api/fit-tours/:id/export` and kept legacy
+    `POST /api/fit-tours/export` on the same export service path.
+  - `FitToursService.exportCsv()` builds the file from scoped FIT detail and
+    requires the common `tourId`, so stale legacy common fields do not drive
+    export output.
+  - The FIT list UI now downloads the CSV through the new endpoint.
+  - VPS verification passed on 2026-06-09: API/web Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    API/web deploy, and `HEALTHCHECK_OK`.
+
 - Continued P2 FIT attachment upload workflow:
   - Added multipart `POST /api/fit-tours/:id/attachments` for real FIT file
     uploads through `FilesService` / MinIO, scoped by `fitTourId` and workflow

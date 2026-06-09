@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -27,8 +27,18 @@ export class FitToursController {
 
   @Post('export')
   @RequirePermissions('tour.export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
   export(@Body('id') id: string, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.detail(id, request?.user);
+    return this.fitToursService.exportCsv(id, request?.user);
+  }
+
+  @Get(':id/export')
+  @RequirePermissions('tour.export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
+  exportById(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.exportCsv(id, request?.user);
   }
 
   @Get(':id')

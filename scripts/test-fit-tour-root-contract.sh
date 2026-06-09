@@ -86,12 +86,16 @@ function assertLegacyCompatBoundary() {
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
   assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
+  assert(controllerSource.includes("@Get(':id/export')") && controllerSource.includes("@Header('Content-Type', 'text/csv; charset=utf-8')"), 'FIT export endpoint should expose a CSV download by tour id');
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
   assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
+  assert(serviceSource.includes('async exportCsv') && serviceSource.includes('requiredTourRootId(fitTour)'), 'FIT export should be generated from a scoped FIT detail with common tourId');
   assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
   assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
+  const fitToursClientSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitToursClient.tsx', 'utf8');
+  assert(fitToursClientSource.includes('/export') && fitToursClientSource.includes('URL.createObjectURL'), 'FIT list UI should download exported CSV from the FIT export endpoint');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
@@ -209,6 +213,12 @@ async function main() {
   const legacyAttachment = await prisma.fitAttachment.findFirst({ where: { fitTourId: source.id, fileName: 'fit-pricing.pdf' } });
   assert(commonAttachment && commonAttachment.fileUrl && commonAttachment.uploadedBy === 'system', 'FIT upload should write common TourAttachment metadata');
   assert(legacyAttachment && legacyAttachment.fileUrl, 'FIT upload should keep legacy FitAttachment snapshot metadata');
+
+  const exportedCsv = await fitTours.exportCsv(source.id);
+  assert(exportedCsv.includes(`tour,tourId,${source.tourId},common Tour root`), 'FIT export should include common tourId');
+  assert(exportedCsv.includes('FIT Root Contract Source'), 'FIT export should include common Tour root name');
+  assert(exportedCsv.includes('attachments,1,PRICING,fit-pricing.pdf'), 'FIT export should include uploaded attachment metadata');
+  assert(exportedCsv.includes('budget.services'), 'FIT export should include budget service rows');
 
   const createdRoot = await prisma.tour.findUnique({
     where: { id: source.tourId },

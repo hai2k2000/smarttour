@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Plus, RefreshCw, X } from 'lucide-react';
+import { Download, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { authHeaders } from '../authFetch';
 import FitTourWizard from './FitTourWizard';
@@ -141,6 +141,26 @@ export default function FitToursClient({ suppliers, tours }: { suppliers: Suppli
       setListMessage(`Tải danh sách FIT lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     } finally {
       setListBusy(false);
+    }
+  }
+
+  async function exportTour(id: string) {
+    setListMessage('Đang xuất file tour FIT...');
+    try {
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}/export`, { headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseError(response));
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `smarttour-fit-${id}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setListMessage('Đã xuất file tour FIT.');
+    } catch (error) {
+      setListMessage(`Xuất file FIT lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
   }
 
