@@ -174,14 +174,34 @@ function assertLegacyCompatBoundary() {
   assert(fitWizardSource.includes("quoteCode: ''") && fitWizardSource.includes("tourCode: ''"), 'FIT new-tour defaults should not generate collision-prone daily codes');
   assert(fitWizardSource.includes("if (!current.id)") && fitWizardSource.includes('Tour mới chỉ được lưu khi bạn bấm Lưu nháp'), 'FIT autosave should not create a new tour while the user is typing');
   assert(fitWizardSource.includes('saveInFlight.current') && fitWizardSource.includes('autosaveDelayMs = 2500'), 'FIT autosave should debounce and prevent concurrent saves');
+  assert(fitWizardSource.includes('void loadTour(initialTourId)') && fitWizardSource.includes('reset(defaults, { keepDirty: false })') && fitWizardSource.includes('lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults))'), 'FIT load should hydrate saved tours into a clean wizard state');
   assert(fitWizardSource.includes('workflowStepIndex(defaults.workflowStatus)'), 'FIT load should restore the active workflow step');
   assert(fitWizardSource.includes('normalizeCostRows') && fitWizardSource.includes('normalizeServiceRows'), 'FIT load should normalize numeric child rows');
   assert(fitWizardSource.includes('createPayload') && fitWizardSource.includes('attachments: _attachments'), 'FIT create should omit action-owned attachment metadata');
-  assert(fitWizardSource.includes('hotelLineAmount') && fitWizardSource.includes('paxPerRoom'), 'FIT hotel amount should account for guests per room');
-  assert(fitWizardSource.includes('getFieldState(amountPath).isDirty'), 'FIT amount auto-calculation should preserve manually edited amounts');
+  assert(fitWizardSource.includes('function lineAmount') && fitWizardSource.includes('quantity * times * exchangeRate * unitPrice * (1 + vat / 100)'), 'FIT wizard lineAmount should calculate quantity * times * exchangeRate * unitPrice * VAT');
+  assert(fitWizardSource.includes('function hotelLineAmount') && fitWizardSource.includes('Math.ceil(Math.max(1, totalPax) / positiveNumber(line.paxPerRoom))'), 'FIT hotel amount should account for guests per room');
+  assert(fitWizardSource.includes('const budgetRevenue = totalPax * number(values.sellingPrice)') && fitWizardSource.includes('const budgetProfit = budgetRevenue - budgetCost') && fitWizardSource.includes('const operationProfit = budgetRevenue - operationCost'), 'FIT wizard summary cards should use the same revenue/cost/profit formulas');
+  for (const label of ['Tổng phí chung', 'Tổng phí riêng', 'Giá vốn / khách', 'Lợi nhuận / khách', 'Tổng thu dự kiến', 'Tổng chi dự kiến', 'Lợi nhuận dự kiến', 'Tổng chi điều hành', 'Lợi nhuận thực tế']) {
+    assert(fitWizardSource.includes(label), `FIT wizard summary should keep business metric label ${label}`);
+  }
+  assert(fitWizardSource.includes('getFieldState(amountPath).isDirty') && fitWizardSource.includes('setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false })'), 'FIT amount auto-calculation should preserve manually edited amounts');
   assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('sourceTourId: copySourceTourId'), 'FIT budget copy should use an explicit source tour');
   assert(fitWizardSource.includes('sourceTourId: copySourceTourId || id'), 'FIT operation copy should explicitly use selected or current tour source');
   assert(fitWizardSource.includes('workflowSteps.some((step) => step.key === row.step)'), 'FIT loaded attachments should remain scoped to valid workflow steps');
+  assert(fitWizardSource.includes('onClick={() => setActiveStep(index)}') && fitWizardSource.includes('Math.max(0, step - 1)') && fitWizardSource.includes('Math.min(workflowSteps.length - 1, step + 1)'), 'FIT wizard should support direct and previous/next workflow navigation');
+  for (const [name, title] of [
+    ['commonCosts', 'Chi phí chung'],
+    ['hotelCosts', 'Chi phí khách sạn'],
+    ['privateCosts', 'Chi phí riêng khách'],
+    ['guides', 'Hướng dẫn viên'],
+    ['budgetServices', 'Dự toán dịch vụ'],
+    ['operationServices', 'Điều hành dịch vụ'],
+    ['handoverItems', 'Vật dụng và quà tặng'],
+    ['surveyQuestions', 'Câu hỏi đánh giá dịch vụ'],
+  ]) {
+    assert(fitWizardSource.includes(`title="${title}" name="${name}"`), `FIT wizard should render child table ${name}`);
+    assert(fitWizardSource.includes(`append={() => arrays.${name}.append`) && fitWizardSource.includes(`remove={arrays.${name}.remove}`), `FIT wizard child table ${name} should support add/remove rows`);
+  }
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(legacyCompatSource.includes('private hasChanges') && legacyCompatSource.includes('private async replaceFitChildren'), 'FIT legacy child sync should use hasChanges -> deleteMany -> createMany helper pattern');
   const legacySyncChildrenBlock = legacyCompatSource.slice(legacyCompatSource.indexOf('async syncChildren'), legacyCompatSource.indexOf('async replaceBudgetServices'));
@@ -509,6 +529,49 @@ async function main() {
   assert(stepBudgetConfirmed.workflowStatus === FitTourWorkflowStatus.BUDGET, 'confirmStep BUDGET should advance workflow');
   assert(stepBudgetConfirmed.budgetServices[0].description === 'Step budget hotel', 'confirmStep BUDGET should keep drafted budget rows');
 
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.OPERATION, {
+    operationServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, supplierServiceId: supplierService.id, description: 'Step operation hotel', bookingCode: `${run}-STEP-OP`, quantity: 3, confirmedUnitPrice: 1300, vat: 0, amount: 3900, status: FitServiceStatus.CONFIRMED }],
+    budgetServices: [{ serviceType: 'WRONG_OPERATION_BUDGET', description: 'Wrong operation step', quantity: 1, unitPrice: 999, amount: 999 }],
+  });
+  const stepOperationDetail = await fitTours.detail(source.id);
+  assert(stepOperationDetail.workflowStatus === FitTourWorkflowStatus.BUDGET, 'saveStep OPERATION should save draft without advancing workflow');
+  assert(stepOperationDetail.operationServices[0].description === 'Step operation hotel', 'saveStep OPERATION should update operation rows');
+  assert(!stepOperationDetail.budgetServices.some((row) => row.description === 'Wrong operation step'), 'saveStep OPERATION should ignore budget rows outside step field contract');
+  await fitTours.confirmStep(source.id, FitTourWorkflowStatus.OPERATION, {});
+  const stepOperationConfirmed = await fitTours.detail(source.id);
+  assert(stepOperationConfirmed.workflowStatus === FitTourWorkflowStatus.OPERATION, 'confirmStep OPERATION should advance workflow');
+  assert(stepOperationConfirmed.operationServices[0].bookingCode === `${run}-STEP-OP`, 'confirmStep OPERATION should keep drafted operation rows');
+
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.HANDOVER, {
+    handoverGuideRequest: 'Nhắc hướng dẫn viên xác nhận giờ đón khách',
+    handoverItems: [{ itemName: 'Voucher dịch vụ', quantity: 2, notes: 'Bàn giao trước ngày khởi hành' }],
+    surveyQuestions: [{ question: 'Wrong handover step', notes: 'Should be ignored' }],
+  });
+  const stepHandoverDetail = await fitTours.detail(source.id);
+  assert(stepHandoverDetail.workflowStatus === FitTourWorkflowStatus.OPERATION, 'saveStep HANDOVER should save draft without advancing workflow');
+  assert(stepHandoverDetail.handoverGuideRequest === 'Nhắc hướng dẫn viên xác nhận giờ đón khách', 'saveStep HANDOVER should update handover guide request');
+  assert(stepHandoverDetail.handoverItems.some((row) => row.itemName === 'Voucher dịch vụ'), 'saveStep HANDOVER should update handover rows');
+  assert(!stepHandoverDetail.surveyQuestions.some((row) => row.question === 'Wrong handover step'), 'saveStep HANDOVER should ignore survey rows outside step field contract');
+  await fitTours.confirmStep(source.id, FitTourWorkflowStatus.HANDOVER, {});
+  const stepHandoverConfirmed = await fitTours.detail(source.id);
+  assert(stepHandoverConfirmed.workflowStatus === FitTourWorkflowStatus.HANDOVER, 'confirmStep HANDOVER should advance workflow');
+  assert(stepHandoverConfirmed.handoverItems.some((row) => row.itemName === 'Voucher dịch vụ'), 'confirmStep HANDOVER should keep drafted handover rows');
+
+  await fitTours.saveStep(source.id, FitTourWorkflowStatus.SURVEY, {
+    surveyDescription: 'Phiếu đánh giá sau tour FIT',
+    surveyQuestions: [{ question: 'Khách hài lòng với chương trình tour?', notes: 'Chấm điểm 1-5' }],
+    handoverItems: [{ itemName: 'Wrong survey step', quantity: 1 }],
+  });
+  const stepSurveyDetail = await fitTours.detail(source.id);
+  assert(stepSurveyDetail.workflowStatus === FitTourWorkflowStatus.HANDOVER, 'saveStep SURVEY should save draft without advancing workflow');
+  assert(stepSurveyDetail.surveyDescription === 'Phiếu đánh giá sau tour FIT', 'saveStep SURVEY should update survey description');
+  assert(stepSurveyDetail.surveyQuestions.some((row) => row.question === 'Khách hài lòng với chương trình tour?'), 'saveStep SURVEY should update survey rows');
+  assert(!stepSurveyDetail.handoverItems.some((row) => row.itemName === 'Wrong survey step'), 'saveStep SURVEY should ignore handover rows outside step field contract');
+  await fitTours.confirmStep(source.id, FitTourWorkflowStatus.SURVEY, {});
+  const stepSurveyConfirmed = await fitTours.detail(source.id);
+  assert(stepSurveyConfirmed.workflowStatus === FitTourWorkflowStatus.SURVEY, 'confirmStep SURVEY should advance workflow');
+  assert(stepSurveyConfirmed.surveyQuestions.some((row) => row.question === 'Khách hài lòng với chương trình tour?'), 'confirmStep SURVEY should keep drafted survey rows');
+
   const pricingOnlySource = await fitTours.create({
     quoteCode: `${run}-PRICE-Q`,
     tourCode: `${run}-PRICE-T`,
@@ -583,7 +646,7 @@ async function main() {
   assert(copiedOperationLegacyRows.length === 1 && copiedOperationLegacyRows[0].supplierServiceId === supplierService.id, 'copyOperation should update legacy FIT operation rows');
   assert(targetOperationServices.length === 1 && targetOperationServices[0].supplierServiceId === supplierService.id, 'copyOperation should update common TourService operation rows');
   assert(targetOperationServices[0].confirmationStatus === TourServiceStatus.CONFIRMED, 'copyOperation should map FIT service status to common TourService status');
-  assert(targetOperationServices[0].description === 'Operation hotel', 'copyOperation should preserve common operation service descriptions');
+  assert(targetOperationServices[0].description === 'Step operation hotel', 'copyOperation should preserve common operation service descriptions');
   assert(targetBudgetServicesAfterOperation.length === 1 && decimal(targetBudgetServicesAfterOperation[0].budgetAmount) === 3000, 'copyOperation should preserve copied common budget services');
 
   const removed = await fitTours.remove(target.id);
