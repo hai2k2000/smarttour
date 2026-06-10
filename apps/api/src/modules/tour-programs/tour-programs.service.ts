@@ -123,10 +123,10 @@ export class TourProgramsService {
     });
     if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
     if (tourProgram._count.bookings > 0) {
-      throw new ConflictException('Không thể xóa chương trình tour đã có booking');
+      throw new ConflictException(`Không thể xóa chương trình tour vì đang có ${tourProgram._count.bookings} booking liên quan`);
     }
     if (tourProgram._count.itineraryDays > 0) {
-      throw new ConflictException('Không thể xóa chương trình tour đã có ngày hành trình');
+      throw new ConflictException(`Không thể xóa chương trình tour vì còn ${tourProgram._count.itineraryDays} ngày hành trình`);
     }
     return this.prisma.tourProgram.delete({ where: { id } });
   }

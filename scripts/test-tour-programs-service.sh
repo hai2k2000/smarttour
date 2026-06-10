@@ -59,6 +59,18 @@ async function rejects(action, label) {
   assert(rejected, label);
 }
 
+async function rejectMessage(action, label) {
+  try {
+    await action();
+  } catch (error) {
+    const response = typeof error?.getResponse === 'function' ? error.getResponse() : undefined;
+    if (typeof response === 'string') return response;
+    if (Array.isArray(response?.message)) return response.message.join(', ');
+    return response?.message || error?.message || '';
+  }
+  throw new Error(label);
+}
+
 function validationMessages(errors) {
   return errors.flatMap((error) => [
     ...Object.values(error.constraints ?? {}),
@@ -130,6 +142,11 @@ async function main() {
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
   assert(serviceSource.includes('TOUR_ITINERARY_TITLE_MAX_LENGTH'), 'service should reuse itinerary title max from DTO');
   assert(serviceSource.includes("validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays)"), 'service should validate durationDays to prevent DTO bypass');
+  assert(serviceSource.includes("...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {})"), 'toTourProgramData should only update submitted code and normalize uppercase');
+  assert(serviceSource.includes("...(dto.route !== undefined ? { route: this.optionalText(dto.route) } : {})"), 'toTourProgramData should only update submitted route');
+  assert(serviceSource.includes("...(dto.description !== undefined ? { description: this.optionalText(dto.description) } : {})"), 'toTourProgramData should only update submitted description');
+  assert(serviceSource.includes('booking liên quan'), 'remove booking conflict message should be explicit Vietnamese');
+  assert(serviceSource.includes('ngày hành trình'), 'remove itinerary conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('itineraryDays: { orderBy: { dayNumber:'), 'list should include itineraryDays ordered by dayNumber for frontend preview');
   assert(serviceSource.includes('_count: { select: { bookings: true } }'), 'list/detail should expose booking count for frontend guards');
   assert(serviceSource.includes("orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }]"), 'list should keep newest-updated ordering with code tie-breaker');
@@ -317,6 +334,11 @@ async function main() {
     () => service.create({ code: `${run}-MAIN`, name: 'Duplicate Code', durationDays: 1 }),
     'create should reject duplicate code',
   );
+  const duplicateCreateMessage = await rejectMessage(
+    () => service.create({ code: `${run}-MAIN`, name: 'Duplicate Code', durationDays: 1 }),
+    'create should reject duplicate code with Vietnamese message',
+  );
+  assert(duplicateCreateMessage === 'Mã chương trình tour đã tồn tại', 'create duplicate code message should be Vietnamese');
 
   const dayOne = await service.createItineraryDay(created.id, {
     dayNumber: 1,
@@ -363,7 +385,11 @@ async function main() {
   assert(detail.itineraryDays.length === 2, 'detail should include itinerary days');
   assert(detail._count.bookings === 0, 'detail should include _count.bookings');
   assert(!('bookings' in detail), 'detail should not include booking rows when frontend only needs booking count');
-  await rejects(() => service.detail('missing-tour-program-id'), 'detail should reject missing tour program');
+  const missingDetailMessage = await rejectMessage(
+    () => service.detail('missing-tour-program-id'),
+    'detail should reject missing tour program with Vietnamese message',
+  );
+  assert(missingDetailMessage === 'Không tìm thấy chương trình tour', 'detail missing tour program message should be Vietnamese');
 
   const updated = await service.update(created.id, {
     name: 'Tour Programs Service Main Updated',
@@ -396,10 +422,11 @@ async function main() {
     () => service.update(created.id, { durationDays: 1 }),
     'update should reject durationDays smaller than existing itinerary max day',
   );
-  await rejects(
+  const itineraryRemoveMessage = await rejectMessage(
     () => service.remove(created.id),
     'delete should reject tour program with itinerary days',
   );
+  assert(itineraryRemoveMessage === 'Không thể xóa chương trình tour vì còn 2 ngày hành trình', 'remove itinerary conflict message should include related count');
 
   const directDuplicateProgram = await prisma.tourProgram.create({
     data: {
@@ -419,6 +446,11 @@ async function main() {
     () => service.update(created.id, { code: `${run}-DIRECT` }),
     'update should reject code conflict',
   );
+  const duplicateUpdateMessage = await rejectMessage(
+    () => service.update(created.id, { code: `${run}-DIRECT` }),
+    'update should reject code conflict with Vietnamese message',
+  );
+  assert(duplicateUpdateMessage === 'Mã chương trình tour đã tồn tại', 'update duplicate code message should be Vietnamese');
 
   const linkedProgram = await createCompleteProgram(service, run, 'LINKED', 2);
   const booking = await prisma.booking.create({
@@ -438,10 +470,11 @@ async function main() {
     () => service.update(linkedProgram.id, { durationDays: 3 }),
     'update should reject durationDays change when tour program has bookings',
   );
-  await rejects(
+  const bookingRemoveMessage = await rejectMessage(
     () => service.remove(linkedProgram.id),
     'delete should reject tour program with linked booking',
   );
+  assert(bookingRemoveMessage === 'Không thể xóa chương trình tour vì đang có 1 booking liên quan', 'remove booking conflict message should include related count');
   await service.update(linkedProgram.id, { name: 'Linked Program Renamed' });
   const bookingAfterTourRename = await prisma.booking.findUnique({ where: { id: booking.id }, select: { tourProgramId: true } });
   assert(bookingAfterTourRename.tourProgramId === linkedProgram.id, 'updating non-duration fields should not orphan linked bookings');
