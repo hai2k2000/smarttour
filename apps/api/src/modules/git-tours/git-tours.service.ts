@@ -124,7 +124,38 @@ export class GitToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system'));
+    return this.prisma.$transaction(async (tx) => {
+      await this.ensureRemovable(tx, id, user);
+      return this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system');
+    });
+  }
+
+  private async ensureRemovable(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser) {
+    const tour = await tx.tour.findFirst({
+      where: this.tourCore.scopeWhere({ id: tourId, type: TourType.GIT }, user),
+      select: {
+        orderId: true,
+        _count: {
+          select: {
+            bookings: true,
+            operationVouchers: true,
+            operationForms: true,
+            financeReceipts: true,
+            financePayments: true,
+            financeInvoices: true,
+            financeCashflowEntries: true,
+            payments: true,
+            receipts: true,
+            expenses: true,
+          },
+        },
+      },
+    });
+    if (!tour) throw new NotFoundException('Không tìm thấy tour GIT');
+    const hasExternalDependency = Boolean(tour.orderId) || Object.values(tour._count).some((count) => count > 0);
+    if (hasExternalDependency) {
+      throw new BadRequestException('Không thể xóa tour GIT đã phát sinh đơn hàng, booking, điều hành hoặc chứng từ tài chính');
+    }
   }
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
@@ -233,7 +264,7 @@ export class GitToursService {
       ...(dto.holdCode !== undefined ? { holdCode: this.optionalText(dto.holdCode) } : {}),
       ...(dto.itinerarySummary !== undefined ? { itinerarySummary: this.optionalText(dto.itinerarySummary) } : {}),
       ...(dto.collaborator !== undefined ? { collaborator: this.optionalText(dto.collaborator) } : {}),
-      ...(dto.commissionRate !== undefined ? { commissionRate: this.number(dto.commissionRate) } : {}),
+      ...(dto.commissionRate !== undefined ? { commissionRate: this.number(dto.commissionRate, 'Tỷ lệ hoa hồng GIT') } : {}),
       ...(dto.invoiceStatus !== undefined ? { invoiceStatus: this.optionalText(dto.invoiceStatus) } : {}),
       ...(dto.accountCode !== undefined ? { accountCode: this.optionalText(dto.accountCode) } : {}),
       ...(dto.fileNote !== undefined ? { fileNote: this.optionalText(dto.fileNote) } : {}),
@@ -336,9 +367,10 @@ export class GitToursService {
   }
 
 
-  private number(value: unknown) {
-    const parsed = Number(value || 0);
-    return Number.isFinite(parsed) ? parsed : 0;
+  private number(value: unknown, label = 'Giá trị số GIT') {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed)) throw new BadRequestException(`${label} phải là số hợp lệ`);
+    return parsed;
   }
 
 

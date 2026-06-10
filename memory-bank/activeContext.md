@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued GIT backend service hardening:
+  - GIT remove now blocks tours with external dependencies such as linked
+    orders, bookings, operation records, and finance documents while keeping
+    draft-owned child rows soft-delete compatible.
+  - GIT numeric parsing no longer silently coerces invalid service/detail
+    numbers to zero, and service amount mapping now persists currency /
+    exchangeRate and calculates sales/budget/operation amounts with
+    exchangeRate before VAT.
+  - Regression now covers invalid nested service numbers, operation amount
+    with exchangeRate/VAT, copy-services preserving currency/exchangeRate, and
+    remove blocking order-linked GIT tours.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and GIT auth smoke.
+
+
 - Continued GIT backend API contract lock:
   - `TEST_TOUR_TYPE_APIS_OK` now guards exact `git-tours` controller route
     surface: list/detail/create/PUT/PATCH/delete/copy-services, inherited

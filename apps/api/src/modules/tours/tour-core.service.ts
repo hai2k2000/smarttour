@@ -333,6 +333,7 @@ export class TourCoreService {
     return this.rows(rows).map((row) => {
       const quantity = this.number(row.quantity || 1, 'quantity');
       const salesUnitPrice = this.number(row.unitPrice || row.salesUnitPrice, 'salesUnitPrice');
+      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -341,9 +342,11 @@ export class TourCoreService {
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         description: this.optionalText(row.description),
         quantity,
+        currency: this.optionalText(row.currency) || 'VND',
+        exchangeRate,
         salesUnitPrice,
         vat,
-        salesAmount: this.money(row.amount, quantity * salesUnitPrice, vat),
+        salesAmount: this.money(row.amount, quantity * salesUnitPrice * exchangeRate, vat),
         notes: this.optionalText(row.notes),
       };
     });
@@ -353,6 +356,7 @@ export class TourCoreService {
     return this.rows(rows).map((row) => {
       const quantity = this.number(row.quantity || 1, 'quantity');
       const budgetUnitPrice = this.number(row.unitPrice || row.budgetUnitPrice, 'budgetUnitPrice');
+      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -361,9 +365,11 @@ export class TourCoreService {
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         description: this.optionalText(row.description),
         quantity,
+        currency: this.optionalText(row.currency) || 'VND',
+        exchangeRate,
         budgetUnitPrice,
         vat,
-        budgetAmount: this.money(row.amount, quantity * budgetUnitPrice, vat),
+        budgetAmount: this.money(row.amount, quantity * budgetUnitPrice * exchangeRate, vat),
         notes: this.optionalText(row.notes),
       };
     });
@@ -373,6 +379,7 @@ export class TourCoreService {
     return this.rows(rows).map((row) => {
       const quantity = this.number(row.quantity || 1, 'quantity');
       const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice, 'confirmedUnitPrice');
+      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -381,9 +388,11 @@ export class TourCoreService {
         supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
         description: this.optionalText(row.description),
         quantity,
+        currency: this.optionalText(row.currency) || 'VND',
+        exchangeRate,
         confirmedUnitPrice,
         vat,
-        confirmedAmount: this.money(row.amount, quantity * confirmedUnitPrice, vat),
+        confirmedAmount: this.money(row.amount, quantity * confirmedUnitPrice * exchangeRate, vat),
         bookingCode: this.optionalText(row.bookingCode),
         notes: this.optionalText(row.notes),
       };

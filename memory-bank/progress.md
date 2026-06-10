@@ -2,6 +2,20 @@
 
 ## Done
 
+- Hardened GIT backend service business rules:
+  - `GitToursService.remove()` now rejects delete attempts when a GIT tour has
+    external order/booking/operation/finance dependencies, while owned draft
+    children remain covered by common Tour soft delete.
+  - `GitToursService.number()` now throws Vietnamese validation errors instead
+    of coercing invalid numeric input to zero.
+  - `TourCoreService` service mappers now store `currency` / `exchangeRate`
+    and calculate sales/budget/operation service amounts with exchangeRate
+    before VAT; copy-services preserves those fields.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and
+    `/api/git-tours?status=running` auth smoke.
+
+
 - Locked GIT backend API controller contract:
   - Regression now verifies route/method surface for `GET /git-tours`,
     `GET /git-tours/:id`, `POST /git-tours`, `PUT /git-tours/:id`,
