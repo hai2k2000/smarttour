@@ -202,6 +202,20 @@ async function main() {
   assert(updated.name === 'Tour Programs Service Main Updated', 'update should persist name');
   assert(updated.route === 'Ha Noi - Ha Long - Ninh Binh', 'update should persist route');
   assert(updated.durationDays === 2, 'update should allow durationDays that still covers existing itinerary');
+
+  const partialUpdated = await service.update(created.id, {
+    name: 'Tour Programs Service Partial Updated',
+  });
+  assert(partialUpdated.name === 'Tour Programs Service Partial Updated', 'partial update should update submitted field');
+  assert(partialUpdated.code === `${run}-MAIN`, 'partial update should keep omitted code');
+  assert(partialUpdated.route === 'Ha Noi - Ha Long - Ninh Binh', 'partial update should keep omitted route');
+  assert(partialUpdated.durationDays === 2, 'partial update should keep omitted durationDays');
+  assert(partialUpdated.description === 'Updated description', 'partial update should keep omitted description');
+
+  const codeUpdated = await service.update(created.id, { code: `${run}-renamed` });
+  assert(codeUpdated.code === `${run}-RENAMED`, 'update should normalize submitted code to uppercase');
+  assert(codeUpdated.name === 'Tour Programs Service Partial Updated', 'code-only update should keep omitted name');
+
   await rejects(
     () => service.createItineraryDay(created.id, { dayNumber: 3, title: 'Outside updated duration' }),
     'createItineraryDay should use updated durationDays',
