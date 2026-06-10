@@ -22,6 +22,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Locked LandTour data/business alignment:
+  - LandTour frontend list/status modal now displays and updates the common
+    `workflowStep`, with localized labels matching the backend validator.
+  - Regression now checks `productType = LANDTOUR`, LandTour workflow labels
+    across UI/i18n/backend, copy-services sales+operation preservation,
+    comboType/smartLinkCode/confirmationNote detail mapping, VI/EN terms via
+    common `TourTerm`, search by systemCode/tourCode/name/route/customer and
+    detail fields, and partial updates preserving customers/services/terms.
+  - Dedicated LandTour PDF/print export is not present yet; current coverage
+    locks the response/common-term contract that any future print/export flow
+    should consume.
+  - VPS verification passed on 2026-06-10: web Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web deploy,
+    LandTour web auth redirect 307, and LandTour API auth smoke 401.
+
+
 - Hardened LandToursService business contract:
   - LandTour create/update now normalizes required identity fields, lifecycle
     status, paymentStatus, and workflowStep before common Tour root writes.

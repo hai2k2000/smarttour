@@ -1,4 +1,4 @@
-﻿import { Boxes, FileText, Plus, Route, Save, Trash2, Users, X } from 'lucide-react';
+import { Boxes, FileText, GitBranch, Plus, Route, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
@@ -12,6 +12,7 @@ type LandTour = {
   name: string | null;
   status: string;
   paymentStatus: string;
+  workflowStep: string | null;
   startDate: string | null;
   endDate: string | null;
   route: string | null;
@@ -73,7 +74,7 @@ async function updateLandTourStatus(formData: FormData) {
   await fetch(`${apiBase}/api/landtours/${id}`, {
     method: 'PATCH',
     headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({ status: String(formData.get('status') || '') }),
+    body: JSON.stringify({ status: String(formData.get('status') || ''), workflowStep: String(formData.get('workflowStep') || '') }),
   });
   revalidatePath('/landtours');
 }
@@ -89,6 +90,7 @@ async function deleteLandTour(formData: FormData) {
 function formatDate(v: string | null) { return v ? dateFormatter.format(new Date(v)) : '—'; }
 
 const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED'];
+const landWorkflowSteps = ['LANDTOUR_INFO', 'LANDTOUR_COSTING', 'LANDTOUR_OPERATION', 'LANDTOUR_HANDOVER', 'LANDTOUR_SURVEY', 'LANDTOUR_COMPLETED'];
 
 export default async function LandToursPage() {
   const tours = await apiGet<LandTour[]>('/landtours', []);
@@ -156,7 +158,7 @@ export default async function LandToursPage() {
         ) : (
           <table>
             <thead>
-              <tr><th>Mã</th><th>Tour</th><th>Khách</th><th>Ngày đi</th><th>Loại combo</th><th>HDV</th><th>Trạng thái</th><th>DV / ĐK</th><th>Thao tác</th></tr>
+              <tr><th>Mã</th><th>Tour</th><th>Khách</th><th>Ngày đi</th><th>Loại combo</th><th>HDV</th><th>Trạng thái</th><th>Workflow</th><th>DV / ĐK</th><th>Thao tác</th></tr>
             </thead>
             <tbody>
               {tours.map((tour) => (
@@ -170,6 +172,7 @@ export default async function LandToursPage() {
                     <td>
                       <span className={`statusBadge status-${tour.status.toLowerCase()}`}>{viStatus(tour.status)}</span>
                     </td>
+                    <td><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span></td>
                     <td>{tour._count?.services ?? 0} DV / <FileText size={12} /> {tour._count?.terms ?? 0} ĐK</td>
                     <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><form action={deleteLandTour}>
                         <input type="hidden" name="id" value={tour.id} />
@@ -188,6 +191,7 @@ export default async function LandToursPage() {
             <form action={updateLandTourStatus} className="formStack">
               <input type="hidden" name="id" value={tour.id} />
               <label>Trạng thái<select name="status" defaultValue={tour.status}>{tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
+              <label>Bước workflow<select name="workflowStep" defaultValue={tour.workflowStep || 'LANDTOUR_INFO'}>{landWorkflowSteps.map((step) => <option key={step} value={step}>{viStatus(step)}</option>)}</select></label>
               <button type="submit"><Save size={15} /> Cập nhật</button>
             </form>
           </div>

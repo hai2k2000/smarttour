@@ -4,6 +4,20 @@
 
 
 
+- Locked LandTour data/business checks:
+  - Frontend LandTour now exposes workflowStep in the list and status modal,
+    with i18n labels for all backend-supported LandTour workflow steps.
+  - Regression verifies `productType = LANDTOUR`, copy-services sales/operation
+    preservation, terms VI/EN mapping through common `TourTerm`, detail fields
+    (`guideName`, `comboType`, `smartLinkCode`, `confirmationNote`), search
+    coverage, and partial update preservation for customers/services/terms.
+  - No dedicated LandTour PDF/print flow exists yet; the tested response/common
+    terms contract is the stable input for that future exporter.
+  - Verified on VPS: web Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web deploy, LandTour web auth redirect
+    307, and LandTour API auth smoke 401.
+
+
 - Hardened LandTour service behavior:
   - `LandToursService` now has a `prepareLandTourDto` boundary for uppercase
     codes, required Vietnamese errors, status/payment normalization, and

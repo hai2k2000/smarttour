@@ -68,6 +68,12 @@ const statusLabels: Record<string, string> = {
   GIT_HANDOVER: 'Bàn giao GIT',
   GIT_SURVEY: 'Đánh giá GIT',
   GIT_COMPLETED: 'Hoàn tất GIT',
+  LANDTOUR_INFO: 'Thông tin LandTour',
+  LANDTOUR_COSTING: 'Dự toán LandTour',
+  LANDTOUR_OPERATION: 'Điều hành LandTour',
+  LANDTOUR_HANDOVER: 'Bàn giao LandTour',
+  LANDTOUR_SURVEY: 'Đánh giá LandTour',
+  LANDTOUR_COMPLETED: 'Hoàn tất LandTour',
 };
 
 const roleLabels: Record<string, string> = {

@@ -203,6 +203,7 @@ function assertLandToursControllerContract() {
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/landtours/landtours.controller.ts', 'utf8');
   const queryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/landtours/dto/list-landtours-query.dto.ts', 'utf8');
   const pageSource = fs.readFileSync('/workspace/apps/web/app/landtours/page.tsx', 'utf8');
+  const i18nSource = fs.readFileSync('/workspace/apps/web/app/i18n.ts', 'utf8');
   assert(controllerSource.includes("@RequirePermissions('tour.view')") && controllerSource.includes("@Controller('landtours')"), 'LandToursController list/detail should inherit tour.view permission');
   for (const route of ["@Get()", "@Get(':id')", "@Post()", "@Put(':id')", "@Patch(':id')", "@Delete(':id')", "@Post(':id/copy-services')"]) {
     assert(controllerSource.includes(route), `LandToursController should expose ${route}`);
@@ -223,8 +224,14 @@ function assertLandToursControllerContract() {
   assert(!controllerSource.includes("@Query('status')"), 'LandToursController list should not accept raw status query values');
   assert(queryDtoSource.includes('class ListLandToursQueryDto') && queryDtoSource.includes('@IsEnum(TourStatus') && queryDtoSource.includes('Trạng thái LandTour không hợp lệ'), 'ListLandToursQueryDto should validate TourStatus with Vietnamese message');
   assert(queryDtoSource.includes('trimSearch') && queryDtoSource.includes('normalizeStatus') && queryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'ListLandToursQueryDto should trim search/status and cap search length');
-  for (const field of ['tour.systemCode', 'tour.tourCode', 'tour.route', 'tour.customers[0]?.name', 'tour.landTour?.comboType', 'tour.landTour?.guideName', 'tour._count?.services', 'tour._count?.terms']) {
+  for (const field of ['tour.systemCode', 'tour.tourCode', 'tour.route', 'tour.customers[0]?.name', 'tour.landTour?.comboType', 'tour.landTour?.guideName', 'tour._count?.services', 'tour._count?.terms', 'tour.workflowStep']) {
     assert(pageSource.includes(field), `LandTours frontend list should keep using response field ${field}`);
+  }
+  assert(pageSource.includes('landWorkflowSteps') && pageSource.includes('name="workflowStep"') && pageSource.includes('viStatus(tour.workflowStep)'), 'LandTours frontend should display and update backend workflowStep');
+  for (const step of ['LANDTOUR_INFO', 'LANDTOUR_COSTING', 'LANDTOUR_OPERATION', 'LANDTOUR_HANDOVER', 'LANDTOUR_SURVEY', 'LANDTOUR_COMPLETED']) {
+    assert(i18nSource.includes(step), `LandTour workflow label ${step} should be localized for frontend display`);
+    assert(pageSource.includes(step), `LandTour frontend workflow options should include ${step}`);
+    assert(require('fs').readFileSync('/workspace/apps/api/src/modules/landtours/landtours.service.ts', 'utf8').includes(step), `LandTour backend workflow validator should include ${step}`);
   }
 }
 
@@ -460,7 +467,7 @@ async function main() {
 
   function assertGitListRowShape(row, label) {
     assert(row && row.id && row.systemCode && row.tourCode && typeof row.status === 'string', `${label}: list row should expose root identity/status fields`);
-    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row, `${label}: list row should expose payment/workflow/operator fields used by frontend`);
+    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row && 'productType' in row, `${label}: list row should expose payment/workflow/operator/productType fields used by frontend/report flows`);
     assert(row.gitTour && 'agentName' in row.gitTour, `${label}: list row should expose gitTour.agentName snapshot overlay`);
     assert(Array.isArray(row.customers), `${label}: list row should expose customers array`);
     assert(row._count && typeof row._count.revenues === 'number' && typeof row._count.services === 'number' && typeof row._count.costs === 'number', `${label}: list row should expose child counts`);
@@ -469,7 +476,7 @@ async function main() {
 
   function assertGitDetailShape(row, label) {
     assert(row && row.id && row.systemCode && row.tourCode && typeof row.status === 'string', `${label}: detail response should expose root identity/status fields`);
-    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row, `${label}: detail response should expose payment/workflow/operator fields`);
+    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row && 'productType' in row, `${label}: detail response should expose payment/workflow/operator/productType fields`);
     assert(row.gitTour && 'agentName' in row.gitTour, `${label}: detail response should expose gitTour.agentName snapshot overlay`);
     for (const field of ['customers', 'revenues', 'services', 'costs', 'guides', 'attachments', 'surveys', 'logs']) {
       assert(Array.isArray(row[field]), `${label}: detail response should include ${field} array for edit/copy flows`);
@@ -1099,6 +1106,9 @@ async function main() {
         itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
         customerName: 'Tour type API LandTour customer',
         guideName: 'Tour type API LandTour guide',
+        comboType: 'Combo du lịch',
+        smartLinkCode: `${run}-LAND-SMART`,
+        confirmationNote: 'LandTour confirmation note',
         paymentStatus: 'partial',
         termsVi: 'LandTour dieu khoan VI',
         termsEn: 'LandTour English terms',
@@ -1114,6 +1124,7 @@ async function main() {
   assert(landTour.id, 'LandTour create should return id');
   assert(landTour.systemCode === `${run}-LAND-SYS` && landTour.tourCode === `${run}-LAND`, 'LandTour create should uppercase systemCode and tourCode');
   assert(landTour.workflowStep === 'LANDTOUR_INFO', 'LandTour create should initialize default workflow step');
+  assert(landTour.productType === 'LANDTOUR', 'LandTour create should set common productType LANDTOUR for reporting/product filters');
   assert(landTour.paymentStatus === 'PARTIAL', 'LandTour create should normalize paymentStatus');
   assert(landTour.logs.some((log) => log.action === 'CREATE_LANDTOUR' && log.metadata?.systemCode === `${run}-LAND-SYS`), 'LandTour create should write standardized create log metadata');
   assert(landTour.services.length === 2 && landTour.services.some((service) => service.confirmationStatus === 'CONFIRMED') && landTour.services.some((service) => service.confirmationStatus === 'OPERATING'), 'LandTour should map service status strings into TourServiceStatus');
@@ -1124,11 +1135,13 @@ async function main() {
   assert(landOperationService && Number(landOperationService.confirmedAmount) === 2940 && landOperationService.bookingCode === 'LAND-BOOK-1' && landOperationService.notes === 'Land operation note', 'LandTour should calculate operation amount and preserve bookingCode/notes');
   assert(landTour.route === 'Tour type API LandTour common route', 'LandTour root route should prefer the common route field over itinerarySummary alias');
   assert(landTour.landTour.guideName === 'Tour type API LandTour guide', 'LandTour response should expose guideName from common TourGuide row');
+  assert(landTour.landTour.comboType === 'Combo du lịch' && landTour.landTour.smartLinkCode === `${run}-LAND-SMART` && landTour.landTour.confirmationNote === 'LandTour confirmation note', 'LandTour response should expose comboType/smartLinkCode/confirmationNote detail fields');
   assert(landTour.landTour.termsVi === 'LandTour dieu khoan VI' && landTour.landTour.termsEn === 'LandTour English terms', 'LandTour response should expose terms from common TourTerm rows');
   const rawLandDetail = await prisma.landTourDetail.findUnique({ where: { tourId: landTour.id } });
   const landGuide = await prisma.tourGuide.findFirst({ where: { tourId: landTour.id, guideType: 'LANDTOUR' } });
   const landTerms = await prisma.tourTerm.findMany({ where: { tourId: landTour.id, termType: 'LANDTOUR' } });
   assert(rawLandDetail && rawLandDetail.guideName === null, 'LandTour detail should not write legacy guideName snapshot');
+  assert(rawLandDetail.comboType === 'Combo du lịch' && rawLandDetail.smartLinkCode === `${run}-LAND-SMART` && rawLandDetail.confirmationNote === 'LandTour confirmation note', 'LandTour detail should store product-specific detail fields');
   assert(rawLandDetail.termsVi === null && rawLandDetail.termsEn === null, 'LandTour detail should not write legacy term snapshots');
   assert(landGuide && landGuide.name === 'Tour type API LandTour guide', 'LandTour guideName should be stored as common TourGuide LANDTOUR row');
   assert(landTerms.length === 2 && landTerms.some((term) => term.language === 'VI' && term.content === 'LandTour dieu khoan VI') && landTerms.some((term) => term.language === 'EN' && term.content === 'LandTour English terms'), 'LandTour terms should be stored as common TourTerm rows');
@@ -1143,6 +1156,18 @@ async function main() {
   assert(landListRow && landListRow.landTour.guideName === 'Tour type API LandTour guide', 'LandTour list should overlay guideName from common TourGuide row');
   assert(landListRow._count.terms === 2, 'LandTour list should count common TourTerm rows');
   assert(!('guides' in landListRow), 'LandTour list should not expose guide payload just for guideName overlay');
+  for (const [query, label] of [
+    [`${run}-LAND-SYS`, 'systemCode'],
+    [`${run}-LAND`, 'tourCode'],
+    ['Tour type API LandTour', 'name'],
+    ['Tour type API LandTour common route', 'route'],
+    ['Tour type API LandTour customer', 'customerName'],
+    ['Combo du lịch', 'comboType'],
+    [`${run}-LAND-SMART`, 'smartLinkCode'],
+  ]) {
+    const rows = await expect(`/api/landtours?search=${encodeURIComponent(query)}`, {}, 200, `LandTour list should search ${label}`);
+    assert(rows.some((row) => row.id === landTour.id), `LandTour list search by ${label} should find the tour`);
+  }
   assert(String(landTour.startDate).startsWith('2026-09-01') && String(landTour.endDate).startsWith('2026-09-01'), 'LandTour should allow equal startDate/endDate for one-day tours');
   await expect(
     '/api/landtours',
@@ -1191,6 +1216,9 @@ async function main() {
     'patch LandTour',
   );
   assert(patchedLandTour.status === 'RUNNING', 'LandTour PATCH should update status');
+  assert(patchedLandTour.customers.length === 1 && patchedLandTour.customers[0].name === 'Tour type API LandTour customer', 'LandTour partial status update should not replace customers');
+  assert(patchedLandTour.services.length === 2 && patchedLandTour.services.some((service) => service.serviceType === 'LAND_CAR') && patchedLandTour.services.some((service) => service.serviceType === 'LAND_HOTEL'), 'LandTour partial status update should not replace services');
+  assert(patchedLandTour.terms.length === 2 && patchedLandTour.landTour.termsEn === 'LandTour English terms', 'LandTour partial status update should not replace terms');
   const workflowPatchedLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ workflowStep: 'LANDTOUR_COSTING' }) },
