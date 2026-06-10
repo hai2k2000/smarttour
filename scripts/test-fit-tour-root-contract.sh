@@ -122,6 +122,9 @@ function assertLegacyCompatBoundary() {
   const fitToursPageSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/page.tsx', 'utf8');
   assert(fitToursClientSource.includes('/export') && fitToursClientSource.includes('URL.createObjectURL'), 'FIT list UI should download exported CSV from the FIT export endpoint');
   assert(fitToursClientSource.includes('URLSearchParams') && fitToursClientSource.includes("params.set('status', workflowFilter)"), 'FIT list should send explicit search and workflow filters');
+  assert(fitToursClientSource.includes('normalizedSearch.length < 2'), 'FIT list should reject misleading one-character searches');
+  assert(fitToursClientSource.includes('messageClass(listMessage)'), 'FIT list should visually distinguish success, warning, and error feedback');
+  assert(fitToursClientSource.includes('exportFileCode(tour)'), 'FIT list should export CSV with a business-facing tour code filename');
   assert(fitToursClientSource.includes("return workflowLabels[key] || 'Chưa xác định'"), 'FIT list should not expose unknown technical workflow values');
   assert(fitToursClientSource.includes('Tour FIT còn thay đổi chưa lưu'), 'FIT list should warn before closing a dirty wizard');
   assert(fitToursClientSource.includes('onDirtyChange={setWizardDirty}') && fitToursClientSource.includes('onStatusChange='), 'FIT list should receive dirty and action status from the wizard');
@@ -131,6 +134,9 @@ function assertLegacyCompatBoundary() {
   assert(!fitToursClientSource.includes('<th>Dự toán / Điều hành</th>'), 'FIT list should not expose implementation-oriented combined column labels');
   assert(fitToursClientSource.includes('dịch vụ dự toán') && fitToursClientSource.includes('dịch vụ điều hành'), 'FIT list service counts should use business wording');
   assert(fitWizardSource.includes('onDirtyChange?:') && fitWizardSource.includes('onStatusChange?:'), 'FIT wizard should expose state callbacks for its parent list');
+  assert(fitWizardSource.includes('loadRequestId.current') && fitWizardSource.includes('selectTour(event.target.value)'), 'FIT wizard should protect tour switching from stale detail responses');
+  assert(fitWizardSource.includes('loadedTourId.current') && fitWizardSource.includes('hasUnsavedChanges && !window.confirm'), 'FIT wizard should restore the loaded tour and warn before discarding dirty state');
+  assert(!fitWizardSource.includes('\u0110ang copy') && !fitWizardSource.includes('Copy d\u1ef1 to\u00e1n l\u1ed7i') && !fitWizardSource.includes('Copy \u0111i\u1ec1u h\u00e0nh l\u1ed7i'), 'FIT wizard should not expose English copy wording in action feedback');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
   for (const label of ['Mã báo giá', 'Mã tour', 'Nhóm thị trường', 'Ngày đặt', 'Khởi đi', 'Ngày về', 'Họ tên khách', 'Số người lớn', 'Trẻ em', 'Em bé', 'Giá bán / khách', 'Hoa hồng / khách', 'Chi phí chung', 'Chi phí khách sạn', 'Chi phí riêng khách', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ']) {
     assert(fitWizardSource.includes(label), `FIT wizard should keep Vietnamese label ${label}`);

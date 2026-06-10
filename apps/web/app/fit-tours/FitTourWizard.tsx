@@ -546,6 +546,8 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const [copySourceTourId, setCopySourceTourId] = useState('');
   const lastAutosaveSignature = useRef('');
   const saveInFlight = useRef(false);
+  const loadRequestId = useRef(0);
+  const loadedTourId = useRef('');
   const form = useForm<FitTourForm>({
     resolver: zodResolver(fitTourSchema) as never,
     defaultValues: toFormDefaults(),
@@ -696,6 +698,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
       setSelectedTourId(saved.id || '');
+      loadedTourId.current = saved.id || '';
       onSaved?.(saved, 'save');
       setSaveState(`Đã lưu nháp bước ${activeStep + 1}: ${workflowSteps[activeStep].label}`);
     } catch (error) {
@@ -712,6 +715,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         const created = await saveTour(draft, step, 'draft');
         draft = toFormDefaults(created);
         setSelectedTourId(created.id || '');
+        loadedTourId.current = created.id || '';
         setValue('id', created.id || '', { shouldDirty: false });
       }
       const saved = await saveTour({ ...draft, workflowStatus: step }, step, 'confirm');
@@ -719,6 +723,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
       setSelectedTourId(saved.id || '');
+      loadedTourId.current = saved.id || '';
       onSaved?.(saved, 'confirm');
       const nextStep = Math.min(workflowSteps.length - 1, activeStep + 1);
       if (nextStep !== activeStep) setActiveStep(nextStep);
@@ -729,40 +734,54 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function loadTour(id: string) {
-    setSelectedTourId(id);
-    setCopySourceTourId('');
-    setActiveStep(0);
-    lastAutosaveSignature.current = '';
+    const requestId = ++loadRequestId.current;
     if (!id) {
+      setSelectedTourId('');
+      loadedTourId.current = '';
+      setCopySourceTourId('');
+      setActiveStep(0);
+      lastAutosaveSignature.current = '';
       reset(toFormDefaults());
       setSaveState('Chưa lưu');
       return;
     }
+    setSelectedTourId(id);
     setSaveState('Đang tải tour...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const defaults = toFormDefaults(await response.json());
+      if (requestId !== loadRequestId.current) return;
+      setCopySourceTourId('');
       reset(defaults, { keepDirty: false });
       setActiveStep(workflowStepIndex(defaults.workflowStatus));
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      loadedTourId.current = id;
       setSaveState('Đã tải tour');
     } catch (error) {
+      if (requestId !== loadRequestId.current) return;
+      setSelectedTourId(loadedTourId.current);
       setSaveState(`Tải tour lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
+  }
+
+  function selectTour(id: string) {
+    if (id === selectedTourId) return;
+    if (hasUnsavedChanges && !window.confirm('Tour FIT còn thay đổi chưa lưu. Bạn có chắc muốn chuyển sang tour khác?')) return;
+    void loadTour(id);
   }
 
   async function copyBudget() {
     const id = getValues('id');
     if (!id) {
-      setSaveState('Hãy lưu tour trước khi copy dự toán');
+      setSaveState('Hãy lưu tour trước khi sao chép dự toán');
       return;
     }
     if (!copySourceTourId || copySourceTourId === id) {
       setSaveState('Hãy chọn một tour nguồn khác để sao chép dự toán');
       return;
     }
-    setSaveState('Đang copy dự toán...');
+    setSaveState('Đang sao chép dự toán...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
         method: 'POST',
@@ -774,20 +793,21 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       const defaults = toFormDefaults(saved);
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      loadedTourId.current = saved.id || id;
       onSaved?.(saved, 'copy-budget');
-      setSaveState('Đã copy dự toán dịch vụ');
+      setSaveState('Đã sao chép dự toán dịch vụ');
     } catch (error) {
-      setSaveState(`Copy dự toán lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      setSaveState(`Sao chép dự toán lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
   }
 
   async function copyOperation() {
     const id = getValues('id');
     if (!id) {
-      setSaveState('Hãy lưu tour trước khi copy điều hành');
+      setSaveState('Hãy lưu tour trước khi sao chép điều hành');
       return;
     }
-    setSaveState('Đang copy điều hành...');
+    setSaveState('Đang sao chép điều hành...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
         method: 'POST',
@@ -799,10 +819,11 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       const defaults = toFormDefaults(saved);
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      loadedTourId.current = saved.id || id;
       onSaved?.(saved, 'copy-operation');
-      setSaveState('Đã copy điều hành dịch vụ');
+      setSaveState('Đã sao chép điều hành dịch vụ');
     } catch (error) {
-      setSaveState(`Copy điều hành lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      setSaveState(`Sao chép điều hành lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
   }
 
@@ -814,6 +835,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       reset(defaults, { keepDirty: false });
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
       setSelectedTourId(created.id || '');
+      loadedTourId.current = created.id || '';
       id = created.id;
     }
     if (!id) throw new Error('Chưa có tour FIT để tải file');
@@ -846,6 +868,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         reset(defaults, { keepDirty: false });
         lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
         setSelectedTourId(saved.id || '');
+        loadedTourId.current = saved.id || '';
         onSaved?.(saved, 'upload');
       }
       setSaveState(`Đã tải ${validFiles.length} file vào bước ${stepLabel}`);
@@ -869,7 +892,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           })}
         </div>
         <div className="fitActions">
-          <select value={selectedTourId} onChange={(event) => loadTour(event.target.value)} aria-label="Chọn tour FIT">
+          <select value={selectedTourId} onChange={(event) => selectTour(event.target.value)} aria-label="Chọn tour FIT">
             <option value="">Tạo tour FIT mới</option>
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>

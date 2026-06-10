@@ -75,6 +75,17 @@ function workflowClass(status?: string | null) {
   return 'statusPill';
 }
 
+function messageClass(message: string) {
+  if (/lỗi|thất bại|không hợp lệ/i.test(message)) return 'statusPill statusPillError';
+  if (/^Đã /.test(message)) return 'statusPill statusPillSuccess';
+  if (/chưa thể|chưa đủ|hãy |cần nhập/i.test(message)) return 'statusPill statusPillWarning';
+  return 'statusPill statusPillNeutral';
+}
+
+function exportFileCode(tour: FitTourSummary) {
+  return (tour.quoteCode || tour.tourCode || 'tour-fit').trim().replace(/[^a-zA-Z0-9_-]+/g, '-');
+}
+
 async function responseError(response: Response) {
   const text = await response.text();
   if (!text) return `${response.status} ${response.statusText}`;
@@ -138,12 +149,16 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
   }, [tours]);
 
   async function reloadTours(message = 'Đã tải lại danh sách tour FIT.') {
+    const normalizedSearch = search.trim().replace(/\s+/g, ' ');
+    if (normalizedSearch && normalizedSearch.length < 2) {
+      setListMessage('Hãy nhập ít nhất 2 ký tự để tìm tour FIT.');
+      return;
+    }
     setListBusy(true);
     setListMessage('Đang tải danh sách tour FIT...');
     try {
       const params = new URLSearchParams();
-      const normalizedSearch = search.trim().replace(/\s+/g, ' ');
-      if (normalizedSearch.length >= 2) params.set('search', normalizedSearch);
+      if (normalizedSearch) params.set('search', normalizedSearch);
       if (workflowFilter) params.set('status', workflowFilter);
       const query = params.size ? `?${params.toString()}` : '';
       const response = await fetch(`${apiBase}/api/fit-tours${query}`, { cache: 'no-store', headers: authHeaders() });
@@ -159,16 +174,16 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
     }
   }
 
-  async function exportTour(id: string) {
+  async function exportTour(tour: FitTourSummary) {
     setListMessage('Đang xuất file tour FIT...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}/export`, { headers: authHeaders() });
+      const response = await fetch(`${apiBase}/api/fit-tours/${tour.id}/export`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `smarttour-fit-${id}.csv`;
+      link.download = `smarttour-fit-${exportFileCode(tour)}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -250,7 +265,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
             />
           </label>
           <label>
-            Bước workflow
+            Bước xử lý
             <select value={workflowFilter} onChange={(event) => setWorkflowFilter(event.target.value)}>
               <option value="">Tất cả các bước</option>
               {workflowFilterOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -260,7 +275,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
             <Search size={16} /> Tìm kiếm
           </button>
         </div>
-        {listMessage ? <div className="statusPill statusPillNeutral">{listMessage}</div> : null}
+        {listMessage ? <div className={messageClass(listMessage)} role="status">{listMessage}</div> : null}
         <div className="fitTableWrap">
           <table className="fitTable orderListTable fitTourListTable">
             <thead>
@@ -296,7 +311,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
                   </td>
                   <td className="actionsCell">
                     <button type="button" className="secondaryButton iconButton" onClick={() => openEdit(tour.id)} title="Mở tour FIT" aria-label={`Mở ${tour.quoteCode || tour.tourCode}`}><Pencil size={14} /></button>
-                    <button type="button" className="secondaryButton iconButton" onClick={() => void exportTour(tour.id)} title="Tải CSV" aria-label={`Tải CSV ${tour.quoteCode || tour.tourCode}`}><Download size={14} /></button>
+                    <button type="button" className="secondaryButton iconButton" onClick={() => void exportTour(tour)} title="Tải CSV" aria-label={`Tải CSV ${tour.quoteCode || tour.tourCode}`}><Download size={14} /></button>
                   </td>
                 </tr>
               ))}
