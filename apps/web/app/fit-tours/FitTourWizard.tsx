@@ -166,6 +166,14 @@ type ArrayName = 'commonCosts' | 'hotelCosts' | 'privateCosts' | 'budgetServices
 type ColumnSpec = { key: string; label: string; type?: 'text' | 'number' | 'supplier' | 'status' | 'textarea' };
 type FieldOption = string | { value: string; label: string };
 
+const amountFormulaFields: Partial<Record<ArrayName, string[]>> = {
+  commonCosts: ['quantity', 'times', 'exchangeRate', 'unitPrice', 'vat'],
+  hotelCosts: ['paxPerRoom', 'times', 'exchangeRate', 'unitPrice', 'vat'],
+  privateCosts: ['quantity', 'times', 'exchangeRate', 'unitPrice', 'vat'],
+  budgetServices: ['quantity', 'unitPrice', 'vat'],
+  operationServices: ['quantity', 'confirmedUnitPrice', 'vat'],
+};
+
 const stepPayloadFields: Record<WorkflowStepKey, (keyof FitTourForm)[]> = {
   PRICING: [
     'quoteCode',
@@ -753,9 +761,12 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     const subscription = watch((_value, { name }) => {
       if (!name || name.endsWith('amount')) return;
       const tableName = name.split('.')[0] as ArrayName;
-      if (!['commonCosts', 'hotelCosts', 'privateCosts', 'budgetServices', 'operationServices'].includes(tableName)) return;
+      const formulaFields = amountFormulaFields[tableName];
+      if (!formulaFields) return;
       const index = Number(name.split('.')[1]);
       if (!Number.isInteger(index)) return;
+      const changedField = name.split('.')[2];
+      if (!changedField || !formulaFields.includes(changedField)) return;
       const row = getValues(`${tableName}.${index}` as never) as Record<string, unknown>;
       const amountPath = `${tableName}.${index}.amount` as never;
       if (getFieldState(amountPath).isDirty) return;
@@ -1105,6 +1116,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       {activeStep === 0 ? (
         <section className="fitStep">
           <SummaryCards items={[
+            ['Tổng số khách', String(totalPax)],
             ['Tổng phí chung', money(totalCommonCost)],
             ['Tổng phí riêng', money(totalPrivateCost)],
             ['Giá vốn / khách', money(netPerGuest)],
@@ -1193,6 +1205,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       {activeStep === 3 ? (
         <section className="fitStep">
           <SummaryCards items={[
+            ['Tổng thu điều hành', money(budgetRevenue)],
             ['Tổng chi điều hành', money(operationCost)],
             ['Lợi nhuận dự kiến', money(budgetProfit)],
             ['Lợi nhuận thực tế', money(operationProfit)],

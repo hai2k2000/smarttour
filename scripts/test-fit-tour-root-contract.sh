@@ -203,10 +203,15 @@ function assertLegacyCompatBoundary() {
   assert(fitWizardSource.includes('bookingDate: normalizeDate(tour?.bookingDate) || (hasSavedTour ?') && fitWizardSource.includes('handoverGuideRequest: tour?.handoverGuideRequest !== undefined'), 'FIT load should avoid saved-tour scalar defaults that can overwrite missing legacy fields');
   assert(fitWizardSource.includes('createPayload') && fitWizardSource.includes('attachments: _attachments'), 'FIT create should omit action-owned attachment metadata');
   assert(fitWizardSource.includes('adultCount: normalizeNumber(data.adultCount, 0)') && fitWizardSource.includes('allowOverbooking: Boolean(data.allowOverbooking)') && fitWizardSource.includes('bookingDate: normalizeDate(data.bookingDate)'), 'FIT save payload should normalize number, boolean, and date fields before sending');
+  for (const numericField of ['sellingPrice', 'commissionPerGuest', 'adultPrice', 'childPrice25', 'childPrice611', 'infantPrice', 'exchangeRate']) {
+    assert(fitWizardSource.includes(`${numericField}: normalizeNumber(data.${numericField}`) && fitWizardSource.includes(`${numericField}: normalizeNumber(tour?.${numericField}`), `FIT wizard should normalize numeric field ${numericField} on save and load`);
+  }
   assert(fitWizardSource.includes('function lineAmount') && fitWizardSource.includes('quantity * times * exchangeRate * unitPrice * (1 + vat / 100)'), 'FIT wizard lineAmount should calculate quantity * times * exchangeRate * unitPrice * VAT');
   assert(fitWizardSource.includes('function hotelLineAmount') && fitWizardSource.includes('Math.ceil(Math.max(1, totalPax) / positiveNumber(line.paxPerRoom))'), 'FIT hotel amount should account for guests per room');
   assert(fitWizardSource.includes('const budgetRevenue = totalPax * number(values.sellingPrice)') && fitWizardSource.includes('const budgetProfit = budgetRevenue - budgetCost') && fitWizardSource.includes('const operationProfit = budgetRevenue - operationCost'), 'FIT wizard summary cards should use the same revenue/cost/profit formulas');
-  for (const label of ['Tổng phí chung', 'Tổng phí riêng', 'Giá vốn / khách', 'Lợi nhuận / khách', 'Tổng thu dự kiến', 'Tổng chi dự kiến', 'Lợi nhuận dự kiến', 'Tổng chi điều hành', 'Lợi nhuận thực tế']) {
+  assert(fitWizardSource.includes('amountFormulaFields') && fitWizardSource.includes('if (!changedField || !formulaFields.includes(changedField)) return'), 'FIT amount auto-calculation should only run when formula inputs change');
+  assert(fitWizardSource.includes("operationServices: ['quantity', 'confirmedUnitPrice', 'vat']"), 'FIT operation amount auto-calculation should use confirmed unit price inputs');
+  for (const label of ['Tổng số khách', 'Tổng phí chung', 'Tổng phí riêng', 'Giá vốn / khách', 'Lợi nhuận / khách', 'Tổng thu dự kiến', 'Tổng chi dự kiến', 'Lợi nhuận dự kiến', 'Tổng thu điều hành', 'Tổng chi điều hành', 'Lợi nhuận thực tế']) {
     assert(fitWizardSource.includes(label), `FIT wizard summary should keep business metric label ${label}`);
   }
   assert(fitWizardSource.includes('getFieldState(amountPath).isDirty') && fitWizardSource.includes('setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false })'), 'FIT amount auto-calculation should preserve manually edited amounts');
