@@ -125,6 +125,7 @@ async function main() {
   }
   assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
   assert(/model TourProgram[\s\S]*route\s+String\?/.test(schemaSource), 'TourProgram route should stay optional in Prisma schema');
+  assert(/model TourProgram[\s\S]*description\s+String\?/.test(schemaSource), 'TourProgram description should stay nullable in Prisma schema');
   assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
   assert(dtoSource.includes('trim().toUpperCase()'), 'DTO should normalize code to uppercase');
   assert(dtoSource.includes('Mã chương trình tour phải là chuỗi ký tự'), 'DTO validation messages should be Vietnamese');
@@ -145,6 +146,7 @@ async function main() {
   assert(serviceSource.includes("...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {})"), 'toTourProgramData should only update submitted code and normalize uppercase');
   assert(serviceSource.includes("...(dto.route !== undefined ? { route: this.optionalText(dto.route) } : {})"), 'toTourProgramData should only update submitted route');
   assert(serviceSource.includes("...(dto.description !== undefined ? { description: this.optionalText(dto.description) } : {})"), 'toTourProgramData should only update submitted description');
+  assert(serviceSource.includes('return trimmed ? trimmed : null;'), 'optionalText should store blank optional text as null');
   assert(serviceSource.includes('booking liên quan'), 'remove booking conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('ngày hành trình'), 'remove itinerary conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('dịch vụ điều hành liên quan'), 'remove itinerary day service conflict message should be explicit Vietnamese');
@@ -419,6 +421,14 @@ async function main() {
   const codeUpdated = await service.update(created.id, { code: `${run}-renamed` });
   assert(codeUpdated.code === `${run}-RENAMED`, 'update should normalize submitted code to uppercase');
   assert(codeUpdated.name === 'Tour Programs Service Partial Updated', 'code-only update should keep omitted name');
+
+  const optionalTextCleared = await service.update(created.id, {
+    route: '   ',
+    description: '   ',
+  });
+  assert(optionalTextCleared.route === null, 'optionalText should clear blank route to null');
+  assert(optionalTextCleared.description === null, 'optionalText should clear blank description to null');
+  assert(optionalTextCleared.name === 'Tour Programs Service Partial Updated', 'blank optional text update should keep omitted required fields');
 
   await rejects(
     () => service.updateItineraryDay(dayTwo.id, { dayNumber: 0 }),
