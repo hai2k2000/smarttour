@@ -3,6 +3,16 @@
 ## Done
 
 
+
+- Added GIT test coverage for API/business contracts:
+  - Runtime tests now assert Vietnamese messages for invalid DTO payloads,
+    invalid status/workflow, duplicate systemCode, missing detail, copy-services
+    source errors, blocked remove, and soft-deleted detail lookup.
+  - Existing GIT runtime coverage for list search/status, detail, create/update,
+    remove, copy-services, child mapping, and partial update preservation is now
+    locked with stricter assertions.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`.
+
 - Locked GIT data/business checks:
   - Workflow steps are aligned across backend validator, frontend options, and
     Vietnamese labels.

@@ -648,7 +648,7 @@ async function main() {
     'GIT should reject oversized child arrays',
   );
   assertMessage(oversizedGitChildArray, 'Doanh thu tour GIT không được vượt quá 100 dòng', 'GIT child array size validation should use Vietnamese message');
-  await expect(
+  const invalidGitDate = await expect(
     '/api/git-tours',
     {
       method: 'POST',
@@ -662,7 +662,8 @@ async function main() {
     400,
     'GIT should reject ISO datetime startDate',
   );
-  await expect(
+  assertMessage(invalidGitDate, 'Ngày khởi hành GIT phải có định dạng YYYY-MM-DD', 'GIT invalid date should use Vietnamese validation message');
+  const invalidGitDateRange = await expect(
     '/api/git-tours',
     {
       method: 'POST',
@@ -677,7 +678,8 @@ async function main() {
     400,
     'GIT should reject startDate after endDate on create',
   );
-  await expect(
+  assertMessage(invalidGitDateRange, 'Ngày khởi hành phải trước hoặc bằng ngày kết thúc', 'GIT invalid date range should use Vietnamese service message');
+  const invalidGitSupplier = await expect(
     '/api/git-tours',
     {
       method: 'POST',
@@ -691,7 +693,8 @@ async function main() {
     400,
     'GIT should validate supplier links before replacing services',
   );
-  await expect(
+  assertMessage(invalidGitSupplier, 'Nhà cung cấp trong dịch vụ GIT không hợp lệ', 'GIT supplier validation should use Vietnamese service message');
+  const invalidGitNestedNumber = await expect(
     '/api/git-tours',
     {
       method: 'POST',
@@ -705,6 +708,7 @@ async function main() {
     400,
     'GIT should reject invalid nested service numeric fields',
   );
+  assertMessage(invalidGitNestedNumber, 'exchangeRate phải là số hợp lệ', 'GIT nested number validation should use Vietnamese service message');
 
   const gitArrayCustomerTour = await expect(
     '/api/git-tours',
@@ -812,7 +816,9 @@ async function main() {
     403,
     'GIT create should reject tour.view-only users',
   );
-  await expect(
+  const missingGitDetail = await expect(`/api/git-tours/${crypto.randomUUID()}`, {}, 404, 'GIT missing detail should return Vietnamese not-found message');
+  assertMessage(missingGitDetail, 'Không tìm thấy tour GIT', 'GIT missing detail should use Vietnamese service message');
+  const duplicateGitSystemCode = await expect(
     '/api/git-tours',
     {
       method: 'POST',
@@ -825,12 +831,14 @@ async function main() {
     409,
     'GIT should reject duplicate systemCode',
   );
-  await expect(
+  assertMessage(duplicateGitSystemCode, 'Mã hệ thống tour GIT đã tồn tại', 'GIT duplicate systemCode should use Vietnamese conflict message');
+  const invalidGitPartialDateRange = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ endDate: '2026-07-31' }) },
     400,
     'GIT partial update should reject endDate before current startDate',
   );
+  assertMessage(invalidGitPartialDateRange, 'Ngày khởi hành phải trước hoặc bằng ngày kết thúc', 'GIT partial date range should use Vietnamese service message');
   const patchedGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -852,12 +860,13 @@ async function main() {
   assert(putGitTour.paymentStatus === 'PAID', 'GIT PUT should normalize and update paymentStatus');
   assert(putGitTour.gitTour.invoiceStatus === 'ISSUED', 'GIT PUT should update invoiceStatus detail field');
   assert(putGitTour.services.length === 2 && putGitTour.revenues.length === 1 && putGitTour.customers.length === 2, 'GIT PUT partial update should preserve edit children');
-  await expect(
+  const invalidGitWorkflowStep = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ workflowStep: 'WRONG_STEP' }) },
     400,
     'GIT should reject invalid workflow step',
   );
+  assertMessage(invalidGitWorkflowStep, 'Bước workflow tour GIT không hợp lệ', 'GIT invalid workflowStep should use Vietnamese service message');
   const workflowPatchedGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ workflowStep: 'GIT_COSTING' }) },
@@ -897,24 +906,27 @@ async function main() {
   assert(gitCopyTarget.customers.length === 0, 'GIT create without customerName should not create a fake default customer');
   assert(gitCopyTarget.revenues.length === 0 && gitCopyTarget.services.length === 0 && gitCopyTarget.attachments.length === 0, 'GIT DTO should strip empty child rows before create mapping');
   assert(gitCopyTarget.bookingDate === null && gitCopyTarget.startDate === null, 'GIT DTO should trim blank optional dates instead of storing invalid date values');
-  await expect(
+  const missingGitCopySource = await expect(
     `/api/git-tours/${gitCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({}) },
     400,
     'GIT copy-services should require explicit sourceTourId',
   );
-  await expect(
+  assertMessage(missingGitCopySource, 'Hãy chọn tour nguồn để sao chép dịch vụ GIT', 'GIT copy-services missing source should use Vietnamese service message');
+  const sameGitCopySource = await expect(
     `/api/git-tours/${gitCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({ sourceTourId: gitCopyTarget.id }) },
     400,
     'GIT copy-services should reject same source and target',
   );
-  await expect(
+  assertMessage(sameGitCopySource, 'Tour nguồn sao chép dịch vụ GIT phải khác tour đích', 'GIT copy-services same source should use Vietnamese service message');
+  const notFoundGitCopySource = await expect(
     `/api/git-tours/${gitCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({ sourceTourId: crypto.randomUUID() }) },
     404,
     'GIT copy-services should reject missing source tour',
   );
+  assertMessage(notFoundGitCopySource, 'Không tìm thấy tour nguồn', 'GIT copy-services missing source tour should use Vietnamese service message');
   assertGitDetailShape(copiedGitServices, 'GIT copy-services response');
   assert(copiedGitServices.services.length === 2, 'GIT copy-services should copy budget and operation common TourService rows');
   const copiedBudgetService = copiedGitServices.services.find((service) => service.serviceType === 'GIT_HOTEL');
@@ -929,7 +941,8 @@ async function main() {
   assert(lowercaseGitStatusRows.some((row) => row.id === gitTour.id), 'GIT lowercase status query should include running tour');
   const spacedGitStatusRows = await expect('/api/git-tours?status=%20running%20', {}, 200, 'GIT spaced lowercase status query');
   assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
-  await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
+  const invalidGitStatusQuery = await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
+  assertMessage(invalidGitStatusQuery, 'Trạng thái tour GIT không hợp lệ', 'GIT invalid status query should use Vietnamese validation message');
   const gitLinkedOrder = await prisma.order.create({ data: { type: 'GIT_COMBO', systemCode: `${run}-ORDER-GIT`, name: 'Tour type API linked order' } });
   const gitOrderLinkedTour = await expect(
     '/api/git-tours',
@@ -945,11 +958,13 @@ async function main() {
     201,
     'create GIT tour linked to order',
   );
-  await expect(`/api/git-tours/${gitOrderLinkedTour.id}`, { method: 'DELETE' }, 400, 'GIT remove should block tour linked to order/external dependency');
+  const blockedGitRemove = await expect(`/api/git-tours/${gitOrderLinkedTour.id}`, { method: 'DELETE' }, 400, 'GIT remove should block tour linked to order/external dependency');
+  assertMessage(blockedGitRemove, 'Không thể xóa tour GIT đã phát sinh', 'GIT blocked remove should use Vietnamese service message');
   await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE', headers: viewHeaders }, 403, 'GIT delete should reject tour.view-only users');
   const removedGitTour = await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE' }, 200, 'GIT remove should soft-delete target tour');
   assert(removedGitTour.deletedAt && removedGitTour.status === 'CANCELLED', 'GIT remove should cancel and soft-delete the common Tour owner');
-  await expect(`/api/git-tours/${gitCopyTarget.id}`, {}, 404, 'GIT detail should hide soft-deleted tour');
+  const removedGitDetail = await expect(`/api/git-tours/${gitCopyTarget.id}`, {}, 404, 'GIT detail should hide soft-deleted tour');
+  assertMessage(removedGitDetail, 'Không tìm thấy tour GIT', 'GIT removed detail should use Vietnamese not-found message');
 
   await expect(
     '/api/landtours',

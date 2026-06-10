@@ -21,6 +21,14 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+
+- Added focused GIT regression assertions for the requested test checklist:
+  - list search/status, detail not-found, create/update/remove, copy-services,
+    child mapping, DTO validation, Vietnamese error messages, and partial
+    update preservation now have explicit runtime checks in
+    `scripts/test-tour-type-apis.sh`.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`.
+
 - Continued GIT data/business contract verification:
   - GIT frontend workflow step options are now regression-checked against the
     backend validator and i18n labels; the page also exposes paymentStatus and
