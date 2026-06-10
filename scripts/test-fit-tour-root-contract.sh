@@ -38,6 +38,16 @@ function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
+async function assertRejects(action, expectedMessage, label) {
+  try {
+    await action();
+  } catch (error) {
+    assert(String(error?.message || error).includes(expectedMessage), `${label}: ${error?.message || error}`);
+    return;
+  }
+  throw new Error(label);
+}
+
 function decimal(value) {
   return Number(value || 0);
 }
@@ -83,6 +93,7 @@ function assertLegacyCompatBoundary() {
   const fs = require('fs');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'utf8');
+  const createDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/create-fit-tour.dto.ts', 'utf8');
   const actionDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/fit-tour-action.dto.ts', 'utf8');
   const fitWizardSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitTourWizard.tsx', 'utf8');
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
@@ -101,19 +112,26 @@ function assertLegacyCompatBoundary() {
   assert(schemaSource.includes('FIT-only handover rows'), 'FIT handover schema should be marked as FIT-owned until a common table exists');
   assert(migrationNotes.includes('Legacy Table Decisions') && migrationNotes.includes('FE/BE Mapping'), 'Tour migration notes should document legacy table decisions and FE/BE mapping');
   assert(migrationNotes.includes('fit_handover_items') && migrationNotes.includes('Not ready for read-only'), 'FIT handover legacy decision should remain explicit');
-  assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Keep append-only via upload/create compatibility'), 'FIT attachment legacy decision should remain append-only until old consumers are removed');
+  assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Keep append-only via upload/import compatibility'), 'FIT attachment legacy decision should remain append-only until old consumers are removed');
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
   assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
   assert(controllerSource.includes("@Get(':id/export')") && controllerSource.includes("@Header('Content-Type', 'text/csv; charset=utf-8')"), 'FIT export endpoint should expose a CSV download by tour id');
   assert(controllerSource.includes('FitTourExportDto') && controllerSource.includes('FitTourCopySourceDto') && controllerSource.includes('FitTourAttachmentUploadDto'), 'FIT action routes should use focused action DTOs instead of aggregate DTO fields');
-  assert(actionDtoSource.includes('class FitTourExportDto') && actionDtoSource.includes('class FitTourCopySourceDto') && actionDtoSource.includes('class FitTourAttachmentUploadDto'), 'FIT focused action DTOs should exist for export/copy/upload actions');
+  assert(controllerSource.includes('fitToursService.importLegacy'), 'FIT import route should keep legacy attachment metadata separate from normal create');
+  assert(actionDtoSource.includes('class FitTourExportDto') && actionDtoSource.includes('class FitTourCopySourceDto') && actionDtoSource.includes('class FitTourCopyOperationDto') && actionDtoSource.includes('class FitTourAttachmentUploadDto'), 'FIT focused action DTOs should exist for export/copy/upload actions');
+  assert(actionDtoSource.includes('sourceTourId!: string'), 'FIT budget copy DTO should require an explicit source tour');
   assert(actionDtoSource.includes('IsEnum(FitTourWorkflowStatus)'), 'FIT upload action DTO should validate workflow step enum');
+  assert(createDtoSource.includes('@IsInt()') && createDtoSource.includes('adultCount?: number') && createDtoSource.includes('seatCount?: number'), 'FIT pax and seat DTO fields should require integers');
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
   assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
   assert(serviceSource.includes('async exportCsv') && serviceSource.includes('requiredTourRootId(fitTour)'), 'FIT export should be generated from a scoped FIT detail with common tourId');
   assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
+  assert(serviceSource.includes('allowAttachmentMetadata') && serviceSource.includes('dropAttachmentPatch(scopedDto)'), 'FIT create should strip attachment metadata while legacy import may preserve it');
+  assert(serviceSource.includes('validateChildPatches') && serviceSource.includes('validateStepConfirmation'), 'FIT service should validate child rows and confirmed pricing requirements');
+  assert(serviceSource.includes('Tour nguồn dự toán phải khác tour đích'), 'FIT budget copy should reject the target as its own source');
+  assert(serviceSource.includes('description: this.optionalText(operationInputRows[index]?.description)'), 'FIT common operation service mapping should preserve descriptions');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
   assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
   const pricingStepBlock = fitWizardSource.slice(fitWizardSource.indexOf('PRICING: ['), fitWizardSource.indexOf('TOUR_INFO: ['));
@@ -258,12 +276,49 @@ async function main() {
     endDate: '2026-08-03',
     sellingPrice: 5000000,
     commonCosts: [{ serviceType: 'CAR', description: 'Source car', quantity: 1, times: 1, unitPrice: 1000, vat: 0, amount: 1000 }],
+    hotelCosts: [{ serviceType: 'HOTEL', description: 'Source hotel', paxPerRoom: 2, times: 1, unitPrice: 2000, vat: 0, amount: 2000 }],
+    privateCosts: [{ serviceType: 'TICKET', description: 'Source ticket', quantity: 2, times: 1, unitPrice: 500, vat: 0, amount: 1000 }],
     budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Budget hotel', quantity: 2, unitPrice: 1000, vat: 10, amount: 2200 }],
-    operationServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, supplierServiceId: supplierService.id, bookingCode: `${run}-BK`, quantity: 2, confirmedUnitPrice: 1200, vat: 10, amount: 2640, status: FitServiceStatus.CONFIRMED }],
+    operationServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, supplierServiceId: supplierService.id, description: 'Operation hotel', bookingCode: `${run}-BK`, quantity: 2, confirmedUnitPrice: 1200, vat: 10, amount: 2640, status: FitServiceStatus.CONFIRMED }],
+    attachments: [{ step: FitTourWorkflowStatus.PRICING, fileName: 'injected-create.pdf', fileUrl: '/injected-create.pdf', size: 100 }],
     status: TourStatus.CANCELLED,
     workflowStep: 'MANUAL_ROOT_WORKFLOW_SHOULD_BE_IGNORED',
   });
   assert(source.tourId, 'FIT create should return linked Tour root id');
+  assert(source.attachments.length === 0, 'FIT normal create should ignore client-supplied attachment metadata');
+  assert(await prisma.tourAttachment.count({ where: { tourId: source.tourId } }) === 0, 'FIT normal create should not write common attachment metadata');
+  assert(await prisma.fitAttachment.count({ where: { fitTourId: source.id } }) === 0, 'FIT normal create should not write legacy attachment metadata');
+
+  const imported = await fitTours.importLegacy({
+    quoteCode: `${run}-IMPORT-Q`,
+    tourCode: `${run}-IMPORT-T`,
+    customerName: 'FIT Import Customer',
+    adultCount: 1,
+    attachments: [{ step: FitTourWorkflowStatus.PRICING, fileName: 'legacy-import.pdf', fileUrl: '/legacy-import.pdf', size: 321 }],
+  });
+  assert(imported.attachments.some((row) => row.fileName === 'legacy-import.pdf'), 'FIT legacy import should preserve attachment metadata for compatibility');
+
+  const incompletePricing = await fitTours.create({
+    quoteCode: `${run}-INCOMPLETE-Q`,
+    tourCode: `${run}-INCOMPLETE-T`,
+    customerName: 'FIT Incomplete Customer',
+    adultCount: 1,
+  });
+  await assertRejects(
+    () => fitTours.confirmStep(incompletePricing.id, FitTourWorkflowStatus.PRICING, {}),
+    'Cần nhập ngày khởi đi',
+    'FIT pricing confirmation should require travel dates',
+  );
+  await assertRejects(
+    () => fitTours.update(source.id, { commonCosts: [{ serviceType: 'CAR', amount: -1 }] }),
+    'commonCosts[0].amount không được âm',
+    'FIT child validation should reject negative cost amounts',
+  );
+  await assertRejects(
+    () => fitTours.update(source.id, { operationServices: [{ serviceType: 'HOTEL', status: 'INVALID_STATUS' }] }),
+    'operationServices[0].status không thuộc danh sách trạng thái dịch vụ hợp lệ',
+    'FIT child validation should reject invalid operation status',
+  );
 
   const attachedDetail = await fitTours.uploadAttachment(
     source.id,
@@ -303,9 +358,12 @@ async function main() {
   assert(createdRoot.fitTour.id === source.id, 'Tour root should link back to FIT detail');
   assert(createdRoot.customers.length === 1 && createdRoot.customers[0].name === 'FIT Root Customer', 'Tour root should own primary customer');
   assert(createdRoot.revenues.length === 1 && decimal(createdRoot.revenues[0].amount) === 5000000, 'Tour root should own revenue rows');
-  assert(createdRoot.costs.length === 1 && decimal(createdRoot.costs[0].expectedAmount) === 1000, 'Tour root should own cost rows');
-  assert(createdRoot.costs[0].costType === 'FIT_COMMON_COST:CAR', 'Tour root costType should preserve FIT cost group and service type');
+  assert(createdRoot.costs.length === 3, 'Tour root should own every FIT cost group');
+  assert(createdRoot.costs.some((row) => row.costType === 'FIT_COMMON_COST:CAR' && decimal(row.expectedAmount) === 1000), 'Tour root costType should preserve FIT common cost group and service type');
+  assert(createdRoot.costs.some((row) => row.costType === 'FIT_HOTEL_COST:HOTEL' && decimal(row.expectedAmount) === 2000), 'Tour root should preserve FIT hotel costs');
+  assert(createdRoot.costs.some((row) => row.costType === 'FIT_PRIVATE_COST:TICKET' && decimal(row.expectedAmount) === 1000), 'Tour root should preserve FIT private costs');
   assert(createdRoot.services.length === 2, 'Tour root should own budget and operation services');
+  assert(createdRoot.services.some((row) => row.description === 'Operation hotel'), 'Tour root should preserve FIT operation service descriptions');
   assert(createdRoot.suppliers.length === 1 && createdRoot.suppliers[0].supplierId === supplier.id, 'Tour root should derive suppliers from services');
 
   await prisma.fitTour.update({
@@ -358,6 +416,7 @@ async function main() {
   assert(rootSourcedChildren.budgetServices[0].description === 'Updated budget hotel', 'FIT detail should expose common TourService budget description over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].supplierServiceId === supplierService.id, 'FIT detail should expose common TourService operation supplier service over stale legacy rows');
   assert(rootSourcedChildren.operationServices[0].bookingCode === `${run}-BK`, 'FIT detail should expose common TourService operation booking code over stale legacy rows');
+  assert(rootSourcedChildren.operationServices[0].description === 'Operation hotel', 'FIT detail should expose common TourService operation description');
 
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.TOUR_INFO, {
     tourName: 'FIT Step Tour Info Name',
@@ -381,6 +440,8 @@ async function main() {
   const stepPricingBack = await fitTours.detail(source.id);
   assert(stepPricingBack.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'saveStep earlier step should not regress workflow');
   assert(stepPricingBack.commonCosts[0].description === 'Step repriced car', 'saveStep earlier step should still update allowed pricing fields');
+  assert(stepPricingBack.hotelCosts[0].description === 'Source hotel', 'updating commonCosts should preserve hotelCosts');
+  assert(stepPricingBack.privateCosts[0].description === 'Source ticket', 'updating commonCosts should preserve privateCosts');
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.BUDGET, {
     budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Step budget hotel', quantity: 3, unitPrice: 1000, vat: 0, amount: 3000 }],
     operationServices: [{ serviceType: 'WRONG_STEP_OPERATION', description: 'Wrong budget step', amount: 999 }],
@@ -428,6 +489,27 @@ async function main() {
   });
   assert(target.tourId, 'target FIT should have Tour root');
 
+  await assertRejects(
+    () => fitTours.copyBudget(target.id),
+    'Cần chọn tour nguồn để sao chép dự toán',
+    'copyBudget should require an explicit source tour',
+  );
+  await assertRejects(
+    () => fitTours.copyBudget(target.id, target.id),
+    'Tour nguồn dự toán phải khác tour đích',
+    'copyBudget should reject the target as source',
+  );
+  await assertRejects(
+    () => fitTours.copyBudget(target.id, incompletePricing.id),
+    'Tour nguồn không có dữ liệu dự toán để sao chép',
+    'copyBudget should not clear target rows from an empty source',
+  );
+  await assertRejects(
+    () => fitTours.copyOperation(target.id, incompletePricing.id),
+    'Tour nguồn không có dữ liệu dự toán hoặc điều hành để sao chép',
+    'copyOperation should not clear target rows from an empty source',
+  );
+
   await fitTours.copyBudget(target.id, source.id);
   const copiedBudgetLegacyRows = await prisma.fitBudgetService.findMany({ where: { fitTourId: target.id } });
   const targetBudgetServices = await prisma.tourService.findMany({ where: { tourId: target.tourId, budgetAmount: { gt: 0 } } });
@@ -441,6 +523,7 @@ async function main() {
   assert(copiedOperationLegacyRows.length === 1 && copiedOperationLegacyRows[0].supplierServiceId === supplierService.id, 'copyOperation should update legacy FIT operation rows');
   assert(targetOperationServices.length === 1 && targetOperationServices[0].supplierServiceId === supplierService.id, 'copyOperation should update common TourService operation rows');
   assert(targetOperationServices[0].confirmationStatus === TourServiceStatus.CONFIRMED, 'copyOperation should map FIT service status to common TourService status');
+  assert(targetOperationServices[0].description === 'Operation hotel', 'copyOperation should preserve common operation service descriptions');
   assert(targetBudgetServicesAfterOperation.length === 1 && decimal(targetBudgetServicesAfterOperation[0].budgetAmount) === 3000, 'copyOperation should preserve copied common budget services');
 
   const removed = await fitTours.remove(target.id);

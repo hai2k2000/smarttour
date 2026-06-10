@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FitTourWorkflowStatus, PaymentStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
 
 export const FIT_TOUR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -74,21 +74,21 @@ export class CreateFitTourDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   adultCount?: number;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   childCount?: number;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   infantCount?: number;
 
@@ -163,7 +163,7 @@ export class CreateFitTourDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   seatCount?: number;
 

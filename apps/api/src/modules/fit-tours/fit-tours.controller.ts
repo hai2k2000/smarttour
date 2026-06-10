@@ -5,7 +5,7 @@ import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
-import { FitTourAttachmentUploadDto, FitTourCopySourceDto, FitTourExportDto } from './dto/fit-tour-action.dto';
+import { FitTourAttachmentUploadDto, FitTourCopyOperationDto, FitTourCopySourceDto, FitTourExportDto } from './dto/fit-tour-action.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitToursService } from './fit-tours.service';
 
@@ -23,7 +23,7 @@ export class FitToursController {
   @Post('import')
   @RequirePermissions('tour.manage')
   import(@Body() dto: CreateFitTourDto, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.create(dto, request?.user);
+    return this.fitToursService.importLegacy(dto, request?.user);
   }
 
   @Post('export')
@@ -98,13 +98,13 @@ export class FitToursController {
 
   @Post(':id/copy-budget')
   @RequirePermissions('tour.manage')
-  copyBudget(@Param('id') id: string, @Body() dto: FitTourCopySourceDto = {}, @Req() request?: { user?: RequestUser }) {
+  copyBudget(@Param('id') id: string, @Body() dto: FitTourCopySourceDto, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.copyBudget(id, dto.sourceTourId, request?.user);
   }
 
   @Post(':id/copy-operation')
   @RequirePermissions('tour.manage')
-  copyOperation(@Param('id') id: string, @Body() dto: FitTourCopySourceDto = {}, @Req() request?: { user?: RequestUser }) {
+  copyOperation(@Param('id') id: string, @Body() dto: FitTourCopyOperationDto = {}, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.copyOperation(id, dto.sourceTourId, request?.user);
   }
 }

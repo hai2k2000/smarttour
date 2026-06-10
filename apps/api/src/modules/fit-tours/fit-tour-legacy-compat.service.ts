@@ -104,8 +104,8 @@ export class FitTourLegacyCompatService {
     await this.replaceFitChildren(tx.fitBudgetService, fitTourId, rows);
   }
 
-  async replaceOperationServices(tx: Prisma.TransactionClient, fitTourId: string, rows: ReturnType<FitTourLegacyCompatService['mapOperationServices']>) {
-    await this.replaceFitChildren(tx.fitOperationService, fitTourId, rows);
+  async replaceOperationServices(tx: Prisma.TransactionClient, fitTourId: string, rows: unknown[]) {
+    await this.replaceFitChildren(tx.fitOperationService, fitTourId, this.mapOperationServices(rows));
   }
 
   private hasChanges(dto: UpdateFitTourDto, key: keyof UpdateFitTourDto) {
@@ -269,6 +269,7 @@ export class FitTourLegacyCompatService {
       serviceType: this.text(row.serviceType || 'Dịch vụ'),
       supplierId: this.optionalText(row.supplierId),
       supplierServiceId: this.optionalText(row.supplierServiceId || row.serviceId),
+      description: this.optionalText(row.description),
       bookingCode: this.optionalText(row.bookingCode),
       quantity: this.number(row.quantity),
       confirmedUnitPrice: this.number(row.confirmedUnitPrice ?? row.unitPrice),

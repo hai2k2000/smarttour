@@ -10,9 +10,17 @@ export class FitTourExportDto {
 }
 
 export class FitTourCopySourceDto {
-  @ApiPropertyOptional()
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  sourceTourId!: string;
+}
+
+export class FitTourCopyOperationDto {
+  @ApiPropertyOptional({ description: 'Bỏ trống để sao chép dự toán của chính tour đích sang điều hành.' })
   @IsOptional()
   @IsString()
+  @MinLength(1)
   sourceTourId?: string;
 }
 

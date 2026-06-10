@@ -15,6 +15,7 @@ type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
 type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
 type FitTourStep = keyof typeof FIT_TOUR_STEP_FIELDS;
 type FitUpdateOptions = { step?: FitTourStep; confirm?: boolean };
+type FitCreateOptions = { allowAttachmentMetadata?: boolean };
 type UploadedFitFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 const fitCostGroupTags: Record<FitCostGroupField, string> = {
@@ -159,9 +160,18 @@ export class FitToursService {
   }
 
   async create(dto: CreateFitTourDto, user?: RequestUser) {
+    return this.persistCreate(dto, user);
+  }
+
+  async importLegacy(dto: CreateFitTourDto, user?: RequestUser) {
+    return this.persistCreate(dto, user, { allowAttachmentMetadata: true });
+  }
+
+  private async persistCreate(dto: CreateFitTourDto, user?: RequestUser, options: FitCreateOptions = {}) {
     const scopedDto = applyWriteDataScope(dto as CreateFitTourDto & { branch?: string | null; department?: string | null }, user) as CreateFitTourDto;
+    const createDto = options.allowAttachmentMetadata ? scopedDto : this.dropAttachmentPatch(scopedDto) as CreateFitTourDto;
     try {
-      const created = await this.prisma.$transaction((tx) => this.createFitTourAggregate(tx, scopedDto, user));
+      const created = await this.prisma.$transaction((tx) => this.createFitTourAggregate(tx, createDto, user));
       return this.detail(created.id, user);
     } catch (error) {
       this.rethrowFitUniqueConflict(error);
@@ -252,10 +262,12 @@ export class FitToursService {
 
   async copyBudget(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     const targetId = this.requiredText(targetTourId, 'Cần chọn tour đích');
-    const sourceId = this.optionalText(sourceTourId) || targetId;
+    const sourceId = this.requiredText(sourceTourId, 'Cần chọn tour nguồn để sao chép dự toán');
+    if (sourceId === targetId) throw new BadRequestException('Tour nguồn dự toán phải khác tour đích');
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
     const budgetRows = this.legacyCompat.toCopiedBudgetRows(source.budgetServices.length > 0 ? source.budgetServices : this.pricingRowsToBudget(source));
+    if (!budgetRows.length) throw new BadRequestException('Tour nguồn không có dữ liệu dự toán để sao chép');
 
     await this.prisma.$transaction((tx) => this.copyFitBudgetAggregate(tx, source, target, budgetRows, user));
     return this.detail(targetId, user);
@@ -267,6 +279,7 @@ export class FitToursService {
     const source = await this.detail(sourceId, user);
     const target = await this.detail(targetId, user);
     const rows = this.legacyCompat.toCopiedOperationRows(source.operationServices.length > 0 ? source.operationServices : source.budgetServices);
+    if (!rows.length) throw new BadRequestException('Tour nguồn không có dữ liệu dự toán hoặc điều hành để sao chép');
 
     await this.prisma.$transaction((tx) => this.copyFitOperationAggregate(tx, source, target, rows, user));
     return this.detail(targetId, user);
@@ -357,6 +370,7 @@ export class FitToursService {
     const fitDto = await this.withCustomerSnapshot(tx, dto, user);
     this.validateProvidedFields(fitDto, true);
     this.validateFitTourBusinessRules(fitDto, true);
+    this.validateChildPatches(fitDto);
     this.validateWorkflowTransition(undefined, fitDto.workflowStatus, true);
     return fitDto;
   }
@@ -372,10 +386,12 @@ export class FitToursService {
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
     if (options.step) {
       this.validateStepPatch(options.step, patch, merged);
+      if (options.confirm) this.validateStepConfirmation(options.step, merged);
     } else {
       this.validateProvidedFields(patch, false);
       this.validateFitTourBusinessRules(merged, false);
     }
+    this.validateChildPatches(patch);
     this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
     return { patch, merged };
   }
@@ -548,6 +564,78 @@ export class FitToursService {
     }
 
     if (dto.workflowStatus !== undefined) this.toWorkflowStatusStrict(dto.workflowStatus);
+  }
+
+  private validateStepConfirmation(step: FitTourStep, dto: UpdateFitTourDto) {
+    if (step !== FitTourWorkflowStatus.PRICING) return;
+    this.validateTextLength(dto.quoteCode, 'Mã báo giá', 2, true);
+    this.validateTextLength(dto.tourCode, 'Mã tour', 2, true);
+    this.validateTextLength(dto.customerName, 'Họ tên khách', 2, true);
+    if (!this.optionalDate(dto.startDate, 'startDate')) throw new BadRequestException('Cần nhập ngày khởi đi trước khi xác nhận bước Tính giá');
+    if (!this.optionalDate(dto.endDate, 'endDate')) throw new BadRequestException('Cần nhập ngày về trước khi xác nhận bước Tính giá');
+    if (this.nonNegativeNumber(dto.sellingPrice, 'sellingPrice') <= 0) {
+      throw new BadRequestException('Giá bán / khách phải lớn hơn 0 trước khi xác nhận bước Tính giá');
+    }
+  }
+
+  private validateChildPatches(dto: UpdateFitTourDto) {
+    for (const field of ['commonCosts', 'hotelCosts', 'privateCosts'] as const) {
+      this.validateChildRows(dto[field], field, (row, path) => {
+        this.validateOptionalText(row.serviceType, `${path}.serviceType`);
+        this.validateChildNumbers(row, path, ['orderNo', 'quantity', 'paxPerRoom', 'times', 'exchangeRate', 'unitPrice', 'vat', 'amount']);
+      });
+    }
+    this.validateChildRows(dto.budgetServices, 'budgetServices', (row, path) => {
+      this.validateOptionalText(row.serviceType, `${path}.serviceType`);
+      this.validateChildNumbers(row, path, ['quantity', 'unitPrice', 'vat', 'amount']);
+    });
+    this.validateChildRows(dto.operationServices, 'operationServices', (row, path) => {
+      this.validateOptionalText(row.serviceType, `${path}.serviceType`);
+      this.validateChildNumbers(row, path, ['quantity', 'confirmedUnitPrice', 'vat', 'amount']);
+      if (row.status !== undefined) this.toFitServiceStatusStrict(row.status, `${path}.status`);
+    });
+    this.validateChildRows(dto.guides, 'guides', (row, path) => {
+      this.requiredText(row.name ?? row.ten, `${path}.name`);
+    });
+    this.validateChildRows(dto.handoverItems, 'handoverItems', (row, path) => {
+      this.requiredText(row.itemName ?? row.name, `${path}.itemName`);
+      this.validateChildNumbers(row, path, ['orderNo', 'quantity']);
+    });
+    this.validateChildRows(dto.surveyQuestions, 'surveyQuestions', (row, path) => {
+      this.requiredText(row.question, `${path}.question`);
+      this.validateChildNumbers(row, path, ['orderNo']);
+    });
+    this.validateChildRows(dto.attachments, 'attachments', (row, path) => {
+      this.requiredText(row.fileName ?? row.name, `${path}.fileName`);
+      if (row.step !== undefined) this.toAttachmentStep(row.step);
+      if (row.size !== undefined && row.size !== null) {
+        const size = this.nonNegativeInteger(row.size, `${path}.size`);
+        if (size === 0) throw new BadRequestException(`${path}.size phải lớn hơn 0`);
+      }
+    });
+  }
+
+  private validateChildRows(value: unknown, field: string, validate: (row: Row, path: string) => void) {
+    if (value === undefined) return;
+    if (!Array.isArray(value)) throw new BadRequestException(`${field} phải là danh sách`);
+    value.forEach((row, index) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new BadRequestException(`${field}[${index}] phải là một object hợp lệ`);
+      }
+      validate(row as Row, `${field}[${index}]`);
+    });
+  }
+
+  private validateChildNumbers(row: Row, path: string, fields: string[]) {
+    for (const field of fields) {
+      if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
+        this.nonNegativeNumber(row[field], `${path}.${field}`);
+      }
+    }
+  }
+
+  private validateOptionalText(value: unknown, field: string) {
+    if (value !== undefined && !this.text(value)) throw new BadRequestException(`${field} không được để trống`);
   }
 
   private validateWorkflowTransition(currentStatus: FitTourWorkflowStatus | null | undefined, nextStatus: FitTourWorkflowStatus | undefined, creating: boolean) {
@@ -736,6 +824,7 @@ export class FitToursService {
         supplier: row.supplier,
         supplierServiceId: row.supplierServiceId,
         supplierService: row.supplierService,
+        description: row.description,
         bookingCode: row.bookingCode,
         quantity: row.quantity,
         confirmedUnitPrice: row.confirmedUnitPrice,
@@ -924,12 +1013,13 @@ export class FitToursService {
       notes: row.notes,
     }));
 
-    const operationServices = this.mapOperationServices(dto.operationServices).map((row) => ({
+    const operationInputRows = this.rows(dto.operationServices);
+    const operationServices = this.mapOperationServices(dto.operationServices).map((row, index) => ({
       tourId: '',
       serviceType: row.serviceType,
       supplierId: row.supplierId,
       supplierServiceId: row.supplierServiceId,
-      description: null,
+      description: this.optionalText(operationInputRows[index]?.description),
       quantity: row.quantity,
       unit: null,
       currency: 'VND',
@@ -1066,6 +1156,12 @@ export class FitToursService {
     const value = this.text(status);
     if (Object.values(FitServiceStatus).includes(value as FitServiceStatus)) return value as FitServiceStatus;
     return FitServiceStatus.WAITING;
+  }
+
+  private toFitServiceStatusStrict(status: unknown, field: string) {
+    const value = this.text(status);
+    if (Object.values(FitServiceStatus).includes(value as FitServiceStatus)) return value as FitServiceStatus;
+    throw new BadRequestException(`${field} không thuộc danh sách trạng thái dịch vụ hợp lệ`);
   }
 
   private toTourServiceStatus(status: unknown) {
