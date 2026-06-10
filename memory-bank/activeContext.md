@@ -22,6 +22,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Hardened LandToursController route/query/copy contract:
+  - LandTour list now uses `ListLandToursQueryDto` for trimmed search and
+    normalized `TourStatus` validation with Vietnamese messages.
+  - LandTour `copy-services` keeps `tour.manage` but now requires an explicit
+    source tour different from the target, matching the safer GIT contract.
+  - Regression now checks LandTour route permissions, response shapes used by
+    the frontend list/detail flows, status query parsing, copy-services errors,
+    and remove response behavior.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and LandTour API auth smoke 401.
+
+
 - Added focused GIT regression assertions for the requested test checklist:
   - list search/status, detail not-found, create/update/remove, copy-services,
     child mapping, DTO validation, Vietnamese error messages, and partial

@@ -4,6 +4,18 @@
 
 
 
+- Hardened LandTour controller contract:
+  - Added `ListLandToursQueryDto` so list search/status are parsed through a
+    focused DTO instead of raw query strings.
+  - `copy-services` now rejects missing or same-source payloads with Vietnamese
+    messages while staying behind `tour.manage`.
+  - Regression covers LandTour `tour.view`/`tour.manage` permissions, list/detail
+    response shape, create/update/remove, copy-services, and status query
+    normalization.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and LandTour API auth smoke 401.
+
+
 - Added GIT test coverage for API/business contracts:
   - Runtime tests now assert Vietnamese messages for invalid DTO payloads,
     invalid status/workflow, duplicate systemCode, missing detail, copy-services

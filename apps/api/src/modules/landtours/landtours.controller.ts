@@ -4,6 +4,7 @@ import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { LandTourCopyServicesDto } from './dto/landtour-action.dto';
+import { ListLandToursQueryDto } from './dto/list-landtours-query.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 import { LandToursService } from './landtours.service';
 
@@ -14,8 +15,8 @@ export class LandToursController {
   constructor(private readonly landToursService: LandToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
-    return this.landToursService.list(search, status, request?.user);
+  list(@Query() query: ListLandToursQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.landToursService.list(query.search, query.status, request?.user);
   }
 
   @Get(':id')

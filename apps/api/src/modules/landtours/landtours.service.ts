@@ -118,7 +118,9 @@ export class LandToursService {
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    const sourceId = sourceTourId || targetTourId;
+    const sourceId = this.optionalText(sourceTourId);
+    if (!sourceId) throw new BadRequestException('Hãy chọn tour nguồn để sao chép dịch vụ LandTour');
+    if (sourceId === targetTourId) throw new BadRequestException('Tour nguồn sao chép dịch vụ LandTour phải khác tour đích');
     await this.prisma.$transaction(async (tx) => {
       await this.tourCore.copyServicesFromTour(tx, targetTourId, sourceId, TourType.LANDTOUR, 'LANDTOUR_SERVICE', user);
       await this.logLandTourAction(tx, targetTourId, 'COPY_LANDTOUR_SERVICES', user, { sourceTourId: sourceId, targetTourId });
