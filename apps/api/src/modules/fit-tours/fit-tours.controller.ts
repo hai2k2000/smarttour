@@ -72,6 +72,12 @@ export class FitToursController {
     return this.fitToursService.uploadAttachment(id, dto.step, file, request?.user);
   }
 
+  @Delete(':id/attachments/:attachmentId')
+  @RequirePermissions('tour.manage')
+  removeAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.removeAttachment(id, attachmentId, request?.user);
+  }
+
   @Post(':id/steps/:step/confirm')
   @RequirePermissions('tour.manage')
   confirmStep(@Param('id') id: string, @Param('step') step: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {

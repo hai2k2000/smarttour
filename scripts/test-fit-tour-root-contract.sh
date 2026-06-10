@@ -52,6 +52,10 @@ function decimal(value) {
   return Number(value || 0);
 }
 
+function closeTo(actual, expected, tolerance = 0.01) {
+  return Math.abs(decimal(actual) - expected) <= tolerance;
+}
+
 function rootCode(value) {
   return String(value).toUpperCase();
 }
@@ -112,10 +116,11 @@ function assertLegacyCompatBoundary() {
   assert(schemaSource.includes('FIT-only handover rows'), 'FIT handover schema should be marked as FIT-owned until a common table exists');
   assert(migrationNotes.includes('Legacy Table Decisions') && migrationNotes.includes('FE/BE Mapping'), 'Tour migration notes should document legacy table decisions and FE/BE mapping');
   assert(migrationNotes.includes('fit_handover_items') && migrationNotes.includes('Not ready for read-only'), 'FIT handover legacy decision should remain explicit');
-  assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Keep append-only via upload/import compatibility'), 'FIT attachment legacy decision should remain append-only until old consumers are removed');
+  assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Manage only via upload/delete/import compatibility'), 'FIT attachment legacy decision should stay limited to explicit attachment actions');
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
   assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
+  assert(controllerSource.includes("@Delete(':id/attachments/:attachmentId')"), 'FIT attachment delete endpoint should be scoped to a FIT tour and attachment');
   assert(controllerSource.includes("@Get(':id/export')") && controllerSource.includes("@Header('Content-Type', 'text/csv; charset=utf-8')"), 'FIT export endpoint should expose a CSV download by tour id');
   assert(controllerSource.includes('FitTourExportDto') && controllerSource.includes('FitTourCopySourceDto') && controllerSource.includes('FitTourAttachmentUploadDto'), 'FIT action routes should use focused action DTOs instead of aggregate DTO fields');
   assert(controllerSource.includes('fitToursService.importLegacy'), 'FIT import route should keep legacy attachment metadata separate from normal create');
@@ -126,14 +131,18 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
   assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
+  assert(serviceSource.includes('async removeAttachment') && serviceSource.includes('DELETE_FIT_ATTACHMENT'), 'FIT service should delete attachment metadata through a dedicated action');
   assert(serviceSource.includes('async exportCsv') && serviceSource.includes('requiredTourRootId(fitTour)'), 'FIT export should be generated from a scoped FIT detail with common tourId');
   assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
+  assert(serviceSource.includes('legacyCompat.removeAttachment'), 'FIT attachment delete should delegate legacy snapshot removal to compatibility service');
   assert(serviceSource.includes('allowAttachmentMetadata') && serviceSource.includes('dropAttachmentPatch(scopedDto)'), 'FIT create should strip attachment metadata while legacy import may preserve it');
   assert(serviceSource.includes('validateChildPatches') && serviceSource.includes('validateStepConfirmation'), 'FIT service should validate child rows and confirmed pricing requirements');
+  assert(legacyCompatSource.includes('rooms * times * exchangeRate * unitPrice'), 'FIT backend hotel formula should include room count like the wizard');
   assert(serviceSource.includes('Tour nguồn dự toán phải khác tour đích'), 'FIT budget copy should reject the target as its own source');
   assert(serviceSource.includes('description: this.optionalText(operationInputRows[index]?.description)'), 'FIT common operation service mapping should preserve descriptions');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
   assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
+  assert(fitWizardSource.includes('removeAttachment') && fitWizardSource.includes('DELETE') && fitWizardSource.includes('AttachmentList'), 'FIT wizard should list and delete uploaded attachments');
   const pricingStepBlock = fitWizardSource.slice(fitWizardSource.indexOf('PRICING: ['), fitWizardSource.indexOf('TOUR_INFO: ['));
   assert(!pricingStepBlock.includes("'attachments'"), 'FIT wizard step payload should not send attachment metadata during pricing autosave');
   const fitToursClientSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitToursClient.tsx', 'utf8');
@@ -229,6 +238,7 @@ async function main() {
 
   const tourCore = new TourCoreService(prisma);
   const uploadedScopes = [];
+  const removedObjectKeys = [];
   const filesService = {
     upload: async (file, scope, actorId) => {
       if (!file) throw new Error('missing upload file');
@@ -242,7 +252,13 @@ async function main() {
         url: `/api/files/download?key=${encodeURIComponent(`${scope}/mock-upload.pdf`)}`,
       };
     },
-    removeQuietly: async () => undefined,
+    removeQuietly: async (objectKey) => {
+      if (objectKey) removedObjectKeys.push(objectKey);
+    },
+    objectKeyFromUrl: (fileUrl) => {
+      if (!fileUrl) return null;
+      return new URL(fileUrl, 'http://smarttour.local').searchParams.get('key');
+    },
   };
   const fitTours = new FitToursService(prisma, tourCore, new FitTourLegacyCompatService(), filesService);
   const run = 'FTR-' + Date.now();
@@ -309,6 +325,13 @@ async function main() {
     'Cần nhập ngày khởi đi',
     'FIT pricing confirmation should require travel dates',
   );
+  const beforeInvalidCreateCount = await prisma.fitTour.count();
+  await assertRejects(
+    () => fitTours.create({ quoteCode: `${run}-BAD-Q`, tourCode: 'X', customerName: '' }),
+    'Mã tour cần ít nhất 2 ký tự',
+    'FIT create should reject half-filled identity payloads',
+  );
+  assert(await prisma.fitTour.count() === beforeInvalidCreateCount, 'FIT rejected create should not leave a partial record');
   await assertRejects(
     () => fitTours.update(source.id, { commonCosts: [{ serviceType: 'CAR', amount: -1 }] }),
     'commonCosts[0].amount không được âm',
@@ -331,6 +354,19 @@ async function main() {
   const legacyAttachment = await prisma.fitAttachment.findFirst({ where: { fitTourId: source.id, fileName: 'fit-pricing.pdf' } });
   assert(commonAttachment && commonAttachment.fileUrl && commonAttachment.uploadedBy === 'system', 'FIT upload should write common TourAttachment metadata');
   assert(legacyAttachment && legacyAttachment.fileUrl, 'FIT upload should keep legacy FitAttachment snapshot metadata');
+
+  const removableDetail = await fitTours.uploadAttachment(
+    source.id,
+    FitTourWorkflowStatus.BUDGET,
+    { originalname: 'fit-budget-remove.pdf', mimetype: 'application/pdf', size: 777, buffer: Buffer.from('fit-budget-remove') },
+  );
+  const removableAttachment = removableDetail.attachments.find((row) => row.fileName === 'fit-budget-remove.pdf');
+  assert(removableAttachment && removableAttachment.step === FitTourWorkflowStatus.BUDGET, 'FIT upload should attach files to the requested workflow step');
+  const afterDeleteAttachment = await fitTours.removeAttachment(source.id, removableAttachment.id);
+  assert(!afterDeleteAttachment.attachments.some((row) => row.fileName === 'fit-budget-remove.pdf'), 'FIT removeAttachment should remove the file from detail response');
+  assert(await prisma.tourAttachment.count({ where: { tourId: source.tourId, fileName: 'fit-budget-remove.pdf' } }) === 0, 'FIT removeAttachment should delete common attachment metadata');
+  assert(await prisma.fitAttachment.count({ where: { fitTourId: source.id, fileName: 'fit-budget-remove.pdf' } }) === 0, 'FIT removeAttachment should delete legacy attachment metadata');
+  assert(removedObjectKeys.some((key) => key.includes(`fit-tours/${source.id}/${FitTourWorkflowStatus.BUDGET}`)), 'FIT removeAttachment should remove the uploaded object by workflow-scoped key');
 
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, { attachments: [{ step: FitTourWorkflowStatus.PRICING, fileName: 'tampered.pdf', fileUrl: '/tampered.pdf' }] });
   const attachmentsAfterStepPatch = await prisma.tourAttachment.findMany({ where: { tourId: source.tourId } });
@@ -434,6 +470,11 @@ async function main() {
   assert(stepInfoConfirmed.tourName === 'FIT Step Tour Info Confirmed', 'confirmStep TOUR_INFO should update allowed tourName');
   assert(!stepInfoConfirmed.budgetServices.some((row) => row.description === 'Wrong confirm tour info step'), 'confirmStep TOUR_INFO should ignore budgetServices outside step field contract');
   assert(stepInfoConfirmed.workflowStatus === FitTourWorkflowStatus.TOUR_INFO, 'confirmStep TOUR_INFO should advance workflow');
+  await assertRejects(
+    () => fitTours.update(source.id, { workflowStatus: FitTourWorkflowStatus.SURVEY }),
+    'Không được chuyển workflow FIT vượt quá bước kế tiếp',
+    'FIT workflow should reject jumping outside the next step',
+  );
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, {
     commonCosts: [{ serviceType: 'CAR', description: 'Step repriced car', quantity: 1, times: 1, unitPrice: 1100, vat: 0, amount: 1100 }],
   });
@@ -442,6 +483,19 @@ async function main() {
   assert(stepPricingBack.commonCosts[0].description === 'Step repriced car', 'saveStep earlier step should still update allowed pricing fields');
   assert(stepPricingBack.hotelCosts[0].description === 'Source hotel', 'updating commonCosts should preserve hotelCosts');
   assert(stepPricingBack.privateCosts[0].description === 'Source ticket', 'updating commonCosts should preserve privateCosts');
+  const hotelFormulaTour = await fitTours.create({
+    quoteCode: `${run}-HOTEL-FORMULA-Q`,
+    tourCode: `${run}-HOTEL-FORMULA-T`,
+    customerName: 'FIT Hotel Formula Customer',
+    adultCount: 3,
+    childCount: 1,
+    infantCount: 1,
+    hotelCosts: [{ serviceType: 'HOTEL', description: 'Formula hotel', paxPerRoom: 2, times: 2, unitPrice: 1000, vat: 10 }],
+  });
+  const formulaHotelRow = hotelFormulaTour.hotelCosts.find((row) => row.description === 'Formula hotel') || hotelFormulaTour.hotelCosts[0];
+  assert(closeTo(formulaHotelRow.amount, 6600), `FIT backend hotel cost should match UI formula rooms * nights * unit price * VAT, got ${decimal(formulaHotelRow.amount)}`);
+  const hotelFormulaRootCost = await prisma.tourCost.findFirst({ where: { tourId: hotelFormulaTour.tourId, costType: 'FIT_HOTEL_COST:HOTEL' } });
+  assert(closeTo(hotelFormulaRootCost.expectedAmount, 6600), 'FIT common TourCost hotel amount should match UI formula');
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.BUDGET, {
     budgetServices: [{ serviceType: 'HOTEL', supplierId: supplier.id, description: 'Step budget hotel', quantity: 3, unitPrice: 1000, vat: 0, amount: 3000 }],
     operationServices: [{ serviceType: 'WRONG_STEP_OPERATION', description: 'Wrong budget step', amount: 999 }],
@@ -509,6 +563,12 @@ async function main() {
     'Tour nguồn không có dữ liệu dự toán hoặc điều hành để sao chép',
     'copyOperation should not clear target rows from an empty source',
   );
+
+  await fitTours.copyOperation(target.id);
+  const selfCopiedOperationServices = await prisma.tourService.findMany({ where: { tourId: target.tourId, confirmedAmount: { gt: 0 } } });
+  const targetBudgetBeforeCopy = await prisma.tourService.findMany({ where: { tourId: target.tourId, budgetAmount: { gt: 0 } } });
+  assert(selfCopiedOperationServices.length === 1 && decimal(selfCopiedOperationServices[0].confirmedAmount) === 100, 'copyOperation without source should copy the current tour budget into operation rows');
+  assert(targetBudgetBeforeCopy.length === 1 && decimal(targetBudgetBeforeCopy[0].budgetAmount) === 100, 'copyOperation without source should keep current budget rows on the same tour');
 
   await fitTours.copyBudget(target.id, source.id);
   const copiedBudgetLegacyRows = await prisma.fitBudgetService.findMany({ where: { fitTourId: target.id } });

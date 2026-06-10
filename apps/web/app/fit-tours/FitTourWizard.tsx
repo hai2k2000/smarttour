@@ -157,7 +157,7 @@ const fitTourSchema = z.object({
   guides: z.array(z.object({ name: z.string().default(''), phone: z.string().default(''), guideType: z.string().default('Local'), notes: z.string().default('') })).default([]),
   handoverItems: z.array(z.object({ itemName: z.string().default(''), quantity: z.coerce.number().default(1), notes: z.string().default('') })).default([]),
   surveyQuestions: z.array(z.object({ question: z.string().default(''), notes: z.string().default('') })).default([]),
-  attachments: z.array(z.object({ step: z.string().default(''), fileName: z.string().default(''), fileUrl: z.string().default(''), mimeType: z.string().default(''), size: z.coerce.number().default(0), uploadedBy: z.string().default('') })).default([]),
+  attachments: z.array(z.object({ id: z.string().default(''), step: z.string().default(''), fileName: z.string().default(''), fileUrl: z.string().default(''), mimeType: z.string().default(''), size: z.coerce.number().default(0), uploadedBy: z.string().default('') })).default([]),
 });
 
 type FitTourForm = z.infer<typeof fitTourSchema>;
@@ -314,6 +314,16 @@ function canPersistTour(data: FitTourForm) {
 function workflowStepIndex(status: unknown) {
   const index = workflowSteps.findIndex((step) => step.key === String(status || '').toUpperCase());
   return index >= 0 ? index : 0;
+}
+
+function workflowStepLabel(status: unknown) {
+  return workflowSteps.find((step) => step.key === String(status || '').toUpperCase())?.label || 'Không rõ bước';
+}
+
+function fileHref(fileUrl?: string) {
+  if (!fileUrl) return '#';
+  if (/^https?:\/\//.test(fileUrl)) return fileUrl;
+  return `${apiBase}${fileUrl}`;
 }
 
 function validateBeforeSave(data: FitTourForm, step?: WorkflowStepKey, creating = false) {
@@ -529,7 +539,7 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   };
 }
 
-type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'copy-budget' | 'copy-operation';
+type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'delete-attachment' | 'copy-budget' | 'copy-operation';
 type FitTourWizardProps = {
   suppliers: Supplier[];
   tours: FitTourSummary[];
@@ -877,6 +887,33 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     }
   }
 
+  async function removeAttachment(attachment: FitTourForm['attachments'][number]) {
+    const id = getValues('id');
+    if (!id || !attachment.id) {
+      setSaveState('Chưa có file hợp lệ để xóa');
+      return;
+    }
+    if (!window.confirm(`Xóa file ${attachment.fileName || 'đính kèm'} khỏi tour FIT?`)) return;
+    setSaveState('Đang xóa file đính kèm...');
+    try {
+      const response = await fetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const saved = await response.json();
+      const defaults = toFormDefaults(saved);
+      reset(defaults, { keepDirty: false });
+      lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
+      setSelectedTourId(saved.id || '');
+      loadedTourId.current = saved.id || '';
+      onSaved?.(saved, 'delete-attachment');
+      setSaveState(`Đã xóa file ${attachment.fileName || 'đính kèm'}`);
+    } catch (error) {
+      setSaveState(`Xóa file lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+    }
+  }
+
 
   return (
     <form onSubmit={handleSubmit(submit)} className="fitWizard">
@@ -928,7 +965,8 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Giá bán / khách" name="sellingPrice" register={register} type="number" />
             <Field label="Hoa hồng / khách" name="commissionPerGuest" register={register} type="number" />
             <label className="span2">Ghi chú<textarea {...register('notes')} rows={4} /></label>
-            <label className="fileDrop"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
+            <label className="fileDrop span2"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
+            <AttachmentList attachments={values.attachments} onRemove={(attachment) => void removeAttachment(attachment)} />
           </div>
           <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={arrays.commonCosts.remove} columns={costColumns} />
           <EditableTable title="Chi phí khách sạn" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append({ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 })} remove={arrays.hotelCosts.remove} columns={hotelColumns} />
@@ -1030,6 +1068,24 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
 function SummaryCards({ items }: { items: [string, string][] }) {
   return <div className="fitSummary">{items.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
+}
+
+function AttachmentList({ attachments, onRemove }: { attachments: FitTourForm['attachments']; onRemove: (attachment: FitTourForm['attachments'][number]) => void }) {
+  const rows = attachments.filter((row) => trimText(row.fileName));
+  if (!rows.length) return <div className="attachmentList span2"><span className="mutedText">Chưa có file đính kèm.</span></div>;
+  return (
+    <div className="attachmentList span2">
+      {rows.map((attachment, index) => (
+        <div className="attachmentItem" key={attachment.id || `${attachment.fileName}-${index}`}>
+          <div>
+            <a href={fileHref(attachment.fileUrl)} target="_blank" rel="noreferrer">{attachment.fileName}</a>
+            <span>{workflowStepLabel(attachment.step)}</span>
+          </div>
+          <button type="button" className="iconButton dangerButton" onClick={() => onRemove(attachment)} aria-label={`Xóa file ${attachment.fileName}`} title="Xóa file"><Trash2 size={14} /></button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function CopySourceSelect({ tours, currentTourId, value, onChange, emptyLabel }: {

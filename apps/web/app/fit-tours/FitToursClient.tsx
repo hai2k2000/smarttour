@@ -30,7 +30,7 @@ type FitTourSaved = Partial<FitTourSummary> & {
   budgetServices?: unknown[];
   operationServices?: unknown[];
 };
-type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'copy-budget' | 'copy-operation';
+type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'delete-attachment' | 'copy-budget' | 'copy-operation';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 const money = new Intl.NumberFormat('vi-VN');
@@ -129,6 +129,7 @@ function savedMessage(summary: FitTourSummary, reason: SaveReason, existed: bool
   if (reason === 'copy-budget') return `Đã sao chép dự toán và cập nhật ${code}.`;
   if (reason === 'copy-operation') return `Đã sao chép điều hành và cập nhật ${code}.`;
   if (reason === 'upload') return `Đã tải file đính kèm cho ${code}.`;
+  if (reason === 'delete-attachment') return `Đã xóa file đính kèm của ${code}.`;
   if (reason === 'confirm') return `Đã xác nhận bước ${workflowLabel(summary.workflowStatus)} của ${code}.`;
   if (reason === 'autosave') return `Đã tự lưu ${code}.`;
   return existed ? `Đã lưu thay đổi của ${code}.` : `Đã tạo ${code}.`;

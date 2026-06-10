@@ -255,6 +255,23 @@ export class FitToursService {
     }
   }
 
+  async removeAttachment(id: string, attachmentId: string, user?: RequestUser) {
+    const fitTourId = this.requiredText(id, 'Cần chọn tour FIT');
+    const targetAttachmentId = this.requiredText(attachmentId, 'Cần chọn file đính kèm');
+    const fitTour = await this.detail(fitTourId, user);
+    const tourId = this.requiredTourRootId(fitTour);
+    const attachment = await this.findFitAttachment(tourId, fitTourId, targetAttachmentId);
+    if (!attachment) throw new NotFoundException('Không tìm thấy file đính kèm của tour FIT');
+
+    await this.prisma.$transaction(async (tx) => {
+      if (attachment.commonId) await tx.tourAttachment.deleteMany({ where: { id: attachment.commonId, tourId } });
+      await this.legacyCompat.removeAttachment(tx, fitTourId, attachment);
+      await this.logFitTourAction(tx, tourId, 'DELETE_FIT_ATTACHMENT', user, { fitTourId, attachmentId: targetAttachmentId, fileName: attachment.fileName, fileUrl: attachment.fileUrl });
+    });
+    await this.filesService.removeQuietly(this.filesService.objectKeyFromUrl(attachment.fileUrl));
+    return this.detail(fitTourId, user);
+  }
+
   async remove(id: string, user?: RequestUser) {
     const fitTour = await this.detail(id, user);
     return this.prisma.$transaction((tx) => this.removeFitTourAggregate(tx, id, fitTour, user));
@@ -325,7 +342,7 @@ export class FitToursService {
     const tourId = await this.syncTourRootFromFit(tx, current, rootDto, user);
     await this.syncTourCoreFromFit(tx, tourId, merged, patch);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
-    await this.legacyCompat.syncChildren(tx, id, patch);
+    await this.legacyCompat.syncChildren(tx, id, patch, this.totalPax(merged));
     const action = options.step ? (options.confirm ? 'CONFIRM_FIT_STEP' : 'SAVE_FIT_STEP_DRAFT') : 'UPDATE_FIT_TOUR';
     await this.logFitTourAction(tx, tourId, action, user, { fitTourId: id, ...(options.step ? { workflowStep: options.step } : {}) });
   }
@@ -444,6 +461,34 @@ export class FitToursService {
 
   private async logFitTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user: RequestUser | undefined, metadata: Row) {
     await this.tourCore.logAction(tx, tourId, action, { user, module: 'fit-tours', metadata });
+  }
+
+  private async findFitAttachment(tourId: string, fitTourId: string, attachmentId: string) {
+    const common = await this.prisma.tourAttachment.findFirst({ where: { id: attachmentId, tourId } });
+    if (common) {
+      const legacy = await this.prisma.fitAttachment.findFirst({
+        where: { fitTourId, fileName: common.fileName, fileUrl: common.fileUrl, step: common.step },
+      });
+      return {
+        commonId: common.id,
+        legacyId: legacy?.id,
+        step: common.step,
+        fileName: common.fileName,
+        fileUrl: common.fileUrl,
+      };
+    }
+    const legacy = await this.prisma.fitAttachment.findFirst({ where: { id: attachmentId, fitTourId } });
+    if (!legacy) return null;
+    const matchedCommon = await this.prisma.tourAttachment.findFirst({
+      where: { tourId, fileName: legacy.fileName, fileUrl: legacy.fileUrl, step: legacy.step },
+    });
+    return {
+      commonId: matchedCommon?.id,
+      legacyId: legacy.id,
+      step: legacy.step,
+      fileName: legacy.fileName,
+      fileUrl: legacy.fileUrl,
+    };
   }
 
   private actor(user?: RequestUser) {
@@ -969,6 +1014,7 @@ export class FitToursService {
 
   private mapTourCosts(dto: UpdateFitTourDto): Prisma.TourCostCreateManyInput[] {
     if (dto.costs !== undefined) return this.tourCore.mapCosts(dto.costs, 'FIT_COST');
+    const totalPax = this.totalPax(dto);
     const mapRows = (
       rows: Array<{ serviceType: string; description: string | null; amount: number; currency: string; exchangeRate: number; vat: number; notes: string | null }>,
       costType: string,
@@ -986,7 +1032,7 @@ export class FitToursService {
       }));
     return [
       ...mapRows(this.mapCommonCosts(dto.commonCosts), 'FIT_COMMON_COST'),
-      ...mapRows(this.mapHotelCosts(dto.hotelCosts), 'FIT_HOTEL_COST'),
+      ...mapRows(this.mapHotelCosts(dto.hotelCosts, totalPax), 'FIT_HOTEL_COST'),
       ...mapRows(this.mapPrivateCosts(dto.privateCosts), 'FIT_PRIVATE_COST'),
     ];
   }
@@ -1043,8 +1089,8 @@ export class FitToursService {
     return this.legacyCompat.mapCommonCosts(rows);
   }
 
-  private mapHotelCosts(rows?: unknown[]) {
-    return this.legacyCompat.mapHotelCosts(rows);
+  private mapHotelCosts(rows?: unknown[], totalPax = 1) {
+    return this.legacyCompat.mapHotelCosts(rows, totalPax);
   }
 
   private mapPrivateCosts(rows?: unknown[]) {
@@ -1110,6 +1156,10 @@ export class FitToursService {
   private number(value: unknown) {
     const number = Number(value || 0);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  private totalPax(dto: UpdateFitTourDto) {
+    return Math.max(1, this.number(dto.adultCount) + this.number(dto.childCount) + this.number(dto.infantCount));
   }
 
   private nonNegativeNumber(value: unknown, field: string) {

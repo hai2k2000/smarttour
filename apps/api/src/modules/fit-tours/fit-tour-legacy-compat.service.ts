@@ -75,9 +75,10 @@ export class FitTourLegacyCompatService {
     Prisma.FitTourCreateInput,
     'commonCosts' | 'hotelCosts' | 'privateCosts' | 'budgetServices' | 'operationServices' | 'guides' | 'handoverItems' | 'surveyQuestions' | 'attachments'
   > {
+    const totalPax = this.totalPax(dto);
     return {
       commonCosts: { create: this.mapCommonCosts(dto.commonCosts) },
-      hotelCosts: { create: this.mapHotelCosts(dto.hotelCosts) },
+      hotelCosts: { create: this.mapHotelCosts(dto.hotelCosts, totalPax) },
       privateCosts: { create: this.mapPrivateCosts(dto.privateCosts) },
       budgetServices: { create: this.mapBudgetServices(dto.budgetServices) },
       operationServices: { create: this.mapOperationServices(dto.operationServices) },
@@ -88,9 +89,9 @@ export class FitTourLegacyCompatService {
     };
   }
 
-  async syncChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
+  async syncChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto, totalPax = this.totalPax(dto)) {
     if (this.hasChanges(dto, 'commonCosts')) await this.replaceFitChildren(tx.fitCommonCost, fitTourId, this.mapCommonCosts(dto.commonCosts));
-    if (this.hasChanges(dto, 'hotelCosts')) await this.replaceFitChildren(tx.fitHotelCost, fitTourId, this.mapHotelCosts(dto.hotelCosts));
+    if (this.hasChanges(dto, 'hotelCosts')) await this.replaceFitChildren(tx.fitHotelCost, fitTourId, this.mapHotelCosts(dto.hotelCosts, totalPax));
     if (this.hasChanges(dto, 'privateCosts')) await this.replaceFitChildren(tx.fitPrivateCost, fitTourId, this.mapPrivateCosts(dto.privateCosts));
     if (this.hasChanges(dto, 'budgetServices')) await this.replaceBudgetServices(tx, fitTourId, this.mapBudgetServices(dto.budgetServices));
     if (this.hasChanges(dto, 'operationServices')) await this.replaceOperationServices(tx, fitTourId, this.mapOperationServices(dto.operationServices));
@@ -141,9 +142,10 @@ export class FitTourLegacyCompatService {
     });
   }
 
-  mapHotelCosts(rows?: unknown[]) {
+  mapHotelCosts(rows?: unknown[], totalPax = 1) {
     return this.rows(rows).map((row, index) => {
-      const paxPerRoom = this.number(row.paxPerRoom);
+      const paxPerRoom = this.positiveNumber(row.paxPerRoom, 1);
+      const rooms = Math.ceil(Math.max(1, totalPax) / paxPerRoom);
       const times = this.number(row.times || 1);
       const exchangeRate = this.number(row.exchangeRate || 1);
       const unitPrice = this.number(row.unitPrice);
@@ -159,7 +161,7 @@ export class FitTourLegacyCompatService {
         exchangeRate,
         unitPrice,
         vat,
-        amount: this.money(row.amount, times * exchangeRate * unitPrice, vat),
+        amount: this.money(row.amount, rooms * times * exchangeRate * unitPrice, vat),
         notes: this.optionalText(row.notes),
       };
     });
@@ -251,6 +253,21 @@ export class FitTourLegacyCompatService {
     return tx.fitAttachment.create({ data: { ...row, fitTourId } });
   }
 
+  async removeAttachment(tx: Prisma.TransactionClient, fitTourId: string, attachment: { legacyId?: string | null; fileName?: string | null; fileUrl?: string | null; step?: string | null }) {
+    if (attachment.legacyId) {
+      await tx.fitAttachment.deleteMany({ where: { id: attachment.legacyId, fitTourId } });
+      return;
+    }
+    await tx.fitAttachment.deleteMany({
+      where: {
+        fitTourId,
+        fileName: attachment.fileName || undefined,
+        fileUrl: attachment.fileUrl || null,
+        step: attachment.step || null,
+      },
+    });
+  }
+
   toCopiedBudgetRows(rows: unknown[]) {
     return this.rows(rows).map((row) => ({
       serviceType: this.text(row.serviceType || 'Dịch vụ'),
@@ -318,6 +335,15 @@ export class FitTourLegacyCompatService {
   private number(value: unknown) {
     const number = Number(value || 0);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  private positiveNumber(value: unknown, fallback = 1) {
+    const number = this.number(value);
+    return number > 0 ? number : fallback;
+  }
+
+  private totalPax(dto: UpdateFitTourDto) {
+    return Math.max(1, this.number(dto.adultCount) + this.number(dto.childCount) + this.number(dto.infantCount));
   }
 
   private money(explicitAmount: unknown, subtotal: number, vat: number) {

@@ -394,6 +394,11 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .checkLine input { width: auto; }
 .fileDrop { border: 1px dashed #b8c7d3; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #4b6b3d; cursor: pointer; min-height: 64px; }
 .fileDrop input { display: none; }
+.attachmentList { border: 1px solid var(--dn-border); border-radius: 8px; padding: 10px; display: grid; gap: 8px; background: #f8fafc; }
+.attachmentItem { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.attachmentItem div { min-width: 0; display: grid; gap: 2px; }
+.attachmentItem a { font-weight: 700; color: var(--dn-primary); overflow-wrap: anywhere; }
+.attachmentItem span { color: var(--dn-muted); font-size: 12px; }
 .fitTableBlock { background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; padding: 14px; }
 .fitTableWrap { overflow-x: auto; }
 .fitTable { min-width: 1100px; }
