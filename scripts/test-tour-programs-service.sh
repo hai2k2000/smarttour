@@ -44,6 +44,7 @@ const {
   TOUR_PROGRAM_DURATION_DAYS_MAX,
 } = require('./apps/api/dist/modules/tour-programs/dto/create-tour-program.dto');
 const { CreateItineraryDayDto } = require('./apps/api/dist/modules/tour-programs/dto/create-itinerary-day.dto');
+const { ListTourProgramsQueryDto } = require('./apps/api/dist/modules/tour-programs/dto/list-tour-programs-query.dto');
 const { UpdateTourProgramDto } = require('./apps/api/dist/modules/tour-programs/dto/update-tour-program.dto');
 const { validationExceptionFactory } = require('./apps/api/dist/validation-exception.factory');
 
@@ -130,6 +131,7 @@ async function main() {
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.controller.ts', 'utf8');
   const dtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-tour-program.dto.ts', 'utf8');
   const itineraryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-itinerary-day.dto.ts', 'utf8');
+  const listQueryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/list-tour-programs-query.dto.ts', 'utf8');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
@@ -141,7 +143,11 @@ async function main() {
 
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
   assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
-  assert(controllerSource.includes("BadRequestException('Từ khóa tìm kiếm phải là chuỗi ký tự')"), 'tour programs controller should reject non-string search query');
+  assert(controllerSource.includes('list(@Query() query: ListTourProgramsQueryDto)'), 'tour programs list should use a structured query DTO');
+  assert(listQueryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'list query DTO should reuse the shared search limit');
+  assert(listQueryDtoSource.includes('Tìm theo mã, tên hoặc tuyến điểm tour mẫu'), 'list query Swagger contract should document searchable fields');
+  assert(controllerSource.includes('Cập nhật một phần tour mẫu'), 'update Swagger contract should document PATCH semantics');
+  assert(controllerSource.includes('không được tạo độc lập'), 'create itinerary Swagger contract should document tour program ownership');
   for (const englishMessage of ['Tour program not found', 'Tour program code already exists', 'Itinerary day not found']) {
     assert(!serviceSource.includes(englishMessage), `tour programs service should not contain English message: ${englishMessage}`);
   }
@@ -250,9 +256,16 @@ async function main() {
       return [];
     },
   });
-  await controller.list('  Hạ Long  ');
-  assert(controllerSearchValue === 'Hạ Long', 'controller list should trim search before passing it to service');
-  await rejects(() => controller.list(['Hạ Long']), 'controller list should reject array search query');
+  await controller.list({ search: 'Hạ Long' });
+  assert(controllerSearchValue === 'Hạ Long', 'controller list should pass validated search to service');
+
+  const validListQuery = await validateDto(ListTourProgramsQueryDto, { search: '  Hạ   Long  ' });
+  assert(validListQuery.errors.length === 0, 'list query DTO should accept a string search');
+  assert(validListQuery.instance.search === 'Hạ Long', 'list query DTO should trim and normalize search whitespace');
+  const invalidListQuery = await validateDto(ListTourProgramsQueryDto, { search: ['Hạ Long'] });
+  assert(invalidListQuery.messages.includes('Từ khóa tìm kiếm phải là chuỗi ký tự'), 'list query DTO should reject array search with Vietnamese message');
+  const longListQuery = await validateDto(ListTourProgramsQueryDto, { search: 'X'.repeat(81) });
+  assert(longListQuery.messages.includes('Từ khóa tìm kiếm không được vượt quá 80 ký tự'), 'list query DTO should reject overly long search');
 
   const validCreateDto = await validateDto(CreateTourProgramDto, {
     code: ' hl-3n2d ',
