@@ -73,6 +73,13 @@ const defaultSurveyQuestions = [
   'Mức độ hài lòng chung',
 ];
 const autosaveDelayMs = 3000;
+const attachmentMaxBytes = 10 * 1024 * 1024;
+const deniedAttachmentExtensions = ['.bat', '.cmd', '.com', '.exe', '.htm', '.html', '.js', '.mjs', '.cjs', '.ps1', '.sh', '.svg'];
+const deniedAttachmentMimeTypes = ['image/svg+xml', 'text/html', 'text/javascript', 'application/javascript'];
+const attachmentAcceptTypes = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.zip',
+  'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
+].join(',');
 
 const costLineSchema = z.object({
   serviceType: z.string().default(''),
@@ -409,6 +416,36 @@ function fileHref(fileUrl?: string) {
   if (!fileUrl) return '#';
   if (/^https?:\/\//.test(fileUrl)) return fileUrl;
   return `${apiBase}${fileUrl}`;
+}
+
+function formatFileSize(size?: unknown) {
+  const bytes = normalizeNumber(size);
+  if (bytes <= 0) return 'Kh\u00f4ng r\u00f5 dung l\u01b0\u1ee3ng';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+  return `${Math.round(bytes / 1024 / 102.4) / 10} MB`;
+}
+
+function attachmentExtension(fileName: string) {
+  const index = fileName.lastIndexOf('.');
+  return index >= 0 ? fileName.slice(index).toLowerCase() : '';
+}
+
+function validateAttachmentFile(file: File) {
+  const fileName = trimText(file.name);
+  if (!fileName) return 'T\u00ean file kh\u00f4ng h\u1ee3p l\u1ec7';
+  if (!file.size || file.size > attachmentMaxBytes) return `File ${fileName} v\u01b0\u1ee3t qu\u00e1 gi\u1edbi h\u1ea1n ${formatFileSize(attachmentMaxBytes)}`;
+  const extension = attachmentExtension(fileName);
+  const mimeType = trimText(file.type).toLowerCase();
+  if (deniedAttachmentExtensions.includes(extension) || deniedAttachmentMimeTypes.includes(mimeType)) {
+    return `File ${fileName} thu\u1ed9c lo\u1ea1i kh\u00f4ng \u0111\u01b0\u1ee3c ph\u00e9p t\u1ea3i l\u00ean`;
+  }
+  return '';
+}
+
+function attachmentMetaText(attachment: FitTourForm['attachments'][number]) {
+  const parts = [workflowStepLabel(attachment.step), trimText(attachment.mimeType) || 'Kh\u00f4ng r\u00f5 lo\u1ea1i file', formatFileSize(attachment.size)];
+  return parts.filter(Boolean).join(' \u00b7 ');
 }
 
 function validateBeforeSave(data: FitTourForm, step?: WorkflowStepKey, creating = false) {
@@ -1076,13 +1113,24 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     if (!files) return;
     const validFiles = Array.from(files).filter((file) => file.name);
     if (!validFiles.length) return;
+    const validationError = validFiles.map(validateAttachmentFile).find(Boolean);
+    if (validationError) {
+      setSaveState(`T\u1ea3i file l\u1ed7i: ${validationError}`);
+      return;
+    }
+    const requestId = loadRequestId.current;
+    const startingTourId = getValues('id') || '';
     const step = workflowSteps[activeStep].key;
     const stepLabel = workflowSteps[activeStep].label;
-    setSaveState(`Đang tải ${validFiles.length} file...`);
+    setSaveState(`\u0110ang t\u1ea3i ${validFiles.length} file...`);
     try {
       let saved: Partial<FitTourForm> & { id?: string } | undefined;
       for (const file of validFiles) {
         saved = await uploadAttachmentFile(file, step);
+      }
+      if (requestId !== loadRequestId.current || (startingTourId && saved?.id && saved.id !== startingTourId)) {
+        setSaveState('Tour \u0111\u00e3 thay \u0111\u1ed5i, b\u1ecf qua k\u1ebft qu\u1ea3 t\u1ea3i file v\u1eeba ho\u00e0n t\u1ea5t');
+        return;
       }
       if (saved) {
         const defaults = toFormDefaults(saved);
@@ -1092,9 +1140,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         loadedTourId.current = saved.id || '';
         onSaved?.(saved, 'upload');
       }
-      setSaveState(`Đã tải ${validFiles.length} file vào bước ${stepLabel}`);
+      setSaveState(`\u0110\u00e3 t\u1ea3i ${validFiles.length} file v\u00e0o b\u01b0\u1edbc ${stepLabel}`);
     } catch (error) {
-      setSaveState(`Tải file lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      setSaveState(`T\u1ea3i file l\u1ed7i: ${error instanceof Error ? error.message : 'kh\u00f4ng x\u00e1c \u0111\u1ecbnh'}`);
     }
   }
 
@@ -1186,7 +1234,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Giá bán / khách" name="sellingPrice" register={register} type="number" />
             <Field label="Hoa hồng / khách" name="commissionPerGuest" register={register} type="number" />
             <label className="span2">Ghi chú<textarea {...register('notes')} rows={4} /></label>
-            <label className="fileDrop span2"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
+            <label className="fileDrop span2"><FileUp size={16} /> File đính kèm<input type="file" multiple accept={attachmentAcceptTypes} onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
             <AttachmentList attachments={values.attachments} onRemove={(attachment) => void removeAttachment(attachment)} />
           </div>
           <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={(index) => confirmRemoveRow('commonCosts', index, arrays.commonCosts.remove)} columns={costColumns} />
@@ -1301,7 +1349,7 @@ function AttachmentList({ attachments, onRemove }: { attachments: FitTourForm['a
         <div className="attachmentItem" key={attachment.id || `${attachment.fileName}-${index}`}>
           <div>
             <a href={fileHref(attachment.fileUrl)} target="_blank" rel="noreferrer">{attachment.fileName}</a>
-            <span>{workflowStepLabel(attachment.step)}</span>
+            <span>{attachmentMetaText(attachment)}</span>
           </div>
           <button type="button" className="iconButton dangerButton" onClick={() => onRemove(attachment)} aria-label={`Xóa file ${attachment.fileName}`} title="Xóa file"><Trash2 size={14} /></button>
         </div>

@@ -101,6 +101,7 @@ function assertLegacyCompatBoundary() {
   const actionDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/fit-tour-action.dto.ts', 'utf8');
   const fitWizardSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitTourWizard.tsx', 'utf8');
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
+  const filesServiceSource = fs.readFileSync('/workspace/apps/api/src/modules/files/files.service.ts', 'utf8');
   const defaultsSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-defaults.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
@@ -119,8 +120,10 @@ function assertLegacyCompatBoundary() {
   assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Manage only via upload/delete/import compatibility'), 'FIT attachment legacy decision should stay limited to explicit attachment actions');
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
-  assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
+  assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor') && controllerSource.includes('fileUploadInterceptorOptions()'), 'FIT attachment upload endpoint should be multipart, filtered, and scoped to a FIT tour');
   assert(controllerSource.includes("@Delete(':id/attachments/:attachmentId')"), 'FIT attachment delete endpoint should be scoped to a FIT tour and attachment');
+  assert(filesServiceSource.includes('defaultMaxBytes = 10 * 1024 * 1024') && filesServiceSource.includes('fileUploadMaxBytes') && filesServiceSource.includes('limits: { fileSize: maxBytes }'), 'FilesService should enforce upload size limits through service and interceptor');
+  assert(filesServiceSource.includes('deniedExtensions') && filesServiceSource.includes('deniedMimeTypes') && filesServiceSource.includes('assertAllowedUpload(file)'), 'FilesService should reject unsafe file extensions and mime types');
   assert(controllerSource.includes("@Get(':id/export')") && controllerSource.includes("@Header('Content-Type', 'text/csv; charset=utf-8')"), 'FIT export endpoint should expose a CSV download by tour id');
   assert(controllerSource.includes('FitTourExportDto') && controllerSource.includes('FitTourCopySourceDto') && controllerSource.includes('FitTourAttachmentUploadDto'), 'FIT action routes should use focused action DTOs instead of aggregate DTO fields');
   assert(controllerSource.includes('fitToursService.importLegacy'), 'FIT import route should keep legacy attachment metadata separate from normal create');
@@ -135,6 +138,7 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('async exportCsv') && serviceSource.includes('requiredTourRootId(fitTour)'), 'FIT export should be generated from a scoped FIT detail with common tourId');
   assert(serviceSource.includes('tourCore.addAttachment') && serviceSource.includes('legacyCompat.addAttachment'), 'FIT upload should persist attachment metadata through common and legacy boundaries');
   assert(serviceSource.includes('legacyCompat.removeAttachment'), 'FIT attachment delete should delegate legacy snapshot removal to compatibility service');
+  assert(serviceSource.includes('filesService.removeQuietly') && serviceSource.includes('objectKeyFromUrl(attachment.fileUrl)'), 'FIT attachment delete should remove storage object after deleting DB metadata');
   assert(serviceSource.includes('allowAttachmentMetadata') && serviceSource.includes('dropAttachmentPatch(scopedDto)'), 'FIT create should strip attachment metadata while legacy import may preserve it');
   assert(serviceSource.includes('validateChildPatches') && serviceSource.includes('validateStepConfirmation'), 'FIT service should validate child rows and confirmed pricing requirements');
   assert(legacyCompatSource.includes('rooms * times * exchangeRate * unitPrice'), 'FIT backend hotel formula should include room count like the wizard');

@@ -180,6 +180,15 @@ assertIncludesAll(copyOperationBlock, [
 ], 'FIT wizard copyOperation should copy selected/current source and confirm overwrite');
 
 // Upload/delete attachments.
+assertIncludesAll(wizard, [
+  'attachmentMaxBytes',
+  'deniedAttachmentExtensions',
+  'deniedAttachmentMimeTypes',
+  'attachmentAcceptTypes',
+  'formatFileSize',
+  'validateAttachmentFile',
+  'attachmentMetaText',
+], 'FIT wizard should define attachment validation and metadata helpers');
 assertIncludesAll(uploadAttachmentBlock, [
   "saveTour(getValues(), step, 'draft')",
   'new FormData()',
@@ -189,18 +198,23 @@ assertIncludesAll(uploadAttachmentBlock, [
   'authHeaders()',
 ], 'FIT wizard uploadAttachmentFile should create draft if needed and post multipart step metadata');
 assertIncludesAll(addFilesBlock, [
+  'validFiles.map(validateAttachmentFile).find(Boolean)',
+  'const requestId = loadRequestId.current',
+  "const startingTourId = getValues('id') || ''",
   'const step = workflowSteps[activeStep].key',
   'const stepLabel = workflowSteps[activeStep].label',
   'uploadAttachmentFile(file, step)',
+  'requestId !== loadRequestId.current',
   "onSaved?.(saved, 'upload')",
-], 'FIT wizard addFiles should upload files against active workflow step');
+], 'FIT wizard addFiles should validate files, bind them to active step, and ignore stale upload results');
 assertIncludesAll(removeAttachmentBlock, [
   'window.confirm',
   "method: 'DELETE'",
   "fetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`",
   "onSaved?.(saved, 'delete-attachment')",
 ], 'FIT wizard removeAttachment should confirm and delete file metadata');
-assertIncludesAll(wizard, ['AttachmentList', 'fileHref(attachment.fileUrl)', 'workflowStepLabel(attachment.step)'], 'FIT wizard should render loaded attachment metadata');
+assertIncludesAll(wizard, ['AttachmentList', 'fileHref(attachment.fileUrl)', 'attachmentMetaText(attachment)', 'formatFileSize(attachment.size)', 'trimText(attachment.mimeType)'], 'FIT wizard should render loaded attachment step, mime type, and size metadata');
+assert(wizard.includes('accept={attachmentAcceptTypes}'), 'FIT wizard file input should advertise accepted document/image types');
 
 // Reset form and load another tour.
 assertIncludesAll(selectTourBlock, [
