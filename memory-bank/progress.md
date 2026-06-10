@@ -3,6 +3,19 @@
 ## Done
 
 
+- Locked GIT data/business checks:
+  - Workflow steps are aligned across backend validator, frontend options, and
+    Vietnamese labels.
+  - GIT list/update UI now includes paymentStatus and invoiceStatus, with
+    paymentStatus still covered by finance/report filtering.
+  - Regression covers copy-services supplier/source preservation, partial
+    update child preservation, invoiceStatus create/update, and trimmed
+    branch/department/customerSource root fields.
+  - Verified on VPS: web Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web deploy, and GIT web auth redirect
+    smoke.
+
+
 - Locked GIT frontend route/security behavior:
   - `apps/web/app/git-tours/page.tsx` now exposes workflow update, guarded
     copy-services, delete confirmation, action success/error state, and list

@@ -21,6 +21,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Continued GIT data/business contract verification:
+  - GIT frontend workflow step options are now regression-checked against the
+    backend validator and i18n labels; the page also exposes paymentStatus and
+    invoiceStatus controls alongside lifecycle status.
+  - GIT list now displays invoice status, while reports remain guarded for
+    paymentStatus finance filtering.
+  - Runtime regression now verifies branch/department/customerSource trimming,
+    invoiceStatus create/update behavior, paymentStatus normalization, partial
+    updates preserving children, and copy-services preserving source service
+    supplier links/amount/VAT/status.
+  - VPS verification passed on 2026-06-10: web Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web deploy,
+    and GIT web auth redirect smoke 307.
+
+
 - Continued GIT frontend and security contract cleanup:
   - The current GIT frontend surface is a server-rendered list/create/status
     page, not a FIT-style autosave wizard; it now has clearer Vietnamese

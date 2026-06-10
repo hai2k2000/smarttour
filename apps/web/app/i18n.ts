@@ -51,6 +51,7 @@ const statusLabels: Record<string, string> = {
   RECEIPT: 'Phiếu thu',
   PAYMENT: 'Phiếu chi',
   INVOICE: 'Hóa đơn',
+  ISSUED: 'Đã xuất hóa đơn',
   ALL_DAYS: 'Tất cả ngày',
   WEEKDAY: 'Ngày thường',
   WEEKEND: 'Cuối tuần',

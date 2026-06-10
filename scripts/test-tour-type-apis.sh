@@ -207,6 +207,8 @@ function assertGitToursFrontendContract() {
   assert(pageSource.includes('workflowStep: string | null') && pageSource.includes('viStatus(tour.workflowStep)'), 'GIT tours page should show backend workflowStep');
   assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'GIT tours page should show backend paymentStatus');
   assert(pageSource.includes('gitWorkflowSteps') && pageSource.includes('name="workflowStep"') && pageSource.includes('updateGitTourWorkflow'), 'GIT tours page should let users update workflow step explicitly');
+  assert(pageSource.includes('paymentStatuses') && pageSource.includes('name="paymentStatus"') && pageSource.includes('invoiceStatuses') && pageSource.includes('name="invoiceStatus"'), 'GIT tours page should expose paymentStatus and invoiceStatus controls');
+  assert(pageSource.includes('tour.gitTour?.invoiceStatus') && pageSource.includes('<th>Hóa đơn</th>'), 'GIT tours page should display invoice status in the list');
   assert(pageSource.includes('copyGitServices') && pageSource.includes('/copy-services') && pageSource.includes('sourceTourId') && pageSource.includes('#copy-'), 'GIT tours page should expose guarded copy-services UI with explicit source tour');
   assert(pageSource.includes('#delete-') && pageSource.includes('Xác nhận xóa'), 'GIT tours page should require a delete confirmation modal instead of direct row delete');
   assert(pageSource.includes('redirectWithState') && pageSource.includes('statusPillDanger') && pageSource.includes('statusPillSuccess'), 'GIT tours page should surface save/load action state from server actions');
@@ -218,8 +220,13 @@ function assertGitToursFrontendContract() {
   assert(!pageSource.includes('NVDH') && !pageSource.includes('CTV') && !pageSource.includes('DT / DV'), 'GIT tours page should not use unclear abbreviated Vietnamese labels');
   for (const step of ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED']) {
     assert(i18nSource.includes(step), `GIT workflow label ${step} should be localized for frontend display`);
+    assert(pageSource.includes(step), `GIT frontend workflow options should include ${step}`);
+    assert(require('fs').readFileSync('/workspace/apps/api/src/modules/git-tours/git-tours.service.ts', 'utf8').includes(step), `GIT backend workflow validator should include ${step}`);
   }
   assert(i18nSource.includes('SETTLED'), 'Shared status label SETTLED should be localized for GIT status filters');
+  assert(i18nSource.includes('PAID') && i18nSource.includes('PARTIAL') && i18nSource.includes('UNPAID') && i18nSource.includes('INVOICE'), 'Shared payment/invoice labels should be localized for GIT UI/report filters');
+  const reportSource = require('fs').readFileSync('/workspace/apps/api/src/modules/reports/reports.service.ts', 'utf8');
+  assert(reportSource.includes('query.paymentStatus') && reportSource.includes('paymentStatus: query.paymentStatus'), 'Reports should keep paymentStatus filter support for tour finance/reporting');
 }
 
 function assertTourRootOrchestrationBoundaries() {
@@ -735,6 +742,10 @@ async function main() {
         agentName: 'Tour type API GIT agent',
         operatorOwner: 'Tour type API GIT operator',
         paymentStatus: 'partial',
+        invoiceStatus: ' requested ',
+        branch: ` ${run}-GIT-BRANCH `,
+        department: ` ${run}-GIT-DEPT `,
+        customerSource: '  Website  ',
         startDate: '2026-08-01',
         endDate: '2026-08-03',
         revenues: [{ description: 'GIT revenue package', quantity: 2, unitPrice: 500, vat: 10 }],
@@ -749,6 +760,8 @@ async function main() {
   assert(gitTour.systemCode === `${run}-GIT-SYS` && gitTour.tourCode === `${run}-GIT`, 'GIT create should uppercase systemCode and tourCode');
   assert(gitTour.workflowStep === 'GIT_INFO', 'GIT create should initialize default workflow step');
   assert(gitTour.paymentStatus === 'PARTIAL', 'GIT create should normalize paymentStatus');
+  assert(gitTour.branch === `${run}-GIT-BRANCH` && gitTour.department === `${run}-GIT-DEPT` && gitTour.customerSource === 'Website', 'GIT create should trim branch/department/customerSource root fields');
+  assert(gitTour.gitTour.invoiceStatus === 'requested', 'GIT create should trim invoiceStatus detail field without changing user-defined value');
   assertGitDetailShape(gitTour, 'GIT create response');
   assert(gitTour.logs.some((log) => log.action === 'CREATE_GIT_TOUR' && log.metadata?.systemCode === `${run}-GIT-SYS`), 'GIT create should write standardized create log metadata');
   assert(gitTour.revenues.length === 1 && Number(gitTour.revenues[0].amount) === 1100, 'GIT should map revenue amount with VAT');
@@ -831,12 +844,13 @@ async function main() {
   assert(patchedGitTour.logs.some((log) => log.action === 'UPDATE_GIT_TOUR' && log.metadata?.changedFields?.includes('status')), 'GIT update should write changed field metadata');
   const putGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
-    { method: 'PUT', body: JSON.stringify({ paymentStatus: 'paid' }) },
+    { method: 'PUT', body: JSON.stringify({ paymentStatus: 'paid', invoiceStatus: 'ISSUED' }) },
     200,
     'PUT GIT tour should share update contract with frontend-compatible PATCH',
   );
   assertGitDetailShape(putGitTour, 'GIT PUT update response');
   assert(putGitTour.paymentStatus === 'PAID', 'GIT PUT should normalize and update paymentStatus');
+  assert(putGitTour.gitTour.invoiceStatus === 'ISSUED', 'GIT PUT should update invoiceStatus detail field');
   assert(putGitTour.services.length === 2 && putGitTour.revenues.length === 1 && putGitTour.customers.length === 2, 'GIT PUT partial update should preserve edit children');
   await expect(
     `/api/git-tours/${gitTour.id}`,

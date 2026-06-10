@@ -17,7 +17,7 @@ type GitTour = {
   startDate: string | null;
   endDate: string | null;
   operatorOwner: string | null;
-  gitTour: { agentName: string | null; collaborator: string | null; commissionRate: string | null } | null;
+  gitTour: { agentName: string | null; collaborator: string | null; commissionRate: string | null; invoiceStatus: string | null } | null;
   customers: { name: string }[];
   _count?: { revenues: number; services: number; costs: number };
 };
@@ -26,6 +26,8 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 const gitWorkflowSteps = ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED'];
+const paymentStatuses = ['UNPAID', 'PARTIAL', 'PAID'];
+const invoiceStatuses = ['OPEN', 'REQUESTED', 'APPROVED', 'INVOICE', 'CLOSED'];
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -113,7 +115,7 @@ async function updateGitTourWorkflow(formData: FormData) {
   const response = await fetch(`${apiBase}/api/git-tours/${id}`, {
     method: 'PATCH',
     headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({ status: textField(formData, 'status'), workflowStep: textField(formData, 'workflowStep') }),
+    body: JSON.stringify({ status: textField(formData, 'status'), paymentStatus: textField(formData, 'paymentStatus'), workflowStep: textField(formData, 'workflowStep'), invoiceStatus: textField(formData, 'invoiceStatus') }),
   });
   if (!response.ok) redirectWithState('error', await apiErrorMessage(response));
   revalidatePath('/git-tours');
@@ -266,7 +268,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         ) : (
           <table>
             <thead>
-              <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
+              <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Hóa đơn</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
             </thead>
             <tbody>
               {tours.map((tour) => (
@@ -281,6 +283,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
                       <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
                     </td>
                     <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
+                    <td>{tour.gitTour?.invoiceStatus ? viStatus(tour.gitTour.invoiceStatus) : '—'}</td>
                     <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} doanh thu / {tour._count?.services ?? 0} dịch vụ</td>
                     <td className="actionsCell"><div className="rowActions">
                       <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a>
@@ -300,7 +303,9 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
             <form action={updateGitTourWorkflow} className="formStack">
               <input type="hidden" name="id" value={tour.id} />
               <label>Trạng thái tour<select name="status" defaultValue={tour.status}>{tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
+              <label>Trạng thái thanh toán<select name="paymentStatus" defaultValue={tour.paymentStatus}>{paymentStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
               <label>Bước workflow<select name="workflowStep" defaultValue={tour.workflowStep || 'GIT_INFO'}>{gitWorkflowSteps.map((step) => <option key={step} value={step}>{viStatus(step)}</option>)}</select></label>
+              <label>Trạng thái hóa đơn<select name="invoiceStatus" defaultValue={tour.gitTour?.invoiceStatus || ''}><option value="">Chưa cập nhật</option>{invoiceStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
               <button type="submit"><Save size={15} /> Cập nhật</button>
             </form>
           </div>
