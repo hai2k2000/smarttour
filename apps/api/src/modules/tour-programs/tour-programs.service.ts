@@ -70,7 +70,7 @@ export class TourProgramsService {
       where: { id },
       include: {
         itineraryDays: { orderBy: { dayNumber: 'asc' } },
-        bookings: { orderBy: { startDate: 'desc' }, select: { id: true, code: true, customerName: true } },
+        _count: { select: { bookings: true } },
       },
     });
     if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
@@ -96,7 +96,7 @@ export class TourProgramsService {
     const current = await this.detail(id);
     this.validateTourProgramInput(dto);
     if (dto.durationDays !== undefined) {
-      this.ensureDurationChangeAllowed(dto.durationDays, current.durationDays, current.bookings.length);
+      this.ensureDurationChangeAllowed(dto.durationDays, current.durationDays, current._count.bookings);
       this.ensureDurationCoversItinerary(dto.durationDays, current.itineraryDays);
     }
     try {

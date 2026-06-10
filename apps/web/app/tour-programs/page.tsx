@@ -24,9 +24,7 @@ type TourProgram = {
   _count?: { bookings: number };
 };
 
-type TourProgramDetail = TourProgram & {
-  bookings?: Array<{ id: string; code: string; customerName: string }>;
-};
+type TourProgramDetail = TourProgram;
 
 type ApiResult<T> = { data: T; error?: string };
 type MutationResult = { ok: boolean; message: string };
@@ -187,7 +185,7 @@ async function updateTourProgram(formData: FormData) {
   if (detailResult.error) redirectWithResult({ ok: false, message: `Sửa tour mẫu thất bại: ${detailResult.error}` });
   const current = detailResult.data;
   if (!current) redirectWithResult({ ok: false, message: 'Sửa tour mẫu thất bại: không tìm thấy tour mẫu.' });
-  const bookingsCount = current.bookings?.length ?? current._count?.bookings ?? 0;
+  const bookingsCount = current._count?.bookings ?? 0;
   const maxItineraryDay = Math.max(0, ...current.itineraryDays.map((day) => day.dayNumber));
   if (bookingsCount > 0 && payload.durationDays !== current.durationDays) {
     redirectWithResult({ ok: false, message: 'Sửa tour mẫu thất bại: tour đã có booking, không thể đổi số ngày.' });
@@ -214,7 +212,7 @@ async function deleteTourProgram(formData: FormData) {
   if (detailResult.error) redirectWithResult({ ok: false, message: `Xóa ${code} thất bại: ${detailResult.error}` });
   const detail = detailResult.data;
   if (!detail) redirectWithResult({ ok: false, message: `Xóa ${code} thất bại: không tìm thấy tour mẫu.` });
-  const bookingsCount = detail.bookings?.length ?? detail._count?.bookings ?? Number(field(formData, 'bookingCount') || 0);
+  const bookingsCount = detail._count?.bookings ?? Number(field(formData, 'bookingCount') || 0);
   if (bookingsCount > 0) redirectWithResult({ ok: false, message: `Xóa ${code} thất bại: tour mẫu đã có ${bookingsCount} booking.` });
   if (detail.itineraryDays.length > 0) redirectWithResult({ ok: false, message: `Xóa ${code} thất bại: tour mẫu còn ${detail.itineraryDays.length} ngày lịch trình.` });
 

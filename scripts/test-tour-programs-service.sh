@@ -130,10 +130,15 @@ async function main() {
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
   assert(serviceSource.includes('TOUR_ITINERARY_TITLE_MAX_LENGTH'), 'service should reuse itinerary title max from DTO');
   assert(serviceSource.includes("validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays)"), 'service should validate durationDays to prevent DTO bypass');
+  assert(serviceSource.includes('itineraryDays: { orderBy: { dayNumber:'), 'list should include itineraryDays ordered by dayNumber for frontend preview');
+  assert(serviceSource.includes('_count: { select: { bookings: true } }'), 'list/detail should expose booking count for frontend guards');
+  assert(serviceSource.includes("orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }]"), 'list should keep newest-updated ordering with code tie-breaker');
+  assert(!serviceSource.includes('bookings: { orderBy: { startDate:'), 'detail should not return booking list when frontend only needs booking count');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
   assert(webPageSource.includes("code: requiredText(formData, 'code', 'Mã tour', 2).toUpperCase()"), 'frontend should normalize tour program code to uppercase before submit');
   assert(webPageSource.includes('maxLength={MAX_CODE_LENGTH}'), 'frontend should cap code length');
   assert(/<input name="route"[^>]*maxLength=\{MAX_ROUTE_LENGTH\}[^>]*\/>/.test(webPageSource), 'frontend route input should stay optional and length-limited');
+  assert(!webPageSource.includes('bookings?.length'), 'frontend should rely on _count.bookings instead of detail booking rows');
 
   const customValidationResponse = validationExceptionFactory([{
     property: 'durationDays',
@@ -346,12 +351,18 @@ async function main() {
   assert(listedCreated.itineraryDays[0].dayNumber === 1 && listedCreated.itineraryDays[1].dayNumber === 2, 'list itineraryDays should be ordered by dayNumber');
   assert(listedCreated.itineraryDays[0].description === 'Start from Ha Noi', 'list itineraryDays should include description');
   assert((await service.list('Cruise')).length === 0, 'list search should not match itinerary titles');
+  assert((await service.list(`${run}-MAIN`)).some((row) => row.id === created.id), 'list search should match code');
   assert((await service.list('Tour Programs Service Main')).some((row) => row.id === created.id), 'list search should match name');
   assert((await service.list('Ha Long')).some((row) => row.id === created.id), 'list search should match route');
+  await rejects(
+    () => service.list('X'.repeat(81)),
+    'list search should reject overly long search text',
+  );
 
   const detail = await service.detail(created.id);
   assert(detail.itineraryDays.length === 2, 'detail should include itinerary days');
-  assert(detail.bookings.length === 0, 'detail should include bookings relation');
+  assert(detail._count.bookings === 0, 'detail should include _count.bookings');
+  assert(!('bookings' in detail), 'detail should not include booking rows when frontend only needs booking count');
   await rejects(() => service.detail('missing-tour-program-id'), 'detail should reject missing tour program');
 
   const updated = await service.update(created.id, {
@@ -422,7 +433,7 @@ async function main() {
   });
   const linkedListRow = (await service.list(`${run}-TP-LINKED`)).find((row) => row.id === linkedProgram.id);
   assert(linkedListRow._count.bookings === 1, 'list should count linked bookings');
-  assert((await service.detail(linkedProgram.id)).bookings.some((row) => row.id === booking.id), 'detail should include linked booking');
+  assert((await service.detail(linkedProgram.id))._count.bookings === 1, 'detail should count linked bookings without returning booking rows');
   await rejects(
     () => service.update(linkedProgram.id, { durationDays: 3 }),
     'update should reject durationDays change when tour program has bookings',
