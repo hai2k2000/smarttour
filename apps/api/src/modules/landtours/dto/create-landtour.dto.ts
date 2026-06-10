@@ -13,13 +13,13 @@ const normalizeEnum = ({ value }: { value: unknown }) => {
 
 export class CreateLandTourDto {
   @ApiProperty({ example: 'LAND-2026-0001' })
-  @IsString()
-  @MinLength(2)
+  @IsString({ message: 'Mã hệ thống LandTour phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã hệ thống LandTour cần ít nhất 2 ký tự' })
   systemCode!: string;
 
   @ApiProperty({ example: 'LAND-DN-COMBO-001' })
-  @IsString()
-  @MinLength(2)
+  @IsString({ message: 'Mã tour LandTour phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã tour LandTour cần ít nhất 2 ký tự' })
   tourCode!: string;
 
   @ApiPropertyOptional()
@@ -27,9 +27,9 @@ export class CreateLandTourDto {
   @IsString()
   orderId?: string;
 
-  @ApiProperty({ example: 'Combo Da Nang land + hotel + car' })
-  @IsString()
-  @MinLength(2)
+  @ApiProperty({ example: 'Combo Đà Nẵng land + khách sạn + xe' })
+  @IsString({ message: 'Tên LandTour phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên LandTour cần ít nhất 2 ký tự' })
   name!: string;
 
   @ApiPropertyOptional({ enum: TourStatus })

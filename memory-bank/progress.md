@@ -1135,6 +1135,13 @@
 - Removed fake default GIT customer creation, added supplier/supplier-service validation before child replacement, mapped UI service status strings to `TourServiceStatus`, and made `copyServices()` require an explicit source tour different from the target.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and `/api/git-tours?status=running` auth behavior.
 
+
+- Hardened LandTour validation/regression coverage.
+- Added service-level duplicate guards for LandTour `systemCode` and `tourCode` on create/update with Vietnamese conflict messages.
+- Localized required LandTour DTO messages for `systemCode`, `tourCode`, and `name`, and refreshed the Swagger create example.
+- Expanded `scripts/test-tour-type-apis.sh` to cover LandTour list search/status, detail, create/update/remove, copy-services, duplicate codes, customers/services/terms mapping, workflow/status/paymentStatus, and missing/invalid field payloads.
+- Verified on VPS: `docker compose build api`, `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

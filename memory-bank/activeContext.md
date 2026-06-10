@@ -1452,3 +1452,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - GIT customer mapping no longer creates a fake default customer row when `customerName` is missing; agents remain common `TourCustomer(customerType = AGENT)` rows.
   - GIT service/cost child updates validate supplier and supplier-service links before replacing children, map UI service status strings to `TourServiceStatus`, and keep partial updates from replacing untouched children.
   - GIT `copyServices()` now requires an explicit source tour different from the target and still delegates source lookup/copy replacement to `TourCoreService.copyServicesFromTour()`.
+
+- 2026-06-10 LandTour regression hardening:
+  - LandTour create/update now checks duplicate `systemCode` and type-scoped `tourCode` before common Tour writes, returning Vietnamese conflict messages.
+  - `CreateLandTourDto` now has Vietnamese validation messages for required `systemCode`, `tourCode`, and `name`, plus localized Swagger example text.
+  - `TEST_TOUR_TYPE_APIS_OK` now covers LandTour missing required fields, invalid number/date payloads, duplicate `systemCode`/`tourCode` on create and update, list/search/status, detail, create/update/remove, copy-services, child mapping, workflow/status/paymentStatus, and partial child preservation.

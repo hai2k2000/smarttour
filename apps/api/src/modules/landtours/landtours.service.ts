@@ -78,6 +78,7 @@ export class LandToursService {
     dto = this.prepareLandTourDto(applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user), true) as CreateLandTourDto;
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
+        await this.ensureCodeUniqueness(tx, dto);
         const created = await this.tourCore.createRoot(tx, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.landTourDetail.create({
           data: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.LandTourDetailUncheckedCreateInput,
@@ -105,6 +106,7 @@ export class LandToursService {
     dto = this.prepareLandTourDto(applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user), false);
     try {
       await this.prisma.$transaction(async (tx) => {
+        await this.ensureCodeUniqueness(tx, dto, id);
         await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.landTourDetail.upsert({
           where: { tourId: id },
@@ -130,6 +132,22 @@ export class LandToursService {
       await this.ensureRemovable(tx, id, user);
       return this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system');
     });
+  }
+
+  private async ensureCodeUniqueness(tx: Prisma.TransactionClient, dto: UpdateLandTourDto, currentTourId?: string) {
+    const systemCode = this.optionalText(dto.systemCode);
+    if (systemCode) {
+      const duplicate = await tx.tour.findFirst({ where: { systemCode, ...(currentTourId ? { id: { not: currentTourId } } : {}) }, select: { id: true } });
+      if (duplicate) throw new ConflictException('Mã hệ thống LandTour đã tồn tại');
+    }
+    const tourCode = this.optionalText(dto.tourCode);
+    if (tourCode) {
+      const duplicate = await tx.tour.findFirst({
+        where: { type: TourType.LANDTOUR, tourCode, deletedAt: null, ...(currentTourId ? { id: { not: currentTourId } } : {}) },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException('Mã tour LandTour đã tồn tại');
+    }
   }
 
   private async ensureRemovable(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser) {

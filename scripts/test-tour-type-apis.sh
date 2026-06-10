@@ -1034,7 +1034,7 @@ async function main() {
   const removedGitDetail = await expect(`/api/git-tours/${gitCopyTarget.id}`, {}, 404, 'GIT detail should hide soft-deleted tour');
   assertMessage(removedGitDetail, 'Không tìm thấy tour GIT', 'GIT removed detail should use Vietnamese not-found message');
 
-  await expect(
+  const invalidLandCalendarDate = await expect(
     '/api/landtours',
     {
       method: 'POST',
@@ -1048,7 +1048,8 @@ async function main() {
     400,
     'LandTour should reject non-existent calendar dates',
   );
-  await expect(
+  assertMessage(invalidLandCalendarDate, 'startDate kh\u00f4ng h\u1ee3p l\u1ec7', 'LandTour invalid calendar date should use Vietnamese service message');
+  const invalidLandDateRange = await expect(
     '/api/landtours',
     {
       method: 'POST',
@@ -1063,6 +1064,22 @@ async function main() {
     400,
     'LandTour should reject startDate after endDate on create',
   );
+  assertMessage(invalidLandDateRange, 'Ng\u00e0y kh\u1edfi h\u00e0nh ph\u1ea3i tr\u01b0\u1edbc ho\u1eb7c b\u1eb1ng ng\u00e0y k\u1ebft th\u00fac', 'LandTour invalid date range should use Vietnamese service message');
+  const invalidLandDateFormat = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-DATETIME-SYS`,
+        tourCode: `${run}-LAND-BAD-DATETIME`,
+        name: 'Tour type API LandTour bad datetime',
+        startDate: '2026-09-01T00:00:00.000Z',
+      }),
+    },
+    400,
+    'LandTour should reject ISO datetime startDate',
+  );
+  assertMessage(invalidLandDateFormat, 'Ng\u00e0y kh\u1edfi h\u00e0nh LandTour ph\u1ea3i c\u00f3 \u0111\u1ecbnh d\u1ea1ng YYYY-MM-DD', 'LandTour invalid date format should use Vietnamese validation message');
   const invalidLandSupplier = await expect(
     '/api/landtours',
     {
@@ -1093,6 +1110,61 @@ async function main() {
     'LandTour should reject zero exchangeRate',
   );
   assertMessage(invalidLandExchangeRate, 'Tỷ giá LandTour phải lớn hơn 0', 'LandTour exchangeRate min should use Vietnamese validation message');
+
+  const invalidLandNumber = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-NUMBER-SYS`,
+        tourCode: `${run}-LAND-BAD-NUMBER`,
+        name: 'Tour type API LandTour bad number',
+        exchangeRate: 'abc',
+      }),
+    },
+    400,
+    'LandTour should reject invalid numeric fields',
+  );
+  assertMessage(invalidLandNumber, 'T\u1ef7 gi\u00e1 LandTour ph\u1ea3i l\u00e0 s\u1ed1 h\u1ee3p l\u1ec7', 'LandTour invalid number should use Vietnamese validation message');
+  const missingLandSystemCode = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        tourCode: `${run}-LAND-MISSING-SYS`,
+        name: 'Tour type API LandTour missing system code',
+      }),
+    },
+    400,
+    'LandTour should reject missing systemCode',
+  );
+  assertMessage(missingLandSystemCode, 'M\u00e3 h\u1ec7 th\u1ed1ng LandTour ph\u1ea3i l\u00e0 chu\u1ed7i k\u00fd t\u1ef1', 'LandTour missing systemCode should use Vietnamese validation message');
+  const missingLandTourCode = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-MISSING-TOUR-SYS`,
+        name: 'Tour type API LandTour missing tour code',
+      }),
+    },
+    400,
+    'LandTour should reject missing tourCode',
+  );
+  assertMessage(missingLandTourCode, 'M\u00e3 tour LandTour ph\u1ea3i l\u00e0 chu\u1ed7i k\u00fd t\u1ef1', 'LandTour missing tourCode should use Vietnamese validation message');
+  const missingLandName = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-MISSING-NAME-SYS`,
+        tourCode: `${run}-LAND-MISSING-NAME`,
+      }),
+    },
+    400,
+    'LandTour should reject missing name',
+  );
+  assertMessage(missingLandName, 'T\u00ean LandTour ph\u1ea3i l\u00e0 chu\u1ed7i k\u00fd t\u1ef1', 'LandTour missing name should use Vietnamese validation message');
 
   const landTour = await expect(
     '/api/landtours',
@@ -1194,6 +1266,47 @@ async function main() {
     'LandTour should reject duplicate systemCode',
   );
   assertMessage(duplicateLandSystemCode, 'Mã hệ thống LandTour đã tồn tại', 'LandTour duplicate systemCode should use Vietnamese conflict message');
+  const duplicateLandTourCode = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-DUP-TOUR-SYS`,
+        tourCode: `${run}-LAND`,
+        name: 'Tour type API LandTour duplicate tour code',
+      }),
+    },
+    409,
+    'LandTour should reject duplicate tourCode',
+  );
+  assertMessage(duplicateLandTourCode, 'M\u00e3 tour LandTour \u0111\u00e3 t\u1ed3n t\u1ea1i', 'LandTour duplicate tourCode should use Vietnamese conflict message');
+  const landTourForDuplicateUpdate = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-UPDATE-DUP-SYS`,
+        tourCode: `${run}-LAND-UPDATE-DUP`,
+        name: 'Tour type API LandTour duplicate update target',
+      }),
+    },
+    201,
+    'create LandTour duplicate update target',
+  );
+  const duplicateLandTourCodeUpdate = await expect(
+    `/api/landtours/${landTourForDuplicateUpdate.id}`,
+    { method: 'PATCH', body: JSON.stringify({ tourCode: `${run}-LAND` }) },
+    409,
+    'LandTour update should reject duplicate tourCode',
+  );
+  assertMessage(duplicateLandTourCodeUpdate, 'M\u00e3 tour LandTour \u0111\u00e3 t\u1ed3n t\u1ea1i', 'LandTour update duplicate tourCode should use Vietnamese conflict message');
+  const duplicateLandSystemCodeUpdate = await expect(
+    `/api/landtours/${landTourForDuplicateUpdate.id}`,
+    { method: 'PATCH', body: JSON.stringify({ systemCode: `${run}-LAND-SYS` }) },
+    409,
+    'LandTour update should reject duplicate systemCode',
+  );
+  assertMessage(duplicateLandSystemCodeUpdate, 'M\u00e3 h\u1ec7 th\u1ed1ng LandTour \u0111\u00e3 t\u1ed3n t\u1ea1i', 'LandTour update duplicate systemCode should use Vietnamese conflict message');
   const invalidLandWorkflowStep = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ workflowStep: 'WRONG_STEP' }) },
