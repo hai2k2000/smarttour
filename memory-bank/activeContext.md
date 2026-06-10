@@ -20,6 +20,17 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued GIT backend API contract lock:
+  - `TEST_TOUR_TYPE_APIS_OK` now guards exact `git-tours` controller route
+    surface: list/detail/create/PUT/PATCH/delete/copy-services, inherited
+    `tour.view`, and `tour.manage` on write/copy/delete routes.
+  - Runtime coverage now verifies `TourStatus` query parsing, view-only users
+    can list/detail but cannot create/PUT/delete/copy-services, and create,
+    detail, PUT update, list, and copy-services response shapes match frontend
+    expectations.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`.
+
+
 - Continued GIT business/UI contract lock:
   - Confirmed backend GIT business coverage for workflowStep, shared
     payment/status/service enums, copy-services preservation, customer/agent

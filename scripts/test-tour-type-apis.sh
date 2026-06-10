@@ -166,6 +166,10 @@ function assertGitToursControllerContract() {
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/git-tours/git-tours.controller.ts', 'utf8');
   const queryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/git-tours/dto/list-git-tours-query.dto.ts', 'utf8');
   assert(controllerSource.includes("@RequirePermissions('tour.view')") && controllerSource.includes("@Controller('git-tours')"), 'GitToursController list/detail should inherit tour.view permission');
+  for (const route of ["@Get()", "@Get(':id')", "@Post()", "@Put(':id')", "@Patch(':id')", "@Delete(':id')", "@Post(':id/copy-services')"]) {
+    assert(controllerSource.includes(route), `GitToursController should expose ${route}`);
+  }
+  assert(controllerSource.includes('update(@Param') && controllerSource.includes('patch(@Param') && controllerSource.includes('UpdateGitTourDto'), 'GitToursController should support PUT and PATCH update with UpdateGitTourDto');
   for (const method of ['create', 'update', 'patch', 'remove', 'copyServices']) {
     const methodIndex = controllerSource.indexOf(`${method}(`);
     assert(methodIndex >= 0, `GitToursController should expose ${method}`);
@@ -332,9 +336,35 @@ async function main() {
     },
   });
 
+  const viewToken = `tour-type-api-view-test.${crypto.randomBytes(24).toString('base64url')}`;
+  const viewRole = await prisma.role.create({
+    data: {
+      code: `${run.toLowerCase()}-view-role`,
+      name: 'Tour Type API View Role',
+      permissions: { create: [{ permission: 'tour.view' }, { permission: 'data.scope.all' }] },
+    },
+  });
+  const viewUser = await prisma.user.create({
+    data: {
+      username: `${run.toLowerCase()}-view-user`,
+      email: `${run.toLowerCase()}-view@smarttour.local`,
+      name: 'Tour Type API View User',
+      passwordHash: 'not-used',
+      roles: { create: { roleId: viewRole.id } },
+    },
+  });
+  await prisma.userSession.create({
+    data: {
+      userId: viewUser.id,
+      tokenHash: tokenHash(viewToken),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+
   const address = app.getHttpServer().address();
   const baseUrl = `http://127.0.0.1:${address.port}`;
   const headers = { authorization: `Bearer ${token}` };
+  const viewHeaders = { authorization: `Bearer ${viewToken}` };
 
   async function api(path, options = {}) {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -357,6 +387,24 @@ async function main() {
   function assertMessage(body, expected, label) {
     const messages = Array.isArray(body?.message) ? body.message : [body?.message].filter(Boolean);
     assert(messages.some((message) => String(message).includes(expected)), `${label}: missing message ${expected}, got ${JSON.stringify(body)}`);
+  }
+
+  function assertGitListRowShape(row, label) {
+    assert(row && row.id && row.systemCode && row.tourCode && typeof row.status === 'string', `${label}: list row should expose root identity/status fields`);
+    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row, `${label}: list row should expose payment/workflow/operator fields used by frontend`);
+    assert(row.gitTour && 'agentName' in row.gitTour, `${label}: list row should expose gitTour.agentName snapshot overlay`);
+    assert(Array.isArray(row.customers), `${label}: list row should expose customers array`);
+    assert(row._count && typeof row._count.revenues === 'number' && typeof row._count.services === 'number' && typeof row._count.costs === 'number', `${label}: list row should expose child counts`);
+    assert(!('services' in row) && !('revenues' in row), `${label}: list row should stay lightweight and not expose full edit child arrays`);
+  }
+
+  function assertGitDetailShape(row, label) {
+    assert(row && row.id && row.systemCode && row.tourCode && typeof row.status === 'string', `${label}: detail response should expose root identity/status fields`);
+    assert('paymentStatus' in row && 'workflowStep' in row && 'operatorOwner' in row, `${label}: detail response should expose payment/workflow/operator fields`);
+    assert(row.gitTour && 'agentName' in row.gitTour, `${label}: detail response should expose gitTour.agentName snapshot overlay`);
+    for (const field of ['customers', 'revenues', 'services', 'costs', 'guides', 'attachments', 'surveys', 'logs']) {
+      assert(Array.isArray(row[field]), `${label}: detail response should include ${field} array for edit/copy flows`);
+    }
   }
 
   const supplierCategory = await prisma.supplierCategory.create({ data: { name: `${run} Supplier Category` } });
@@ -572,6 +620,7 @@ async function main() {
   assert(gitTour.systemCode === `${run}-GIT-SYS` && gitTour.tourCode === `${run}-GIT`, 'GIT create should uppercase systemCode and tourCode');
   assert(gitTour.workflowStep === 'GIT_INFO', 'GIT create should initialize default workflow step');
   assert(gitTour.paymentStatus === 'PARTIAL', 'GIT create should normalize paymentStatus');
+  assertGitDetailShape(gitTour, 'GIT create response');
   assert(gitTour.logs.some((log) => log.action === 'CREATE_GIT_TOUR' && log.metadata?.systemCode === `${run}-GIT-SYS`), 'GIT create should write standardized create log metadata');
   assert(gitTour.revenues.length === 1 && Number(gitTour.revenues[0].amount) === 1100, 'GIT should map revenue amount with VAT');
   assert(gitTour.services.length === 2 && gitTour.services.some((service) => service.confirmationStatus === 'CONFIRMED') && gitTour.services.some((service) => service.confirmationStatus === 'OPERATING'), 'GIT should map service status strings into TourServiceStatus');
@@ -584,9 +633,16 @@ async function main() {
   assert(rawGitDetail && rawGitDetail.agentName === null, 'GIT detail should not write legacy agentName snapshot');
   assert(gitAgentCustomer && gitAgentCustomer.name === 'Tour type API GIT agent', 'GIT agentName should be stored as common TourCustomer AGENT row');
   const gitDetail = await expect(`/api/git-tours/${gitTour.id}`, {}, 200, 'GIT detail should load full edit data');
+  assertGitDetailShape(gitDetail, 'GIT detail response');
   assert(gitDetail.customers.length === 2 && gitDetail.revenues.length === 1 && gitDetail.services.length === 2 && Array.isArray(gitDetail.logs), 'GIT detail should include edit wizard relations');
+  await expect(`/api/git-tours/${gitTour.id}`, { headers: viewHeaders }, 200, 'GIT detail should allow tour.view users');
+  await expect(`/api/git-tours/${gitTour.id}`, { method: 'PUT', headers: viewHeaders, body: JSON.stringify({ status: 'COMPLETED' }) }, 403, 'GIT PUT should reject tour.view-only users');
+  await expect(`/api/git-tours/${gitTour.id}/copy-services`, { method: 'POST', headers: viewHeaders, body: JSON.stringify({ sourceTourId: gitTour.id }) }, 403, 'GIT copy-services should reject tour.view-only users');
   const gitListRows = await expect('/api/git-tours?search=Tour%20type%20API%20GIT%20agent', {}, 200, 'GIT list should search common agent customer');
   const gitListRow = gitListRows.find((row) => row.id === gitTour.id);
+  assertGitListRowShape(gitListRow, 'GIT list response');
+  const viewGitListRows = await expect('/api/git-tours?status=upcoming', { headers: viewHeaders }, 200, 'GIT list should allow tour.view users');
+  assert(viewGitListRows.some((row) => row.id === gitTour.id), 'GIT tour.view list should include scoped matching GIT tour');
   assert(gitListRow && gitListRow.gitTour.agentName === 'Tour type API GIT agent', 'GIT list should overlay agentName from common TourCustomer AGENT row');
   assert(gitListRow.customers.length === 1 && gitListRow.customers[0].name === 'Tour type API GIT customer', 'GIT list should keep customer list focused on the primary customer');
   for (const [query, label] of [
@@ -600,6 +656,16 @@ async function main() {
   }
   const gitStatusRows = await expect('/api/git-tours?status=upcoming', {}, 200, 'GIT list should filter by initial status');
   assert(gitStatusRows.some((row) => row.id === gitTour.id), 'GIT status filter should include matching upcoming tour');
+  await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      headers: viewHeaders,
+      body: JSON.stringify({ systemCode: `${run}-GIT-VIEW-FORBIDDEN`, tourCode: `${run}-GIT-VIEW-FORBIDDEN`, name: 'Tour type API GIT forbidden create' }),
+    },
+    403,
+    'GIT create should reject tour.view-only users',
+  );
   await expect(
     '/api/git-tours',
     {
@@ -630,6 +696,15 @@ async function main() {
   assert(patchedGitTour.services.length === 2 && patchedGitTour.services.some((service) => service.serviceType === 'GIT_HOTEL') && patchedGitTour.services.some((service) => service.serviceType === 'GIT_CAR'), 'GIT partial status update should not replace services');
   assert(patchedGitTour.revenues.length === 1, 'GIT partial status update should not replace revenues');
   assert(patchedGitTour.logs.some((log) => log.action === 'UPDATE_GIT_TOUR' && log.metadata?.changedFields?.includes('status')), 'GIT update should write changed field metadata');
+  const putGitTour = await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PUT', body: JSON.stringify({ paymentStatus: 'paid' }) },
+    200,
+    'PUT GIT tour should share update contract with frontend-compatible PATCH',
+  );
+  assertGitDetailShape(putGitTour, 'GIT PUT update response');
+  assert(putGitTour.paymentStatus === 'PAID', 'GIT PUT should normalize and update paymentStatus');
+  assert(putGitTour.services.length === 2 && putGitTour.revenues.length === 1 && putGitTour.customers.length === 2, 'GIT PUT partial update should preserve edit children');
   await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ workflowStep: 'WRONG_STEP' }) },
@@ -682,6 +757,7 @@ async function main() {
     404,
     'GIT copy-services should reject missing source tour',
   );
+  assertGitDetailShape(copiedGitServices, 'GIT copy-services response');
   assert(copiedGitServices.services.length === 2, 'GIT copy-services should copy budget and operation common TourService rows');
   const copiedBudgetService = copiedGitServices.services.find((service) => service.serviceType === 'GIT_HOTEL');
   const copiedOperationService = copiedGitServices.services.find((service) => service.serviceType === 'GIT_CAR');
@@ -696,6 +772,7 @@ async function main() {
   const spacedGitStatusRows = await expect('/api/git-tours?status=%20running%20', {}, 200, 'GIT spaced lowercase status query');
   assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
+  await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE', headers: viewHeaders }, 403, 'GIT delete should reject tour.view-only users');
   const removedGitTour = await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE' }, 200, 'GIT remove should soft-delete target tour');
   assert(removedGitTour.deletedAt && removedGitTour.status === 'CANCELLED', 'GIT remove should cancel and soft-delete the common Tour owner');
   await expect(`/api/git-tours/${gitCopyTarget.id}`, {}, 404, 'GIT detail should hide soft-deleted tour');

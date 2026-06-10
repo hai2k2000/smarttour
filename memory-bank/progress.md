@@ -2,6 +2,17 @@
 
 ## Done
 
+- Locked GIT backend API controller contract:
+  - Regression now verifies route/method surface for `GET /git-tours`,
+    `GET /git-tours/:id`, `POST /git-tours`, `PUT /git-tours/:id`,
+    `PATCH /git-tours/:id`, `DELETE /git-tours/:id`, and
+    `POST /git-tours/:id/copy-services`.
+  - Runtime checks cover `tour.view` versus `tour.manage`, `TourStatus` query
+    normalization/validation, copy-services body behavior, and list/detail/
+    create/update/copy response shapes consumed by the frontend.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`.
+
+
 - Locked GIT business data checks through backend regression and frontend list contract:
   - Backend regression covers GIT workflowStep, paymentStatus/TourStatus/
     TourServiceStatus normalization, copy-services supplier/service/amount/VAT/
