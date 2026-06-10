@@ -378,8 +378,10 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .fitSteps { display: flex; flex-wrap: wrap; gap: 8px; }
 .fitSteps button { background: var(--dn-surface-soft); color: #276c72; border: 1px solid var(--dn-border); display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; }
 .fitSteps button.active { background: var(--dn-primary); color: #fff; border-color: var(--dn-primary); }
+.fitSteps button.locked { background: #eef2f7; color: #64748b; border-color: #d1d5db; cursor: not-allowed; opacity: .75; }
 .fitSteps span { width: 22px; height: 22px; border-radius: 999px; display: inline-grid; place-items: center; background: rgba(15, 118, 110, .12); font-size: 12px; }
 .fitSteps button.active span { background: rgba(255, 255, 255, .2); }
+.fitSteps button.locked span { background: rgba(100, 116, 139, .14); }
 .fitActions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .fitActions select { min-width: 220px; }
 .fitActions span { color: var(--dn-muted); font-size: 13px; white-space: nowrap; }
@@ -1097,6 +1099,16 @@ label { min-width: 0; }
 }
 .fitTourWizardModal .fitSteps button.active::after {
   border-left-color: #2497e8;
+}
+.fitTourWizardModal .fitSteps button.locked,
+.tourWorkflowModal .fitSteps button.locked {
+  background: #eceff3;
+  border-color: #d1d5db;
+  color: #667085;
+}
+.fitTourWizardModal .fitSteps button.locked::after,
+.tourWorkflowModal .fitSteps button.locked::after {
+  border-left-color: #eceff3;
 }
 .fitTourWizardModal .fitSteps span {
   display: inline;

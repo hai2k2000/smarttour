@@ -957,6 +957,12 @@
 - Extended tour-type regression to verify legacy detail `guideName` stays null, the common LANDTOUR guide row is written, list search finds the guide, and list responses do not expose guide payload just for overlay.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build/deploy, and `HEALTHCHECK_OK`.
 
+- Continued FIT workflow hardening.
+- `FitTourWizard` now treats `DRAFT` as the pre-confirm state and opens only the next actionable visible step from `workflowStatus`.
+- Step tabs and Previous/Next buttons now use guarded navigation so users cannot jump ahead to unopened workflow steps; blocked attempts show a Vietnamese reason in the wizard status text.
+- Added FIT root contract guards for approved workflow order, guarded wizard navigation, and `confirmStep` skip rejection.
+- Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `docker compose build web`, deployed `web`, and healthchecked `/fit-tours` plus authenticated API route behavior.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

@@ -311,13 +311,31 @@ function canPersistTour(data: FitTourForm) {
   return trimText(data.quoteCode).length >= 2 && trimText(data.tourCode).length >= 2 && trimText(data.customerName).length >= 2;
 }
 
-function workflowStepIndex(status: unknown) {
+function confirmedWorkflowStepIndex(status: unknown) {
+  const key = String(status || 'DRAFT').toUpperCase();
+  if (key === 'DRAFT') return -1;
+  if (key === 'COMPLETED') return workflowSteps.length - 1;
   const index = workflowSteps.findIndex((step) => step.key === String(status || '').toUpperCase());
-  return index >= 0 ? index : 0;
+  return index >= 0 ? index : -1;
+}
+
+function workflowStepIndex(status: unknown) {
+  const confirmedIndex = confirmedWorkflowStepIndex(status);
+  return Math.min(workflowSteps.length - 1, Math.max(0, confirmedIndex + 1));
+}
+
+function canOpenWorkflowStep(index: number, status: unknown) {
+  return index <= workflowStepIndex(status);
 }
 
 function workflowStepLabel(status: unknown) {
   return workflowSteps.find((step) => step.key === String(status || '').toUpperCase())?.label || 'Không rõ bước';
+}
+
+function blockedWorkflowStepMessage(targetIndex: number, status: unknown) {
+  const requiredStep = workflowSteps[workflowStepIndex(status)];
+  const targetStep = workflowSteps[targetIndex];
+  return `Cần xác nhận bước ${requiredStep.label} trước khi sang bước ${targetStep.label}`;
 }
 
 function fileHref(fileUrl?: string) {
@@ -595,6 +613,17 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const operationProfit = budgetRevenue - operationCost;
   const currentStepPayloadSignature = JSON.stringify(stepPayload(preparePayload(values), workflowSteps[activeStep].key));
   const hasUnsavedChanges = formState.isDirty && currentStepPayloadSignature !== lastAutosaveSignature.current;
+  const maxOpenStep = workflowStepIndex(values.workflowStatus);
+
+  function goToStep(index: number) {
+    if (index < 0 || index >= workflowSteps.length) return;
+    const workflowStatus = getValues('workflowStatus');
+    if (!canOpenWorkflowStep(index, workflowStatus)) {
+      setSaveState(blockedWorkflowStepMessage(index, workflowStatus));
+      return;
+    }
+    setActiveStep(index);
+  }
 
   useEffect(() => {
     onDirtyChange?.(hasUnsavedChanges);
@@ -921,8 +950,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         <div className="fitSteps">
           {workflowSteps.map((step, index) => {
             const StepIcon = step.Icon;
+            const locked = index > maxOpenStep;
             return (
-              <button type="button" key={step.key} className={activeStep === index ? 'active' : ''} onClick={() => setActiveStep(index)}>
+              <button
+                type="button"
+                key={step.key}
+                className={`${activeStep === index ? 'active' : ''}${locked ? ' locked' : ''}`}
+                aria-disabled={locked}
+                title={locked ? blockedWorkflowStepMessage(index, values.workflowStatus) : step.label}
+                onClick={() => goToStep(index)}
+              >
                 <span>{index + 1}</span><StepIcon size={15} />{step.label}
               </button>
             );
@@ -1059,8 +1096,8 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       ) : null}
 
       <section className="wizardFooter">
-        <button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}><ChevronLeft size={15} /> Trước</button>
-        <button type="button" className="secondaryButton" disabled={activeStep === workflowSteps.length - 1} onClick={() => setActiveStep((step) => Math.min(workflowSteps.length - 1, step + 1))}>Tiếp <ChevronRight size={15} /></button>
+        <button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => goToStep(Math.max(0, activeStep - 1))}><ChevronLeft size={15} /> Trước</button>
+        <button type="button" className="secondaryButton" disabled={activeStep === workflowSteps.length - 1} onClick={() => goToStep(Math.min(workflowSteps.length - 1, activeStep + 1))}>Tiếp <ChevronRight size={15} /></button>
       </section>
     </form>
   );

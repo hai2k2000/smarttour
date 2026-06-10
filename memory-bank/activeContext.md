@@ -1270,3 +1270,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - `scripts/smoke-operations-ui.js` adds Playwright coverage for `/operations` dashboard/list load, form/payment modals, reconciliation detail panel, action enabled/disabled state, and tab state reset.
   - Added stable `data-testid` anchors to `OperationsClient` for the smoke test and registered `smoke:operations:ui`.
   - VPS verification passed: `SMOKE_OPERATIONS_BACKEND_OK`, `docker compose build web`, and `SMOKE_OPERATIONS_UI_OK` against `https://aitour.io.vn`.
+- 2026-06-10 FIT workflow step gating:
+  - FIT wizard keeps the approved order `PRICING -> TOUR_INFO -> BUDGET -> OPERATION -> HANDOVER -> SURVEY`; `DRAFT` remains the pre-confirm state and is not a visible wizard step.
+  - Loading an existing FIT tour now opens the next actionable step after the last confirmed `workflowStatus`; completed/cancelled edge cases fall back to a bounded step.
+  - Wizard step tabs and Previous/Next navigation now route through `goToStep()`, block unopened future steps, and show a Vietnamese reason when the user tries to jump ahead.
+  - FIT root contract regression now checks UI/backend workflow order, guarded wizard navigation, and `confirmStep` rejection for skipped workflow steps.

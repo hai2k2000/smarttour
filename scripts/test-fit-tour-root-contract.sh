@@ -141,6 +141,22 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('Tour nguồn dự toán phải khác tour đích'), 'FIT budget copy should reject the target as its own source');
   assert(serviceSource.includes('description: this.optionalText(operationInputRows[index]?.description)'), 'FIT common operation service mapping should preserve descriptions');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
+  const fitWorkflowOrder = ['PRICING', 'TOUR_INFO', 'BUDGET', 'OPERATION', 'HANDOVER', 'SURVEY'];
+  let previousWizardStepIndex = -1;
+  let previousServiceStepIndex = serviceSource.indexOf('FitTourWorkflowStatus.DRAFT');
+  assert(previousServiceStepIndex >= 0, 'FIT backend workflow should start from DRAFT');
+  for (const step of fitWorkflowOrder) {
+    const wizardStepIndex = fitWizardSource.indexOf(`key: '${step}'`);
+    const serviceStepIndex = serviceSource.indexOf(`FitTourWorkflowStatus.${step}`);
+    assert(wizardStepIndex > previousWizardStepIndex, `FIT wizard workflow step ${step} should keep the approved order`);
+    assert(serviceStepIndex > previousServiceStepIndex, `FIT backend workflow step ${step} should keep the approved order`);
+    previousWizardStepIndex = wizardStepIndex;
+    previousServiceStepIndex = serviceStepIndex;
+  }
+  assert(serviceSource.indexOf('FitTourWorkflowStatus.COMPLETED') > previousServiceStepIndex, 'FIT backend workflow should only complete after survey');
+  assert(fitWizardSource.includes('confirmedWorkflowStepIndex') && fitWizardSource.includes('canOpenWorkflowStep') && fitWizardSource.includes('blockedWorkflowStepMessage'), 'FIT wizard should derive accessible steps from confirmed workflow status');
+  assert(fitWizardSource.includes('goToStep(index)') && fitWizardSource.includes('aria-disabled={locked}') && fitWizardSource.includes("locked ? ' locked' : ''"), 'FIT wizard step tabs should block unopened workflow steps');
+  assert(fitWizardSource.includes('goToStep(Math.max(0, activeStep - 1))') && fitWizardSource.includes('goToStep(Math.min(workflowSteps.length - 1, activeStep + 1))'), 'FIT wizard previous/next buttons should use guarded workflow navigation');
   assert(fitWizardSource.includes('FormData') && fitWizardSource.includes('/attachments'), 'FIT wizard should upload attachment files through multipart FIT endpoint');
   assert(fitWizardSource.includes('removeAttachment') && fitWizardSource.includes('DELETE') && fitWizardSource.includes('AttachmentList'), 'FIT wizard should list and delete uploaded attachments');
   const pricingStepBlock = fitWizardSource.slice(fitWizardSource.indexOf('PRICING: ['), fitWizardSource.indexOf('TOUR_INFO: ['));
@@ -188,7 +204,7 @@ function assertLegacyCompatBoundary() {
   assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('sourceTourId: copySourceTourId'), 'FIT budget copy should use an explicit source tour');
   assert(fitWizardSource.includes('sourceTourId: copySourceTourId || id'), 'FIT operation copy should explicitly use selected or current tour source');
   assert(fitWizardSource.includes('workflowSteps.some((step) => step.key === row.step)'), 'FIT loaded attachments should remain scoped to valid workflow steps');
-  assert(fitWizardSource.includes('onClick={() => setActiveStep(index)}') && fitWizardSource.includes('Math.max(0, step - 1)') && fitWizardSource.includes('Math.min(workflowSteps.length - 1, step + 1)'), 'FIT wizard should support direct and previous/next workflow navigation');
+  assert(fitWizardSource.includes('goToStep(index)') && fitWizardSource.includes('Math.max(0, activeStep - 1)') && fitWizardSource.includes('Math.min(workflowSteps.length - 1, activeStep + 1)'), 'FIT wizard should support guarded direct and previous/next workflow navigation');
   for (const [name, title] of [
     ['commonCosts', 'Chi phí chung'],
     ['hotelCosts', 'Chi phí khách sạn'],
@@ -345,6 +361,11 @@ async function main() {
     'Cần nhập ngày khởi đi',
     'FIT pricing confirmation should require travel dates',
   );
+  await assertRejects(
+    () => fitTours.confirmStep(incompletePricing.id, FitTourWorkflowStatus.BUDGET, {}),
+    'Không được chuyển workflow FIT vượt quá bước kế tiếp',
+    'FIT confirmStep should reject skipping required workflow steps',
+  );
   const beforeInvalidCreateCount = await prisma.fitTour.count();
   await assertRejects(
     () => fitTours.create({ quoteCode: `${run}-BAD-Q`, tourCode: 'X', customerName: '' }),
@@ -494,6 +515,11 @@ async function main() {
     () => fitTours.update(source.id, { workflowStatus: FitTourWorkflowStatus.SURVEY }),
     'Không được chuyển workflow FIT vượt quá bước kế tiếp',
     'FIT workflow should reject jumping outside the next step',
+  );
+  await assertRejects(
+    () => fitTours.confirmStep(source.id, FitTourWorkflowStatus.SURVEY, {}),
+    'Không được chuyển workflow FIT vượt quá bước kế tiếp',
+    'FIT confirmStep should reject jumping outside the next step',
   );
   await fitTours.saveStep(source.id, FitTourWorkflowStatus.PRICING, {
     commonCosts: [{ serviceType: 'CAR', description: 'Step repriced car', quantity: 1, times: 1, unitPrice: 1100, vat: 0, amount: 1100 }],
