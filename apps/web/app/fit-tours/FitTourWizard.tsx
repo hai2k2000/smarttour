@@ -1168,7 +1168,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Thời gian giữ chỗ" name="holdUntil" register={register} type="date" />
             <Field label="Thời gian nhận chỗ" name="confirmedAt" register={register} type="date" />
             <Field label="Thời gian đóng chỗ" name="closeAt" register={register} type="date" />
-            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép nhận thêm khách vượt số chỗ dự kiến sau khi điều hành xác nhận</label>
+            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép vượt chỗ sau khi điều hành xác nhận</label>
           </div>
           <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Nội địa', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
         </section>

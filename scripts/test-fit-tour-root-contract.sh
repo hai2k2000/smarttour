@@ -181,10 +181,14 @@ function assertLegacyCompatBoundary() {
   assert(fitWizardSource.includes('loadedTourId.current') && fitWizardSource.includes('hasUnsavedChanges && !window.confirm'), 'FIT wizard should restore the loaded tour and warn before discarding dirty state');
   assert(!fitWizardSource.includes('\u0110ang copy') && !fitWizardSource.includes('Copy d\u1ef1 to\u00e1n l\u1ed7i') && !fitWizardSource.includes('Copy \u0111i\u1ec1u h\u00e0nh l\u1ed7i'), 'FIT wizard should not expose English copy wording in action feedback');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
+  for (const sectionTitle of ['Thông tin tour', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ']) {
+    assert(fitWizardSource.includes(sectionTitle), `FIT wizard should keep synchronized section title ${sectionTitle}`);
+  }
   for (const label of ['Mã báo giá', 'Mã tour', 'Nhóm thị trường', 'Ngày đặt', 'Khởi đi', 'Ngày về', 'Họ tên khách', 'Số người lớn', 'Trẻ em', 'Em bé', 'Giá bán / khách', 'Hoa hồng / khách', 'Chi phí chung', 'Chi phí khách sạn', 'Chi phí riêng khách', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ']) {
     assert(fitWizardSource.includes(label), `FIT wizard should keep Vietnamese label ${label}`);
   }
-  for (const legacyText of ['Lien he khach truoc tour', 'Tao nhom Zalo', 'Bao cao phat sinh', 'Rooming list', 'Final confirmation', 'Loại HDV', 'Giá NET / khách']) {
+  assert(fitWizardSource.includes('Cho phép vượt chỗ sau khi điều hành xác nhận'), 'FIT wizard allowOverbooking label should use concise business wording');
+  for (const legacyText of ['Lien he khach truoc tour', 'Tao nhom Zalo', 'Bao cao phat sinh', 'Rooming list', 'Final confirmation', 'Khong', 'Loại HDV', 'Giá NET / khách', 'Cho phép nhận thêm khách vượt số chỗ dự kiến sau khi điều hành xác nhận']) {
     assert(!fitWizardSource.includes(legacyText), `FIT wizard should not keep legacy label ${legacyText}`);
   }
   assert(fitWizardSource.includes("quoteCode: ''") && fitWizardSource.includes("tourCode: ''"), 'FIT new-tour defaults should not generate collision-prone daily codes');
