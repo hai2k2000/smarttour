@@ -28,8 +28,15 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const fs = require('fs');
+const { plainToInstance } = require('class-transformer');
+const { validate } = require('class-validator');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
+const {
+  CreateTourProgramDto,
+  TOUR_PROGRAM_DURATION_DAYS_MAX,
+} = require('./apps/api/dist/modules/tour-programs/dto/create-tour-program.dto');
+const { UpdateTourProgramDto } = require('./apps/api/dist/modules/tour-programs/dto/update-tour-program.dto');
 const { validationExceptionFactory } = require('./apps/api/dist/validation-exception.factory');
 
 function assert(condition, label) {
@@ -44,6 +51,19 @@ async function rejects(action, label) {
     rejected = true;
   }
   assert(rejected, label);
+}
+
+function validationMessages(errors) {
+  return errors.flatMap((error) => [
+    ...Object.values(error.constraints ?? {}),
+    ...validationMessages(error.children ?? []),
+  ]);
+}
+
+async function validateDto(DtoClass, payload) {
+  const instance = plainToInstance(DtoClass, payload);
+  const errors = await validate(instance);
+  return { instance, errors, messages: validationMessages(errors) };
 }
 
 async function createCompleteProgram(service, run, suffix, durationDays = 2) {
@@ -110,6 +130,49 @@ async function main() {
     constraints: { whitelistValidation: 'property unexpectedField should not exist' },
   }]).getResponse();
   assert(whitelistValidationResponse.message.includes('unexpectedField không được phép gửi lên'), 'validation factory should translate whitelist messages');
+
+  const validCreateDto = await validateDto(CreateTourProgramDto, {
+    code: ' hl-3n2d ',
+    name: ' Hạ Long 3 ngày 2 đêm ',
+    durationDays: '3',
+  });
+  assert(validCreateDto.errors.length === 0, 'CreateTourProgramDto should accept valid code, name and durationDays');
+  assert(validCreateDto.instance.code === 'HL-3N2D', 'CreateTourProgramDto should trim and uppercase code');
+  assert(validCreateDto.instance.name === 'Hạ Long 3 ngày 2 đêm', 'CreateTourProgramDto should trim name');
+  assert(validCreateDto.instance.durationDays === 3, 'CreateTourProgramDto should transform durationDays to number');
+
+  const missingCreateDto = await validateDto(CreateTourProgramDto, {});
+  assert(missingCreateDto.messages.some((message) => message.includes('Mã chương trình tour')), 'CreateTourProgramDto should reject missing code');
+  assert(missingCreateDto.messages.some((message) => message.includes('Tên chương trình tour')), 'CreateTourProgramDto should reject missing name');
+  assert(missingCreateDto.messages.some((message) => message.includes('Số ngày')), 'CreateTourProgramDto should reject missing durationDays');
+  assert(!missingCreateDto.messages.some((message) => /must|should|property/.test(message)), 'CreateTourProgramDto missing-field messages should be Vietnamese');
+
+  for (const durationDays of [0, -1]) {
+    const invalidDurationDto = await validateDto(CreateTourProgramDto, {
+      code: 'HL-INVALID',
+      name: 'Tour sai số ngày',
+      durationDays,
+    });
+    assert(invalidDurationDto.messages.includes('Số ngày phải lớn hơn hoặc bằng 1'), `CreateTourProgramDto should reject durationDays=${durationDays}`);
+  }
+
+  const tooLongDurationDto = await validateDto(CreateTourProgramDto, {
+    code: 'HL-TOO-LONG',
+    name: 'Tour quá dài',
+    durationDays: TOUR_PROGRAM_DURATION_DAYS_MAX + 1,
+  });
+  assert(tooLongDurationDto.messages.includes(`Số ngày không được vượt quá ${TOUR_PROGRAM_DURATION_DAYS_MAX}`), 'CreateTourProgramDto should reject durationDays above maximum');
+
+  const partialUpdateDto = await validateDto(UpdateTourProgramDto, {
+    name: ' Chỉ sửa tên tour ',
+  });
+  assert(partialUpdateDto.errors.length === 0, 'UpdateTourProgramDto should accept partial payload');
+  assert(partialUpdateDto.instance.name === 'Chỉ sửa tên tour', 'UpdateTourProgramDto should transform submitted partial fields');
+
+  const invalidPartialUpdateDto = await validateDto(UpdateTourProgramDto, {
+    durationDays: 0,
+  });
+  assert(invalidPartialUpdateDto.messages.includes('Số ngày phải lớn hơn hoặc bằng 1'), 'UpdateTourProgramDto should validate submitted partial durationDays');
 
   const prisma = new PrismaService();
   await prisma.$connect();
