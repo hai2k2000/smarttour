@@ -20,6 +20,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+
+- Hardened GIT DTO validation contract:
+  - `CreateGitTourDto` now trims and validates `systemCode`, `tourCode`,
+    `name`, optional text fields, and date strings with Vietnamese validation
+    messages and explicit max lengths.
+  - `commissionRate` is bounded to 0-100 and `exchangeRate` must be positive
+    and capped; blank optional dates are trimmed away instead of reaching the
+    service parser.
+  - Nested GIT arrays now compact empty rows before validation/mapping, and a
+    `customers` array is supported as linked/customer data without replacing
+    unrelated children on partial update.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `git diff --check`, API deploy, and
+    `/api/git-tours?status=running` unauthenticated guard smoke returned 401
+    with Vietnamese auth message.
+
 - Continued GIT backend service hardening:
   - GIT remove now blocks tours with external dependencies such as linked
     orders, bookings, operation records, and finance documents while keeping

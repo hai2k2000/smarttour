@@ -2,6 +2,21 @@
 
 ## Done
 
+
+- Hardened GIT DTO validation contract:
+  - `CreateGitTourDto` now has Vietnamese messages and clearer rules for
+    required identity fields, optional text fields, date strings,
+    `commissionRate`, and `exchangeRate`.
+  - Empty nested rows are compacted for customers, revenues, services,
+    attachments, guides, costs, and survey questions before service mapping;
+    explicit `customers` array rows now map into common `TourCustomer` records.
+  - Regression covers invalid code/rate/child-array payloads, blank optional
+    dates, customers-array mapping, and empty child rows not creating common
+    records.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, `git diff --check`, API deploy, and GIT
+    unauthenticated guard smoke.
+
 - Hardened GIT backend service business rules:
   - `GitToursService.remove()` now rejects delete attempts when a GIT tour has
     external order/booking/operation/finance dependencies, while owned draft

@@ -172,7 +172,7 @@ export class GitToursService {
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto, creating = false) {
     const children: TourCommonChildren = {};
-    if (creating || dto.customerName !== undefined || dto.agentName !== undefined) {
+    if (creating || dto.customerName !== undefined || dto.agentName !== undefined || dto.customers !== undefined) {
       children.customers = this.mapTourCustomers(dto);
     }
     if (creating || dto.revenues !== undefined) children.revenues = this.tourCore.mapRevenues(dto.revenues);
@@ -188,9 +188,9 @@ export class GitToursService {
   }
 
   private mapTourCustomers(dto: UpdateGitTourDto): Prisma.TourCustomerCreateManyInput[] {
-    const customers: Prisma.TourCustomerCreateManyInput[] = [];
+    const customers = this.mapCustomerRows(dto.customers);
     const customerName = this.optionalText(dto.customerName);
-    if (customerName) {
+    if (customerName && !customers.some((customer) => customer.isPrimary)) {
       customers.push({
         tourId: '',
         customerType: 'CUSTOMER',
@@ -200,7 +200,30 @@ export class GitToursService {
       });
     }
     const agent = this.tourCore.agentCustomer(dto as unknown as Row);
-    if (agent) customers.push(agent);
+    if (agent && !customers.some((customer) => customer.customerType === 'AGENT')) customers.push(agent);
+    return customers;
+  }
+
+  private mapCustomerRows(rows?: unknown[]): Prisma.TourCustomerCreateManyInput[] {
+    const customers: Prisma.TourCustomerCreateManyInput[] = [];
+    let hasPrimary = false;
+    for (const row of this.rows(rows)) {
+      const customerType = (this.optionalText(row.customerType ?? row.type) || (this.optionalText(row.agentName) ? 'AGENT' : 'CUSTOMER')).toUpperCase();
+      const name = this.optionalText(row.name ?? row.customerName ?? row.agentName);
+      if (!name) continue;
+      const explicitPrimary = row.isPrimary === true || String(row.isPrimary).toLowerCase() === 'true';
+      const isPrimary = customerType !== 'AGENT' && (explicitPrimary || !hasPrimary);
+      if (isPrimary) hasPrimary = true;
+      customers.push({
+        tourId: '',
+        customerType,
+        name,
+        phone: this.optionalText(row.phone),
+        email: this.optionalText(row.email),
+        isPrimary,
+        notes: this.optionalText(row.notes),
+      });
+    }
     return customers;
   }
 

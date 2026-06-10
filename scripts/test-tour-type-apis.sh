@@ -76,7 +76,9 @@ function assertTourTypeDtoContracts() {
   assert(gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS.includes('route'), 'GIT route should be a common Tour root field');
   assert(gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('itinerarySummary'), 'GIT itinerarySummary should remain a GIT detail field');
   assert(gitCreateDtoContract.GIT_TOUR_LINK_AND_CUSTOMER_FIELDS.includes('agentName'), 'GIT agentName should be grouped with linked/customer data');
+  assert(gitCreateDtoContract.GIT_TOUR_LINK_AND_CUSTOMER_FIELDS.includes('customers'), 'GIT customers array should be grouped with linked/customer data');
   assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('agentName'), 'GIT agentName should not be classified as a pure detail field');
+  assert(!gitCreateDtoContract.GIT_TOUR_CHILD_FIELDS.includes('customers'), 'GIT customers array should not be treated as a generic child payload bucket');
   assert(JSON.stringify(gitCreateDtoContract.GIT_TOUR_REQUIRED_CREATE_FIELDS) === JSON.stringify(['systemCode', 'tourCode', 'name']), 'GIT required create fields should be explicit and module-specific');
   assert(gitCreateDtoContract.GIT_TOUR_ACTION_FIELDS.includes('sourceTourId'), 'GIT action fields should include copy-service sourceTourId');
   for (const field of gitCreateDtoContract.GIT_TOUR_ACTION_FIELDS) {
@@ -88,6 +90,10 @@ function assertTourTypeDtoContracts() {
   assert(!gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('workflowStep'), 'GIT lifecycle fields should not include workflowStep');
   assert(gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15'), 'GIT date pattern should accept YYYY-MM-DD');
   assert(!gitCreateDtoContract.GIT_TOUR_DATE_PATTERN.test('2026-06-15T00:00:00.000Z'), 'GIT date pattern should reject ISO datetime payloads');
+  const gitDtoSource = require('fs').readFileSync('/workspace/apps/api/src/modules/git-tours/dto/create-git-tour.dto.ts', 'utf8');
+  assert(gitDtoSource.includes('GIT_TOUR_CODE_PATTERN') && gitDtoSource.includes('@MaxLength(50'), 'GIT DTO should cap and validate systemCode/tourCode format');
+  assert(gitDtoSource.includes('@Max(100') && gitDtoSource.includes('@Min(0.000001'), 'GIT DTO should bound commissionRate and exchangeRate');
+  assert(gitDtoSource.includes('compactChildRows') && gitDtoSource.includes('@Transform(compactChildRows)'), 'GIT DTO should compact empty nested array rows before validation/mapping');
   for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
     assert(gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS.includes(field), `GIT ${field} should be owned by common Tour root`);
     assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes(field), `GIT ${field} should not be classified as detail data`);
@@ -551,6 +557,65 @@ async function main() {
     'GIT should reject invalid numeric fields',
   );
   assertMessage(invalidGitNumber, 'Tỷ lệ hoa hồng GIT phải là số hợp lệ', 'GIT invalid number should use Vietnamese validation message');
+  const invalidGitCode = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run} BAD CODE`,
+        tourCode: `${run}-GIT-BAD-CODE`,
+        name: 'Tour type API GIT bad code',
+      }),
+    },
+    400,
+    'GIT should reject systemCode with spaces',
+  );
+  assertMessage(invalidGitCode, 'Mã hệ thống tour GIT chỉ được gồm', 'GIT invalid code should use Vietnamese validation message');
+  const invalidGitCommissionMax = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-COMMISSION-SYS`,
+        tourCode: `${run}-GIT-BAD-COMMISSION`,
+        name: 'Tour type API GIT bad commission',
+        commissionRate: 101,
+      }),
+    },
+    400,
+    'GIT should reject commissionRate above 100',
+  );
+  assertMessage(invalidGitCommissionMax, 'Tỷ lệ hoa hồng GIT không được vượt quá 100%', 'GIT commission max should use Vietnamese validation message');
+  const invalidGitExchangeRate = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-EXCHANGE-SYS`,
+        tourCode: `${run}-GIT-BAD-EXCHANGE`,
+        name: 'Tour type API GIT bad exchange rate',
+        exchangeRate: 0,
+      }),
+    },
+    400,
+    'GIT should reject zero exchangeRate',
+  );
+  assertMessage(invalidGitExchangeRate, 'Tỷ giá tour GIT phải lớn hơn 0', 'GIT exchangeRate min should use Vietnamese validation message');
+  const invalidGitChildArray = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-CHILD-SYS`,
+        tourCode: `${run}-GIT-BAD-CHILD`,
+        name: 'Tour type API GIT bad child array',
+        revenues: {},
+      }),
+    },
+    400,
+    'GIT should reject non-array child payloads',
+  );
+  assertMessage(invalidGitChildArray, 'Doanh thu tour GIT phải là danh sách hợp lệ', 'GIT child array validation should use Vietnamese message');
   await expect(
     '/api/git-tours',
     {
@@ -608,6 +673,28 @@ async function main() {
     400,
     'GIT should reject invalid nested service numeric fields',
   );
+
+  const gitArrayCustomerTour = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-ARRAY-CUSTOMER-SYS`,
+        tourCode: `${run}-GIT-ARRAY-CUSTOMER`,
+        name: 'Tour type API GIT array customer',
+        customers: [
+          {},
+          { name: 'Tour type API GIT array primary customer', phone: '0900000000', isPrimary: true },
+          { customerType: 'AGENT', name: 'Tour type API GIT array agent' },
+        ],
+      }),
+    },
+    201,
+    'create GIT tour with customers array',
+  );
+  assert(gitArrayCustomerTour.customers.length === 2, 'GIT should strip empty customer rows and persist valid customer rows');
+  assert(gitArrayCustomerTour.customers.some((customer) => customer.name === 'Tour type API GIT array primary customer' && customer.isPrimary === true), 'GIT customers array should preserve explicit primary customer');
+  assert(gitArrayCustomerTour.gitTour.agentName === 'Tour type API GIT array agent', 'GIT customers array should expose AGENT row through response overlay');
 
   const gitTour = await expect(
     '/api/git-tours',
@@ -748,6 +835,15 @@ async function main() {
         systemCode: `${run}-GIT-COPY-SYS`,
         tourCode: `${run}-GIT-COPY`,
         name: 'Tour type API GIT copy target',
+        bookingDate: ' ',
+        paymentDueDate: '',
+        startDate: ' ',
+        endDate: '',
+        customers: [{}],
+        revenues: [{}],
+        budgetServices: [{}],
+        operationServices: [{}],
+        attachments: [{}],
       }),
     },
     201,
@@ -760,6 +856,8 @@ async function main() {
     'copy GIT services',
   );
   assert(gitCopyTarget.customers.length === 0, 'GIT create without customerName should not create a fake default customer');
+  assert(gitCopyTarget.revenues.length === 0 && gitCopyTarget.services.length === 0 && gitCopyTarget.attachments.length === 0, 'GIT DTO should strip empty child rows before create mapping');
+  assert(gitCopyTarget.bookingDate === null && gitCopyTarget.startDate === null, 'GIT DTO should trim blank optional dates instead of storing invalid date values');
   await expect(
     `/api/git-tours/${gitCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({}) },
