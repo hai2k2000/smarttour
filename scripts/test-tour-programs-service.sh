@@ -30,6 +30,7 @@ docker compose run --rm \
 const fs = require('fs');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
+const { validationExceptionFactory } = require('./apps/api/dist/validation-exception.factory');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -64,11 +65,13 @@ async function createCompleteProgram(service, run, suffix, durationDays = 2) {
 }
 
 async function main() {
+  const mainSource = fs.readFileSync('/workspace/apps/api/src/main.ts', 'utf8');
   const dtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-tour-program.dto.ts', 'utf8');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
 
+  assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
   assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
   assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
   assert(dtoSource.includes('trim().toUpperCase()'), 'DTO should normalize code to uppercase');
@@ -82,8 +85,28 @@ async function main() {
   assert(dtoSource.includes('các ngày lịch trình không được vượt quá giá trị này'), 'DTO durationDays should document itinerary constraint');
   assert(dtoSource.includes('Cho phép mô tả nhiều dòng.'), 'DTO should document multiline description support');
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
+  assert(serviceSource.includes("validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays)"), 'service should validate durationDays to prevent DTO bypass');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
   assert(webPageSource.includes('maxLength={MAX_CODE_LENGTH}'), 'frontend should cap code length');
+
+  const customValidationResponse = validationExceptionFactory([{
+    property: 'durationDays',
+    constraints: { isInt: 'Số ngày phải là số nguyên hợp lệ' },
+  }]).getResponse();
+  assert(customValidationResponse.message.includes('Số ngày phải là số nguyên hợp lệ'), 'validation factory should keep custom Vietnamese messages');
+
+  const defaultValidationResponse = validationExceptionFactory([{
+    property: 'durationDays',
+    constraints: { isInt: 'durationDays must be an integer number' },
+  }]).getResponse();
+  assert(defaultValidationResponse.message.includes('durationDays phải là số nguyên hợp lệ'), 'validation factory should translate default isInt message');
+  assert(!defaultValidationResponse.message.some((message) => message.includes('must be')), 'validation factory should not return English default messages');
+
+  const whitelistValidationResponse = validationExceptionFactory([{
+    property: 'unexpectedField',
+    constraints: { whitelistValidation: 'property unexpectedField should not exist' },
+  }]).getResponse();
+  assert(whitelistValidationResponse.message.includes('unexpectedField không được phép gửi lên'), 'validation factory should translate whitelist messages');
 
   const prisma = new PrismaService();
   await prisma.$connect();

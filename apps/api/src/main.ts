@@ -4,13 +4,14 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertSecureRuntimeConfig } from './config/runtime-env';
+import { validationExceptionFactory } from './validation-exception.factory';
 
 async function bootstrap() {
   assertSecureRuntimeConfig();
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
   app.enableCors();
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
 
   const config = new DocumentBuilder()
     .setTitle('SmartTour API')
