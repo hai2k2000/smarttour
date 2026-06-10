@@ -47,7 +47,9 @@ type ItineraryDayPayload = {
 };
 
 const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
-const MAX_DURATION_DAYS = 365;
+const MAX_CODE_LENGTH = 50;
+const MAX_NAME_LENGTH = 250;
+const MAX_DURATION_DAYS = 60;
 const MAX_ROUTE_LENGTH = 250;
 const MAX_DESCRIPTION_LENGTH = 2000;
 
@@ -438,11 +440,11 @@ function TourProgramForm({
         <div className="supplierFieldGrid">
           <label>
             Mã tour
-            <input name="code" placeholder="HL-3N2D" defaultValue={tourProgram?.code || ''} required minLength={2} />
+            <input name="code" placeholder="HL-3N2D" defaultValue={tourProgram?.code || ''} required minLength={2} maxLength={MAX_CODE_LENGTH} />
           </label>
           <label>
             Tên tour
-            <input name="name" placeholder="Hạ Long 3 ngày 2 đêm" defaultValue={tourProgram?.name || ''} required minLength={2} />
+            <input name="name" placeholder="Hạ Long 3 ngày 2 đêm" defaultValue={tourProgram?.name || ''} required minLength={2} maxLength={MAX_NAME_LENGTH} />
           </label>
           <label>
             Số ngày

@@ -27,6 +27,7 @@ docker compose run --rm \
   -v "$PWD:/workspace:ro" \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
+const fs = require('fs');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
 
@@ -63,6 +64,21 @@ async function createCompleteProgram(service, run, suffix, durationDays = 2) {
 }
 
 async function main() {
+  const dtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-tour-program.dto.ts', 'utf8');
+  const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
+  const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
+  const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
+
+  assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
+  assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
+  assert(dtoSource.includes('trim().toUpperCase()'), 'DTO should normalize code to uppercase');
+  assert(dtoSource.includes('Mã chương trình tour phải là chuỗi ký tự'), 'DTO validation messages should be Vietnamese');
+  assert(dtoSource.includes('Hạ Long 3 ngày 2 đêm'), 'DTO Swagger examples should use Vietnamese accents');
+  assert(dtoSource.includes('Cho phép mô tả nhiều dòng.'), 'DTO should document multiline description support');
+  assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
+  assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
+  assert(webPageSource.includes('maxLength={MAX_CODE_LENGTH}'), 'frontend should cap code length');
+
   const prisma = new PrismaService();
   await prisma.$connect();
   const service = new TourProgramsService(prisma);
@@ -86,6 +102,26 @@ async function main() {
     () => service.create({ code: `${run}-BAD-DURATION-2`, name: 'Bad Duration', durationDays: 1.5 }),
     'create should reject non-integer durationDays',
   );
+  await rejects(
+    () => service.create({ code: `${run}-BAD-DURATION-3`, name: 'Bad Duration', durationDays: 61 }),
+    'create should reject durationDays above maximum',
+  );
+  await rejects(
+    () => service.create({ code: 'X'.repeat(51), name: 'Code Too Long', durationDays: 1 }),
+    'create should reject code above maximum length',
+  );
+  await rejects(
+    () => service.create({ code: `${run}-LONG-NAME`, name: 'N'.repeat(251), durationDays: 1 }),
+    'create should reject name above maximum length',
+  );
+  await rejects(
+    () => service.create({ code: `${run}-LONG-ROUTE`, name: 'Route Too Long', route: 'R'.repeat(251), durationDays: 1 }),
+    'create should reject route above maximum length',
+  );
+  await rejects(
+    () => service.create({ code: `${run}-LONG-DESC`, name: 'Description Too Long', durationDays: 1, description: 'D'.repeat(2001) }),
+    'create should reject description above maximum length',
+  );
 
   const created = await service.create({
     code: `${run}-main`,
@@ -98,6 +134,18 @@ async function main() {
   assert(created.name === 'Tour Programs Service Main', 'create should persist name');
   assert(created.route === 'Ha Noi - Ha Long' && created.durationDays === 3, 'create should persist route and durationDays');
   assert(Array.isArray(created.itineraryDays) && created.itineraryDays.length === 0, 'create should include itineraryDays');
+
+  const trimmed = await service.create({
+    code: ` ${run}-trim `,
+    name: ' Tour mẫu có dấu ',
+    route: ' Hà Nội - Huế ',
+    durationDays: 2,
+    description: ' Dòng 1\nDòng 2 ',
+  });
+  assert(trimmed.code === `${run}-TRIM`, 'create should trim and uppercase code');
+  assert(trimmed.name === 'Tour mẫu có dấu', 'create should trim Vietnamese tour name');
+  assert(trimmed.route === 'Hà Nội - Huế', 'create should trim route');
+  assert(trimmed.description === 'Dòng 1\nDòng 2', 'create should trim description and allow newline');
 
   await rejects(
     () => service.create({ code: `${run}-MAIN`, name: 'Duplicate Code', durationDays: 1 }),

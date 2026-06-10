@@ -3,7 +3,14 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateItineraryDayDto } from './dto/create-itinerary-day.dto';
-import { CreateTourProgramDto } from './dto/create-tour-program.dto';
+import {
+  CreateTourProgramDto,
+  TOUR_PROGRAM_CODE_MAX_LENGTH,
+  TOUR_PROGRAM_DESCRIPTION_MAX_LENGTH,
+  TOUR_PROGRAM_DURATION_DAYS_MAX,
+  TOUR_PROGRAM_NAME_MAX_LENGTH,
+  TOUR_PROGRAM_ROUTE_MAX_LENGTH,
+} from './dto/create-tour-program.dto';
 import { UpdateItineraryDayDto } from './dto/update-itinerary-day.dto';
 import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 
@@ -11,11 +18,12 @@ import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 export class TourProgramsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly maxCodeLength = 50;
-  private readonly maxNameLength = 250;
-  private readonly maxRouteLength = 250;
+  private readonly maxCodeLength = TOUR_PROGRAM_CODE_MAX_LENGTH;
+  private readonly maxNameLength = TOUR_PROGRAM_NAME_MAX_LENGTH;
+  private readonly maxRouteLength = TOUR_PROGRAM_ROUTE_MAX_LENGTH;
   private readonly maxTitleLength = 250;
-  private readonly maxDescriptionLength = 2000;
+  private readonly maxDescriptionLength = TOUR_PROGRAM_DESCRIPTION_MAX_LENGTH;
+  private readonly maxDurationDays = TOUR_PROGRAM_DURATION_DAYS_MAX;
 
   private listSelect() {
     return {
@@ -197,7 +205,7 @@ export class TourProgramsService {
     if (dto.description !== undefined) {
       this.validateOptionalText(dto.description, 'Mô tả', this.maxDescriptionLength);
     }
-    if (dto.durationDays !== undefined) this.validatePositiveInt(dto.durationDays, 'Số ngày');
+    if (dto.durationDays !== undefined) this.validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays);
   }
 
   private validateItineraryDayInput(dto: UpdateItineraryDayDto) {
@@ -219,8 +227,9 @@ export class TourProgramsService {
     if (trimmed && trimmed.length > maxLength) throw new BadRequestException(`${label} không được vượt quá ${maxLength} ký tự`);
   }
 
-  private validatePositiveInt(value: number, label: string) {
+  private validatePositiveInt(value: number, label: string, max?: number) {
     if (!Number.isInteger(value) || value < 1) throw new BadRequestException(`${label} phải lớn hơn hoặc bằng 1`);
+    if (max !== undefined && value > max) throw new BadRequestException(`${label} không được vượt quá ${max}`);
   }
 
   private ensureDurationCoversItinerary(
