@@ -535,9 +535,11 @@ type FitTourWizardProps = {
   tours: FitTourSummary[];
   initialTourId?: string;
   onSaved?: (tour: Partial<FitTourForm> & { id?: string }, reason: SaveReason) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onStatusChange?: (message: string) => void;
 };
 
-export default function FitTourWizard({ suppliers, tours, initialTourId = '', onSaved }: FitTourWizardProps) {
+export default function FitTourWizard({ suppliers, tours, initialTourId = '', onSaved, onDirtyChange, onStatusChange }: FitTourWizardProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [saveState, setSaveState] = useState('Chưa lưu');
   const [selectedTourId, setSelectedTourId] = useState('');
@@ -579,6 +581,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const operationCost = values.operationServices.reduce((sum, row) => sum + number(row.amount), 0);
   const budgetProfit = budgetRevenue - budgetCost;
   const operationProfit = budgetRevenue - operationCost;
+  const currentStepPayloadSignature = JSON.stringify(stepPayload(preparePayload(values), workflowSteps[activeStep].key));
+  const hasUnsavedChanges = formState.isDirty && currentStepPayloadSignature !== lastAutosaveSignature.current;
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => {
+    onStatusChange?.(saveState);
+  }, [onStatusChange, saveState]);
 
   useEffect(() => {
     const subscription = watch((_value, { name }) => {

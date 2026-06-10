@@ -24,21 +24,34 @@ type FitTourSummary = {
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
-async function apiGet<T>(path: string, fallback: T): Promise<T> {
+type ApiResult<T> = { data: T; error?: string };
+
+async function apiGet<T>(path: string, fallback: T, label: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
-    if (!response.ok) return fallback;
-    return response.json();
-  } catch {
-    return fallback;
+    if (!response.ok) {
+      const text = await response.text();
+      let detail = text;
+      try {
+        const body = JSON.parse(text);
+        detail = Array.isArray(body.message) ? body.message.join(', ') : body.message || body.error || text;
+      } catch {
+        // Keep the raw response when the API does not return JSON.
+      }
+      return { data: fallback, error: `${label}: ${detail || `HTTP ${response.status}`}` };
+    }
+    return { data: await response.json() };
+  } catch (error) {
+    return { data: fallback, error: `${label}: ${error instanceof Error ? error.message : 'không xác định'}` };
   }
 }
 
 export default async function FitToursPage() {
-  const [suppliers, tours] = await Promise.all([
-    apiGet<Supplier[]>('/suppliers', []),
-    apiGet<FitTourSummary[]>('/fit-tours', []),
+  const [suppliersResult, toursResult] = await Promise.all([
+    apiGet<Supplier[]>('/suppliers', [], 'Tải danh sách nhà cung cấp thất bại'),
+    apiGet<FitTourSummary[]>('/fit-tours', [], 'Tải danh sách tour FIT thất bại'),
   ]);
+  const initialError = [suppliersResult.error, toursResult.error].filter(Boolean).join('. ');
 
   return (
     <section className="workspace">
@@ -53,7 +66,7 @@ export default async function FitToursPage() {
         </div>
       </header>
 
-      <FitToursClient suppliers={suppliers} tours={tours} />
+      <FitToursClient suppliers={suppliersResult.data} tours={toursResult.data} initialError={initialError} />
     </section>
   );
 }

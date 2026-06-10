@@ -401,6 +401,10 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .fitTable td { min-width: 120px; vertical-align: top; }
 .fitTable td:last-child { width: 52px; min-width: 52px; text-align: right; }
 .fitTable input, .fitTable select, .fitTable textarea { min-width: 110px; padding: 8px 9px; font-size: 13px; }
+.fitToursFilterToolbar { margin-bottom: 12px; }
+.fitTourListTable td:first-child { min-width: 190px; }
+.fitTourListTable td:last-child { width: 92px; min-width: 92px; }
+.fitTourListTable .actionsCell { display: flex; justify-content: flex-end; gap: 6px; }
 .iconButton { padding: 8px; min-width: 34px; justify-content: center; }
 .copyBar { display: flex; justify-content: flex-end; }
 .copyBar button, .wizardFooter button, .fitActions button, .fitTableBlock button { display: inline-flex; align-items: center; gap: 7px; }
