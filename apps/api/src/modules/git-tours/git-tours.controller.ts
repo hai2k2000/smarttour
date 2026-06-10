@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TourStatus } from '@prisma/client';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { GitTourCopyServicesDto } from './dto/git-tour-action.dto';
+import { ListGitToursQueryDto } from './dto/list-git-tours-query.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 import { GitToursService } from './git-tours.service';
 
@@ -15,8 +15,8 @@ export class GitToursController {
   constructor(private readonly gitToursService: GitToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: TourStatus, @Req() request?: { user?: RequestUser }) {
-    return this.gitToursService.list(search, status, request?.user);
+  list(@Query() query: ListGitToursQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.gitToursService.list(query.search, query.status, request?.user);
   }
 
   @Get(':id')

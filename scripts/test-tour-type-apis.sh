@@ -160,6 +160,28 @@ function assertCommonToursServiceUsesTourCore() {
   assert(!/private\s+async\s+ensureOrder\s*\(/.test(source), 'Common ToursService should not keep duplicate order link validation');
 }
 
+function assertGitToursControllerContract() {
+  const fs = require('fs');
+  const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/git-tours/git-tours.controller.ts', 'utf8');
+  const queryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/git-tours/dto/list-git-tours-query.dto.ts', 'utf8');
+  assert(controllerSource.includes("@RequirePermissions('tour.view')") && controllerSource.includes("@Controller('git-tours')"), 'GitToursController list/detail should inherit tour.view permission');
+  for (const method of ['create', 'update', 'patch', 'remove', 'copyServices']) {
+    const methodIndex = controllerSource.indexOf(`${method}(`);
+    assert(methodIndex >= 0, `GitToursController should expose ${method}`);
+    const routeBlock = controllerSource.slice(Math.max(0, methodIndex - 180), methodIndex);
+    assert(routeBlock.includes("@RequirePermissions('tour.manage')"), `GitToursController ${method} should require tour.manage`);
+  }
+  const copyServicesIndex = controllerSource.indexOf('copyServices(');
+  const copyServicesBlock = controllerSource.slice(Math.max(0, copyServicesIndex - 220), copyServicesIndex + 220);
+  assert(copyServicesBlock.includes("@Post(':id/copy-services')"), 'GitToursController copy-services route should remain a target tour sub-resource');
+  assert(copyServicesBlock.includes('GitTourCopyServicesDto') && copyServicesBlock.includes('dto.sourceTourId'), 'GitToursController copy-services should use focused action DTO sourceTourId');
+  assert(!copyServicesBlock.includes('tour.copy') && !copyServicesBlock.includes('copy-services.manage'), 'GitToursController copy-services should not introduce an unseeded special permission without RBAC catalog work');
+  assert(controllerSource.includes('ListGitToursQueryDto') && controllerSource.includes('@Query() query: ListGitToursQueryDto'), 'GitToursController list should use a focused query DTO');
+  assert(!controllerSource.includes("@Query('status')"), 'GitToursController list should not accept raw status query values');
+  assert(queryDtoSource.includes('class ListGitToursQueryDto') && queryDtoSource.includes('@IsEnum(TourStatus') && queryDtoSource.includes('Trạng thái tour GIT không hợp lệ'), 'ListGitToursQueryDto should validate TourStatus with Vietnamese message');
+  assert(queryDtoSource.includes('trimSearch') && queryDtoSource.includes('normalizeStatus') && queryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'ListGitToursQueryDto should trim search/status and cap search length');
+}
+
 function assertTourRootOrchestrationBoundaries() {
   const fs = require('fs');
   const services = [
@@ -248,6 +270,7 @@ async function jsonResponse(response) {
 async function main() {
   assertTourTypeDtoContracts();
   assertCommonToursServiceUsesTourCore();
+  assertGitToursControllerContract();
   assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');
@@ -507,7 +530,10 @@ async function main() {
   );
   assert(copiedGitServices.services.length === 1, 'GIT copy-services should copy common TourService rows');
   assert(copiedGitServices.services[0].serviceType === 'GIT_HOTEL', 'GIT copy-services should preserve serviceType through TourCore clone helper');
-  await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
+  const lowercaseGitStatusRows = await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
+  assert(lowercaseGitStatusRows.some((row) => row.id === gitTour.id), 'GIT lowercase status query should include running tour');
+  const spacedGitStatusRows = await expect('/api/git-tours?status=%20running%20', {}, 200, 'GIT spaced lowercase status query');
+  assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
 
   await expect(

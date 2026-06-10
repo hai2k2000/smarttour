@@ -977,6 +977,12 @@
 - Loading/resetting a FIT tour now clears copy-source selection and resets blank-tour defaults with a clean autosave signature.
 - Verified on VPS: `npm run test:fit-wizard`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `docker compose build web`, deployed `web`, and healthchecked `/fit-tours` plus `/api/fit-tours` auth behavior.
 
+
+- Hardened `GitToursController` list/query contract.
+- Added `ListGitToursQueryDto` for trimmed search, max search length, and Vietnamese `TourStatus` validation/normalization, replacing raw `@Query('status')` handling in the controller.
+- Locked controller permissions in regression tests: `tour.view` for list/detail and `tour.manage` for create/update/patch/remove/copy-services; `copy-services` remains a target-tour sub-resource using focused `GitTourCopyServicesDto`.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_ROUTE_PERMISSIONS_OK`, API deploy, and `/api/git-tours?status=running` auth behavior.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

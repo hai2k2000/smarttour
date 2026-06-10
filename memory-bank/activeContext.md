@@ -1286,3 +1286,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Copy Budget requires the selected source tour to still exist in the loaded FIT tour list before POSTing; stale or same-target sources are blocked with Vietnamese status messages.
   - Copy Operation keeps the allowed current-tour fallback, but validates any selected external source before copying and clears stale source state after success/failure guards.
   - Loading a new blank tour now resets with `keepDirty: false` and refreshes the autosave signature so switching to create mode does not leave phantom dirty/copy state.
+
+- 2026-06-10 GIT controller contract hardening:
+  - `GitToursController` keeps `tour.view` for list/detail and `tour.manage` for create/update/patch/remove/copy-services.
+  - Added `ListGitToursQueryDto` so list search is trimmed/capped and `status` is normalized/validated against `TourStatus` before service execution.
+  - `copy-services` remains under `tour.manage`; no extra copy-specific permission was introduced because RBAC catalog/roles do not currently define a narrower GIT copy permission.
