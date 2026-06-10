@@ -147,6 +147,7 @@ async function main() {
   assert(serviceSource.includes("...(dto.description !== undefined ? { description: this.optionalText(dto.description) } : {})"), 'toTourProgramData should only update submitted description');
   assert(serviceSource.includes('booking liên quan'), 'remove booking conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('ngày hành trình'), 'remove itinerary conflict message should be explicit Vietnamese');
+  assert(serviceSource.includes('dịch vụ điều hành liên quan'), 'remove itinerary day service conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('itineraryDays: { orderBy: { dayNumber:'), 'list should include itineraryDays ordered by dayNumber for frontend preview');
   assert(serviceSource.includes('_count: { select: { bookings: true } }'), 'list/detail should expose booking count for frontend guards');
   assert(serviceSource.includes("orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }]"), 'list should keep newest-updated ordering with code tie-breaker');
@@ -356,6 +357,11 @@ async function main() {
     () => service.createItineraryDay(created.id, { dayNumber: 1, title: 'Duplicate day' }),
     'createItineraryDay should reject duplicate dayNumber in the same tour',
   );
+  const duplicateDayMessage = await rejectMessage(
+    () => service.createItineraryDay(created.id, { dayNumber: 1, title: 'Duplicate day' }),
+    'createItineraryDay should reject duplicate dayNumber with Vietnamese message',
+  );
+  assert(duplicateDayMessage === 'Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này', 'duplicate itinerary day message should be Vietnamese');
   await rejects(
     () => service.createItineraryDay(created.id, { dayNumber: 4, title: 'Outside duration' }),
     'createItineraryDay should reject dayNumber greater than durationDays',
@@ -415,6 +421,30 @@ async function main() {
   assert(codeUpdated.name === 'Tour Programs Service Partial Updated', 'code-only update should keep omitted name');
 
   await rejects(
+    () => service.updateItineraryDay(dayTwo.id, { dayNumber: 0 }),
+    'updateItineraryDay should reject dayNumber below 1',
+  );
+  await rejects(
+    () => service.updateItineraryDay(dayTwo.id, { title: ' ' }),
+    'updateItineraryDay should reject blank title after trim',
+  );
+  await rejects(
+    () => service.updateItineraryDay(dayTwo.id, { dayNumber: 1 }),
+    'updateItineraryDay should reject duplicate dayNumber in the same tour',
+  );
+  const updatedDayTwo = await service.updateItineraryDay(dayTwo.id, {
+    title: ' Hạ Long cập nhật ',
+    description: ' ',
+  });
+  assert(updatedDayTwo.title === 'Hạ Long cập nhật', 'updateItineraryDay should trim title');
+  assert(updatedDayTwo.description === null, 'updateItineraryDay should store blank description as null');
+  const missingItineraryMessage = await rejectMessage(
+    () => service.updateItineraryDay('missing-itinerary-day-id', { title: 'Không tồn tại' }),
+    'updateItineraryDay should reject missing itinerary day with Vietnamese message',
+  );
+  assert(missingItineraryMessage === 'Không tìm thấy ngày hành trình', 'ensureItineraryDay message should be Vietnamese');
+
+  await rejects(
     () => service.createItineraryDay(created.id, { dayNumber: 3, title: 'Outside updated duration' }),
     'createItineraryDay should use updated durationDays',
   );
@@ -466,6 +496,26 @@ async function main() {
   const linkedListRow = (await service.list(`${run}-TP-LINKED`)).find((row) => row.id === linkedProgram.id);
   assert(linkedListRow._count.bookings === 1, 'list should count linked bookings');
   assert((await service.detail(linkedProgram.id))._count.bookings === 1, 'detail should count linked bookings without returning booking rows');
+  const operationForm = await prisma.operationForm.create({
+    data: {
+      bookingId: booking.id,
+      notes: 'Tour program service test operation form',
+    },
+  });
+  const linkedOperationDay = linkedProgram.itineraryDays[0];
+  await prisma.operationService.create({
+    data: {
+      operationFormId: operationForm.id,
+      itineraryDayId: linkedOperationDay.id,
+      serviceType: 'TEST',
+      serviceName: 'Linked itinerary service',
+    },
+  });
+  const itineraryServiceRemoveMessage = await rejectMessage(
+    () => service.removeItineraryDay(linkedOperationDay.id),
+    'removeItineraryDay should reject itinerary day linked to operation services',
+  );
+  assert(itineraryServiceRemoveMessage === 'Không thể xóa ngày hành trình vì đang có 1 dịch vụ điều hành liên quan', 'removeItineraryDay service conflict message should include related count');
   await rejects(
     () => service.update(linkedProgram.id, { durationDays: 3 }),
     'update should reject durationDays change when tour program has bookings',

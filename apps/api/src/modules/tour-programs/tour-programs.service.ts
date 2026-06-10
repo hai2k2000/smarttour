@@ -189,7 +189,7 @@ export class TourProgramsService {
     });
     if (!day) throw new NotFoundException('Không tìm thấy ngày hành trình');
     if (day._count.services > 0) {
-      throw new ConflictException('Không thể xóa ngày hành trình đã có dịch vụ điều hành');
+      throw new ConflictException(`Không thể xóa ngày hành trình vì đang có ${day._count.services} dịch vụ điều hành liên quan`);
     }
     return this.prisma.tourItineraryDay.delete({ where: { id } });
   }
