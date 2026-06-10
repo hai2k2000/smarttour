@@ -73,6 +73,7 @@ async function main() {
 
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
   assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
+  assert(/model TourProgram[\s\S]*route\s+String\?/.test(schemaSource), 'TourProgram route should stay optional in Prisma schema');
   assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
   assert(dtoSource.includes('trim().toUpperCase()'), 'DTO should normalize code to uppercase');
   assert(dtoSource.includes('Mã chương trình tour phải là chuỗi ký tự'), 'DTO validation messages should be Vietnamese');
@@ -87,7 +88,9 @@ async function main() {
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
   assert(serviceSource.includes("validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays)"), 'service should validate durationDays to prevent DTO bypass');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
+  assert(webPageSource.includes("code: requiredText(formData, 'code', 'Mã tour', 2).toUpperCase()"), 'frontend should normalize tour program code to uppercase before submit');
   assert(webPageSource.includes('maxLength={MAX_CODE_LENGTH}'), 'frontend should cap code length');
+  assert(/<input name="route"[^>]*maxLength=\{MAX_ROUTE_LENGTH\}[^>]*\/>/.test(webPageSource), 'frontend route input should stay optional and length-limited');
 
   const customValidationResponse = validationExceptionFactory([{
     property: 'durationDays',
@@ -308,6 +311,7 @@ async function main() {
     name: 'Tour Program To Delete',
     durationDays: 1,
   });
+  assert(deletable.route === null && deletable.description === null, 'route and description should be optional when creating a tour program');
   await service.remove(deletable.id);
   await rejects(() => service.detail(deletable.id), 'delete should remove tour program without dependencies');
 
