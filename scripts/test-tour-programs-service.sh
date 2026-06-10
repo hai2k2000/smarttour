@@ -31,7 +31,12 @@ const fs = require('fs');
 const { plainToInstance } = require('class-transformer');
 const { validate } = require('class-validator');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const {
+  TourProgramsController,
+  TourItineraryDaysController,
+} = require('./apps/api/dist/modules/tour-programs/tour-programs.controller');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
+const { PERMISSIONS_KEY } = require('./apps/api/dist/modules/auth/permissions.decorator');
 const {
   CreateTourProgramDto,
   TOUR_PROGRAM_DURATION_DAYS_MAX,
@@ -60,6 +65,11 @@ function validationMessages(errors) {
   ]);
 }
 
+function permissions(target, methodName) {
+  const metadataTarget = methodName ? target.prototype[methodName] : target;
+  return Reflect.getMetadata(PERMISSIONS_KEY, metadataTarget) ?? [];
+}
+
 async function validateDto(DtoClass, payload) {
   const instance = plainToInstance(DtoClass, payload);
   const errors = await validate(instance);
@@ -86,12 +96,16 @@ async function createCompleteProgram(service, run, suffix, durationDays = 2) {
 
 async function main() {
   const mainSource = fs.readFileSync('/workspace/apps/api/src/main.ts', 'utf8');
+  const authGuardSource = fs.readFileSync('/workspace/apps/api/src/modules/auth/auth.guard.ts', 'utf8');
+  const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.controller.ts', 'utf8');
   const dtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-tour-program.dto.ts', 'utf8');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
 
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
+  assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
+  assert(controllerSource.includes("BadRequestException('Từ khóa tìm kiếm phải là chuỗi ký tự')"), 'tour programs controller should reject non-string search query');
   assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
   assert(/model TourProgram[\s\S]*route\s+String\?/.test(schemaSource), 'TourProgram route should stay optional in Prisma schema');
   assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
@@ -130,6 +144,28 @@ async function main() {
     constraints: { whitelistValidation: 'property unexpectedField should not exist' },
   }]).getResponse();
   assert(whitelistValidationResponse.message.includes('unexpectedField không được phép gửi lên'), 'validation factory should translate whitelist messages');
+
+  assert(permissions(TourProgramsController).includes('tour.view'), 'tour programs controller should require tour.view by default');
+  assert(permissions(TourProgramsController, 'list').length === 0, 'list should use default tour.view permission');
+  assert(permissions(TourProgramsController, 'detail').length === 0, 'detail should use default tour.view permission');
+  assert(permissions(TourProgramsController, 'create').includes('tour.manage'), 'create should require tour.manage');
+  assert(permissions(TourProgramsController, 'update').includes('tour.manage'), 'update should require tour.manage');
+  assert(permissions(TourProgramsController, 'remove').includes('tour.manage'), 'remove should require tour.manage');
+  assert(permissions(TourProgramsController, 'createItineraryDay').includes('tour.manage'), 'create itinerary day should require tour.manage');
+  assert(permissions(TourItineraryDaysController).includes('tour.view'), 'tour itinerary days controller should keep tour.view default');
+  assert(permissions(TourItineraryDaysController, 'update').includes('tour.manage'), 'update itinerary day should require tour.manage');
+  assert(permissions(TourItineraryDaysController, 'remove').includes('tour.manage'), 'remove itinerary day should require tour.manage');
+
+  let controllerSearchValue = 'not-called';
+  const controller = new TourProgramsController({
+    list: (search) => {
+      controllerSearchValue = search;
+      return [];
+    },
+  });
+  await controller.list('  Hạ Long  ');
+  assert(controllerSearchValue === 'Hạ Long', 'controller list should trim search before passing it to service');
+  await rejects(() => controller.list(['Hạ Long']), 'controller list should reject array search query');
 
   const validCreateDto = await validateDto(CreateTourProgramDto, {
     code: ' hl-3n2d ',

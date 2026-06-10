@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateItineraryDayDto } from './dto/create-itinerary-day.dto';
@@ -14,8 +14,8 @@ export class TourProgramsController {
   constructor(private readonly tourProgramsService: TourProgramsService) {}
 
   @Get()
-  list(@Query('search') search?: string) {
-    return this.tourProgramsService.list(search);
+  list(@Query('search') search?: unknown) {
+    return this.tourProgramsService.list(this.searchQuery(search));
   }
 
   @Get(':id')
@@ -45,6 +45,12 @@ export class TourProgramsController {
   @RequirePermissions('tour.manage')
   createItineraryDay(@Param('id') id: string, @Body() dto: CreateItineraryDayDto) {
     return this.tourProgramsService.createItineraryDay(id, dto);
+  }
+
+  private searchQuery(search: unknown) {
+    if (search === undefined || search === null) return undefined;
+    if (typeof search !== 'string') throw new BadRequestException('Từ khóa tìm kiếm phải là chuỗi ký tự');
+    return search.trim();
   }
 }
 
