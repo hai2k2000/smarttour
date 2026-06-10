@@ -413,6 +413,19 @@ export const FIT_TOUR_CHILD_FIELDS = [
   'attachments',
 ] as const satisfies readonly (keyof CreateFitTourDto)[];
 
+export const FIT_TOUR_REQUIRED_CREATE_FIELDS = [
+  'quoteCode',
+  'tourCode',
+  'customerName',
+] as const satisfies readonly (keyof CreateFitTourDto)[];
+
+export const FIT_TOUR_ACTION_FIELDS = [
+  'id',
+  'step',
+  'file',
+  'sourceTourId',
+] as const;
+
 export const FIT_TOUR_CREATE_FIELDS = [
   ...FIT_TOUR_ROOT_FIELDS,
   ...FIT_TOUR_LINK_AND_CUSTOMER_FIELDS,

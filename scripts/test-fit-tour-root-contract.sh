@@ -58,6 +58,11 @@ function assertFitDtoContract() {
   assert(groupedFields.length === new Set(groupedFields).size, 'FIT DTO field groups should not overlap');
   assert(JSON.stringify(groupedFields) === JSON.stringify(fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS), 'FIT create fields should be exactly grouped root/link/workflow/detail/child fields');
   assert(JSON.stringify(fitUpdateDtoContract.FIT_TOUR_UPDATE_FIELDS) === JSON.stringify(fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS), 'FIT update should reuse the approved create/edit field surface');
+  assert(JSON.stringify(fitCreateDtoContract.FIT_TOUR_REQUIRED_CREATE_FIELDS) === JSON.stringify(['quoteCode', 'tourCode', 'customerName']), 'FIT required create fields should be explicit and module-specific');
+  assert(fitCreateDtoContract.FIT_TOUR_ACTION_FIELDS.includes('id') && fitCreateDtoContract.FIT_TOUR_ACTION_FIELDS.includes('step') && fitCreateDtoContract.FIT_TOUR_ACTION_FIELDS.includes('sourceTourId'), 'FIT action fields should be grouped outside the aggregate DTO surface');
+  for (const field of fitCreateDtoContract.FIT_TOUR_ACTION_FIELDS) {
+    assert(!fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS.includes(field), `FIT action field ${field} should not be part of create/update aggregate fields`);
+  }
   for (const field of fitCreateDtoContract.FIT_TOUR_REJECTED_ROOT_WORKFLOW_FIELDS) {
     assert(!fitCreateDtoContract.FIT_TOUR_CREATE_FIELDS.includes(field), `FIT DTO should not expose root workflow/lifecycle field ${field}`);
   }
@@ -78,16 +83,32 @@ function assertLegacyCompatBoundary() {
   const fs = require('fs');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'utf8');
+  const actionDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/fit-tour-action.dto.ts', 'utf8');
   const fitWizardSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitTourWizard.tsx', 'utf8');
   const legacyCompatSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-legacy-compat.service.ts', 'utf8');
   const defaultsSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tour-defaults.ts', 'utf8');
+  const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
+  const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
   assert(!serviceSource.includes('tx.tour.create') && !serviceSource.includes('tx.tour.update'), 'FitToursService should delegate Tour root create/update to TourCoreService');
   assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
+  assert(serviceSource.includes('logFitTourAction') && serviceSource.includes('tourCore.logAction') && serviceSource.includes("module: 'fit-tours'"), 'FIT create/update/copy/upload logs should use standardized TourCoreService.logAction format');
+  assert(serviceSource.includes('COPY_FIT_BUDGET') && serviceSource.includes('COPY_FIT_OPERATION'), 'FIT copy actions should write copy action logs');
+  assert(serviceSource.includes('tourCore.softDelete') && !/tx\\.fitTour\\.delete/.test(serviceSource), 'FIT remove should soft-delete the common Tour owner and not delete detail directly');
+  assert(schemaSource.includes('Legacy compatibility snapshot for FIT pricing common cost rows'), 'FIT legacy cost schema should be marked as compatibility snapshots');
+  assert(schemaSource.includes('Legacy compatibility snapshot for FIT budget service rows'), 'FIT legacy budget service schema should be marked as compatibility snapshot');
+  assert(schemaSource.includes('Legacy compatibility snapshot for FIT uploaded file metadata'), 'FIT legacy attachment schema should be marked as compatibility snapshot');
+  assert(schemaSource.includes('FIT-only handover rows'), 'FIT handover schema should be marked as FIT-owned until a common table exists');
+  assert(migrationNotes.includes('Legacy Table Decisions') && migrationNotes.includes('FE/BE Mapping'), 'Tour migration notes should document legacy table decisions and FE/BE mapping');
+  assert(migrationNotes.includes('fit_handover_items') && migrationNotes.includes('Not ready for read-only'), 'FIT handover legacy decision should remain explicit');
+  assert(migrationNotes.includes('fit_attachments') && migrationNotes.includes('Keep append-only via upload/create compatibility'), 'FIT attachment legacy decision should remain append-only until old consumers are removed');
   assert(controllerSource.includes("@Patch(':id/steps/:step')"), 'FIT step endpoint should be exposed for wizard draft saves');
   assert(controllerSource.includes("@Post(':id/steps/:step/confirm')"), 'FIT confirm-step endpoint should be exposed separately from draft saves');
   assert(controllerSource.includes("@Post(':id/attachments')") && controllerSource.includes('FileInterceptor'), 'FIT attachment upload endpoint should be multipart and scoped to a FIT tour');
   assert(controllerSource.includes("@Get(':id/export')") && controllerSource.includes("@Header('Content-Type', 'text/csv; charset=utf-8')"), 'FIT export endpoint should expose a CSV download by tour id');
+  assert(controllerSource.includes('FitTourExportDto') && controllerSource.includes('FitTourCopySourceDto') && controllerSource.includes('FitTourAttachmentUploadDto'), 'FIT action routes should use focused action DTOs instead of aggregate DTO fields');
+  assert(actionDtoSource.includes('class FitTourExportDto') && actionDtoSource.includes('class FitTourCopySourceDto') && actionDtoSource.includes('class FitTourAttachmentUploadDto'), 'FIT focused action DTOs should exist for export/copy/upload actions');
+  assert(actionDtoSource.includes('IsEnum(FitTourWorkflowStatus)'), 'FIT upload action DTO should validate workflow step enum');
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
   assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
@@ -101,20 +122,24 @@ function assertLegacyCompatBoundary() {
   assert(fitToursClientSource.includes('/export') && fitToursClientSource.includes('URL.createObjectURL'), 'FIT list UI should download exported CSV from the FIT export endpoint');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
+  assert(legacyCompatSource.includes('private hasChanges') && legacyCompatSource.includes('private async replaceFitChildren'), 'FIT legacy child sync should use hasChanges -> deleteMany -> createMany helper pattern');
+  const legacySyncChildrenBlock = legacyCompatSource.slice(legacyCompatSource.indexOf('async syncChildren'), legacyCompatSource.indexOf('async replaceBudgetServices'));
+  assert(legacySyncChildrenBlock.includes('hasChanges') && legacySyncChildrenBlock.includes('replaceFitChildren'), 'FIT legacy syncChildren should dispatch through child sync helpers');
+  assert(!legacySyncChildrenBlock.includes('.deleteMany') && !legacySyncChildrenBlock.includes('.createMany'), 'FIT legacy syncChildren should not inline deleteMany/createMany per child group');
   assert(!serviceSource.includes('l? b?t bu?c'), 'FIT service validation messages should not contain mojibake text');
   assert(!serviceSource.includes('const defaultHandoverItems') && !legacyCompatSource.includes('const defaultHandoverItems'), 'FIT services should not duplicate default handover constants');
   assert(!serviceSource.includes('const defaultSurveyQuestions') && !legacyCompatSource.includes('const defaultSurveyQuestions'), 'FIT services should not duplicate default survey constants');
   assert(serviceSource.includes('FIT_DEFAULT_SURVEY_QUESTIONS'), 'FIT service should import shared default survey questions');
   assert(legacyCompatSource.includes('FIT_DEFAULT_HANDOVER_ITEMS') && legacyCompatSource.includes('FIT_DEFAULT_SURVEY_QUESTIONS'), 'FIT legacy compatibility should import shared defaults');
-  assert(!legacyCompatSource.includes('Ti liu bn giao') && legacyCompatSource.includes('Tài liệu bàn giao'), 'FIT legacy handover fallback should keep Vietnamese text');
-  assert(!legacyCompatSource.includes('Cu hi') && legacyCompatSource.includes('Câu hỏi'), 'FIT legacy survey fallback should keep Vietnamese text');
+  assert(!legacyCompatSource.includes('Ti liu bn giao') && legacyCompatSource.includes('T\u00e0i li\u1ec7u b\u00e0n giao'), 'FIT legacy handover fallback should keep Vietnamese text');
+  assert(!legacyCompatSource.includes('Cu hi') && legacyCompatSource.includes('C\u00e2u h\u1ecfi'), 'FIT legacy survey fallback should keep Vietnamese text');
   assert(!defaultsSource.includes('V my bay'), 'FIT default handover items should keep Vietnamese accents');
-  assert(defaultsSource.includes('Vé máy bay'), 'FIT default handover items should include Vietnamese text');
-  assert(defaultsSource.includes('Chất lượng chương trình tour'), 'FIT default survey questions should include Vietnamese text');
+  assert(defaultsSource.includes('V\u00e9 m\u00e1y bay'), 'FIT default handover items should include Vietnamese text');
+  assert(defaultsSource.includes('Ch\u1ea5t l\u01b0\u1ee3ng ch\u01b0\u01a1ng tr\u00ecnh tour'), 'FIT default survey questions should include Vietnamese text');
   for (const mojibake of ['Dch v', 'Khch sn', 'Dich vu', 'Bc workflow ca file']) {
     assert(!legacyCompatSource.includes(mojibake), `FIT legacy compatibility should not contain mojibake/fallback text ${mojibake}`);
   }
-  assert(legacyCompatSource.includes('Dịch vụ') && legacyCompatSource.includes('Khách sạn'), 'FIT legacy compatibility should keep Vietnamese fallback service labels');
+  assert(legacyCompatSource.includes('D\u1ecbch v\u1ee5') && legacyCompatSource.includes('Kh\u00e1ch s\u1ea1n'), 'FIT legacy compatibility should keep Vietnamese fallback service labels');
   for (const mojibake of ['M bo gi', 'H tn khch', 'S khch phi ln hn 0', 'Ngy v phi sau', 'Tour FIT mi', 'Khng th i', 'C?n nh?p', 'ch?a li?n', 'Ch c hon', 'Khng c chuyn', 'cn t nht', 'phi l s', 'khng c m', 'Trng thi workflow FIT', 'Bc workflow ca file']) {
     assert(!serviceSource.includes(mojibake), `FIT service should not contain mojibake validation message ${mojibake}`);
   }

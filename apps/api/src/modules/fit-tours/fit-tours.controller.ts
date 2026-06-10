@@ -5,6 +5,7 @@ import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
+import { FitTourAttachmentUploadDto, FitTourCopySourceDto, FitTourExportDto } from './dto/fit-tour-action.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitToursService } from './fit-tours.service';
 
@@ -29,8 +30,8 @@ export class FitToursController {
   @RequirePermissions('tour.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
-  export(@Body('id') id: string, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.exportCsv(id, request?.user);
+  export(@Body() dto: FitTourExportDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.exportCsv(dto.id, request?.user);
   }
 
   @Get(':id/export')
@@ -64,11 +65,11 @@ export class FitToursController {
   @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   uploadAttachment(
     @Param('id') id: string,
-    @Body('step') step: string | undefined,
+    @Body() dto: FitTourAttachmentUploadDto = {},
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request?: { user?: RequestUser },
   ) {
-    return this.fitToursService.uploadAttachment(id, step, file, request?.user);
+    return this.fitToursService.uploadAttachment(id, dto.step, file, request?.user);
   }
 
   @Post(':id/steps/:step/confirm')
@@ -97,13 +98,13 @@ export class FitToursController {
 
   @Post(':id/copy-budget')
   @RequirePermissions('tour.manage')
-  copyBudget(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.copyBudget(id, sourceTourId, request?.user);
+  copyBudget(@Param('id') id: string, @Body() dto: FitTourCopySourceDto = {}, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.copyBudget(id, dto.sourceTourId, request?.user);
   }
 
   @Post(':id/copy-operation')
   @RequirePermissions('tour.manage')
-  copyOperation(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.copyOperation(id, sourceTourId, request?.user);
+  copyOperation(@Param('id') id: string, @Body() dto: FitTourCopySourceDto = {}, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.copyOperation(id, dto.sourceTourId, request?.user);
   }
 }

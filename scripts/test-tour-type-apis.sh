@@ -76,6 +76,11 @@ function assertTourTypeDtoContracts() {
   assert(gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('itinerarySummary'), 'GIT itinerarySummary should remain a GIT detail field');
   assert(gitCreateDtoContract.GIT_TOUR_LINK_AND_CUSTOMER_FIELDS.includes('agentName'), 'GIT agentName should be grouped with linked/customer data');
   assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes('agentName'), 'GIT agentName should not be classified as a pure detail field');
+  assert(JSON.stringify(gitCreateDtoContract.GIT_TOUR_REQUIRED_CREATE_FIELDS) === JSON.stringify(['systemCode', 'tourCode', 'name']), 'GIT required create fields should be explicit and module-specific');
+  assert(gitCreateDtoContract.GIT_TOUR_ACTION_FIELDS.includes('sourceTourId'), 'GIT action fields should include copy-service sourceTourId');
+  for (const field of gitCreateDtoContract.GIT_TOUR_ACTION_FIELDS) {
+    assert(!gitCreateDtoContract.GIT_TOUR_CREATE_FIELDS.includes(field), `GIT action field ${field} should not be part of create/update aggregate fields`);
+  }
   assert(gitCreateDtoContract.GIT_TOUR_LIFECYCLE_FIELDS.includes('status'), 'GIT status should be grouped as lifecycle status');
   assert(!gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('status'), 'GIT workflow fields should not include lifecycle status');
   assert(gitCreateDtoContract.GIT_TOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'GIT workflowStep should be grouped as workflow');
@@ -108,6 +113,11 @@ function assertTourTypeDtoContracts() {
   assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('guideName'), 'LandTour guideName should not be classified as detail data');
   assert(landCreateDtoContract.LANDTOUR_CHILD_FIELDS.includes('termsVi') && landCreateDtoContract.LANDTOUR_CHILD_FIELDS.includes('termsEn'), 'LandTour terms should be grouped with common TourTerm child data');
   assert(!landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('termsVi') && !landCreateDtoContract.LANDTOUR_DETAIL_FIELDS.includes('termsEn'), 'LandTour terms should not be classified as detail data');
+  assert(JSON.stringify(landCreateDtoContract.LANDTOUR_REQUIRED_CREATE_FIELDS) === JSON.stringify(['systemCode', 'tourCode', 'name']), 'LandTour required create fields should be explicit and module-specific');
+  assert(landCreateDtoContract.LANDTOUR_ACTION_FIELDS.includes('sourceTourId'), 'LandTour action fields should include copy-service sourceTourId');
+  for (const field of landCreateDtoContract.LANDTOUR_ACTION_FIELDS) {
+    assert(!landCreateDtoContract.LANDTOUR_CREATE_FIELDS.includes(field), `LandTour action field ${field} should not be part of create/update aggregate fields`);
+  }
   assert(landCreateDtoContract.LANDTOUR_LIFECYCLE_FIELDS.includes('status'), 'LandTour status should be grouped as lifecycle status');
   assert(!landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('status'), 'LandTour workflow fields should not include lifecycle status');
   assert(landCreateDtoContract.LANDTOUR_WORKFLOW_FIELDS.includes('workflowStep'), 'LandTour workflowStep should be grouped as workflow');
@@ -135,8 +145,14 @@ function assertCommonToursServiceUsesTourCore() {
   assert(coreSource.includes('async copyServices'), 'TourCoreService should own common service copy orchestration');
   assert(coreSource.includes('cloneServicesForCopy'), 'TourCoreService should keep service clone mapping behind the copy boundary');
   assert(coreSource.includes('replaceServicesAndSuppliers'), 'TourCoreService.copyServices should refresh services and derived suppliers together');
+  assert(coreSource.includes('async logAction') && coreSource.includes('module: options.module') && coreSource.includes('entityId: options.entityId || tourId'), 'TourCoreService should own standardized Tour log metadata formatting');
+  assert(coreSource.includes("logAction(tx, tourId, 'DELETE_TOUR'") || coreSource.includes("logAction(tx, tourId, 'DELETE_TOUR'"), 'TourCoreService.softDelete should log through standardized logAction');
+  assert(coreSource.includes('private hasChanges') && coreSource.includes('private async replaceRows'), 'TourCoreService should centralize common child sync as hasChanges -> deleteMany -> createMany');
+  const replaceCommonChildrenBlock = coreSource.slice(coreSource.indexOf('async replaceCommonChildren'), coreSource.indexOf('async replaceRevenues'));
+  assert(replaceCommonChildrenBlock.includes('hasChanges'), 'TourCoreService.replaceCommonChildren should use hasChanges before replacing child groups');
+  assert(!replaceCommonChildrenBlock.includes('.deleteMany') && !replaceCommonChildrenBlock.includes('.createMany'), 'TourCoreService.replaceCommonChildren should not inline deleteMany/createMany');
   assert(!coreSource.includes('Kh?ng t?m th?y'), 'TourCoreService should not contain mojibake Vietnamese messages');
-  assert(coreSource.includes('Không tìm thấy tour nguồn'), 'TourCoreService should keep copy source error message in Vietnamese');
+  assert(coreSource.includes('Kh\u00f4ng t\u00ecm th\u1ea5y tour ngu\u1ed3n'), 'TourCoreService should keep copy source error message in Vietnamese');
   assert(!/private\s+toTourData\s*\(/.test(source), 'Common ToursService should not keep a duplicate private toTourData mapper');
   assert(!/private\s+optionalDate\s*\(/.test(source), 'Common ToursService should not keep a private date parser');
   assert(!/private\s+requiredText\s*\(/.test(source), 'Common ToursService should not keep duplicate root requiredText validation');
@@ -150,11 +166,25 @@ function assertTourRootOrchestrationBoundaries() {
     ['GIT', '/workspace/apps/api/src/modules/git-tours/git-tours.service.ts'],
     ['LandTour', '/workspace/apps/api/src/modules/landtours/landtours.service.ts'],
   ];
+  const actionDtoChecks = [
+    ['GIT', '/workspace/apps/api/src/modules/git-tours/git-tours.controller.ts', '/workspace/apps/api/src/modules/git-tours/dto/git-tour-action.dto.ts', 'GitTourCopyServicesDto'],
+    ['LandTour', '/workspace/apps/api/src/modules/landtours/landtours.controller.ts', '/workspace/apps/api/src/modules/landtours/dto/landtour-action.dto.ts', 'LandTourCopyServicesDto'],
+  ];
+  for (const [label, controllerFile, dtoFile, dtoName] of actionDtoChecks) {
+    const controllerSource = fs.readFileSync(controllerFile, 'utf8');
+    const actionDtoSource = fs.readFileSync(dtoFile, 'utf8');
+    assert(controllerSource.includes(dtoName), `${label} copy-services action should use a focused action DTO`);
+    assert(actionDtoSource.includes(`class ${dtoName}`) && actionDtoSource.includes('sourceTourId'), `${label} focused action DTO should own sourceTourId`);
+  }
   for (const [label, file] of services) {
     const source = fs.readFileSync(file, 'utf8');
     assert(source.includes('tourCore.createRoot'), `${label} should create common Tour root through TourCoreService.createRoot`);
     assert(source.includes('tourCore.updateRoot'), `${label} should update common Tour root through TourCoreService.updateRoot`);
     assert(source.includes('tourCore.copyServicesFromTour'), `${label} copyServices should delegate source lookup and copy orchestration to TourCoreService.copyServicesFromTour`);
+    assert(source.includes('private mapTourCustomers') && source.includes('private mapTourServices'), `${label} should keep child mapping in focused helpers`);
+    assert(source.includes('logAction') && source.includes(label === 'GIT' ? 'logGitTourAction' : 'logLandTourAction'), `${label} should log create/update/copy through standardized TourCoreService.logAction`);
+    assert(source.includes(label === 'GIT' ? 'COPY_GIT_SERVICES' : 'COPY_LANDTOUR_SERVICES'), `${label} copyServices should write a copy action log`);
+    assert(source.includes('tourCore.softDelete') && !/tx\.(gitTourDetail|landTourDetail)\.delete/.test(source), `${label} remove should soft-delete the common Tour owner and not delete detail directly`);
     assert(!source.includes('tourCore.copyServices(tx'), `${label} copyServices should not call the lower-level copy helper directly from module service`);
     assert(!source.includes('tourCore.cloneServicesForCopy'), `${label} copyServices should not call the clone helper directly from module service`);
     assert(!source.includes('tourCore.replaceServicesAndSuppliers(tx, targetTourId'), `${label} copyServices should not refresh target services directly from module service`);
@@ -168,6 +198,9 @@ function assertTourRootOrchestrationBoundaries() {
     assert(!/tx\.tour\.create\s*\(/.test(source), `${label} should not create Tour root directly in module service`);
     assert(!/tx\.tour\.update\s*\(/.test(source), `${label} should not update Tour root directly in module service`);
     assert(!/source\.services\.map\(\(service\)/.test(source), `${label} should not inline common TourService copy mapping`);
+    const replaceChildrenBlock = source.slice(source.indexOf('private async replaceChildren'), source.indexOf('private mapTourCustomers'));
+    assert(replaceChildrenBlock.includes('mapTourCustomers') && replaceChildrenBlock.includes('mapTourServices'), `${label} replaceChildren should call focused child mappers`);
+    assert(!replaceChildrenBlock.includes('...this.tourCore.mapBudgetServices') && !replaceChildrenBlock.includes('...this.tourCore.mapSalesServices'), `${label} replaceChildren should not inline service child mapping`);
     const detailMapperName = label === 'GIT' ? 'private toGitDetailData' : 'private toLandDetailData';
     const detailMapperStart = source.indexOf(detailMapperName);
     assert(detailMapperStart >= 0, `${label} should keep a detail mapper boundary`);
@@ -193,10 +226,13 @@ function assertTourRootOrchestrationBoundaries() {
   assert(schemaSource.includes('Canonical value is TourTerm where language is VI') && schemaSource.includes('Canonical value is TourTerm where language is EN'), 'LandTourDetail legacy term schema notes should point to TourTerm');
   const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
   assert(migrationNotes.includes('Field Ownership Matrix'), 'Tour migration notes should document the field ownership matrix');
+  assert(migrationNotes.includes('Legacy Table Decisions') && migrationNotes.includes('FE/BE Mapping'), 'Tour migration notes should document legacy table decommission decisions and FE/BE mapping');
   assert(migrationNotes.includes('git_tour_details.agentName'), 'Tour migration notes should mark legacy GIT agent snapshot read-only');
   assert(migrationNotes.includes('git_tour_details.branch'), 'Tour migration notes should mark legacy GIT scope snapshots read-only');
   assert(migrationNotes.includes('land_tour_details.guideName'), 'Tour migration notes should mark legacy LandTour guide snapshot read-only');
   assert(migrationNotes.includes('land_tour_details.termsVi') && migrationNotes.includes('land_tour_details.termsEn'), 'Tour migration notes should mark legacy LandTour term snapshots read-only');
+  assert(migrationNotes.includes('Already read-only at application level'), 'Tour migration notes should identify legacy GIT/LandTour snapshot fields that are already read-only');
+  assert(migrationNotes.includes('GIT agent/customer') && migrationNotes.includes('LandTour terms'), 'Tour migration notes should keep FE/BE mapping for GIT and LandTour response aliases');
 }
 
 async function jsonResponse(response) {

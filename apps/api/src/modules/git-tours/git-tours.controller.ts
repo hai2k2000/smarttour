@@ -4,6 +4,7 @@ import { TourStatus } from '@prisma/client';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
+import { GitTourCopyServicesDto } from './dto/git-tour-action.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 import { GitToursService } from './git-tours.service';
 
@@ -49,7 +50,7 @@ export class GitToursController {
 
   @Post(':id/copy-services')
   @RequirePermissions('tour.manage')
-  copyServices(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
-    return this.gitToursService.copyServices(id, sourceTourId, request?.user);
+  copyServices(@Param('id') id: string, @Body() dto: GitTourCopyServicesDto = {}, @Req() request?: { user?: RequestUser }) {
+    return this.gitToursService.copyServices(id, dto.sourceTourId, request?.user);
   }
 }

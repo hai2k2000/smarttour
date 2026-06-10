@@ -76,7 +76,7 @@ export class GitToursService {
           data: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.GitTourDetailUncheckedCreateInput,
         });
         await this.replaceChildren(tx, created.id, dto, true);
-        await this.tourCore.log(tx, created.id, 'CREATE_GIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system' });
+        await this.logGitTourAction(tx, created.id, 'CREATE_GIT_TOUR', user);
         return created;
       });
       return this.detail(tour.id, user);
@@ -100,7 +100,7 @@ export class GitToursService {
           update: this.toGitDetailData(dto) as Prisma.GitTourDetailUncheckedUpdateInput,
         });
         await this.replaceChildren(tx, id, dto);
-        await this.tourCore.log(tx, id, 'UPDATE_GIT_TOUR', { actor: user?.username || user?.email || user?.id || 'system' });
+        await this.logGitTourAction(tx, id, 'UPDATE_GIT_TOUR', user);
       });
       return this.detail(id, user);
     } catch (error) {
@@ -118,28 +118,44 @@ export class GitToursService {
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    await this.prisma.$transaction((tx) => this.tourCore.copyServicesFromTour(tx, targetTourId, sourceTourId || targetTourId, TourType.GIT, 'GIT_SERVICE', user));
+    const sourceId = sourceTourId || targetTourId;
+    await this.prisma.$transaction(async (tx) => {
+      await this.tourCore.copyServicesFromTour(tx, targetTourId, sourceId, TourType.GIT, 'GIT_SERVICE', user);
+      await this.logGitTourAction(tx, targetTourId, 'COPY_GIT_SERVICES', user, { sourceTourId: sourceId, targetTourId });
+    });
     return this.detail(targetTourId, user);
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateGitTourDto, creating = false) {
     const children: TourCommonChildren = {};
     if (creating || dto.customerName !== undefined || dto.agentName !== undefined) {
-      const customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang GIT')];
-      const agent = this.tourCore.agentCustomer(dto as unknown as Row);
-      if (agent) customers.push(agent);
-      children.customers = customers;
+      children.customers = this.mapTourCustomers(dto);
     }
     if (creating || dto.revenues !== undefined) children.revenues = this.tourCore.mapRevenues(dto.revenues);
     if (creating || dto.costs !== undefined) children.costs = this.tourCore.mapCosts(dto.costs, 'GIT_COST');
     if (creating || dto.budgetServices !== undefined || dto.operationServices !== undefined) {
-      children.services = [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      children.services = this.mapTourServices(dto);
       children.serviceSupplierRole = 'GIT_SERVICE';
     }
     if (creating || dto.guides !== undefined) children.guides = this.tourCore.mapGuides(dto.guides);
     if (creating || dto.attachments !== undefined) children.attachments = this.tourCore.mapAttachments(dto.attachments);
     if (creating || dto.surveyQuestions !== undefined) children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions);
     await this.tourCore.replaceCommonChildren(tx, tourId, children);
+  }
+
+  private mapTourCustomers(dto: UpdateGitTourDto): Prisma.TourCustomerCreateManyInput[] {
+    const customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang GIT')];
+    const agent = this.tourCore.agentCustomer(dto as unknown as Row);
+    if (agent) customers.push(agent);
+    return customers;
+  }
+
+  private mapTourServices(dto: UpdateGitTourDto): Prisma.TourServiceCreateManyInput[] {
+    return [...this.tourCore.mapBudgetServices(dto.budgetServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+  }
+
+  private async logGitTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user?: RequestUser, metadata: Row = {}) {
+    await this.tourCore.logAction(tx, tourId, action, { user, module: 'git-tours', metadata });
   }
 
   private tourConfig(): TourRootConfig {

@@ -250,6 +250,16 @@ export const LANDTOUR_CHILD_FIELDS = [
   'surveyQuestions',
 ] as const satisfies readonly (keyof CreateLandTourDto)[];
 
+export const LANDTOUR_REQUIRED_CREATE_FIELDS = [
+  'systemCode',
+  'tourCode',
+  'name',
+] as const satisfies readonly (keyof CreateLandTourDto)[];
+
+export const LANDTOUR_ACTION_FIELDS = [
+  'sourceTourId',
+] as const;
+
 export const LANDTOUR_CREATE_FIELDS = [
   ...LANDTOUR_ROOT_FIELDS,
   ...LANDTOUR_LIFECYCLE_FIELDS,

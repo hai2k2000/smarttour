@@ -76,7 +76,7 @@ export class LandToursService {
           data: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.LandTourDetailUncheckedCreateInput,
         });
         await this.replaceChildren(tx, created.id, dto, true);
-        await this.tourCore.log(tx, created.id, 'CREATE_LANDTOUR', { actor: user?.username || user?.email || user?.id || 'system' });
+        await this.logLandTourAction(tx, created.id, 'CREATE_LANDTOUR', user);
         return created;
       });
       return this.detail(tour.id, user);
@@ -100,7 +100,7 @@ export class LandToursService {
           update: this.toLandDetailData(dto) as Prisma.LandTourDetailUncheckedUpdateInput,
         });
         await this.replaceChildren(tx, id, dto);
-        await this.tourCore.log(tx, id, 'UPDATE_LANDTOUR', { actor: user?.username || user?.email || user?.id || 'system' });
+        await this.logLandTourAction(tx, id, 'UPDATE_LANDTOUR', user);
       });
       return this.detail(id, user);
     } catch (error) {
@@ -118,17 +118,21 @@ export class LandToursService {
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
     await this.detail(targetTourId, user);
-    await this.prisma.$transaction((tx) => this.tourCore.copyServicesFromTour(tx, targetTourId, sourceTourId || targetTourId, TourType.LANDTOUR, 'LANDTOUR_SERVICE', user));
+    const sourceId = sourceTourId || targetTourId;
+    await this.prisma.$transaction(async (tx) => {
+      await this.tourCore.copyServicesFromTour(tx, targetTourId, sourceId, TourType.LANDTOUR, 'LANDTOUR_SERVICE', user);
+      await this.logLandTourAction(tx, targetTourId, 'COPY_LANDTOUR_SERVICES', user, { sourceTourId: sourceId, targetTourId });
+    });
     return this.detail(targetTourId, user);
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, tourId: string, dto: UpdateLandTourDto, creating = false) {
     const children: TourCommonChildren = {};
-    if (creating || dto.customerName !== undefined) children.customers = [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang landtour')];
+    if (creating || dto.customerName !== undefined) children.customers = this.mapTourCustomers(dto);
     if (creating || dto.revenues !== undefined) children.revenues = this.tourCore.mapRevenues(dto.revenues);
     if (creating || dto.costs !== undefined) children.costs = this.tourCore.mapCosts(dto.costs, 'LANDTOUR_COST');
     if (creating || dto.salesServices !== undefined || dto.operationServices !== undefined) {
-      children.services = [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+      children.services = this.mapTourServices(dto);
       children.serviceSupplierRole = 'LANDTOUR_SERVICE';
     }
     if (creating || dto.guideName !== undefined || dto.guides !== undefined) children.guides = this.mapTourGuides(dto);
@@ -136,6 +140,18 @@ export class LandToursService {
     if (creating || dto.surveyQuestions !== undefined) children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions);
     if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) children.terms = this.mapTerms(dto);
     await this.tourCore.replaceCommonChildren(tx, tourId, children);
+  }
+
+  private mapTourCustomers(dto: UpdateLandTourDto): Prisma.TourCustomerCreateManyInput[] {
+    return [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang landtour')];
+  }
+
+  private mapTourServices(dto: UpdateLandTourDto): Prisma.TourServiceCreateManyInput[] {
+    return [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+  }
+
+  private async logLandTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user?: RequestUser, metadata: Row = {}) {
+    await this.tourCore.logAction(tx, tourId, action, { user, module: 'landtours', metadata });
   }
 
   private tourConfig(): TourRootConfig {

@@ -427,7 +427,7 @@ export class FitToursService {
   }
 
   private async logFitTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user: RequestUser | undefined, metadata: Row) {
-    await this.tourCore.log(tx, tourId, action, { actor: this.actor(user), ...metadata });
+    await this.tourCore.logAction(tx, tourId, action, { user, module: 'fit-tours', metadata });
   }
 
   private actor(user?: RequestUser) {

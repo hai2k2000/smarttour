@@ -111,7 +111,7 @@ export class ToursService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const created = await this.tourCore.createRoot(tx, dto as unknown as Record<string, unknown>, { type: dto.type }, user);
-        await this.tourCore.log(tx, created.id, 'CREATE_TOUR', { actor: this.actor(user), type: dto.type });
+        await this.tourCore.logAction(tx, created.id, 'CREATE_TOUR', { user, module: 'tours', metadata: { type: dto.type } });
         return tx.tour.findUniqueOrThrow({ where: { id: created.id }, include: tourInclude });
       });
     } catch (error) {
@@ -128,7 +128,7 @@ export class ToursService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.tourCore.updateRoot(tx, id, dto as Record<string, unknown>, { type: current.type }, user);
-        await this.tourCore.log(tx, id, 'UPDATE_TOUR', { actor: this.actor(user) });
+        await this.tourCore.logAction(tx, id, 'UPDATE_TOUR', { user, module: 'tours' });
         return tx.tour.findUniqueOrThrow({ where: { id }, include: tourInclude });
       });
     } catch (error) {

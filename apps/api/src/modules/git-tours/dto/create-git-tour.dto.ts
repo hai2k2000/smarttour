@@ -249,6 +249,16 @@ export const GIT_TOUR_CHILD_FIELDS = [
   'surveyQuestions',
 ] as const satisfies readonly (keyof CreateGitTourDto)[];
 
+export const GIT_TOUR_REQUIRED_CREATE_FIELDS = [
+  'systemCode',
+  'tourCode',
+  'name',
+] as const satisfies readonly (keyof CreateGitTourDto)[];
+
+export const GIT_TOUR_ACTION_FIELDS = [
+  'sourceTourId',
+] as const;
+
 export const GIT_TOUR_CREATE_FIELDS = [
   ...GIT_TOUR_ROOT_FIELDS,
   ...GIT_TOUR_LIFECYCLE_FIELDS,

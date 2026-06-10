@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
+import { LandTourCopyServicesDto } from './dto/landtour-action.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 import { LandToursService } from './landtours.service';
 
@@ -48,7 +49,7 @@ export class LandToursController {
 
   @Post(':id/copy-services')
   @RequirePermissions('tour.manage')
-  copyServices(@Param('id') id: string, @Body('sourceTourId') sourceTourId: string | undefined, @Req() request?: { user?: RequestUser }) {
-    return this.landToursService.copyServices(id, sourceTourId, request?.user);
+  copyServices(@Param('id') id: string, @Body() dto: LandTourCopyServicesDto = {}, @Req() request?: { user?: RequestUser }) {
+    return this.landToursService.copyServices(id, dto.sourceTourId, request?.user);
   }
 }

@@ -2,6 +2,66 @@
 
 ## Done
 
+- Packaged Step 1/4 Tour schema cleanup for commit:
+  - Re-verified the accumulated schema/DTO/sync/log/legacy-docs changes for
+    FIT, GIT, LandTour, and common Tour core.
+  - Verified on VPS: `git diff --check`, API Docker build via focused
+    regressions, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, and `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
+- Continued legacy decommission and FE/BE mapping lock:
+  - FIT legacy child models now carry schema comments identifying snapshot
+    ownership and canonical common tables, while `fit_handover_items` remains
+    explicitly FIT-owned until a common handover table exists.
+  - `docs/tour-migration-notes.md` now documents legacy table decisions,
+    read-only status, decommission timing, and FE/BE mapping for FIT, GIT, and
+    LandTour response surfaces.
+  - Regression guards verify the schema comments and docs sections stay in
+    place.
+
+- Continued Step 4 log and flow normalization:
+  - `TourCoreService.logAction()` now owns the common log metadata format.
+  - Common Tour, FIT, GIT, and LandTour create/update/copy/upload/remove/close
+    flows use the standardized logging path; GIT/LandTour copy-services now
+    write copy action logs.
+  - Copy flows stay focused on the target child groups instead of reusing full
+    update aggregates, and remove flows soft-delete the common Tour owner
+    rather than hard-deleting product detail rows.
+  - Verified on VPS: `git diff --check`, API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_TOUR_TYPE_APIS_OK`.
+
+- Continued Step 1 child sync/map/copy cleanup:
+  - Common Tour child replacement now uses a shared `TourCoreService`
+    `hasChanges()` / `replaceRows()` pattern.
+  - FIT legacy child sync now uses a matching `hasChanges()` /
+    `replaceFitChildren()` helper instead of inline per-table delete/create
+    blocks.
+  - GIT and LandTour child row mapping for customers/services is split into
+    focused helpers, and copy-service actions remain behind
+    `TourCoreService.copyServicesFromTour()`.
+  - Verified on VPS: `git diff --check`, API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_TOUR_TYPE_APIS_OK`.
+
+- Continued Step 1 DTO contract cleanup:
+  - FIT, GIT, and LandTour DTOs now expose explicit required create field
+    constants alongside root/link/workflow/detail/child grouping constants.
+  - Added focused action DTOs for export/copy/upload helper routes so action
+    payload fields do not live in the create/update aggregate surface.
+  - Regression guards now verify required fields, action field separation, and
+    controller action DTO usage.
+  - Verified on VPS: `git diff --check`, API Docker build,
+    `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, and `TEST_TOUR_TYPE_APIS_OK`.
+
+- Continued Step 1 common tour schema lock:
+  - Added a locked common schema section to `docs/tour-migration-notes.md` for
+    the shared `Tour` root fields used by FIT, GIT, and LandTour.
+  - Classified product detail-only fields versus compatibility aliases and
+    legacy snapshots for FIT, GIT, and LandTour.
+  - Chốt common child ownership for `tourCustomer`, `tourService`,
+    `tourRevenue`, `tourCost`, `tourGuide`, `tourTerm`, `tourAttachment`,
+    `tourSurvey`, and `tourLog`, with FIT handover/survey-description gaps
+    called out for the next cleanup pass.
+
 - Continued P2 FIT linked-customer data-scope cleanup:
   - FIT `customerId` links are now checked with branch/department data scope
     before snapshot/connect, matching the scoped-link behavior already used by

@@ -2384,6 +2384,7 @@ model FitTour {
   @@index([orderId])
 }
 
+/// Legacy compatibility snapshot for FIT pricing common cost rows. Canonical value is TourCost; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitCommonCost {
   id           String  @id @default(uuid())
   fitTourId    String
@@ -2402,6 +2403,7 @@ model FitCommonCost {
   notes        String?
 }
 
+/// Legacy compatibility snapshot for FIT hotel cost rows. Canonical value is TourCost; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitHotelCost {
   id           String  @id @default(uuid())
   fitTourId    String
@@ -2420,6 +2422,7 @@ model FitHotelCost {
   notes        String?
 }
 
+/// Legacy compatibility snapshot for FIT private cost rows. Canonical value is TourCost; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitPrivateCost {
   id           String  @id @default(uuid())
   fitTourId    String
@@ -2438,6 +2441,7 @@ model FitPrivateCost {
   notes        String?
 }
 
+/// Legacy compatibility snapshot for FIT budget service rows. Canonical value is TourService where budget fields are populated; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitBudgetService {
   id          String    @id @default(uuid())
   fitTourId   String
@@ -2453,6 +2457,7 @@ model FitBudgetService {
   notes       String?
 }
 
+/// Legacy compatibility snapshot for FIT operation service rows. Canonical value is TourService where confirmed/operation fields are populated; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitOperationService {
   id                 String           @id @default(uuid())
   fitTourId          String
@@ -2473,6 +2478,7 @@ model FitOperationService {
   @@index([supplierServiceId])
 }
 
+/// Legacy compatibility snapshot for FIT guide rows. Canonical value is TourGuide; application services should write this only through FitTourLegacyCompatService during the compatibility phase.
 model FitTourGuide {
   id        String  @id @default(uuid())
   fitTourId String
@@ -2484,6 +2490,7 @@ model FitTourGuide {
   notes     String?
 }
 
+/// FIT-only handover rows. Keep writable until a common Tour handover child table exists; do not map this to unrelated common child tables.
 model FitHandoverItem {
   id        String  @id @default(uuid())
   fitTourId String
@@ -2494,6 +2501,7 @@ model FitHandoverItem {
   notes     String?
 }
 
+/// Legacy compatibility snapshot for FIT survey question rows. Canonical value is TourSurvey for question rows; FitTour.surveyDescription remains FIT detail-only until a common survey description field exists.
 model FitSurveyQuestion {
   id        String  @id @default(uuid())
   fitTourId String
@@ -2503,6 +2511,7 @@ model FitSurveyQuestion {
   notes     String?
 }
 
+/// Legacy compatibility snapshot for FIT uploaded file metadata. Canonical value is TourAttachment; upload endpoint may append this snapshot for compatibility, while autosave/update must not own attachments.
 model FitAttachment {
   id        String   @id @default(uuid())
   fitTourId String

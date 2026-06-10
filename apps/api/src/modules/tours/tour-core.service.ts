@@ -4,6 +4,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 
 type AnyRecord = Record<string, unknown>;
+type TourChildDelegate<T extends AnyRecord> = {
+  deleteMany(args: { where: { tourId: string } }): Promise<unknown>;
+  createMany(args: { data: T[] }): Promise<unknown>;
+};
 
 export type TourRootConfig = {
   type: TourType;
@@ -145,7 +149,7 @@ export class TourCoreService {
       where: { id: tourId },
       data: { status: TourStatus.CANCELLED, deletedAt: new Date() },
     });
-    await this.log(tx, tourId, 'DELETE_TOUR', { actor, reason, status: TourStatus.CANCELLED });
+    await this.logAction(tx, tourId, 'DELETE_TOUR', { actor, metadata: { reason, status: TourStatus.CANCELLED } });
     return tour;
   }
 
@@ -154,7 +158,7 @@ export class TourCoreService {
       where: { id: tourId },
       data: { status: TourStatus.COMPLETED, closedAt: new Date(), closedBy: actor || null },
     });
-    await this.log(tx, tourId, 'CLOSE_TOUR', { actor, note, status: TourStatus.COMPLETED });
+    await this.logAction(tx, tourId, 'CLOSE_TOUR', { actor, metadata: { note, status: TourStatus.COMPLETED } });
     return tour;
   }
 
@@ -162,19 +166,37 @@ export class TourCoreService {
     await tx.tourLog.create({ data: { tourId, action, entity: 'Tour', metadata: metadata as Prisma.InputJsonValue } });
   }
 
+  async logAction(
+    tx: Prisma.TransactionClient,
+    tourId: string,
+    action: string,
+    options: { user?: RequestUser; actor?: string; module?: string; entity?: string; entityId?: string; metadata?: AnyRecord } = {},
+  ) {
+    const actor = options.actor || this.actor(options.user);
+    await this.log(tx, tourId, action, {
+      actor,
+      action,
+      module: options.module || null,
+      entity: options.entity || 'Tour',
+      entityId: options.entityId || tourId,
+      ...(options.metadata || {}),
+    });
+  }
+
+  actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
+  }
+
   async replaceCustomers(tx: Prisma.TransactionClient, tourId: string, customers: Prisma.TourCustomerCreateManyInput[]) {
-    await tx.tourCustomer.deleteMany({ where: { tourId } });
-    if (customers.length) await tx.tourCustomer.createMany({ data: customers.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourCustomer, tourId, customers);
   }
 
   async replaceSuppliers(tx: Prisma.TransactionClient, tourId: string, suppliers: Prisma.TourSupplierCreateManyInput[]) {
-    await tx.tourSupplier.deleteMany({ where: { tourId } });
-    if (suppliers.length) await tx.tourSupplier.createMany({ data: suppliers.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourSupplier, tourId, suppliers);
   }
 
   async replaceServices(tx: Prisma.TransactionClient, tourId: string, services: Prisma.TourServiceCreateManyInput[]) {
-    await tx.tourService.deleteMany({ where: { tourId } });
-    if (services.length) await tx.tourService.createMany({ data: services.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourService, tourId, services);
   }
 
   async replaceServicesAndSuppliers(tx: Prisma.TransactionClient, tourId: string, services: Prisma.TourServiceCreateManyInput[], supplierRole = 'SERVICE') {
@@ -184,38 +206,34 @@ export class TourCoreService {
 
 
   async replaceCommonChildren(tx: Prisma.TransactionClient, tourId: string, children: TourCommonChildren) {
-    if (children.customers !== undefined) await this.replaceCustomers(tx, tourId, children.customers);
-    if (children.revenues !== undefined) await this.replaceRevenues(tx, tourId, children.revenues);
-    if (children.costs !== undefined) await this.replaceCosts(tx, tourId, children.costs);
-    if (children.services !== undefined) {
+    if (this.hasChanges(children, 'customers')) await this.replaceCustomers(tx, tourId, children.customers);
+    if (this.hasChanges(children, 'revenues')) await this.replaceRevenues(tx, tourId, children.revenues);
+    if (this.hasChanges(children, 'costs')) await this.replaceCosts(tx, tourId, children.costs);
+    if (this.hasChanges(children, 'services')) {
       await this.replaceServicesAndSuppliers(tx, tourId, children.services, children.serviceSupplierRole);
-    } else if (children.suppliers !== undefined) {
+    } else if (this.hasChanges(children, 'suppliers')) {
       await this.replaceSuppliers(tx, tourId, children.suppliers);
     }
-    if (children.guides !== undefined) await this.replaceGuides(tx, tourId, children.guides);
-    if (children.attachments !== undefined) await this.replaceAttachments(tx, tourId, children.attachments);
-    if (children.surveys !== undefined) await this.replaceSurveys(tx, tourId, children.surveys);
-    if (children.terms !== undefined) await this.replaceTerms(tx, tourId, children.terms);
+    if (this.hasChanges(children, 'guides')) await this.replaceGuides(tx, tourId, children.guides);
+    if (this.hasChanges(children, 'attachments')) await this.replaceAttachments(tx, tourId, children.attachments);
+    if (this.hasChanges(children, 'surveys')) await this.replaceSurveys(tx, tourId, children.surveys);
+    if (this.hasChanges(children, 'terms')) await this.replaceTerms(tx, tourId, children.terms);
   }
 
   async replaceRevenues(tx: Prisma.TransactionClient, tourId: string, revenues: Prisma.TourRevenueCreateManyInput[]) {
-    await tx.tourRevenue.deleteMany({ where: { tourId } });
-    if (revenues.length) await tx.tourRevenue.createMany({ data: revenues.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourRevenue, tourId, revenues);
   }
 
   async replaceCosts(tx: Prisma.TransactionClient, tourId: string, costs: Prisma.TourCostCreateManyInput[]) {
-    await tx.tourCost.deleteMany({ where: { tourId } });
-    if (costs.length) await tx.tourCost.createMany({ data: costs.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourCost, tourId, costs);
   }
 
   async replaceGuides(tx: Prisma.TransactionClient, tourId: string, guides: Prisma.TourGuideCreateManyInput[]) {
-    await tx.tourGuide.deleteMany({ where: { tourId } });
-    if (guides.length) await tx.tourGuide.createMany({ data: guides.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourGuide, tourId, guides);
   }
 
   async replaceAttachments(tx: Prisma.TransactionClient, tourId: string, attachments: Prisma.TourAttachmentCreateManyInput[]) {
-    await tx.tourAttachment.deleteMany({ where: { tourId } });
-    if (attachments.length) await tx.tourAttachment.createMany({ data: attachments.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourAttachment, tourId, attachments);
   }
 
   async addAttachment(tx: Prisma.TransactionClient, tourId: string, attachment: Prisma.TourAttachmentCreateManyInput) {
@@ -224,13 +242,20 @@ export class TourCoreService {
   }
 
   async replaceSurveys(tx: Prisma.TransactionClient, tourId: string, surveys: Prisma.TourSurveyCreateManyInput[]) {
-    await tx.tourSurvey.deleteMany({ where: { tourId } });
-    if (surveys.length) await tx.tourSurvey.createMany({ data: surveys.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourSurvey, tourId, surveys);
   }
 
   async replaceTerms(tx: Prisma.TransactionClient, tourId: string, terms: Prisma.TourTermCreateManyInput[]) {
-    await tx.tourTerm.deleteMany({ where: { tourId } });
-    if (terms.length) await tx.tourTerm.createMany({ data: terms.map((row) => ({ ...row, tourId })) });
+    await this.replaceRows(tx.tourTerm, tourId, terms);
+  }
+
+  private hasChanges<K extends keyof TourCommonChildren>(children: TourCommonChildren, key: K): children is TourCommonChildren & Required<Pick<TourCommonChildren, K>> {
+    return children[key] !== undefined;
+  }
+
+  private async replaceRows<T extends AnyRecord>(delegate: TourChildDelegate<T & { tourId: string }>, tourId: string, rows: T[]) {
+    await delegate.deleteMany({ where: { tourId } });
+    if (rows.length) await delegate.createMany({ data: rows.map((row) => ({ ...row, tourId })) as (T & { tourId: string })[] });
   }
 
   primaryCustomer(dto: AnyRecord, fallbackName: string): Prisma.TourCustomerCreateManyInput {

@@ -5,6 +5,10 @@ import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FIT_DEFAULT_HANDOVER_ITEMS, FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
 
 type Row = Record<string, unknown>;
+type FitLegacyChildDelegate<T extends Row> = {
+  deleteMany(args: { where: { fitTourId: string } }): Promise<unknown>;
+  createMany(args: { data: T[] }): Promise<unknown>;
+};
 
 @Injectable()
 export class FitTourLegacyCompatService {
@@ -85,46 +89,32 @@ export class FitTourLegacyCompatService {
   }
 
   async syncChildren(tx: Prisma.TransactionClient, fitTourId: string, dto: UpdateFitTourDto) {
-    if (dto.commonCosts !== undefined) {
-      await tx.fitCommonCost.deleteMany({ where: { fitTourId } });
-      await tx.fitCommonCost.createMany({ data: this.mapCommonCosts(dto.commonCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.hotelCosts !== undefined) {
-      await tx.fitHotelCost.deleteMany({ where: { fitTourId } });
-      await tx.fitHotelCost.createMany({ data: this.mapHotelCosts(dto.hotelCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.privateCosts !== undefined) {
-      await tx.fitPrivateCost.deleteMany({ where: { fitTourId } });
-      await tx.fitPrivateCost.createMany({ data: this.mapPrivateCosts(dto.privateCosts).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.budgetServices !== undefined) await this.replaceBudgetServices(tx, fitTourId, this.mapBudgetServices(dto.budgetServices));
-    if (dto.operationServices !== undefined) await this.replaceOperationServices(tx, fitTourId, this.mapOperationServices(dto.operationServices));
-    if (dto.guides !== undefined) {
-      await tx.fitTourGuide.deleteMany({ where: { fitTourId } });
-      await tx.fitTourGuide.createMany({ data: this.mapGuides(dto.guides).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.handoverItems !== undefined) {
-      await tx.fitHandoverItem.deleteMany({ where: { fitTourId } });
-      await tx.fitHandoverItem.createMany({ data: this.mapHandoverItems(dto.handoverItems).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.surveyQuestions !== undefined) {
-      await tx.fitSurveyQuestion.deleteMany({ where: { fitTourId } });
-      await tx.fitSurveyQuestion.createMany({ data: this.mapSurveyQuestions(dto.surveyQuestions).map((row) => ({ ...row, fitTourId })) });
-    }
-    if (dto.attachments !== undefined) {
-      await tx.fitAttachment.deleteMany({ where: { fitTourId } });
-      await tx.fitAttachment.createMany({ data: this.mapAttachments(dto.attachments).map((row) => ({ ...row, fitTourId })) });
-    }
+    if (this.hasChanges(dto, 'commonCosts')) await this.replaceFitChildren(tx.fitCommonCost, fitTourId, this.mapCommonCosts(dto.commonCosts));
+    if (this.hasChanges(dto, 'hotelCosts')) await this.replaceFitChildren(tx.fitHotelCost, fitTourId, this.mapHotelCosts(dto.hotelCosts));
+    if (this.hasChanges(dto, 'privateCosts')) await this.replaceFitChildren(tx.fitPrivateCost, fitTourId, this.mapPrivateCosts(dto.privateCosts));
+    if (this.hasChanges(dto, 'budgetServices')) await this.replaceBudgetServices(tx, fitTourId, this.mapBudgetServices(dto.budgetServices));
+    if (this.hasChanges(dto, 'operationServices')) await this.replaceOperationServices(tx, fitTourId, this.mapOperationServices(dto.operationServices));
+    if (this.hasChanges(dto, 'guides')) await this.replaceFitChildren(tx.fitTourGuide, fitTourId, this.mapGuides(dto.guides));
+    if (this.hasChanges(dto, 'handoverItems')) await this.replaceFitChildren(tx.fitHandoverItem, fitTourId, this.mapHandoverItems(dto.handoverItems));
+    if (this.hasChanges(dto, 'surveyQuestions')) await this.replaceFitChildren(tx.fitSurveyQuestion, fitTourId, this.mapSurveyQuestions(dto.surveyQuestions));
+    if (this.hasChanges(dto, 'attachments')) await this.replaceFitChildren(tx.fitAttachment, fitTourId, this.mapAttachments(dto.attachments));
   }
 
   async replaceBudgetServices(tx: Prisma.TransactionClient, fitTourId: string, rows: ReturnType<FitTourLegacyCompatService['mapBudgetServices']>) {
-    await tx.fitBudgetService.deleteMany({ where: { fitTourId } });
-    await tx.fitBudgetService.createMany({ data: rows.map((row) => ({ fitTourId, ...row })) });
+    await this.replaceFitChildren(tx.fitBudgetService, fitTourId, rows);
   }
 
   async replaceOperationServices(tx: Prisma.TransactionClient, fitTourId: string, rows: ReturnType<FitTourLegacyCompatService['mapOperationServices']>) {
-    await tx.fitOperationService.deleteMany({ where: { fitTourId } });
-    await tx.fitOperationService.createMany({ data: rows.map((row) => ({ fitTourId, ...row })) });
+    await this.replaceFitChildren(tx.fitOperationService, fitTourId, rows);
+  }
+
+  private hasChanges(dto: UpdateFitTourDto, key: keyof UpdateFitTourDto) {
+    return Object.prototype.hasOwnProperty.call(dto as Row, key);
+  }
+
+  private async replaceFitChildren<T extends Row>(delegate: FitLegacyChildDelegate<T & { fitTourId: string }>, fitTourId: string, rows: T[]) {
+    await delegate.deleteMany({ where: { fitTourId } });
+    if (rows.length) await delegate.createMany({ data: rows.map((row) => ({ fitTourId, ...row })) as (T & { fitTourId: string })[] });
   }
 
   mapCommonCosts(rows?: unknown[]) {
