@@ -60,6 +60,13 @@ const statusLabels: Record<string, string> = {
   accounting: 'Kế toán',
   sales: 'Kinh doanh',
   operation: 'Điều hành',
+  SETTLED: 'Đã quyết toán',
+  GIT_INFO: 'Thông tin GIT',
+  GIT_COSTING: 'Dự toán GIT',
+  GIT_OPERATION: 'Điều hành GIT',
+  GIT_HANDOVER: 'Bàn giao GIT',
+  GIT_SURVEY: 'Đánh giá GIT',
+  GIT_COMPLETED: 'Hoàn tất GIT',
 };
 
 const roleLabels: Record<string, string> = {

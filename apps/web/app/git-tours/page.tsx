@@ -1,4 +1,4 @@
-﻿import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
@@ -12,6 +12,7 @@ type GitTour = {
   name: string | null;
   status: string;
   paymentStatus: string;
+  workflowStep: string | null;
   startDate: string | null;
   endDate: string | null;
   operatorOwner: string | null;
@@ -90,26 +91,40 @@ async function deleteGitTour(formData: FormData) {
 function formatDate(v: string | null) { return v ? dateFormatter.format(new Date(v)) : '—'; }
 
 function statusClass(s: string) {
-  const m: Record<string, string> = { DRAFT: 'status-draft', UPCOMING: 'status-upcoming', RUNNING: 'status-running', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' };
+  const m: Record<string, string> = { DRAFT: 'status-draft', UPCOMING: 'status-upcoming', RUNNING: 'status-running', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled', SETTLED: 'status-completed' };
   return m[s] || '';
 }
 
-const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED'];
+const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 
-export default async function GitToursPage() {
-  const tours = await apiGet<GitTour[]>('/git-tours', []);
+function gitToursPath(search?: string, status?: string) {
+  const params = new URLSearchParams();
+  const keyword = String(search || '').trim().replace(/\s+/g, ' ');
+  const normalizedStatus = String(status || '').trim().toUpperCase();
+  if (keyword) params.set('search', keyword);
+  if (tourStatuses.includes(normalizedStatus)) params.set('status', normalizedStatus);
+  const query = params.toString();
+  return `/git-tours${query ? `?${query}` : ''}`;
+}
+
+type GitToursPageProps = { searchParams?: { search?: string; status?: string } };
+
+export default async function GitToursPage({ searchParams }: GitToursPageProps) {
+  const search = String(searchParams?.search || '').trim().replace(/\s+/g, ' ');
+  const status = String(searchParams?.status || '').trim().toUpperCase();
+  const tours = await apiGet<GitTour[]>(gitToursPath(search, status), []);
 
   return (
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">GIT Tour core workflow</p>
+          <p className="eyebrow">Quy trình tour GIT</p>
           <h1>Tour đoàn thiết kế riêng</h1>
         </div>
         <div className="pageHeaderActions">
           <a className="secondaryButton iconTextButton" href="#create-git-tour"><Plus size={16} /> Thêm tour GIT</a>
           <span className="statusPill"><BriefcaseBusiness size={14} /> GIT</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> Điều hành tour</span>
         </div>
       </header>
 
@@ -121,30 +136,30 @@ export default async function GitToursPage() {
             <label>Mã giữ chỗ<input name="holdCode" /></label>
             <label>Tên tour<input name="name" required minLength={2} /></label>
             <label>Lịch trình<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" /></label>
-            <label>Nhóm<input name="marketGroup" /></label>
+            <label>Nhóm thị trường<input name="marketGroup" /></label>
             <label>Ngày đặt<input name="bookingDate" type="date" /></label>
             <label>Ngày thanh toán<input name="paymentDueDate" type="date" /></label>
-            <label>Ngày đi<input name="startDate" type="date" /></label>
+            <label>Khởi hành<input name="startDate" type="date" /></label>
             <label>Ngày về<input name="endDate" type="date" /></label>
             <label>Khách hàng<input name="customerName" required minLength={2} /></label>
             <label>Đại lý<input name="agentName" /></label>
-            <label>NVDH<input name="operatorOwner" /></label>
-            <label>CTV<input name="collaborator" /></label>
+            <label>Nhân viên điều hành<input name="operatorOwner" /></label>
+            <label>Cộng tác viên<input name="collaborator" /></label>
             <label>Chi nhánh<input name="branch" /></label>
             <label>Phòng ban<input name="department" /></label>
             <label>Nguồn khách<input name="customerSource" /></label>
             <label>Hoa hồng %<input name="commissionRate" type="number" min={0} defaultValue={0} /></label>
             <label>Hóa đơn<input name="invoiceStatus" /></label>
-            <label>TK<input name="accountCode" /></label>
+            <label>Tài khoản<input name="accountCode" /></label>
             <label>Tỷ giá<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
             <label>Giá trị tỷ giá<input name="exchangeRate" type="number" min={0} defaultValue={1} /></label>
             <label>Nội dung doanh thu<input name="revenueDescription" defaultValue="Giá tour trọn gói" /></label>
-            <label>SL thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Số lượng thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
             <label>Đơn giá thu<input name="revenueUnitPrice" type="number" min={0} defaultValue={0} /></label>
             <label>VAT thu %<input name="revenueVat" type="number" min={0} defaultValue={0} /></label>
             <label>Dịch vụ Sales<input name="budgetServiceType" defaultValue="Hotel" /></label>
             <label>Diễn giải chi<input name="budgetDescription" /></label>
-            <label>SL chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Số lượng chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
             <label>Đơn giá chi<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
             <label>VAT chi %<input name="budgetVat" type="number" min={0} defaultValue={0} /></label>
             <label>Ghi chú<textarea name="notes" rows={2} /></label>
@@ -157,12 +172,20 @@ export default async function GitToursPage() {
           <h2>Danh sách tour GIT</h2>
           <span>{tours.length} tour</span>
         </div>
+        <form className="filterBar" action="/git-tours">
+          <label>Tìm kiếm<input name="search" defaultValue={search} placeholder="Mã tour, khách hàng, đại lý, điều hành" /></label>
+          <label>Trạng thái<select name="status" defaultValue={tourStatuses.includes(status) ? status : ''}>
+            <option value="">Tất cả trạng thái</option>
+            {tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}
+          </select></label>
+          <button type="submit">Lọc danh sách</button>
+        </form>
         {tours.length === 0 ? (
           <div className="tableEmptyState"><BriefcaseBusiness size={20} /> Chưa có tour GIT nào.</div>
         ) : (
           <table>
             <thead>
-              <tr><th>Mã</th><th>Tour</th><th>Khách / Đại lý</th><th>Ngày đi</th><th>NVDH</th><th>Trạng thái</th><th>DT / DV</th><th>Thao tác</th></tr>
+              <tr><th>Mã</th><th>Tour</th><th>Khách / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Doanh thu / Dịch vụ</th><th>Thao tác</th></tr>
             </thead>
             <tbody>
               {tours.map((tour) => (
@@ -174,8 +197,10 @@ export default async function GitToursPage() {
                     <td>{tour.operatorOwner || '—'}</td>
                     <td>
                       <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
+                      <br /><span className="mutedText">{viStatus(tour.workflowStep)}</span>
                     </td>
-                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} / {tour._count?.services ?? 0} DV</td>
+                    <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
+                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} / {tour._count?.services ?? 0} dịch vụ</td>
                     <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><form action={deleteGitTour}>
                         <input type="hidden" name="id" value={tour.id} />
                         <button type="submit" className="dangerButton" title="Xóa tour GIT"><Trash2 size={14} /></button>

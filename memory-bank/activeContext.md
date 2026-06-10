@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued GIT business/UI contract lock:
+  - Confirmed backend GIT business coverage for workflowStep, shared
+    payment/status/service enums, copy-services preservation, customer/agent
+    mapping, list search fields, and partial update child preservation remains
+    covered by `TEST_TOUR_TYPE_APIS_OK`.
+  - GIT list UI now sends `search` / `status` query params to the backend,
+    shows workflow step and payment status, includes shared `SETTLED` status,
+    and removes unclear Vietnamese abbreviations from visible labels.
+  - Regression now statically guards the GIT frontend list/query/workflow
+    contract alongside backend tour-type API behavior.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`, web
+    Docker build/deploy, `/git-tours?search=test&status=running` redirect
+    smoke, and `/api/git-tours?status=running` auth smoke.
+
+
 - Continued GIT module business and regression coverage:
   - GIT create DTO now trims required identity fields, normalizes lifecycle and
     payment enum inputs, and returns Vietnamese validation messages for key

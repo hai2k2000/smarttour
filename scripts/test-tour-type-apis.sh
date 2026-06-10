@@ -183,6 +183,24 @@ function assertGitToursControllerContract() {
   assert(queryDtoSource.includes('trimSearch') && queryDtoSource.includes('normalizeStatus') && queryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'ListGitToursQueryDto should trim search/status and cap search length');
 }
 
+
+function assertGitToursFrontendContract() {
+  const fs = require('fs');
+  const pageSource = fs.readFileSync('/workspace/apps/web/app/git-tours/page.tsx', 'utf8');
+  const i18nSource = fs.readFileSync('/workspace/apps/web/app/i18n.ts', 'utf8');
+  assert(pageSource.includes('type GitToursPageProps') && pageSource.includes('searchParams?.search') && pageSource.includes('searchParams?.status'), 'GIT tours page should read search/status query params');
+  assert(pageSource.includes('function gitToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)"), 'GIT tours page should pass list search/status to backend query contract');
+  assert(pageSource.includes('className="filterBar"') && pageSource.includes('name="search"') && pageSource.includes('name="status"'), 'GIT tours page should expose search/status filters');
+  assert(pageSource.includes('workflowStep: string | null') && pageSource.includes('viStatus(tour.workflowStep)'), 'GIT tours page should show backend workflowStep');
+  assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'GIT tours page should show backend paymentStatus');
+  assert(pageSource.includes('SETTLED'), 'GIT tours page status options should include the shared TourStatus.SETTLED value');
+  assert(!pageSource.includes('NVDH') && !pageSource.includes('CTV') && !pageSource.includes('DT / DV'), 'GIT tours page should not use unclear abbreviated Vietnamese labels');
+  for (const step of ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED']) {
+    assert(i18nSource.includes(step), `GIT workflow label ${step} should be localized for frontend display`);
+  }
+  assert(i18nSource.includes('SETTLED'), 'Shared status label SETTLED should be localized for GIT status filters');
+}
+
 function assertTourRootOrchestrationBoundaries() {
   const fs = require('fs');
   const services = [
@@ -280,6 +298,7 @@ async function main() {
   assertTourTypeDtoContracts();
   assertCommonToursServiceUsesTourCore();
   assertGitToursControllerContract();
+  assertGitToursFrontendContract();
   assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');

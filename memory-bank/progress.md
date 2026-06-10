@@ -2,6 +2,19 @@
 
 ## Done
 
+- Locked GIT business data checks through backend regression and frontend list contract:
+  - Backend regression covers GIT workflowStep, paymentStatus/TourStatus/
+    TourServiceStatus normalization, copy-services supplier/service/amount/VAT/
+    status preservation, customer/agent mapping, search by systemCode/tourCode/
+    customer/operator, and partial update child preservation.
+  - Frontend GIT list now exposes search/status filters, sends the same query
+    contract to the API, displays workflow/payment status, localizes GIT
+    workflow labels, and avoids unclear visible abbreviations.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, web Docker build/deploy, web
+    redirect smoke for `/git-tours?search=test&status=running`, and API auth
+    smoke for `/api/git-tours?status=running`.
+
+
 - Expanded GIT module business coverage:
   - GIT create DTO now trims `systemCode`, `tourCode`, and `name`, normalizes
     `status` / `paymentStatus`, and uses Vietnamese messages for required
