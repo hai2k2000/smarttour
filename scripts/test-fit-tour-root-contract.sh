@@ -144,16 +144,22 @@ function assertLegacyCompatBoundary() {
   const fitWorkflowOrder = ['PRICING', 'TOUR_INFO', 'BUDGET', 'OPERATION', 'HANDOVER', 'SURVEY'];
   let previousWizardStepIndex = -1;
   let previousServiceStepIndex = serviceSource.indexOf('FitTourWorkflowStatus.DRAFT');
-  assert(previousServiceStepIndex >= 0, 'FIT backend workflow should start from DRAFT');
+  const schemaWorkflowBlock = schemaSource.slice(schemaSource.indexOf('enum FitTourWorkflowStatus'), schemaSource.indexOf('enum FitServiceStatus'));
+  let previousSchemaStepIndex = schemaWorkflowBlock.indexOf('DRAFT');
+  assert(previousServiceStepIndex >= 0 && previousSchemaStepIndex >= 0, 'FIT backend workflow should start from DRAFT');
   for (const step of fitWorkflowOrder) {
     const wizardStepIndex = fitWizardSource.indexOf(`key: '${step}'`);
     const serviceStepIndex = serviceSource.indexOf(`FitTourWorkflowStatus.${step}`);
+    const schemaStepIndex = schemaWorkflowBlock.indexOf(step);
     assert(wizardStepIndex > previousWizardStepIndex, `FIT wizard workflow step ${step} should keep the approved order`);
     assert(serviceStepIndex > previousServiceStepIndex, `FIT backend workflow step ${step} should keep the approved order`);
+    assert(schemaStepIndex > previousSchemaStepIndex, `FIT schema workflow step ${step} should keep the approved enum order`);
     previousWizardStepIndex = wizardStepIndex;
     previousServiceStepIndex = serviceStepIndex;
+    previousSchemaStepIndex = schemaStepIndex;
   }
-  assert(serviceSource.indexOf('FitTourWorkflowStatus.COMPLETED') > previousServiceStepIndex, 'FIT backend workflow should only complete after survey');
+  assert(serviceSource.indexOf('FitTourWorkflowStatus.COMPLETED') > previousServiceStepIndex && schemaWorkflowBlock.indexOf('COMPLETED') > previousSchemaStepIndex, 'FIT backend workflow should only complete after survey');
+  assert(schemaWorkflowBlock.includes('CANCELLED'), 'FIT schema workflow should keep CANCELLED as terminal status');
   assert(fitWizardSource.includes('confirmedWorkflowStepIndex') && fitWizardSource.includes('canOpenWorkflowStep') && fitWizardSource.includes('blockedWorkflowStepMessage'), 'FIT wizard should derive accessible steps from confirmed workflow status');
   assert(fitWizardSource.includes('goToStep(index)') && fitWizardSource.includes('aria-disabled={locked}') && fitWizardSource.includes("locked ? ' locked' : ''"), 'FIT wizard step tabs should block unopened workflow steps');
   assert(fitWizardSource.includes('goToStep(Math.max(0, activeStep - 1))') && fitWizardSource.includes('goToStep(Math.min(workflowSteps.length - 1, activeStep + 1))'), 'FIT wizard previous/next buttons should use guarded workflow navigation');
@@ -192,6 +198,8 @@ function assertLegacyCompatBoundary() {
     assert(!fitWizardSource.includes(legacyText), `FIT wizard should not keep legacy label ${legacyText}`);
   }
   assert(fitWizardSource.includes("quoteCode: ''") && fitWizardSource.includes("tourCode: ''"), 'FIT new-tour defaults should not generate collision-prone daily codes');
+  assert(fitWizardSource.includes('commonCosts: [{ ...emptyCost }]') && fitWizardSource.includes('hotelCosts: [{ ...emptyCost, paxPerRoom: 2 }]') && fitWizardSource.includes('privateCosts: [{ ...emptyCost }]') && fitWizardSource.includes('budgetServices: [{ ...emptyService }]'), 'FIT new-tour defaults should keep child input rows empty instead of prefilled business examples');
+  assert(!/commonCosts: \[\{ \.\.\.emptyCost, serviceType:/.test(fitWizardSource) && !/privateCosts: \[\{ \.\.\.emptyCost, serviceType:/.test(fitWizardSource) && !/budgetServices: \[\{ \.\.\.emptyService, serviceType:/.test(fitWizardSource), 'FIT toFormDefaults should not prefill business-specific service labels');
   assert(fitWizardSource.includes("if (!current.id)") && fitWizardSource.includes('Tour mới chỉ được lưu khi bạn bấm Lưu nháp'), 'FIT autosave should not create a new tour while the user is typing');
   assert(fitWizardSource.includes('saveInFlight.current') && fitWizardSource.includes('autosaveDelayMs = 3000'), 'FIT autosave should debounce and prevent concurrent saves');
   assert(fitWizardSource.includes('const autosaveTourId = current.id') && fitWizardSource.includes('autosaveTourId !== loadedTourId.current') && fitWizardSource.includes("setSaveState('Đang chuyển tour, tạm dừng tự lưu')"), 'FIT autosave should not update stale state after switching loaded tours');
@@ -213,6 +221,7 @@ function assertLegacyCompatBoundary() {
   }
   assert(fitWizardSource.includes('function lineAmount') && fitWizardSource.includes('quantity * times * exchangeRate * unitPrice * (1 + vat / 100)'), 'FIT wizard lineAmount should calculate quantity * times * exchangeRate * unitPrice * VAT');
   assert(fitWizardSource.includes('function hotelLineAmount') && fitWizardSource.includes('Math.ceil(Math.max(1, totalPax) / positiveNumber(line.paxPerRoom))'), 'FIT hotel amount should account for guests per room');
+  assert(legacyCompatSource.includes('quantity * times * exchangeRate * unitPrice') && legacyCompatSource.includes('rooms * times * exchangeRate * unitPrice') && legacyCompatSource.includes('quantity * unitPrice') && legacyCompatSource.includes('quantity * confirmedUnitPrice'), 'FIT backend mapping formulas should stay aligned with wizard cost/service calculations');
   assert(fitWizardSource.includes('const budgetRevenue = totalPax * number(values.sellingPrice)') && fitWizardSource.includes('const budgetProfit = budgetRevenue - budgetCost') && fitWizardSource.includes('const operationProfit = budgetRevenue - operationCost'), 'FIT wizard summary cards should use the same revenue/cost/profit formulas');
   assert(fitWizardSource.includes('amountFormulaFields') && fitWizardSource.includes('if (!changedField || !formulaFields.includes(changedField)) return'), 'FIT amount auto-calculation should only run when formula inputs change');
   assert(fitWizardSource.includes("operationServices: ['quantity', 'confirmedUnitPrice', 'vat']"), 'FIT operation amount auto-calculation should use confirmed unit price inputs');
