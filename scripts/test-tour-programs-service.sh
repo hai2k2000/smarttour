@@ -369,14 +369,20 @@ async function main() {
     'createItineraryDay should reject duplicate dayNumber with Vietnamese message',
   );
   assert(duplicateDayMessage === 'Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này', 'duplicate itinerary day message should be Vietnamese');
-  await rejects(
+  const outsideDurationMessage = await rejectMessage(
     () => service.createItineraryDay(created.id, { dayNumber: 4, title: 'Outside duration' }),
     'createItineraryDay should reject dayNumber greater than durationDays',
   );
+  assert(outsideDurationMessage === 'Số thứ tự ngày hành trình không được vượt quá số ngày tour', 'outside duration message should be Vietnamese');
   await rejects(
     () => service.createItineraryDay(created.id, { dayNumber: 3, title: ' ' }),
     'createItineraryDay should reject blank title',
   );
+  const missingProgramForDayMessage = await rejectMessage(
+    () => service.createItineraryDay('missing-tour-program-id', { dayNumber: 1, title: 'Ngày không tồn tại' }),
+    'createItineraryDay should reject missing tour program with Vietnamese message',
+  );
+  assert(missingProgramForDayMessage === 'Không tìm thấy chương trình tour', 'createItineraryDay missing tour program message should be Vietnamese');
 
   const listed = await service.list(run);
   const listedCreated = listed.find((row) => row.id === created.id);
@@ -544,13 +550,28 @@ async function main() {
   const bookingAfterTourRename = await prisma.booking.findUnique({ where: { id: booking.id }, select: { tourProgramId: true } });
   assert(bookingAfterTourRename.tourProgramId === linkedProgram.id, 'updating non-duration fields should not orphan linked bookings');
 
+  const removableDayProgram = await service.create({
+    code: `${run}-DAY-DELETE`,
+    name: 'Tour Program With Removable Day',
+    durationDays: 1,
+  });
+  const removableDay = await service.createItineraryDay(removableDayProgram.id, {
+    dayNumber: 1,
+    title: 'Ngày có thể xóa',
+  });
+  const removedDay = await service.removeItineraryDay(removableDay.id);
+  assert(removedDay.id === removableDay.id, 'removeItineraryDay should return the removed itinerary day');
+  assert((await service.detail(removableDayProgram.id)).itineraryDays.length === 0, 'removeItineraryDay should delete an unlinked itinerary day');
+  await service.remove(removableDayProgram.id);
+
   const deletable = await service.create({
     code: `${run}-DELETE`,
     name: 'Tour Program To Delete',
     durationDays: 1,
   });
   assert(deletable.route === null && deletable.description === null, 'route and description should be optional when creating a tour program');
-  await service.remove(deletable.id);
+  const removedProgram = await service.remove(deletable.id);
+  assert(removedProgram.id === deletable.id, 'remove should return the removed tour program');
   await rejects(() => service.detail(deletable.id), 'delete should remove tour program without dependencies');
 
   await prisma.$disconnect();
