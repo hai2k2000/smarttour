@@ -18,7 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FieldArrayWithId, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
+import { FieldArrayWithId, FieldErrors, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../authFetch';
 
@@ -72,7 +72,7 @@ const defaultSurveyQuestions = [
   'Công tác tổ chức',
   'Mức độ hài lòng chung',
 ];
-const autosaveDelayMs = 2500;
+const autosaveDelayMs = 3000;
 
 const costLineSchema = z.object({
   serviceType: z.string().default(''),
@@ -105,14 +105,14 @@ const serviceLineSchema = z.object({
 
 const fitTourSchema = z.object({
   id: z.string().optional(),
-  quoteCode: z.string().min(2),
-  tourCode: z.string().min(2),
+  quoteCode: z.string().min(2, 'Mã báo giá cần ít nhất 2 ký tự'),
+  tourCode: z.string().min(2, 'Mã tour cần ít nhất 2 ký tự'),
   tourName: z.string().default(''),
   marketGroup: z.string().default(''),
   bookingDate: z.string().default(''),
   startDate: z.string().default(''),
   endDate: z.string().default(''),
-  customerName: z.string().min(2),
+  customerName: z.string().min(2, 'Họ tên khách cần ít nhất 2 ký tự'),
   phone: z.string().default(''),
   email: z.string().default(''),
   notes: z.string().default(''),
@@ -290,16 +290,47 @@ function rowHasValue(row: Record<string, unknown>, keys: string[]) {
 
 function cleanCostRows(rows: FitTourForm['commonCosts'], totalPax: number, hotel = false) {
   return rows
-    .map((row) => ({
-      ...row,
-      amount: amountOrCalculated(row.amount, hotel ? hotelLineAmount(row, totalPax) : lineAmount(row)),
-    }))
+    .map((row) => {
+      const normalized = {
+        ...row,
+        serviceType: trimText(row.serviceType),
+        description: trimText(row.description),
+        unit: trimText(row.unit),
+        currency: trimText(row.currency) || 'VND',
+        quantity: normalizeNumber(row.quantity, 1),
+        paxPerRoom: normalizeNumber(row.paxPerRoom, hotel ? 2 : 1),
+        times: normalizeNumber(row.times, 1),
+        exchangeRate: normalizeNumber(row.exchangeRate, 1),
+        unitPrice: normalizeNumber(row.unitPrice),
+        vat: normalizeNumber(row.vat),
+        notes: trimText(row.notes),
+      };
+      return {
+        ...normalized,
+        amount: amountOrCalculated(row.amount, hotel ? hotelLineAmount(normalized, totalPax) : lineAmount(normalized)),
+      };
+    })
     .filter((row) => rowHasValue(row, ['description', 'unitPrice', 'amount', 'notes']));
 }
 
 function cleanServiceRows(rows: FitTourForm['budgetServices'], confirmed = false) {
   return rows
-    .map((row) => ({ ...row, amount: amountOrCalculated(row.amount, lineAmount(row, confirmed)) }))
+    .map((row) => {
+      const normalized = {
+        ...row,
+        serviceType: trimText(row.serviceType),
+        supplierId: trimText(row.supplierId),
+        description: trimText(row.description),
+        bookingCode: trimText(row.bookingCode),
+        quantity: normalizeNumber(row.quantity, 1),
+        unitPrice: normalizeNumber(row.unitPrice),
+        confirmedUnitPrice: normalizeNumber(row.confirmedUnitPrice),
+        vat: normalizeNumber(row.vat),
+        status: serviceStatuses.includes(String(row.status)) ? String(row.status) : 'WAITING',
+        notes: trimText(row.notes),
+      };
+      return { ...normalized, amount: amountOrCalculated(row.amount, lineAmount(normalized, confirmed)) };
+    })
     .filter((row) => rowHasValue(row, ['supplierId', 'description', 'bookingCode', 'unitPrice', 'confirmedUnitPrice', 'amount', 'notes']));
 }
 
@@ -380,20 +411,74 @@ function preparePayload(data: FitTourForm, workflowStatus: WorkflowStepKey | str
     tourCode: trimText(data.tourCode).toUpperCase(),
     tourName: trimText(data.tourName),
     marketGroup: trimText(data.marketGroup),
+    bookingDate: normalizeDate(data.bookingDate),
+    startDate: normalizeDate(data.startDate),
+    endDate: normalizeDate(data.endDate),
     customerName: trimText(data.customerName),
     phone: trimText(data.phone),
     email: trimText(data.email),
     notes: trimText(data.notes),
+    adultCount: normalizeNumber(data.adultCount, 0),
+    childCount: normalizeNumber(data.childCount, 0),
+    infantCount: normalizeNumber(data.infantCount, 0),
+    sellingPrice: normalizeNumber(data.sellingPrice),
+    commissionPerGuest: normalizeNumber(data.commissionPerGuest),
     workflowStatus,
+    flightRoute: trimText(data.flightRoute),
+    tourType: trimText(data.tourType),
+    exchangeRateCode: trimText(data.exchangeRateCode),
+    exchangeRate: normalizeNumber(data.exchangeRate, 1),
+    operatorOwner: trimText(data.operatorOwner),
+    seatCount: normalizeNumber(data.seatCount, 0),
+    tourPrice: normalizeNumber(data.tourPrice),
+    discount: normalizeNumber(data.discount),
+    adultPrice: normalizeNumber(data.adultPrice),
+    childPrice25: normalizeNumber(data.childPrice25),
+    childPrice611: normalizeNumber(data.childPrice611),
+    infantPrice: normalizeNumber(data.infantPrice),
+    surcharge: normalizeNumber(data.surcharge),
+    transportMode: trimText(data.transportMode),
+    outboundRoute: trimText(data.outboundRoute),
+    outboundCarrier: trimText(data.outboundCarrier),
+    returnRoute: trimText(data.returnRoute),
+    returnCarrier: trimText(data.returnCarrier),
+    pickupPoint: trimText(data.pickupPoint),
+    dropoffPoint: trimText(data.dropoffPoint),
+    visaDeadline: normalizeDate(data.visaDeadline),
+    holdUntil: normalizeDate(data.holdUntil),
+    confirmedAt: normalizeDate(data.confirmedAt),
+    closeAt: normalizeDate(data.closeAt),
+    allowOverbooking: Boolean(data.allowOverbooking),
+    handoverGuideRequest: trimText(data.handoverGuideRequest),
+    surveyDescription: trimText(data.surveyDescription),
     commonCosts: cleanCostRows(data.commonCosts, totalPax),
     hotelCosts: cleanCostRows(data.hotelCosts, totalPax, true),
     privateCosts: cleanCostRows(data.privateCosts, totalPax),
     budgetServices: cleanServiceRows(data.budgetServices),
     operationServices: cleanServiceRows(data.operationServices, true),
-    guides: cleanTextRows(data.guides, ['name', 'phone', 'notes']),
-    handoverItems: data.handoverItems.filter((row) => trimText(row.itemName)),
-    surveyQuestions: data.surveyQuestions.filter((row) => trimText(row.question)),
-    attachments: data.attachments.filter((row) => trimText(row.fileName)),
+    guides: cleanTextRows(data.guides, ['name']).map((row) => ({
+      name: trimText(row.name),
+      phone: trimText(row.phone),
+      guideType: trimText(row.guideType),
+      notes: trimText(row.notes),
+    })),
+    handoverItems: data.handoverItems
+      .filter((row) => trimText(row.itemName))
+      .map((row) => ({ itemName: trimText(row.itemName), quantity: normalizeNumber(row.quantity, 1), notes: trimText(row.notes) })),
+    surveyQuestions: data.surveyQuestions
+      .filter((row) => trimText(row.question))
+      .map((row) => ({ question: trimText(row.question), notes: trimText(row.notes) })),
+    attachments: data.attachments
+      .filter((row) => trimText(row.fileName))
+      .map((row) => ({
+        id: trimText(row.id),
+        step: trimText(row.step),
+        fileName: trimText(row.fileName),
+        fileUrl: trimText(row.fileUrl),
+        mimeType: trimText(row.mimeType),
+        uploadedBy: trimText(row.uploadedBy),
+        size: normalizeNumber(row.size),
+      })),
   };
 }
 
@@ -406,6 +491,21 @@ async function responseError(response: Response) {
   } catch {
     return text || `${response.status} ${response.statusText}`;
   }
+}
+
+function firstFormError(errors: FieldErrors<FitTourForm>) {
+  const visit = (node: unknown): string => {
+    if (!node || typeof node !== 'object') return '';
+    const record = node as Record<string, unknown>;
+    if (typeof record.message === 'string') return record.message;
+    for (const [key, value] of Object.entries(record)) {
+      if (key === 'ref') continue;
+      const found = visit(value);
+      if (found) return found;
+    }
+    return '';
+  };
+  return visit(errors);
 }
 
 function normalizeCostRows(rows: unknown, fallback: FitTourForm['commonCosts'], totalPax: number, hotel = false) {
@@ -444,6 +544,7 @@ function normalizeServiceRows(rows: unknown, fallback: FitTourForm['budgetServic
 
 function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   const today = new Date().toISOString().slice(0, 10);
+  const hasSavedTour = Boolean(tour?.id);
   const defaults: FitTourForm = {
     quoteCode: '',
     tourCode: '',
@@ -500,6 +601,19 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     attachments: [],
   };
 
+  const arrayFallbacks = hasSavedTour
+    ? {
+        commonCosts: [] as FitTourForm['commonCosts'],
+        hotelCosts: [] as FitTourForm['hotelCosts'],
+        privateCosts: [] as FitTourForm['privateCosts'],
+        budgetServices: [] as FitTourForm['budgetServices'],
+        operationServices: [] as FitTourForm['operationServices'],
+        guides: [] as FitTourForm['guides'],
+        handoverItems: [] as FitTourForm['handoverItems'],
+        surveyQuestions: [] as FitTourForm['surveyQuestions'],
+        attachments: [] as FitTourForm['attachments'],
+      }
+    : defaults;
   const merged = { ...defaults, ...tour };
   const totalPax = Math.max(
     1,
@@ -524,34 +638,36 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     infantPrice: normalizeNumber(tour?.infantPrice, defaults.infantPrice),
     surcharge: normalizeNumber(tour?.surcharge, defaults.surcharge),
     allowOverbooking: Boolean(tour?.allowOverbooking),
-    bookingDate: normalizeDate(tour?.bookingDate) || today,
+    bookingDate: normalizeDate(tour?.bookingDate) || (hasSavedTour ? '' : today),
     startDate: normalizeDate(tour?.startDate),
     endDate: normalizeDate(tour?.endDate),
     visaDeadline: normalizeDate(tour?.visaDeadline),
     holdUntil: normalizeDate(tour?.holdUntil),
     confirmedAt: normalizeDate(tour?.confirmedAt),
     closeAt: normalizeDate(tour?.closeAt),
-    commonCosts: normalizeCostRows(tour?.commonCosts, defaults.commonCosts, totalPax),
-    hotelCosts: normalizeCostRows(tour?.hotelCosts, defaults.hotelCosts, totalPax, true),
-    privateCosts: normalizeCostRows(tour?.privateCosts, defaults.privateCosts, totalPax),
-    budgetServices: normalizeServiceRows(tour?.budgetServices, defaults.budgetServices),
-    operationServices: normalizeServiceRows(tour?.operationServices, defaults.operationServices, true),
-    guides: normalizeArray(tour?.guides, defaults.guides).map((row) => ({
+    handoverGuideRequest: tour?.handoverGuideRequest !== undefined ? trimText(tour.handoverGuideRequest) : hasSavedTour ? '' : defaults.handoverGuideRequest,
+    surveyDescription: tour?.surveyDescription !== undefined ? trimText(tour.surveyDescription) : '',
+    commonCosts: normalizeCostRows(tour?.commonCosts, arrayFallbacks.commonCosts, totalPax),
+    hotelCosts: normalizeCostRows(tour?.hotelCosts, arrayFallbacks.hotelCosts, totalPax, true),
+    privateCosts: normalizeCostRows(tour?.privateCosts, arrayFallbacks.privateCosts, totalPax),
+    budgetServices: normalizeServiceRows(tour?.budgetServices, arrayFallbacks.budgetServices),
+    operationServices: normalizeServiceRows(tour?.operationServices, arrayFallbacks.operationServices, true),
+    guides: normalizeArray(tour?.guides, arrayFallbacks.guides).map((row) => ({
       name: trimText(row.name),
       phone: trimText(row.phone),
       guideType: trimText(row.guideType) || 'Nội địa',
       notes: trimText(row.notes),
     })),
-    handoverItems: normalizeArray(tour?.handoverItems, defaults.handoverItems).map((row) => ({
+    handoverItems: normalizeArray(tour?.handoverItems, arrayFallbacks.handoverItems).map((row) => ({
       itemName: trimText(row.itemName),
       quantity: normalizeNumber(row.quantity, 1),
       notes: trimText(row.notes),
     })),
-    surveyQuestions: normalizeArray(tour?.surveyQuestions, defaults.surveyQuestions).map((row) => ({
+    surveyQuestions: normalizeArray(tour?.surveyQuestions, arrayFallbacks.surveyQuestions).map((row) => ({
       question: trimText(row.question),
       notes: trimText(row.notes),
     })),
-    attachments: normalizeArray(tour?.attachments, defaults.attachments).filter(
+    attachments: normalizeArray(tour?.attachments, arrayFallbacks.attachments).filter(
       (row) => trimText(row.fileName) && workflowSteps.some((step) => step.key === row.step),
     ),
   };
@@ -673,6 +789,11 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         setSaveState('Tour mới chỉ được lưu khi bạn bấm Lưu nháp');
         return;
       }
+      const autosaveTourId = current.id;
+      if (autosaveTourId !== loadedTourId.current) {
+        setSaveState('Đang chuyển tour, tạm dừng tự lưu');
+        return;
+      }
       if (saveInFlight.current || formState.isSubmitting) return;
       if (!canPersistTour(current)) {
         setSaveState('Chưa đủ thông tin để tự lưu');
@@ -692,6 +813,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       try {
         saveInFlight.current = true;
         const saved = await saveTour(payload, step, 'draft');
+        if (loadedTourId.current !== autosaveTourId || getValues('id') !== autosaveTourId) return;
         const savedPayload = preparePayload({ ...current, id: saved.id || current.id }, step);
         lastAutosaveSignature.current = JSON.stringify(creating ? savedPayload : stepPayload(savedPayload, step));
         onSaved?.(saved, 'autosave');
@@ -743,6 +865,10 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     } catch (error) {
       setSaveState(`Lưu nháp lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
+  }
+
+  function handleInvalidSubmit(errors: FieldErrors<FitTourForm>) {
+    setSaveState(`Chưa thể lưu: ${firstFormError(errors) || 'kiểm tra lại các trường bắt buộc'}`);
   }
 
   async function confirmCurrentStep(data: FitTourForm) {
@@ -945,7 +1071,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
 
   return (
-    <form onSubmit={handleSubmit(submit)} className="fitWizard">
+    <form onSubmit={handleSubmit(submit, handleInvalidSubmit)} className="fitWizard">
       <section className="fitToolbar">
         <div className="fitSteps">
           {workflowSteps.map((step, index) => {
@@ -972,7 +1098,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           </select>
           <span>{saveState}</span>
           <button type="submit"><Save size={15} /> Lưu nháp</button>
-          <button type="button" onClick={handleSubmit(confirmCurrentStep)}><Send size={15} /> Xác nhận bước</button>
+          <button type="button" onClick={handleSubmit(confirmCurrentStep, handleInvalidSubmit)}><Send size={15} /> Xác nhận bước</button>
         </div>
       </section>
 

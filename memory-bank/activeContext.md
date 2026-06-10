@@ -1275,3 +1275,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Loading an existing FIT tour now opens the next actionable step after the last confirmed `workflowStatus`; completed/cancelled edge cases fall back to a bounded step.
   - Wizard step tabs and Previous/Next navigation now route through `goToStep()`, block unopened future steps, and show a Vietnamese reason when the user tries to jump ahead.
   - FIT root contract regression now checks UI/backend workflow order, guarded wizard navigation, and `confirmStep` rejection for skipped workflow steps.
+- 2026-06-10 FIT autosave/submit/load hardening:
+  - Autosave debounce is now 3000ms, refuses to create new tours, requires required identity fields, and ignores stale save results if the user has switched to another loaded tour.
+  - `preparePayload()` normalizes key numbers, dates, booleans, text, child rows, and attachment metadata before sending to API.
+  - `toFormDefaults()` no longer backfills saved/loaded tours with new-tour default child rows when API arrays are missing, reducing accidental overwrite risk on later step saves.
+  - Submit/confirm use an invalid-form handler with Vietnamese status feedback instead of silently doing nothing.

@@ -963,6 +963,13 @@
 - Added FIT root contract guards for approved workflow order, guarded wizard navigation, and `confirmStep` skip rejection.
 - Verified on VPS: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `docker compose build web`, deployed `web`, and healthchecked `/fit-tours` plus authenticated API route behavior.
 
+- Continued FIT autosave/submit/load hardening.
+- Increased FIT autosave debounce to 3000ms and added loaded-tour guards so stale autosave results do not update the wizard after switching tours.
+- Normalized save payload number/date/boolean/text/child-row/attachment fields in `preparePayload()`.
+- Changed `toFormDefaults()` so saved tours with missing child arrays do not receive new-tour default rows that could later overwrite real data.
+- Added invalid-submit feedback for draft save and confirm actions, plus regression guards in `TEST_FIT_TOUR_ROOT_CONTRACT_OK`.
+- Verified on VPS: `docker compose build web`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, deployed `web`, and healthchecked `/fit-tours` / `/api/fit-tours`.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.
