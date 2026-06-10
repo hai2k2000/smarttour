@@ -233,8 +233,8 @@ function assertLegacyCompatBoundary() {
     assert(fitWizardSource.includes(label), `FIT wizard summary should keep business metric label ${label}`);
   }
   assert(fitWizardSource.includes('getFieldState(amountPath).isDirty') && fitWizardSource.includes('setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false })'), 'FIT amount auto-calculation should preserve manually edited amounts');
-  assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('sourceTourId: copySourceTourId'), 'FIT budget copy should use an explicit source tour');
-  assert(fitWizardSource.includes('const sourceTourId = copySourceTourId || id') && fitWizardSource.includes('sourceTourId }'), 'FIT operation copy should explicitly use selected or current tour source');
+  assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('findTourSummary(tours, copySourceTourId)') && fitWizardSource.includes('sourceTourId: sourceTour.id'), 'FIT budget copy should use a validated explicit source tour');
+  assert(fitWizardSource.includes('let sourceTourId = id') && fitWizardSource.includes('sourceTourId = sourceTour.id') && fitWizardSource.includes('sourceTourId }'), 'FIT operation copy should explicitly use selected or current tour source');
   assert(fitWizardSource.includes('workflowSteps.some((step) => step.key === row.step)'), 'FIT loaded attachments should remain scoped to valid workflow steps');
   assert(fitWizardSource.includes('goToStep(index)') && fitWizardSource.includes('Math.max(0, activeStep - 1)') && fitWizardSource.includes('Math.min(workflowSteps.length - 1, activeStep + 1)'), 'FIT wizard should support guarded direct and previous/next workflow navigation');
   for (const [name, title] of [

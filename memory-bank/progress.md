@@ -970,6 +970,13 @@
 - Added invalid-submit feedback for draft save and confirm actions, plus regression guards in `TEST_FIT_TOUR_ROOT_CONTRACT_OK`.
 - Verified on VPS: `docker compose build web`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, deployed `web`, and healthchecked `/fit-tours` / `/api/fit-tours`.
 
+
+- Continued FIT copy/select tour hardening.
+- `copyBudget()` now validates that the selected source tour exists in the current FIT dropdown list, rejects stale/same-target sources, and sends the resolved source id only after confirmation.
+- `copyOperation()` keeps current-tour budget as the explicit empty-source fallback, but validates selected external sources and clears stale source state after copy/load/reset.
+- Loading/resetting a FIT tour now clears copy-source selection and resets blank-tour defaults with a clean autosave signature.
+- Verified on VPS: `npm run test:fit-wizard`, `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `docker compose build web`, deployed `web`, and healthchecked `/fit-tours` plus `/api/fit-tours` auth behavior.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

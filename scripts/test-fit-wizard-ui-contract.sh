@@ -166,18 +166,28 @@ assertIncludesAll(wizard, ['rowHasDeletableContent'], 'FIT wizard should detect 
 assertIncludesAll(copyBudgetBlock, [
   'copySourceTourId',
   'copySourceTourId === id',
+  'findTourSummary(tours, copySourceTourId)',
+  "setSaveState('Tour nguồn dự toán không còn trong danh sách, hãy chọn lại tour nguồn')",
   'window.confirm',
   "fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`",
-  'sourceTourId: copySourceTourId',
+  'sourceTourId: sourceTour.id',
+  'setSelectedTourId(savedId)',
+  "setCopySourceTourId('')",
   "onSaved?.(saved, 'copy-budget')",
-], 'FIT wizard copyBudget should require source and confirm overwrite');
+], 'FIT wizard copyBudget should require a valid source and confirm overwrite');
 assertIncludesAll(copyOperationBlock, [
-  'const sourceTourId = copySourceTourId || id',
+  'let sourceTourId = id',
+  'copySourceTourId === id',
+  'findTourSummary(tours, copySourceTourId)',
+  "setSaveState('Tour nguồn điều hành không còn trong danh sách, hãy chọn lại tour nguồn')",
+  'sourceTourId = sourceTour.id',
   'window.confirm',
   "fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`",
   'sourceTourId }',
+  'setSelectedTourId(savedId)',
+  "setCopySourceTourId('')",
   "onSaved?.(saved, 'copy-operation')",
-], 'FIT wizard copyOperation should copy selected/current source and confirm overwrite');
+], 'FIT wizard copyOperation should copy a selected/current valid source and confirm overwrite');
 
 // Upload/delete attachments.
 assertIncludesAll(wizard, [
@@ -224,10 +234,12 @@ assertIncludesAll(selectTourBlock, [
 ], 'FIT wizard selectTour should confirm reset and tour switching');
 assertIncludesAll(loadTourBlock, [
   "if (!id)",
+  'const defaults = toFormDefaults()',
   "setSelectedTourId('')",
   "setCopySourceTourId('')",
   'setActiveStep(0)',
-  'reset(toFormDefaults())',
+  'reset(defaults, { keepDirty: false })',
+  'lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults))',
   'setSelectedTourId(loadedTourId.current)',
 ], 'FIT wizard loadTour should reset cleanly and restore previous selection on load failure');
 assertIncludesAll(client, ['onDirtyChange={setWizardDirty}', 'initialTourId={selectedTourId}'], 'FIT list should protect dirty wizard state and pass selected tour id');

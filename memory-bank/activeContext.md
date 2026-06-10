@@ -1280,3 +1280,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - `preparePayload()` normalizes key numbers, dates, booleans, text, child rows, and attachment metadata before sending to API.
   - `toFormDefaults()` no longer backfills saved/loaded tours with new-tour default child rows when API arrays are missing, reducing accidental overwrite risk on later step saves.
   - Submit/confirm use an invalid-form handler with Vietnamese status feedback instead of silently doing nothing.
+
+- 2026-06-10 FIT copy/select tour hardening:
+  - FIT wizard now clears stale copy-source state when loading another tour or resetting to a new tour.
+  - Copy Budget requires the selected source tour to still exist in the loaded FIT tour list before POSTing; stale or same-target sources are blocked with Vietnamese status messages.
+  - Copy Operation keeps the allowed current-tour fallback, but validates any selected external source before copying and clears stale source state after success/failure guards.
+  - Loading a new blank tour now resets with `keepDirty: false` and refreshes the autosave signature so switching to create mode does not leave phantom dirty/copy state.
