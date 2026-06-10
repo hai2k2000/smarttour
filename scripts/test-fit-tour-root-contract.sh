@@ -196,6 +196,11 @@ function assertLegacyCompatBoundary() {
   assert(fitWizardSource.includes('saveInFlight.current') && fitWizardSource.includes('autosaveDelayMs = 3000'), 'FIT autosave should debounce and prevent concurrent saves');
   assert(fitWizardSource.includes('const autosaveTourId = current.id') && fitWizardSource.includes('autosaveTourId !== loadedTourId.current') && fitWizardSource.includes("setSaveState('Đang chuyển tour, tạm dừng tự lưu')"), 'FIT autosave should not update stale state after switching loaded tours');
   assert(fitWizardSource.includes('FieldErrors') && fitWizardSource.includes('handleInvalidSubmit') && fitWizardSource.includes('Chưa thể lưu'), 'FIT wizard submit/confirm should report invalid form state instead of submitting silently');
+  assert(fitWizardSource.includes('noValidate') && fitWizardSource.includes('aria-busy={isBusy}') && fitWizardSource.includes('role="status"') && fitWizardSource.includes('aria-live="polite"'), 'FIT wizard should expose clear loading/save state and route validation through the form');
+  assert(fitWizardSource.includes('sectionError') && fitWizardSource.includes('role="alert"') && fitWizardSource.includes('fieldErrorText') && fitWizardSource.includes('aria-invalid={Boolean(error)}'), 'FIT wizard validation errors should be visible at field or section level');
+  assert(fitWizardSource.includes('disabled={isBusy}') && fitWizardSource.includes('saveState.startsWith'), 'FIT wizard should disable dangerous submit/copy actions while a save action is running');
+  assert(fitWizardSource.includes('ghi đè toàn bộ dự toán') && fitWizardSource.includes('ghi đè toàn bộ dòng điều hành'), 'FIT wizard copy actions should confirm before overwriting target data');
+  assert(fitWizardSource.includes('Tạo tour FIT mới sẽ xóa dữ liệu đang nhập chưa lưu') && fitWizardSource.includes('Xóa dòng này khỏi bảng') && fitWizardSource.includes('rowHasDeletableContent'), 'FIT wizard should confirm reset and meaningful row deletion');
   assert(fitWizardSource.includes('void loadTour(initialTourId)') && fitWizardSource.includes('reset(defaults, { keepDirty: false })') && fitWizardSource.includes('lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults))'), 'FIT load should hydrate saved tours into a clean wizard state');
   assert(fitWizardSource.includes('workflowStepIndex(defaults.workflowStatus)'), 'FIT load should restore the active workflow step');
   assert(fitWizardSource.includes('normalizeCostRows') && fitWizardSource.includes('normalizeServiceRows'), 'FIT load should normalize numeric child rows');
@@ -216,7 +221,7 @@ function assertLegacyCompatBoundary() {
   }
   assert(fitWizardSource.includes('getFieldState(amountPath).isDirty') && fitWizardSource.includes('setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false })'), 'FIT amount auto-calculation should preserve manually edited amounts');
   assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('sourceTourId: copySourceTourId'), 'FIT budget copy should use an explicit source tour');
-  assert(fitWizardSource.includes('sourceTourId: copySourceTourId || id'), 'FIT operation copy should explicitly use selected or current tour source');
+  assert(fitWizardSource.includes('const sourceTourId = copySourceTourId || id') && fitWizardSource.includes('sourceTourId }'), 'FIT operation copy should explicitly use selected or current tour source');
   assert(fitWizardSource.includes('workflowSteps.some((step) => step.key === row.step)'), 'FIT loaded attachments should remain scoped to valid workflow steps');
   assert(fitWizardSource.includes('goToStep(index)') && fitWizardSource.includes('Math.max(0, activeStep - 1)') && fitWizardSource.includes('Math.min(workflowSteps.length - 1, activeStep + 1)'), 'FIT wizard should support guarded direct and previous/next workflow navigation');
   for (const [name, title] of [
@@ -230,7 +235,7 @@ function assertLegacyCompatBoundary() {
     ['surveyQuestions', 'Câu hỏi đánh giá dịch vụ'],
   ]) {
     assert(fitWizardSource.includes(`title="${title}" name="${name}"`), `FIT wizard should render child table ${name}`);
-    assert(fitWizardSource.includes(`append={() => arrays.${name}.append`) && fitWizardSource.includes(`remove={arrays.${name}.remove}`), `FIT wizard child table ${name} should support add/remove rows`);
+    assert(fitWizardSource.includes(`append={() => arrays.${name}.append`) && fitWizardSource.includes(`confirmRemoveRow('${name}'`), `FIT wizard child table ${name} should support guarded add/remove rows`);
   }
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(legacyCompatSource.includes('private hasChanges') && legacyCompatSource.includes('private async replaceFitChildren'), 'FIT legacy child sync should use hasChanges -> deleteMany -> createMany helper pattern');

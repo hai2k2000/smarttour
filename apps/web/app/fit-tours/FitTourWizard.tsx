@@ -296,6 +296,34 @@ function rowHasValue(row: Record<string, unknown>, keys: string[]) {
   });
 }
 
+function rowHasDeletableContent(row: Record<string, unknown>) {
+  return rowHasValue(row, [
+    'serviceType',
+    'description',
+    'unit',
+    'supplierId',
+    'bookingCode',
+    'name',
+    'phone',
+    'itemName',
+    'question',
+    'unitPrice',
+    'confirmedUnitPrice',
+    'amount',
+    'notes',
+  ]);
+}
+
+function fieldError(errors: FieldErrors<FitTourForm>, name: keyof FitTourForm) {
+  const error = errors[name] as { message?: unknown } | undefined;
+  return typeof error?.message === 'string' ? error.message : '';
+}
+
+function tourLabel(tours: FitTourSummary[], id: string) {
+  const tour = tours.find((item) => item.id === id);
+  return tour ? `${tour.quoteCode} - ${tour.tourCode} - ${tour.customerName}` : 'tour nguồn';
+}
+
 function cleanCostRows(rows: FitTourForm['commonCosts'], totalPax: number, hotel = false) {
   return rows
     .map((row) => {
@@ -738,6 +766,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const currentStepPayloadSignature = JSON.stringify(stepPayload(preparePayload(values), workflowSteps[activeStep].key));
   const hasUnsavedChanges = formState.isDirty && currentStepPayloadSignature !== lastAutosaveSignature.current;
   const maxOpenStep = workflowStepIndex(values.workflowStatus);
+  const currentFormError = firstFormError(formState.errors);
+  const isBusy = formState.isSubmitting || saveState.startsWith('Đang ');
+  const errorFor = (name: keyof FitTourForm) => fieldError(formState.errors, name);
 
   function goToStep(index: number) {
     if (index < 0 || index >= workflowSteps.length) return;
@@ -943,8 +974,18 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
   function selectTour(id: string) {
     if (id === selectedTourId) return;
-    if (hasUnsavedChanges && !window.confirm('Tour FIT còn thay đổi chưa lưu. Bạn có chắc muốn chuyển sang tour khác?')) return;
+    const message = id
+      ? 'Tour FIT còn thay đổi chưa lưu. Bạn có chắc muốn chuyển sang tour khác?'
+      : 'Tạo tour FIT mới sẽ xóa dữ liệu đang nhập chưa lưu. Tiếp tục?';
+    if (hasUnsavedChanges && !window.confirm(message)) return;
     void loadTour(id);
+  }
+
+  function confirmRemoveRow(name: ArrayName, index: number, remove: (rowIndex: number) => void) {
+    const rows = getValues(name as never) as unknown as Record<string, unknown>[];
+    const row = rows[index] || {};
+    if (rowHasDeletableContent(row) && !window.confirm('Xóa dòng này khỏi bảng? Dữ liệu đã nhập trong dòng sẽ mất khỏi biểu mẫu.')) return;
+    remove(index);
   }
 
   async function copyBudget() {
@@ -957,6 +998,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       setSaveState('Hãy chọn một tour nguồn khác để sao chép dự toán');
       return;
     }
+    if (!window.confirm(`Sao chép dự toán từ ${tourLabel(tours, copySourceTourId)} sẽ ghi đè toàn bộ dự toán hiện tại của tour này. Tiếp tục?`)) return;
     setSaveState('Đang sao chép dự toán...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
@@ -983,12 +1025,15 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       setSaveState('Hãy lưu tour trước khi sao chép điều hành');
       return;
     }
+    const sourceTourId = copySourceTourId || id;
+    const sourceLabel = copySourceTourId ? tourLabel(tours, copySourceTourId) : 'dự toán của tour hiện tại';
+    if (!window.confirm(`Sao chép điều hành từ ${sourceLabel} sẽ ghi đè toàn bộ dòng điều hành hiện tại. Tiếp tục?`)) return;
     setSaveState('Đang sao chép điều hành...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
         method: 'POST',
         headers: authJsonHeaders(),
-        body: JSON.stringify({ sourceTourId: copySourceTourId || id }),
+        body: JSON.stringify({ sourceTourId }),
       });
       if (!response.ok) throw new Error(await responseError(response));
       const saved = await response.json();
@@ -1082,7 +1127,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
 
   return (
-    <form onSubmit={handleSubmit(submit, handleInvalidSubmit)} className="fitWizard">
+    <form onSubmit={handleSubmit(submit, handleInvalidSubmit)} className="fitWizard" noValidate aria-busy={isBusy}>
       <section className="fitToolbar">
         <div className="fitSteps">
           {workflowSteps.map((step, index) => {
@@ -1107,11 +1152,12 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <option value="">Tạo tour FIT mới</option>
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>
-          <span>{saveState}</span>
-          <button type="submit"><Save size={15} /> Lưu nháp</button>
-          <button type="button" onClick={handleSubmit(confirmCurrentStep, handleInvalidSubmit)}><Send size={15} /> Xác nhận bước</button>
+          <span className="fitSaveState" role="status" aria-live="polite">{saveState}</span>
+          <button type="submit" disabled={isBusy}><Save size={15} /> Lưu nháp</button>
+          <button type="button" disabled={isBusy} onClick={handleSubmit(confirmCurrentStep, handleInvalidSubmit)}><Send size={15} /> Xác nhận bước</button>
         </div>
       </section>
+      {currentFormError ? <div className="sectionError" role="alert">{currentFormError}</div> : null}
 
       {activeStep === 0 ? (
         <section className="fitStep">
@@ -1125,13 +1171,13 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             ['Giá có hoa hồng', money(priceWithCommission)],
           ]} />
           <div className="fitFormGrid">
-            <Field label="Mã báo giá" name="quoteCode" register={register} required />
-            <Field label="Mã tour" name="tourCode" register={register} required />
+            <Field label="Mã báo giá" name="quoteCode" register={register} required error={errorFor('quoteCode')} />
+            <Field label="Mã tour" name="tourCode" register={register} required error={errorFor('tourCode')} />
             <Field label="Nhóm thị trường" name="marketGroup" register={register} as="select" options={marketOptions} />
             <Field label="Ngày đặt" name="bookingDate" register={register} type="date" />
             <Field label="Khởi đi" name="startDate" register={register} type="date" />
             <Field label="Ngày về" name="endDate" register={register} type="date" />
-            <Field label="Họ tên khách" name="customerName" register={register} required />
+            <Field label="Họ tên khách" name="customerName" register={register} required error={errorFor('customerName')} />
             <Field label="Điện thoại" name="phone" register={register} />
             <Field label="Email" name="email" register={register} type="email" />
             <Field label="Số người lớn" name="adultCount" register={register} type="number" />
@@ -1143,16 +1189,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <label className="fileDrop span2"><FileUp size={16} /> File đính kèm<input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} /></label>
             <AttachmentList attachments={values.attachments} onRemove={(attachment) => void removeAttachment(attachment)} />
           </div>
-          <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={arrays.commonCosts.remove} columns={costColumns} />
-          <EditableTable title="Chi phí khách sạn" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append({ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 })} remove={arrays.hotelCosts.remove} columns={hotelColumns} />
-          <EditableTable title="Chi phí riêng khách" name="privateCosts" fields={arrays.privateCosts.fields} register={register} append={() => arrays.privateCosts.append({ ...emptyCost })} remove={arrays.privateCosts.remove} columns={costColumns} />
+          <EditableTable title="Chi phí chung" name="commonCosts" fields={arrays.commonCosts.fields} register={register} append={() => arrays.commonCosts.append({ ...emptyCost })} remove={(index) => confirmRemoveRow('commonCosts', index, arrays.commonCosts.remove)} columns={costColumns} />
+          <EditableTable title="Chi phí khách sạn" name="hotelCosts" fields={arrays.hotelCosts.fields} register={register} append={() => arrays.hotelCosts.append({ ...emptyCost, serviceType: 'Khách sạn', unit: 'phòng', paxPerRoom: 2 })} remove={(index) => confirmRemoveRow('hotelCosts', index, arrays.hotelCosts.remove)} columns={hotelColumns} />
+          <EditableTable title="Chi phí riêng khách" name="privateCosts" fields={arrays.privateCosts.fields} register={register} append={() => arrays.privateCosts.append({ ...emptyCost })} remove={(index) => confirmRemoveRow('privateCosts', index, arrays.privateCosts.remove)} columns={costColumns} />
         </section>
       ) : null}
 
       {activeStep === 1 ? (
         <section className="fitStep">
           <div className="fitFormGrid">
-            <Field label="Mã tour" name="tourCode" register={register} required />
+            <Field label="Mã tour" name="tourCode" register={register} required error={errorFor('tourCode')} />
             <Field label="Tên tour" name="tourName" register={register} />
             <Field label="Hành trình bay" name="flightRoute" register={register} />
             <Field label="Nhóm thị trường" name="marketGroup" register={register} as="select" options={marketOptions} />
@@ -1182,7 +1228,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Thời gian đóng chỗ" name="closeAt" register={register} type="date" />
             <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép vượt chỗ sau khi điều hành xác nhận</label>
           </div>
-          <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Nội địa', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
+          <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Nội địa', notes: '' })} remove={(index) => confirmRemoveRow('guides', index, arrays.guides.remove)} columns={guideColumns} />
         </section>
       ) : null}
 
@@ -1196,9 +1242,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           ]} />
           <div className="copyBar">
             <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Chọn tour nguồn để sao chép dự toán" />
-            <button type="button" onClick={copyBudget}><Copy size={15} /> Sao chép dự toán</button>
+            <button type="button" disabled={isBusy} onClick={copyBudget}><Copy size={15} /> Sao chép dự toán</button>
           </div>
-          <EditableTable title="Dự toán dịch vụ" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append({ ...emptyService })} remove={arrays.budgetServices.remove} columns={budgetColumns} suppliers={suppliers} />
+          <EditableTable title="Dự toán dịch vụ" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append({ ...emptyService })} remove={(index) => confirmRemoveRow('budgetServices', index, arrays.budgetServices.remove)} columns={budgetColumns} suppliers={suppliers} />
         </section>
       ) : null}
 
@@ -1212,9 +1258,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           ]} />
           <div className="copyBar">
             <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Dùng dự toán của tour hiện tại" />
-            <button type="button" onClick={copyOperation}><Copy size={15} /> Sao chép sang điều hành</button>
+            <button type="button" disabled={isBusy} onClick={copyOperation}><Copy size={15} /> Sao chép sang điều hành</button>
           </div>
-          <EditableTable title="Điều hành dịch vụ" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append({ ...emptyService })} remove={arrays.operationServices.remove} columns={operationColumns} suppliers={suppliers} />
+          <EditableTable title="Điều hành dịch vụ" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append({ ...emptyService })} remove={(index) => confirmRemoveRow('operationServices', index, arrays.operationServices.remove)} columns={operationColumns} suppliers={suppliers} />
         </section>
       ) : null}
 
@@ -1222,7 +1268,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         <section className="fitStep">
           <SummaryCards items={[['Tour', values.tourName || values.tourCode || '-'], ['Tổng số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên phụ trách', values.guides[0]?.name || '-']]} />
           <label>Yêu cầu hướng dẫn viên<textarea {...register('handoverGuideRequest')} rows={8} /></label>
-          <EditableTable title="Vật dụng và quà tặng" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={arrays.handoverItems.remove} columns={handoverColumns} />
+          <EditableTable title="Vật dụng và quà tặng" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={(index) => confirmRemoveRow('handoverItems', index, arrays.handoverItems.remove)} columns={handoverColumns} />
         </section>
       ) : null}
 
@@ -1230,7 +1276,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         <section className="fitStep">
           <SummaryCards items={[['Tour', values.tourName || values.tourCode || '-'], ['Tổng số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Ngày về', values.endDate || '-'], ['Số câu hỏi', String(values.surveyQuestions.filter((row) => trimText(row.question)).length)], ['Hướng dẫn viên phụ trách', values.guides[0]?.name || '-']]} />
           <label>Nội dung mở đầu phiếu đánh giá<textarea {...register('surveyDescription')} rows={5} /></label>
-          <EditableTable title="Câu hỏi đánh giá dịch vụ" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
+          <EditableTable title="Câu hỏi đánh giá dịch vụ" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={(index) => confirmRemoveRow('surveyQuestions', index, arrays.surveyQuestions.remove)} columns={surveyColumns} />
         </section>
       ) : null}
 
@@ -1281,18 +1327,19 @@ function CopySourceSelect({ tours, currentTourId, value, onChange, emptyLabel }:
   );
 }
 
-function Field({ label, name, register, type = 'text', required, as, options = [] }: { label: string; name: keyof FitTourForm; register: UseFormRegister<FitTourForm>; type?: string; required?: boolean; as?: 'select'; options?: FieldOption[] }) {
+function Field({ label, name, register, type = 'text', required, as, options = [], error = '' }: { label: string; name: keyof FitTourForm; register: UseFormRegister<FitTourForm>; type?: string; required?: boolean; as?: 'select'; options?: FieldOption[]; error?: string }) {
   return (
-    <label>{label}
+    <label className={error ? 'fieldError' : undefined}>{label}
       {as === 'select' ? (
-        <select {...register(name)} required={required}>{options.map((option) => {
+        <select {...register(name)} required={required} aria-invalid={Boolean(error)}>{options.map((option) => {
           const value = typeof option === 'string' ? option : option.value;
           const optionLabel = typeof option === 'string' ? option : option.label;
           return <option key={value} value={value}>{optionLabel}</option>;
         })}</select>
       ) : (
-        <input type={type} {...register(name)} required={required} />
+        <input type={type} {...register(name)} required={required} aria-invalid={Boolean(error)} />
       )}
+      {error ? <span className="fieldErrorText">{error}</span> : null}
     </label>
   );
 }

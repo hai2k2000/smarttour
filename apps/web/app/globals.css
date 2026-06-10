@@ -385,6 +385,16 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .fitActions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .fitActions select { min-width: 220px; }
 .fitActions span { color: var(--dn-muted); font-size: 13px; white-space: nowrap; }
+.fitSaveState { min-height: 20px; }
+.sectionError {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+}
 .fitStep { display: grid; gap: 14px; }
 .fitSummary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .fitSummary div { background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; padding: 13px; display: grid; gap: 8px; min-height: 82px; }
@@ -392,6 +402,17 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .fitSummary strong { color: var(--dn-primary); font-size: 20px; overflow-wrap: anywhere; }
 .fitFormGrid { background: #fff; border: 1px solid var(--dn-border); border-radius: 8px; padding: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .fitFormGrid .span2 { grid-column: span 2; }
+.fieldError input,
+.fieldError select,
+.fieldError textarea {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, .1);
+}
+.fieldErrorText {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
 .checkLine { display: flex; align-items: center; gap: 8px; align-self: end; min-height: 41px; }
 .checkLine input { width: auto; }
 .fileDrop { border: 1px dashed #b8c7d3; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #4b6b3d; cursor: pointer; min-height: 64px; }
