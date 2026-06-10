@@ -30,6 +30,8 @@ docker compose run --rm \
 const fs = require('fs');
 const { plainToInstance } = require('class-transformer');
 const { validate } = require('class-validator');
+const { RequestMethod } = require('@nestjs/common');
+const { METHOD_METADATA, PATH_METADATA } = require('@nestjs/common/constants');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const {
   TourProgramsController,
@@ -83,6 +85,21 @@ function permissions(target, methodName) {
   return Reflect.getMetadata(PERMISSIONS_KEY, metadataTarget) ?? [];
 }
 
+function routeMetadata(target, methodName) {
+  const handler = target.prototype[methodName];
+  return {
+    method: Reflect.getMetadata(METHOD_METADATA, handler),
+    path: Reflect.getMetadata(PATH_METADATA, handler),
+  };
+}
+
+function filesUnder(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    return entry.isDirectory() ? filesUnder(path) : [path];
+  });
+}
+
 async function validateDto(DtoClass, payload) {
   const instance = plainToInstance(DtoClass, payload);
   const errors = await validate(instance);
@@ -116,6 +133,11 @@ async function main() {
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
+  const rolePermissionSource = fs.readFileSync('/workspace/prisma/migrations/20260526100000_complete_rbac_role_permissions/migration.sql', 'utf8');
+  const controllerSources = filesUnder('/workspace/apps/api/src')
+    .filter((path) => path.endsWith('.controller.ts'))
+    .map((path) => fs.readFileSync(path, 'utf8'))
+    .join('\n');
 
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
   assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
@@ -164,6 +186,14 @@ async function main() {
   assert(webPageSource.includes('disabled={itineraryIsFull(tour)}'), 'frontend should disable full itinerary options');
   assert(webPageSource.includes('function tourProgramDeleteReason'), 'frontend should build delete block reasons without zero-count noise');
   assert(webPageSource.includes('Tour mẫu này đang có {blockReason}'), 'frontend delete confirmation should use a clear Vietnamese block reason');
+  assert(webPageSource.includes("apiGet<TourProgram[]>('/tour-programs'"), 'frontend list should use GET /tour-programs');
+  assert(webPageSource.includes('`/tour-programs/${encodeURIComponent(id)}`'), 'frontend detail/update/remove should use /tour-programs/:id');
+  assert(webPageSource.includes('`/tour-programs/${encodeURIComponent(tourProgramId)}/itinerary-days`'), 'frontend create itinerary day should use nested tour-program route');
+  assert((controllerSources.match(/@Controller\('tour-programs'\)/g) ?? []).length === 1, 'tour-programs controller prefix should be unique');
+  assert((controllerSources.match(/@Controller\('tour-itinerary-days'\)/g) ?? []).length === 1, 'tour-itinerary-days controller prefix should be unique');
+  assert(rolePermissionSource.includes("('operation', 'tour.manage')"), 'operation role should manage tours');
+  assert(rolePermissionSource.includes("('sales', 'tour.manage')"), 'sales role should manage tours');
+  assert(!rolePermissionSource.includes("('accounting', 'tour.manage')"), 'accounting role should not receive tour.manage');
 
   const customValidationResponse = validationExceptionFactory([{
     property: 'durationDays',
@@ -194,6 +224,24 @@ async function main() {
   assert(permissions(TourItineraryDaysController).includes('tour.view'), 'tour itinerary days controller should keep tour.view default');
   assert(permissions(TourItineraryDaysController, 'update').includes('tour.manage'), 'update itinerary day should require tour.manage');
   assert(permissions(TourItineraryDaysController, 'remove').includes('tour.manage'), 'remove itinerary day should require tour.manage');
+  assert(Reflect.getMetadata(PATH_METADATA, TourProgramsController) === 'tour-programs', 'tour programs controller path should stay stable');
+  assert(Reflect.getMetadata(PATH_METADATA, TourItineraryDaysController) === 'tour-itinerary-days', 'tour itinerary days controller path should stay stable');
+  assert(routeMetadata(TourProgramsController, 'list').method === RequestMethod.GET, 'list should remain GET /tour-programs');
+  assert(routeMetadata(TourProgramsController, 'list').path === '/', 'list should remain GET /tour-programs');
+  assert(routeMetadata(TourProgramsController, 'detail').method === RequestMethod.GET, 'detail should remain GET /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'detail').path === ':id', 'detail should remain GET /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'create').method === RequestMethod.POST, 'create should remain POST /tour-programs');
+  assert(routeMetadata(TourProgramsController, 'create').path === '/', 'create should remain POST /tour-programs');
+  assert(routeMetadata(TourProgramsController, 'update').method === RequestMethod.PATCH, 'update should remain PATCH /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'update').path === ':id', 'update should remain PATCH /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'remove').method === RequestMethod.DELETE, 'remove should remain DELETE /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'remove').path === ':id', 'remove should remain DELETE /tour-programs/:id');
+  assert(routeMetadata(TourProgramsController, 'createItineraryDay').method === RequestMethod.POST, 'create itinerary day should remain POST');
+  assert(routeMetadata(TourProgramsController, 'createItineraryDay').path === ':id/itinerary-days', 'create itinerary day should stay nested under tour program');
+  assert(routeMetadata(TourItineraryDaysController, 'update').method === RequestMethod.PATCH, 'update itinerary day should remain PATCH');
+  assert(routeMetadata(TourItineraryDaysController, 'update').path === ':id', 'update itinerary day should remain PATCH /tour-itinerary-days/:id');
+  assert(routeMetadata(TourItineraryDaysController, 'remove').method === RequestMethod.DELETE, 'remove itinerary day should remain DELETE');
+  assert(routeMetadata(TourItineraryDaysController, 'remove').path === ':id', 'remove itinerary day should remain DELETE /tour-itinerary-days/:id');
 
   let controllerSearchValue = 'not-called';
   const controller = new TourProgramsController({
