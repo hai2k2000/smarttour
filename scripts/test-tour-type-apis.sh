@@ -34,6 +34,7 @@ const { ValidationPipe } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('./apps/api/dist/app.module');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
+const { validationExceptionFactory } = require('./apps/api/dist/validation-exception.factory');
 const tourCreateDtoContract = require('./apps/api/dist/modules/tours/dto/create-tour.dto');
 const gitCreateDtoContract = require('./apps/api/dist/modules/git-tours/dto/create-git-tour.dto');
 const gitUpdateDtoContract = require('./apps/api/dist/modules/git-tours/dto/update-git-tour.dto');
@@ -282,7 +283,7 @@ async function main() {
   assertTourRootOrchestrationBoundaries();
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
   await app.listen(0, '127.0.0.1');
 
   const prisma = app.get(PrismaService);
@@ -333,6 +334,30 @@ async function main() {
     assert(response.status === status, `${label}: expected ${status}, got ${response.status} ${JSON.stringify(response.body)}`);
     return response.body;
   }
+
+  function assertMessage(body, expected, label) {
+    const messages = Array.isArray(body?.message) ? body.message : [body?.message].filter(Boolean);
+    assert(messages.some((message) => String(message).includes(expected)), `${label}: missing message ${expected}, got ${JSON.stringify(body)}`);
+  }
+
+  const supplierCategory = await prisma.supplierCategory.create({ data: { name: `${run} Supplier Category` } });
+  const gitSupplier = await prisma.supplier.create({
+    data: {
+      categoryId: supplierCategory.id,
+      supplierCode: `${run}-SUP`,
+      name: 'Tour type API GIT supplier',
+    },
+  });
+  const gitSupplierService = await prisma.supplierService.create({
+    data: {
+      supplierId: gitSupplier.id,
+      sku: `${run}-SUP-SERVICE`,
+      serviceName: 'Tour type API GIT supplier service',
+      quantity: 1,
+      netPrice: 1000,
+      sellingPrice: 1200,
+    },
+  });
 
   await expect(
     '/api/tours',
@@ -434,6 +459,28 @@ async function main() {
   await expect('/api/fit-tours?status=pricing', {}, 200, 'FIT lowercase workflow status query');
   await expect('/api/fit-tours?status=WRONG', {}, 400, 'FIT invalid workflow status query');
 
+  const missingGitField = await expect(
+    '/api/git-tours',
+    { method: 'POST', body: JSON.stringify({ tourCode: `${run}-GIT-MISSING`, name: 'Tour type API GIT missing system code' }) },
+    400,
+    'GIT should reject missing systemCode',
+  );
+  assertMessage(missingGitField, 'Mã hệ thống tour GIT phải là chuỗi ký tự', 'GIT missing field should use Vietnamese validation message');
+  const invalidGitNumber = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-NUMBER-SYS`,
+        tourCode: `${run}-GIT-BAD-NUMBER`,
+        name: 'Tour type API GIT bad number',
+        commissionRate: 'abc',
+      }),
+    },
+    400,
+    'GIT should reject invalid numeric fields',
+  );
+  assertMessage(invalidGitNumber, 'Tỷ lệ hoa hồng GIT phải là số hợp lệ', 'GIT invalid number should use Vietnamese validation message');
   await expect(
     '/api/git-tours',
     {
@@ -490,9 +537,13 @@ async function main() {
         itinerarySummary: 'Tour type API GIT detail itinerary',
         customerName: 'Tour type API GIT customer',
         agentName: 'Tour type API GIT agent',
+        operatorOwner: 'Tour type API GIT operator',
+        paymentStatus: 'partial',
         startDate: '2026-08-01',
         endDate: '2026-08-03',
-        budgetServices: [{ serviceType: 'GIT_HOTEL', description: 'GIT copied budget service', quantity: 2, unitPrice: 1000, amount: 2000, status: 'confirmed' }],
+        revenues: [{ description: 'GIT revenue package', quantity: 2, unitPrice: 500, vat: 10 }],
+        budgetServices: [{ serviceType: 'GIT_HOTEL', supplierId: gitSupplier.id, supplierServiceId: gitSupplierService.id, description: 'GIT copied budget service', quantity: 2, unitPrice: 1000, amount: 2000, vat: 10, status: 'confirmed' }],
+        operationServices: [{ serviceType: 'GIT_CAR', supplierId: gitSupplier.id, supplierServiceId: gitSupplierService.id, description: 'GIT copied operation service', quantity: 1, confirmedUnitPrice: 500, vat: 8, status: 'operating' }],
       }),
     },
     201,
@@ -501,8 +552,11 @@ async function main() {
   assert(gitTour.id, 'GIT create should return id');
   assert(gitTour.systemCode === `${run}-GIT-SYS` && gitTour.tourCode === `${run}-GIT`, 'GIT create should uppercase systemCode and tourCode');
   assert(gitTour.workflowStep === 'GIT_INFO', 'GIT create should initialize default workflow step');
+  assert(gitTour.paymentStatus === 'PARTIAL', 'GIT create should normalize paymentStatus');
   assert(gitTour.logs.some((log) => log.action === 'CREATE_GIT_TOUR' && log.metadata?.systemCode === `${run}-GIT-SYS`), 'GIT create should write standardized create log metadata');
-  assert(gitTour.services.length === 1 && gitTour.services[0].confirmationStatus === 'CONFIRMED', 'GIT should map service status strings into TourServiceStatus');
+  assert(gitTour.revenues.length === 1 && Number(gitTour.revenues[0].amount) === 1100, 'GIT should map revenue amount with VAT');
+  assert(gitTour.services.length === 2 && gitTour.services.some((service) => service.confirmationStatus === 'CONFIRMED') && gitTour.services.some((service) => service.confirmationStatus === 'OPERATING'), 'GIT should map service status strings into TourServiceStatus');
+  assert(gitTour.services.every((service) => service.supplierId === gitSupplier.id && service.supplierServiceId === gitSupplierService.id), 'GIT should persist supplier and supplier-service links on services');
   assert(gitTour.route === 'Tour type API GIT common route', 'GIT root route should use the common route field');
   assert(gitTour.gitTour.itinerarySummary === 'Tour type API GIT detail itinerary', 'GIT detail should keep itinerarySummary separate from root route');
   assert(gitTour.gitTour.agentName === 'Tour type API GIT agent', 'GIT response should expose agentName from common TourCustomer AGENT row');
@@ -510,10 +564,36 @@ async function main() {
   const gitAgentCustomer = await prisma.tourCustomer.findFirst({ where: { tourId: gitTour.id, customerType: 'AGENT' } });
   assert(rawGitDetail && rawGitDetail.agentName === null, 'GIT detail should not write legacy agentName snapshot');
   assert(gitAgentCustomer && gitAgentCustomer.name === 'Tour type API GIT agent', 'GIT agentName should be stored as common TourCustomer AGENT row');
+  const gitDetail = await expect(`/api/git-tours/${gitTour.id}`, {}, 200, 'GIT detail should load full edit data');
+  assert(gitDetail.customers.length === 2 && gitDetail.revenues.length === 1 && gitDetail.services.length === 2 && Array.isArray(gitDetail.logs), 'GIT detail should include edit wizard relations');
   const gitListRows = await expect('/api/git-tours?search=Tour%20type%20API%20GIT%20agent', {}, 200, 'GIT list should search common agent customer');
   const gitListRow = gitListRows.find((row) => row.id === gitTour.id);
   assert(gitListRow && gitListRow.gitTour.agentName === 'Tour type API GIT agent', 'GIT list should overlay agentName from common TourCustomer AGENT row');
   assert(gitListRow.customers.length === 1 && gitListRow.customers[0].name === 'Tour type API GIT customer', 'GIT list should keep customer list focused on the primary customer');
+  for (const [query, label] of [
+    [`${run}-GIT-SYS`, 'systemCode'],
+    [`${run}-GIT`, 'tourCode'],
+    ['Tour type API GIT customer', 'customerName'],
+    ['Tour type API GIT operator', 'operatorOwner'],
+  ]) {
+    const rows = await expect(`/api/git-tours?search=${encodeURIComponent(query)}`, {}, 200, `GIT list should search ${label}`);
+    assert(rows.some((row) => row.id === gitTour.id), `GIT list search by ${label} should find the tour`);
+  }
+  const gitStatusRows = await expect('/api/git-tours?status=upcoming', {}, 200, 'GIT list should filter by initial status');
+  assert(gitStatusRows.some((row) => row.id === gitTour.id), 'GIT status filter should include matching upcoming tour');
+  await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-SYS`,
+        tourCode: `${run}-GIT-DUP`,
+        name: 'Tour type API GIT duplicate system code',
+      }),
+    },
+    409,
+    'GIT should reject duplicate systemCode',
+  );
   await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ endDate: '2026-07-31' }) },
@@ -528,7 +608,8 @@ async function main() {
   );
   assert(patchedGitTour.status === 'RUNNING', 'GIT PATCH should update lifecycle status');
   assert(patchedGitTour.customers.some((customer) => customer.name === 'Tour type API GIT customer'), 'GIT partial status update should not replace customers');
-  assert(patchedGitTour.services.length === 1 && patchedGitTour.services[0].serviceType === 'GIT_HOTEL', 'GIT partial status update should not replace services');
+  assert(patchedGitTour.services.length === 2 && patchedGitTour.services.some((service) => service.serviceType === 'GIT_HOTEL') && patchedGitTour.services.some((service) => service.serviceType === 'GIT_CAR'), 'GIT partial status update should not replace services');
+  assert(patchedGitTour.revenues.length === 1, 'GIT partial status update should not replace revenues');
   assert(patchedGitTour.logs.some((log) => log.action === 'UPDATE_GIT_TOUR' && log.metadata?.changedFields?.includes('status')), 'GIT update should write changed field metadata');
   await expect(
     `/api/git-tours/${gitTour.id}`,
@@ -582,15 +663,23 @@ async function main() {
     404,
     'GIT copy-services should reject missing source tour',
   );
-  assert(copiedGitServices.services.length === 1, 'GIT copy-services should copy common TourService rows');
-  assert(copiedGitServices.services[0].serviceType === 'GIT_HOTEL', 'GIT copy-services should preserve serviceType through TourCore clone helper');
-  assert(copiedGitServices.services[0].confirmationStatus === 'CONFIRMED', 'GIT copy-services should preserve normalized service status');
+  assert(copiedGitServices.services.length === 2, 'GIT copy-services should copy budget and operation common TourService rows');
+  const copiedBudgetService = copiedGitServices.services.find((service) => service.serviceType === 'GIT_HOTEL');
+  const copiedOperationService = copiedGitServices.services.find((service) => service.serviceType === 'GIT_CAR');
+  assert(copiedBudgetService && copiedOperationService, 'GIT copy-services should preserve serviceType through TourCore clone helper');
+  assert(copiedBudgetService.supplierId === gitSupplier.id && copiedBudgetService.supplierServiceId === gitSupplierService.id, 'GIT copy-services should preserve supplier links');
+  assert(Number(copiedBudgetService.budgetAmount) === 2000 && Number(copiedBudgetService.vat) === 10, 'GIT copy-services should preserve explicit budget amount and VAT');
+  assert(Number(copiedOperationService.confirmedAmount) === 540 && Number(copiedOperationService.vat) === 8, 'GIT copy-services should preserve calculated operation amount and VAT');
+  assert(copiedBudgetService.confirmationStatus === 'CONFIRMED' && copiedOperationService.confirmationStatus === 'OPERATING', 'GIT copy-services should preserve normalized service statuses');
   assert(copiedGitServices.logs.some((log) => log.action === 'COPY_GIT_SERVICES' && log.metadata?.sourceTourId === gitTour.id), 'GIT copy-services should write source/target log metadata');
   const lowercaseGitStatusRows = await expect('/api/git-tours?status=running', {}, 200, 'GIT lowercase status query');
   assert(lowercaseGitStatusRows.some((row) => row.id === gitTour.id), 'GIT lowercase status query should include running tour');
   const spacedGitStatusRows = await expect('/api/git-tours?status=%20running%20', {}, 200, 'GIT spaced lowercase status query');
   assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
   await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
+  const removedGitTour = await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE' }, 200, 'GIT remove should soft-delete target tour');
+  assert(removedGitTour.deletedAt && removedGitTour.status === 'CANCELLED', 'GIT remove should cancel and soft-delete the common Tour owner');
+  await expect(`/api/git-tours/${gitCopyTarget.id}`, {}, 404, 'GIT detail should hide soft-deleted tour');
 
   await expect(
     '/api/landtours',

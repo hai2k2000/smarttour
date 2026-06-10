@@ -1,19 +1,32 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentStatus, TourStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
 
 export const GIT_TOUR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+const trimOptional = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
+const normalizeEnum = ({ value }: { value: unknown }) => {
+  const trimmed = trimOptional({ value });
+  return typeof trimmed === 'string' ? trimmed.toUpperCase() : trimmed;
+};
+
 export class CreateGitTourDto {
   @ApiProperty({ example: 'GIT-2026-0001' })
-  @IsString()
-  @MinLength(2)
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã hệ thống tour GIT phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã hệ thống tour GIT cần ít nhất 2 ký tự' })
   systemCode!: string;
 
   @ApiProperty({ example: 'GIT-HN-DN-001' })
-  @IsString()
-  @MinLength(2)
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã tour GIT phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã tour GIT cần ít nhất 2 ký tự' })
   tourCode!: string;
 
   @ApiPropertyOptional()
@@ -21,14 +34,16 @@ export class CreateGitTourDto {
   @IsString()
   orderId?: string;
 
-  @ApiProperty({ example: 'Doan cong ty ABC Da Nang 4N3D' })
-  @IsString()
-  @MinLength(2)
+  @ApiProperty({ example: 'Đoàn công ty ABC Đà Nẵng 4N3Đ' })
+  @Transform(trimOptional)
+  @IsString({ message: 'Tên tour GIT phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên tour GIT cần ít nhất 2 ký tự' })
   name!: string;
 
   @ApiPropertyOptional({ enum: TourStatus })
+  @Transform(normalizeEnum)
   @IsOptional()
-  @IsEnum(TourStatus)
+  @IsEnum(TourStatus, { message: 'Trạng thái tour GIT không hợp lệ' })
   status?: TourStatus;
 
   @ApiPropertyOptional()
@@ -37,8 +52,9 @@ export class CreateGitTourDto {
   workflowStep?: string;
 
   @ApiPropertyOptional({ enum: PaymentStatus })
+  @Transform(normalizeEnum)
   @IsOptional()
-  @IsEnum(PaymentStatus)
+  @IsEnum(PaymentStatus, { message: 'Trạng thái thanh toán tour GIT không hợp lệ' })
   paymentStatus?: PaymentStatus;
 
   @ApiPropertyOptional()
@@ -108,8 +124,8 @@ export class CreateGitTourDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Tỷ lệ hoa hồng GIT phải là số hợp lệ' })
+  @Min(0, { message: 'Tỷ lệ hoa hồng GIT không được âm' })
   commissionRate?: number;
 
   @ApiPropertyOptional()
@@ -145,8 +161,8 @@ export class CreateGitTourDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Tỷ giá tour GIT phải là số hợp lệ' })
+  @Min(0, { message: 'Tỷ giá tour GIT không được âm' })
   exchangeRate?: number;
 
   @ApiPropertyOptional()

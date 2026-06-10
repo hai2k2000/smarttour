@@ -20,6 +20,19 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Continued GIT module business and regression coverage:
+  - GIT create DTO now trims required identity fields, normalizes lifecycle and
+    payment enum inputs, and returns Vietnamese validation messages for key
+    identity and numeric fields.
+  - Tour-type regression now covers missing/invalid GIT payloads, duplicate
+    system codes, detail relation shape, search by systemCode/tourCode/customer
+    name/operator owner, status and payment normalization, partial update child
+    preservation, copy-services child preservation, and remove soft-delete
+    behavior.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK` and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
+
 - Packaged Step 1/4 Tour schema cleanup for commit:
   - Re-verified the accumulated FIT/GIT/LandTour schema lock, DTO action
     split, child sync helpers, standardized logs, remove ownership, legacy

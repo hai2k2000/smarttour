@@ -2,6 +2,19 @@
 
 ## Done
 
+- Expanded GIT module business coverage:
+  - GIT create DTO now trims `systemCode`, `tourCode`, and `name`, normalizes
+    `status` / `paymentStatus`, and uses Vietnamese messages for required
+    identity and numeric validation failures.
+  - Added HTTP regression coverage for list search/status, detail relations,
+    create/update/remove, duplicate `systemCode`, revenue/service/customer
+    child mapping, workflow/status/paymentStatus, missing field and numeric
+    validation, partial update preservation, and copy-services supplier/service
+    amount/VAT/status preservation for budget and operation rows.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK` and
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
+
+
 - Packaged Step 1/4 Tour schema cleanup for commit:
   - Re-verified the accumulated schema/DTO/sync/log/legacy-docs changes for
     FIT, GIT, LandTour, and common Tour core.
