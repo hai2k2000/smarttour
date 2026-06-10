@@ -264,6 +264,14 @@ function itineraryPreview(days: ItineraryDay[]) {
   return [...days].sort((left, right) => left.dayNumber - right.dayNumber).slice(0, 3);
 }
 
+function itineraryDayCount(tourProgram: TourProgram) {
+  return tourProgram.itineraryDays.length;
+}
+
+function itineraryIsFull(tourProgram: TourProgram) {
+  return itineraryDayCount(tourProgram) >= tourProgram.durationDays;
+}
+
 export default async function TourProgramsPage({ searchParams }: TourProgramsPageProps) {
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
@@ -319,6 +327,7 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
                 {tourPrograms.map((tour) => {
                   const previewDays = itineraryPreview(tour.itineraryDays);
                   const remainingDays = Math.max(0, tour.itineraryDays.length - previewDays.length);
+                  const fullItinerary = itineraryIsFull(tour);
 
                   return (
                     <tr key={tour.id}>
@@ -359,9 +368,15 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
                       <td><span className={tour._count?.bookings ? 'statusPill statusPillWarning' : 'statusPill statusPillNeutral'}>{tour._count?.bookings ?? 0} booking</span></td>
                       <td className="actionsCell">
                         <div className="tourProgramRowActions">
-                          <a className="secondaryButton iconTextButton" href={`#add-day-${tour.id}`} title="Thêm ngày" aria-label={`Thêm ngày cho ${tour.code}`}>
-                            <CalendarDays size={14} /> Thêm ngày
-                          </a>
+                          {fullItinerary ? (
+                            <span className="secondaryButton iconTextButton" title="Tour mẫu đã đủ số ngày lịch trình" aria-disabled="true">
+                              <CalendarDays size={14} /> Đủ ngày
+                            </span>
+                          ) : (
+                            <a className="secondaryButton iconTextButton" href={`#add-day-${tour.id}`} title="Thêm ngày" aria-label={`Thêm ngày cho ${tour.code}`}>
+                              <CalendarDays size={14} /> Thêm ngày
+                            </a>
+                          )}
                           <a className="secondaryButton iconOnlyButton" href={`#edit-${tour.id}`} title="Sửa tour mẫu" aria-label={`Sửa ${tour.code}`}>
                             <Pencil size={14} />
                           </a>
@@ -486,6 +501,9 @@ function ItineraryDayForm({
 }) {
   const selectedId = selectedTourProgram?.id || '';
   const defaultDayNumber = selectedTourProgram ? nextItineraryDayNumber(selectedTourProgram) : 1;
+  const selectedFull = selectedTourProgram ? itineraryIsFull(selectedTourProgram) : false;
+  const selectableTours = tourPrograms.filter((tour) => !itineraryIsFull(tour));
+  const canSubmit = selectedTourProgram ? !selectedFull : selectableTours.length > 0;
   return (
     <form action={action} className="modalFormStack">
       {tourPrograms.length === 0 ? (
@@ -493,14 +511,26 @@ function ItineraryDayForm({
           <AlertTriangle size={16} /> Chưa tải được tour mẫu. Kiểm tra lỗi ở đầu trang trước khi tạo ngày lịch trình.
         </div>
       ) : null}
+      {tourPrograms.length > 0 && selectableTours.length === 0 ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> Tất cả tour mẫu đã đủ số ngày lịch trình.
+        </div>
+      ) : null}
+      {selectedFull ? (
+        <div className="supplierNotice supplierNoticeError">
+          <AlertTriangle size={16} /> Tour mẫu này đã đủ {selectedTourProgram?.durationDays ?? 0} ngày lịch trình.
+        </div>
+      ) : null}
       <fieldset>
         <legend>Tour mẫu</legend>
         <label>
           Tour mẫu
-          <select name="tourProgramId" required defaultValue={selectedId} disabled={Boolean(selectedTourProgram) || tourPrograms.length === 0}>
+          <select name="tourProgramId" required defaultValue={selectedId} disabled={Boolean(selectedTourProgram) || tourPrograms.length === 0 || selectableTours.length === 0}>
             <option value="">Chọn tour mẫu</option>
             {tourPrograms.map((tour) => (
-              <option value={tour.id} key={tour.id}>{tour.code} - {tour.name}</option>
+              <option value={tour.id} key={tour.id} disabled={itineraryIsFull(tour)}>
+                {tour.code} - {tour.name}{itineraryIsFull(tour) ? ' (đủ ngày)' : ''}
+              </option>
             ))}
           </select>
         </label>
@@ -527,16 +557,25 @@ function ItineraryDayForm({
 
       <div className="modalActions">
         <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
-        <button type="submit" disabled={tourPrograms.length === 0}><Save size={14} /> Tạo ngày lịch trình</button>
+        <button type="submit" disabled={!canSubmit}><Save size={14} /> Tạo ngày lịch trình</button>
       </div>
     </form>
   );
+}
+
+function tourProgramDeleteReason(bookingCount: number, itineraryCount: number) {
+  const reasons = [
+    bookingCount > 0 ? `${bookingCount} booking` : '',
+    itineraryCount > 0 ? `${itineraryCount} ngày lịch trình` : '',
+  ].filter(Boolean);
+  return reasons.join(' và ');
 }
 
 function DeleteTourProgramModal({ tourProgram }: { tourProgram: TourProgram }) {
   const bookingCount = tourProgram._count?.bookings ?? 0;
   const itineraryCount = tourProgram.itineraryDays.length;
   const blocked = bookingCount > 0 || itineraryCount > 0;
+  const blockReason = tourProgramDeleteReason(bookingCount, itineraryCount);
   return (
     <div id={`delete-${tourProgram.id}`} className="hashModal">
       <a href={modalCloseHref()} className="hashModalBackdrop" aria-label="Đóng modal" />
@@ -548,7 +587,7 @@ function DeleteTourProgramModal({ tourProgram }: { tourProgram: TourProgram }) {
         <div className="supplierDeleteWarning">
           <strong>{tourProgram.code} - {tourProgram.name}</strong>
           {blocked ? (
-            <p>Tour mẫu này đang có {bookingCount} booking và {itineraryCount} ngày lịch trình, không thể xóa trực tiếp.</p>
+            <p>Tour mẫu này đang có {blockReason}, không thể xóa trực tiếp.</p>
           ) : (
             <p>Hệ thống sẽ kiểm tra booking và lịch trình liên quan trước khi xóa.</p>
           )}

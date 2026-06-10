@@ -159,6 +159,11 @@ async function main() {
   assert(webPageSource.includes('maxLength={MAX_CODE_LENGTH}'), 'frontend should cap code length');
   assert(/<input name="route"[^>]*maxLength=\{MAX_ROUTE_LENGTH\}[^>]*\/>/.test(webPageSource), 'frontend route input should stay optional and length-limited');
   assert(!webPageSource.includes('bookings?.length'), 'frontend should rely on _count.bookings instead of detail booking rows');
+  assert(webPageSource.includes('function itineraryIsFull'), 'frontend should detect full itinerary programs');
+  assert(webPageSource.includes('Tour mẫu này đã đủ'), 'frontend should show Vietnamese full-itinerary message');
+  assert(webPageSource.includes('disabled={itineraryIsFull(tour)}'), 'frontend should disable full itinerary options');
+  assert(webPageSource.includes('function tourProgramDeleteReason'), 'frontend should build delete block reasons without zero-count noise');
+  assert(webPageSource.includes('Tour mẫu này đang có {blockReason}'), 'frontend delete confirmation should use a clear Vietnamese block reason');
 
   const customValidationResponse = validationExceptionFactory([{
     property: 'durationDays',
