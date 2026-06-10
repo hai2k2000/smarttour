@@ -14,28 +14,47 @@ const trimUppercaseString = ({ value }: { value: unknown }) => (
 );
 
 export class CreateTourProgramDto {
-  @ApiProperty({ example: 'HL-3N2D', description: 'Mã tour mẫu, duy nhất trong hệ thống.' })
+  @ApiProperty({
+    example: 'HL-3N2D',
+    minLength: 2,
+    maxLength: TOUR_PROGRAM_CODE_MAX_LENGTH,
+    description: 'Mã tour mẫu, duy nhất trong hệ thống. API tự trim và chuẩn hóa chữ hoa trước khi lưu.',
+  })
   @Transform(trimUppercaseString)
   @IsString({ message: 'Mã chương trình tour phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Mã chương trình tour phải có ít nhất 2 ký tự' })
   @MaxLength(TOUR_PROGRAM_CODE_MAX_LENGTH, { message: `Mã chương trình tour không được vượt quá ${TOUR_PROGRAM_CODE_MAX_LENGTH} ký tự` })
   code!: string;
 
-  @ApiProperty({ example: 'Hạ Long 3 ngày 2 đêm' })
+  @ApiProperty({
+    example: 'Hạ Long 3 ngày 2 đêm',
+    minLength: 2,
+    maxLength: TOUR_PROGRAM_NAME_MAX_LENGTH,
+    description: 'Tên tour mẫu hiển thị cho booking, báo giá và vận hành; nên nhập đầy đủ dấu tiếng Việt.',
+  })
   @Transform(trimString)
   @IsString({ message: 'Tên chương trình tour phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên chương trình tour phải có ít nhất 2 ký tự' })
   @MaxLength(TOUR_PROGRAM_NAME_MAX_LENGTH, { message: `Tên chương trình tour không được vượt quá ${TOUR_PROGRAM_NAME_MAX_LENGTH} ký tự` })
   name!: string;
 
-  @ApiPropertyOptional({ example: 'Hà Nội - Hạ Long - Ninh Bình' })
+  @ApiPropertyOptional({
+    example: 'Hà Nội - Hạ Long - Ninh Bình',
+    maxLength: TOUR_PROGRAM_ROUTE_MAX_LENGTH,
+    description: 'Tuyến điểm tóm tắt theo thứ tự hành trình, dùng để tìm kiếm và hiển thị danh sách tour mẫu.',
+  })
   @Transform(trimString)
   @IsOptional()
   @IsString({ message: 'Tuyến điểm phải là chuỗi ký tự' })
   @MaxLength(TOUR_PROGRAM_ROUTE_MAX_LENGTH, { message: `Tuyến điểm không được vượt quá ${TOUR_PROGRAM_ROUTE_MAX_LENGTH} ký tự` })
   route?: string;
 
-  @ApiProperty({ example: 3, maximum: TOUR_PROGRAM_DURATION_DAYS_MAX })
+  @ApiProperty({
+    example: 3,
+    minimum: 1,
+    maximum: TOUR_PROGRAM_DURATION_DAYS_MAX,
+    description: 'Tổng số ngày của tour mẫu; các ngày lịch trình không được vượt quá giá trị này.',
+  })
   @Type(() => Number)
   @IsInt({ message: 'Số ngày phải là số nguyên hợp lệ' })
   @Min(1, { message: 'Số ngày phải lớn hơn hoặc bằng 1' })
@@ -44,7 +63,8 @@ export class CreateTourProgramDto {
 
   @ApiPropertyOptional({
     example: 'Lịch trình mẫu cho tour Hạ Long 3 ngày 2 đêm.\nCho phép mô tả nhiều dòng.',
-    description: 'Mô tả tour mẫu, cho phép xuống dòng.',
+    maxLength: TOUR_PROGRAM_DESCRIPTION_MAX_LENGTH,
+    description: 'Mô tả tổng quan tour mẫu để hiển thị nội bộ; cho phép xuống dòng.',
   })
   @Transform(trimString)
   @IsOptional()

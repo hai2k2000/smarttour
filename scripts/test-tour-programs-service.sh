@@ -74,6 +74,12 @@ async function main() {
   assert(dtoSource.includes('trim().toUpperCase()'), 'DTO should normalize code to uppercase');
   assert(dtoSource.includes('Mã chương trình tour phải là chuỗi ký tự'), 'DTO validation messages should be Vietnamese');
   assert(dtoSource.includes('Hạ Long 3 ngày 2 đêm'), 'DTO Swagger examples should use Vietnamese accents');
+  assert(dtoSource.includes('Hà Nội - Hạ Long - Ninh Bình'), 'DTO route example should use Vietnamese accents');
+  assert(!dtoSource.includes('Ha Long 3 ngay 2 dem'), 'DTO should not use unaccented Vietnamese tour name examples');
+  assert(!dtoSource.includes('Ha Noi - Ha Long - Ninh Binh'), 'DTO should not use unaccented Vietnamese route examples');
+  assert(dtoSource.includes('Tên tour mẫu hiển thị cho booking'), 'DTO name should document business usage');
+  assert(dtoSource.includes('Tuyến điểm tóm tắt theo thứ tự hành trình'), 'DTO route should document business usage');
+  assert(dtoSource.includes('các ngày lịch trình không được vượt quá giá trị này'), 'DTO durationDays should document itinerary constraint');
   assert(dtoSource.includes('Cho phép mô tả nhiều dòng.'), 'DTO should document multiline description support');
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
