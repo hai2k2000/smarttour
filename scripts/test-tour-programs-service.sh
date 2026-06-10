@@ -142,12 +142,17 @@ async function main() {
     .join('\n');
 
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
+  assert(mainSource.includes(".addTag('tour-programs', 'Quản lý tour mẫu"), 'Swagger should describe the tour-programs tag');
+  assert(mainSource.includes(".addTag('tour-itinerary-days', 'Cập nhật hoặc xóa ngày lịch trình là sub-resource"), 'Swagger should describe the itinerary sub-resource tag');
   assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
   assert(controllerSource.includes('list(@Query() query: ListTourProgramsQueryDto)'), 'tour programs list should use a structured query DTO');
   assert(listQueryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'list query DTO should reuse the shared search limit');
   assert(listQueryDtoSource.includes('Tìm theo mã, tên hoặc tuyến điểm tour mẫu'), 'list query Swagger contract should document searchable fields');
   assert(controllerSource.includes('Cập nhật một phần tour mẫu'), 'update Swagger contract should document PATCH semantics');
   assert(controllerSource.includes('không được tạo độc lập'), 'create itinerary Swagger contract should document tour program ownership');
+  assert(controllerSource.includes('danh sách itineraryDays đã sắp xếp theo số ngày'), 'detail Swagger contract should document itineraryDays response');
+  assert(controllerSource.includes('không thay đổi tour program sở hữu'), 'update itinerary Swagger contract should document sub-resource ownership');
+  assert(controllerSource.includes('khỏi tour mẫu sở hữu'), 'remove itinerary Swagger contract should document sub-resource ownership');
   for (const englishMessage of ['Tour program not found', 'Tour program code already exists', 'Itinerary day not found']) {
     assert(!serviceSource.includes(englishMessage), `tour programs service should not contain English message: ${englishMessage}`);
   }

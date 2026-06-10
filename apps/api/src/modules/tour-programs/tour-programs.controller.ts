@@ -21,7 +21,10 @@ export class TourProgramsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Chi tiết tour mẫu' })
+  @ApiOperation({
+    summary: 'Chi tiết tour mẫu',
+    description: 'Trả thông tin tour mẫu cùng danh sách itineraryDays đã sắp xếp theo số ngày.',
+  })
   @ApiParam({ name: 'id', description: 'ID tour mẫu' })
   detail(@Param('id') id: string) {
     return this.tourProgramsService.detail(id);
@@ -70,7 +73,10 @@ export class TourItineraryDaysController {
 
   @Patch(':id')
   @RequirePermissions('tour.manage')
-  @ApiOperation({ summary: 'Cập nhật một phần ngày lịch trình' })
+  @ApiOperation({
+    summary: 'Cập nhật một phần ngày lịch trình',
+    description: 'Cập nhật sub-resource ngày lịch trình đã thuộc một tour mẫu; không thay đổi tour program sở hữu.',
+  })
   @ApiParam({ name: 'id', description: 'ID ngày lịch trình' })
   update(@Param('id') id: string, @Body() dto: UpdateItineraryDayDto) {
     return this.tourProgramsService.updateItineraryDay(id, dto);
@@ -78,7 +84,10 @@ export class TourItineraryDaysController {
 
   @Delete(':id')
   @RequirePermissions('tour.manage')
-  @ApiOperation({ summary: 'Xóa ngày lịch trình' })
+  @ApiOperation({
+    summary: 'Xóa ngày lịch trình',
+    description: 'Xóa sub-resource ngày lịch trình khỏi tour mẫu sở hữu nếu không có dữ liệu điều hành liên quan.',
+  })
   @ApiParam({ name: 'id', description: 'ID ngày lịch trình' })
   remove(@Param('id') id: string) {
     return this.tourProgramsService.removeItineraryDay(id);

@@ -17,6 +17,8 @@ async function bootstrap() {
     .setTitle('SmartTour API')
     .setDescription('Travel operations ERP API')
     .setVersion('0.1.0')
+    .addTag('tour-programs', 'Quản lý tour mẫu và tạo các ngày lịch trình thuộc tour mẫu.')
+    .addTag('tour-itinerary-days', 'Cập nhật hoặc xóa ngày lịch trình là sub-resource của tour mẫu.')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
