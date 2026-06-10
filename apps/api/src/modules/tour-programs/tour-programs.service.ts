@@ -168,6 +168,7 @@ export class TourProgramsService {
     const nextDayNumber = dto.dayNumber ?? current.dayNumber;
     this.ensureDayNumberWithinDuration(nextDayNumber, current.tourProgram.durationDays);
     if (dto.dayNumber !== undefined && dto.dayNumber !== current.dayNumber) {
+      this.ensureItineraryStructureChangeAllowed(current.tourProgram._count.bookings);
       await this.ensureUniqueItineraryDay(current.tourProgramId, dto.dayNumber, id);
     }
     try {
@@ -190,19 +191,31 @@ export class TourProgramsService {
   async removeItineraryDay(id: string) {
     const day = await this.prisma.tourItineraryDay.findUnique({
       where: { id },
-      select: { id: true, _count: { select: { services: true } } },
+      select: {
+        id: true,
+        _count: { select: { services: true } },
+        tourProgram: { select: { _count: { select: { bookings: true } } } },
+      },
     });
     if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
     if (day._count.services > 0) {
       throw new ConflictException(`Không thể xóa ngày hành trình vì đang có ${day._count.services} dịch vụ điều hành liên quan`);
     }
+    this.ensureItineraryStructureChangeAllowed(day.tourProgram._count.bookings);
     return this.prisma.tourItineraryDay.delete({ where: { id } });
   }
 
   private async ensureItineraryDay(id: string) {
     const day = await this.prisma.tourItineraryDay.findUnique({
       where: { id },
-      include: { tourProgram: { select: { durationDays: true } } },
+      include: {
+        tourProgram: {
+          select: {
+            durationDays: true,
+            _count: { select: { bookings: true } },
+          },
+        },
+      },
     });
     if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
     return day;
@@ -255,6 +268,12 @@ export class TourProgramsService {
   private ensureDurationChangeAllowed(nextDurationDays: number, currentDurationDays: number, bookingCount: number) {
     if (bookingCount > 0 && nextDurationDays !== currentDurationDays) {
       throw new ConflictException('Không thể thay đổi số ngày chương trình vì tour đã có booking');
+    }
+  }
+
+  private ensureItineraryStructureChangeAllowed(bookingCount: number) {
+    if (bookingCount > 0) {
+      throw new ConflictException(`Không thể thay đổi cấu trúc lịch trình vì chương trình tour đang có ${bookingCount} booking liên quan`);
     }
   }
 

@@ -75,7 +75,7 @@ export class TourItineraryDaysController {
   @RequirePermissions('tour.manage')
   @ApiOperation({
     summary: 'Cập nhật một phần ngày lịch trình',
-    description: 'Cập nhật sub-resource ngày lịch trình đã thuộc một tour mẫu; không thay đổi tour program sở hữu.',
+    description: 'Cập nhật sub-resource ngày lịch trình đã thuộc một tour mẫu. Không được đổi dayNumber khi tour mẫu đã có booking.',
   })
   @ApiParam({ name: 'id', description: 'ID ngày lịch trình' })
   update(@Param('id') id: string, @Body() dto: UpdateItineraryDayDto) {
@@ -86,7 +86,7 @@ export class TourItineraryDaysController {
   @RequirePermissions('tour.manage')
   @ApiOperation({
     summary: 'Xóa ngày lịch trình',
-    description: 'Xóa sub-resource ngày lịch trình khỏi tour mẫu sở hữu nếu không có dữ liệu điều hành liên quan.',
+    description: 'Xóa sub-resource ngày lịch trình nếu tour mẫu chưa có booking và ngày chưa có dữ liệu điều hành liên quan.',
   })
   @ApiParam({ name: 'id', description: 'ID ngày lịch trình' })
   remove(@Param('id') id: string) {

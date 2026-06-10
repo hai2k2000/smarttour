@@ -151,8 +151,10 @@ async function main() {
   assert(controllerSource.includes('Cập nhật một phần tour mẫu'), 'update Swagger contract should document PATCH semantics');
   assert(controllerSource.includes('không được tạo độc lập'), 'create itinerary Swagger contract should document tour program ownership');
   assert(controllerSource.includes('danh sách itineraryDays đã sắp xếp theo số ngày'), 'detail Swagger contract should document itineraryDays response');
-  assert(controllerSource.includes('không thay đổi tour program sở hữu'), 'update itinerary Swagger contract should document sub-resource ownership');
-  assert(controllerSource.includes('khỏi tour mẫu sở hữu'), 'remove itinerary Swagger contract should document sub-resource ownership');
+  assert(controllerSource.includes('Không được đổi dayNumber khi tour mẫu đã có booking'), 'update itinerary Swagger contract should document booking structure lock');
+  assert(controllerSource.includes('nếu tour mẫu chưa có booking'), 'remove itinerary Swagger contract should document booking structure lock');
+  assert(webPageSource.includes('return Array.isArray(message) ? message.join'), 'frontend should preserve backend validation and conflict messages');
+  assert(webPageSource.includes('tour mẫu đã có ${bookingsCount} booking'), 'frontend should explain booking delete conflicts before calling remove');
   for (const englishMessage of ['Tour program not found', 'Tour program code already exists', 'Itinerary day not found']) {
     assert(!serviceSource.includes(englishMessage), `tour programs service should not contain English message: ${englishMessage}`);
   }
@@ -183,6 +185,7 @@ async function main() {
   assert(serviceSource.includes('booking liên quan'), 'remove booking conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('ngày hành trình'), 'remove itinerary conflict message should be explicit Vietnamese');
   assert(serviceSource.includes('dịch vụ điều hành liên quan'), 'remove itinerary day service conflict message should be explicit Vietnamese');
+  assert(serviceSource.includes('Không thể thay đổi cấu trúc lịch trình vì chương trình tour đang có'), 'itinerary structural changes should be blocked when bookings exist');
   assert(serviceSource.includes('itineraryDays: { orderBy: { dayNumber:'), 'list should include itineraryDays ordered by dayNumber for frontend preview');
   assert(serviceSource.includes('_count: { select: { bookings: true } }'), 'list/detail should expose booking count for frontend guards');
   assert(serviceSource.includes("orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }]"), 'list should keep newest-updated ordering with code tie-breaker');
@@ -625,6 +628,19 @@ async function main() {
     'removeItineraryDay should reject itinerary day linked to operation services',
   );
   assert(itineraryServiceRemoveMessage === 'Không thể xóa ngày hành trình vì đang có 1 dịch vụ điều hành liên quan', 'removeItineraryDay service conflict message should include related count');
+  const linkedUnoperatedDay = linkedProgram.itineraryDays[1];
+  const bookedItineraryRemoveMessage = await rejectMessage(
+    () => service.removeItineraryDay(linkedUnoperatedDay.id),
+    'removeItineraryDay should reject structural changes when tour program has bookings',
+  );
+  assert(bookedItineraryRemoveMessage === 'Không thể thay đổi cấu trúc lịch trình vì chương trình tour đang có 1 booking liên quan', 'removeItineraryDay booking conflict should be explicit');
+  const bookedDayNumberMessage = await rejectMessage(
+    () => service.updateItineraryDay(linkedUnoperatedDay.id, { dayNumber: 1 }),
+    'updateItineraryDay should reject dayNumber changes when tour program has bookings',
+  );
+  assert(bookedDayNumberMessage === bookedItineraryRemoveMessage, 'dayNumber update and itinerary remove should use the same booking conflict message');
+  const bookedDayTextUpdate = await service.updateItineraryDay(linkedUnoperatedDay.id, { title: 'Ngày đã cập nhật nội dung' });
+  assert(bookedDayTextUpdate.title === 'Ngày đã cập nhật nội dung', 'updateItineraryDay should allow non-structural text changes when bookings exist');
   await rejects(
     () => service.update(linkedProgram.id, { durationDays: 3 }),
     'update should reject durationDays change when tour program has bookings',
