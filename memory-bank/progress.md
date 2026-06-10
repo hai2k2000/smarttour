@@ -983,6 +983,13 @@
 - Locked controller permissions in regression tests: `tour.view` for list/detail and `tour.manage` for create/update/patch/remove/copy-services; `copy-services` remains a target-tour sub-resource using focused `GitTourCopyServicesDto`.
 - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_ROUTE_PERMISSIONS_OK`, API deploy, and `/api/git-tours?status=running` auth behavior.
 
+
+- Hardened `GitToursService` data and child-flow contract.
+- Added GIT-side normalization/validation for required fields, uppercase codes, lifecycle/payment enums, and workflow steps before calling common `TourCoreService` root writes.
+- Expanded GIT list search to include common `route` and GIT detail `holdCode`/`itinerarySummary` while keeping status filtering through validated `TourStatus`.
+- Removed fake default GIT customer creation, added supplier/supplier-service validation before child replacement, mapped UI service status strings to `TourServiceStatus`, and made `copyServices()` require an explicit source tour different from the target.
+- Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and `/api/git-tours?status=running` auth behavior.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

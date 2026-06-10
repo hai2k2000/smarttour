@@ -1291,3 +1291,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - `GitToursController` keeps `tour.view` for list/detail and `tour.manage` for create/update/patch/remove/copy-services.
   - Added `ListGitToursQueryDto` so list search is trimmed/capped and `status` is normalized/validated against `TourStatus` before service execution.
   - `copy-services` remains under `tour.manage`; no extra copy-specific permission was introduced because RBAC catalog/roles do not currently define a narrower GIT copy permission.
+
+- 2026-06-10 GIT service hardening:
+  - `GitToursService` now normalizes/validates create/update data before common root writes: uppercase `systemCode`/`tourCode`, required create fields, enum `status`/`paymentStatus`, and whitelisted GIT `workflowStep` values.
+  - GIT customer mapping no longer creates a fake default customer row when `customerName` is missing; agents remain common `TourCustomer(customerType = AGENT)` rows.
+  - GIT service/cost child updates validate supplier and supplier-service links before replacing children, map UI service status strings to `TourServiceStatus`, and keep partial updates from replacing untouched children.
+  - GIT `copyServices()` now requires an explicit source tour different from the target and still delegates source lookup/copy replacement to `TourCoreService.copyServicesFromTour()`.
