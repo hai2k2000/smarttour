@@ -41,6 +41,7 @@ const {
   CreateTourProgramDto,
   TOUR_PROGRAM_DURATION_DAYS_MAX,
 } = require('./apps/api/dist/modules/tour-programs/dto/create-tour-program.dto');
+const { CreateItineraryDayDto } = require('./apps/api/dist/modules/tour-programs/dto/create-itinerary-day.dto');
 const { UpdateTourProgramDto } = require('./apps/api/dist/modules/tour-programs/dto/update-tour-program.dto');
 const { validationExceptionFactory } = require('./apps/api/dist/validation-exception.factory');
 
@@ -99,6 +100,7 @@ async function main() {
   const authGuardSource = fs.readFileSync('/workspace/apps/api/src/modules/auth/auth.guard.ts', 'utf8');
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.controller.ts', 'utf8');
   const dtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-tour-program.dto.ts', 'utf8');
+  const itineraryDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/dto/create-itinerary-day.dto.ts', 'utf8');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/tour-programs/tour-programs.service.ts', 'utf8');
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const webPageSource = fs.readFileSync('/workspace/apps/web/app/tour-programs/page.tsx', 'utf8');
@@ -106,6 +108,9 @@ async function main() {
   assert(mainSource.includes('exceptionFactory: validationExceptionFactory'), 'global ValidationPipe should use Vietnamese exceptionFactory');
   assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
   assert(controllerSource.includes("BadRequestException('Từ khóa tìm kiếm phải là chuỗi ký tự')"), 'tour programs controller should reject non-string search query');
+  for (const englishMessage of ['Tour program not found', 'Tour program code already exists', 'Itinerary day not found']) {
+    assert(!serviceSource.includes(englishMessage), `tour programs service should not contain English message: ${englishMessage}`);
+  }
   assert(/model TourProgram[\s\S]*code\s+String\s+@unique/.test(schemaSource), 'TourProgram code should be unique in Prisma schema');
   assert(/model TourProgram[\s\S]*route\s+String\?/.test(schemaSource), 'TourProgram route should stay optional in Prisma schema');
   assert(dtoSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX = 60'), 'DTO should define max durationDays');
@@ -119,7 +124,11 @@ async function main() {
   assert(dtoSource.includes('Tuyến điểm tóm tắt theo thứ tự hành trình'), 'DTO route should document business usage');
   assert(dtoSource.includes('các ngày lịch trình không được vượt quá giá trị này'), 'DTO durationDays should document itinerary constraint');
   assert(dtoSource.includes('Cho phép mô tả nhiều dòng.'), 'DTO should document multiline description support');
+  assert(itineraryDtoSource.includes('Hà Nội - Hạ Long'), 'itinerary day DTO Swagger examples should use Vietnamese accents');
+  assert(itineraryDtoSource.includes('Số thứ tự ngày hành trình phải là số nguyên hợp lệ'), 'itinerary day DTO validation messages should be Vietnamese');
+  assert(!itineraryDtoSource.includes('Ha Noi - Ha Long'), 'itinerary day DTO should not use unaccented Vietnamese examples');
   assert(serviceSource.includes('TOUR_PROGRAM_DURATION_DAYS_MAX'), 'service should reuse DTO duration max');
+  assert(serviceSource.includes('TOUR_ITINERARY_TITLE_MAX_LENGTH'), 'service should reuse itinerary title max from DTO');
   assert(serviceSource.includes("validatePositiveInt(dto.durationDays, 'Số ngày', this.maxDurationDays)"), 'service should validate durationDays to prevent DTO bypass');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
   assert(webPageSource.includes("code: requiredText(formData, 'code', 'Mã tour', 2).toUpperCase()"), 'frontend should normalize tour program code to uppercase before submit');
@@ -209,6 +218,27 @@ async function main() {
     durationDays: 0,
   });
   assert(invalidPartialUpdateDto.messages.includes('Số ngày phải lớn hơn hoặc bằng 1'), 'UpdateTourProgramDto should validate submitted partial durationDays');
+
+  const validItineraryDayDto = await validateDto(CreateItineraryDayDto, {
+    dayNumber: '1',
+    title: ' Hà Nội - Hạ Long ',
+    description: ' Khởi hành từ Hà Nội. ',
+  });
+  assert(validItineraryDayDto.errors.length === 0, 'CreateItineraryDayDto should accept valid dayNumber, title and description');
+  assert(validItineraryDayDto.instance.dayNumber === 1, 'CreateItineraryDayDto should transform dayNumber to number');
+  assert(validItineraryDayDto.instance.title === 'Hà Nội - Hạ Long', 'CreateItineraryDayDto should trim title');
+  assert(validItineraryDayDto.instance.description === 'Khởi hành từ Hà Nội.', 'CreateItineraryDayDto should trim description');
+
+  const missingItineraryDayDto = await validateDto(CreateItineraryDayDto, {});
+  assert(missingItineraryDayDto.messages.some((message) => message.includes('Số thứ tự ngày hành trình')), 'CreateItineraryDayDto should reject missing dayNumber');
+  assert(missingItineraryDayDto.messages.some((message) => message.includes('Tiêu đề ngày hành trình')), 'CreateItineraryDayDto should reject missing title');
+  assert(!missingItineraryDayDto.messages.some((message) => /must|should|property/.test(message)), 'CreateItineraryDayDto missing-field messages should be Vietnamese');
+
+  const invalidItineraryDayDto = await validateDto(CreateItineraryDayDto, {
+    dayNumber: 0,
+    title: 'HN',
+  });
+  assert(invalidItineraryDayDto.messages.includes('Số thứ tự ngày hành trình phải lớn hơn hoặc bằng 1'), 'CreateItineraryDayDto should reject dayNumber below 1');
 
   const prisma = new PrismaService();
   await prisma.$connect();

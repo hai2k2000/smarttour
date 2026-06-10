@@ -2,7 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { CreateItineraryDayDto } from './dto/create-itinerary-day.dto';
+import {
+  CreateItineraryDayDto,
+  TOUR_ITINERARY_DESCRIPTION_MAX_LENGTH,
+  TOUR_ITINERARY_TITLE_MAX_LENGTH,
+} from './dto/create-itinerary-day.dto';
 import {
   CreateTourProgramDto,
   TOUR_PROGRAM_CODE_MAX_LENGTH,
@@ -21,8 +25,9 @@ export class TourProgramsService {
   private readonly maxCodeLength = TOUR_PROGRAM_CODE_MAX_LENGTH;
   private readonly maxNameLength = TOUR_PROGRAM_NAME_MAX_LENGTH;
   private readonly maxRouteLength = TOUR_PROGRAM_ROUTE_MAX_LENGTH;
-  private readonly maxTitleLength = 250;
+  private readonly maxTitleLength = TOUR_ITINERARY_TITLE_MAX_LENGTH;
   private readonly maxDescriptionLength = TOUR_PROGRAM_DESCRIPTION_MAX_LENGTH;
+  private readonly maxItineraryDescriptionLength = TOUR_ITINERARY_DESCRIPTION_MAX_LENGTH;
   private readonly maxDurationDays = TOUR_PROGRAM_DURATION_DAYS_MAX;
 
   private listSelect() {
@@ -212,7 +217,7 @@ export class TourProgramsService {
     if (dto.dayNumber !== undefined) this.validatePositiveInt(dto.dayNumber, 'Số thứ tự ngày hành trình');
     if (dto.title !== undefined) this.validateRequiredText(dto.title, 'Tiêu đề ngày hành trình', this.maxTitleLength);
     if (dto.description !== undefined) {
-      this.validateOptionalText(dto.description, 'Mô tả ngày hành trình', this.maxDescriptionLength);
+      this.validateOptionalText(dto.description, 'Mô tả ngày hành trình', this.maxItineraryDescriptionLength);
     }
   }
 
