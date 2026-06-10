@@ -32,12 +32,14 @@ const { plainToInstance } = require('class-transformer');
 const { validate } = require('class-validator');
 const { RequestMethod } = require('@nestjs/common');
 const { METHOD_METADATA, PATH_METADATA } = require('@nestjs/common/constants');
+const { Reflector } = require('@nestjs/core');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const {
   TourProgramsController,
   TourItineraryDaysController,
 } = require('./apps/api/dist/modules/tour-programs/tour-programs.controller');
 const { TourProgramsService } = require('./apps/api/dist/modules/tour-programs/tour-programs.service');
+const { AuthGuard } = require('./apps/api/dist/modules/auth/auth.guard');
 const { PERMISSIONS_KEY } = require('./apps/api/dist/modules/auth/permissions.decorator');
 const {
   CreateTourProgramDto,
@@ -91,6 +93,15 @@ function routeMetadata(target, methodName) {
   return {
     method: Reflect.getMetadata(METHOD_METADATA, handler),
     path: Reflect.getMetadata(PATH_METADATA, handler),
+  };
+}
+
+function guardContext(target, methodName) {
+  const request = { headers: { authorization: 'Bearer controller-test-token' } };
+  return {
+    getHandler: () => target.prototype[methodName],
+    getClass: () => target,
+    switchToHttp: () => ({ getRequest: () => request }),
   };
 }
 
@@ -264,15 +275,69 @@ async function main() {
   assert(routeMetadata(TourItineraryDaysController, 'remove').method === RequestMethod.DELETE, 'remove itinerary day should remain DELETE');
   assert(routeMetadata(TourItineraryDaysController, 'remove').path === ':id', 'remove itinerary day should remain DELETE /tour-itinerary-days/:id');
 
-  let controllerSearchValue = 'not-called';
+  const deniedGuard = new AuthGuard(new Reflector(), {
+    validateToken: async () => ({ user: { id: 'controller-test-user' } }),
+    hasPermissions: () => false,
+  });
+  const guardedRoutes = [
+    [TourProgramsController, 'list'],
+    [TourProgramsController, 'detail'],
+    [TourProgramsController, 'create'],
+    [TourProgramsController, 'update'],
+    [TourProgramsController, 'remove'],
+    [TourProgramsController, 'createItineraryDay'],
+    [TourItineraryDaysController, 'update'],
+    [TourItineraryDaysController, 'remove'],
+  ];
+  for (const [target, methodName] of guardedRoutes) {
+    const deniedMessage = await rejectMessage(
+      () => deniedGuard.canActivate(guardContext(target, methodName)),
+      `${target.name}.${methodName} should deny users without permission`,
+    );
+    assert(deniedMessage === 'Thiếu quyền truy cập', `${target.name}.${methodName} permission denied message should be Vietnamese`);
+  }
+
+  const controllerCalls = [];
   const controller = new TourProgramsController({
     list: (search) => {
-      controllerSearchValue = search;
-      return [];
+      controllerCalls.push(['list', search]);
+      return [{ id: 'list-result' }];
+    },
+    detail: (id) => {
+      controllerCalls.push(['detail', id]);
+      return { id };
+    },
+    create: (dto) => {
+      controllerCalls.push(['create', dto]);
+      return { id: 'created-program', ...dto };
+    },
+    update: (id, dto) => {
+      controllerCalls.push(['update', id, dto]);
+      return { id, ...dto };
+    },
+    remove: (id) => {
+      controllerCalls.push(['remove', id]);
+      return { id };
+    },
+    createItineraryDay: (id, dto) => {
+      controllerCalls.push(['createItineraryDay', id, dto]);
+      return { id: 'created-day', tourProgramId: id, ...dto };
     },
   });
-  await controller.list({ search: 'Hạ Long' });
-  assert(controllerSearchValue === 'Hạ Long', 'controller list should pass validated search to service');
+  assert((await controller.list({ search: 'Hạ Long' }))[0].id === 'list-result', 'controller list should return service result');
+  assert(controllerCalls[0][1] === 'Hạ Long', 'controller list should pass validated search to service');
+  assert((await controller.detail('program-id')).id === 'program-id', 'controller detail should return service result');
+  assert((await controller.create({ code: 'TP-CTRL', name: 'Controller', durationDays: 1 })).id === 'created-program', 'controller create should return service result');
+  assert((await controller.update('program-id', { name: 'Updated' })).name === 'Updated', 'controller update should return service result');
+  assert((await controller.remove('program-id')).id === 'program-id', 'controller remove should return service result');
+  assert((await controller.createItineraryDay('program-id', { dayNumber: 1, title: 'Ngày 1' })).tourProgramId === 'program-id', 'controller create itinerary day should bind the tour program id');
+
+  const itineraryController = new TourItineraryDaysController({
+    updateItineraryDay: (id, dto) => ({ id, ...dto }),
+    removeItineraryDay: (id) => ({ id }),
+  });
+  assert((await itineraryController.update('day-id', { title: 'Ngày cập nhật' })).title === 'Ngày cập nhật', 'itinerary controller update should return service result');
+  assert((await itineraryController.remove('day-id')).id === 'day-id', 'itinerary controller remove should return service result');
 
   const validListQuery = await validateDto(ListTourProgramsQueryDto, { search: '  Hạ   Long  ' });
   assert(validListQuery.errors.length === 0, 'list query DTO should accept a string search');
@@ -349,6 +414,8 @@ async function main() {
   const prisma = new PrismaService();
   await prisma.$connect();
   const service = new TourProgramsService(prisma);
+  const serviceController = new TourProgramsController(service);
+  const serviceItineraryController = new TourItineraryDaysController(service);
   const run = 'TP-SVC-' + Date.now();
 
   assert((await service.list()).length === 0, 'list should start empty in isolated test database');
@@ -419,8 +486,8 @@ async function main() {
     'create should reject duplicate code',
   );
   const duplicateCreateMessage = await rejectMessage(
-    () => service.create({ code: `${run}-MAIN`, name: 'Duplicate Code', durationDays: 1 }),
-    'create should reject duplicate code with Vietnamese message',
+    () => serviceController.create({ code: `${run}-MAIN`, name: 'Duplicate Code', durationDays: 1 }),
+    'controller create should propagate duplicate code Vietnamese message',
   );
   assert(duplicateCreateMessage === 'Mã chương trình tour đã tồn tại', 'create duplicate code message should be Vietnamese');
 
@@ -455,8 +522,8 @@ async function main() {
     'createItineraryDay should reject blank title',
   );
   const missingProgramForDayMessage = await rejectMessage(
-    () => service.createItineraryDay('missing-tour-program-id', { dayNumber: 1, title: 'Ngày không tồn tại' }),
-    'createItineraryDay should reject missing tour program with Vietnamese message',
+    () => serviceController.createItineraryDay('missing-tour-program-id', { dayNumber: 1, title: 'Ngày không tồn tại' }),
+    'controller createItineraryDay should propagate missing tour program Vietnamese message',
   );
   assert(missingProgramForDayMessage === 'Không tìm thấy chương trình tour', 'createItineraryDay missing tour program message should be Vietnamese');
 
@@ -481,18 +548,18 @@ async function main() {
   assert(detail._count.bookings === 0, 'detail should include _count.bookings');
   assert(!('bookings' in detail), 'detail should not include booking rows when frontend only needs booking count');
   const missingDetailMessage = await rejectMessage(
-    () => service.detail('missing-tour-program-id'),
-    'detail should reject missing tour program with Vietnamese message',
+    () => serviceController.detail('missing-tour-program-id'),
+    'controller detail should propagate missing tour program Vietnamese message',
   );
   assert(missingDetailMessage === 'Không tìm thấy chương trình tour', 'detail missing tour program message should be Vietnamese');
   const missingUpdateMessage = await rejectMessage(
-    () => service.update('missing-tour-program-id', { name: 'Tour không tồn tại' }),
-    'update should reject missing tour program with Vietnamese message',
+    () => serviceController.update('missing-tour-program-id', { name: 'Tour không tồn tại' }),
+    'controller update should propagate missing tour program Vietnamese message',
   );
   assert(missingUpdateMessage === missingDetailMessage, 'update and detail should use the same missing tour program message');
   const missingRemoveMessage = await rejectMessage(
-    () => service.remove('missing-tour-program-id'),
-    'remove should reject missing tour program with Vietnamese message',
+    () => serviceController.remove('missing-tour-program-id'),
+    'controller remove should propagate missing tour program Vietnamese message',
   );
   assert(missingRemoveMessage === missingDetailMessage, 'remove and detail should use the same missing tour program message');
 
@@ -546,13 +613,13 @@ async function main() {
   assert(updatedDayTwo.title === 'Hạ Long cập nhật', 'updateItineraryDay should trim title');
   assert(updatedDayTwo.description === null, 'updateItineraryDay should store blank description as null');
   const missingItineraryMessage = await rejectMessage(
-    () => service.updateItineraryDay('missing-itinerary-day-id', { title: 'Không tồn tại' }),
-    'updateItineraryDay should reject missing itinerary day with Vietnamese message',
+    () => serviceItineraryController.update('missing-itinerary-day-id', { title: 'Không tồn tại' }),
+    'itinerary controller update should propagate missing itinerary day Vietnamese message',
   );
   assert(missingItineraryMessage === 'Không tìm thấy ngày hành trình', 'ensureItineraryDay message should be Vietnamese');
   const missingItineraryRemoveMessage = await rejectMessage(
-    () => service.removeItineraryDay('missing-itinerary-day-id'),
-    'removeItineraryDay should reject missing itinerary day with Vietnamese message',
+    () => serviceItineraryController.remove('missing-itinerary-day-id'),
+    'itinerary controller remove should propagate missing itinerary day Vietnamese message',
   );
   assert(missingItineraryRemoveMessage === missingItineraryMessage, 'update and remove itinerary day should use the same missing message');
 
@@ -589,8 +656,8 @@ async function main() {
     'update should reject code conflict',
   );
   const duplicateUpdateMessage = await rejectMessage(
-    () => service.update(created.id, { code: `${run}-DIRECT` }),
-    'update should reject code conflict with Vietnamese message',
+    () => serviceController.update(created.id, { code: `${run}-DIRECT` }),
+    'controller update should propagate code conflict Vietnamese message',
   );
   assert(duplicateUpdateMessage === 'Mã chương trình tour đã tồn tại', 'update duplicate code message should be Vietnamese');
 
@@ -646,8 +713,8 @@ async function main() {
     'update should reject durationDays change when tour program has bookings',
   );
   const bookingRemoveMessage = await rejectMessage(
-    () => service.remove(linkedProgram.id),
-    'delete should reject tour program with linked booking',
+    () => serviceController.remove(linkedProgram.id),
+    'controller remove should propagate linked booking Vietnamese message',
   );
   assert(bookingRemoveMessage === 'Không thể xóa chương trình tour vì đang có 1 booking liên quan', 'remove booking conflict message should include related count');
   await service.update(linkedProgram.id, { name: 'Linked Program Renamed' });
@@ -677,6 +744,28 @@ async function main() {
   const removedProgram = await service.remove(deletable.id);
   assert(removedProgram.id === deletable.id, 'remove should return the removed tour program');
   await rejects(() => service.detail(deletable.id), 'delete should remove tour program without dependencies');
+
+  const controllerManaged = await serviceController.create({
+    code: `${run}-CTRL`,
+    name: 'Tour Program Controller Flow',
+    route: 'Hà Nội - Ninh Bình',
+    durationDays: 1,
+  });
+  const controllerListed = await serviceController.list({ search: `${run}-CTRL` });
+  assert(controllerListed.some((row) => row.id === controllerManaged.id), 'controller list search should return the created tour program');
+  assert((await serviceController.detail(controllerManaged.id)).id === controllerManaged.id, 'controller detail should return the created tour program');
+  const controllerDay = await serviceController.createItineraryDay(controllerManaged.id, {
+    dayNumber: 1,
+    title: 'Hà Nội - Ninh Bình',
+  });
+  const controllerUpdatedDay = await serviceItineraryController.update(controllerDay.id, {
+    title: 'Hà Nội - Tràng An',
+  });
+  assert(controllerUpdatedDay.title === 'Hà Nội - Tràng An', 'itinerary controller update should persist changes');
+  assert((await serviceItineraryController.remove(controllerDay.id)).id === controllerDay.id, 'itinerary controller remove should delete the day');
+  const controllerUpdated = await serviceController.update(controllerManaged.id, { name: 'Tour Program Controller Updated' });
+  assert(controllerUpdated.name === 'Tour Program Controller Updated', 'controller update should persist partial changes');
+  assert((await serviceController.remove(controllerManaged.id)).id === controllerManaged.id, 'controller remove should delete an unlinked tour program');
 
   await prisma.$disconnect();
   console.log('TEST_TOUR_PROGRAMS_SERVICE_OK');
