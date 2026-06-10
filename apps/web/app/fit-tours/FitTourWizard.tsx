@@ -56,11 +56,11 @@ const defaultHandoverGuideRequest = [
   '5. Báo cáo phát sinh cho điều hành.',
 ].join('\n');
 const defaultHandoverItems = [
-  'Rooming list',
+  'Danh sách xếp phòng',
   'Vé máy bay',
   'Bảo hiểm du lịch',
   'Chương trình tour',
-  'Final confirmation',
+  'Xác nhận dịch vụ cuối cùng',
 ];
 const defaultSurveyQuestions = [
   'Chất lượng chương trình tour',
@@ -72,7 +72,7 @@ const defaultSurveyQuestions = [
   'Công tác tổ chức',
   'Mức độ hài lòng chung',
 ];
-const autosaveDelayMs = 1800;
+const autosaveDelayMs = 2500;
 
 const costLineSchema = z.object({
   serviceType: z.string().default(''),
@@ -238,13 +238,23 @@ function money(value: number) {
   return new Intl.NumberFormat('vi-VN').format(Math.round(value));
 }
 
-function lineAmount(line: Record<string, unknown>, confirmed = false) {
-  const quantity = number(line.quantity || 1);
-  const times = number(line.times || 1);
-  const exchangeRate = number(line.exchangeRate || 1);
+function positiveNumber(value: unknown, fallback = 1) {
+  const parsed = number(value);
+  return parsed > 0 ? parsed : fallback;
+}
+
+function lineAmount(line: Record<string, unknown>, confirmed = false, quantityOverride?: number) {
+  const quantity = quantityOverride ?? positiveNumber(line.quantity);
+  const times = positiveNumber(line.times);
+  const exchangeRate = positiveNumber(line.exchangeRate);
   const unitPrice = confirmed ? number(line.confirmedUnitPrice) : number(line.unitPrice);
   const vat = number(line.vat);
   return quantity * times * exchangeRate * unitPrice * (1 + vat / 100);
+}
+
+function hotelLineAmount(line: Record<string, unknown>, totalPax: number) {
+  const rooms = Math.ceil(Math.max(1, totalPax) / positiveNumber(line.paxPerRoom));
+  return lineAmount(line, false, rooms);
 }
 
 function normalizeDate(value: unknown) {
@@ -254,6 +264,16 @@ function normalizeDate(value: unknown) {
 
 function normalizeArray<T>(rows: unknown, fallback: T[]): T[] {
   return Array.isArray(rows) ? rows as T[] : fallback;
+}
+
+function normalizeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function amountOrCalculated(value: unknown, calculated: number) {
+  if (value === undefined || value === null || value === '') return calculated;
+  return normalizeNumber(value);
 }
 
 function trimText(value: unknown) {
@@ -268,21 +288,18 @@ function rowHasValue(row: Record<string, unknown>, keys: string[]) {
   });
 }
 
-function cleanCostRows(rows: FitTourForm['commonCosts']) {
+function cleanCostRows(rows: FitTourForm['commonCosts'], totalPax: number, hotel = false) {
   return rows
-    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row) }))
-    .filter((row) => rowHasValue(row, ['description', 'unitPrice', 'amount', 'notes']));
-}
-
-function cleanHotelRows(rows: FitTourForm['hotelCosts']) {
-  return rows
-    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row) }))
+    .map((row) => ({
+      ...row,
+      amount: amountOrCalculated(row.amount, hotel ? hotelLineAmount(row, totalPax) : lineAmount(row)),
+    }))
     .filter((row) => rowHasValue(row, ['description', 'unitPrice', 'amount', 'notes']));
 }
 
 function cleanServiceRows(rows: FitTourForm['budgetServices'], confirmed = false) {
   return rows
-    .map((row) => ({ ...row, amount: number(row.amount) || lineAmount(row, confirmed) }))
+    .map((row) => ({ ...row, amount: amountOrCalculated(row.amount, lineAmount(row, confirmed)) }))
     .filter((row) => rowHasValue(row, ['supplierId', 'description', 'bookingCode', 'unitPrice', 'confirmedUnitPrice', 'amount', 'notes']));
 }
 
@@ -294,6 +311,10 @@ function canPersistTour(data: FitTourForm) {
   return trimText(data.quoteCode).length >= 2 && trimText(data.tourCode).length >= 2 && trimText(data.customerName).length >= 2;
 }
 
+function workflowStepIndex(status: unknown) {
+  const index = workflowSteps.findIndex((step) => step.key === String(status || '').toUpperCase());
+  return index >= 0 ? index : 0;
+}
 
 function validateBeforeSave(data: FitTourForm, step?: WorkflowStepKey, creating = false) {
   const errors: string[] = [];
@@ -318,7 +339,13 @@ function stepPayload(data: FitTourForm, step?: WorkflowStepKey) {
   return payload;
 }
 
+function createPayload(data: FitTourForm) {
+  const { id: _id, attachments: _attachments, ...payload } = data;
+  return payload;
+}
+
 function preparePayload(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT'): FitTourForm {
+  const totalPax = Math.max(1, number(data.adultCount) + number(data.childCount) + number(data.infantCount));
   return {
     ...data,
     quoteCode: trimText(data.quoteCode).toUpperCase(),
@@ -330,9 +357,9 @@ function preparePayload(data: FitTourForm, workflowStatus: WorkflowStepKey | str
     email: trimText(data.email),
     notes: trimText(data.notes),
     workflowStatus,
-    commonCosts: cleanCostRows(data.commonCosts),
-    hotelCosts: cleanHotelRows(data.hotelCosts),
-    privateCosts: cleanCostRows(data.privateCosts),
+    commonCosts: cleanCostRows(data.commonCosts, totalPax),
+    hotelCosts: cleanCostRows(data.hotelCosts, totalPax, true),
+    privateCosts: cleanCostRows(data.privateCosts, totalPax),
     budgetServices: cleanServiceRows(data.budgetServices),
     operationServices: cleanServiceRows(data.operationServices, true),
     guides: cleanTextRows(data.guides, ['name', 'phone', 'notes']),
@@ -353,11 +380,45 @@ async function responseError(response: Response) {
   }
 }
 
+function normalizeCostRows(rows: unknown, fallback: FitTourForm['commonCosts'], totalPax: number, hotel = false) {
+  return normalizeArray(rows, fallback).map((row) => {
+    const normalized = {
+      ...emptyCost,
+      ...row,
+      quantity: normalizeNumber(row.quantity, 1),
+      paxPerRoom: normalizeNumber(row.paxPerRoom, hotel ? 2 : 1),
+      times: normalizeNumber(row.times, 1),
+      exchangeRate: normalizeNumber(row.exchangeRate, 1),
+      unitPrice: normalizeNumber(row.unitPrice),
+      vat: normalizeNumber(row.vat),
+    };
+    return {
+      ...normalized,
+      amount: amountOrCalculated(row.amount, hotel ? hotelLineAmount(normalized, totalPax) : lineAmount(normalized)),
+    };
+  });
+}
+
+function normalizeServiceRows(rows: unknown, fallback: FitTourForm['budgetServices'], confirmed = false) {
+  return normalizeArray(rows, fallback).map((row) => {
+    const normalized = {
+      ...emptyService,
+      ...row,
+      quantity: normalizeNumber(row.quantity, 1),
+      unitPrice: normalizeNumber(row.unitPrice),
+      confirmedUnitPrice: normalizeNumber(row.confirmedUnitPrice),
+      vat: normalizeNumber(row.vat),
+      status: serviceStatuses.includes(String(row.status)) ? String(row.status) : 'WAITING',
+    };
+    return { ...normalized, amount: amountOrCalculated(row.amount, lineAmount(normalized, confirmed)) };
+  });
+}
+
 function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
   const today = new Date().toISOString().slice(0, 10);
   const defaults: FitTourForm = {
-    quoteCode: `FIT-Q-${today.replaceAll('-', '')}`,
-    tourCode: `FIT-${today.replaceAll('-', '')}`,
+    quoteCode: '',
+    tourCode: '',
     tourName: '',
     marketGroup: 'Nội địa',
     bookingDate: today,
@@ -405,15 +466,36 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     privateCosts: [{ ...emptyCost, serviceType: 'Vé tham quan', unit: 'khách' }],
     budgetServices: [{ ...emptyService, serviceType: 'Khách sạn' }],
     operationServices: [],
-    guides: [{ name: '', phone: '', guideType: 'Local', notes: '' }],
+    guides: [{ name: '', phone: '', guideType: 'Nội địa', notes: '' }],
     handoverItems: defaultHandoverItems.map((itemName) => ({ itemName, quantity: 1, notes: '' })),
     surveyQuestions: defaultSurveyQuestions.map((question) => ({ question, notes: '' })),
     attachments: [],
   };
 
   const merged = { ...defaults, ...tour };
+  const totalPax = Math.max(
+    1,
+    normalizeNumber(tour?.adultCount, defaults.adultCount)
+      + normalizeNumber(tour?.childCount, defaults.childCount)
+      + normalizeNumber(tour?.infantCount, defaults.infantCount),
+  );
   return {
     ...merged,
+    adultCount: normalizeNumber(tour?.adultCount, defaults.adultCount),
+    childCount: normalizeNumber(tour?.childCount, defaults.childCount),
+    infantCount: normalizeNumber(tour?.infantCount, defaults.infantCount),
+    sellingPrice: normalizeNumber(tour?.sellingPrice, defaults.sellingPrice),
+    commissionPerGuest: normalizeNumber(tour?.commissionPerGuest, defaults.commissionPerGuest),
+    exchangeRate: normalizeNumber(tour?.exchangeRate, defaults.exchangeRate),
+    seatCount: normalizeNumber(tour?.seatCount, defaults.seatCount),
+    tourPrice: normalizeNumber(tour?.tourPrice, defaults.tourPrice),
+    discount: normalizeNumber(tour?.discount, defaults.discount),
+    adultPrice: normalizeNumber(tour?.adultPrice, defaults.adultPrice),
+    childPrice25: normalizeNumber(tour?.childPrice25, defaults.childPrice25),
+    childPrice611: normalizeNumber(tour?.childPrice611, defaults.childPrice611),
+    infantPrice: normalizeNumber(tour?.infantPrice, defaults.infantPrice),
+    surcharge: normalizeNumber(tour?.surcharge, defaults.surcharge),
+    allowOverbooking: Boolean(tour?.allowOverbooking),
     bookingDate: normalizeDate(tour?.bookingDate) || today,
     startDate: normalizeDate(tour?.startDate),
     endDate: normalizeDate(tour?.endDate),
@@ -421,15 +503,29 @@ function toFormDefaults(tour?: Partial<FitTourForm>): FitTourForm {
     holdUntil: normalizeDate(tour?.holdUntil),
     confirmedAt: normalizeDate(tour?.confirmedAt),
     closeAt: normalizeDate(tour?.closeAt),
-    commonCosts: normalizeArray(tour?.commonCosts, defaults.commonCosts),
-    hotelCosts: normalizeArray(tour?.hotelCosts, defaults.hotelCosts),
-    privateCosts: normalizeArray(tour?.privateCosts, defaults.privateCosts),
-    budgetServices: normalizeArray(tour?.budgetServices, defaults.budgetServices),
-    operationServices: normalizeArray(tour?.operationServices, defaults.operationServices),
-    guides: normalizeArray(tour?.guides, defaults.guides),
-    handoverItems: normalizeArray(tour?.handoverItems, defaults.handoverItems),
-    surveyQuestions: normalizeArray(tour?.surveyQuestions, defaults.surveyQuestions),
-    attachments: normalizeArray(tour?.attachments, defaults.attachments),
+    commonCosts: normalizeCostRows(tour?.commonCosts, defaults.commonCosts, totalPax),
+    hotelCosts: normalizeCostRows(tour?.hotelCosts, defaults.hotelCosts, totalPax, true),
+    privateCosts: normalizeCostRows(tour?.privateCosts, defaults.privateCosts, totalPax),
+    budgetServices: normalizeServiceRows(tour?.budgetServices, defaults.budgetServices),
+    operationServices: normalizeServiceRows(tour?.operationServices, defaults.operationServices, true),
+    guides: normalizeArray(tour?.guides, defaults.guides).map((row) => ({
+      name: trimText(row.name),
+      phone: trimText(row.phone),
+      guideType: trimText(row.guideType) || 'Nội địa',
+      notes: trimText(row.notes),
+    })),
+    handoverItems: normalizeArray(tour?.handoverItems, defaults.handoverItems).map((row) => ({
+      itemName: trimText(row.itemName),
+      quantity: normalizeNumber(row.quantity, 1),
+      notes: trimText(row.notes),
+    })),
+    surveyQuestions: normalizeArray(tour?.surveyQuestions, defaults.surveyQuestions).map((row) => ({
+      question: trimText(row.question),
+      notes: trimText(row.notes),
+    })),
+    attachments: normalizeArray(tour?.attachments, defaults.attachments).filter(
+      (row) => trimText(row.fileName) && workflowSteps.some((step) => step.key === row.step),
+    ),
   };
 }
 
@@ -445,7 +541,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const [activeStep, setActiveStep] = useState(0);
   const [saveState, setSaveState] = useState('Chưa lưu');
   const [selectedTourId, setSelectedTourId] = useState('');
+  const [copySourceTourId, setCopySourceTourId] = useState('');
   const lastAutosaveSignature = useRef('');
+  const saveInFlight = useRef(false);
   const form = useForm<FitTourForm>({
     resolver: zodResolver(fitTourSchema) as never,
     defaultValues: toFormDefaults(),
@@ -471,15 +569,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
   const values = watch();
   const totalPax = Math.max(1, number(values.adultCount) + number(values.childCount) + number(values.infantCount));
-  const totalCommonCost = [...values.commonCosts, ...values.hotelCosts].reduce((sum, row) => sum + lineAmount(row), 0);
-  const totalPrivateCost = values.privateCosts.reduce((sum, row) => sum + lineAmount(row), 0);
+  const totalCommonCost = [...values.commonCosts, ...values.hotelCosts].reduce((sum, row) => sum + number(row.amount), 0);
+  const totalPrivateCost = values.privateCosts.reduce((sum, row) => sum + number(row.amount), 0);
   const netPerGuest = totalCommonCost / totalPax + totalPrivateCost;
   const profitPerGuest = number(values.sellingPrice) - netPerGuest;
   const priceWithCommission = number(values.sellingPrice) + number(values.commissionPerGuest);
   const budgetRevenue = totalPax * number(values.sellingPrice);
-  const budgetCost = values.budgetServices.reduce((sum, row) => sum + lineAmount(row), 0);
-  const operationCost = values.operationServices.reduce((sum, row) => sum + lineAmount(row, true), 0);
+  const budgetCost = values.budgetServices.reduce((sum, row) => sum + number(row.amount), 0);
+  const operationCost = values.operationServices.reduce((sum, row) => sum + number(row.amount), 0);
   const budgetProfit = budgetRevenue - budgetCost;
+  const operationProfit = budgetRevenue - operationCost;
 
   useEffect(() => {
     const subscription = watch((_value, { name }) => {
@@ -491,18 +590,37 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       const row = getValues(`${tableName}.${index}` as never) as Record<string, unknown>;
       const amountPath = `${tableName}.${index}.amount` as never;
       if (getFieldState(amountPath).isDirty) return;
-      const amount = lineAmount(row, tableName === 'operationServices');
+      const amount = tableName === 'hotelCosts'
+        ? hotelLineAmount(row, totalPax)
+        : lineAmount(row, tableName === 'operationServices');
       if (Math.abs(number(row.amount) - amount) > 0.5) {
         setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false });
       }
     });
     return () => subscription.unsubscribe();
-  }, [getFieldState, getValues, setValue, watch]);
+  }, [getFieldState, getValues, setValue, totalPax, watch]);
+
+  useEffect(() => {
+    values.hotelCosts.forEach((_row, index) => {
+      const amountPath = `hotelCosts.${index}.amount` as never;
+      if (getFieldState(amountPath).isDirty) return;
+      const row = getValues(`hotelCosts.${index}` as never) as Record<string, unknown>;
+      const amount = hotelLineAmount(row, totalPax);
+      if (Math.abs(number(row.amount) - amount) > 0.5) {
+        setValue(amountPath, amount as never, { shouldDirty: false, shouldValidate: false });
+      }
+    });
+  }, [getFieldState, getValues, setValue, totalPax, values.hotelCosts]);
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
       const current = getValues();
       if (!formState.isDirty) return;
+      if (!current.id) {
+        setSaveState('Tour mới chỉ được lưu khi bạn bấm Lưu nháp');
+        return;
+      }
+      if (saveInFlight.current || formState.isSubmitting) return;
       if (!canPersistTour(current)) {
         setSaveState('Chưa đủ thông tin để tự lưu');
         return;
@@ -519,18 +637,20 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       if (signature === lastAutosaveSignature.current) return;
       setSaveState('Đang tự lưu...');
       try {
+        saveInFlight.current = true;
         const saved = await saveTour(payload, step, 'draft');
-        if (!current.id && saved.id) setValue('id', saved.id, { shouldDirty: false });
         const savedPayload = preparePayload({ ...current, id: saved.id || current.id }, step);
         lastAutosaveSignature.current = JSON.stringify(creating ? savedPayload : stepPayload(savedPayload, step));
         onSaved?.(saved, 'autosave');
         setSaveState(`Đã tự lưu ${new Date().toLocaleTimeString('vi-VN')}`);
       } catch (error) {
         setSaveState(`Tự lưu lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
+      } finally {
+        saveInFlight.current = false;
       }
     }, autosaveDelayMs);
     return () => clearTimeout(timeout);
-  }, [values, activeStep, formState.isDirty, getValues, setValue, onSaved]);
+  }, [values, activeStep, formState.isDirty, formState.isSubmitting, getValues, onSaved]);
 
 
   async function saveTour(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT', mode: 'draft' | 'confirm' = 'draft') {
@@ -548,7 +668,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     const response = await fetch(url, {
       method: creating || !step ? 'POST' : mode === 'confirm' ? 'POST' : 'PATCH',
       headers: authJsonHeaders(),
-      body: JSON.stringify(creating || !step ? payload : stepPayload(payload, step)),
+      body: JSON.stringify(creating ? createPayload(payload) : !step ? payload : stepPayload(payload, step)),
     });
     if (!response.ok) throw new Error(await responseError(response));
     return response.json();
@@ -598,6 +718,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
   async function loadTour(id: string) {
     setSelectedTourId(id);
+    setCopySourceTourId('');
     setActiveStep(0);
     lastAutosaveSignature.current = '';
     if (!id) {
@@ -611,6 +732,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       if (!response.ok) throw new Error(await responseError(response));
       const defaults = toFormDefaults(await response.json());
       reset(defaults, { keepDirty: false });
+      setActiveStep(workflowStepIndex(defaults.workflowStatus));
       lastAutosaveSignature.current = JSON.stringify(preparePayload(defaults));
       setSaveState('Đã tải tour');
     } catch (error) {
@@ -624,12 +746,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       setSaveState('Hãy lưu tour trước khi copy dự toán');
       return;
     }
+    if (!copySourceTourId || copySourceTourId === id) {
+      setSaveState('Hãy chọn một tour nguồn khác để sao chép dự toán');
+      return;
+    }
     setSaveState('Đang copy dự toán...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
         method: 'POST',
         headers: authJsonHeaders(),
-        body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
+        body: JSON.stringify({ sourceTourId: copySourceTourId }),
       });
       if (!response.ok) throw new Error(await responseError(response));
       const saved = await response.json();
@@ -654,7 +780,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
         method: 'POST',
         headers: authJsonHeaders(),
-        body: JSON.stringify({ sourceTourId: selectedTourId && selectedTourId !== id ? selectedTourId : undefined }),
+        body: JSON.stringify({ sourceTourId: copySourceTourId || id }),
       });
       if (!response.ok) throw new Error(await responseError(response));
       const saved = await response.json();
@@ -696,6 +822,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
     const validFiles = Array.from(files).filter((file) => file.name);
     if (!validFiles.length) return;
     const step = workflowSteps[activeStep].key;
+    const stepLabel = workflowSteps[activeStep].label;
     setSaveState(`Đang tải ${validFiles.length} file...`);
     try {
       let saved: Partial<FitTourForm> & { id?: string } | undefined;
@@ -709,7 +836,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
         setSelectedTourId(saved.id || '');
         onSaved?.(saved, 'upload');
       }
-      setSaveState(`Đã tải ${validFiles.length} file vào bước ${workflowSteps[activeStep].label}`);
+      setSaveState(`Đã tải ${validFiles.length} file vào bước ${stepLabel}`);
     } catch (error) {
       setSaveState(`Tải file lỗi: ${error instanceof Error ? error.message : 'không xác định'}`);
     }
@@ -745,7 +872,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           <SummaryCards items={[
             ['Tổng phí chung', money(totalCommonCost)],
             ['Tổng phí riêng', money(totalPrivateCost)],
-            ['Giá NET / khách', money(netPerGuest)],
+            ['Giá vốn / khách', money(netPerGuest)],
             ['Lợi nhuận / khách', money(profitPerGuest)],
             ['Hoa hồng / khách', money(number(values.commissionPerGuest))],
             ['Giá có hoa hồng', money(priceWithCommission)],
@@ -805,9 +932,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             <Field label="Thời gian giữ chỗ" name="holdUntil" register={register} type="date" />
             <Field label="Thời gian nhận chỗ" name="confirmedAt" register={register} type="date" />
             <Field label="Thời gian đóng chỗ" name="closeAt" register={register} type="date" />
-            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép nhận vượt số chỗ khi điều hành xác nhận</label>
+            <label className="checkLine"><input type="checkbox" {...register('allowOverbooking')} /> Cho phép nhận thêm khách vượt số chỗ dự kiến sau khi điều hành xác nhận</label>
           </div>
-          <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Local', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
+          <EditableTable title="Hướng dẫn viên" name="guides" fields={arrays.guides.fields} register={register} append={() => arrays.guides.append({ name: '', phone: '', guideType: 'Nội địa', notes: '' })} remove={arrays.guides.remove} columns={guideColumns} />
         </section>
       ) : null}
 
@@ -819,7 +946,10 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             ['Lợi nhuận dự kiến', money(budgetProfit)],
             ['Tỷ suất lợi nhuận', `${budgetRevenue ? Math.round((budgetProfit / budgetRevenue) * 1000) / 10 : 0}%`],
           ]} />
-          <div className="copyBar"><button type="button" onClick={copyBudget}><Copy size={15} /> Copy dự toán</button></div>
+          <div className="copyBar">
+            <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Chọn tour nguồn để sao chép dự toán" />
+            <button type="button" onClick={copyBudget}><Copy size={15} /> Sao chép dự toán</button>
+          </div>
           <EditableTable title="Dự toán dịch vụ" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append({ ...emptyService })} remove={arrays.budgetServices.remove} columns={budgetColumns} suppliers={suppliers} />
         </section>
       ) : null}
@@ -829,16 +959,19 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           <SummaryCards items={[
             ['Tổng chi điều hành', money(operationCost)],
             ['Lợi nhuận dự kiến', money(budgetProfit)],
-            ['Lợi nhuận thực tế', money(budgetRevenue - operationCost)],
+            ['Lợi nhuận thực tế', money(operationProfit)],
           ]} />
-          <div className="copyBar"><button type="button" onClick={copyOperation}><Copy size={15} /> Copy điều hành từ dự toán</button></div>
+          <div className="copyBar">
+            <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Dùng dự toán của tour hiện tại" />
+            <button type="button" onClick={copyOperation}><Copy size={15} /> Sao chép sang điều hành</button>
+          </div>
           <EditableTable title="Điều hành dịch vụ" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append({ ...emptyService })} remove={arrays.operationServices.remove} columns={operationColumns} suppliers={suppliers} />
         </section>
       ) : null}
 
       {activeStep === 4 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['Số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên local', values.guides[0]?.name || '-']]} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode || '-'], ['Tổng số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên phụ trách', values.guides[0]?.name || '-']]} />
           <label>Yêu cầu hướng dẫn viên<textarea {...register('handoverGuideRequest')} rows={8} /></label>
           <EditableTable title="Vật dụng và quà tặng" name="handoverItems" fields={arrays.handoverItems.fields} register={register} append={() => arrays.handoverItems.append({ itemName: '', quantity: 1, notes: '' })} remove={arrays.handoverItems.remove} columns={handoverColumns} />
         </section>
@@ -846,9 +979,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
       {activeStep === 5 ? (
         <section className="fitStep">
-          <SummaryCards items={[['Tour', values.tourName || values.tourCode], ['Số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Điểm đón', values.pickupPoint || '-'], ['Ngày về', values.endDate || '-'], ['Hướng dẫn viên local', values.guides[0]?.name || '-']]} />
-          <label>Mô tả chung<textarea {...register('surveyDescription')} rows={5} /></label>
-          <EditableTable title="Câu hỏi khảo sát" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
+          <SummaryCards items={[['Tour', values.tourName || values.tourCode || '-'], ['Tổng số khách', String(totalPax)], ['Ngày khởi hành', values.startDate || '-'], ['Ngày về', values.endDate || '-'], ['Số câu hỏi', String(values.surveyQuestions.filter((row) => trimText(row.question)).length)], ['Hướng dẫn viên phụ trách', values.guides[0]?.name || '-']]} />
+          <label>Nội dung mở đầu phiếu đánh giá<textarea {...register('surveyDescription')} rows={5} /></label>
+          <EditableTable title="Câu hỏi đánh giá dịch vụ" name="surveyQuestions" fields={arrays.surveyQuestions.fields} register={register} append={() => arrays.surveyQuestions.append({ question: '', notes: '' })} remove={arrays.surveyQuestions.remove} columns={surveyColumns} />
         </section>
       ) : null}
 
@@ -862,6 +995,23 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
 
 function SummaryCards({ items }: { items: [string, string][] }) {
   return <div className="fitSummary">{items.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
+}
+
+function CopySourceSelect({ tours, currentTourId, value, onChange, emptyLabel }: {
+  tours: FitTourSummary[];
+  currentTourId?: string;
+  value: string;
+  onChange: (value: string) => void;
+  emptyLabel: string;
+}) {
+  return (
+    <select value={value} onChange={(event) => onChange(event.target.value)} aria-label="Chọn tour nguồn">
+      <option value="">{emptyLabel}</option>
+      {tours.filter((tour) => tour.id !== currentTourId).map((tour) => (
+        <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.tourCode} - {tour.customerName}</option>
+      ))}
+    </select>
+  );
 }
 
 function Field({ label, name, register, type = 'text', required, as, options = [] }: { label: string; name: keyof FitTourForm; register: UseFormRegister<FitTourForm>; type?: string; required?: boolean; as?: 'select'; options?: FieldOption[] }) {
@@ -920,7 +1070,8 @@ function TableInput({ name, rowIndex, column, register, suppliers }: { name: Arr
   if (column.type === 'textarea') {
     return <textarea rows={2} {...register(fieldName)} />;
   }
-  return <input type={column.type || 'text'} {...register(fieldName)} />;
+  const numericProps = column.type === 'number' ? { min: 0, step: 'any' } : {};
+  return <input type={column.type || 'text'} {...numericProps} {...register(fieldName)} />;
 }
 
 const costColumns: ColumnSpec[] = [
@@ -977,7 +1128,7 @@ const operationColumns: ColumnSpec[] = [
 const guideColumns: ColumnSpec[] = [
   { key: 'name', label: 'Tên hướng dẫn viên' },
   { key: 'phone', label: 'Điện thoại' },
-  { key: 'guideType', label: 'Loại HDV' },
+  { key: 'guideType', label: 'Loại hướng dẫn viên' },
   { key: 'notes', label: 'Ghi chú' },
 ];
 

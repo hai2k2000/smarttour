@@ -121,6 +121,23 @@ function assertLegacyCompatBoundary() {
   const fitToursClientSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitToursClient.tsx', 'utf8');
   assert(fitToursClientSource.includes('/export') && fitToursClientSource.includes('URL.createObjectURL'), 'FIT list UI should download exported CSV from the FIT export endpoint');
   assert(fitWizardSource.includes('L\u01b0u nh\u00e1p') && fitWizardSource.includes('X\u00e1c nh\u1eadn b\u01b0\u1edbc'), 'FIT wizard should expose separate draft save and confirm buttons');
+  for (const label of ['Mã báo giá', 'Mã tour', 'Nhóm thị trường', 'Ngày đặt', 'Khởi đi', 'Ngày về', 'Họ tên khách', 'Số người lớn', 'Trẻ em', 'Em bé', 'Giá bán / khách', 'Hoa hồng / khách', 'Chi phí chung', 'Chi phí khách sạn', 'Chi phí riêng khách', 'Dự toán dịch vụ', 'Điều hành dịch vụ', 'Phiếu bàn giao', 'Phiếu đánh giá dịch vụ']) {
+    assert(fitWizardSource.includes(label), `FIT wizard should keep Vietnamese label ${label}`);
+  }
+  for (const legacyText of ['Lien he khach truoc tour', 'Tao nhom Zalo', 'Bao cao phat sinh', 'Rooming list', 'Final confirmation', 'Loại HDV', 'Giá NET / khách']) {
+    assert(!fitWizardSource.includes(legacyText), `FIT wizard should not keep legacy label ${legacyText}`);
+  }
+  assert(fitWizardSource.includes("quoteCode: ''") && fitWizardSource.includes("tourCode: ''"), 'FIT new-tour defaults should not generate collision-prone daily codes');
+  assert(fitWizardSource.includes("if (!current.id)") && fitWizardSource.includes('Tour mới chỉ được lưu khi bạn bấm Lưu nháp'), 'FIT autosave should not create a new tour while the user is typing');
+  assert(fitWizardSource.includes('saveInFlight.current') && fitWizardSource.includes('autosaveDelayMs = 2500'), 'FIT autosave should debounce and prevent concurrent saves');
+  assert(fitWizardSource.includes('workflowStepIndex(defaults.workflowStatus)'), 'FIT load should restore the active workflow step');
+  assert(fitWizardSource.includes('normalizeCostRows') && fitWizardSource.includes('normalizeServiceRows'), 'FIT load should normalize numeric child rows');
+  assert(fitWizardSource.includes('createPayload') && fitWizardSource.includes('attachments: _attachments'), 'FIT create should omit action-owned attachment metadata');
+  assert(fitWizardSource.includes('hotelLineAmount') && fitWizardSource.includes('paxPerRoom'), 'FIT hotel amount should account for guests per room');
+  assert(fitWizardSource.includes('getFieldState(amountPath).isDirty'), 'FIT amount auto-calculation should preserve manually edited amounts');
+  assert(fitWizardSource.includes('CopySourceSelect') && fitWizardSource.includes('sourceTourId: copySourceTourId'), 'FIT budget copy should use an explicit source tour');
+  assert(fitWizardSource.includes('sourceTourId: copySourceTourId || id'), 'FIT operation copy should explicitly use selected or current tour source');
+  assert(fitWizardSource.includes('workflowSteps.some((step) => step.key === row.step)'), 'FIT loaded attachments should remain scoped to valid workflow steps');
   assert(!legacyCompatSource.includes('new Date(text)'), 'FIT legacy compatibility date parsing should avoid direct new Date(text) timezone parsing');
   assert(legacyCompatSource.includes('private hasChanges') && legacyCompatSource.includes('private async replaceFitChildren'), 'FIT legacy child sync should use hasChanges -> deleteMany -> createMany helper pattern');
   const legacySyncChildrenBlock = legacyCompatSource.slice(legacyCompatSource.indexOf('async syncChildren'), legacyCompatSource.indexOf('async replaceBudgetServices'));
