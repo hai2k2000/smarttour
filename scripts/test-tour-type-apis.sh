@@ -94,6 +94,8 @@ function assertTourTypeDtoContracts() {
   assert(gitDtoSource.includes('GIT_TOUR_CODE_PATTERN') && gitDtoSource.includes('@MaxLength(50'), 'GIT DTO should cap and validate systemCode/tourCode format');
   assert(gitDtoSource.includes('@Max(100') && gitDtoSource.includes('@Min(0.000001'), 'GIT DTO should bound commissionRate and exchangeRate');
   assert(gitDtoSource.includes('compactChildRows') && gitDtoSource.includes('@Transform(compactChildRows)'), 'GIT DTO should compact empty nested array rows before validation/mapping');
+  assert(gitCreateDtoContract.GIT_TOUR_CHILD_ARRAY_LIMIT === 100 && gitCreateDtoContract.GIT_TOUR_ATTACHMENT_ARRAY_LIMIT === 50, 'GIT DTO should expose explicit payload-size limits for child arrays');
+  assert(gitDtoSource.includes('@ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT') && gitDtoSource.includes('@ArrayMaxSize(GIT_TOUR_ATTACHMENT_ARRAY_LIMIT'), 'GIT DTO should cap large child/attachment arrays');
   for (const field of ['branch', 'department', 'customerSource', 'operatorOwner', 'bookingDate', 'paymentDueDate', 'startDate', 'endDate', 'paymentStatus', 'route', 'notes']) {
     assert(gitCreateDtoContract.GIT_TOUR_ROOT_FIELDS.includes(field), `GIT ${field} should be owned by common Tour root`);
     assert(!gitCreateDtoContract.GIT_TOUR_DETAIL_FIELDS.includes(field), `GIT ${field} should not be classified as detail data`);
@@ -204,6 +206,14 @@ function assertGitToursFrontendContract() {
   assert(pageSource.includes('className="filterBar"') && pageSource.includes('name="search"') && pageSource.includes('name="status"'), 'GIT tours page should expose search/status filters');
   assert(pageSource.includes('workflowStep: string | null') && pageSource.includes('viStatus(tour.workflowStep)'), 'GIT tours page should show backend workflowStep');
   assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'GIT tours page should show backend paymentStatus');
+  assert(pageSource.includes('gitWorkflowSteps') && pageSource.includes('name="workflowStep"') && pageSource.includes('updateGitTourWorkflow'), 'GIT tours page should let users update workflow step explicitly');
+  assert(pageSource.includes('copyGitServices') && pageSource.includes('/copy-services') && pageSource.includes('sourceTourId') && pageSource.includes('#copy-'), 'GIT tours page should expose guarded copy-services UI with explicit source tour');
+  assert(pageSource.includes('#delete-') && pageSource.includes('Xác nhận xóa'), 'GIT tours page should require a delete confirmation modal instead of direct row delete');
+  assert(pageSource.includes('redirectWithState') && pageSource.includes('statusPillDanger') && pageSource.includes('statusPillSuccess'), 'GIT tours page should surface save/load action state from server actions');
+  assert(pageSource.includes('summarizeTours') && pageSource.includes('Dòng doanh thu') && pageSource.includes('Dòng dịch vụ'), 'GIT tours page should show list summary counts for financial child rows');
+  assert(pageSource.includes('if (revenueDescription || revenueUnitPrice > 0)') && pageSource.includes('if (budgetDescription || budgetUnitPrice > 0 || budgetServiceType)'), 'GIT create form should not always send empty revenue/service child rows');
+  assert(!pageSource.includes('updateGitTourStatus'), 'GIT tours page should not keep the old status-only update action');
+  assert(!pageSource.includes('autosave') && !pageSource.includes('auto-save'), 'GIT tours page should not pretend to autosave without a real client wizard contract');
   assert(pageSource.includes('SETTLED'), 'GIT tours page status options should include the shared TourStatus.SETTLED value');
   assert(!pageSource.includes('NVDH') && !pageSource.includes('CTV') && !pageSource.includes('DT / DV'), 'GIT tours page should not use unclear abbreviated Vietnamese labels');
   for (const step of ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED']) {
@@ -616,6 +626,21 @@ async function main() {
     'GIT should reject non-array child payloads',
   );
   assertMessage(invalidGitChildArray, 'Doanh thu tour GIT phải là danh sách hợp lệ', 'GIT child array validation should use Vietnamese message');
+  const oversizedGitChildArray = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BIG-CHILD-SYS`,
+        tourCode: `${run}-GIT-BIG-CHILD`,
+        name: 'Tour type API GIT oversized child array',
+        revenues: Array.from({ length: gitCreateDtoContract.GIT_TOUR_CHILD_ARRAY_LIMIT + 1 }, (_, index) => ({ description: `Revenue ${index}`, quantity: 1, unitPrice: 1 })),
+      }),
+    },
+    400,
+    'GIT should reject oversized child arrays',
+  );
+  assertMessage(oversizedGitChildArray, 'Doanh thu tour GIT không được vượt quá 100 dòng', 'GIT child array size validation should use Vietnamese message');
   await expect(
     '/api/git-tours',
     {

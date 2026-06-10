@@ -21,6 +21,24 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Continued GIT frontend and security contract cleanup:
+  - The current GIT frontend surface is a server-rendered list/create/status
+    page, not a FIT-style autosave wizard; it now has clearer Vietnamese
+    labels, workflow-step update controls, action feedback, summary counts,
+    delete confirmation, and explicit copy-services source selection.
+  - GIT create form no longer sends empty revenue/service child rows by
+    default, keeping row creation tied to intentional input.
+  - GIT DTO now caps child arrays at 100 rows and attachment metadata arrays at
+    50 rows with Vietnamese validation messages, giving a module-level payload
+    size guard for large arrays/attachments without adding a new rate-limit
+    dependency.
+  - Data-scope regression now covers GIT list/detail/create plus update,
+    remove, and copy-services source/target branch enforcement.
+  - VPS verification passed on 2026-06-10: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web Docker build, api/web deploy, GIT
+    API auth smoke 401, and GIT web auth redirect smoke 307.
+
+
 - Hardened GIT DTO validation contract:
   - `CreateGitTourDto` now trims and validates `systemCode`, `tourCode`,
     `name`, optional text fields, and date strings with Vietnamese validation

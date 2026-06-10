@@ -3,6 +3,21 @@
 ## Done
 
 
+- Locked GIT frontend route/security behavior:
+  - `apps/web/app/git-tours/page.tsx` now exposes workflow update, guarded
+    copy-services, delete confirmation, action success/error state, and list
+    summary metrics while keeping autosave absent until a real GIT client
+    wizard exists.
+  - `CreateGitTourDto` caps oversized GIT child payloads and attachment
+    metadata arrays with explicit exported limits and Vietnamese messages.
+  - Regressions guard `tour.view`/`tour.manage` route contracts, GIT frontend
+    action surface, oversized child array rejection, and branch/department
+    scope for GIT update/remove/copy-services.
+  - Verified on VPS: `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, web Docker build, api/web deploy, API
+    auth smoke, and web login redirect smoke.
+
+
 - Hardened GIT DTO validation contract:
   - `CreateGitTourDto` now has Vietnamese messages and clearer rules for
     required identity fields, optional text fields, date strings,

@@ -438,6 +438,11 @@ async function main() {
   const gitRows = await gitTours.list(run, undefined, branchUser);
   assert(gitRows.length === 1 && gitRows[0].id === gitA.id, 'GIT list should be branch scoped');
   await rejects(() => gitTours.detail(gitB.id, branchUser), 'GIT detail should reject other branch');
+  await rejects(() => gitTours.update(gitB.id, { name: 'Blocked other branch GIT' }, branchUser), 'GIT update should reject other branch target');
+  await rejects(() => gitTours.update(gitA.id, { branch: 'BR-B' }, branchUser), 'GIT update should reject writing outside branch scope');
+  await rejects(() => gitTours.remove(gitB.id, branchUser), 'GIT remove should reject other branch target');
+  await rejects(() => gitTours.copyServices(gitB.id, gitA.id, branchUser), 'GIT copy-services should reject other branch target');
+  await rejects(() => gitTours.copyServices(gitA.id, gitB.id, branchUser), 'GIT copy-services should reject other branch source');
   assert((await gitTours.list(run, undefined, noScopeUser)).length === 0, 'GIT no-scope user should see no sensitive rows');
 
   const landA = await landTours.create({

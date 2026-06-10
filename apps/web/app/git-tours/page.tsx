@@ -1,5 +1,6 @@
-import { BriefcaseBusiness, CircleDollarSign, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, BriefcaseBusiness, CircleDollarSign, Copy, GitBranch, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
 
@@ -16,13 +17,15 @@ type GitTour = {
   startDate: string | null;
   endDate: string | null;
   operatorOwner: string | null;
-  gitTour: { agentName: string | null; collaborator: string | null; commissionRate: string } | null;
+  gitTour: { agentName: string | null; collaborator: string | null; commissionRate: string | null } | null;
   customers: { name: string }[];
   _count?: { revenues: number; services: number; costs: number };
 };
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 const dateFormatter = new Intl.DateTimeFormat('vi-VN');
+const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
+const gitWorkflowSteps = ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED'];
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -32,70 +35,122 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
   } catch { return fallback; }
 }
 
-async function createGitTour(formData: FormData) {
-  'use server';
-  await fetch(`${apiBase}/api/git-tours`, {
-    method: 'POST',
-    headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({
-      systemCode: String(formData.get('systemCode') || ''),
-      tourCode: String(formData.get('tourCode') || ''),
-      holdCode: String(formData.get('holdCode') || ''),
-      name: String(formData.get('name') || ''),
-      itinerarySummary: String(formData.get('itinerarySummary') || ''),
-      marketGroup: String(formData.get('marketGroup') || ''),
-      bookingDate: String(formData.get('bookingDate') || ''),
-      paymentDueDate: String(formData.get('paymentDueDate') || ''),
-      startDate: String(formData.get('startDate') || ''),
-      endDate: String(formData.get('endDate') || ''),
-      customerName: String(formData.get('customerName') || ''),
-      agentName: String(formData.get('agentName') || ''),
-      operatorOwner: String(formData.get('operatorOwner') || ''),
-      collaborator: String(formData.get('collaborator') || ''),
-      branch: String(formData.get('branch') || ''),
-      department: String(formData.get('department') || ''),
-      customerSource: String(formData.get('customerSource') || ''),
-      commissionRate: Number(formData.get('commissionRate') || 0),
-      invoiceStatus: String(formData.get('invoiceStatus') || ''),
-      accountCode: String(formData.get('accountCode') || ''),
-      exchangeRateCode: String(formData.get('exchangeRateCode') || 'VND'),
-      exchangeRate: Number(formData.get('exchangeRate') || 1),
-      notes: String(formData.get('notes') || ''),
-      revenues: [{ description: String(formData.get('revenueDescription') || 'Doanh thu tour'), quantity: Number(formData.get('revenueQuantity') || 1), unitPrice: Number(formData.get('revenueUnitPrice') || 0), vat: Number(formData.get('revenueVat') || 0) }],
-      budgetServices: [{ serviceType: String(formData.get('budgetServiceType') || 'Dịch vụ'), description: String(formData.get('budgetDescription') || ''), quantity: Number(formData.get('budgetQuantity') || 1), unitPrice: Number(formData.get('budgetUnitPrice') || 0), vat: Number(formData.get('budgetVat') || 0) }],
-    }),
-  });
-  revalidatePath('/git-tours');
+async function apiErrorMessage(res: Response) {
+  try {
+    const body = await res.json();
+    const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message;
+    return String(message || body?.error || 'Thao tác tour GIT không thành công');
+  } catch {
+    return 'Thao tác tour GIT không thành công';
+  }
 }
 
-async function updateGitTourStatus(formData: FormData) {
+function textField(formData: FormData, key: string) {
+  return String(formData.get(key) || '').trim();
+}
+
+function numberField(formData: FormData, key: string, fallback = 0) {
+  const raw = textField(formData, key);
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function redirectWithState(type: 'notice' | 'error', message: string) {
+  redirect(`/git-tours?${type}=${encodeURIComponent(message)}`);
+}
+
+async function createGitTour(formData: FormData) {
   'use server';
-  const id = String(formData.get('id') || '');
-  if (!id) return;
-  await fetch(`${apiBase}/api/git-tours/${id}`, {
+  const revenueDescription = textField(formData, 'revenueDescription');
+  const revenueUnitPrice = numberField(formData, 'revenueUnitPrice');
+  const revenueQuantity = numberField(formData, 'revenueQuantity', 1);
+  const budgetDescription = textField(formData, 'budgetDescription');
+  const budgetUnitPrice = numberField(formData, 'budgetUnitPrice');
+  const budgetQuantity = numberField(formData, 'budgetQuantity', 1);
+  const budgetServiceType = textField(formData, 'budgetServiceType');
+  const payload: Record<string, unknown> = {
+    systemCode: textField(formData, 'systemCode'),
+    tourCode: textField(formData, 'tourCode'),
+    holdCode: textField(formData, 'holdCode'),
+    name: textField(formData, 'name'),
+    itinerarySummary: textField(formData, 'itinerarySummary'),
+    marketGroup: textField(formData, 'marketGroup'),
+    bookingDate: textField(formData, 'bookingDate'),
+    paymentDueDate: textField(formData, 'paymentDueDate'),
+    startDate: textField(formData, 'startDate'),
+    endDate: textField(formData, 'endDate'),
+    customerName: textField(formData, 'customerName'),
+    agentName: textField(formData, 'agentName'),
+    operatorOwner: textField(formData, 'operatorOwner'),
+    collaborator: textField(formData, 'collaborator'),
+    branch: textField(formData, 'branch'),
+    department: textField(formData, 'department'),
+    customerSource: textField(formData, 'customerSource'),
+    commissionRate: numberField(formData, 'commissionRate'),
+    invoiceStatus: textField(formData, 'invoiceStatus'),
+    accountCode: textField(formData, 'accountCode'),
+    exchangeRateCode: textField(formData, 'exchangeRateCode') || 'VND',
+    exchangeRate: numberField(formData, 'exchangeRate', 1),
+    notes: textField(formData, 'notes'),
+  };
+  if (revenueDescription || revenueUnitPrice > 0) {
+    payload.revenues = [{ description: revenueDescription || 'Doanh thu tour', quantity: revenueQuantity, unitPrice: revenueUnitPrice, vat: numberField(formData, 'revenueVat') }];
+  }
+  if (budgetDescription || budgetUnitPrice > 0 || budgetServiceType) {
+    payload.budgetServices = [{ serviceType: budgetServiceType || 'GIT_SERVICE', description: budgetDescription, quantity: budgetQuantity, unitPrice: budgetUnitPrice, vat: numberField(formData, 'budgetVat') }];
+  }
+  const response = await fetch(`${apiBase}/api/git-tours`, { method: 'POST', headers: await serverAuthJsonHeaders(), body: JSON.stringify(payload) });
+  if (!response.ok) redirectWithState('error', await apiErrorMessage(response));
+  revalidatePath('/git-tours');
+  redirectWithState('notice', 'Đã tạo tour GIT.');
+}
+
+async function updateGitTourWorkflow(formData: FormData) {
+  'use server';
+  const id = textField(formData, 'id');
+  if (!id) redirectWithState('error', 'Thiếu tour GIT cần cập nhật.');
+  const response = await fetch(`${apiBase}/api/git-tours/${id}`, {
     method: 'PATCH',
     headers: await serverAuthJsonHeaders(),
-    body: JSON.stringify({ status: String(formData.get('status') || '') }),
+    body: JSON.stringify({ status: textField(formData, 'status'), workflowStep: textField(formData, 'workflowStep') }),
   });
+  if (!response.ok) redirectWithState('error', await apiErrorMessage(response));
   revalidatePath('/git-tours');
+  redirectWithState('notice', 'Đã cập nhật trạng thái tour GIT.');
+}
+
+async function copyGitServices(formData: FormData) {
+  'use server';
+  const id = textField(formData, 'id');
+  const sourceTourId = textField(formData, 'sourceTourId');
+  if (!id || !sourceTourId) redirectWithState('error', 'Hãy chọn tour nguồn để sao chép dịch vụ GIT.');
+  const response = await fetch(`${apiBase}/api/git-tours/${id}/copy-services`, {
+    method: 'POST',
+    headers: await serverAuthJsonHeaders(),
+    body: JSON.stringify({ sourceTourId }),
+  });
+  if (!response.ok) redirectWithState('error', await apiErrorMessage(response));
+  revalidatePath('/git-tours');
+  redirectWithState('notice', 'Đã sao chép dịch vụ GIT từ tour nguồn.');
 }
 
 async function deleteGitTour(formData: FormData) {
   'use server';
-  const id = String(formData.get('id') || '');
-  if (!id) return;
-  await fetch(`${apiBase}/api/git-tours/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
+  const id = textField(formData, 'id');
+  if (!id) redirectWithState('error', 'Thiếu tour GIT cần xóa.');
+  const response = await fetch(`${apiBase}/api/git-tours/${id}`, { method: 'DELETE', headers: await serverAuthHeaders() });
+  if (!response.ok) redirectWithState('error', await apiErrorMessage(response));
   revalidatePath('/git-tours');
+  redirectWithState('notice', 'Đã xóa tour GIT.');
 }
 
 function formatDate(v: string | null) { return v ? dateFormatter.format(new Date(v)) : '—'; }
 
 function statusClass(s: string) {
-  const m: Record<string, string> = { DRAFT: 'status-draft', UPCOMING: 'status-upcoming', RUNNING: 'status-running', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled', SETTLED: 'status-completed' };
+  const m: Record<string, string> = { DRAFT: 'status-draft', UPCOMING: 'status-upcoming', RUNNING: 'status-running', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled', SETTLED: 'status-completed', PAID: 'status-completed', PARTIAL: 'status-running', UNPAID: 'status-draft' };
   return m[s] || '';
 }
-
-const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 
 function gitToursPath(search?: string, status?: string) {
   const params = new URLSearchParams();
@@ -107,12 +162,26 @@ function gitToursPath(search?: string, status?: string) {
   return `/git-tours${query ? `?${query}` : ''}`;
 }
 
-type GitToursPageProps = { searchParams?: { search?: string; status?: string } };
+function summarizeTours(tours: GitTour[]) {
+  return {
+    total: tours.length,
+    running: tours.filter((tour) => tour.status === 'RUNNING').length,
+    upcoming: tours.filter((tour) => tour.status === 'UPCOMING').length,
+    openWorkflow: tours.filter((tour) => !['GIT_COMPLETED', 'COMPLETED'].includes(String(tour.workflowStep || '').toUpperCase())).length,
+    revenues: tours.reduce((sum, tour) => sum + (tour._count?.revenues || 0), 0),
+    services: tours.reduce((sum, tour) => sum + (tour._count?.services || 0), 0),
+  };
+}
+
+type GitToursPageProps = { searchParams?: { search?: string; status?: string; notice?: string; error?: string } };
 
 export default async function GitToursPage({ searchParams }: GitToursPageProps) {
   const search = String(searchParams?.search || '').trim().replace(/\s+/g, ' ');
   const status = String(searchParams?.status || '').trim().toUpperCase();
+  const notice = String(searchParams?.notice || '').trim();
+  const error = String(searchParams?.error || '').trim();
   const tours = await apiGet<GitTour[]>(gitToursPath(search, status), []);
+  const summary = summarizeTours(tours);
 
   return (
     <section className="workspace">
@@ -128,41 +197,53 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         </div>
       </header>
 
+      {notice ? <div className="statusPill statusPillSuccess"><Save size={14} /> {notice}</div> : null}
+      {error ? <div className="statusPill statusPillDanger"><AlertTriangle size={14} /> {error}</div> : null}
+
+      <section className="metrics gitTourMetrics">
+        <article className="metric"><span>Tổng tour GIT</span><strong>{summary.total}</strong></article>
+        <article className="metric metricTone-amber"><span>Sắp khởi hành</span><strong>{summary.upcoming}</strong></article>
+        <article className="metric metricTone-indigo"><span>Đang chạy</span><strong>{summary.running}</strong></article>
+        <article className="metric"><span>Workflow đang mở</span><strong>{summary.openWorkflow}</strong></article>
+        <article className="metric"><span>Dòng doanh thu</span><strong>{summary.revenues}</strong></article>
+        <article className="metric"><span>Dòng dịch vụ</span><strong>{summary.services}</strong></article>
+      </section>
+
       <section id="create-git-tour" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader">
           <h2><Plus size={18} /> Tạo tour GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
           <form action={createGitTour} className="formGrid gitForm">
-            <label>Mã hệ thống<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} /></label>
-            <label>Mã tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} /></label>
-            <label>Mã giữ chỗ<input name="holdCode" /></label>
-            <label>Tên tour<input name="name" required minLength={2} /></label>
-            <label>Lịch trình<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" /></label>
-            <label>Nhóm thị trường<input name="marketGroup" /></label>
+            <label>Mã hệ thống GIT<input name="systemCode" placeholder="GIT-2026-0001" required minLength={2} maxLength={50} pattern="[A-Za-z0-9][A-Za-z0-9._/\-]*" /></label>
+            <label>Mã tour<input name="tourCode" placeholder="GIT-HN-DN" required minLength={2} maxLength={50} pattern="[A-Za-z0-9][A-Za-z0-9._/\-]*" /></label>
+            <label>Mã giữ chỗ<input name="holdCode" maxLength={100} /></label>
+            <label>Tên tour<input name="name" required minLength={2} maxLength={200} /></label>
+            <label>Lịch trình tóm tắt<input name="itinerarySummary" placeholder="Hà Nội - Đà Nẵng - Hội An" maxLength={1000} /></label>
+            <label>Nhóm thị trường<input name="marketGroup" maxLength={200} /></label>
             <label>Ngày đặt<input name="bookingDate" type="date" /></label>
-            <label>Ngày thanh toán<input name="paymentDueDate" type="date" /></label>
-            <label>Khởi hành<input name="startDate" type="date" /></label>
+            <label>Hạn thanh toán<input name="paymentDueDate" type="date" /></label>
+            <label>Khởi đi<input name="startDate" type="date" /></label>
             <label>Ngày về<input name="endDate" type="date" /></label>
-            <label>Khách hàng<input name="customerName" required minLength={2} /></label>
-            <label>Đại lý<input name="agentName" /></label>
-            <label>Nhân viên điều hành<input name="operatorOwner" /></label>
-            <label>Cộng tác viên<input name="collaborator" /></label>
-            <label>Chi nhánh<input name="branch" /></label>
-            <label>Phòng ban<input name="department" /></label>
-            <label>Nguồn khách<input name="customerSource" /></label>
-            <label>Hoa hồng %<input name="commissionRate" type="number" min={0} defaultValue={0} /></label>
-            <label>Hóa đơn<input name="invoiceStatus" /></label>
-            <label>Tài khoản<input name="accountCode" /></label>
-            <label>Tỷ giá<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
-            <label>Giá trị tỷ giá<input name="exchangeRate" type="number" min={0} defaultValue={1} /></label>
-            <label>Nội dung doanh thu<input name="revenueDescription" defaultValue="Giá tour trọn gói" /></label>
-            <label>Số lượng thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
-            <label>Đơn giá thu<input name="revenueUnitPrice" type="number" min={0} defaultValue={0} /></label>
-            <label>VAT thu %<input name="revenueVat" type="number" min={0} defaultValue={0} /></label>
-            <label>Dịch vụ Sales<input name="budgetServiceType" defaultValue="Hotel" /></label>
-            <label>Diễn giải chi<input name="budgetDescription" /></label>
-            <label>Số lượng chi<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
-            <label>Đơn giá chi<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
-            <label>VAT chi %<input name="budgetVat" type="number" min={0} defaultValue={0} /></label>
-            <label>Ghi chú<textarea name="notes" rows={2} /></label>
+            <label>Khách hàng chính<input name="customerName" minLength={2} maxLength={200} /></label>
+            <label>Đại lý<input name="agentName" maxLength={200} /></label>
+            <label>Nhân viên điều hành<input name="operatorOwner" maxLength={200} /></label>
+            <label>Cộng tác viên<input name="collaborator" maxLength={200} /></label>
+            <label>Chi nhánh<input name="branch" maxLength={100} /></label>
+            <label>Phòng ban<input name="department" maxLength={100} /></label>
+            <label>Nguồn khách<input name="customerSource" maxLength={200} /></label>
+            <label>Tỷ lệ hoa hồng (%)<input name="commissionRate" type="number" min={0} max={100} step="0.01" defaultValue={0} /></label>
+            <label>Trạng thái hóa đơn<input name="invoiceStatus" maxLength={100} /></label>
+            <label>Tài khoản<input name="accountCode" maxLength={100} /></label>
+            <label>Tiền tệ<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
+            <label>Giá trị tỷ giá<input name="exchangeRate" type="number" min="0.000001" step="0.000001" defaultValue={1} /></label>
+            <label>Nội dung doanh thu<input name="revenueDescription" placeholder="Giá tour trọn gói" /></label>
+            <label>Số lượng doanh thu<input name="revenueQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Đơn giá doanh thu<input name="revenueUnitPrice" type="number" min={0} defaultValue={0} /></label>
+            <label>VAT doanh thu (%)<input name="revenueVat" type="number" min={0} max={100} defaultValue={0} /></label>
+            <label>Loại dịch vụ dự toán<input name="budgetServiceType" placeholder="GIT_HOTEL" /></label>
+            <label>Diễn giải dịch vụ<input name="budgetDescription" /></label>
+            <label>Số lượng dịch vụ<input name="budgetQuantity" type="number" min={1} defaultValue={1} /></label>
+            <label>Đơn giá dịch vụ<input name="budgetUnitPrice" type="number" min={0} defaultValue={0} /></label>
+            <label>VAT dịch vụ (%)<input name="budgetVat" type="number" min={0} max={100} defaultValue={0} /></label>
+            <label>Ghi chú<textarea name="notes" rows={2} maxLength={2000} /></label>
             <button type="submit">Tạo tour GIT</button>
           </form>
         </div></section>
@@ -185,7 +266,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         ) : (
           <table>
             <thead>
-              <tr><th>Mã</th><th>Tour</th><th>Khách / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Doanh thu / Dịch vụ</th><th>Thao tác</th></tr>
+              <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
             </thead>
             <tbody>
               {tours.map((tour) => (
@@ -193,18 +274,19 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
                     <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
                     <td><strong>{tour.name || '—'}</strong></td>
                     <td>{tour.customers[0]?.name || '—'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
-                    <td>{formatDate(tour.startDate)} — {formatDate(tour.endDate)}</td>
+                    <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
                     <td>{tour.operatorOwner || '—'}</td>
                     <td>
                       <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
-                      <br /><span className="mutedText">{viStatus(tour.workflowStep)}</span>
+                      <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
                     </td>
                     <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
-                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} / {tour._count?.services ?? 0} dịch vụ</td>
-                    <td className="actionsCell"><div className="rowActions"><a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a><form action={deleteGitTour}>
-                        <input type="hidden" name="id" value={tour.id} />
-                        <button type="submit" className="dangerButton" title="Xóa tour GIT"><Trash2 size={14} /></button>
-                      </form></div></td></tr>
+                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} doanh thu / {tour._count?.services ?? 0} dịch vụ</td>
+                    <td className="actionsCell"><div className="rowActions">
+                      <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a>
+                      <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao chép dịch vụ"><Copy size={14} /></a>
+                      <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="Xóa tour GIT"><Trash2 size={14} /></a>
+                    </div></td></tr>
               ))}
             </tbody>
           </table>
@@ -215,10 +297,42 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
           <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
           <div className="hashModalPanel">
             <div className="hashModalHeader"><h2>Cập nhật trạng thái GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
-            <form action={updateGitTourStatus} className="formStack">
+            <form action={updateGitTourWorkflow} className="formStack">
               <input type="hidden" name="id" value={tour.id} />
-              <label>Trạng thái<select name="status" defaultValue={tour.status}>{tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
+              <label>Trạng thái tour<select name="status" defaultValue={tour.status}>{tourStatuses.map((s) => <option key={s} value={s}>{viStatus(s)}</option>)}</select></label>
+              <label>Bước workflow<select name="workflowStep" defaultValue={tour.workflowStep || 'GIT_INFO'}>{gitWorkflowSteps.map((step) => <option key={step} value={step}>{viStatus(step)}</option>)}</select></label>
               <button type="submit"><Save size={15} /> Cập nhật</button>
+            </form>
+          </div>
+        </section>
+      ))}
+      {tours.map((tour) => (
+        <section id={`copy-${tour.id}`} className="hashModal" key={`copy-${tour.id}`}>
+          <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
+          <div className="hashModalPanel">
+            <div className="hashModalHeader"><h2>Sao chép dịch vụ GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
+            <form action={copyGitServices} className="formStack">
+              <input type="hidden" name="id" value={tour.id} />
+              <p className="mutedText">Thao tác này thay thế các dòng dịch vụ hiện có của {tour.systemCode} bằng dịch vụ từ tour nguồn.</p>
+              <label>Tour nguồn<select name="sourceTourId" required defaultValue="">
+                <option value="" disabled>Chọn tour nguồn</option>
+                {tours.filter((source) => source.id !== tour.id).map((source) => <option key={source.id} value={source.id}>{source.systemCode} - {source.name || source.tourCode}</option>)}
+              </select></label>
+              <button type="submit"><Copy size={15} /> Xác nhận sao chép</button>
+            </form>
+          </div>
+        </section>
+      ))}
+      {tours.map((tour) => (
+        <section id={`delete-${tour.id}`} className="hashModal" key={`delete-${tour.id}`}>
+          <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
+          <div className="hashModalPanel">
+            <div className="hashModalHeader"><h2>Xóa tour GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
+            <form action={deleteGitTour} className="formStack">
+              <input type="hidden" name="id" value={tour.id} />
+              <p className="mutedText">Chỉ xóa tour khi chưa phát sinh đơn hàng, booking, điều hành hoặc chứng từ tài chính.</p>
+              <strong>{tour.systemCode} - {tour.name || tour.tourCode}</strong>
+              <button type="submit" className="dangerButton"><Trash2 size={15} /> Xác nhận xóa</button>
             </form>
           </div>
         </section>

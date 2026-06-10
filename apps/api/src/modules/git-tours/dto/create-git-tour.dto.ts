@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentStatus, TourStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEnum, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export const GIT_TOUR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const GIT_TOUR_CHILD_ARRAY_LIMIT = 100;
+export const GIT_TOUR_ATTACHMENT_ARRAY_LIMIT = 50;
 const GIT_TOUR_CODE_PATTERN = /^[A-Z0-9][A-Z0-9._/-]*$/i;
 
 const trimOptional = ({ value }: { value: unknown }) => {
@@ -155,6 +157,7 @@ export class CreateGitTourDto {
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Khách hàng tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Khách hàng tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   customers?: unknown[];
 
   @ApiPropertyOptional()
@@ -247,42 +250,49 @@ export class CreateGitTourDto {
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Doanh thu tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Doanh thu tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   revenues?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Chi phí tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Chi phí tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   costs?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Dịch vụ dự toán tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Dịch vụ dự toán tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   budgetServices?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Dịch vụ điều hành tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Dịch vụ điều hành tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   operationServices?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Hướng dẫn viên tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Hướng dẫn viên tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   guides?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Tệp đính kèm tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_ATTACHMENT_ARRAY_LIMIT, { message: `Tệp đính kèm tour GIT không được vượt quá ${GIT_TOUR_ATTACHMENT_ARRAY_LIMIT} dòng` })
   attachments?: unknown[];
 
   @ApiPropertyOptional({ type: Array })
   @Transform(compactChildRows)
   @IsOptional()
   @IsArray({ message: 'Câu hỏi đánh giá tour GIT phải là danh sách hợp lệ' })
+  @ArrayMaxSize(GIT_TOUR_CHILD_ARRAY_LIMIT, { message: `Câu hỏi đánh giá tour GIT không được vượt quá ${GIT_TOUR_CHILD_ARRAY_LIMIT} dòng` })
   surveyQuestions?: unknown[];
 }
 
