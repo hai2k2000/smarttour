@@ -56,7 +56,7 @@ function messageForConstraint(property: string, constraint: string, message: str
     case 'arrayMinSize':
       return `${field} chưa đủ số lượng tối thiểu`;
     default:
-      return message || `${field} không hợp lệ`;
+      return `${field} không hợp lệ`;
   }
 }
 

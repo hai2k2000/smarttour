@@ -220,6 +220,13 @@ async function main() {
   }]).getResponse();
   assert(whitelistValidationResponse.message.includes('unexpectedField không được phép gửi lên'), 'validation factory should translate whitelist messages');
 
+  const unknownDefaultValidationResponse = validationExceptionFactory([{
+    property: 'customField',
+    constraints: { unknownConstraint: 'customField must satisfy an unknown constraint' },
+  }]).getResponse();
+  assert(unknownDefaultValidationResponse.message.includes('customField không hợp lệ'), 'validation factory should translate unknown default constraints');
+  assert(!unknownDefaultValidationResponse.message.some((message) => message.includes('must satisfy')), 'validation factory should not leak unknown English default messages');
+
   assert(permissions(TourProgramsController).includes('tour.view'), 'tour programs controller should require tour.view by default');
   assert(permissions(TourProgramsController, 'list').length === 0, 'list should use default tour.view permission');
   assert(permissions(TourProgramsController, 'detail').length === 0, 'detail should use default tour.view permission');
@@ -470,6 +477,16 @@ async function main() {
     'detail should reject missing tour program with Vietnamese message',
   );
   assert(missingDetailMessage === 'Không tìm thấy chương trình tour', 'detail missing tour program message should be Vietnamese');
+  const missingUpdateMessage = await rejectMessage(
+    () => service.update('missing-tour-program-id', { name: 'Tour không tồn tại' }),
+    'update should reject missing tour program with Vietnamese message',
+  );
+  assert(missingUpdateMessage === missingDetailMessage, 'update and detail should use the same missing tour program message');
+  const missingRemoveMessage = await rejectMessage(
+    () => service.remove('missing-tour-program-id'),
+    'remove should reject missing tour program with Vietnamese message',
+  );
+  assert(missingRemoveMessage === missingDetailMessage, 'remove and detail should use the same missing tour program message');
 
   const updated = await service.update(created.id, {
     name: 'Tour Programs Service Main Updated',
@@ -525,6 +542,11 @@ async function main() {
     'updateItineraryDay should reject missing itinerary day with Vietnamese message',
   );
   assert(missingItineraryMessage === 'Không tìm thấy ngày hành trình', 'ensureItineraryDay message should be Vietnamese');
+  const missingItineraryRemoveMessage = await rejectMessage(
+    () => service.removeItineraryDay('missing-itinerary-day-id'),
+    'removeItineraryDay should reject missing itinerary day with Vietnamese message',
+  );
+  assert(missingItineraryRemoveMessage === missingItineraryMessage, 'update and remove itinerary day should use the same missing message');
 
   await rejects(
     () => service.createItineraryDay(created.id, { dayNumber: 3, title: 'Outside updated duration' }),

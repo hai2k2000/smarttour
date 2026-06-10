@@ -18,6 +18,11 @@ import {
 import { UpdateItineraryDayDto } from './dto/update-itinerary-day.dto';
 import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 
+const TOUR_PROGRAM_NOT_FOUND = 'Không tìm thấy chương trình tour';
+const TOUR_PROGRAM_CODE_EXISTS = 'Mã chương trình tour đã tồn tại';
+const ITINERARY_DAY_NOT_FOUND = 'Không tìm thấy ngày hành trình';
+const ITINERARY_DAY_NUMBER_EXISTS = 'Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này';
+
 @Injectable()
 export class TourProgramsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -73,7 +78,7 @@ export class TourProgramsService {
         _count: { select: { bookings: true } },
       },
     });
-    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
+    if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
     return tourProgram;
   }
 
@@ -86,7 +91,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã chương trình tour đã tồn tại');
+        throw new ConflictException(TOUR_PROGRAM_CODE_EXISTS);
       }
       throw error;
     }
@@ -107,7 +112,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã chương trình tour đã tồn tại');
+        throw new ConflictException(TOUR_PROGRAM_CODE_EXISTS);
       }
       throw error;
     }
@@ -121,7 +126,7 @@ export class TourProgramsService {
         _count: { select: { bookings: true, itineraryDays: true } },
       },
     });
-    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
+    if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
     if (tourProgram._count.bookings > 0) {
       throw new ConflictException(`Không thể xóa chương trình tour vì đang có ${tourProgram._count.bookings} booking liên quan`);
     }
@@ -136,7 +141,7 @@ export class TourProgramsService {
       where: { id: tourProgramId },
       select: { id: true, durationDays: true },
     });
-    if (!tourProgram) throw new NotFoundException('Không tìm thấy chương trình tour');
+    if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
     this.validateItineraryDayInput(dto);
     this.ensureDayNumberWithinDuration(dto.dayNumber, tourProgram.durationDays);
     await this.ensureUniqueItineraryDay(tourProgramId, dto.dayNumber);
@@ -151,7 +156,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
-        throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
+        throw new ConflictException(ITINERARY_DAY_NUMBER_EXISTS);
       }
       throw error;
     }
@@ -176,7 +181,7 @@ export class TourProgramsService {
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
-        throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
+        throw new ConflictException(ITINERARY_DAY_NUMBER_EXISTS);
       }
       throw error;
     }
@@ -187,7 +192,7 @@ export class TourProgramsService {
       where: { id },
       select: { id: true, _count: { select: { services: true } } },
     });
-    if (!day) throw new NotFoundException('Không tìm thấy ngày hành trình');
+    if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
     if (day._count.services > 0) {
       throw new ConflictException(`Không thể xóa ngày hành trình vì đang có ${day._count.services} dịch vụ điều hành liên quan`);
     }
@@ -199,7 +204,7 @@ export class TourProgramsService {
       where: { id },
       include: { tourProgram: { select: { durationDays: true } } },
     });
-    if (!day) throw new NotFoundException('Không tìm thấy ngày hành trình');
+    if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
     return day;
   }
 
@@ -268,7 +273,7 @@ export class TourProgramsService {
       },
       select: { id: true },
     });
-    if (duplicate) throw new ConflictException('Số thứ tự ngày hành trình đã tồn tại trong chương trình tour này');
+    if (duplicate) throw new ConflictException(ITINERARY_DAY_NUMBER_EXISTS);
   }
 
   private isUniqueError(error: unknown) {
