@@ -4,6 +4,21 @@
 
 
 
+- Hardened LandTour service behavior:
+  - `LandToursService` now has a `prepareLandTourDto` boundary for uppercase
+    codes, required Vietnamese errors, status/payment normalization, and
+    workflow-step validation.
+  - Supplier links are validated before replacing LandTour sales/operation/cost
+    children; service statuses, bookingCode, notes, explicit amount, VAT, and
+    exchangeRate are regression-covered.
+  - Remove is blocked for LandTours with external order/booking/operation/finance
+    dependencies; customer mapping avoids fake fallback data; partial VI/EN term
+    updates preserve the untouched language.
+  - Verified on VPS: api Docker build, `TEST_TOUR_TYPE_APIS_OK`,
+    `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy, and LandTour API auth smoke
+    401.
+
+
 - Hardened LandTour controller contract:
   - Added `ListLandToursQueryDto` so list search/status are parsed through a
     focused DTO instead of raw query strings.

@@ -292,6 +292,17 @@ function assertTourRootOrchestrationBoundaries() {
       assert(!source.includes('const sourceId = sourceTourId || targetTourId'), 'GIT copyServices should not silently copy from target when sourceTourId is missing');
       assert(!source.includes('Khach hang GIT') && !source.includes('GIT Customer'), 'GIT customer mapping should not create a fake default customer');
     }
+    if (label === 'LandTour') {
+      assert(source.includes('prepareLandTourDto') && source.includes('LANDTOUR_WORKFLOW_STEPS') && source.includes('Bước workflow LandTour không hợp lệ'), 'LandTour should normalize/validate create/update data before TourCoreService writes root fields');
+      assert(source.includes('ensureRemovable') && source.includes('orderId') && source.includes('operationForms') && source.includes('financeReceipts'), 'LandTour remove should block tours with external operational/finance dependencies');
+      assert(!source.includes('Number.isFinite(parsed) ? parsed : 0'), 'LandTour numeric helper should not silently coerce invalid numbers to zero');
+      assert(source.includes('validateChildLinks') && source.includes('Nhà cung cấp trong dịch vụ LandTour không hợp lệ') && source.includes('Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn'), 'LandTour should validate supplier links before replacing service/cost children');
+      assert(source.includes('toServiceStatus') && source.includes('Trạng thái dịch vụ LandTour không hợp lệ'), 'LandTour should map UI service statuses into TourServiceStatus');
+      assert(source.includes('Hãy chọn tour nguồn để sao chép dịch vụ LandTour') && source.includes('Tour nguồn sao chép dịch vụ LandTour phải khác tour đích'), 'LandTour copyServices should require an explicit source different from target');
+      assert(!source.includes('const sourceId = sourceTourId || targetTourId'), 'LandTour copyServices should not silently copy from target when sourceTourId is missing');
+      assert(!source.includes('Khach hang landtour') && !source.includes('LandTour Customer'), 'LandTour customer mapping should not create a fake default customer');
+      assert(source.includes('currentTerms') && source.includes('dto.termsVi !== undefined') && source.includes('dto.termsEn !== undefined'), 'LandTour term mapping should preserve the untouched language on partial update');
+    }
     assert(source.includes('logAction') && source.includes(label === 'GIT' ? 'logGitTourAction' : 'logLandTourAction'), `${label} should log create/update/copy through standardized TourCoreService.logAction`);
     assert(source.includes(label === 'GIT' ? 'COPY_GIT_SERVICES' : 'COPY_LANDTOUR_SERVICES'), `${label} copyServices should write a copy action log`);
     assert(source.includes('tourCore.softDelete') && !/tx\.(gitTourDetail|landTourDetail)\.delete/.test(source), `${label} remove should soft-delete the common Tour owner and not delete detail directly`);
@@ -1045,30 +1056,72 @@ async function main() {
     400,
     'LandTour should reject startDate after endDate on create',
   );
+  const invalidLandSupplier = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-SUPPLIER-SYS`,
+        tourCode: `${run}-LAND-BAD-SUPPLIER`,
+        name: 'Tour type API LandTour bad supplier',
+        salesServices: [{ serviceType: 'LAND_CAR', supplierId: crypto.randomUUID(), quantity: 1, unitPrice: 1000 }],
+      }),
+    },
+    400,
+    'LandTour should validate supplier links before replacing services',
+  );
+  assertMessage(invalidLandSupplier, 'Nhà cung cấp trong dịch vụ LandTour không hợp lệ', 'LandTour supplier validation should use Vietnamese service message');
+  const invalidLandExchangeRate = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-BAD-EXCHANGE-SYS`,
+        tourCode: `${run}-LAND-BAD-EXCHANGE`,
+        name: 'Tour type API LandTour bad exchange rate',
+        exchangeRate: 0,
+      }),
+    },
+    400,
+    'LandTour should reject zero exchangeRate',
+  );
+  assertMessage(invalidLandExchangeRate, 'Tỷ giá LandTour phải lớn hơn 0', 'LandTour exchangeRate min should use Vietnamese validation message');
 
   const landTour = await expect(
     '/api/landtours',
     {
       method: 'POST',
       body: JSON.stringify({
-        systemCode: `${run}-LAND-SYS`,
-        tourCode: `${run}-LAND`,
+        systemCode: `${run.toLowerCase()}-land-sys`,
+        tourCode: `${run.toLowerCase()}-land`,
         name: 'Tour type API LandTour',
         route: 'Tour type API LandTour common route',
         itinerarySummary: 'Tour type API LandTour legacy itinerary alias',
         customerName: 'Tour type API LandTour customer',
         guideName: 'Tour type API LandTour guide',
+        paymentStatus: 'partial',
         termsVi: 'LandTour dieu khoan VI',
         termsEn: 'LandTour English terms',
         startDate: '2026-09-01',
         endDate: '2026-09-01',
-        salesServices: [{ serviceType: 'LAND_CAR', description: 'LandTour copied sales service', quantity: 1, unitPrice: 1500, amount: 1500 }],
+        salesServices: [{ serviceType: 'LAND_CAR', supplierId: gitSupplier.id, supplierServiceId: gitSupplierService.id, description: 'LandTour copied sales service', quantity: 1, unitPrice: 1500, amount: 1500, vat: 10, status: 'confirmed' }],
+        operationServices: [{ serviceType: 'LAND_HOTEL', supplierId: gitSupplier.id, supplierServiceId: gitSupplierService.id, description: 'LandTour copied operation service', quantity: 2, confirmedUnitPrice: 700, exchangeRate: 2, vat: 5, status: 'operating', bookingCode: 'LAND-BOOK-1', notes: 'Land operation note' }],
       }),
     },
     201,
     'create LandTour',
   );
   assert(landTour.id, 'LandTour create should return id');
+  assert(landTour.systemCode === `${run}-LAND-SYS` && landTour.tourCode === `${run}-LAND`, 'LandTour create should uppercase systemCode and tourCode');
+  assert(landTour.workflowStep === 'LANDTOUR_INFO', 'LandTour create should initialize default workflow step');
+  assert(landTour.paymentStatus === 'PARTIAL', 'LandTour create should normalize paymentStatus');
+  assert(landTour.logs.some((log) => log.action === 'CREATE_LANDTOUR' && log.metadata?.systemCode === `${run}-LAND-SYS`), 'LandTour create should write standardized create log metadata');
+  assert(landTour.services.length === 2 && landTour.services.some((service) => service.confirmationStatus === 'CONFIRMED') && landTour.services.some((service) => service.confirmationStatus === 'OPERATING'), 'LandTour should map service status strings into TourServiceStatus');
+  assert(landTour.services.every((service) => service.supplierId === gitSupplier.id && service.supplierServiceId === gitSupplierService.id), 'LandTour should persist supplier and supplier-service links on services');
+  const landSalesService = landTour.services.find((service) => service.serviceType === 'LAND_CAR');
+  const landOperationService = landTour.services.find((service) => service.serviceType === 'LAND_HOTEL');
+  assert(landSalesService && Number(landSalesService.salesAmount) === 1500 && Number(landSalesService.vat) === 10, 'LandTour should preserve explicit sales amount even when VAT is present');
+  assert(landOperationService && Number(landOperationService.confirmedAmount) === 2940 && landOperationService.bookingCode === 'LAND-BOOK-1' && landOperationService.notes === 'Land operation note', 'LandTour should calculate operation amount and preserve bookingCode/notes');
   assert(landTour.route === 'Tour type API LandTour common route', 'LandTour root route should prefer the common route field over itinerarySummary alias');
   assert(landTour.landTour.guideName === 'Tour type API LandTour guide', 'LandTour response should expose guideName from common TourGuide row');
   assert(landTour.landTour.termsVi === 'LandTour dieu khoan VI' && landTour.landTour.termsEn === 'LandTour English terms', 'LandTour response should expose terms from common TourTerm rows');
@@ -1102,6 +1155,35 @@ async function main() {
     'LandTour create should reject tour.view-only users',
   );
   await expect(`/api/landtours/${landTour.id}`, { method: 'PUT', headers: viewHeaders, body: JSON.stringify({ status: 'COMPLETED' }) }, 403, 'LandTour PUT should reject tour.view-only users');
+  const duplicateLandSystemCode = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-SYS`,
+        tourCode: `${run}-LAND-DUP`,
+        name: 'Tour type API LandTour duplicate system code',
+      }),
+    },
+    409,
+    'LandTour should reject duplicate systemCode',
+  );
+  assertMessage(duplicateLandSystemCode, 'Mã hệ thống LandTour đã tồn tại', 'LandTour duplicate systemCode should use Vietnamese conflict message');
+  const invalidLandWorkflowStep = await expect(
+    `/api/landtours/${landTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ workflowStep: 'WRONG_STEP' }) },
+    400,
+    'LandTour should reject invalid workflow step',
+  );
+  assertMessage(invalidLandWorkflowStep, 'Bước workflow LandTour không hợp lệ', 'LandTour invalid workflowStep should use Vietnamese service message');
+  const partialTermsLandTour = await expect(
+    `/api/landtours/${landTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ termsVi: 'LandTour dieu khoan VI cap nhat' }) },
+    200,
+    'LandTour partial terms update should preserve untouched language',
+  );
+  assert(partialTermsLandTour.landTour.termsVi === 'LandTour dieu khoan VI cap nhat' && partialTermsLandTour.landTour.termsEn === 'LandTour English terms', 'LandTour partial terms update should preserve termsEn when only termsVi changes');
+  assert(partialTermsLandTour.terms.length === 2, 'LandTour partial terms update should keep both language rows');
   const patchedLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -1130,6 +1212,7 @@ async function main() {
     201,
     'create LandTour copy target',
   );
+  assert(landCopyTarget.customers.length === 0, 'LandTour create without customerName should not create a fake default customer');
   await expect(`/api/landtours/${landCopyTarget.id}/copy-services`, { method: 'POST', headers: viewHeaders, body: JSON.stringify({ sourceTourId: landTour.id }) }, 403, 'LandTour copy-services should reject tour.view-only users');
   const missingLandCopySource = await expect(
     `/api/landtours/${landCopyTarget.id}/copy-services`,
@@ -1152,19 +1235,41 @@ async function main() {
     'copy LandTour services',
   );
   assertLandDetailShape(copiedLandServices, 'LandTour copy-services response');
-  assert(copiedLandServices.services.length === 1, 'LandTour copy-services should copy common TourService rows');
-  assert(copiedLandServices.services[0].serviceType === 'LAND_CAR', 'LandTour copy-services should preserve serviceType through TourCore clone helper');
+  assert(copiedLandServices.services.length === 2, 'LandTour copy-services should copy sales and operation common TourService rows');
+  const copiedLandSalesService = copiedLandServices.services.find((service) => service.serviceType === 'LAND_CAR');
+  const copiedLandOperationService = copiedLandServices.services.find((service) => service.serviceType === 'LAND_HOTEL');
+  assert(copiedLandSalesService && copiedLandOperationService, 'LandTour copy-services should preserve serviceType through TourCore clone helper');
+  assert(copiedLandSalesService.supplierId === gitSupplier.id && copiedLandOperationService.supplierId === gitSupplier.id, 'LandTour copy-services should preserve supplier links');
+  assert(Number(copiedLandSalesService.salesAmount) === 1500 && copiedLandSalesService.confirmationStatus === 'CONFIRMED', 'LandTour copy-services should preserve explicit sales amount and status');
+  assert(Number(copiedLandOperationService.confirmedAmount) === 2940 && copiedLandOperationService.confirmationStatus === 'OPERATING' && copiedLandOperationService.bookingCode === 'LAND-BOOK-1', 'LandTour copy-services should preserve operation amount/status/bookingCode');
   const lowercaseLandStatusRows = await expect('/api/landtours?status=running', {}, 200, 'LandTour lowercase status query');
   assert(lowercaseLandStatusRows.some((row) => row.id === landTour.id), 'LandTour lowercase status query should include running tour');
   const spacedLandStatusRows = await expect('/api/landtours?status=%20running%20', {}, 200, 'LandTour spaced lowercase status query');
   assert(spacedLandStatusRows.some((row) => row.id === landTour.id), 'LandTour status query DTO should trim and normalize status');
   const invalidLandStatusQuery = await expect('/api/landtours?status=WRONG', {}, 400, 'LandTour invalid status query');
   assertMessage(invalidLandStatusQuery, 'Trạng thái LandTour không hợp lệ', 'LandTour invalid status query should use Vietnamese validation message');
+  const landLinkedOrder = await prisma.order.create({ data: { type: 'LANDTOUR', systemCode: `${run}-ORDER-LAND`, name: 'Tour type API linked LandTour order' } });
+  const landOrderLinkedTour = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-ORDER-LINKED-SYS`,
+        tourCode: `${run}-LAND-ORDER-LINKED`,
+        name: 'Tour type API LandTour order linked',
+        orderId: landLinkedOrder.id,
+      }),
+    },
+    201,
+    'create LandTour linked to order',
+  );
+  const blockedLandRemove = await expect(`/api/landtours/${landOrderLinkedTour.id}`, { method: 'DELETE' }, 400, 'LandTour remove should block tour linked to order/external dependency');
+  assertMessage(blockedLandRemove, 'Không thể xóa LandTour đã phát sinh', 'LandTour blocked remove should use Vietnamese service message');
   await expect(`/api/landtours/${landCopyTarget.id}`, { method: 'DELETE', headers: viewHeaders }, 403, 'LandTour delete should reject tour.view-only users');
   const removedLandTour = await expect(`/api/landtours/${landCopyTarget.id}`, { method: 'DELETE' }, 200, 'LandTour remove should soft-delete target tour');
   assert(removedLandTour.deletedAt && removedLandTour.status === 'CANCELLED', 'LandTour remove should cancel and soft-delete the common Tour owner');
   const removedLandDetail = await expect(`/api/landtours/${landCopyTarget.id}`, {}, 404, 'LandTour detail should hide soft-deleted tour');
-  assertMessage(removedLandDetail, 'Không tìm thấy landtour', 'LandTour removed detail should use Vietnamese not-found message');
+  assertMessage(removedLandDetail, 'Không tìm thấy LandTour', 'LandTour removed detail should use Vietnamese not-found message');
 
   await app.close();
   console.log('TEST_TOUR_TYPE_APIS_OK');

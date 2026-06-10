@@ -1,9 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentStatus, TourStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
 
 export const LANDTOUR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const normalizeEnum = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.toUpperCase() : undefined;
+};
 
 export class CreateLandTourDto {
   @ApiProperty({ example: 'LAND-2026-0001' })
@@ -27,8 +33,9 @@ export class CreateLandTourDto {
   name!: string;
 
   @ApiPropertyOptional({ enum: TourStatus })
+  @Transform(normalizeEnum)
   @IsOptional()
-  @IsEnum(TourStatus)
+  @IsEnum(TourStatus, { message: 'Trạng thái LandTour không hợp lệ' })
   status?: TourStatus;
 
   @ApiPropertyOptional()
@@ -37,8 +44,9 @@ export class CreateLandTourDto {
   workflowStep?: string;
 
   @ApiPropertyOptional({ enum: PaymentStatus })
+  @Transform(normalizeEnum)
   @IsOptional()
-  @IsEnum(PaymentStatus)
+  @IsEnum(PaymentStatus, { message: 'Trạng thái thanh toán LandTour không hợp lệ' })
   paymentStatus?: PaymentStatus;
 
   @ApiPropertyOptional()
@@ -123,8 +131,8 @@ export class CreateLandTourDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Tỷ giá LandTour phải là số hợp lệ' })
+  @Min(0.000001, { message: 'Tỷ giá LandTour phải lớn hơn 0' })
   exchangeRate?: number;
 
   @ApiPropertyOptional()

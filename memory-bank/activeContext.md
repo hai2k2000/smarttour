@@ -22,6 +22,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Hardened LandToursService business contract:
+  - LandTour create/update now normalizes required identity fields, lifecycle
+    status, paymentStatus, and workflowStep before common Tour root writes.
+  - LandTour service/cost child payloads now validate supplier and supplier
+    service links before replacement; service status strings map into
+    `TourServiceStatus` for sales and operation rows.
+  - LandTour remove now blocks tours with linked orders, bookings, operation
+    rows, or finance documents; copy-services already requires an explicit
+    non-target source and delegates cloning to TourCoreService.
+  - LandTour customers no longer create fake fallback rows, and partial terms
+    updates preserve the untouched VI/EN language row.
+  - VPS verification passed on 2026-06-10: api Docker build,
+    `TEST_TOUR_TYPE_APIS_OK`, `TEST_DATA_SCOPE_MODULE_FLOWS_OK`, API deploy,
+    and LandTour API auth smoke 401.
+
+
 - Hardened LandToursController route/query/copy contract:
   - LandTour list now uses `ListLandToursQueryDto` for trimmed search and
     normalized `TourStatus` validation with Vietnamese messages.

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TourStatus, TourType } from '@prisma/client';
+import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
@@ -8,6 +8,8 @@ import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
 type Row = Record<string, unknown>;
+
+const LANDTOUR_WORKFLOW_STEPS = new Set(['LANDTOUR_INFO', 'LANDTOUR_COSTING', 'LANDTOUR_OPERATION', 'LANDTOUR_HANDOVER', 'LANDTOUR_SURVEY', 'LANDTOUR_COMPLETED']);
 
 const landTourInclude = {
   landTour: true,
@@ -41,8 +43,13 @@ export class LandToursService {
               { tourCode: contains },
               { name: contains },
               { route: contains },
+              { operatorOwner: contains },
               { customers: { some: { name: contains } } },
               { guides: { some: { name: contains } } },
+              { terms: { some: { content: contains } } },
+              { landTour: { is: { comboType: contains } } },
+              { landTour: { is: { smartLinkCode: contains } } },
+              { landTour: { is: { confirmationNote: contains } } },
             ],
           }
         : {}),
@@ -63,26 +70,31 @@ export class LandToursService {
 
   async detail(id: string, user?: RequestUser) {
     const tour = await this.prisma.tour.findFirst({ where: this.tourCore.scopeWhere({ id, type: TourType.LANDTOUR }, user), include: landTourInclude });
-    if (!tour) throw new NotFoundException('Không tìm thấy landtour');
+    if (!tour) throw new NotFoundException('Không tìm thấy LandTour');
     return this.withLandGuideSnapshot(tour);
   }
 
   async create(dto: CreateLandTourDto, user?: RequestUser) {
-    dto = applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user) as CreateLandTourDto;
+    dto = this.prepareLandTourDto(applyWriteDataScope(dto as CreateLandTourDto & { branch?: string | null; department?: string | null }, user), true) as CreateLandTourDto;
     try {
       const tour = await this.prisma.$transaction(async (tx) => {
         const created = await this.tourCore.createRoot(tx, this.toTourRootDto(dto), this.tourConfig(), user);
         await tx.landTourDetail.create({
           data: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: created.id } as Prisma.LandTourDetailUncheckedCreateInput,
         });
+        await this.validateChildLinks(tx, dto);
         await this.replaceChildren(tx, created.id, dto, true);
-        await this.logLandTourAction(tx, created.id, 'CREATE_LANDTOUR', user);
+        await this.logLandTourAction(tx, created.id, 'CREATE_LANDTOUR', user, {
+          systemCode: dto.systemCode,
+          tourCode: dto.tourCode,
+          workflowStep: dto.workflowStep || this.tourConfig().defaultWorkflowStep,
+        });
         return created;
       });
       return this.detail(tour.id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã hệ thống landtour đã tồn tại');
+        throw new ConflictException('Mã hệ thống LandTour đã tồn tại');
       }
       throw error;
     }
@@ -90,7 +102,7 @@ export class LandToursService {
 
   async update(id: string, dto: UpdateLandTourDto, user?: RequestUser) {
     await this.detail(id, user);
-    dto = applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user) as UpdateLandTourDto;
+    dto = this.prepareLandTourDto(applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user), false);
     try {
       await this.prisma.$transaction(async (tx) => {
         await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
@@ -99,13 +111,14 @@ export class LandToursService {
           create: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.LandTourDetailUncheckedCreateInput,
           update: this.toLandDetailData(dto) as Prisma.LandTourDetailUncheckedUpdateInput,
         });
+        await this.validateChildLinks(tx, dto);
         await this.replaceChildren(tx, id, dto);
-        await this.logLandTourAction(tx, id, 'UPDATE_LANDTOUR', user);
+        await this.logLandTourAction(tx, id, 'UPDATE_LANDTOUR', user, { changedFields: Object.keys(dto as Row).sort() });
       });
       return this.detail(id, user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã hệ thống landtour đã tồn tại');
+        throw new ConflictException('Mã hệ thống LandTour đã tồn tại');
       }
       throw error;
     }
@@ -113,7 +126,38 @@ export class LandToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system'));
+    return this.prisma.$transaction(async (tx) => {
+      await this.ensureRemovable(tx, id, user);
+      return this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system');
+    });
+  }
+
+  private async ensureRemovable(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser) {
+    const tour = await tx.tour.findFirst({
+      where: this.tourCore.scopeWhere({ id: tourId, type: TourType.LANDTOUR }, user),
+      select: {
+        orderId: true,
+        _count: {
+          select: {
+            bookings: true,
+            operationVouchers: true,
+            operationForms: true,
+            financeReceipts: true,
+            financePayments: true,
+            financeInvoices: true,
+            financeCashflowEntries: true,
+            payments: true,
+            receipts: true,
+            expenses: true,
+          },
+        },
+      },
+    });
+    if (!tour) throw new NotFoundException('Không tìm thấy LandTour');
+    const hasExternalDependency = Boolean(tour.orderId) || Object.values(tour._count).some((count) => count > 0);
+    if (hasExternalDependency) {
+      throw new BadRequestException('Không thể xóa LandTour đã phát sinh đơn hàng, booking, điều hành hoặc chứng từ tài chính');
+    }
   }
 
   async copyServices(targetTourId: string, sourceTourId?: string, user?: RequestUser) {
@@ -140,16 +184,36 @@ export class LandToursService {
     if (creating || dto.guideName !== undefined || dto.guides !== undefined) children.guides = this.mapTourGuides(dto);
     if (creating || dto.attachments !== undefined) children.attachments = this.tourCore.mapAttachments(dto.attachments);
     if (creating || dto.surveyQuestions !== undefined) children.surveys = this.tourCore.mapSurveys(dto.surveyQuestions);
-    if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) children.terms = this.mapTerms(dto);
+    if (creating || dto.termsVi !== undefined || dto.termsEn !== undefined) {
+      const currentTerms = creating ? [] : await tx.tourTerm.findMany({ where: { tourId, termType: 'LANDTOUR' } });
+      children.terms = this.mapTerms(dto, currentTerms);
+    }
     await this.tourCore.replaceCommonChildren(tx, tourId, children);
   }
 
   private mapTourCustomers(dto: UpdateLandTourDto): Prisma.TourCustomerCreateManyInput[] {
-    return [this.tourCore.primaryCustomer(dto as unknown as Row, 'Khach hang landtour')];
+    const customerName = this.optionalText(dto.customerName);
+    if (!customerName) return [];
+    return [{ tourId: '', customerType: 'CUSTOMER', name: customerName, isPrimary: true, notes: this.optionalText(dto.notes) }];
   }
 
   private mapTourServices(dto: UpdateLandTourDto): Prisma.TourServiceCreateManyInput[] {
-    return [...this.tourCore.mapSalesServices(dto.salesServices), ...this.tourCore.mapOperationServices(dto.operationServices)];
+    return [...this.mapSalesServices(dto.salesServices), ...this.mapOperationServices(dto.operationServices)];
+  }
+
+  private mapSalesServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
+    const inputRows = this.rows(rows);
+    return this.tourCore.mapSalesServices(inputRows).map((service, index) => this.withServiceStatus(service, inputRows[index]));
+  }
+
+  private mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
+    const inputRows = this.rows(rows);
+    return this.tourCore.mapOperationServices(inputRows).map((service, index) => this.withServiceStatus(service, inputRows[index]));
+  }
+
+  private withServiceStatus(service: Prisma.TourServiceCreateManyInput, row: Row): Prisma.TourServiceCreateManyInput {
+    const confirmationStatus = this.toServiceStatus(row.confirmationStatus ?? row.status);
+    return confirmationStatus ? { ...service, confirmationStatus } : service;
   }
 
   private async logLandTourAction(tx: Prisma.TransactionClient, tourId: string, action: string, user?: RequestUser, metadata: Row = {}) {
@@ -170,6 +234,23 @@ export class LandToursService {
     const rootDto = { ...(dto as unknown as Row) };
     if (rootDto.route === undefined && rootDto.itinerarySummary !== undefined) rootDto.route = rootDto.itinerarySummary;
     return rootDto;
+  }
+
+  private prepareLandTourDto<T extends UpdateLandTourDto>(dto: T, creating: boolean): T {
+    const normalized = { ...(dto as unknown as Row) };
+    if (creating) {
+      normalized.systemCode = this.requiredText(normalized.systemCode, 'Mã hệ thống LandTour').toUpperCase();
+      normalized.tourCode = this.requiredText(normalized.tourCode, 'Mã tour LandTour').toUpperCase();
+      normalized.name = this.requiredText(normalized.name, 'Tên LandTour');
+    } else {
+      if (normalized.systemCode !== undefined) normalized.systemCode = this.requiredText(normalized.systemCode, 'Mã hệ thống LandTour').toUpperCase();
+      if (normalized.tourCode !== undefined) normalized.tourCode = this.requiredText(normalized.tourCode, 'Mã tour LandTour').toUpperCase();
+      if (normalized.name !== undefined) normalized.name = this.requiredText(normalized.name, 'Tên LandTour');
+    }
+    if (normalized.status !== undefined) normalized.status = this.toTourStatus(normalized.status as string | TourStatus | null);
+    if (normalized.paymentStatus !== undefined) normalized.paymentStatus = this.toPaymentStatus(normalized.paymentStatus);
+    if (normalized.workflowStep !== undefined) normalized.workflowStep = this.toLandTourWorkflowStep(normalized.workflowStep);
+    return normalized as unknown as T;
   }
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {
@@ -207,18 +288,56 @@ export class LandToursService {
 
   private mapTourGuides(dto: UpdateLandTourDto): Prisma.TourGuideCreateManyInput[] {
     const guides = this.tourCore.mapGuides(dto.guides);
-    if (!guides.length && dto.guideName) {
-      guides.push({ tourId: '', name: dto.guideName, guideType: 'LANDTOUR' });
+    const guideName = this.optionalText(dto.guideName);
+    if (!guides.length && guideName) {
+      guides.push({ tourId: '', name: guideName, guideType: 'LANDTOUR' });
     }
     return guides;
   }
 
-  private mapTerms(dto: UpdateLandTourDto): Prisma.TourTermCreateManyInput[] {
+  private mapTerms(dto: UpdateLandTourDto, currentTerms: Array<{ language?: string | null; content?: string | null }> = []): Prisma.TourTermCreateManyInput[] {
+    const currentByLanguage = new Map(currentTerms.map((term) => [this.text(term.language).toUpperCase(), this.optionalText(term.content)]));
+    const vi = dto.termsVi !== undefined ? this.optionalText(dto.termsVi) : currentByLanguage.get('VI');
+    const en = dto.termsEn !== undefined ? this.optionalText(dto.termsEn) : currentByLanguage.get('EN');
     const terms: Prisma.TourTermCreateManyInput[] = [];
-    if (dto.termsVi) terms.push({ tourId: '', language: 'VI', termType: 'LANDTOUR', content: dto.termsVi });
-    if (dto.termsEn) terms.push({ tourId: '', language: 'EN', termType: 'LANDTOUR', content: dto.termsEn });
+    if (vi) terms.push({ tourId: '', language: 'VI', termType: 'LANDTOUR', content: vi });
+    if (en) terms.push({ tourId: '', language: 'EN', termType: 'LANDTOUR', content: en });
     return terms;
   }
+
+  private async validateChildLinks(tx: Prisma.TransactionClient, dto: UpdateLandTourDto) {
+    const supplierIds = new Set<string>();
+    const supplierServiceIds = new Map<string, string | null>();
+    for (const row of [...this.rows(dto.salesServices), ...this.rows(dto.operationServices), ...this.rows(dto.costs)]) {
+      const supplierId = this.optionalText(row.supplierId);
+      const supplierServiceId = this.optionalText(row.supplierServiceId ?? row.serviceId);
+      if (supplierId) supplierIds.add(supplierId);
+      if (supplierServiceId) supplierServiceIds.set(supplierServiceId, supplierId);
+    }
+    if (supplierIds.size) {
+      const foundSuppliers = await tx.supplier.findMany({ where: { id: { in: Array.from(supplierIds) }, deletedAt: null }, select: { id: true } });
+      const found = new Set(foundSuppliers.map((supplier) => supplier.id));
+      const missing = Array.from(supplierIds).find((id) => !found.has(id));
+      if (missing) throw new BadRequestException('Nhà cung cấp trong dịch vụ LandTour không hợp lệ hoặc đã bị xóa');
+    }
+    if (supplierServiceIds.size) {
+      const foundServices = await tx.supplierService.findMany({
+        where: { id: { in: Array.from(supplierServiceIds.keys()) }, deletedAt: null },
+        select: { id: true, supplierId: true },
+      });
+      const found = new Map(foundServices.map((service) => [service.id, service.supplierId]));
+      for (const [serviceId, supplierId] of supplierServiceIds) {
+        const actualSupplierId = found.get(serviceId);
+        if (!actualSupplierId) throw new BadRequestException('Dịch vụ nhà cung cấp trong LandTour không hợp lệ hoặc đã bị xóa');
+        if (supplierId && actualSupplierId !== supplierId) throw new BadRequestException('Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn');
+      }
+    }
+  }
+
+  private rows(rows?: unknown[]): Row[] {
+    return (rows || []).filter((row): row is Row => Boolean(row) && typeof row === 'object' && !Array.isArray(row));
+  }
+
   private text(value: unknown) {
     return String(value || '').trim();
   }
@@ -236,11 +355,38 @@ export class LandToursService {
     throw new BadRequestException('Trạng thái LandTour không hợp lệ');
   }
 
-
-  private number(value: unknown) {
-    const parsed = Number(value || 0);
-    return Number.isFinite(parsed) ? parsed : 0;
+  private toPaymentStatus(status: unknown) {
+    const value = this.text(status);
+    if (!value) return undefined;
+    const normalized = value.toUpperCase();
+    if (Object.values(PaymentStatus).includes(normalized as PaymentStatus)) return normalized as PaymentStatus;
+    throw new BadRequestException('Trạng thái thanh toán LandTour không hợp lệ');
   }
 
+  private toServiceStatus(status: unknown) {
+    const value = this.text(status);
+    if (!value) return undefined;
+    const normalized = value.toUpperCase();
+    if (Object.values(TourServiceStatus).includes(normalized as TourServiceStatus)) return normalized as TourServiceStatus;
+    throw new BadRequestException('Trạng thái dịch vụ LandTour không hợp lệ');
+  }
 
+  private toLandTourWorkflowStep(step: unknown) {
+    const value = this.text(step).toUpperCase();
+    if (!value) return undefined;
+    if (LANDTOUR_WORKFLOW_STEPS.has(value)) return value;
+    throw new BadRequestException('Bước workflow LandTour không hợp lệ');
+  }
+
+  private requiredText(value: unknown, label: string) {
+    const text = this.optionalText(value);
+    if (!text) throw new BadRequestException(`${label} là bắt buộc`);
+    return text;
+  }
+
+  private number(value: unknown, label = 'Giá trị số LandTour') {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed)) throw new BadRequestException(`${label} phải là số hợp lệ`);
+    return parsed;
+  }
 }
