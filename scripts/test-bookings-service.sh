@@ -509,6 +509,25 @@ async function main() {
     BOOKING_NOT_FOUND_MESSAGES.tourProgram,
   );
   await rejects(
+    () => service.create(bookingDto(run, 'EMPTY-TP', { id: '' }, links)),
+    'create should reject empty tourProgramId',
+    'Tour mẫu không được để trống',
+  );
+  const incompleteTourProgram = await prisma.tourProgram.create({
+    data: {
+      code: `${run}-TP-INCOMPLETE`,
+      name: 'Bookings Service Incomplete Tour Program',
+      route: 'Ha Noi - Ha Long',
+      durationDays: 3,
+      itineraryDays: { create: [{ dayNumber: 1, title: 'Ngay 1' }] },
+    },
+  });
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-ITINERARY', incompleteTourProgram, links)),
+    'create should reject tourProgram without a complete itinerary',
+    'Tour mẫu chưa đủ lịch trình: thiếu ngày 2, 3',
+  );
+  await rejects(
     () => service.create({ ...bookingDto(run, 'BAD-CROSS-ENTITY', tourProgram, links), customer: { id: links.customer.id }, operationFormId: 'not-a-booking-field' }),
     'create should reject cross-entity payload fields',
     'Trường không thuộc dữ liệu booking được phép tạo: customer, operationFormId',
@@ -541,18 +560,27 @@ async function main() {
   await rejects(
     () => service.create(bookingDto(run, 'BAD-DURATION', tourProgram, links, { startDate: '2026-10-01', endDate: '2026-10-02' })),
     'create should reject date range that does not match tour program duration',
+    'Khoảng ngày booking phải đúng 3 ngày theo tour mẫu, hiện đang là 2 ngày',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-PAX-ZERO', tourProgram, links, { paxCount: 0 })),
     'create should reject paxCount zero',
+    'Số khách phải là số nguyên lớn hơn 0',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-PAX-NEGATIVE', tourProgram, links, { paxCount: -2 })),
     'create should reject negative paxCount',
+    'Số khách phải là số nguyên lớn hơn 0',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-MONEY', tourProgram, links, { totalSellPrice: -1 })),
     'create should reject negative totalSellPrice',
+    'Giá bán tổng không được âm',
+  );
+  await rejects(
+    () => service.create(bookingDto(run, 'BAD-MONEY-TEXT', tourProgram, links, { totalSellPrice: 'khong-phai-so' })),
+    'create should reject non-numeric totalSellPrice',
+    'Giá bán tổng phải là số hợp lệ',
   );
   const independentPrice = await service.create(bookingDto(run, 'INDEPENDENT-PRICE', tourProgram, links, {
     totalSellPrice: 1234567,
@@ -665,6 +693,16 @@ async function main() {
     'update should reject duplicate booking code after normalization',
     BOOKING_CODE_CONFLICT_MESSAGE,
   );
+  const replacementTourProgram = await createTourProgram(prisma, run, 'REPLACEMENT', 3);
+  const relinkBooking = await service.create(bookingDto(run, 'RELINK', tourProgram, links, {
+    startDate: '2026-10-12',
+    endDate: '2026-10-14',
+  }));
+  const relinked = await service.update(relinkBooking.id, { tourProgramId: replacementTourProgram.id });
+  assert(
+    relinked.tourProgramId === replacementTourProgram.id && relinked.tourProgram?.id === replacementTourProgram.id,
+    'update should relink booking to a valid tourProgram with matching duration',
+  );
 
   const listed = await service.list(run);
   assert(listed.some((row) => row.id === created.id), 'list should include created booking');
@@ -678,6 +716,11 @@ async function main() {
   assert((await service.list('x', undefined, undefined, undefined, 500)).some((row) => row.id === created.id), 'one-character list search should skip expensive contains filters');
   assert((await service.list(undefined, 'DRAFT')).some((row) => row.id === created.id), 'list status filter should match DRAFT');
   assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
+  assert((await service.list(undefined, undefined, replacementTourProgram.id)).some((row) => row.id === relinked.id), 'list tourProgramId filter should match relinked booking');
+  const firstListedPage = await service.list(run, undefined, undefined, undefined, 1, 0);
+  const secondListedPage = await service.list(run, undefined, undefined, undefined, 1, 1);
+  assert(firstListedPage.length === 1 && secondListedPage.length === 1, 'list should honor take and skip paging');
+  assert(firstListedPage[0].id !== secondListedPage[0].id, 'list paging should advance to a different booking row');
   const listedCreated = listed.find((row) => row.id === created.id);
   assert(listedCreated?.tourProgram?.code === tourProgram.code, 'list should include tourProgram summary used by frontend');
   assert(
@@ -815,8 +858,26 @@ async function main() {
     'update should reject non-ISO date-only format',
     'Ngày khởi hành phải có định dạng YYYY-MM-DD',
   );
-  await rejects(() => service.update(created.id, { paxCount: 0 }), 'update should reject paxCount zero');
-  await rejects(() => service.update(created.id, { totalSellPrice: -1 }), 'update should reject negative totalSellPrice');
+  await rejects(
+    () => service.update(created.id, { paxCount: 0 }),
+    'update should reject paxCount zero',
+    'Số khách phải là số nguyên lớn hơn 0',
+  );
+  await rejects(
+    () => service.update(created.id, { paxCount: -1 }),
+    'update should reject negative paxCount',
+    'Số khách phải là số nguyên lớn hơn 0',
+  );
+  await rejects(
+    () => service.update(created.id, { totalSellPrice: -1 }),
+    'update should reject negative totalSellPrice',
+    'Giá bán tổng không được âm',
+  );
+  await rejects(
+    () => service.update(created.id, { totalSellPrice: 'khong-phai-so' }),
+    'update should reject non-numeric totalSellPrice',
+    'Giá bán tổng phải là số hợp lệ',
+  );
   await rejects(() => service.update(created.id, { customerName: 'B' }), 'update should reject customerName shorter than 2 characters');
   await rejects(() => service.update(created.id, { customerName: 'Khach <bad>' }), 'update should reject unsafe customerName characters');
   await rejects(() => service.update(created.id, { customerPhone: '------' }), 'update should reject customerPhone without enough digits');
@@ -864,8 +925,14 @@ async function main() {
     'create should allow equal startDate/endDate for a one-day tour without timezone drift',
   );
 
+  await rejects(
+    () => service.updateStatus(created.id, 'UNKNOWN'),
+    'updateStatus should reject status outside the booking workflow enum',
+    'Trạng thái booking không hợp lệ: UNKNOWN',
+  );
   const confirmed = await service.updateStatus(created.id, 'confirmed');
   assert(confirmed.status === 'CONFIRMED', 'updateStatus should move DRAFT to CONFIRMED');
+  assert((await service.list(undefined, 'CONFIRMED', undefined, undefined, 500)).some((row) => row.id === created.id), 'list status filter should include booking after status update');
   await rejects(() => service.updateStatus(created.id, 'DRAFT'), 'updateStatus should reject invalid backward transition');
   await rejects(() => service.updateStatus(created.id, 'COMPLETED'), 'updateStatus should reject skipping directly from CONFIRMED to COMPLETED');
   await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
