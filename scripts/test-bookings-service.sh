@@ -34,6 +34,7 @@ const { validate } = require('class-validator');
 const {
   BOOKING_CODE_CONFLICT_MESSAGE,
   BOOKING_NOT_FOUND_MESSAGES,
+  bookingNotFoundMessage,
 } = require('./apps/api/dist/modules/bookings/booking-errors');
 const {
   BOOKING_CODE_MAX_LENGTH,
@@ -281,6 +282,10 @@ async function main() {
   assert(BOOKING_CODE_CONFLICT_MESSAGE === 'Mã booking đã tồn tại', 'booking code conflict message should be Vietnamese');
   assert(BOOKING_CODE_MIN_LENGTH === 2 && BOOKING_CODE_MAX_LENGTH === 64, 'booking code length contract should remain 2-64 characters');
   assert(BOOKING_DEFAULT_TOTAL_SELL_PRICE === 0, 'draft booking price should default to zero');
+  assert(
+    JSON.stringify(sortedKeys(BOOKING_NOT_FOUND_MESSAGES)) === JSON.stringify(['booking', 'customer', 'order', 'tour', 'tourProgram']),
+    'booking not-found message map should cover only reviewed linked entities',
+  );
   assert(BOOKING_NOT_FOUND_MESSAGES.booking === 'Không tìm thấy booking', 'booking not-found message should use sentence case');
   assert(
     BOOKING_NOT_FOUND_MESSAGES.tourProgram === 'Không tìm thấy chương trình tour',
@@ -289,6 +294,9 @@ async function main() {
   assert(BOOKING_NOT_FOUND_MESSAGES.customer === 'Không tìm thấy khách hàng', 'customer not-found message should be Vietnamese');
   assert(BOOKING_NOT_FOUND_MESSAGES.order === 'Không tìm thấy đơn hàng', 'order not-found message should use sentence case');
   assert(BOOKING_NOT_FOUND_MESSAGES.tour === 'Không tìm thấy tour', 'tour not-found message should be Vietnamese');
+  for (const entity of sortedKeys(BOOKING_NOT_FOUND_MESSAGES)) {
+    assert(bookingNotFoundMessage(entity) === BOOKING_NOT_FOUND_MESSAGES[entity], 'bookingNotFoundMessage should return canonical message for ' + entity);
+  }
 
   const validDtoPayload = {
     code: 'BK-DTO-VALID',
@@ -415,6 +423,39 @@ async function main() {
     'Ngày kết thúc phải có định dạng YYYY-MM-DD',
     'UpdateBookingDto should inherit localized date-only validation',
   );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { customerName: 'Khách <xấu>' },
+    'Tên khách/đoàn không được chứa ký tự điều khiển hoặc dấu < >',
+    'UpdateBookingDto should keep customerName text validation tight',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { customerPhone: '------' },
+    'Điện thoại khách phải có 6-15 chữ số và chỉ được dùng số, khoảng trắng, + ( ) . -',
+    'UpdateBookingDto should keep customerPhone validation tight',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { customerEmail: 'email-khong-hop-le' },
+    'Email khách không hợp lệ',
+    'UpdateBookingDto should keep customerEmail validation tight',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { saleOwner: '<Sale>' },
+    'Sale phụ trách không được chứa ký tự điều khiển hoặc dấu < >',
+    'UpdateBookingDto should keep saleOwner text validation tight',
+  );
+  await assertValidationMessage(
+    UpdateBookingDto,
+    { operatorOwner: 'O' },
+    'Điều hành phụ trách phải có ít nhất 2 ký tự',
+    'UpdateBookingDto should keep operatorOwner length validation tight',
+  );
+  const normalizedStatusDto = plainToInstance(UpdateBookingStatusDto, { status: ' confirmed ' });
+  assert(normalizedStatusDto.status === 'CONFIRMED', 'UpdateBookingStatusDto should trim and uppercase status only for status endpoint');
+  assert(JSON.stringify(sortedKeys(normalizedStatusDto)) === JSON.stringify(['status']), 'UpdateBookingStatusDto should only expose status');
   await assertValidationMessage(
     UpdateBookingStatusDto,
     { status: 'UNKNOWN' },
