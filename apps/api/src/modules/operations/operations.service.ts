@@ -244,7 +244,7 @@ export class OperationsService {
 
   async createForm(dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.operationActor(dto);
-    const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking');
+    const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
     const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
     await this.validateFormPayload(dto, 'create');
@@ -280,6 +280,7 @@ export class OperationsService {
     });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
     await this.validateFormPayload(dto, 'update');
+    await this.ensureFormCostServiceLinks(id, dto);
     await this.ensureFormChildrenReplaceable(id, dto);
     return this.prisma.$transaction(async (tx) => {
       await tx.operationForm.update({
@@ -303,7 +304,7 @@ export class OperationsService {
     const reason = this.text(dto.reason) ?? this.text(dto.notes);
     const current = await this.formDetail(id, user);
     if (current.status === OperationStatus.CANCELLED) return current;
-    if (!reason) throw new BadRequestException('C\u1ea7n nh\u1eadp l\u00fd do h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+    if (!reason) throw new BadRequestException('C\u1ea7n nh\u1eadp l\u00fd do h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 l\u01b0u l\u1ecbch s\u1eed x\u1eed l\u00fd');
     if (current.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 h\u1ee7y');
     await this.ensureFormCanBeCancelled(id);
     return this.prisma.$transaction(async (tx) => {
@@ -687,6 +688,14 @@ export class OperationsService {
         throw new BadRequestException('D\u1ecbch v\u1ee5 nh\u00e0 cung c\u1ea5p kh\u00f4ng thu\u1ed9c nh\u00e0 cung c\u1ea5p \u0111\u00e3 ch\u1ecdn');
       }
     }
+  }
+
+  private async ensureFormCostServiceLinks(formId: string, dto: AnyRecord) {
+    if (dto.costs === undefined || dto.services !== undefined) return;
+    const serviceIds = Array.from(new Set(this.formCosts(dto).map((item) => item.serviceId).filter((id): id is string => Boolean(id))));
+    if (!serviceIds.length) return;
+    const count = await this.prisma.operationService.count({ where: { id: { in: serviceIds }, operationFormId: formId } });
+    if (count !== serviceIds.length) throw new BadRequestException('Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành');
   }
 
   private rebindCostsToCreatedServices(costs: ParsedOperationCost[], createdServices: Array<{ id: string }>) {

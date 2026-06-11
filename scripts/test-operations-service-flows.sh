@@ -203,8 +203,10 @@ async function main() {
   const bookingA = await makeBooking('A', customerA, orderA, tourA);
   const bookingB = await makeBooking('B', customerB, orderB, tourB);
 
-  await rejectsMessage(() => service.createForm({}, undefined), 'Cần chọn booking', 'create form missing booking should be Vietnamese');
+  await rejectsMessage(() => service.createForm({}, undefined), 'Cần chọn booking để tạo phiếu điều hành', 'create form missing booking should be Vietnamese');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD'), services: [] }, undefined), 'Cần ít nhất một dòng dịch vụ điều hành', 'create form missing services should be Vietnamese');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TASKS'), tasks: [] }, undefined), 'Cần ít nhất một công việc điều hành', 'create form missing tasks should be Vietnamese');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-COSTS'), costs: [] }, undefined), 'Cần ít nhất một dòng chi phí điều hành', 'create form missing costs should be Vietnamese');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceB, 'WRONG-SUPPLIER') }, undefined), 'Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn', 'create form should reject wrong supplier service in Vietnamese');
 
   const formA = await service.createForm(formPayload(bookingA, supplierA, supplierServiceA, 'A', 'creator-a'));
@@ -212,6 +214,8 @@ async function main() {
   assert(formA.bookingId === bookingA.id && formA.orderId === orderA.id && formA.tourId === tourA.id, 'create form should map booking to order/tour');
   assert(formA.services.length === 1 && formA.tasks.length === 1 && formA.costs.length === 1, 'create form should persist services/tasks/costs');
   assert(formA.costs[0].serviceId === formA.services[0].id, 'create form should link cost to created operation service');
+  const originalFormAServiceId = formA.services[0].id;
+  const originalFormACostId = formA.costs[0].id;
 
   const allForms = await service.listForms({ take: 50 });
   assert(allForms.length === 2, 'list forms should include created forms');
@@ -236,9 +240,12 @@ async function main() {
   });
   assert(updatedFormA.status === 'IN_PROGRESS' && updatedFormA.notes === 'Phiếu đã cập nhật', 'update form should persist status and notes');
   assert(updatedFormA.tasks.length === 1 && updatedFormA.tasks[0].title === 'Task mới', 'update form should replace tasks when provided');
+  assert(updatedFormA.services.length === 1 && updatedFormA.services[0].id === originalFormAServiceId, 'partial update should not replace services when services payload is omitted');
+  assert(updatedFormA.costs.length === 1 && updatedFormA.costs[0].id === originalFormACostId, 'partial update should not replace costs when costs payload is omitted');
+  await rejectsMessage(() => service.updateForm(formA.id, { costs: [{ serviceId: formB.services[0].id, costName: 'Chi phí sai dịch vụ', expectedAmount: 100, actualAmount: 80 }] }), 'Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành', 'update form should reject cost linked to another form service');
   await rejectsMessage(() => service.updateForm(formA.id, { status: 'SAI' }), 'Trạng thái phiếu điều hành không hợp lệ', 'invalid operation status should be Vietnamese');
 
-  await rejectsMessage(() => service.cancelForm(formB.id, { actor: 'canceller-b' }), 'Cần nhập lý do hủy phiếu điều hành', 'cancel form should require Vietnamese reason');
+  await rejectsMessage(() => service.cancelForm(formB.id, { actor: 'canceller-b' }), 'Cần nhập lý do hủy phiếu điều hành để lưu lịch sử xử lý', 'cancel form should require Vietnamese reason');
   const cancelledFormB = await service.cancelForm(formB.id, { actor: 'canceller-b', reason: 'Khách đổi lịch' });
   assert(cancelledFormB.status === 'CANCELLED' && cancelledFormB.notes === 'Khách đổi lịch', 'cancel form should set status and reason');
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: 900 }] }), 'Số tiền thanh toán không được vượt quá số tiền chi phí điều hành', 'payment amount above cost should be Vietnamese');
@@ -359,11 +366,11 @@ async function main() {
   assert(cancelAudit?.metadata?.reason === 'Khách đổi lịch' && cancelAudit.metadata.actor === 'canceller-b', 'cancel audit should include actor and reason');
 
   const errorMessages = [
-    'Cần chọn booking',
+    'Cần chọn booking để tạo phiếu điều hành',
     'Cần ít nhất một dòng dịch vụ điều hành',
     'Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn',
     'Trạng thái phiếu điều hành không hợp lệ',
-    'Cần nhập lý do hủy phiếu điều hành',
+    'Cần nhập lý do hủy phiếu điều hành để lưu lịch sử xử lý',
     'Số tiền thanh toán không được vượt quá số tiền chi phí điều hành',
     'Chỉ yêu cầu đã duyệt mới được tạo phiếu chi tài chính',
   ];
