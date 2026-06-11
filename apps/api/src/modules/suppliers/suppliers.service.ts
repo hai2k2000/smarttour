@@ -10,9 +10,11 @@ import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generi
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
 import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { SUPPLIER_TYPE_LABELS } from './supplier-types';
+import { isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
-const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS)]);
+const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS), ...Object.values(SUPPLIER_TYPE_CATEGORY_ALIASES).flat()]);
+const SUPPLIER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SUPPLIER_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const SUPPLIER_ERRORS = {
   categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
@@ -148,6 +150,11 @@ export class SuppliersService {
     return supplier;
   }
 
+  getSupplierFromRouteKey(routeKey: string) {
+    if (!SUPPLIER_ID_PATTERN.test(routeKey)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
+    return this.getSupplier(routeKey);
+  }
+
   async createSupplier(dto: CreateSupplierDto) {
     this.validateSupplierPayload(dto);
     await this.ensureCategory(dto.categoryId);
@@ -185,11 +192,7 @@ export class SuppliersService {
 
   async deleteSupplier(id: string) {
     await this.getSupplier(id);
-    const usage = await this.supplierUsage(id);
-    if (usage.total > 0) {
-      throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
-    }
-    return this.prisma.supplier.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' }, include: this.supplierListInclude() });
+    return this.deleteSupplierRecord(id);
   }
 
   async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string) {
@@ -231,12 +234,13 @@ export class SuppliersService {
   }
 
   async listTypedSuppliers(type: string, query: { search?: string; province?: string; status?: SupplierStatus; market?: string }) {
-    const categoryName = this.getTypeLabel(type);
+    const typedRoute = this.getTypedRoute(type);
+    const categoryNames = supplierTypeCategoryNames(typedRoute);
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
-      category: { name: categoryName },
+      category: { name: { in: categoryNames, mode: 'insensitive' } },
       ...(query.province ? { province: { contains: query.province, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.market ? { market: { contains: query.market, mode: 'insensitive' } } : {}),
@@ -261,8 +265,9 @@ export class SuppliersService {
   }
 
   async getTypedSupplier(type: string, id: string) {
+    const typedRoute = this.getTypedRoute(type);
     const supplier = await this.prisma.supplier.findFirst({
-      where: { id, category: { name: this.getTypeLabel(type) } },
+      where: { id, category: { name: { in: supplierTypeCategoryNames(typedRoute), mode: 'insensitive' } } },
       include: this.genericInclude(),
     });
     if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.typedSupplierNotFound);
@@ -270,7 +275,9 @@ export class SuppliersService {
   }
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
-    const category = await this.ensureCategoryByName(this.getTypeLabel(type));
+    const typedRoute = this.getTypedRoute(type);
+    this.validateTypedSupplierPayload(typedRoute, dto);
+    const category = await this.ensureCategoryByName(SUPPLIER_TYPE_LABELS[typedRoute]);
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -280,7 +287,7 @@ export class SuppliersService {
             category: { connect: { id: category.id } },
           } as Prisma.SupplierCreateInput,
         });
-        await this.replaceGenericChildren(tx, supplier.id, dto);
+        await this.replaceGenericChildren(tx, supplier.id, dto, typedRoute);
         return tx.supplier.findUniqueOrThrow({ where: { id: supplier.id }, include: this.genericInclude() });
       });
     } catch (error) {
@@ -292,7 +299,9 @@ export class SuppliersService {
   }
 
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
-    await this.getTypedSupplier(type, id);
+    const typedRoute = this.getTypedRoute(type);
+    await this.getTypedSupplier(typedRoute, id);
+    this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -300,7 +309,7 @@ export class SuppliersService {
           where: { id },
           data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
         });
-        await this.replaceGenericChildren(tx, id, dto);
+        await this.replaceGenericChildren(tx, id, dto, typedRoute);
         return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.genericInclude() });
       });
     } catch (error) {
@@ -313,12 +322,12 @@ export class SuppliersService {
 
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
     await this.getTypedSupplier(type, id);
-    return this.updateSupplierStatus(id, status);
+    return this.prisma.supplier.update({ where: { id }, data: { status }, include: this.genericInclude() });
   }
 
   async deleteTypedSupplier(type: string, id: string) {
     await this.getTypedSupplier(type, id);
-    return this.deleteSupplier(id);
+    return this.deleteSupplierRecord(id);
   }
 
   async listHotelSuppliers(query: {
@@ -852,6 +861,7 @@ export class SuppliersService {
     tx: Prisma.TransactionClient,
     supplierId: string,
     dto: Partial<CreateGenericSupplierDto>,
+    type: TypedSupplierRoute,
   ) {
     if (dto.contacts) {
       await tx.supplierContact.deleteMany({ where: { supplierId } });
@@ -885,7 +895,7 @@ export class SuppliersService {
             sellingPrice: item.sellingPrice ?? 0,
             description: this.optionalText(item.description),
             note: this.optionalText(item.note),
-            metadata: item.metadata ? (item.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
+            metadata: item.metadata ? (this.normalizeTypedMetadata(type, item.metadata) as Prisma.InputJsonValue) : Prisma.JsonNull,
           })),
         });
       }
@@ -955,10 +965,58 @@ export class SuppliersService {
     } satisfies Prisma.SupplierInclude;
   }
 
-  private getTypeLabel(type: string) {
-    const categoryName = SUPPLIER_TYPE_LABELS[type as keyof typeof SUPPLIER_TYPE_LABELS];
-    if (!categoryName) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
-    return categoryName;
+  private getTypedRoute(type: string): TypedSupplierRoute {
+    if (!isTypedSupplierRoute(type)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
+    return type;
+  }
+
+  private validateTypedSupplierPayload(type: TypedSupplierRoute, dto: Partial<CreateGenericSupplierDto>) {
+    for (const service of dto.services ?? []) {
+      if (service.metadata) this.normalizeTypedMetadata(type, service.metadata);
+    }
+  }
+
+  private normalizeTypedMetadata(type: TypedSupplierRoute, metadata: Record<string, unknown>) {
+    const fields = SUPPLIER_TYPE_METADATA_FIELDS[type];
+    return Object.fromEntries(Object.entries(metadata).map(([key, rawValue]) => {
+      const fieldType = fields[key];
+      if (!fieldType) throw new BadRequestException(`Trường dịch vụ ${key} không hợp lệ với loại nhà cung cấp đã chọn`);
+      if (rawValue === '' || rawValue === null || rawValue === undefined) return [key, ''];
+      if (fieldType === 'number') {
+        const value = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+        if (!Number.isFinite(value) || value < 0) throw new BadRequestException(`Trường dịch vụ ${key} phải là số không âm`);
+        return [key, value];
+      }
+      if (typeof rawValue !== 'string') throw new BadRequestException(`Trường dịch vụ ${key} phải là chuỗi ký tự`);
+      const value = rawValue.trim();
+      if (value.length > 2000) throw new BadRequestException(`Trường dịch vụ ${key} không được vượt quá 2.000 ký tự`);
+      if (fieldType === 'date' && !this.isValidDateOnly(value)) {
+        throw new BadRequestException(`Trường dịch vụ ${key} phải là ngày hợp lệ`);
+      }
+      if (fieldType === 'time' && !SUPPLIER_TIME_PATTERN.test(value)) {
+        throw new BadRequestException(`Trường dịch vụ ${key} phải là giờ hợp lệ`);
+      }
+      if (fieldType === 'datetime' && Number.isNaN(new Date(value).getTime())) {
+        throw new BadRequestException(`Trường dịch vụ ${key} phải là ngày giờ hợp lệ`);
+      }
+      if (/email/i.test(key) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new BadRequestException(`Trường dịch vụ ${key} phải là email hợp lệ`);
+      }
+      if (/phone/i.test(key) && !SUPPLIER_PHONE_PATTERN.test(value)) {
+        throw new BadRequestException(`Trường dịch vụ ${key} phải là số điện thoại hợp lệ`);
+      }
+      return [key, value];
+    }));
+  }
+
+  private isValidDateOnly(value: string) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return false;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
   }
 
   private requiredText(value: string | undefined, message = 'Cần nhập trường bắt buộc') {
@@ -1006,6 +1064,18 @@ export class SuppliersService {
       category: true,
       supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
     } satisfies Prisma.SupplierInclude;
+  }
+
+  private async deleteSupplierRecord(id: string) {
+    const usage = await this.supplierUsage(id);
+    if (usage.total > 0) {
+      throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
+    }
+    return this.prisma.supplier.update({
+      where: { id },
+      data: { deletedAt: new Date(), status: 'INACTIVE' },
+      include: this.supplierListInclude(),
+    });
   }
 
   private async supplierUsage(id: string) {

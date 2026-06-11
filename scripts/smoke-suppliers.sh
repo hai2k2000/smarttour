@@ -24,7 +24,8 @@ VIEW_USER_ID="user_sup_view_${RUN_ID_SAFE}"
 MANAGE_SESSION_ID="session_sup_manage_${RUN_ID_SAFE}"
 VIEW_SESSION_ID="session_sup_view_${RUN_ID_SAFE}"
 USED_CATEGORY_ID="sup_used_category_${RUN_ID_SAFE}"
-USED_SUPPLIER_ID="sup_used_supplier_${RUN_ID_SAFE}"
+USED_SUPPLIER_ID="$(cat /proc/sys/kernel/random/uuid)"
+LEGACY_TYPED_SUPPLIER_ID="$(cat /proc/sys/kernel/random/uuid)"
 USED_ORDER_ID="sup_used_order_${RUN_ID_SAFE}"
 USED_OPERATION_ITEM_ID="sup_used_op_item_${RUN_ID_SAFE}"
 USED_FINANCE_PAYMENT_ID="sup_used_fin_payment_${RUN_ID_SAFE}"
@@ -46,8 +47,8 @@ DELETE FROM "SupplierPaymentRequest" WHERE id = '${USED_PAYMENT_REQUEST_ID}' OR 
 DELETE FROM "FinancePayment" WHERE id = '${USED_FINANCE_PAYMENT_ID}' OR "voucherCode" LIKE '${RUN_ID}%';
 DELETE FROM "OrderOperationItem" WHERE id = '${USED_OPERATION_ITEM_ID}' OR "orderId" = '${USED_ORDER_ID}';
 DELETE FROM "Order" WHERE id = '${USED_ORDER_ID}' OR "systemCode" LIKE '${RUN_ID}%';
-DELETE FROM "Supplier" WHERE id = '${USED_SUPPLIER_ID}' OR "supplierCode" LIKE '${RUN_ID}%' OR name LIKE '${RUN_ID}%' OR email LIKE '%${RUN_ID_LOWER}%';
-DELETE FROM "SupplierCategory" WHERE id = '${USED_CATEGORY_ID}' OR name LIKE '${RUN_ID}%';
+DELETE FROM "Supplier" WHERE id IN ('${USED_SUPPLIER_ID}', '${LEGACY_TYPED_SUPPLIER_ID}') OR "supplierCode" LIKE '${RUN_ID}%' OR name LIKE '${RUN_ID}%' OR email LIKE '%${RUN_ID_LOWER}%';
+DELETE FROM "SupplierCategory" WHERE id IN ('${USED_CATEGORY_ID}', 'legacy_flight_${RUN_ID_SAFE}') OR name LIKE '${RUN_ID}%';
 DELETE FROM "UserSession" WHERE id IN ('${MANAGE_SESSION_ID}', '${VIEW_SESSION_ID}') OR "userId" IN ('${MANAGE_USER_ID}', '${VIEW_USER_ID}');
 DELETE FROM "UserRole" WHERE "userId" IN ('${MANAGE_USER_ID}', '${VIEW_USER_ID}') OR "roleId" IN ('${MANAGE_ROLE_ID}', '${VIEW_ROLE_ID}');
 DELETE FROM "User" WHERE id IN ('${MANAGE_USER_ID}', '${VIEW_USER_ID}') OR email IN ('sup-manage-${RUN_ID_LOWER}@smarttour.local', 'sup-view-${RUN_ID_LOWER}@smarttour.local');
@@ -111,6 +112,23 @@ VALUES (
   now()
 );
 
+INSERT INTO "SupplierCategory" (id, name, "createdAt", "updatedAt")
+VALUES ('legacy_flight_${RUN_ID_SAFE}', 'Flight Ticket', now(), now())
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO "Supplier" (id, "categoryId", "supplierCode", name, phone, status, "createdAt", "updatedAt")
+SELECT
+  '${LEGACY_TYPED_SUPPLIER_ID}',
+  id,
+  '${RUN_ID}-LEGACY-FLIGHT',
+  '${RUN_ID} Legacy Flight Supplier',
+  '0900000001',
+  'ACTIVE',
+  now(),
+  now()
+FROM "SupplierCategory"
+WHERE name = 'Flight Ticket';
+
 INSERT INTO "Order" (id, type, "systemCode", name, status, "paymentStatus", "costStatus", branch, department, "createdAt", "updatedAt")
 VALUES ('${USED_ORDER_ID}', 'FIT_TOUR', '${RUN_ID}-ORD-USED', '${RUN_ID} supplier usage order', 'DRAFT', 'UNPAID', 'PENDING', 'SUP-BR', 'SUP-DEP', now(), now());
 
@@ -127,7 +145,7 @@ INSERT INTO "SupplierPaymentItem" (id, "requestId", "supplierId", amount, notes)
 VALUES ('${USED_PAYMENT_ITEM_ID}', '${USED_PAYMENT_REQUEST_ID}', '${USED_SUPPLIER_ID}', 100000, '${RUN_ID} supplier payment item');
 SQL
 
-export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN MANAGE_USER_ID USED_SUPPLIER_ID USED_CATEGORY_ID
+export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN MANAGE_USER_ID USED_SUPPLIER_ID USED_CATEGORY_ID LEGACY_TYPED_SUPPLIER_ID
 
 run_node() {
   if command -v node >/dev/null 2>&1; then
@@ -143,6 +161,7 @@ run_node() {
     -e MANAGE_USER_ID \
     -e USED_SUPPLIER_ID \
     -e USED_CATEGORY_ID \
+    -e LEGACY_TYPED_SUPPLIER_ID \
     node:22-alpine node
 }
 
@@ -245,6 +264,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await request(viewToken, 'GET', '/suppliers');
   const supplierDetail = await request(viewToken, 'GET', `/suppliers/${usedSupplierId}`);
   assert(supplierDetail.id === usedSupplierId && supplierDetail.category?.id, 'single-segment supplier detail route should not be mistaken for a typed route');
+  const unsupportedSingleSegment = await request(viewToken, 'GET', '/suppliers/not-a-supplier-type', undefined, [404]);
+  assert(messageOf(unsupportedSingleSegment).includes('Loại nhà cung cấp không được hỗ trợ'), 'unknown single-segment route should not be treated as a supplier id');
+  const missingSupplierDetail = await request(viewToken, 'GET', '/suppliers/00000000-0000-4000-8000-000000000099', undefined, [404]);
+  assert(messageOf(missingSupplierDetail).includes('Không tìm thấy nhà cung cấp'), 'valid UUID single-segment route should resolve as supplier detail');
 
   const typedRoutes = [
     'restaurants',
@@ -264,6 +287,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     const typedList = await request(viewToken, 'GET', `/suppliers/${type}`);
     assert(Array.isArray(typedList), `typed route ${type} must return an array`);
   }
+  const legacyFlightList = await request(viewToken, 'GET', '/suppliers/flights');
+  assert(legacyFlightList.some((item) => item.id === process.env.LEGACY_TYPED_SUPPLIER_ID), 'typed list should include suppliers from legacy category aliases');
+  const legacyFlightDetail = await request(viewToken, 'GET', `/suppliers/flights/${process.env.LEGACY_TYPED_SUPPLIER_ID}`);
+  assert(legacyFlightDetail.id === process.env.LEGACY_TYPED_SUPPLIER_ID, 'typed detail should accept legacy category aliases');
   const unsupportedTypeError = await request(viewToken, 'GET', `/suppliers/not-a-supplier-type/${usedSupplierId}`, undefined, [404]);
   assert(messageOf(unsupportedTypeError).includes('Loại nhà cung cấp không được hỗ trợ'), 'unsupported supplier type should return a clear Vietnamese message');
 
@@ -426,6 +453,45 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(messageOf(invalidContactError).includes('Email nhà cung cấp không hợp lệ'), 'invalid email should return Vietnamese validation message');
   const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
   assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
+
+  const unsupportedTypedCreate = await request(manageToken, 'POST', '/suppliers/not-a-supplier-type', {
+    supplierCode: `${run}-UNKNOWN-TYPE`, name: `${run} Unknown Type`, phone: '0907777888',
+  }, [404]);
+  assert(messageOf(unsupportedTypedCreate).includes('Loại nhà cung cấp không được hỗ trợ'), 'unknown typed mutation should return a Vietnamese contract error');
+
+  const invalidTypedField = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-UNKNOWN-FIELD`, name: `${run} Flight Unknown Field`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', metadata: { unknownField: 'x' } }],
+  }, [400]);
+  assert(messageOf(invalidTypedField).includes('không hợp lệ với loại nhà cung cấp đã chọn'), 'typed metadata should reject unsupported fields');
+  const invalidTypedNumber = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-NUMBER`, name: `${run} Flight Bad Number`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', metadata: { taxPrice: 'abc' } }],
+  }, [400]);
+  assert(messageOf(invalidTypedNumber).includes('taxPrice phải là số không âm'), 'typed metadata should validate numeric fields');
+  const invalidTypedDate = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-DATE`, name: `${run} Flight Bad Date`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', metadata: { departureDate: '2026-02-30' } }],
+  }, [400]);
+  assert(messageOf(invalidTypedDate).includes('departureDate phải là ngày hợp lệ'), 'typed metadata should validate real calendar dates');
+
+  const flightSupplier = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-METADATA`,
+    name: `${run} Flight Metadata Supplier`,
+    phone: '0907777888',
+    services: [{
+      serviceName: 'Vé máy bay khứ hồi',
+      netPrice: 1000000,
+      sellingPrice: 1200000,
+      metadata: { departureDate: '2026-06-12', departureTime: '08:30', taxPrice: '100000', route: 'HAN-SGN' },
+    }],
+  });
+  assert(flightSupplier.category?.name === 'Flight', 'new typed supplier should use the canonical category');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.taxPrice === 100000, 'typed numeric metadata should be normalized before persistence');
+  const flightPartialUpdate = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, { name: `${run} Flight Metadata Updated` });
+  assert(flightPartialUpdate.supplierServices?.length === 1, 'typed partial update must preserve services when services are omitted');
+  const typedServiceDeleteError = await request(manageToken, 'DELETE', `/suppliers/flights/${flightSupplier.id}`, undefined, [409]);
+  assert(messageOf(typedServiceDeleteError).includes('dịch vụ nhà cung cấp'), 'typed delete should use the shared relation safety guard');
 
   const typedSupplier = await request(manageToken, 'POST', '/suppliers/restaurants', {
     supplierCode: `${run}-RESTAURANT`,

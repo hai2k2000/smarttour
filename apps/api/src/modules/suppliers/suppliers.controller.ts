@@ -113,7 +113,7 @@ export class SuppliersController {
   @Get(':routeKey')
   listTypedOrDetail(@Param('routeKey') routeKey: string, @Query() query: TypedSupplierListQueryDto) {
     if (isTypedSupplierRoute(routeKey)) return this.suppliersService.listTypedSuppliers(routeKey, query);
-    return this.suppliersService.getSupplier(routeKey);
+    return this.suppliersService.getSupplierFromRouteKey(routeKey);
   }
 
   @Get(':type/:id')

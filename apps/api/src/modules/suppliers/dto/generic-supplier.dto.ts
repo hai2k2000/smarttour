@@ -9,6 +9,7 @@ import {
   IsInt,
   IsNumber,
   Matches,
+  Max,
   MaxLength,
   IsObject,
   IsOptional,
@@ -19,6 +20,10 @@ import {
 } from 'class-validator';
 
 const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const uppercaseRequired = ({ value }: { value: unknown }) => {
+  const trimmed = trimRequired({ value });
+  return typeof trimmed === 'string' ? trimmed.toUpperCase() : trimmed;
+};
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
@@ -28,13 +33,17 @@ const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 
 class GenericSupplierContactDto {
   @ApiProperty()
+  @Transform(trimRequired)
   @IsString({ message: 'Tên người liên hệ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên người liên hệ phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên người liên hệ không được vượt quá 180 ký tự' })
   fullName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Chức vụ người liên hệ phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Chức vụ người liên hệ không được vượt quá 120 ký tự' })
   position?: string;
 
   @ApiPropertyOptional()
@@ -44,24 +53,29 @@ class GenericSupplierContactDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Số điện thoại người liên hệ phải là chuỗi ký tự' })
+  @Matches(supplierPhonePattern, { message: 'Số điện thoại người liên hệ không hợp lệ' })
   phone?: string;
 
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
-  @IsEmail({}, { message: 'Email nhà cung cấp không hợp lệ' })
-  @MaxLength(180, { message: 'Email nhà cung cấp không được vượt quá 180 ký tự' })
+  @IsEmail({}, { message: 'Email người liên hệ không hợp lệ' })
+  @MaxLength(180, { message: 'Email người liên hệ không được vượt quá 180 ký tự' })
   email?: string;
 }
 
 class GenericSupplierServiceDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã dịch vụ không được vượt quá 80 ký tự' })
   sku?: string;
 
   @ApiProperty()
+  @Transform(trimRequired)
   @IsString({ message: 'Tên dịch vụ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên dịch vụ phải có ít nhất 2 ký tự' })
   serviceName!: string;
@@ -96,12 +110,16 @@ class GenericSupplierServiceDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mô tả dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Mô tả dịch vụ không được vượt quá 2.000 ký tự' })
   description?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú dịch vụ không được vượt quá 2.000 ký tự' })
   note?: string;
 
   @ApiPropertyOptional()
@@ -112,7 +130,7 @@ class GenericSupplierServiceDto {
 
 export class CreateGenericSupplierDto {
   @ApiProperty()
-  @Transform(trimRequired)
+  @Transform(uppercaseRequired)
   @IsString({ message: 'Mã nhà cung cấp phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Mã nhà cung cấp phải có ít nhất 2 ký tự' })
   @MaxLength(80, { message: 'Mã nhà cung cấp không được vượt quá 80 ký tự' })
@@ -127,13 +145,16 @@ export class CreateGenericSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã số thuế phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã số thuế không được vượt quá 80 ký tự' })
   taxCode?: string;
 
   @ApiProperty()
   @Transform(trimRequired)
   @IsString({ message: 'Số điện thoại nhà cung cấp phải là chuỗi ký tự' })
   @Matches(supplierPhonePattern, { message: 'Số điện thoại nhà cung cấp không hợp lệ' })
+  @MaxLength(40, { message: 'Số điện thoại nhà cung cấp không được vượt quá 40 ký tự' })
   phone!: string;
 
   @ApiPropertyOptional()
@@ -145,54 +166,73 @@ export class CreateGenericSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Địa chỉ phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Địa chỉ không được vượt quá 500 ký tự' })
   address?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tỉnh/thành phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Tỉnh/thành không được vượt quá 120 ký tự' })
   province?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Website phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Website không được vượt quá 500 ký tự' })
   website?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Liên kết phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Liên kết không được vượt quá 500 ký tự' })
   link?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Xếp hạng nhà cung cấp phải là số nguyên' })
+  @Min(0, { message: 'Xếp hạng nhà cung cấp không được nhỏ hơn 0' })
+  @Max(5, { message: 'Xếp hạng nhà cung cấp không được lớn hơn 5' })
   rating?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
   market?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tên tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên tài khoản ngân hàng không được vượt quá 180 ký tự' })
   bankAccountName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Số tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Số tài khoản ngân hàng không được vượt quá 80 ký tự' })
   bankAccountNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tên ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên ngân hàng không được vượt quá 180 ký tự' })
   bankName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú nhà cung cấp phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú nhà cung cấp không được vượt quá 2.000 ký tự' })
   notes?: string;
 
   @ApiPropertyOptional({ enum: SupplierStatus })
