@@ -10,6 +10,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 type OperationsTab = 'forms' | 'payments';
 type Notice = { type: 'success' | 'error' | 'info'; text: string };
 type FilterState = { search: string; status: string };
+type OperationFormDraft = {
+  bookingId: string;
+  supplierId: string;
+  supplierServiceId: string;
+  serviceType: string;
+  serviceName: string;
+  confirmationStatus: string;
+  expectedCost: string;
+  actualCost: string;
+  costName: string;
+  taskTitle: string;
+  assignee: string;
+  dueDate: string;
+};
 type Dashboard = {
   upcomingDepartures: number;
   operatingTours: number;
@@ -31,8 +45,8 @@ type OperationForm = {
   status: string;
   notes?: string;
   booking?: Booking;
-  order?: { systemCode: string; name: string };
-  tour?: { tourCode: string; name?: string };
+  order?: { systemCode?: string; tourCode?: string; name?: string };
+  tour?: { systemCode?: string; tourCode?: string; name?: string };
   services: {
     id: string;
     supplierId?: string;
@@ -76,6 +90,21 @@ const defaultFilters: Record<OperationsTab, FilterState> = {
 const operationFormStatusValues = ['PENDING', 'IN_PROGRESS', 'DONE', 'PROBLEM', 'CANCELLED'];
 const supplierPaymentStatusValues = ['DRAFT', 'REQUESTED', 'APPROVED', 'PAID', 'REJECTED'];
 const confirmationStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'DONE'];
+const operationServiceTypeSuggestions = ['HOTEL', 'TRANSPORT', 'GUIDE', 'MEAL', 'TICKET', 'VISA', 'OTHER'];
+const defaultOperationFormDraft: OperationFormDraft = {
+  bookingId: '',
+  supplierId: '',
+  supplierServiceId: '',
+  serviceType: 'HOTEL',
+  serviceName: 'Dịch vụ điều hành',
+  confirmationStatus: 'WAITING',
+  expectedCost: '',
+  actualCost: '0',
+  costName: 'Chi phí nhà cung cấp',
+  taskTitle: 'Xác nhận nhà cung cấp',
+  assignee: '',
+  dueDate: '',
+};
 const operationTabs: Record<OperationsTab, { label: string; createLabel: string; viewPermission: string; createPermission: string }> = {
   forms: {
     label: 'Phiếu điều hành',
@@ -297,46 +326,31 @@ export default function OperationsClient() {
   }
 
   async function createForm(formData: FormData) {
-    const bookingId = text(formData.get('bookingId'));
-    const supplierId = text(formData.get('supplierId'));
-    const supplierServiceId = text(formData.get('supplierServiceId'));
-    const serviceType = text(formData.get('serviceType')) || 'HOTEL';
-    const serviceName = text(formData.get('serviceName')) || 'Dịch vụ điều hành';
-    const expectedCost = readAmount(formData.get('expectedCost'));
-    const actualCost = readAmount(formData.get('actualCost'));
-    const costName = text(formData.get('costName')) || 'Chi phí nhà cung cấp';
-    const taskTitle = text(formData.get('taskTitle'));
-    const supplier = suppliers.find((item) => item.id === supplierId);
-    const supplierService = supplierServiceOptions.find((item) => item.id === supplierServiceId);
-
+    const draft = operationFormDraftFromFormData(formData);
+    const status = text(formData.get('status')) || 'PENDING';
+    const expectedCost = readAmount(draft.expectedCost);
+    const actualCost = readAmount(draft.actualCost);
     const validation = [
-      !bookingId ? 'Cần chọn booking để tạo phiếu điều hành.' : '',
-      !supplierId ? 'Cần chọn nhà cung cấp.' : '',
-      !supplier ? 'Nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
-      !supplierServiceId ? 'Cần chọn dịch vụ nhà cung cấp.' : '',
-      supplierServiceId && !supplierService ? 'Dịch vụ nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
-      supplierService && supplierService.supplierId !== supplierId ? 'Dịch vụ không thuộc nhà cung cấp đã chọn.' : '',
-      !Number.isFinite(expectedCost) || expectedCost <= 0 ? 'Dự kiến chi phải là số lớn hơn 0.' : '',
-      !Number.isFinite(actualCost) || actualCost < 0 ? 'Thực chi phải là số lớn hơn hoặc bằng 0.' : '',
-      !taskTitle ? 'Cần nhập task vận hành.' : '',
+      ...operationFormDraftErrors(draft, bookings, suppliers, supplierServiceOptions),
+      !operationFormStatusValues.filter((item) => item !== 'CANCELLED').includes(status) ? 'Trạng thái phiếu điều hành khi tạo không hợp lệ.' : '',
     ].filter(Boolean);
-    if (validation.length) return showError(validation.join(' '));
+    if (validation.length) return showError(formatValidationErrors('Không thể tạo phiếu điều hành', validation));
 
     const created = await post<OperationForm>('/api/operations/forms', {
-      bookingId,
-      status: text(formData.get('status')) || 'PENDING',
+      bookingId: draft.bookingId,
+      status,
       notes: text(formData.get('notes')),
       services: [{
-        supplierId,
-        supplierServiceId,
-        serviceType,
-        serviceName,
-        confirmationStatus: text(formData.get('confirmationStatus')) || 'WAITING',
+        supplierId: draft.supplierId,
+        supplierServiceId: draft.supplierServiceId,
+        serviceType: draft.serviceType.toUpperCase(),
+        serviceName: draft.serviceName,
+        confirmationStatus: draft.confirmationStatus,
         expectedCost,
         actualCost,
       }],
-      tasks: [{ title: taskTitle, assignee: text(formData.get('assignee')), dueDate: text(formData.get('dueDate')), status: 'PENDING' }],
-      costs: [{ costName, expectedAmount: expectedCost, actualAmount: actualCost, currency: 'VND' }],
+      tasks: [{ title: draft.taskTitle, assignee: draft.assignee, dueDate: draft.dueDate, status: 'PENDING' }],
+      costs: [{ costName: draft.costName, expectedAmount: expectedCost, actualAmount: actualCost, currency: 'VND' }],
     }, 'Tạo phiếu điều hành');
 
     if (created?.id) setSelectedFormId(created.id);
@@ -382,6 +396,8 @@ export default function OperationsClient() {
     if (reason === null) return;
     const cleanReason = reason.trim();
     if (!cleanReason) return showError('Cần nhập lý do hủy phiếu điều hành.');
+    const confirmed = typeof window === 'undefined' ? true : window.confirm('Xác nhận hủy phiếu điều hành với lý do đã nhập? Hành động này sẽ được lưu vào lịch sử xử lý.');
+    if (!confirmed) return;
     await post(`/api/operations/forms/${id}/cancel`, { actor: 'operations-ui', reason: cleanReason }, 'Hủy phiếu điều hành');
   }
 
@@ -514,20 +530,23 @@ export default function OperationsClient() {
             <tbody>
               {forms.length === 0 ? <tr><td colSpan={7}>Chưa có phiếu điều hành phù hợp bộ lọc.</td></tr> : null}
               {forms.map((form) => {
-                const summary = costSummary(form);
-                const firstService = form.services[0];
-                const firstTask = form.tasks[0];
+                const orderTour = formOrderTourSummary(form);
+                const service = formServiceSummary(form);
+                const task = formTaskSummary(form);
+                const cost = formCostSummary(form);
+                const linkedRequest = linkedPaymentRequestForForm(form, requests);
                 return (
                   <tr key={form.id} data-testid="operation-form-row">
-                    <td><strong>{form.booking?.code || form.bookingId}</strong><span>{form.booking?.customerName || '-'}</span></td>
-                    <td>{form.order?.systemCode || '-'}<span>{form.tour?.tourCode || form.tour?.name || ''}</span></td>
-                    <td>{firstService?.serviceName || '-'}<span>{firstService?.supplier?.name || statusLabel(firstService?.confirmationStatus)}</span></td>
-                    <td>{firstTask?.title || '-'}<span>{date(firstTask?.dueDate)} | {statusLabel(firstTask?.status)}</span></td>
-                    <td>{money(summary.display)}<span>Dự kiến {money(summary.expected)} | Thực chi {money(summary.actual)}</span></td>
-                    <td><span className="statusPill">{statusLabel(form.status)}</span></td>
+                    <td><strong>{form.booking?.code || form.bookingId}</strong><span>{form.booking?.customerName || 'Chưa có tên khách'}</span></td>
+                    <td><strong>{orderTour.primary}</strong><span>{orderTour.secondary}</span></td>
+                    <td><strong>{service.primary}</strong><span>{service.secondary}</span></td>
+                    <td><strong>{task.primary}</strong><span>{task.secondary}</span></td>
+                    <td><strong>{cost.primary}</strong><span>{cost.secondary}</span></td>
+                    <td><span className={`statusPill ${statusPillClass(form.status)}`}>{statusLabel(form.status)}</span></td>
                     <td className="operationsActions">
-                      <button data-testid="operation-form-create-payment" className="secondaryButton iconButton" title="Tạo yêu cầu thanh toán" onClick={() => { setSelectedFormId(form.id); switchTab('payments'); setModal('payment'); }}><WalletCards size={16} /></button>
-                      <button data-testid="operation-form-cancel" className="dangerButton iconButton" title="Hủy phiếu điều hành" disabled={!can('operation.form.manage') || form.status === 'CANCELLED'} onClick={() => { void cancelForm(form.id); }}><XCircle size={16} /></button>
+                      <button data-testid="operation-form-open-reconciliation" className="secondaryButton iconButton" title={!canViewPayments ? 'Bạn chưa có quyền xem đối soát thanh toán.' : linkedRequest ? 'Mở đối soát thanh toán' : 'Chưa có yêu cầu thanh toán để đối soát.'} disabled={!canViewPayments || !linkedRequest} onClick={() => { if (!linkedRequest) return; switchTab('payments'); setSelectedFormId(form.id); setDetailRequestId(linkedRequest.id); }}><Search size={16} /></button>
+                      <button data-testid="operation-form-create-payment" className="secondaryButton iconButton" title={!can('operation.payment-request.create') ? 'Bạn chưa có quyền tạo yêu cầu thanh toán.' : form.status === 'CANCELLED' ? 'Phiếu đã hủy, không thể tạo yêu cầu thanh toán.' : form.costs.length === 0 ? 'Phiếu chưa có chi phí để tạo yêu cầu thanh toán.' : 'Tạo yêu cầu thanh toán'} disabled={!can('operation.payment-request.create') || form.status === 'CANCELLED' || form.costs.length === 0} onClick={() => { setSelectedFormId(form.id); switchTab('payments'); setModal('payment'); }}><WalletCards size={16} /></button>
+                      <button data-testid="operation-form-cancel" className="dangerButton iconButton" title={form.status === 'CANCELLED' ? 'Phiếu đã hủy.' : 'Hủy phiếu điều hành'} disabled={!can('operation.form.manage') || form.status === 'CANCELLED'} onClick={() => { void cancelForm(form.id); }}><XCircle size={16} /></button>
                     </td>
                   </tr>
                 );
@@ -558,7 +577,7 @@ export default function OperationsClient() {
                   <td>{request.items[0]?.cost?.costName || '-'}<span>{request.items[0]?.notes || request.items[0]?.cost?.operationForm?.booking?.code || ''}</span></td>
                   <td>{money(totalRequest(request))}</td>
                   <td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${statusLabel(request.financePayment.approvalStatus)} - ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></td>
-                  <td><span className="statusPill">{statusLabel(request.status)}</span></td>
+                  <td><span className={`statusPill ${statusPillClass(request.status)}`}>{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
                     <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title="Xem đối soát" onClick={() => setDetailRequestId(request.id)}><Search size={16} /></button>
                     <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title="Gửi duyệt" disabled={!can('operation.payment-request.create') || !['DRAFT', 'REJECTED'].includes(request.status)} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
@@ -596,6 +615,24 @@ function OperationFormModal({
   onClose: () => void;
   onSubmit: (formData: FormData) => Promise<void>;
 }) {
+  const [draft, setDraft] = useState<OperationFormDraft>({ ...defaultOperationFormDraft, supplierId: createFormSupplierId });
+  const availableServiceIds = createFormServiceOptions.map((service) => service.id).join('|');
+
+  useEffect(() => {
+    setDraft((current) => ({
+      ...current,
+      supplierId: createFormSupplierId,
+      supplierServiceId: current.supplierServiceId && availableServiceIds.split('|').includes(current.supplierServiceId) ? current.supplierServiceId : '',
+    }));
+  }, [availableServiceIds, createFormSupplierId]);
+
+  function setDraftValue(key: keyof OperationFormDraft, value: string) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  const formErrors = operationFormDraftErrors(draft, bookings, suppliers, createFormServiceOptions);
+  const canSubmit = canCreate && formErrors.length === 0;
+
   return (
     <div className="modalOverlay" role="presentation">
       <div data-testid="operation-form-modal" className="modalPanel modalPanelWide operationsFormPanel" role="dialog" aria-modal="true" aria-labelledby="operation-form-title">
@@ -603,28 +640,35 @@ function OperationFormModal({
           <h2 id="operation-form-title"><Plus size={18} /> Tạo phiếu điều hành</h2>
           <button type="button" data-testid="operation-form-modal-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
         </header>
-        <form action={onSubmit} className="formGrid operationsFormGrid">
+        <form action={onSubmit} onSubmit={(event) => { if (!canSubmit) event.preventDefault(); }} className="formGrid operationsFormGrid">
+          {formErrors.length ? (
+            <div data-testid="operation-form-validation" className="formValidationSummary" aria-live="polite">
+              <strong>Cần hoàn tất thông tin trước khi tạo phiếu:</strong>
+              <ul>{formErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+            </div>
+          ) : null}
           <fieldset>
             <legend>Thông tin booking</legend>
-            <label>Booking<select name="bookingId" required><option value="">Chọn booking</option>{bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.code} - {booking.customerName || 'Khách'}</option>)}</select></label>
+            <label>Booking<select name="bookingId" value={draft.bookingId} required onChange={(event) => setDraftValue('bookingId', event.target.value)}><option value="">Chọn booking</option>{bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.code} - {booking.customerName || 'Khách'}</option>)}</select></label>
             <label>Trạng thái<select name="status" defaultValue="PENDING">{operationFormStatusValues.filter((status) => status !== 'CANCELLED').map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Dịch vụ nhà cung cấp</legend>
-            <label>Nhà cung cấp<select name="supplierId" value={createFormSupplierId} onChange={(event) => onSupplierChange(event.target.value)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
-            <label>Dịch vụ nhà cung cấp<select key={createFormSupplierId || 'all-services'} name="supplierServiceId"><option value="">Chọn dịch vụ</option>{createFormServiceOptions.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</select></label>
-            <label>Loại dịch vụ<input name="serviceType" defaultValue="HOTEL" /></label>
-            <label>Tên dịch vụ<input name="serviceName" defaultValue="Dịch vụ điều hành" /></label>
-            <label>Nhà cung cấp xác nhận<select name="confirmationStatus" defaultValue="WAITING">{confirmationStatuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
+            <label>Nhà cung cấp<select name="supplierId" value={draft.supplierId} required onChange={(event) => { setDraft((current) => ({ ...current, supplierId: event.target.value, supplierServiceId: '' })); onSupplierChange(event.target.value); }}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
+            <label>Dịch vụ nhà cung cấp<select key={draft.supplierId || 'all-services'} name="supplierServiceId" value={draft.supplierServiceId} required onChange={(event) => setDraftValue('supplierServiceId', event.target.value)}><option value="">Chọn dịch vụ</option>{createFormServiceOptions.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</select></label>
+            <label>Loại dịch vụ<input name="serviceType" list="operation-service-types" required maxLength={40} value={draft.serviceType} onChange={(event) => setDraftValue('serviceType', event.target.value.toUpperCase())} /></label>
+            <datalist id="operation-service-types">{operationServiceTypeSuggestions.map((type) => <option key={type} value={type} />)}</datalist>
+            <label>Tên dịch vụ<input name="serviceName" required maxLength={120} value={draft.serviceName} onChange={(event) => setDraftValue('serviceName', event.target.value)} /></label>
+            <label>Nhà cung cấp xác nhận<select name="confirmationStatus" value={draft.confirmationStatus} required onChange={(event) => setDraftValue('confirmationStatus', event.target.value)}>{confirmationStatuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Chi phí & task</legend>
-            <label>Dự kiến chi<input name="expectedCost" type="number" min={0} step={1000} defaultValue={0} /></label>
-            <label>Thực chi<input name="actualCost" type="number" min={0} step={1000} defaultValue={0} /></label>
-            <label>Tên chi phí<input name="costName" defaultValue="Chi phí nhà cung cấp" /></label>
-            <label>Task vận hành<input name="taskTitle" defaultValue="Xác nhận nhà cung cấp" /></label>
-            <label>Người phụ trách<input name="assignee" /></label>
-            <label>Hạn task<input name="dueDate" type="date" /></label>
+            <label>Dự kiến chi<input name="expectedCost" type="number" min={1} step={1000} required value={draft.expectedCost} onChange={(event) => setDraftValue('expectedCost', event.target.value)} /></label>
+            <label>Thực chi<input name="actualCost" type="number" min={0} step={1000} required value={draft.actualCost} onChange={(event) => setDraftValue('actualCost', event.target.value)} /></label>
+            <label>Tên chi phí<input name="costName" required maxLength={120} value={draft.costName} onChange={(event) => setDraftValue('costName', event.target.value)} /></label>
+            <label>Task vận hành<input name="taskTitle" required maxLength={120} value={draft.taskTitle} onChange={(event) => setDraftValue('taskTitle', event.target.value)} /></label>
+            <label>Người phụ trách<input name="assignee" maxLength={80} value={draft.assignee} onChange={(event) => setDraftValue('assignee', event.target.value)} /></label>
+            <label>Hạn task<input name="dueDate" type="date" min={todayDateInput()} value={draft.dueDate} onChange={(event) => setDraftValue('dueDate', event.target.value)} /></label>
           </fieldset>
           <fieldset className="span2">
             <legend>Ghi chú</legend>
@@ -632,7 +676,7 @@ function OperationFormModal({
           </fieldset>
           <div className="modalActions">
             <button type="button" className="secondaryButton" onClick={onClose}>Hủy</button>
-            <button type="submit" disabled={!canCreate}>Tạo phiếu điều hành</button>
+            <button type="submit" disabled={!canSubmit}>Tạo phiếu điều hành</button>
           </div>
         </form>
       </div>
@@ -744,6 +788,68 @@ function authHeaders() {
 function OperationsTable({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{new Intl.NumberFormat('vi-VN').format(count)} bản ghi</span></div><div className="fitTableWrap"><table className="operationsTable">{children}</table></div></section>;
 }
+function operationFormDraftFromFormData(formData: FormData): OperationFormDraft {
+  return {
+    bookingId: text(formData.get('bookingId')),
+    supplierId: text(formData.get('supplierId')),
+    supplierServiceId: text(formData.get('supplierServiceId')),
+    serviceType: text(formData.get('serviceType')) || defaultOperationFormDraft.serviceType,
+    serviceName: text(formData.get('serviceName')) || defaultOperationFormDraft.serviceName,
+    confirmationStatus: text(formData.get('confirmationStatus')) || defaultOperationFormDraft.confirmationStatus,
+    expectedCost: text(formData.get('expectedCost')),
+    actualCost: text(formData.get('actualCost')) || defaultOperationFormDraft.actualCost,
+    costName: text(formData.get('costName')) || defaultOperationFormDraft.costName,
+    taskTitle: text(formData.get('taskTitle')) || defaultOperationFormDraft.taskTitle,
+    assignee: text(formData.get('assignee')),
+    dueDate: text(formData.get('dueDate')),
+  };
+}
+
+function operationFormDraftErrors(draft: OperationFormDraft, bookings: Booking[], suppliers: Supplier[], serviceOptions: SupplierServiceOption[]) {
+  const errors: string[] = [];
+  const booking = bookings.find((item) => item.id === draft.bookingId);
+  const supplier = suppliers.find((item) => item.id === draft.supplierId);
+  const supplierService = serviceOptions.find((item) => item.id === draft.supplierServiceId);
+  const serviceType = text(draft.serviceType);
+  const serviceName = text(draft.serviceName);
+  const confirmationStatus = text(draft.confirmationStatus);
+  const expectedCost = readAmount(draft.expectedCost);
+  const actualCost = readAmount(draft.actualCost);
+  const costName = text(draft.costName);
+  const taskTitle = text(draft.taskTitle);
+  const assignee = text(draft.assignee);
+  const dueDate = text(draft.dueDate);
+
+  if (!draft.bookingId) errors.push('Cần chọn booking để tạo phiếu điều hành.');
+  else if (!booking) errors.push('Booking đã chọn không hợp lệ hoặc chưa được tải.');
+  if (!draft.supplierId) errors.push('Cần chọn nhà cung cấp cho dịch vụ điều hành.');
+  else if (!supplier) errors.push('Nhà cung cấp đã chọn không hợp lệ hoặc chưa được tải.');
+  if (!draft.supplierServiceId) errors.push('Cần chọn dịch vụ cụ thể của nhà cung cấp.');
+  else if (!supplierService) errors.push('Dịch vụ nhà cung cấp đã chọn không hợp lệ hoặc không thuộc bộ lọc hiện tại.');
+  else if (supplierService.supplierId !== draft.supplierId) errors.push('Dịch vụ không thuộc nhà cung cấp đã chọn.');
+  if (!serviceType) errors.push('Cần nhập loại dịch vụ.');
+  else if (serviceType.length > 40) errors.push('Loại dịch vụ không được vượt quá 40 ký tự.');
+  if (!serviceName) errors.push('Cần nhập tên dịch vụ điều hành.');
+  else if (serviceName.length < 3) errors.push('Tên dịch vụ điều hành cần có ít nhất 3 ký tự.');
+  else if (serviceName.length > 120) errors.push('Tên dịch vụ điều hành không được vượt quá 120 ký tự.');
+  if (!confirmationStatuses.includes(confirmationStatus)) errors.push('Trạng thái xác nhận nhà cung cấp không hợp lệ.');
+  if (!Number.isFinite(expectedCost) || expectedCost <= 0) errors.push('Dự kiến chi phải là số lớn hơn 0.');
+  if (!Number.isFinite(actualCost) || actualCost < 0) errors.push('Thực chi phải là số lớn hơn hoặc bằng 0.');
+  if (!costName) errors.push('Cần nhập tên chi phí.');
+  else if (costName.length > 120) errors.push('Tên chi phí không được vượt quá 120 ký tự.');
+  if (!taskTitle) errors.push('Cần nhập task vận hành.');
+  else if (taskTitle.length < 3) errors.push('Task vận hành cần có ít nhất 3 ký tự.');
+  else if (taskTitle.length > 120) errors.push('Task vận hành không được vượt quá 120 ký tự.');
+  if (assignee.length > 80) errors.push('Người phụ trách không được vượt quá 80 ký tự.');
+  if (dueDate && !isValidDateInput(dueDate)) errors.push('Hạn task phải là ngày hợp lệ.');
+  if (dueDate && isPastDateInput(dueDate)) errors.push('Hạn task không được trước ngày hôm nay.');
+  return errors;
+}
+
+function formatValidationErrors(title: string, errors: string[]) {
+  return `${title}: ${errors.join(' ')}`;
+}
+
 
 function dashboardStatus(canView: boolean, loaded: boolean, hasData: boolean, loading: boolean, error: string): Notice | null {
   if (!canView) return { type: 'info', text: 'Bạn chưa có quyền xem dashboard vận hành.' };
@@ -822,6 +928,50 @@ function defaultSupplierId(form?: OperationForm) {
 function totalRequest(request: PaymentRequest) {
   return request.items.reduce((sum, item) => sum + numberValue(item.amount), 0);
 }
+function linkedPaymentRequestForForm(form: OperationForm, requests: PaymentRequest[]) {
+  return requests.find((request) => request.items.some((item) => item.cost?.operationForm?.id === form.id));
+}
+
+function formOrderTourSummary(form: OperationForm) {
+  const orderLabel = form.order?.systemCode || form.order?.tourCode || form.order?.name || '';
+  const tourLabel = form.tour?.tourCode || form.tour?.systemCode || form.tour?.name || '';
+  if (orderLabel && tourLabel) return { primary: orderLabel, secondary: `Tour ${tourLabel}` };
+  if (orderLabel) return { primary: orderLabel, secondary: 'Chưa gắn tour điều hành' };
+  if (tourLabel) return { primary: tourLabel, secondary: 'Chưa gắn đơn hàng' };
+  return { primary: 'Chưa gắn đơn hàng/tour', secondary: `Booking ${form.booking?.code || form.bookingId}` };
+}
+
+function formServiceSummary(form: OperationForm) {
+  const first = form.services[0];
+  if (!first) return { primary: 'Chưa có dịch vụ', secondary: 'Cần bổ sung dịch vụ nhà cung cấp' };
+  const extra = form.services.length > 1 ? ` +${form.services.length - 1} dịch vụ` : '';
+  const supplier = first.supplier?.name || 'Chưa gắn nhà cung cấp';
+  return { primary: `${first.serviceName || 'Dịch vụ điều hành'}${extra}`, secondary: `${supplier} | ${statusLabel(first.confirmationStatus)}` };
+}
+
+function formTaskSummary(form: OperationForm) {
+  const first = form.tasks[0];
+  if (!first) return { primary: 'Chưa có task', secondary: 'Cần bổ sung công việc điều hành' };
+  const extra = form.tasks.length > 1 ? ` +${form.tasks.length - 1} task` : '';
+  const due = first.dueDate ? `Hạn ${date(first.dueDate)}` : 'Chưa đặt hạn';
+  const assignee = first.assignee ? `Phụ trách ${first.assignee}` : 'Chưa phân công';
+  return { primary: `${first.title}${extra}`, secondary: `${due} | ${assignee} | ${statusLabel(first.status)}` };
+}
+
+function formCostSummary(form: OperationForm) {
+  if (!form.costs.length) return { primary: 'Chưa có chi phí', secondary: 'Cần bổ sung chi phí điều hành' };
+  const summary = costSummary(form);
+  return { primary: money(summary.display), secondary: `${form.costs.length} dòng | Dự kiến ${money(summary.expected)} | Thực chi ${money(summary.actual)}` };
+}
+
+function statusPillClass(value?: string) {
+  const key = String(value || '').trim();
+  if (['DONE', 'CONFIRMED', 'APPROVED', 'PAID'].includes(key)) return 'statusPillSuccess';
+  if (['PROBLEM', 'CANCELLED', 'REJECTED'].includes(key)) return 'statusPillError';
+  if (['PENDING', 'IN_PROGRESS', 'REQUESTED', 'WAITING', 'OPERATING'].includes(key)) return 'statusPillWarning';
+  return 'statusPillNeutral';
+}
+
 
 function money(value: unknown) {
   return new Intl.NumberFormat('vi-VN').format(numberValue(value));
@@ -833,7 +983,7 @@ function date(value?: string) {
   return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString('vi-VN');
 }
 
-function text(value: FormDataEntryValue | null) {
+function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -846,11 +996,28 @@ function numberValue(value: unknown) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
-function readAmount(value: FormDataEntryValue | null) {
+function readAmount(value: unknown) {
   const raw = text(value);
   if (!raw) return Number.NaN;
   const amount = Number(raw.replace(/\s/g, '').replace(/,/g, ''));
   return Number.isFinite(amount) ? amount : Number.NaN;
+}
+
+function todayDateInput() {
+  const today = new Date();
+  const local = new Date(today.getTime() - today.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+}
+
+function isPastDateInput(value: string) {
+  return isValidDateInput(value) && value < todayDateInput();
 }
 
 function statusLabel(value?: string) {

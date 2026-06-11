@@ -787,6 +787,9 @@ select[multiple] { min-height: 92px; }
 .operationsTabs button { display: inline-flex; align-items: center; gap: 8px; }
 .operationsGrid { grid-template-columns: minmax(380px, .5fr) minmax(0, 1.5fr); align-items: start; }
 .operationsFormPanel .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.formValidationSummary { grid-column: 1 / -1; border: 1px solid #fed7aa; border-radius: 8px; background: #fff7ed; color: #9a3412; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
+.formValidationSummary ul { margin: 6px 0 0; padding-left: 18px; }
+.formValidationSummary li { margin: 2px 0; }
 .operationsFormPanel textarea, .operationsFormPanel button { grid-column: 1 / -1; }
 .operationsFormGrid fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 1px solid var(--dn-border); border-radius: 10px; padding: 12px; min-width: 0; }
 .operationsFormGrid fieldset legend { padding: 0 6px; color: var(--dn-primary); font-size: 13px; font-weight: 800; }
