@@ -8,23 +8,10 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
+import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { isTypedSupplierRoute } from './supplier-types';
 import { SuppliersService } from './suppliers.service';
-
-const typedSupplierRoutes = [
-  'restaurants',
-  'flights',
-  'attraction-tickets',
-  'landtour-suppliers',
-  'water',
-  'transport',
-  'bus',
-  'other',
-  'villas',
-  'passport',
-  'guides',
-  'series-tickets',
-];
 
 @ApiTags('supplier-categories')
 @RequirePermissions('supplier.view')
@@ -68,15 +55,8 @@ export class SuppliersController {
   }
 
   @Get('hotels')
-  listHotels(
-    @Query('search') search?: string,
-    @Query('province') province?: string,
-    @Query('hotelProject') hotelProject?: string,
-    @Query('classHotel') classHotel?: string,
-    @Query('status') status?: 'ACTIVE' | 'INACTIVE',
-    @Query('market') market?: string,
-  ) {
-    return this.suppliersService.listHotelSuppliers({ search, province, hotelProject, classHotel, status, market });
+  listHotels(@Query() query: HotelSupplierListQueryDto) {
+    return this.suppliersService.listHotelSuppliers(query);
   }
 
   @Get('hotels/:id')
@@ -102,12 +82,8 @@ export class SuppliersController {
   }
 
   @Get('hotel-allotments/inventory')
-  allotmentInventory(
-    @Query('supplierId') supplierId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
-    return this.suppliersService.listAllotmentInventory({ supplierId, startDate, endDate });
+  allotmentInventory(@Query() query: AllotmentInventoryQueryDto) {
+    return this.suppliersService.listAllotmentInventory(query);
   }
 
   @Patch('hotel-allotments/:id/override')
@@ -134,16 +110,10 @@ export class SuppliersController {
     return this.suppliersService.releaseAllotmentAllocation(id, dto, request.user);
   }
 
-  @Get(':type')
-  listTyped(
-    @Param('type') type: string,
-    @Query('search') search?: string,
-    @Query('province') province?: string,
-    @Query('status') status?: 'ACTIVE' | 'INACTIVE',
-    @Query('market') market?: string,
-  ) {
-    if (!typedSupplierRoutes.includes(type)) return this.suppliersService.getSupplier(type);
-    return this.suppliersService.listTypedSuppliers(type, { search, province, status, market });
+  @Get(':routeKey')
+  listTypedOrDetail(@Param('routeKey') routeKey: string, @Query() query: TypedSupplierListQueryDto) {
+    if (isTypedSupplierRoute(routeKey)) return this.suppliersService.listTypedSuppliers(routeKey, query);
+    return this.suppliersService.getSupplier(routeKey);
   }
 
   @Get(':type/:id')
@@ -172,7 +142,7 @@ export class SuppliersController {
   @Delete(':type/:id')
   @RequirePermissions('supplier.manage')
   removeTyped(@Param('type') type: string, @Param('id') id: string) {
-    return this.suppliersService.getTypedSupplier(type, id).then(() => this.suppliersService.deleteSupplier(id));
+    return this.suppliersService.deleteTypedSupplier(type, id);
   }
 
   @Post(':id/files')
@@ -191,11 +161,6 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   deleteSupplierFile(@Param('id') id: string, @Param('fileId') fileId: string) {
     return this.suppliersService.deleteSupplierFile(id, fileId);
-  }
-
-  @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.suppliersService.getSupplier(id);
   }
 
   @Post()

@@ -125,7 +125,7 @@ INSERT INTO "SupplierPaymentItem" (id, "requestId", "supplierId", amount, notes)
 VALUES ('${USED_PAYMENT_ITEM_ID}', '${USED_PAYMENT_REQUEST_ID}', '${USED_SUPPLIER_ID}', 100000, '${RUN_ID} supplier payment item');
 SQL
 
-export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN USED_SUPPLIER_ID USED_CATEGORY_ID
+export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN MANAGE_USER_ID USED_SUPPLIER_ID USED_CATEGORY_ID
 
 run_node() {
   if command -v node >/dev/null 2>&1; then
@@ -138,6 +138,7 @@ run_node() {
     -e RUN_ID_LOWER \
     -e MANAGE_TOKEN \
     -e VIEW_TOKEN \
+    -e MANAGE_USER_ID \
     -e USED_SUPPLIER_ID \
     -e USED_CATEGORY_ID \
     node:22-alpine node
@@ -195,6 +196,24 @@ async function request(token, method, path, body, ok = [200, 201]) {
   throw lastError;
 }
 
+async function uploadRequest(token, path, fileName, mimeType, content, ok = [200, 201]) {
+  const form = new FormData();
+  form.append('file', new Blob([content], { type: mimeType }), fileName);
+  const response = await fetch(api + path, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const text = await response.text();
+  let data = text;
+  try { data = text ? JSON.parse(text) : null; } catch {}
+  if (!ok.includes(response.status)) {
+    throw new Error(`POST ${path} -> ${response.status} ${String(text).slice(0, 500)}`);
+  }
+  console.log(`${response.status} POST ${path} (${fileName})`);
+  return data;
+}
+
 (async () => {
   const initialCategories = await request(manageToken, 'GET', '/supplier-categories');
   assert(Array.isArray(initialCategories), 'supplier categories response must be an array');
@@ -207,11 +226,60 @@ async function request(token, method, path, body, ok = [200, 201]) {
   assert(seeded.category?.id, 'supplier list must include category shape');
 
   await request(viewToken, 'GET', '/suppliers');
+  const supplierDetail = await request(viewToken, 'GET', `/suppliers/${usedSupplierId}`);
+  assert(supplierDetail.id === usedSupplierId && supplierDetail.category?.id, 'single-segment supplier detail route should not be mistaken for a typed route');
+
+  const typedRoutes = [
+    'restaurants',
+    'flights',
+    'attraction-tickets',
+    'landtour-suppliers',
+    'water',
+    'transport',
+    'bus',
+    'other',
+    'villas',
+    'passport',
+    'guides',
+    'series-tickets',
+  ];
+  for (const type of typedRoutes) {
+    const typedList = await request(viewToken, 'GET', `/suppliers/${type}`);
+    assert(Array.isArray(typedList), `typed route ${type} must return an array`);
+  }
+  await request(viewToken, 'GET', `/suppliers/not-a-supplier-type/${usedSupplierId}`, undefined, [404]);
+
+  const dashboard = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
+  assert(typeof dashboard.allotmentQty === 'number', 'allotment dashboard static route should not be matched as supplier detail');
+  const inventory = await request(viewToken, 'GET', '/suppliers/hotel-allotments/inventory');
+  assert(Array.isArray(inventory), 'allotment inventory static route should return an array');
+  await request(viewToken, 'GET', '/suppliers/hotels?status=UNKNOWN', undefined, [400]);
+  await request(viewToken, 'GET', '/suppliers/hotel-allotments/inventory?supplierId=not-a-uuid', undefined, [400]);
+  await request(viewToken, 'GET', '/suppliers/hotel-allotments/inventory?startDate=not-a-date', undefined, [400]);
+  const reversedDateError = await request(viewToken, 'GET', '/suppliers/hotel-allotments/inventory?startDate=2026-06-12&endDate=2026-06-11', undefined, [400]);
+  assert(messageOf(reversedDateError).includes('Ngày bắt đầu không được sau ngày kết thúc'), 'inventory should reject a reversed date range');
+  await request(viewToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', {}, [403]);
+  await request(viewToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [403]);
+  await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [403]);
+  await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/release', {}, [403]);
+  await request(manageToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', {}, [404]);
+  await request(manageToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [404]);
+  await request(manageToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [404]);
+  await request(manageToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/release', {}, [404]);
+
   await request(viewToken, 'POST', '/supplier-categories', { name: `${run} forbidden category` }, [403]);
   await request(viewToken, 'PATCH', `/supplier-categories/${process.env.USED_CATEGORY_ID}`, { name: `${run} forbidden update` }, [403]);
   await request(viewToken, 'DELETE', `/supplier-categories/${process.env.USED_CATEGORY_ID}`, undefined, [403]);
+  await request(viewToken, 'POST', '/suppliers', { categoryId: process.env.USED_CATEGORY_ID, name: `${run} forbidden supplier create` }, [403]);
   await request(viewToken, 'PATCH', `/suppliers/${usedSupplierId}`, { name: `${run} forbidden supplier update` }, [403]);
+  await request(viewToken, 'PATCH', `/suppliers/${usedSupplierId}/status`, { status: 'INACTIVE' }, [403]);
   await request(viewToken, 'DELETE', `/suppliers/${usedSupplierId}`, undefined, [403]);
+  await request(viewToken, 'POST', '/suppliers/hotels', {}, [403]);
+  await request(viewToken, 'PUT', `/suppliers/hotels/${usedSupplierId}`, {}, [403]);
+  await request(viewToken, 'POST', '/suppliers/restaurants', {}, [403]);
+  await request(viewToken, 'PUT', `/suppliers/restaurants/${usedSupplierId}`, {}, [403]);
+  await request(viewToken, 'PATCH', `/suppliers/restaurants/${usedSupplierId}/status`, { status: 'INACTIVE' }, [403]);
+  await request(viewToken, 'DELETE', `/suppliers/restaurants/${usedSupplierId}`, undefined, [403]);
 
   const categoryName = `${run} API Category`;
   const category = await request(manageToken, 'POST', '/supplier-categories', { name: `  ${categoryName}  ` });
@@ -250,6 +318,14 @@ async function request(token, method, path, body, ok = [200, 201]) {
   assert(supplier.category?.id === category.id, 'created supplier must include category');
   assert(Array.isArray(supplier.supplierServices), 'created supplier must include supplierServices');
 
+  await uploadRequest(viewToken, `/suppliers/${supplier.id}/files`, 'forbidden.txt', 'text/plain', 'forbidden', [403]);
+  const blockedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.svg', 'image/svg+xml', '<svg />', [400]);
+  assert(messageOf(blockedUpload).includes('Loại file không được phép'), 'dangerous supplier file type should be rejected');
+  const uploadedFile = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'supplier-note.txt', 'text/plain', 'supplier file smoke');
+  assert(uploadedFile.id && uploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'supplier upload should record the authenticated user id');
+  await request(viewToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [403]);
+  await request(manageToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`);
+
   const categoriesAfterCreate = await request(manageToken, 'GET', '/supplier-categories');
   const counted = categoriesAfterCreate.find((item) => item.id === category.id);
   assert(Number(counted?._count?.suppliers || 0) === 1, 'category count should include one active supplier');
@@ -272,6 +348,9 @@ async function request(token, method, path, body, ok = [200, 201]) {
   assert(updated.debtNote === 'Updated debt note', 'supplier update should persist debtNote');
   assert(updated.pricePolicy === 'Updated policy', 'supplier update should persist pricePolicy');
   assert(updated.category?.id === category.id && Array.isArray(updated.supplierServices), 'supplier update response shape should match list response');
+  const inactiveSupplier = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'INACTIVE' });
+  assert(inactiveSupplier.status === 'INACTIVE', 'supplier manage permission should allow status update');
+  await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'ACTIVE' });
 
   const suppliersAfterUpdate = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(run)}`);
   assert(suppliersAfterUpdate.some((item) => item.id === supplier.id), 'search should include updated supplier');
@@ -301,6 +380,21 @@ async function request(token, method, path, body, ok = [200, 201]) {
   const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
   assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
 
+  const typedSupplier = await request(manageToken, 'POST', '/suppliers/restaurants', {
+    supplierCode: `${run}-RESTAURANT`,
+    name: `${run} Restaurant Supplier`,
+    phone: '0907777888',
+  });
+  await request(manageToken, 'DELETE', `/suppliers/flights/${typedSupplier.id}`, undefined, [404]);
+  const typedSupplierAfterWrongDelete = await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`);
+  assert(typedSupplierAfterWrongDelete.id === typedSupplier.id, 'wrong typed delete must not remove supplier from another type');
+  const typedUpdated = await request(manageToken, 'PUT', `/suppliers/restaurants/${typedSupplier.id}`, { name: `${run} Restaurant Supplier Updated` });
+  assert(typedUpdated.name.endsWith('Updated'), 'typed supplier manage permission should allow update');
+  const typedInactive = await request(manageToken, 'PATCH', `/suppliers/restaurants/${typedSupplier.id}/status`, { status: 'INACTIVE' });
+  assert(typedInactive.status === 'INACTIVE', 'typed supplier manage permission should allow status update');
+  await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
+  await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
+
   const hotel = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL`,
     name: `${run} Hotel Supplier`,
@@ -316,6 +410,8 @@ async function request(token, method, path, body, ok = [200, 201]) {
   assert(listedHotel?.category?.name === 'Hotel' && listedHotel.hotelProfile, 'hotel list response should include category and hotel profile');
   const hotelDetail = await request(manageToken, 'GET', `/suppliers/hotels/${hotel.id}`);
   assert(hotelDetail.id === hotel.id && hotelDetail.category?.name === 'Hotel', 'hotel detail response should preserve shared supplier linkage');
+  const updatedHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${hotel.id}`, { hotelProject: `${run} Hotel Project Updated` });
+  assert(updatedHotel.hotelProfile?.hotelProject.endsWith('Updated'), 'hotel supplier manage permission should allow update');
   const hotelCategoryChangeError = await request(manageToken, 'PATCH', `/suppliers/${hotel.id}`, { categoryId: category.id }, [400]);
   assert(messageOf(hotelCategoryChangeError).includes('nhà cung cấp chuyên biệt'), 'general endpoint should not move hotel supplier to another category');
   await request(manageToken, 'DELETE', `/suppliers/${hotel.id}`);

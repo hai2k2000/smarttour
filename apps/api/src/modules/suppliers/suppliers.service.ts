@@ -9,21 +9,7 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-
-const SUPPLIER_TYPE_LABELS: Record<string, string> = {
-  restaurants: 'Restaurant',
-  flights: 'Flight',
-  'attraction-tickets': 'Attraction Ticket',
-  'landtour-suppliers': 'LandTour Supplier',
-  water: 'Water',
-  transport: 'Transport',
-  bus: 'Bus',
-  other: 'Other Cost',
-  villas: 'Villa',
-  passport: 'Passport Visa',
-  guides: 'Tour Guide',
-  'series-tickets': 'Series Ticket',
-};
+import { SUPPLIER_TYPE_LABELS } from './supplier-types';
 
 const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS)]);
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
@@ -183,7 +169,8 @@ export class SuppliersService {
 
   async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string) {
     await this.getSupplier(id);
-    const upload = await this.filesService.upload(file, `suppliers/${id}`, actorId);
+    const uploadedBy = this.requiredText(actorId, 'Không xác định được người tải file');
+    const upload = await this.filesService.upload(file, `suppliers/${id}`, uploadedBy);
     try {
       return await this.prisma.supplierFile.create({
         data: {
@@ -191,7 +178,7 @@ export class SuppliersService {
           fileName: upload.fileName,
           fileUrl: upload.url,
           fileType: upload.mimeType,
-          uploadedBy: actorId,
+          uploadedBy,
         },
       });
     } catch (error) {
@@ -300,6 +287,11 @@ export class SuppliersService {
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
     await this.getTypedSupplier(type, id);
     return this.updateSupplierStatus(id, status);
+  }
+
+  async deleteTypedSupplier(type: string, id: string) {
+    await this.getTypedSupplier(type, id);
+    return this.deleteSupplier(id);
   }
 
   async listHotelSuppliers(query: {
@@ -437,6 +429,11 @@ export class SuppliersService {
   }
 
   async listAllotmentInventory(query: { supplierId?: string; startDate?: string; endDate?: string }) {
+    const startDate = query.startDate ? new Date(query.startDate) : null;
+    const endDate = query.endDate ? new Date(query.endDate) : null;
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('Ngày bắt đầu không được sau ngày kết thúc');
+    }
     const today = new Date();
     const allotments = await this.prisma.supplierAllotment.findMany({
       where: {
@@ -444,8 +441,8 @@ export class SuppliersService {
         ...(query.startDate || query.endDate
           ? {
               AND: [
-                query.endDate ? { OR: [{ startDate: null }, { startDate: { lte: new Date(query.endDate) } }] } : {},
-                query.startDate ? { OR: [{ endDate: null }, { endDate: { gte: new Date(query.startDate) } }] } : {},
+                endDate ? { OR: [{ startDate: null }, { startDate: { lte: endDate } }] } : {},
+                startDate ? { OR: [{ endDate: null }, { endDate: { gte: startDate } }] } : {},
               ],
             }
           : {}),
@@ -890,7 +887,7 @@ export class SuppliersService {
   }
 
   private getTypeLabel(type: string) {
-    const categoryName = SUPPLIER_TYPE_LABELS[type];
+    const categoryName = SUPPLIER_TYPE_LABELS[type as keyof typeof SUPPLIER_TYPE_LABELS];
     if (!categoryName) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
     return categoryName;
   }
