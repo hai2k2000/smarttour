@@ -58,6 +58,19 @@ for (const childOnly of ['operation-services', 'operation-costs']) {
   if (modulesBlock.includes("key: '" + childOnly + "'")) failures.push('Child operation data should not be exposed as standalone module: ' + childOnly);
 }
 if (!modulesBlock.includes('permission:') || !modulesBlock.includes('metrics:') || !modulesBlock.includes('route:')) failures.push('Operations modules must expose route, permission, and metric metadata');
+const listFormsStart = service.indexOf('async listForms');
+const listFormsEnd = service.indexOf('async formDetail', listFormsStart);
+const listFormsBlock = listFormsStart === -1 || listFormsEnd === -1 ? '' : service.slice(listFormsStart, listFormsEnd);
+for (const token of ['customerPhone', 'booking: {', 'order: {', 'tour: {', '{ notes: contains }']) {
+  if (!listFormsBlock.includes(token)) failures.push('listForms search/scope missing token: ' + token);
+}
+if (service.includes('Phi?u')) failures.push('OperationsService contains mojibake Vietnamese text');
+if (!service.includes('request.status === SupplierPaymentStatus.PAID')) failures.push('approvePaymentRequest must block already paid requests explicitly');
+if (!service.includes('if (request.financePaymentId) return tx.supplierPaymentRequest.findUniqueOrThrow')) failures.push('createFinancePaymentForRequest must return existing linked payment request detail');
+if (!service.includes('operationConfirmationStatus(value: unknown)') || !service.includes('OPERATION_CONFIRMATION_STATUSES.has(text)')) failures.push('form service confirmation status must be normalized and validated');
+if (!service.includes('financePaymentMethod(value: unknown)') || !service.includes('FinancePaymentMethod.BANK_TRANSFER')) failures.push('finance payment method must be normalized and validated');
+if (!service.includes('Number.isNaN(date.getTime())')) failures.push('date helper must reject invalid provided dates');
+if (!service.includes("await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto })")) failures.push('cancelForm audit must include actor and reason');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));

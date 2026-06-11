@@ -21,6 +21,22 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Hardened Operations form/payment request service behavior:
+  - Operation form list search now covers booking code/customer name/phone,
+    order/tour systemCode, tourCode, name, route, and notes while keeping typed
+    status/id filters and the DTO take cap.
+  - Form create/update/cancel flows now record clearer audit actor/reason
+    context, block cancelling completed forms with Vietnamese messaging, parse
+    replacement children before delete/create, and validate service confirmation
+    status plus task dates before storage.
+  - Supplier payment requests now use clearer actor/requestedBy audit data,
+    block approving already-paid requests, validate finance payment method, and
+    return the existing linked finance-payment detail on repeated
+    create-finance-payment calls instead of creating duplicates.
+  - VPS verification passed on 2026-06-11: `TEST_OPERATIONS_CONTROLLER_CONTRACT_OK`,
+    `docker compose build api`, API deploy, and `SMOKE_OPERATIONS_BACKEND_OK`.
+
+
 - Hardened Finance frontend UX and data rollback checks:
   - FinanceClient now uses fully accented Vietnamese tab/sidebar/status labels,
     branch-specific load error notices, distinct save/approve/reject/cancel

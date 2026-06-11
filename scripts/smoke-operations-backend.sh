@@ -440,7 +440,8 @@ function formPayload(bookingId, supplier, supplierServiceId, suffix, amount) {
   });
   assert(linked.financePaymentId, 'Finance payment was not linked');
   assert(linked.financePayment?.approvalStatus === 'PENDING', 'Finance payment should start as PENDING');
-  await request(admin, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/create-finance-payment', { actor: 'ops-smoke' }, [400]);
+  const linkedAgain = await request(admin, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/create-finance-payment', { actor: 'ops-smoke' });
+  assert(linkedAgain.financePaymentId === linked.financePaymentId, 'Linked finance payment should be reused on repeated create-finance-payment');
   await request(viewToken, 'POST', '/finance/payments/' + linked.financePaymentId + '/approve', { actor: 'ops-view' }, denied);
   await request(requestCreateToken, 'POST', '/finance/payments/' + linked.financePaymentId + '/approve', { actor: 'ops-request-create' }, denied);
 

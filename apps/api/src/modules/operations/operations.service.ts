@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, OperationStatus, OrderStatus, Prisma, SupplierPaymentStatus, TourStatus, TourType } from '@prisma/client';
+import { BookingStatus, FinancePaymentMethod, OperationStatus, OrderStatus, Prisma, SupplierPaymentStatus, TourStatus, TourType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
@@ -95,6 +95,8 @@ type OperationModuleCard = {
   order: number;
   enabled: boolean;
 };
+
+const OPERATION_CONFIRMATION_STATUSES = new Set(['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'DONE', 'COMPLETED', 'CANCELLED']);
 
 @Injectable()
 export class OperationsService {
@@ -213,8 +215,16 @@ export class OperationsService {
           ? {
               OR: [
                 { booking: { code: contains } },
+                { booking: { customerName: contains } },
+                { booking: { customerPhone: contains } },
                 { order: { systemCode: contains } },
+                { order: { tourCode: contains } },
+                { order: { name: contains } },
+                { order: { route: contains } },
+                { tour: { systemCode: contains } },
                 { tour: { tourCode: contains } },
+                { tour: { name: contains } },
+                { tour: { route: contains } },
                 { notes: contains },
               ],
             }
@@ -233,6 +243,7 @@ export class OperationsService {
   }
 
   async createForm(dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.operationActor(dto);
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking');
     const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
@@ -249,7 +260,7 @@ export class OperationsService {
           },
         });
         await this.replaceFormChildren(tx, form.id, dto);
-        await this.audit(tx, 'CREATE', 'OperationForm', form.id, dto);
+        await this.audit(tx, 'CREATE', 'OperationForm', form.id, { actor, bookingId, orderId: links.orderId, tourId: links.tourId, status: form.status, payload: dto });
         return tx.operationForm.findUniqueOrThrow({ where: { id: form.id }, include: this.formDetailInclude() });
       });
     } catch (error) {
@@ -259,6 +270,7 @@ export class OperationsService {
   }
 
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.operationActor(dto);
     const current = await this.formDetail(id, user);
     const bookingId = this.text(dto.bookingId) ?? current.bookingId;
     const links = await this.resolveBookingOrderTour({
@@ -281,23 +293,25 @@ export class OperationsService {
         },
       });
       if (dto.services !== undefined || dto.tasks !== undefined || dto.costs !== undefined) await this.replaceFormChildren(tx, id, dto);
-      await this.audit(tx, 'UPDATE', 'OperationForm', id, dto);
+      await this.audit(tx, 'UPDATE', 'OperationForm', id, { actor, changedFields: Object.keys(dto), payload: dto });
       return tx.operationForm.findUniqueOrThrow({ where: { id }, include: this.formDetailInclude() });
     });
   }
 
   async cancelForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.operationActor(dto);
+    const reason = this.text(dto.reason) ?? this.text(dto.notes);
     const current = await this.formDetail(id, user);
     if (current.status === OperationStatus.CANCELLED) return current;
-    if (current.status === OperationStatus.DONE) throw new BadRequestException('Phiếu điều hành đã hoàn tất không thể hủy');
+    if (current.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 h\u1ee7y');
     await this.ensureFormCanBeCancelled(id);
     return this.prisma.$transaction(async (tx) => {
       const form = await tx.operationForm.update({
         where: { id },
-        data: { status: OperationStatus.CANCELLED, notes: this.text(dto.reason) ?? this.text(dto.notes) ?? undefined },
+        data: { status: OperationStatus.CANCELLED, ...(reason !== null ? { notes: reason } : {}) },
         include: this.formDetailInclude(),
       });
-      await this.audit(tx, 'CANCEL', 'OperationForm', id, dto);
+      await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto });
       return form;
     });
   }
@@ -324,6 +338,7 @@ export class OperationsService {
   }
 
   async createPaymentRequest(dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.operationActor(dto);
     const status = this.supplierPaymentStatus(dto.status, SupplierPaymentStatus.DRAFT);
     if (status !== SupplierPaymentStatus.DRAFT) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp phải được tạo ở trạng thái nháp');
     const items = this.paymentItems(dto);
@@ -336,17 +351,18 @@ export class OperationsService {
         data: {
           code,
           status,
-          requestedBy: this.text(dto.requestedBy) || this.text(dto.actor),
+          requestedBy: this.text(dto.requestedBy) || actor,
           items: { create: items },
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, dto);
+      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, { actor, itemCount: items.length, payload: dto });
       return request;
     });
   }
 
   async updatePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.operationActor(dto);
     const current = await this.paymentRequestDetail(id, user);
     if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được chỉnh sửa');
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
@@ -364,12 +380,12 @@ export class OperationsService {
         where: { id },
         data: {
           ...(dto.code !== undefined ? { code: this.requiredText(dto.code, 'Cần nhập mã yêu cầu thanh toán') } : {}),
-          ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: this.text(dto.requestedBy) || this.text(dto.actor) } : {}),
+          ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: this.text(dto.requestedBy) || actor } : {}),
           ...(items ? { items: { create: items } } : {}),
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, 'UPDATE', 'SupplierPaymentRequest', id, dto);
+      await this.audit(tx, 'UPDATE', 'SupplierPaymentRequest', id, { actor, changedFields: Object.keys(dto), payload: dto });
       return request;
     });
   }
@@ -384,6 +400,7 @@ export class OperationsService {
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: true } });
       if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
+      if (request.status === SupplierPaymentStatus.PAID) throw new BadRequestException('Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p \u0111\u00e3 thanh to\u00e1n kh\u00f4ng th\u1ec3 duy\u1ec7t l\u1ea1i');
       if (request.status !== SupplierPaymentStatus.REQUESTED) throw new BadRequestException('Chỉ yêu cầu đã gửi mới được duyệt');
       if (!request.items.length) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp chưa có dòng nào');
       const approved = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: SupplierPaymentStatus.APPROVED, approvedBy: actor }, include: this.paymentRequestDetailInclude() });
@@ -436,7 +453,7 @@ export class OperationsService {
         },
       });
       if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
-      if (request.financePaymentId) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
+      if (request.financePaymentId) return tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestDetailInclude() });
       if (request.status !== SupplierPaymentStatus.APPROVED) throw new BadRequestException('Chỉ yêu cầu đã duyệt mới được tạo phiếu chi tài chính');
       if (!request.items.length || request.items.some((item) => !item.costId || !item.cost?.operationForm)) {
         throw new BadRequestException('Các dòng yêu cầu thanh toán nhà cung cấp phải liên kết với chi phí điều hành');
@@ -456,10 +473,10 @@ export class OperationsService {
       const payment = await tx.financePayment.create({
         data: {
           voucherCode: await this.nextAvailableFinancePaymentCode(tx, new Date()),
-          voucherName: 'Chi NCC',
+          voucherName: 'Chi nh\u00e0 cung c\u1ea5p',
           voucherType: 'SUPPLIER_PAYMENT',
-          paymentDate: this.date(dto.paymentDate),
-          paymentMethod: (this.text(dto.paymentMethod) || 'BANK_TRANSFER') as never,
+          paymentDate: this.date(dto.paymentDate, 'Ng\u00e0y thanh to\u00e1n kh\u00f4ng h\u1ee3p l\u1ec7'),
+          paymentMethod: this.financePaymentMethod(dto.paymentMethod),
           supplierId: supplierIds.length === 1 ? supplierIds[0] : null,
           orderId: firstCostForm?.orderId ?? firstCostForm?.order?.id ?? firstCostForm?.booking?.orderId ?? null,
           tourId: paymentTourId,
@@ -481,7 +498,7 @@ export class OperationsService {
         throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
       }
       const updated = await tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestDetailInclude() });
-      await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id });
+      await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id, total, supplierIds });
       return updated;
     });
   }
@@ -556,7 +573,7 @@ export class OperationsService {
     return this.prisma.$transaction(async (tx) => {
       await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
       const deleted = await tx.supplierPaymentRequest.delete({ where: { id } });
-      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id);
+      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { status: current.status, code: current.code });
       return deleted;
     });
   }
@@ -592,24 +609,24 @@ export class OperationsService {
 
   private async replaceFormChildren(tx: Prisma.TransactionClient, formId: string, dto: AnyRecord) {
     const replacesServices = dto.services !== undefined;
+    const services = replacesServices ? this.formServices(dto) : undefined;
+    const parsedCosts = dto.costs !== undefined ? this.formCosts(dto) : undefined;
+    const tasks = dto.tasks !== undefined ? this.formTasks(dto) : undefined;
     const createdServices: Array<{ id: string }> = [];
     if (dto.costs !== undefined) {
       await tx.operationCost.deleteMany({ where: { operationFormId: formId } });
     }
-    if (replacesServices) {
-      const services = this.formServices(dto);
+    if (services) {
       await tx.operationService.deleteMany({ where: { operationFormId: formId } });
       for (const item of services) {
         createdServices.push(await tx.operationService.create({ data: { ...item, operationFormId: formId }, select: { id: true } }));
       }
     }
-    if (dto.costs !== undefined) {
-      const parsedCosts = this.formCosts(dto);
+    if (parsedCosts) {
       const costs = replacesServices ? this.rebindCostsToCreatedServices(parsedCosts, createdServices) : parsedCosts;
       if (costs.length) await tx.operationCost.createMany({ data: costs.map((item) => ({ ...item, operationFormId: formId })) });
     }
-    if (dto.tasks !== undefined) {
-      const tasks = this.formTasks(dto);
+    if (tasks) {
       await tx.operationTask.deleteMany({ where: { operationFormId: formId } });
       if (tasks.length) await tx.operationTask.createMany({ data: tasks.map((item) => ({ ...item, operationFormId: formId })) });
     }
@@ -628,6 +645,7 @@ export class OperationsService {
       tourOrderId = tour.orderId;
       orderId = orderId ?? tour.orderId;
     }
+    if (booking.orderId && tourOrderId && booking.orderId !== tourOrderId) throw new BadRequestException('tourId kh\u00f4ng thu\u1ed9c \u0111\u01a1n h\u00e0ng c\u1ee7a booking \u0111\u00e3 ch\u1ecdn');
     if (input.orderId && booking.orderId && input.orderId !== booking.orderId) throw new BadRequestException('orderId không thuộc booking đã chọn');
     if (input.orderId && tourOrderId && input.orderId !== tourOrderId) throw new BadRequestException('orderId không thuộc tour đã chọn');
     if (orderId) {
@@ -742,7 +760,7 @@ export class OperationsService {
         supplierServiceId: this.requiredText(item.supplierServiceId, 'Cần chọn dịch vụ nhà cung cấp'),
         serviceType: this.requiredText(item.serviceType, 'Cần nhập loại dịch vụ'),
         serviceName: this.requiredText(item.serviceName, 'Cần nhập tên dịch vụ'),
-        confirmationStatus: this.text(item.confirmationStatus) || 'WAITING',
+        confirmationStatus: this.operationConfirmationStatus(item.confirmationStatus),
         expectedCost: this.requiredNumber(item.expectedCost, 'Chi phí dự kiến phải lớn hơn 0', { positive: true }),
         actualCost: this.requiredNumber(item.actualCost, 'Chi phí thực tế phải lớn hơn hoặc bằng 0', { min: 0 }),
         notes: this.text(item.notes),
@@ -756,7 +774,7 @@ export class OperationsService {
       return {
         title: this.requiredText(item.title, 'Cần nhập tiêu đề task'),
         assignee: this.text(item.assignee),
-        dueDate: this.date(item.dueDate),
+        dueDate: this.date(item.dueDate, 'H\u1ea1n task kh\u00f4ng h\u1ee3p l\u1ec7'),
         status: this.operationStatus(item.status, OperationStatus.PENDING),
         notes: this.text(item.notes),
       };
@@ -1130,6 +1148,22 @@ export class OperationsService {
     return number;
   }
 
+  private operationActor(dto: AnyRecord) {
+    return this.text(dto.actor) || this.text(dto.requestedBy) || this.text(dto.approvedBy) || 'operation';
+  }
+
+  private operationConfirmationStatus(value: unknown) {
+    const text = this.text(value)?.toUpperCase() || 'WAITING';
+    if (OPERATION_CONFIRMATION_STATUSES.has(text)) return text;
+    throw new BadRequestException('Tr\u1ea1ng th\u00e1i x\u00e1c nh\u1eadn d\u1ecbch v\u1ee5 kh\u00f4ng h\u1ee3p l\u1ec7: ' + text);
+  }
+
+  private financePaymentMethod(value: unknown) {
+    const text = this.text(value)?.toUpperCase() || FinancePaymentMethod.BANK_TRANSFER;
+    if (Object.values(FinancePaymentMethod).includes(text as FinancePaymentMethod)) return text as FinancePaymentMethod;
+    throw new BadRequestException('Ph\u01b0\u01a1ng th\u1ee9c thanh to\u00e1n kh\u00f4ng h\u1ee3p l\u1ec7: ' + text);
+  }
+
   private operationStatus(value: unknown, fallback: OperationStatus) {
     const text = this.text(value);
     if (!text) return fallback;
@@ -1144,14 +1178,18 @@ export class OperationsService {
     throw new BadRequestException(`Tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p kh\u00f4ng h\u1ee3p l\u1ec7: ${text}`);
   }
 
-  private date(value: unknown) {
+  private date(value: unknown, message = 'Ng\u00e0y kh\u00f4ng h\u1ee3p l\u1ec7') {
     if (!value) return null;
-    if (value instanceof Date) return value;
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) throw new BadRequestException(message);
+      return value;
+    }
     if (typeof value === 'string' || typeof value === 'number') {
       const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? null : date;
+      if (Number.isNaN(date.getTime())) throw new BadRequestException(message);
+      return date;
     }
-    return null;
+    throw new BadRequestException(message);
   }
 
   private take(value?: unknown) {

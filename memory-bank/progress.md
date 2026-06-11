@@ -3,6 +3,17 @@
 ## Done
 
 
+- Hardened Operations form/payment request backend behavior:
+  - Form search/filter and payment request flows now have stronger validation,
+    Vietnamese error coverage for the touched paths, safer child replacement
+    parsing, and audit records that include actor/reason context.
+  - Repeated create-finance-payment calls for an already linked supplier payment
+    request return the current detail instead of creating another finance
+    payment; smoke coverage now asserts the same financePaymentId is reused.
+  - Verified on VPS with `TEST_OPERATIONS_CONTROLLER_CONTRACT_OK`,
+    `docker compose build api`, API deploy, and `SMOKE_OPERATIONS_BACKEND_OK`.
+
+
 - Hardened Finance frontend/data verification:
   - FinanceClient now has clearer Vietnamese UI copy, branch-aware API load
     errors, action-specific notices, safer approve/reject/cancel confirmations,
