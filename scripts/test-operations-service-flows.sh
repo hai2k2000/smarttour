@@ -227,9 +227,16 @@ async function main() {
 
   const branchAUser = user('data.scope.branch', 'BR-A', null);
   const depAUser = user('data.scope.department', null, 'DEP-A');
+  const branchDepAUser = user(['data.scope.branch', 'data.scope.department'], 'BR-A', 'DEP-A');
+  const branchADepBUser = user(['data.scope.branch', 'data.scope.department'], 'BR-A', 'DEP-B');
   assert((await service.listForms({ take: 50 }, branchAUser)).map((row) => row.id).join(',') === formA.id, 'branch scoped user should only see branch A form');
   assert((await service.listForms({ take: 50 }, depAUser)).map((row) => row.id).join(',') === formA.id, 'department scoped user should only see department A form');
+  assert((await service.listForms({ take: 50 }, branchDepAUser)).map((row) => row.id).join(',') === formA.id, 'branch and department scoped user should only see matching form');
+  assert((await service.listForms({ take: 50 }, branchADepBUser)).length === 0, 'branch and department scoped user should not see data when department mismatches');
   assert((await service.listForms({ take: 50 }, user('data.scope.branch', null, null))).length === 0, 'missing branch scope value should see no forms');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingB, supplierB, supplierServiceB, 'OUT-OF-SCOPE'), actor: 'branch-a' }, branchAUser), 'Không tìm thấy booking', 'branch scoped user cannot create form from another branch booking');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-ORDER'), bookingId: bookingA.id, orderId: orderB.id }, undefined), 'Đơn hàng đã chọn không thuộc booking đã chọn', 'create form should reject order outside booking');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TOUR'), bookingId: bookingA.id, tourId: tourB.id }, undefined), 'Tour đã chọn không thuộc booking đã chọn', 'create form should reject tour outside booking');
   await rejectsMessage(() => service.updateForm(formB.id, { notes: 'Không được sửa', actor: 'branch-a' }, branchAUser), 'Không tìm thấy phiếu điều hành', 'branch scoped user cannot update another branch form');
 
   const updatedFormA = await service.updateForm(formA.id, {
@@ -261,7 +268,14 @@ async function main() {
   assert((await service.listPaymentRequests({ supplierId: supplierA.id })).some((row) => row.id === request.id), 'list payment requests supplier filter should work');
   assert((await service.listPaymentRequests({ take: 50 }, branchAUser)).some((row) => row.id === request.id), 'branch scoped user should see request via operation form cost');
   assert((await service.listPaymentRequests({ take: 50 }, depAUser)).some((row) => row.id === request.id), 'department scoped user should see request via operation form cost');
+  assert((await service.listPaymentRequests({ take: 50 }, branchDepAUser)).some((row) => row.id === request.id), 'branch and department scoped user should see matching payment request');
+  assert((await service.listPaymentRequests({ take: 50 }, branchADepBUser)).every((row) => row.id !== request.id), 'branch and department scoped user should not see payment request when department mismatches');
   assert((await service.listPaymentRequests({ take: 50 }, user('data.scope.branch', 'BR-B', null))).every((row) => row.id !== request.id), 'other branch should not see branch A request');
+  await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-scope', items: [{ supplierId: supplierA.id, amount: 100 }] }, branchAUser), 'Cần chọn chi phí', 'scoped payment request should require cost id');
+  const scopeBookingB = await makeBooking('SCOPE-B', customerB, orderB, tourB);
+  const scopeFormB = await service.createForm(formPayload(scopeBookingB, supplierB, supplierServiceB, 'SCOPE-B'));
+  await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-scope', items: [{ supplierId: supplierB.id, costId: scopeFormB.costs[0].id, amount: 100 }] }, branchAUser), 'Không tìm thấy chi phí điều hành', 'branch scoped user cannot request payment for another branch cost');
+  await service.updateForm(scopeFormB.id, { status: 'DONE', actor: 'dashboard-cleanup' });
 
   const updatedRequest = await service.updatePaymentRequest(request.id, {
     actor: 'payment-updater',

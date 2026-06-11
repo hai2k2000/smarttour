@@ -836,15 +836,21 @@ export class OperationsService {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     const permissions = userPermissions(user);
     if (this.hasMissingReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
-    const AND: Prisma.SupplierPaymentRequestWhereInput[] = [where];
+    const financeScope: Prisma.FinancePaymentWhereInput = {};
+    const formScope: Prisma.OperationFormWhereInput = {};
+    let hasScope = false;
     if (permissions.has('data.scope.branch') && user.branch) {
-      AND.push({ OR: [{ financePayment: { branch: user.branch } }, { items: { some: { cost: { operationForm: this.operationFormBranchScope(user.branch) } } } }] });
+      financeScope.branch = user.branch;
+      Object.assign(formScope, { AND: [...(Array.isArray(formScope.AND) ? formScope.AND : []), this.operationFormBranchScope(user.branch)] });
+      hasScope = true;
     }
     if (permissions.has('data.scope.department') && user.department) {
-      AND.push({ OR: [{ financePayment: { department: user.department } }, { items: { some: { cost: { operationForm: this.operationFormDepartmentScope(user.department) } } } }] });
+      financeScope.department = user.department;
+      Object.assign(formScope, { AND: [...(Array.isArray(formScope.AND) ? formScope.AND : []), this.operationFormDepartmentScope(user.department)] });
+      hasScope = true;
     }
-    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND };
+    if (!hasScope) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND: [where, { OR: [{ financePayment: financeScope }, { items: { some: { cost: { operationForm: formScope } } } }] }] };
   }
 
   private activeOperationFormScope(user?: RequestUser) {
