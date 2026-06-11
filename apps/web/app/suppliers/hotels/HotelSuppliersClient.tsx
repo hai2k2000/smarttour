@@ -118,20 +118,20 @@ const allotmentSchema = z.object({
 });
 
 const hotelSchema = z.object({
-  supplierCode: z.string().min(2, 'Nhap ma NCC'),
-  name: z.string().min(2, 'Nhap ten NCC'),
+  supplierCode: z.string().min(2, 'Nhập mã nhà cung cấp'),
+  name: z.string().min(2, 'Nhập tên nhà cung cấp'),
   taxCode: z.string().default(''),
   builtYear: z.coerce.number().optional(),
-  phone: z.string().min(6, 'Nhap dien thoai'),
-  email: z.string().email('Email khong hop le').or(z.literal('')).default(''),
+  phone: z.string().min(6, 'Nhập số điện thoại'),
+  email: z.string().email('Email không hợp lệ').or(z.literal('')).default(''),
   country: z.string().default('Viet Nam'),
   province: z.string().default(''),
   address: z.string().default(''),
   notes: z.string().default(''),
   rating: z.coerce.number().default(0),
   website: z.string().default(''),
-  classHotel: z.string().min(1, 'Chon hang khach san'),
-  hotelProject: z.string().min(1, 'Nhap du an/line hotel'),
+  classHotel: z.string().min(1, 'Chọn hạng khách sạn'),
+  hotelProject: z.string().min(1, 'Nhập dự án/line khách sạn'),
   bankAccountName: z.string().default(''),
   bankAccountNumber: z.string().default(''),
   bankName: z.string().default(''),
@@ -298,19 +298,19 @@ export default function HotelSuppliersClient({ initialHotels }: { initialHotels:
     const helper = createColumnHelper<HotelSupplier>();
     return [
       helper.display({ id: 'check', header: '', cell: () => <input type="checkbox" aria-label="select supplier" /> }),
-      helper.accessor('supplierCode', { header: 'Ma NCC', cell: (info) => info.getValue() || '-' }),
-      helper.accessor('name', { header: 'Ten NCC' }),
-      helper.accessor('taxCode', { header: 'Ma so thue', cell: (info) => info.getValue() || '-' }),
-      helper.accessor('phone', { header: 'Dien thoai', cell: (info) => info.getValue() || '-' }),
-      helper.accessor((row) => row.hotelProfile?.classHotel || '-', { id: 'classHotel', header: 'Hang KS' }),
-      helper.accessor((row) => row.hotelProfile?.hotelProject || '-', { id: 'hotelProject', header: 'Du an' }),
-      helper.accessor('status', { header: 'Trang thai', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
+      helper.accessor('supplierCode', { header: 'Mã nhà cung cấp', cell: (info) => info.getValue() || '-' }),
+      helper.accessor('name', { header: 'Tên nhà cung cấp' }),
+      helper.accessor('taxCode', { header: 'Mã số thuế', cell: (info) => info.getValue() || '-' }),
+      helper.accessor('phone', { header: 'Điện thoại', cell: (info) => info.getValue() || '-' }),
+      helper.accessor((row) => row.hotelProfile?.classHotel || '-', { id: 'classHotel', header: 'Hạng khách sạn' }),
+      helper.accessor((row) => row.hotelProfile?.hotelProject || '-', { id: 'hotelProject', header: 'Dự án' }),
+      helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
       helper.display({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
           <button type="button" className="secondaryButton iconTextButton" onClick={() => startEdit(row.original)}>
-            <Pencil size={15} /> Sua
+            <Pencil size={15} /> Sửa
           </button>
         ),
       }),
@@ -339,10 +339,10 @@ export default function HotelSuppliersClient({ initialHotels }: { initialHotels:
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setMessage('Khong luu duoc NCC khach san. Kiem tra ma NCC hoac truong bat buoc.');
+      setMessage('Không lưu được nhà cung cấp khách sạn. Kiểm tra mã nhà cung cấp hoặc các trường bắt buộc.');
       return;
     }
-    setMessage(editingId ? 'Da cap nhat NCC khach san.' : 'Da tao NCC khach san.');
+    setMessage(editingId ? 'Đã cập nhật nhà cung cấp khách sạn.' : 'Đã tạo nhà cung cấp khách sạn.');
     reset(defaultValues);
     setEditingId(null);
     setFormOpen(false);
@@ -376,91 +376,91 @@ export default function HotelSuppliersClient({ initialHotels }: { initialHotels:
   return (
     <div className="hotelSupplierPage">
       <section className="metrics">
-        <article className="metric"><span>Tong quy phong</span><strong>{allotmentSummary.allotmentQty.toLocaleString('vi-VN')}</strong></article>
-        <article className="metric"><span>Da ban</span><strong>{allotmentSummary.bookedQty.toLocaleString('vi-VN')}</strong></article>
-        <article className="metric"><span>Dang khoa</span><strong>{allotmentSummary.lockedQty.toLocaleString('vi-VN')}</strong></article>
-        <article className="metric"><span>Con lai</span><strong>{allotmentSummary.remainingQty.toLocaleString('vi-VN')}</strong></article>
-        <article className="metric"><span>Doanh thu phong</span><strong>{allotmentSummary.revenue.toLocaleString('vi-VN')}</strong></article>
+        <article className="metric"><span>Tổng quỹ phòng</span><strong>{allotmentSummary.allotmentQty.toLocaleString('vi-VN')}</strong></article>
+        <article className="metric"><span>Đã bán</span><strong>{allotmentSummary.bookedQty.toLocaleString('vi-VN')}</strong></article>
+        <article className="metric"><span>Đang khóa</span><strong>{allotmentSummary.lockedQty.toLocaleString('vi-VN')}</strong></article>
+        <article className="metric"><span>Còn lại</span><strong>{allotmentSummary.remainingQty.toLocaleString('vi-VN')}</strong></article>
+        <article className="metric"><span>Doanh thu phòng</span><strong>{allotmentSummary.revenue.toLocaleString('vi-VN')}</strong></article>
       </section>
       {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm">
         <section className="panel">
           <div className="sectionHeader">
-            <h2>{editingId ? 'Cap nhat NCC khach san' : 'Tao NCC khach san'}</h2>
-            <span>{message || 'Bat dau voi thong tin bat buoc'}</span>
+            <h2>{editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Tạo nhà cung cấp khách sạn'}</h2>
+            <span>{message || 'Bắt đầu với thông tin bắt buộc'}</span>
           </div>
           <div className="hotelFormGrid">
-            <label>Ma NCC<input {...register('supplierCode')} /></label>
-            <label>Ten NCC<input {...register('name')} /></label>
-            <label>Ma so thue<input {...register('taxCode')} /></label>
-            <label>Nam xay dung<input type="number" {...register('builtYear')} /></label>
-            <label>Dien thoai<input {...register('phone')} /></label>
+            <label>Mã nhà cung cấp<input {...register('supplierCode')} /></label>
+            <label>Tên nhà cung cấp<input {...register('name')} /></label>
+            <label>Mã số thuế<input {...register('taxCode')} /></label>
+            <label>Năm xây dựng<input type="number" {...register('builtYear')} /></label>
+            <label>Điện thoại<input {...register('phone')} /></label>
             <label>Email<input type="email" {...register('email')} /></label>
-            <label>Quoc gia<input {...register('country')} /></label>
-            <label>Tinh/Thanh<input {...register('province')} /></label>
-            <label className="span2">Dia chi<input {...register('address')} /></label>
+            <label>Quốc gia<input {...register('country')} /></label>
+            <label>Tỉnh/Thành<input {...register('province')} /></label>
+            <label className="span2">Địa chỉ<input {...register('address')} /></label>
             <label>Rating<input type="number" min="0" max="5" {...register('rating')} /></label>
             <label>Website<input {...register('website')} /></label>
-            <label>Hang khach san<input placeholder="3 sao, 4 sao, resort..." {...register('classHotel')} /></label>
-            <label>Line/Du an hotel<input {...register('hotelProject')} /></label>
-            <label>Thi truong<input {...register('market')} /></label>
-            <label>Trang thai<select {...register('status')}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
-            <label>Chu tai khoan<input {...register('bankAccountName')} /></label>
-            <label>So tai khoan<input {...register('bankAccountNumber')} /></label>
-            <label>Ngan hang<input {...register('bankName')} /></label>
-            <label>Link NCC<input {...register('link')} /></label>
-            <label className="span2">Ghi chu<textarea rows={3} {...register('notes')} /></label>
-            <label className="fileDrop"><FileUp size={18} /> File dinh kem se duoc noi tiep vao module upload<input type="file" multiple /></label>
+            <label>Hạng khách sạn<input placeholder="3 sao, 4 sao, resort..." {...register('classHotel')} /></label>
+            <label>Line/Dự án khách sạn<input {...register('hotelProject')} /></label>
+            <label>Thị trường<input {...register('market')} /></label>
+            <label>Trạng thái<select {...register('status')}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
+            <label>Chủ tài khoản<input {...register('bankAccountName')} /></label>
+            <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
+            <label>Ngân hàng<input {...register('bankName')} /></label>
+            <label>Link nhà cung cấp<input {...register('link')} /></label>
+            <label className="span2">Ghi chú<textarea rows={3} {...register('notes')} /></label>
+            <label className="fileDrop"><FileUp size={18} /> File đính kèm sẽ được nối tiếp vào module upload<input type="file" multiple /></label>
           </div>
           <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.classHotel?.message, errors.hotelProject?.message]} />
         </section>
 
-        <DynamicRows title="Lien he NCC" name="contacts" register={register} fieldArray={contacts} columns={[
-          { key: 'fullName', label: 'Ho ten' },
-          { key: 'position', label: 'Chuc vu' },
-          { key: 'birthday', label: 'Sinh nhat', type: 'date' },
-          { key: 'phone', label: 'Dien thoai' },
+        <DynamicRows title="Liên hệ nhà cung cấp" name="contacts" register={register} fieldArray={contacts} columns={[
+          { key: 'fullName', label: 'Họ tên' },
+          { key: 'position', label: 'Chức vụ' },
+          { key: 'birthday', label: 'Sinh nhật', type: 'date' },
+          { key: 'phone', label: 'Điện thoại' },
           { key: 'email', label: 'Email' },
         ]} emptyRow={emptyContact} />
 
-        <DynamicRows title="Dich vu / San pham" name="services" register={register} fieldArray={services} columns={[
+        <DynamicRows title="Dịch vụ / Sản phẩm" name="services" register={register} fieldArray={services} columns={[
           { key: 'sku', label: 'SKU' },
-          { key: 'serviceName', label: 'Ten dich vu' },
-          { key: 'startDate', label: 'Tu ngay', type: 'date' },
-          { key: 'endDate', label: 'Den ngay', type: 'date' },
-          { key: 'dayType', label: 'Loai ngay', type: 'select' },
-          { key: 'accountingPrice', label: 'Gia ke toan', type: 'number' },
-          { key: 'netPrice', label: 'Gia NET', type: 'number' },
-          { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-          { key: 'description', label: 'Dien giai', type: 'textarea' },
-          { key: 'note', label: 'Ghi chu' },
+          { key: 'serviceName', label: 'Tên dịch vụ' },
+          { key: 'startDate', label: 'Từ ngày', type: 'date' },
+          { key: 'endDate', label: 'Đến ngày', type: 'date' },
+          { key: 'dayType', label: 'Loại ngày', type: 'select' },
+          { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
+          { key: 'netPrice', label: 'Giá NET', type: 'number' },
+          { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+          { key: 'description', label: 'Diễn giải', type: 'textarea' },
+          { key: 'note', label: 'Ghi chú' },
         ]} emptyRow={emptyService} />
 
-        <DynamicRows title="Allotment / Giu phong" name="allotments" register={register} fieldArray={allotments} columns={[
+        <DynamicRows title="Allotment / Giữ phòng" name="allotments" register={register} fieldArray={allotments} columns={[
           { key: 'sku', label: 'SKU' },
-          { key: 'serviceName', label: 'Ten dich vu' },
-          { key: 'startDate', label: 'Tu ngay', type: 'date' },
-          { key: 'endDate', label: 'Den ngay', type: 'date' },
-          { key: 'dayType', label: 'Loai ngay', type: 'select' },
-          { key: 'allotmentQty', label: 'Tong quy', type: 'number' },
-          { key: 'bookedQty', label: 'Da ban', type: 'number' },
-          { key: 'lockedQty', label: 'Dang khoa', type: 'number' },
-          { key: 'cutoffDays', label: 'Cutoff ngay', type: 'number' },
+          { key: 'serviceName', label: 'Tên dịch vụ' },
+          { key: 'startDate', label: 'Từ ngày', type: 'date' },
+          { key: 'endDate', label: 'Đến ngày', type: 'date' },
+          { key: 'dayType', label: 'Loại ngày', type: 'select' },
+          { key: 'allotmentQty', label: 'Tổng quỹ', type: 'number' },
+          { key: 'bookedQty', label: 'Đã bán', type: 'number' },
+          { key: 'lockedQty', label: 'Đang khóa', type: 'number' },
+          { key: 'cutoffDays', label: 'Cutoff ngày', type: 'number' },
           { key: 'netCostPerDay', label: 'NET/ngay', type: 'number' },
           { key: 'sellingPricePerDay', label: 'Gia ban/ngay', type: 'number' },
-          { key: 'status', label: 'Trang thai' },
-          { key: 'description', label: 'Dien giai', type: 'textarea' },
-          { key: 'note', label: 'Ghi chu' },
+          { key: 'status', label: 'Trạng thái' },
+          { key: 'description', label: 'Diễn giải', type: 'textarea' },
+          { key: 'note', label: 'Ghi chú' },
         ]} emptyRow={emptyAllotment} />
 
         <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting}><Save size={17} /> {editingId ? 'Luu cap nhat' : 'Luu NCC'}</button>
-          <button type="button" className="dangerButton" onClick={clearForm}><X size={17} /> Dong</button>
+          <button type="submit" disabled={isSubmitting}><Save size={17} /> {editingId ? 'Lưu cập nhật' : 'Lưu nhà cung cấp'}</button>
+          <button type="button" className="dangerButton" onClick={clearForm}><X size={17} /> Đóng</button>
         </div>
       </form></div></div> : null}
 
       <section className="panel listPanel">
         <div className="sectionHeader">
-          <h2>Danh sach NCC khach san</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Them moi</button><label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, ten, SDT, du an..." /></label>
+          <h2>Danh sách nhà cung cấp khách sạn</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Thêm mới</button><label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, tên, số điện thoại, dự án..." /></label>
         </div>
         <div className="fitTableWrap">
           <table className="fitTable hotelListTable">
@@ -481,7 +481,7 @@ export default function HotelSuppliersClient({ initialHotels }: { initialHotels:
                   ))}
                 </tr>
               ))}
-              {filteredHotels.length === 0 ? <tr><td colSpan={9}>Chua co NCC khach san.</td></tr> : null}
+              {filteredHotels.length === 0 ? <tr><td colSpan={9}>Chưa có nhà cung cấp khách sạn.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -522,7 +522,7 @@ function DynamicRows<T extends ArrayName>({
           id: 'actions',
           header: '',
           cell: ({ row }) => (
-            <button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)} aria-label="Xoa dong">
+            <button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)} aria-label="Xóa dòng">
               <Trash2 size={15} />
             </button>
           ),
@@ -536,7 +536,7 @@ function DynamicRows<T extends ArrayName>({
     <section className="fitTableBlock">
       <div className="sectionHeader">
         <h2>{title}</h2>
-        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Them dong</button>
+        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm dòng</button>
       </div>
       <div className="fitTableWrap">
         <table className="fitTable hotelDynamicTable">

@@ -280,6 +280,7 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .supplierCategoryCard { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--dn-border); border-radius: var(--dn-radius-md); background: var(--dn-surface-soft); padding: 10px 11px; }
 .supplierCategoryCard strong { min-width: 0; overflow-wrap: anywhere; }
 .supplierCategoryCard span { flex: 0 0 auto; color: var(--dn-primary); font-size: 12px; font-weight: 800; }
+.supplierTableWrap { width: 100%; max-width: 100%; overflow-x: auto; border-radius: 7px; }
 .supplierTable { min-width: 1080px; table-layout: fixed; }
 .supplierTable th:nth-child(1) { width: 190px; }
 .supplierTable th:nth-child(2) { width: 140px; }
@@ -288,7 +289,10 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .supplierTable td { vertical-align: top; line-height: 1.4; }
 .supplierTable td:last-child { color: inherit; font-weight: inherit; }
 .supplierMeta { display: block; margin-top: 4px; color: var(--dn-muted); font-size: 12px; font-weight: 700; }
-.supplierDebtNote { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: #4b6b3d; }
+.supplierDebtBlock { display: grid; gap: 5px; color: #4b6b3d; }
+.supplierDebtBlock span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.supplierDebtBlock strong { color: #276c72; }
+.supplierDebtNote { color: #64748b; font-weight: 700; }
 .supplierFieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .supplierForm textarea { resize: vertical; }
 .supplierDeleteWarning { display: grid; gap: 8px; border: 1px solid #fecaca; border-radius: var(--dn-radius-md); background: #fff1f0; color: #7f1d1d; padding: 12px; }

@@ -151,7 +151,7 @@ export class SuppliersService {
   async deleteSupplierFile(id: string, fileId: string) {
     await this.getSupplier(id);
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
-    if (!file) throw new NotFoundException('Khong tim thay file nha cung cap');
+    if (!file) throw new NotFoundException('Không tìm thấy file nhà cung cấp');
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
     if (objectKey) await this.filesService.remove(objectKey);
     return this.prisma.supplierFile.delete({ where: { id: fileId } });
@@ -916,12 +916,12 @@ export class SuppliersService {
       ['operationVouchers', 'phiếu điều hành'],
       ['financePayments', 'phiếu chi'],
       ['financeCashflowEntries', 'dòng tiền'],
-      ['supplierLedgerEntries', 'sổ công nợ NCC'],
+      ['supplierLedgerEntries', 'sổ công nợ nhà cung cấp'],
       ['supplierPaymentItems', 'yêu cầu thanh toán'],
       ['operationServices', 'dịch vụ điều hành'],
       ['quoteComboItems', 'dịch vụ combo'],
       ['quotationItems', 'item báo giá'],
-      ['tourSuppliers', 'NCC trong tour'],
+      ['tourSuppliers', 'nhà cung cấp trong tour'],
       ['tourServices', 'dịch vụ tour'],
       ['tourCosts', 'chi phí tour'],
       ['fitBudgetServices', 'dự toán FIT'],

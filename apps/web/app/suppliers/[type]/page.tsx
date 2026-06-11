@@ -26,7 +26,7 @@ export default async function SupplierTypePage({ params }: { params: Promise<{ t
     return (
       <main className="shell">
         <aside className="sidebar"><div className="brand">SmartTour</div></aside>
-        <section className="workspace"><h1>Loại NCC không tồn tại</h1></section>
+        <section className="workspace"><h1>Loại nhà cung cấp không tồn tại</h1></section>
       </main>
     );
   }
@@ -38,11 +38,11 @@ export default async function SupplierTypePage({ params }: { params: Promise<{ t
         <nav>
           <Link href="/">Tổng quan vận hành</Link>
           <Link href="/suppliers">Nhà cung cấp</Link>
-          <Link href="/suppliers/hotels">NCC khách sạn</Link>
-          <Link href="/suppliers/restaurants" className={type === 'restaurants' ? 'active' : ''}>NCC nhà hàng</Link>
-          <Link href="/suppliers/flights" className={type === 'flights' ? 'active' : ''}>NCC vé máy bay</Link>
-          <Link href="/suppliers/attraction-tickets" className={type === 'attraction-tickets' ? 'active' : ''}>NCC vé tham quan</Link>
-          <Link href="/suppliers/landtour-suppliers" className={type === 'landtour-suppliers' ? 'active' : ''}>NCC Landtour</Link>
+          <Link href="/suppliers/hotels">Nhà cung cấp khách sạn</Link>
+          <Link href="/suppliers/restaurants" className={type === 'restaurants' ? 'active' : ''}>Nhà cung cấp nhà hàng</Link>
+          <Link href="/suppliers/flights" className={type === 'flights' ? 'active' : ''}>Nhà cung cấp vé máy bay</Link>
+          <Link href="/suppliers/attraction-tickets" className={type === 'attraction-tickets' ? 'active' : ''}>Nhà cung cấp vé tham quan</Link>
+          <Link href="/suppliers/landtour-suppliers" className={type === 'landtour-suppliers' ? 'active' : ''}>Nhà cung cấp Landtour</Link>
           <Link href="/fit-tours">Tour khách lẻ FIT</Link>
         </nav>
       </aside>

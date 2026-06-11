@@ -26,195 +26,195 @@ type SupplierConfig = { title: string; shortTitle: string; serviceTitle: string;
 
 export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
   restaurants: {
-    title: 'Nha cung cap nha hang',
-    shortTitle: 'Nha hang',
-    serviceTitle: 'Danh muc thuc don',
-    serviceNameLabel: 'Ten menu',
+    title: 'Nhà cung cấp nhà hàng',
+    shortTitle: 'Nhà hàng',
+    serviceTitle: 'Danh mục thực đơn',
+    serviceNameLabel: 'Tên menu',
     serviceFields: [
-      { key: 'quantity', label: 'So luong', type: 'number' },
-      { key: 'accountingPrice', label: 'Gia KT', type: 'number' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'description', label: 'Mo ta', type: 'textarea' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
+      { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
   },
   flights: {
-    title: 'Nha cung cap ve may bay',
-    shortTitle: 'Ve may bay',
-    serviceTitle: 'Chang bay / ma ve',
-    serviceNameLabel: 'Code ve',
+    title: 'Nhà cung cấp vé máy bay',
+    shortTitle: 'Vé máy bay',
+    serviceTitle: 'Chặng bay / mã vé',
+    serviceNameLabel: 'Code vé',
     serviceFields: [
-      { key: 'ticketType', label: 'Loai ve' },
-      { key: 'route', label: 'Hanh trinh' },
-      { key: 'departureAirport', label: 'SHCB di' },
-      { key: 'departureDate', label: 'Ngay di', type: 'date' },
-      { key: 'departureTime', label: 'Gio di', type: 'time' },
-      { key: 'arrivalAirport', label: 'SHCB ve' },
-      { key: 'returnDate', label: 'Ngay ve', type: 'date' },
-      { key: 'returnTime', label: 'Gio ve', type: 'time' },
-      { key: 'depositDeadline', label: 'Han coc', type: 'datetime-local' },
-      { key: 'nameDeadline', label: 'Han vao ten', type: 'datetime-local' },
-      { key: 'fullpayDeadline', label: 'Han FullPay', type: 'datetime-local' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'taxPrice', label: 'Thue', type: 'number' },
-      { key: 'airportFee', label: 'Phi san bay', type: 'number' },
-      { key: 'issueFee', label: 'Phi xuat ve', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'commission', label: 'Hoa hong', type: 'number' },
+      { key: 'ticketType', label: 'Loại vé' },
+      { key: 'route', label: 'Hành trình' },
+      { key: 'departureAirport', label: 'Số hiệu chuyến bay đi' },
+      { key: 'departureDate', label: 'Ngày đi', type: 'date' },
+      { key: 'departureTime', label: 'Giờ đi', type: 'time' },
+      { key: 'arrivalAirport', label: 'Số hiệu chuyến bay về' },
+      { key: 'returnDate', label: 'Ngày về', type: 'date' },
+      { key: 'returnTime', label: 'Giờ về', type: 'time' },
+      { key: 'depositDeadline', label: 'Hạn cọc', type: 'datetime-local' },
+      { key: 'nameDeadline', label: 'Hạn vào tên', type: 'datetime-local' },
+      { key: 'fullpayDeadline', label: 'Hạn thanh toán đủ', type: 'datetime-local' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'taxPrice', label: 'Thuế', type: 'number' },
+      { key: 'airportFee', label: 'Phí sân bay', type: 'number' },
+      { key: 'issueFee', label: 'Phí xuất vé', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'commission', label: 'Hoa hồng', type: 'number' },
     ],
   },
   'attraction-tickets': {
-    title: 'Nha cung cap ve tham quan',
-    shortTitle: 'Ve tham quan',
-    serviceTitle: 'Dich vu / ve tham quan',
-    serviceNameLabel: 'Ten dich vu',
+    title: 'Nhà cung cấp vé tham quan',
+    shortTitle: 'Vé tham quan',
+    serviceTitle: 'Dịch vụ / vé tham quan',
+    serviceNameLabel: 'Tên dịch vụ',
     serviceFields: [
-      { key: 'quantity', label: 'So luong', type: 'number' },
-      { key: 'accountingPrice', label: 'Gia KT', type: 'number' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'description', label: 'Mo ta', type: 'textarea' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
+      { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
   },
   'landtour-suppliers': {
-    title: 'Nha cung cap Landtour',
+    title: 'Nhà cung cấp Landtour',
     shortTitle: 'Landtour',
-    serviceTitle: 'Chuong trinh Landtour',
-    serviceNameLabel: 'Ten tour',
+    serviceTitle: 'Chương trình Landtour',
+    serviceNameLabel: 'Tên tour',
     serviceFields: [
-      { key: 'supplierTourCode', label: 'Ma tour NCC' },
-      { key: 'duration', label: 'So ngay' },
-      { key: 'departurePlace', label: 'Diem di' },
-      { key: 'destinationPlace', label: 'Diem den' },
-      { key: 'tourType', label: 'Loai tour' },
-      { key: 'departureSchedule', label: 'Khoi hanh' },
-      { key: 'quantity', label: 'SL toi thieu', type: 'number' },
-      { key: 'capacity', label: 'Suc chua', type: 'number' },
-      { key: 'accountingPrice', label: 'Gia KT', type: 'number' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'childPolicy', label: 'CS tre em', type: 'textarea' },
-      { key: 'cancelPolicy', label: 'CS huy', type: 'textarea' },
-      { key: 'paymentPolicy', label: 'Thanh toan', type: 'textarea' },
+      { key: 'supplierTourCode', label: 'Mã tour nhà cung cấp' },
+      { key: 'duration', label: 'Số ngày' },
+      { key: 'departurePlace', label: 'Điểm đi' },
+      { key: 'destinationPlace', label: 'Điểm đến' },
+      { key: 'tourType', label: 'Loại tour' },
+      { key: 'departureSchedule', label: 'Khởi hành' },
+      { key: 'quantity', label: 'Số lượng tối thiểu', type: 'number' },
+      { key: 'capacity', label: 'Sức chứa', type: 'number' },
+      { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'childPolicy', label: 'Chính sách trẻ em', type: 'textarea' },
+      { key: 'cancelPolicy', label: 'Chính sách hủy', type: 'textarea' },
+      { key: 'paymentPolicy', label: 'Thanh toán', type: 'textarea' },
     ],
   },
   water: {
-    title: 'Nha cung cap nuoc suoi',
-    shortTitle: 'Nuoc suoi',
-    serviceTitle: 'San pham nuoc',
-    serviceNameLabel: 'Ten san pham',
+    title: 'Nhà cung cấp nước suối',
+    shortTitle: 'Nước suối',
+    serviceTitle: 'Sản phẩm nước',
+    serviceNameLabel: 'Tên sản phẩm',
     serviceFields: [
-      { key: 'packageSize', label: 'Quy cach' },
-      { key: 'unit', label: 'Don vi' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'description', label: 'Mo ta', type: 'textarea' },
+      { key: 'packageSize', label: 'Quy cách' },
+      { key: 'unit', label: 'Đơn vị' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
   },
   transport: {
-    title: 'Nha cung cap van chuyen',
-    shortTitle: 'Van chuyen',
-    serviceTitle: 'Dich vu xe',
-    serviceNameLabel: 'Loai xe',
+    title: 'Nhà cung cấp vận chuyển',
+    shortTitle: 'Vận chuyển',
+    serviceTitle: 'Dịch vụ xe',
+    serviceNameLabel: 'Loại xe',
     serviceFields: [
-      { key: 'licensePlate', label: 'Bien so' },
-      { key: 'seatCapacity', label: 'So cho', type: 'number' },
-      { key: 'driverName', label: 'Tai xe' },
-      { key: 'driverPhone', label: 'SDT tai xe' },
-      { key: 'dailyPrice', label: 'Gia ngay', type: 'number' },
-      { key: 'kmPrice', label: 'Gia KM', type: 'number' },
-      { key: 'overtimePrice', label: 'Qua gio', type: 'number' },
-      { key: 'fuelIncluded', label: 'Gom xang' },
+      { key: 'licensePlate', label: 'Biển số' },
+      { key: 'seatCapacity', label: 'Số chỗ', type: 'number' },
+      { key: 'driverName', label: 'Tài xế' },
+      { key: 'driverPhone', label: 'Số điện thoại tài xế' },
+      { key: 'dailyPrice', label: 'Giá ngày', type: 'number' },
+      { key: 'kmPrice', label: 'Giá km', type: 'number' },
+      { key: 'overtimePrice', label: 'Quá giờ', type: 'number' },
+      { key: 'fuelIncluded', label: 'Gồm xăng' },
     ],
   },
   bus: {
-    title: 'Nha xe tuyen co dinh',
-    shortTitle: 'Nha xe',
-    serviceTitle: 'Tuyen xe',
-    serviceNameLabel: 'Ten tuyen',
+    title: 'Nhà xe tuyến cố định',
+    shortTitle: 'Nhà xe',
+    serviceTitle: 'Tuyến xe',
+    serviceNameLabel: 'Tên tuyến',
     serviceFields: [
-      { key: 'routeCode', label: 'Ma tuyen' },
-      { key: 'departureStation', label: 'Ben di' },
-      { key: 'arrivalStation', label: 'Ben den' },
-      { key: 'departureTime', label: 'Gio di', type: 'time' },
-      { key: 'arrivalTime', label: 'Gio den', type: 'time' },
-      { key: 'seatType', label: 'Loai ghe' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
+      { key: 'routeCode', label: 'Mã tuyến' },
+      { key: 'departureStation', label: 'Bến đi' },
+      { key: 'arrivalStation', label: 'Bến đến' },
+      { key: 'departureTime', label: 'Giờ đi', type: 'time' },
+      { key: 'arrivalTime', label: 'Giờ đến', type: 'time' },
+      { key: 'seatType', label: 'Loại ghế' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
   other: {
-    title: 'Nha cung cap chi phi khac',
-    shortTitle: 'Chi phi khac',
-    serviceTitle: 'Dich vu phat sinh',
-    serviceNameLabel: 'Ten dich vu',
+    title: 'Nhà cung cấp chi phí khác',
+    shortTitle: 'Chi phí khác',
+    serviceTitle: 'Dịch vụ phát sinh',
+    serviceNameLabel: 'Tên dịch vụ',
     serviceFields: [
-      { key: 'unit', label: 'Don vi' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
-      { key: 'description', label: 'Mo ta', type: 'textarea' },
+      { key: 'unit', label: 'Đơn vị' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+      { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
   },
   villas: {
-    title: 'Nha cung cap villas',
+    title: 'Nhà cung cấp villas',
     shortTitle: 'Villas',
-    serviceTitle: 'Villa / gia',
-    serviceNameLabel: 'Ten villa',
+    serviceTitle: 'Villa / giá',
+    serviceNameLabel: 'Tên villa',
     serviceFields: [
-      { key: 'bedroomCount', label: 'So phong ngu', type: 'number' },
-      { key: 'capacity', label: 'Suc chua', type: 'number' },
-      { key: 'hasPool', label: 'Ho boi' },
+      { key: 'bedroomCount', label: 'Số phòng ngủ', type: 'number' },
+      { key: 'capacity', label: 'Sức chứa', type: 'number' },
+      { key: 'hasPool', label: 'Hồ bơi' },
       { key: 'hasBbq', label: 'BBQ' },
-      { key: 'hasKitchen', label: 'Bep' },
+      { key: 'hasKitchen', label: 'Bếp' },
       { key: 'checkinTime', label: 'Checkin', type: 'time' },
       { key: 'checkoutTime', label: 'Checkout', type: 'time' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
   passport: {
-    title: 'Nha cung cap visa / ho chieu',
+    title: 'Nhà cung cấp visa / hộ chiếu',
     shortTitle: 'Visa',
-    serviceTitle: 'Dich vu visa',
-    serviceNameLabel: 'Loai ho so',
+    serviceTitle: 'Dịch vụ visa',
+    serviceNameLabel: 'Loại hồ sơ',
     serviceFields: [
-      { key: 'country', label: 'Quoc gia' },
-      { key: 'documentType', label: 'Loai dich vu' },
-      { key: 'processingTime', label: 'Thoi gian xu ly' },
-      { key: 'requiredDocuments', label: 'Ho so can co', type: 'textarea' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'sellingPrice', label: 'Gia ban', type: 'number' },
+      { key: 'country', label: 'Quốc gia' },
+      { key: 'documentType', label: 'Loại dịch vụ' },
+      { key: 'processingTime', label: 'Thời gian xử lý' },
+      { key: 'requiredDocuments', label: 'Hồ sơ cần có', type: 'textarea' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
   guides: {
-    title: 'Huong dan vien',
+    title: 'Hướng dẫn viên',
     shortTitle: 'Tour Guide',
-    serviceTitle: 'Thong tin HDV',
-    serviceNameLabel: 'Ho ten HDV',
+    serviceTitle: 'Thông tin hướng dẫn viên',
+    serviceNameLabel: 'Họ tên hướng dẫn viên',
     serviceFields: [
-      { key: 'birthday', label: 'Ngay sinh', type: 'date' },
-      { key: 'phone', label: 'Dien thoai' },
+      { key: 'birthday', label: 'Ngày sinh', type: 'date' },
+      { key: 'phone', label: 'Điện thoại' },
       { key: 'email', label: 'Email' },
       { key: 'idNumber', label: 'CCCD' },
-      { key: 'guideCardNumber', label: 'The HDV' },
-      { key: 'languages', label: 'Ngon ngu' },
-      { key: 'regions', label: 'Khu vuc' },
-      { key: 'dailyRate', label: 'Gia ngay', type: 'number' },
+      { key: 'guideCardNumber', label: 'Thẻ hướng dẫn viên' },
+      { key: 'languages', label: 'Ngôn ngữ' },
+      { key: 'regions', label: 'Khu vực' },
+      { key: 'dailyRate', label: 'Giá ngày', type: 'number' },
     ],
   },
   'series-tickets': {
-    title: 'Series ve giu cho',
-    shortTitle: 'Series ve',
-    serviceTitle: 'Series ve',
-    serviceNameLabel: 'Loai ve',
+    title: 'Series vé giữ chỗ',
+    shortTitle: 'Series vé',
+    serviceTitle: 'Series vé',
+    serviceNameLabel: 'Loại vé',
     serviceFields: [
-      { key: 'seriesCode', label: 'Ma series' },
-      { key: 'route', label: 'Hanh trinh' },
-      { key: 'quantity', label: 'So luong', type: 'number' },
-      { key: 'netPrice', label: 'Gia NET', type: 'number' },
-      { key: 'depositDeadline', label: 'Han coc', type: 'date' },
-      { key: 'nameDeadline', label: 'Han vao ten', type: 'date' },
-      { key: 'fullPaymentDeadline', label: 'Han thanh toan', type: 'date' },
+      { key: 'seriesCode', label: 'Mã series' },
+      { key: 'route', label: 'Hành trình' },
+      { key: 'quantity', label: 'Số lượng', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
+      { key: 'depositDeadline', label: 'Hạn cọc', type: 'date' },
+      { key: 'nameDeadline', label: 'Hạn vào tên', type: 'date' },
+      { key: 'fullPaymentDeadline', label: 'Hạn thanh toán', type: 'date' },
     ],
   },
 };
@@ -372,14 +372,14 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
     const helper = createColumnHelper<Supplier>();
     return [
       helper.display({ id: 'check', header: '', cell: () => <input type="checkbox" aria-label="select supplier" /> }),
-      helper.display({ id: 'info', header: 'Thong tin', cell: ({ row }) => <div><strong>{row.original.supplierCode || '-'}</strong><br />{row.original.name}<br /><span className="mutedText">{row.original.taxCode || '-'}</span></div> }),
-      helper.accessor('phone', { header: 'Dien thoai', cell: (info) => info.getValue() || '-' }),
+      helper.display({ id: 'info', header: 'Thông tin', cell: ({ row }) => <div><strong>{row.original.supplierCode || '-'}</strong><br />{row.original.name}<br /><span className="mutedText">{row.original.taxCode || '-'}</span></div> }),
+      helper.accessor('phone', { header: 'Điện thoại', cell: (info) => info.getValue() || '-' }),
       helper.accessor('email', { header: 'Email', cell: (info) => info.getValue() || '-' }),
-      helper.accessor('province', { header: 'Tinh thanh', cell: (info) => info.getValue() || '-' }),
-      helper.display({ id: 'count', header: 'So luong', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
-      helper.display({ id: 'debt', header: 'Cong no', cell: () => '0' }),
-      helper.accessor('status', { header: 'Tinh trang', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
-      helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => startEdit(row.original)}><Pencil size={15} /> Sua</button> }),
+      helper.accessor('province', { header: 'Tỉnh thành', cell: (info) => info.getValue() || '-' }),
+      helper.display({ id: 'count', header: 'Số lượng', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
+      helper.display({ id: 'debt', header: 'Công nợ', cell: () => '0' }),
+      helper.accessor('status', { header: 'Tình trạng', cell: (info) => <span className="statusPill">{info.getValue()}</span> }),
+      helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => startEdit(row.original)}><Pencil size={15} /> Sửa</button> }),
     ];
   }, []);
   const table = useReactTable({ data: filtered, columns, getCoreRowModel: getCoreRowModel() });
@@ -402,10 +402,10 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setMessage('Khong luu duoc NCC. Kiem tra ma NCC va truong bat buoc.');
+      setMessage('Không lưu được nhà cung cấp. Kiểm tra mã nhà cung cấp và các trường bắt buộc.');
       return;
     }
-    setMessage(editingId ? 'Da cap nhat NCC.' : 'Da tao NCC.');
+    setMessage(editingId ? 'Đã cập nhật nhà cung cấp.' : 'Đã tạo nhà cung cấp.');
     setEditingId(null);
     setFormOpen(false);
     reset(defaultValues);
@@ -437,27 +437,27 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
       {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide"><form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm">
         <section className="panel">
           <div className="sectionHeader">
-            <h2>{editingId ? `Cap nhat ${config.shortTitle}` : `Tao ${config.shortTitle}`}</h2>
-            <span>{message || 'Thong tin nha cung cap'}</span>
+            <h2>{editingId ? `Cập nhật ${config.shortTitle}` : `Tạo ${config.shortTitle}`}</h2>
+            <span>{message || 'Thông tin nhà cung cấp'}</span>
           </div>
           <div className="hotelFormGrid">
-            <label>Ma NCC<input {...register('supplierCode')} /></label>
-            <label>Ten NCC<input {...register('name')} /></label>
-            <label>Ma so thue<input {...register('taxCode')} /></label>
-            <label>Dien thoai<input {...register('phone')} /></label>
+            <label>Mã nhà cung cấp<input {...register('supplierCode')} /></label>
+            <label>Tên nhà cung cấp<input {...register('name')} /></label>
+            <label>Mã số thuế<input {...register('taxCode')} /></label>
+            <label>Điện thoại<input {...register('phone')} /></label>
             <label>Email<input type="email" {...register('email')} /></label>
-            <label>Tinh/Thanh<input {...register('province')} /></label>
+            <label>Tỉnh/Thành<input {...register('province')} /></label>
             <label>Website<input {...register('website')} /></label>
             <label>Link<input {...register('link')} /></label>
             <label>Rating<input type="number" min="0" max="5" {...register('rating')} /></label>
-            <label>Thi truong<input {...register('market')} /></label>
-            <label>Trang thai<select {...register('status')}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
-            <label>Ten tai khoan<input {...register('bankAccountName')} /></label>
-            <label>So tai khoan<input {...register('bankAccountNumber')} /></label>
-            <label>Ngan hang<input {...register('bankName')} /></label>
-            <label className="span2">Dia chi<input {...register('address')} /></label>
-            <label className="span2">Ghi chu<textarea rows={3} {...register('notes')} /></label>
-            <label className="fileDrop"><FileUp size={18} /> File dinh kem se noi tiep vao module upload<input type="file" multiple /></label>
+            <label>Thị trường<input {...register('market')} /></label>
+            <label>Trạng thái<select {...register('status')}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></label>
+            <label>Tên tài khoản<input {...register('bankAccountName')} /></label>
+            <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
+            <label>Ngân hàng<input {...register('bankName')} /></label>
+            <label className="span2">Địa chỉ<input {...register('address')} /></label>
+            <label className="span2">Ghi chú<textarea rows={3} {...register('notes')} /></label>
+            <label className="fileDrop"><FileUp size={18} /> File đính kèm sẽ nối tiếp vào module upload<input type="file" multiple /></label>
           </div>
         </section>
 
@@ -465,23 +465,23 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
         <ServiceRows config={config} register={register} fieldArray={services} />
 
         <div className="hotelFormActions">
-          <button type="submit" disabled={isSubmitting}><Save size={17} /> Luu</button>
-          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Dong</button>
+          <button type="submit" disabled={isSubmitting}><Save size={17} /> Lưu</button>
+          <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
         </div>
       </form></div></div> : null}
 
       <section className="panel listPanel">
         <div className="sectionHeader">
-          <h2>Danh sach {config.shortTitle}</h2>
-          <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Them moi</button>
-          <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tim ma, ten, SDT, email..." /></label>
+          <h2>Danh sách {config.shortTitle}</h2>
+          <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Thêm mới</button>
+          <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, tên, số điện thoại, email..." /></label>
         </div>
         <div className="fitTableWrap">
           <table className="fitTable hotelListTable">
             <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-              {filtered.length === 0 ? <tr><td colSpan={9}>Chua co du lieu.</td></tr> : null}
+              {filtered.length === 0 ? <tr><td colSpan={9}>Chưa có dữ liệu.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -493,15 +493,15 @@ export default function GenericSupplierClient({ type, config, initialSuppliers }
 function ContactRows({ register, fieldArray }: { register: UseFormRegister<SupplierForm>; fieldArray: UseFieldArrayReturn<SupplierForm, 'contacts', 'id'> }) {
   return (
     <DynamicRows
-      title="Thong tin lien he"
+      title="Thông tin liên hệ"
       name="contacts"
       register={register}
       fieldArray={fieldArray}
       columns={[
-        { key: 'fullName', label: 'Ho ten' },
-        { key: 'position', label: 'Chuc vu' },
-        { key: 'birthday', label: 'Ngay sinh', type: 'date' },
-        { key: 'phone', label: 'Dien thoai' },
+        { key: 'fullName', label: 'Họ tên' },
+        { key: 'position', label: 'Chức vụ' },
+        { key: 'birthday', label: 'Ngày sinh', type: 'date' },
+        { key: 'phone', label: 'Điện thoại' },
         { key: 'email', label: 'Email' },
       ]}
       emptyRow={emptyContact}
@@ -520,7 +520,7 @@ function ServiceRows({ config, register, fieldArray }: { config: SupplierConfig;
         { key: 'sku', label: 'SKU' },
         { key: 'serviceName', label: config.serviceNameLabel },
         ...config.serviceFields,
-        { key: 'note', label: 'Ghi chu' },
+        { key: 'note', label: 'Ghi chú' },
       ]}
       emptyRow={emptyService}
     />
@@ -558,7 +558,7 @@ function DynamicRows<T extends ArrayName>({
     <section className="fitTableBlock">
       <div className="sectionHeader">
         <h2>{title}</h2>
-        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Them dong</button>
+        <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm dòng</button>
       </div>
       <div className="fitTableWrap">
         <table className="fitTable hotelDynamicTable">

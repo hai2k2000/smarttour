@@ -34,6 +34,10 @@ type SuppliersPageProps = {
 };
 
 const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+const createCategoryModalId = 'suppliers-create-category';
+const createSupplierModalId = 'suppliers-create-supplier';
+const editSupplierModalId = (id: string) => `suppliers-edit-${id}`;
+const deleteSupplierModalId = (id: string) => `suppliers-delete-${id}`;
 
 async function responseError(response: Response) {
   try {
@@ -185,8 +189,8 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const notice = singleParam(params.notice);
   const error = singleParam(params.error);
   const [categoriesResult, suppliersResult] = await Promise.all([
-    apiGet<SupplierCategory[]>('/supplier-categories', [], 'Load loại nhà cung cấp'),
-    apiGet<Supplier[]>('/suppliers', [], 'Load danh sách nhà cung cấp'),
+    apiGet<SupplierCategory[]>('/supplier-categories', [], 'Tải danh sách loại nhà cung cấp'),
+    apiGet<Supplier[]>('/suppliers', [], 'Tải danh sách nhà cung cấp'),
   ]);
   const categories = categoriesResult.data;
   const suppliers = suppliersResult.data;
@@ -217,13 +221,13 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
         <div className="panel">
           <div className="sectionHeader">
             <h2><FolderPlus size={18} /> Loại nhà cung cấp</h2>
-            <a className="iconTextButton secondaryButton" href="#create-category"><Plus size={14} /> Thêm loại</a>
+            <a className="iconTextButton secondaryButton" href={`#${createCategoryModalId}`}><Plus size={14} /> Thêm loại nhà cung cấp</a>
           </div>
           <div className="supplierCategoryList">
             {categories.map((category) => (
               <div className="supplierCategoryCard" key={category.id}>
                 <strong>{category.name}</strong>
-                <span>{category._count?.suppliers ?? 0} nhà cung cấp</span>
+                <span>{category._count?.suppliers ?? 0} nhà cung cấp đang gắn</span>
               </div>
             ))}
             {categories.length === 0 ? <div className="tableEmptyState">Chưa có loại nhà cung cấp.</div> : null}
@@ -235,7 +239,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
             <h2><Building2 size={18} /> Danh sách nhà cung cấp</h2>
             <p className="mutedText">Quản lý thông tin liên hệ, chính sách giá và ghi chú công nợ của từng nhà cung cấp.</p>
           </div>
-          <a className="iconTextButton" href="#create-supplier"><Plus size={14} /> Thêm nhà cung cấp</a>
+          <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a>
         </div>
       </section>
 
@@ -244,11 +248,12 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           <h2>Danh sách nhà cung cấp</h2>
           <span>{suppliers.length} nhà cung cấp</span>
         </div>
-        <table className="supplierTable">
+        <div className="supplierTableWrap">
+          <table className="supplierTable">
           <thead>
             <tr>
               <th>Nhà cung cấp</th>
-              <th>Loại NCC</th>
+              <th>Loại nhà cung cấp</th>
               <th>Liên hệ</th>
               <th>Điện thoại</th>
               <th>Email</th>
@@ -270,14 +275,19 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                 <td>{display(supplier.email)}</td>
                 <td>{display(supplier.address)}</td>
                 <td>
-                  <span className="supplierDebtNote">{display(supplier.debtNote || supplier.notes || supplier.pricePolicy)}</span>
+                  <div className="supplierDebtBlock">
+                    {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
+                    {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
+                    {supplier.notes ? <span><strong>Ghi chú:</strong> {supplier.notes}</span> : null}
+                    {!supplier.debtNote && !supplier.pricePolicy && !supplier.notes ? <span className="supplierDebtNote mutedText">Chưa có ghi chú công nợ.</span> : null}
+                  </div>
                 </td>
                 <td className="actionsCell">
                   <div className="rowActions">
-                    <a className="secondaryButton iconOnlyButton" href={`#edit-supplier-${supplier.id}`} title="Sửa nhà cung cấp">
+                    <a className="secondaryButton iconOnlyButton" href={`#${editSupplierModalId(supplier.id)}`} title="Sửa nhà cung cấp">
                       <Pencil size={14} />
                     </a>
-                    <a className="dangerButton iconOnlyButton" href={`#delete-supplier-${supplier.id}`} title="Xóa nhà cung cấp">
+                    <a className="dangerButton iconOnlyButton" href={`#${deleteSupplierModalId(supplier.id)}`} title="Xóa nhà cung cấp">
                       <Trash2 size={14} />
                     </a>
                   </div>
@@ -286,19 +296,20 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
             ))}
             {suppliers.length === 0 ? (
               <tr>
-                <td colSpan={8}>Chưa có nhà cung cấp. Hãy tạo loại NCC và nhà cung cấp đầu tiên.</td>
+                <td colSpan={8}>Chưa có nhà cung cấp. Hãy tạo loại nhà cung cấp và nhà cung cấp đầu tiên.</td>
               </tr>
             ) : null}
           </tbody>
-        </table>
+          </table>
+        </div>
       </section>
 
-      <CategoryModal action={createCategory} />
-      <SupplierModal id="create-supplier" title="Thêm nhà cung cấp" categories={categories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
+      <CategoryModal id={createCategoryModalId} action={createCategory} />
+      <SupplierModal id={createSupplierModalId} title="Thêm nhà cung cấp" categories={categories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
       {suppliers.map((supplier) => (
         <SupplierModal
           key={supplier.id}
-          id={`edit-supplier-${supplier.id}`}
+          id={editSupplierModalId(supplier.id)}
           title={`Sửa ${supplier.name}`}
           categories={categories}
           supplier={supplier}
@@ -313,9 +324,9 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   );
 }
 
-function CategoryModal({ action }: { action: (formData: FormData) => Promise<void> }) {
+function CategoryModal({ id, action }: { id: string; action: (formData: FormData) => Promise<void> }) {
   return (
-    <div id="create-category" className="hashModal">
+    <div id={id} className="hashModal">
       <a className="hashModalBackdrop" href="/suppliers" aria-label="Đóng modal" />
       <div className="hashModalPanel">
         <div className="hashModalHeader">
@@ -389,7 +400,7 @@ function SupplierForm({
         <legend>Thông tin cơ bản</legend>
         <div className="supplierFieldGrid">
           <label>
-            Loại NCC
+            Loại nhà cung cấp
             <select name="categoryId" required defaultValue={selectedCategoryId}>
               <option value="">Chọn loại nhà cung cấp</option>
               {categories.map((category) => (
@@ -456,7 +467,7 @@ function SupplierForm({
 
 function DeleteSupplierModal({ supplier }: { supplier: Supplier }) {
   return (
-    <div id={`delete-supplier-${supplier.id}`} className="hashModal">
+    <div id={deleteSupplierModalId(supplier.id)} className="hashModal">
       <a className="hashModalBackdrop" href="/suppliers" aria-label="Đóng modal" />
       <div className="hashModalPanel">
         <div className="hashModalHeader">
@@ -465,7 +476,7 @@ function DeleteSupplierModal({ supplier }: { supplier: Supplier }) {
         </div>
         <div className="supplierDeleteWarning">
           <strong>{supplier.name}</strong>
-          <p>Nếu NCC này đang được dùng trong đơn hàng, điều hành, báo giá, tài chính hoặc yêu cầu thanh toán, hệ thống sẽ chặn xóa và hiển thị rõ nơi đang được tham chiếu.</p>
+          <p>Nếu nhà cung cấp này đang được dùng trong đơn hàng, điều hành, báo giá, tài chính hoặc yêu cầu thanh toán, hệ thống sẽ chặn xóa và hiển thị rõ nơi đang được tham chiếu.</p>
         </div>
         <form action={deleteSupplier} className="modalActions">
           <input type="hidden" name="id" value={supplier.id} />
