@@ -25,6 +25,9 @@ const SUPPLIER_TYPE_LABELS: Record<string, string> = {
   'series-tickets': 'Series Ticket',
 };
 
+const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS)]);
+const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 @Injectable()
@@ -34,7 +37,7 @@ export class SuppliersService {
   listCategories() {
     return this.prisma.supplierCategory.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { suppliers: true } } },
+      include: { _count: { select: { suppliers: { where: { deletedAt: null } } } } },
     });
   }
 
@@ -46,13 +49,57 @@ export class SuppliersService {
     });
     if (existing) throw new ConflictException('Loại nhà cung cấp đã tồn tại');
     try {
-      return await this.prisma.supplierCategory.create({ data: { name } });
+      return await this.prisma.supplierCategory.create({
+        data: { name },
+        include: { _count: { select: { suppliers: { where: { deletedAt: null } } } } },
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Loại nhà cung cấp đã tồn tại');
       }
       throw error;
     }
+  }
+
+  async updateCategory(id: string, dto: CreateSupplierCategoryDto) {
+    const category = await this.prisma.supplierCategory.findUnique({ where: { id }, select: { id: true, name: true } });
+    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
+    if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name) && name !== category.name) {
+      throw new BadRequestException('Không thể đổi tên loại nhà cung cấp hệ thống');
+    }
+    const existing = await this.prisma.supplierCategory.findFirst({
+      where: { id: { not: id }, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+    try {
+      return await this.prisma.supplierCategory.update({
+        where: { id },
+        data: { name },
+        include: { _count: { select: { suppliers: { where: { deletedAt: null } } } } },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+      }
+      throw error;
+    }
+  }
+
+  async deleteCategory(id: string) {
+    const category = await this.prisma.supplierCategory.findUnique({
+      where: { id },
+      include: { _count: { select: { suppliers: true } } },
+    });
+    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name)) {
+      throw new BadRequestException('Không thể xóa loại nhà cung cấp hệ thống');
+    }
+    if (category._count.suppliers > 0) {
+      throw new ConflictException('Không thể xóa loại nhà cung cấp đang hoặc đã được gắn với nhà cung cấp');
+    }
+    return this.prisma.supplierCategory.delete({ where: { id } });
   }
 
   listSuppliers(search?: string, categoryId?: string) {
@@ -77,7 +124,7 @@ export class SuppliersService {
 
     return this.prisma.supplier.findMany({
       where,
-      include: { category: true, supplierServices: { orderBy: { createdAt: 'asc' } } },
+      include: this.supplierListInclude(),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
   }
@@ -89,7 +136,7 @@ export class SuppliersService {
         category: true,
         hotelProfile: true,
         contacts: true,
-        supplierServices: true,
+        supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
         allotments: true,
         files: true,
         services: true,
@@ -105,18 +152,23 @@ export class SuppliersService {
     await this.ensureCategory(dto.categoryId);
     return this.prisma.supplier.create({
       data: this.toSupplierData(dto) as Prisma.SupplierUncheckedCreateInput,
-      include: { category: true },
+      include: this.supplierListInclude(),
     });
   }
 
   async updateSupplier(id: string, dto: UpdateSupplierDto) {
-    await this.getSupplier(id);
+    const current = await this.getSupplier(id);
     this.validateSupplierPayload(dto, true);
-    if (dto.categoryId) await this.ensureCategory(dto.categoryId);
+    if (dto.categoryId) {
+      await this.ensureCategory(dto.categoryId);
+      if (dto.categoryId !== current.categoryId && this.isSpecializedSupplier(current)) {
+        throw new BadRequestException('Không thể đổi loại của nhà cung cấp chuyên biệt tại màn hình nhà cung cấp tổng. Hãy cập nhật trong phân hệ tương ứng.');
+      }
+    }
     return this.prisma.supplier.update({
       where: { id },
       data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
-      include: { category: true },
+      include: this.supplierListInclude(),
     });
   }
 
@@ -126,7 +178,7 @@ export class SuppliersService {
     if (usage.total > 0) {
       throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
     }
-    return this.prisma.supplier.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' }, include: { category: true } });
+    return this.prisma.supplier.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' }, include: this.supplierListInclude() });
   }
 
   async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string) {
@@ -162,7 +214,7 @@ export class SuppliersService {
     return this.prisma.supplier.update({
       where: { id },
       data: { status },
-      include: { category: true, hotelProfile: true },
+      include: { ...this.supplierListInclude(), hotelProfile: true },
     });
   }
 
@@ -596,14 +648,25 @@ export class SuppliersService {
     if (!this.optionalText(id)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
     const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
     if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    return category;
   }
 
   private async ensureCategoryByName(name: string) {
-    return this.prisma.supplierCategory.upsert({
-      where: { name },
-      update: {},
-      create: { name },
+    const existing = await this.prisma.supplierCategory.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
     });
+    if (existing) return existing;
+    try {
+      return await this.prisma.supplierCategory.create({ data: { name } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const concurrent = await this.prisma.supplierCategory.findFirst({
+          where: { name: { equals: name, mode: 'insensitive' } },
+        });
+        if (concurrent) return concurrent;
+      }
+      throw error;
+    }
   }
 
   private toSupplierData(dto: UpdateSupplierDto & Partial<CreateHotelSupplierDto & CreateGenericSupplierDto>) {
@@ -768,7 +831,7 @@ export class SuppliersService {
       category: true,
       hotelProfile: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
       allotments: { orderBy: { createdAt: 'asc' }, include: { allocations: { orderBy: { createdAt: 'desc' }, take: 10 }, logs: { orderBy: { createdAt: 'desc' }, take: 3 } } },
       files: { orderBy: { createdAt: 'desc' } },
     } satisfies Prisma.SupplierInclude;
@@ -776,9 +839,10 @@ export class SuppliersService {
 
   private hotelListInclude() {
     return {
+      category: true,
       hotelProfile: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
       allotments: { orderBy: { createdAt: 'asc' } },
     } satisfies Prisma.SupplierInclude;
   }
@@ -812,15 +876,16 @@ export class SuppliersService {
     return {
       category: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
       files: { orderBy: { createdAt: 'desc' } },
     } satisfies Prisma.SupplierInclude;
   }
 
   private genericListInclude() {
     return {
+      category: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
     } satisfies Prisma.SupplierInclude;
   }
 
@@ -846,9 +911,35 @@ export class SuppliersService {
       if (!name || name.length < 2) throw new BadRequestException('Tên nhà cung cấp phải có ít nhất 2 ký tự');
     }
 
+    const phone = this.optionalText(dto.phone);
+    if (phone && !SUPPLIER_PHONE_PATTERN.test(phone)) {
+      throw new BadRequestException('Số điện thoại nhà cung cấp không hợp lệ');
+    }
+
     if (dto.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email.trim())) {
       throw new BadRequestException('Email nhà cung cấp không hợp lệ');
     }
+
+    const pricePolicy = this.optionalText(dto.pricePolicy);
+    if (pricePolicy && pricePolicy.length > 2000) {
+      throw new BadRequestException('Chính sách giá không được vượt quá 2.000 ký tự');
+    }
+
+    const debtNote = this.optionalText(dto.debtNote);
+    if (debtNote && debtNote.length > 2000) {
+      throw new BadRequestException('Ghi chú công nợ không được vượt quá 2.000 ký tự');
+    }
+  }
+
+  private isSpecializedSupplier(supplier: { supplierCode?: string | null; hotelProfile?: unknown; category?: { name: string } | null }) {
+    return Boolean(supplier.hotelProfile || this.optionalText(supplier.supplierCode) || (supplier.category && SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(supplier.category.name)));
+  }
+
+  private supplierListInclude() {
+    return {
+      category: true,
+      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+    } satisfies Prisma.SupplierInclude;
   }
 
   private async supplierUsage(id: string) {

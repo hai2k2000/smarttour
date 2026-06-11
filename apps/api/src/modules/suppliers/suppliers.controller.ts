@@ -42,6 +42,18 @@ export class SupplierCategoriesController {
   create(@Body() dto: CreateSupplierCategoryDto) {
     return this.suppliersService.createCategory(dto);
   }
+
+  @Patch(':id')
+  @RequirePermissions('supplier.manage')
+  update(@Param('id') id: string, @Body() dto: CreateSupplierCategoryDto) {
+    return this.suppliersService.updateCategory(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('supplier.manage')
+  remove(@Param('id') id: string) {
+    return this.suppliersService.deleteCategory(id);
+  }
 }
 
 @ApiTags('suppliers')

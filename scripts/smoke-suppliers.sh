@@ -27,6 +27,9 @@ USED_CATEGORY_ID="sup_used_category_${RUN_ID_SAFE}"
 USED_SUPPLIER_ID="sup_used_supplier_${RUN_ID_SAFE}"
 USED_ORDER_ID="sup_used_order_${RUN_ID_SAFE}"
 USED_OPERATION_ITEM_ID="sup_used_op_item_${RUN_ID_SAFE}"
+USED_FINANCE_PAYMENT_ID="sup_used_fin_payment_${RUN_ID_SAFE}"
+USED_PAYMENT_REQUEST_ID="sup_used_pay_request_${RUN_ID_SAFE}"
+USED_PAYMENT_ITEM_ID="sup_used_pay_item_${RUN_ID_SAFE}"
 
 psql_exec() {
   docker exec -i "$POSTGRES_CONTAINER" psql -U smarttour -d smarttour "$@"
@@ -38,6 +41,9 @@ cleanup() {
     return
   fi
   psql_exec >/dev/null <<SQL || true
+DELETE FROM "SupplierPaymentItem" WHERE id = '${USED_PAYMENT_ITEM_ID}' OR "requestId" = '${USED_PAYMENT_REQUEST_ID}';
+DELETE FROM "SupplierPaymentRequest" WHERE id = '${USED_PAYMENT_REQUEST_ID}' OR code LIKE '${RUN_ID}%';
+DELETE FROM "FinancePayment" WHERE id = '${USED_FINANCE_PAYMENT_ID}' OR "voucherCode" LIKE '${RUN_ID}%';
 DELETE FROM "OrderOperationItem" WHERE id = '${USED_OPERATION_ITEM_ID}' OR "orderId" = '${USED_ORDER_ID}';
 DELETE FROM "Order" WHERE id = '${USED_ORDER_ID}' OR "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "Supplier" WHERE id = '${USED_SUPPLIER_ID}' OR "supplierCode" LIKE '${RUN_ID}%' OR name LIKE '${RUN_ID}%' OR email LIKE '%${RUN_ID_LOWER}%';
@@ -108,6 +114,15 @@ VALUES ('${USED_ORDER_ID}', 'FIT_TOUR', '${RUN_ID}-ORD-USED', '${RUN_ID} supplie
 
 INSERT INTO "OrderOperationItem" (id, "orderId", "supplierId", "serviceType")
 VALUES ('${USED_OPERATION_ITEM_ID}', '${USED_ORDER_ID}', '${USED_SUPPLIER_ID}', 'HOTEL');
+
+INSERT INTO "FinancePayment" (id, "voucherCode", "supplierId", "voucherName", "totalAmount", "paymentAmount", "remainingAmount", "createdAt", "updatedAt")
+VALUES ('${USED_FINANCE_PAYMENT_ID}', '${RUN_ID}-FIN-USED', '${USED_SUPPLIER_ID}', '${RUN_ID} finance payment', 100000, 0, 100000, now(), now());
+
+INSERT INTO "SupplierPaymentRequest" (id, code, status, "financePaymentId", "requestedBy", "requestedAt")
+VALUES ('${USED_PAYMENT_REQUEST_ID}', '${RUN_ID}-PAY-REQ-USED', 'APPROVED', '${USED_FINANCE_PAYMENT_ID}', '${MANAGE_USER_ID}', now());
+
+INSERT INTO "SupplierPaymentItem" (id, "requestId", "supplierId", amount, notes)
+VALUES ('${USED_PAYMENT_ITEM_ID}', '${USED_PAYMENT_REQUEST_ID}', '${USED_SUPPLIER_ID}', 100000, '${RUN_ID} supplier payment item');
 SQL
 
 export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN USED_SUPPLIER_ID USED_CATEGORY_ID
@@ -193,11 +208,31 @@ async function request(token, method, path, body, ok = [200, 201]) {
 
   await request(viewToken, 'GET', '/suppliers');
   await request(viewToken, 'POST', '/supplier-categories', { name: `${run} forbidden category` }, [403]);
+  await request(viewToken, 'PATCH', `/supplier-categories/${process.env.USED_CATEGORY_ID}`, { name: `${run} forbidden update` }, [403]);
+  await request(viewToken, 'DELETE', `/supplier-categories/${process.env.USED_CATEGORY_ID}`, undefined, [403]);
+  await request(viewToken, 'PATCH', `/suppliers/${usedSupplierId}`, { name: `${run} forbidden supplier update` }, [403]);
+  await request(viewToken, 'DELETE', `/suppliers/${usedSupplierId}`, undefined, [403]);
 
   const categoryName = `${run} API Category`;
   const category = await request(manageToken, 'POST', '/supplier-categories', { name: `  ${categoryName}  ` });
   assert(category.id && category.name === categoryName, 'created category should be trimmed and returned');
-  await request(manageToken, 'POST', '/supplier-categories', { name: categoryName.toLowerCase() }, [409]);
+  assert(Number(category._count?.suppliers || 0) === 0, 'created category should expose zero active suppliers');
+
+  const updatedCategoryName = `${run} API Category Updated`;
+  const updatedCategory = await request(manageToken, 'PATCH', `/supplier-categories/${category.id}`, { name: `  ${updatedCategoryName}  ` });
+  assert(updatedCategory.name === updatedCategoryName, 'updated category should be trimmed and returned');
+  await request(manageToken, 'POST', '/supplier-categories', { name: updatedCategoryName.toLowerCase() }, [409]);
+
+  const disposableCategory = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Disposable Category` });
+  const renamedDisposableCategory = await request(manageToken, 'PATCH', `/supplier-categories/${disposableCategory.id}`, { name: `${run} Disposable Category Updated` });
+  assert(renamedDisposableCategory.name.endsWith('Updated'), 'category update should persist name');
+  await request(manageToken, 'DELETE', `/supplier-categories/${disposableCategory.id}`);
+
+  const hotelSystemCategory = initialCategories.find((item) => item.name === 'Hotel');
+  if (hotelSystemCategory) {
+    await request(manageToken, 'PATCH', `/supplier-categories/${hotelSystemCategory.id}`, { name: `${run} Renamed Hotel` }, [400]);
+    await request(manageToken, 'DELETE', `/supplier-categories/${hotelSystemCategory.id}`, undefined, [400]);
+  }
 
   const supplier = await request(manageToken, 'POST', '/suppliers', {
     categoryId: category.id,
@@ -213,10 +248,14 @@ async function request(token, method, path, body, ok = [200, 201]) {
   assert(supplier.id, 'created supplier must have id');
   assert(supplier.name === `${run} API Supplier`, 'created supplier should be trimmed');
   assert(supplier.category?.id === category.id, 'created supplier must include category');
+  assert(Array.isArray(supplier.supplierServices), 'created supplier must include supplierServices');
 
   const categoriesAfterCreate = await request(manageToken, 'GET', '/supplier-categories');
   const counted = categoriesAfterCreate.find((item) => item.id === category.id);
-  assert(Number(counted?._count?.suppliers || 0) >= 1, 'category count should include created supplier');
+  assert(Number(counted?._count?.suppliers || 0) === 1, 'category count should include one active supplier');
+
+  const filteredByCategory = await request(manageToken, 'GET', `/suppliers?categoryId=${encodeURIComponent(category.id)}`);
+  assert(filteredByCategory.length === 1 && filteredByCategory[0].id === supplier.id, 'category filter should return matching supplier');
 
   const updated = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}`, {
     categoryId: category.id,
@@ -231,6 +270,8 @@ async function request(token, method, path, body, ok = [200, 201]) {
   });
   assert(updated.name.endsWith('Updated'), 'supplier update should return updated name');
   assert(updated.debtNote === 'Updated debt note', 'supplier update should persist debtNote');
+  assert(updated.pricePolicy === 'Updated policy', 'supplier update should persist pricePolicy');
+  assert(updated.category?.id === category.id && Array.isArray(updated.supplierServices), 'supplier update response shape should match list response');
 
   const suppliersAfterUpdate = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(run)}`);
   assert(suppliersAfterUpdate.some((item) => item.id === supplier.id), 'search should include updated supplier');
@@ -238,13 +279,46 @@ async function request(token, method, path, body, ok = [200, 201]) {
   await request(manageToken, 'DELETE', `/suppliers/${supplier.id}`);
   const suppliersAfterDelete = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(`${run} API Supplier Updated`)}`);
   assert(!suppliersAfterDelete.some((item) => item.id === supplier.id), 'deleted supplier should not be listed');
+  const categoriesAfterDelete = await request(manageToken, 'GET', '/supplier-categories');
+  const countedAfterDelete = categoriesAfterDelete.find((item) => item.id === category.id);
+  assert(Number(countedAfterDelete?._count?.suppliers || 0) === 0, 'category count should ignore soft-deleted suppliers');
+  await request(manageToken, 'DELETE', `/supplier-categories/${category.id}`, undefined, [409]);
 
   const usedDeleteResult = await request(manageToken, 'DELETE', `/suppliers/${usedSupplierId}`, undefined, [409]);
-  assert(messageOf(usedDeleteResult).includes('đang được sử dụng'), 'used supplier delete should explain active usage');
+  const usedDeleteMessage = messageOf(usedDeleteResult);
+  assert(usedDeleteMessage.includes('đang được sử dụng'), 'used supplier delete should explain active usage');
+  assert(usedDeleteMessage.includes('dịch vụ điều hành trong đơn'), 'delete guard should report order/operation usage');
+  assert(usedDeleteMessage.includes('yêu cầu thanh toán'), 'delete guard should report supplier payment request usage');
+  assert(usedDeleteMessage.includes('phiếu chi'), 'delete guard should report finance payment usage');
 
-  await request(manageToken, 'POST', '/suppliers', { name: `${run} Missing Category` }, [400]);
-  await request(manageToken, 'POST', '/suppliers', { categoryId: category.id }, [400]);
-  await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: 'A', email: 'bad-email' }, [400]);
+  const missingCategoryError = await request(manageToken, 'POST', '/suppliers', { name: `${run} Missing Category` }, [400]);
+  assert(messageOf(missingCategoryError).includes('Mã loại nhà cung cấp'), 'missing category error should be clear and Vietnamese');
+  const missingNameError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id }, [400]);
+  assert(messageOf(missingNameError).includes('Tên nhà cung cấp'), 'missing supplier name error should be clear and Vietnamese');
+  const invalidContactError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Contact`, phone: 'abcxyz', email: 'bad-email' }, [400]);
+  assert(messageOf(invalidContactError).includes('Số điện thoại nhà cung cấp không hợp lệ'), 'invalid phone should return Vietnamese validation message');
+  assert(messageOf(invalidContactError).includes('Email nhà cung cấp không hợp lệ'), 'invalid email should return Vietnamese validation message');
+  const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
+  assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
+
+  const hotel = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL`,
+    name: `${run} Hotel Supplier`,
+    phone: '0905555666',
+    email: `hotel-${lowerRun}@smarttour.local`,
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Project`,
+  });
+  assert(hotel.hotelProfile?.hotelProject === `${run} Hotel Project`, 'hotel supplier should include hotel profile');
+  assert(hotel.category?.name === 'Hotel', 'hotel supplier should use the shared Hotel category');
+  const hotelList = await request(manageToken, 'GET', `/suppliers/hotels?search=${encodeURIComponent(run)}`);
+  const listedHotel = hotelList.find((item) => item.id === hotel.id);
+  assert(listedHotel?.category?.name === 'Hotel' && listedHotel.hotelProfile, 'hotel list response should include category and hotel profile');
+  const hotelDetail = await request(manageToken, 'GET', `/suppliers/hotels/${hotel.id}`);
+  assert(hotelDetail.id === hotel.id && hotelDetail.category?.name === 'Hotel', 'hotel detail response should preserve shared supplier linkage');
+  const hotelCategoryChangeError = await request(manageToken, 'PATCH', `/suppliers/${hotel.id}`, { categoryId: category.id }, [400]);
+  assert(messageOf(hotelCategoryChangeError).includes('nhà cung cấp chuyên biệt'), 'general endpoint should not move hotel supplier to another category');
+  await request(manageToken, 'DELETE', `/suppliers/${hotel.id}`);
 
   console.log('SMOKE_SUPPLIERS_OK');
 })().catch((error) => {

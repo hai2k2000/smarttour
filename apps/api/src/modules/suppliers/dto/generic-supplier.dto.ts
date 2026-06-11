@@ -1,12 +1,14 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { SupplierStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
+  Matches,
+  MaxLength,
   IsObject,
   IsOptional,
   IsString,
@@ -14,6 +16,14 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
+const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const trimOptional = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 
 class GenericSupplierContactDto {
   @ApiProperty()
@@ -37,8 +47,10 @@ class GenericSupplierContactDto {
   phone?: string;
 
   @ApiPropertyOptional()
+  @Transform(trimOptional)
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Email nhà cung cấp không hợp lệ' })
+  @MaxLength(180, { message: 'Email nhà cung cấp không được vượt quá 180 ký tự' })
   email?: string;
 }
 
@@ -99,13 +111,17 @@ class GenericSupplierServiceDto {
 
 export class CreateGenericSupplierDto {
   @ApiProperty()
-  @IsString()
-  @MinLength(2)
+  @Transform(trimRequired)
+  @IsString({ message: 'Mã nhà cung cấp phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã nhà cung cấp phải có ít nhất 2 ký tự' })
+  @MaxLength(80, { message: 'Mã nhà cung cấp không được vượt quá 80 ký tự' })
   supplierCode!: string;
 
   @ApiProperty()
-  @IsString()
-  @MinLength(2)
+  @Transform(trimRequired)
+  @IsString({ message: 'Tên nhà cung cấp phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên nhà cung cấp phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên nhà cung cấp không được vượt quá 180 ký tự' })
   name!: string;
 
   @ApiPropertyOptional()
@@ -114,13 +130,16 @@ export class CreateGenericSupplierDto {
   taxCode?: string;
 
   @ApiProperty()
-  @IsString()
-  @MinLength(6)
+  @Transform(trimRequired)
+  @IsString({ message: 'Số điện thoại nhà cung cấp phải là chuỗi ký tự' })
+  @Matches(supplierPhonePattern, { message: 'Số điện thoại nhà cung cấp không hợp lệ' })
   phone!: string;
 
   @ApiPropertyOptional()
+  @Transform(trimOptional)
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Email nhà cung cấp không hợp lệ' })
+  @MaxLength(180, { message: 'Email nhà cung cấp không được vượt quá 180 ký tự' })
   email?: string;
 
   @ApiPropertyOptional()
