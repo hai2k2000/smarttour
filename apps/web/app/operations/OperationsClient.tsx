@@ -24,6 +24,14 @@ type OperationFormDraft = {
   assignee: string;
   dueDate: string;
 };
+type PaymentRequestDraft = {
+  formId: string;
+  costId: string;
+  supplierId: string;
+  amount: string;
+  requestedBy: string;
+  notes: string;
+};
 type Dashboard = {
   upcomingDepartures: number;
   operatingTours: number;
@@ -152,7 +160,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function OperationsClient() {
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
   const [tab, setTab] = useState<OperationsTab>('forms');
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [forms, setForms] = useState<OperationForm[]>([]);
@@ -200,12 +208,16 @@ export default function OperationsClient() {
   const canViewPayments = can(operationTabs.payments.viewPermission);
   const canCreateForm = can(operationTabs.forms.createPermission);
   const canCreatePaymentRequest = can(operationTabs.payments.createPermission);
+  const canApprovePaymentRequest = can('operation.payment-request.approve');
+  const canCreateFinancePayment = can('finance.payment.create');
+  const canApproveFinancePayment = can('finance.payment.approve');
   const canViewActiveTab = can(activeTab.viewPermission);
   const canCreateActiveTab = can(activeTab.createPermission);
   const isBusy = isLoadingStatic || isLoadingList || isReloading;
   const dashboardHasData = dashboardMetricDefinitions.some((metric) => numberValue(dashboard[metric.key]) > 0);
   const dashboardLoading = canViewForms && isLoadingList;
   const dashboardState = dashboardStatus(canViewForms, hasLoadedDashboard, dashboardHasData, dashboardLoading, dashboardError);
+  const paymentRequestActor = userActorLabel(user);
 
   useEffect(() => {
     void loadStatic();
@@ -357,24 +369,14 @@ export default function OperationsClient() {
   }
 
   async function createPaymentRequest(formData: FormData) {
-    const supplierId = text(formData.get('supplierId'));
-    const costId = text(formData.get('costId'));
-    const amount = readAmount(formData.get('amount'));
-    const supplier = suppliers.find((item) => item.id === supplierId);
-    const selectedCost = selectedForm?.costs.find((cost) => cost.id === costId);
-    const validation = [
-      !selectedForm ? 'Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.' : '',
-      !costId ? 'Cần chọn chi phí điều hành cần thanh toán.' : '',
-      !supplierId ? 'Cần chọn nhà cung cấp nhận thanh toán.' : '',
-      !supplier ? 'Nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
-      !Number.isFinite(amount) || amount <= 0 ? 'Số tiền thanh toán phải là số lớn hơn 0.' : '',
-      selectedForm && !selectedCost ? 'Chi phí được chọn không thuộc phiếu điều hành hiện tại.' : '',
-    ].filter(Boolean);
-    if (validation.length) return showError(validation.join(' '));
+    const draft = paymentRequestDraftFromFormData(formData, selectedFormId, paymentRequestActor);
+    const validation = paymentRequestDraftErrors(draft, selectedForm, suppliers);
+    if (validation.length) return showError(formatValidationErrors('Không thể tạo yêu cầu thanh toán nhà cung cấp', validation));
 
+    const amount = readAmount(draft.amount);
     const created = await post<PaymentRequest>('/api/operations/supplier-payment-requests', {
-      requestedBy: text(formData.get('requestedBy')) || 'operations-ui',
-      items: [{ supplierId, costId: costId || undefined, amount, notes: text(formData.get('notes')) }],
+      requestedBy: draft.requestedBy || paymentRequestActor,
+      items: [{ supplierId: draft.supplierId, costId: draft.costId, amount, notes: draft.notes }],
     }, 'Tạo yêu cầu thanh toán nhà cung cấp');
 
     if (created?.id) setDetailRequestId(created.id);
@@ -516,7 +518,8 @@ export default function OperationsClient() {
           suppliers={suppliers}
           selectedForm={selectedForm}
           selectedFormId={selectedFormId}
-          canCreate={can('operation.payment-request.create')}
+          canCreate={canCreatePaymentRequest}
+          requestedByDefault={paymentRequestActor}
           onSelectedFormChange={setSelectedFormId}
           onClose={() => setModal(null)}
           onSubmit={createPaymentRequest}
@@ -559,18 +562,25 @@ export default function OperationsClient() {
           <div className="operationsPaymentStack">
             <ReconciliationPanel
               request={detailRequest}
-              canApproveFinance={can('finance.payment.approve')}
-              canApproveRequest={can('operation.payment-request.approve')}
-              canCreateRequest={can('operation.payment-request.create')}
+              canApproveFinance={canApproveFinancePayment}
+              canApproveRequest={canApprovePaymentRequest}
+              canCreateFinance={canCreateFinancePayment}
+              canCreateRequest={canCreatePaymentRequest}
               onAction={requestAction}
               onApproveFinance={approveFinancePayment}
             />
           </div>
           <OperationsTable title="Danh sách yêu cầu thanh toán" count={requests.length}>
-            <thead><tr><th>Mã yêu cầu</th><th>Nhà cung cấp</th><th>Chi phí</th><th>Số tiền</th><th>Phiếu chi</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+            <thead><tr><th title="Mã yêu cầu thanh toán nhà cung cấp">Mã yêu cầu</th><th>Nhà cung cấp</th><th>Chi phí</th><th>Số tiền</th><th title="Phiếu chi tài chính liên kết">Phiếu chi tài chính</th><th title="Trạng thái xử lý yêu cầu thanh toán">Trạng thái yêu cầu</th><th>Thao tác</th></tr></thead>
             <tbody>
               {requests.length === 0 ? <tr><td colSpan={7}>Chưa có yêu cầu thanh toán phù hợp bộ lọc.</td></tr> : null}
-              {requests.map((request) => (
+              {requests.map((request) => {
+                const canSubmitRequest = canCreatePaymentRequest && ['DRAFT', 'REJECTED'].includes(request.status);
+                const canApproveRequest = canApprovePaymentRequest && request.status === 'REQUESTED';
+                const canRejectRequest = canApprovePaymentRequest && request.status === 'REQUESTED';
+                const canCreateFinanceForRequest = canApprovePaymentRequest && canCreateFinancePayment && request.status === 'APPROVED' && !request.financePaymentId;
+                const canApproveFinanceForRequest = canApproveFinancePayment && Boolean(request.financePaymentId) && request.status !== 'PAID' && request.financePayment?.approvalStatus !== 'APPROVED';
+                return (
                 <tr key={request.id} data-testid="operation-payment-row" className={detailRequestId === request.id ? 'operationsSelectedRow' : undefined}>
                   <td><strong>{request.code}</strong><span>{date(request.requestedAt)}</span></td>
                   <td>{request.items[0]?.supplier?.name || '-'}</td>
@@ -579,15 +589,16 @@ export default function OperationsClient() {
                   <td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${statusLabel(request.financePayment.approvalStatus)} - ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></td>
                   <td><span className={`statusPill ${statusPillClass(request.status)}`}>{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
-                    <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title="Xem đối soát" onClick={() => setDetailRequestId(request.id)}><Search size={16} /></button>
-                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title="Gửi duyệt" disabled={!can('operation.payment-request.create') || !['DRAFT', 'REJECTED'].includes(request.status)} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
-                    <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title="Duyệt yêu cầu" disabled={!can('operation.payment-request.approve') || request.status !== 'REQUESTED'} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
-                    <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title="Tạo phiếu chi" disabled={!can('operation.payment-request.approve') || request.status !== 'APPROVED' || Boolean(request.financePaymentId)} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
-                    <button data-testid="operation-payment-approve-finance" className="secondaryButton iconButton" title="Duyệt phiếu chi tài chính" disabled={!can('finance.payment.approve') || !request.financePaymentId || request.status === 'PAID' || request.financePayment?.approvalStatus === 'APPROVED'} onClick={() => { void approveFinancePayment(request.financePaymentId); }}><HandCoins size={16} /></button>
-                    <button data-testid="operation-payment-reject" className="dangerButton iconButton" title="Từ chối yêu cầu" disabled={!can('operation.payment-request.approve') || ['PAID', 'REJECTED'].includes(request.status)} onClick={() => { void requestAction(request.id, 'reject'); }}><XCircle size={16} /></button>
+                    <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title="Xem đối soát yêu cầu thanh toán" onClick={() => setDetailRequestId(request.id)}><Search size={16} /></button>
+                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
+                    <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title={canApproveRequest ? 'Duyệt yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được duyệt.'} disabled={!canApproveRequest} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
+                    <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title={canCreateFinanceForRequest ? 'Tạo phiếu chi tài chính từ yêu cầu đã duyệt' : 'Cần yêu cầu đã duyệt, chưa có phiếu chi và đủ quyền tạo phiếu chi tài chính.'} disabled={!canCreateFinanceForRequest} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
+                    <button data-testid="operation-payment-approve-finance" className="secondaryButton iconButton" title={canApproveFinanceForRequest ? 'Duyệt phiếu chi tài chính' : 'Cần có phiếu chi tài chính chưa duyệt.'} disabled={!canApproveFinanceForRequest} onClick={() => { void approveFinancePayment(request.financePaymentId); }}><HandCoins size={16} /></button>
+                    <button data-testid="operation-payment-reject" className="dangerButton iconButton" title={canRejectRequest ? 'Từ chối yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được từ chối.'} disabled={!canRejectRequest} onClick={() => { void requestAction(request.id, 'reject'); }}><XCircle size={16} /></button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </OperationsTable>
         </section>
@@ -690,6 +701,7 @@ function PaymentRequestModal({
   selectedForm,
   selectedFormId,
   canCreate,
+  requestedByDefault,
   onSelectedFormChange,
   onClose,
   onSubmit,
@@ -699,10 +711,45 @@ function PaymentRequestModal({
   selectedForm?: OperationForm;
   selectedFormId: string;
   canCreate: boolean;
+  requestedByDefault: string;
   onSelectedFormChange: (formId: string) => void;
   onClose: () => void;
   onSubmit: (formData: FormData) => Promise<void>;
 }) {
+  const [draft, setDraft] = useState<PaymentRequestDraft>(() => paymentRequestDraftForForm(selectedForm, requestedByDefault, selectedFormId));
+  const selectedFormCostIds = selectedForm?.costs.map((cost) => cost.id).join('|') || '';
+
+  useEffect(() => {
+    setDraft((current) => {
+      const costStillValid = Boolean(selectedForm?.costs.some((cost) => cost.id === current.costId));
+      const costId = selectedForm ? (costStillValid ? current.costId : selectedForm.costs[0]?.id || '') : '';
+      return {
+        ...current,
+        formId: selectedFormId,
+        costId,
+        supplierId: selectedForm ? defaultSupplierId(selectedForm) || current.supplierId : '',
+        amount: selectedForm ? paymentAmountForCost(selectedForm, costId) : '',
+        requestedBy: current.requestedBy || requestedByDefault,
+      };
+    });
+  }, [requestedByDefault, selectedForm, selectedFormCostIds, selectedFormId]);
+
+  function setDraftValue(key: keyof PaymentRequestDraft, value: string) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function changeSelectedForm(formId: string) {
+    onSelectedFormChange(formId);
+    setDraft((current) => ({ ...current, formId, costId: '', supplierId: '', amount: '' }));
+  }
+
+  function changeCost(costId: string) {
+    setDraft((current) => ({ ...current, costId, amount: paymentAmountForCost(selectedForm, costId) }));
+  }
+
+  const formErrors = paymentRequestDraftErrors(draft, selectedForm, suppliers);
+  const canSubmit = canCreate && formErrors.length === 0;
+
   return (
     <div className="modalOverlay" role="presentation">
       <div data-testid="operation-payment-modal" className="modalPanel operationsFormPanel" role="dialog" aria-modal="true" aria-labelledby="operation-payment-title">
@@ -710,22 +757,28 @@ function PaymentRequestModal({
           <h2 id="operation-payment-title"><Plus size={18} /> Tạo yêu cầu thanh toán nhà cung cấp</h2>
           <button type="button" data-testid="operation-payment-modal-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
         </header>
-        <form key={selectedFormId || 'manual-request'} action={onSubmit} className="formGrid operationsFormGrid">
+        <form action={onSubmit} onSubmit={(event) => { if (!canSubmit) event.preventDefault(); }} className="formGrid operationsFormGrid">
+          {formErrors.length ? (
+            <div data-testid="operation-payment-validation" className="formValidationSummary" aria-live="polite">
+              <strong>Cần hoàn tất thông tin trước khi tạo yêu cầu thanh toán:</strong>
+              <ul>{formErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+            </div>
+          ) : null}
           <fieldset>
             <legend>Nguồn yêu cầu</legend>
-            <label>Phiếu điều hành<select value={selectedFormId} onChange={(event) => onSelectedFormChange(event.target.value)}><option value="">Chọn phiếu điều hành</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dịch vụ'}</option>)}</select></label>
-            <label>Chi phí<select name="costId" defaultValue={selectedForm?.costs?.[0]?.id || ''}><option value="">Chọn chi phí</option>{selectedForm?.costs.map((cost) => <option key={cost.id} value={cost.id}>{cost.costName} - {money(costDisplayAmount(cost))}</option>)}</select></label>
+            <label>Phiếu điều hành<select name="formId" value={draft.formId} required onChange={(event) => changeSelectedForm(event.target.value)}><option value="">Chọn phiếu điều hành</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dịch vụ điều hành'}</option>)}</select></label>
+            <label>Chi phí điều hành<select name="costId" value={draft.costId} required disabled={!selectedForm} onChange={(event) => changeCost(event.target.value)}><option value="">Chọn chi phí</option>{selectedForm?.costs.map((cost) => <option key={cost.id} value={cost.id}>{cost.costName} - {money(costDisplayAmount(cost))}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Thanh toán</legend>
-            <label>Nhà cung cấp<select name="supplierId" defaultValue={defaultSupplierId(selectedForm)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
-            <label>Số tiền<input name="amount" type="number" min={0} step={1000} defaultValue={defaultPaymentAmount(selectedForm)} /></label>
-            <label>Người tạo<input name="requestedBy" defaultValue="operations-ui" /></label>
-            <label>Ghi chú<textarea name="notes" rows={3} /></label>
+            <label>Nhà cung cấp<select name="supplierId" value={draft.supplierId} required disabled={!selectedForm} onChange={(event) => setDraftValue('supplierId', event.target.value)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
+            <label>Số tiền<input name="amount" type="number" min={1} step={1000} required value={draft.amount} onChange={(event) => setDraftValue('amount', event.target.value)} /></label>
+            <label>Người tạo yêu cầu<input name="requestedBy" required maxLength={120} value={draft.requestedBy} onChange={(event) => setDraftValue('requestedBy', event.target.value)} /></label>
+            <label>Ghi chú<textarea name="notes" rows={3} maxLength={300} value={draft.notes} onChange={(event) => setDraftValue('notes', event.target.value)} /></label>
           </fieldset>
           <div className="modalActions">
             <button type="button" className="secondaryButton" onClick={onClose}>Hủy</button>
-            <button type="submit" disabled={!canCreate}>Tạo yêu cầu thanh toán</button>
+            <button type="submit" disabled={!canSubmit}>Tạo yêu cầu thanh toán</button>
           </div>
         </form>
       </div>
@@ -737,6 +790,7 @@ function ReconciliationPanel({
   request,
   canApproveFinance,
   canApproveRequest,
+  canCreateFinance,
   canCreateRequest,
   onAction,
   onApproveFinance,
@@ -744,6 +798,7 @@ function ReconciliationPanel({
   request?: PaymentRequest;
   canApproveFinance: boolean;
   canApproveRequest: boolean;
+  canCreateFinance: boolean;
   canCreateRequest: boolean;
   onAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') => Promise<void>;
   onApproveFinance: (id?: string) => Promise<void>;
@@ -758,6 +813,11 @@ function ReconciliationPanel({
   }
 
   const paid = request.status === 'PAID';
+  const canSubmitRequest = canCreateRequest && ['DRAFT', 'REJECTED'].includes(request.status);
+  const canApproveSubmittedRequest = canApproveRequest && request.status === 'REQUESTED';
+  const canRejectSubmittedRequest = canApproveRequest && request.status === 'REQUESTED';
+  const canCreateFinanceForRequest = canApproveRequest && canCreateFinance && request.status === 'APPROVED' && !request.financePaymentId;
+  const canApproveFinanceForRequest = canApproveFinance && Boolean(request.financePaymentId) && !paid && request.financePayment?.approvalStatus !== 'APPROVED';
   return (
     <aside className="panel reconciliationCard" data-testid="operation-reconciliation-panel">
       <h3>Đối soát yêu cầu {request.code}</h3>
@@ -771,10 +831,11 @@ function ReconciliationPanel({
         <p><strong>Chi phí:</strong> {request.items.map((item) => item.cost?.costName || 'Không gắn chi phí').join(', ')}</p>
       </div>
       <div className="reconciliationActions">
-        <button data-testid="reconciliation-submit" className="secondaryButton" disabled={!canCreateRequest || !['DRAFT', 'REJECTED'].includes(request.status)} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
-        <button data-testid="reconciliation-approve" className="secondaryButton" disabled={!canApproveRequest || request.status !== 'REQUESTED'} onClick={() => { void onAction(request.id, 'approve'); }}>Duyệt yêu cầu</button>
-        <button data-testid="reconciliation-create-finance" className="secondaryButton" disabled={!canApproveRequest || request.status !== 'APPROVED' || Boolean(request.financePaymentId)} onClick={() => { void onAction(request.id, 'create-finance-payment'); }}>Tạo phiếu chi</button>
-        <button data-testid="reconciliation-approve-finance" className="secondaryButton" disabled={!canApproveFinance || !request.financePaymentId || paid || request.financePayment?.approvalStatus === 'APPROVED'} onClick={() => { void onApproveFinance(request.financePaymentId); }}>Duyệt phiếu chi</button>
+        <button data-testid="reconciliation-submit" className="secondaryButton" disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
+        <button data-testid="reconciliation-approve" className="secondaryButton" disabled={!canApproveSubmittedRequest} onClick={() => { void onAction(request.id, 'approve'); }}>Duyệt yêu cầu</button>
+        <button data-testid="reconciliation-create-finance" className="secondaryButton" disabled={!canCreateFinanceForRequest} onClick={() => { void onAction(request.id, 'create-finance-payment'); }}>Tạo phiếu chi</button>
+        <button data-testid="reconciliation-approve-finance" className="secondaryButton" disabled={!canApproveFinanceForRequest} onClick={() => { void onApproveFinance(request.financePaymentId); }}>Duyệt phiếu chi</button>
+        <button data-testid="reconciliation-reject" className="dangerButton" disabled={!canRejectSubmittedRequest} onClick={() => { void onAction(request.id, 'reject'); }}>Từ chối yêu cầu</button>
       </div>
     </aside>
   );
@@ -850,6 +911,51 @@ function formatValidationErrors(title: string, errors: string[]) {
   return `${title}: ${errors.join(' ')}`;
 }
 
+function paymentRequestDraftFromFormData(formData: FormData, selectedFormId: string, requestedByDefault: string): PaymentRequestDraft {
+  return {
+    formId: text(formData.get('formId')) || selectedFormId,
+    costId: text(formData.get('costId')),
+    supplierId: text(formData.get('supplierId')),
+    amount: text(formData.get('amount')),
+    requestedBy: text(formData.get('requestedBy')) || requestedByDefault,
+    notes: text(formData.get('notes')),
+  };
+}
+
+function paymentRequestDraftForForm(form?: OperationForm, requestedBy = 'operations-ui', formId = ''): PaymentRequestDraft {
+  const costId = form?.costs?.[0]?.id || '';
+  return {
+    formId: form?.id || formId,
+    costId,
+    supplierId: defaultSupplierId(form),
+    amount: paymentAmountForCost(form, costId),
+    requestedBy,
+    notes: '',
+  };
+}
+
+function paymentRequestDraftErrors(draft: PaymentRequestDraft, selectedForm: OperationForm | undefined, suppliers: Supplier[]) {
+  const errors: string[] = [];
+  const amount = readAmount(draft.amount);
+  const requestedBy = text(draft.requestedBy);
+  const notes = text(draft.notes);
+  const supplier = suppliers.find((item) => item.id === draft.supplierId);
+  const selectedCost = selectedForm?.costs.find((cost) => cost.id === draft.costId);
+
+  if (!draft.formId) errors.push('Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.');
+  else if (!selectedForm || selectedForm.id !== draft.formId) errors.push('Phiếu điều hành đã chọn không hợp lệ hoặc chưa được tải.');
+  if (selectedForm && selectedForm.costs.length === 0) errors.push('Phiếu điều hành chưa có chi phí để tạo yêu cầu thanh toán.');
+  if (!draft.costId) errors.push('Cần chọn chi phí điều hành cần thanh toán.');
+  else if (selectedForm && !selectedCost) errors.push('Chi phí được chọn không thuộc phiếu điều hành hiện tại.');
+  if (!draft.supplierId) errors.push('Cần chọn nhà cung cấp nhận thanh toán.');
+  else if (!supplier) errors.push('Nhà cung cấp không hợp lệ hoặc chưa được tải.');
+  if (!Number.isFinite(amount) || amount <= 0) errors.push('Số tiền thanh toán phải là số lớn hơn 0.');
+  if (!requestedBy) errors.push('Cần xác định người tạo yêu cầu thanh toán.');
+  else if (requestedBy.length > 120) errors.push('Người tạo yêu cầu không được vượt quá 120 ký tự.');
+  if (notes.length > 300) errors.push('Ghi chú yêu cầu thanh toán không được vượt quá 300 ký tự.');
+  return errors;
+}
+
 
 function dashboardStatus(canView: boolean, loaded: boolean, hasData: boolean, loading: boolean, error: string): Notice | null {
   if (!canView) return { type: 'info', text: 'Bạn chưa có quyền xem dashboard vận hành.' };
@@ -918,6 +1024,12 @@ function costDisplayAmount(cost: { expectedAmount?: string; actualAmount?: strin
 
 function defaultPaymentAmount(form?: OperationForm) {
   return form?.costs?.[0] ? costDisplayAmount(form.costs[0]) : 0;
+}
+
+function paymentAmountForCost(form?: OperationForm, costId?: string) {
+  const cost = form?.costs.find((item) => item.id === costId) || form?.costs?.[0];
+  const amount = cost ? costDisplayAmount(cost) : defaultPaymentAmount(form);
+  return amount > 0 ? String(amount) : '';
 }
 
 function defaultSupplierId(form?: OperationForm) {
@@ -1033,6 +1145,10 @@ function supplierLabel(supplier: Supplier) {
 function serviceLabel(service: SupplierServiceOption) {
   const code = service.sku || service.serviceName;
   return `${code} - ${service.serviceName} (${service.supplierCode || service.supplierName})`;
+}
+
+function userActorLabel(user: { id?: string; username?: string; email?: string; name?: string; fullName?: string; displayName?: string } | null) {
+  return text(user?.displayName) || text(user?.fullName) || text(user?.name) || text(user?.username) || text(user?.email) || text(user?.id) || 'operations-ui';
 }
 
 function noticeClass(type: Notice['type']) {

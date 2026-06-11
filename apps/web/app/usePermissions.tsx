@@ -3,6 +3,12 @@
 import { useEffect, useState } from 'react';
 
 type StoredUser = {
+  id?: string;
+  username?: string;
+  email?: string;
+  name?: string;
+  fullName?: string;
+  displayName?: string;
   permissions?: string[];
   roles?: { code: string; name: string }[];
 };
