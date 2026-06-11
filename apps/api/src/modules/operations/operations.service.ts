@@ -607,7 +607,8 @@ export class OperationsService {
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, status, 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) });
+      const auditAction = status === SupplierPaymentStatus.REQUESTED ? 'SUBMIT' : 'REJECT';
+      await this.audit(tx, auditAction, 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) });
       return request;
     });
   }
@@ -1167,7 +1168,35 @@ export class OperationsService {
   }
 
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata?: unknown) {
-    await tx.auditLog.create({ data: { action, entity, entityId, metadata: metadata === undefined ? undefined : (metadata as Prisma.InputJsonValue) } });
+    const safeMetadata = this.auditMetadata(metadata);
+    await tx.auditLog.create({
+      data: {
+        action,
+        entity,
+        entityId,
+        ...(safeMetadata === undefined ? {} : { metadata: safeMetadata }),
+      },
+    });
+  }
+
+  private auditMetadata(metadata: unknown): Prisma.InputJsonValue | undefined {
+    if (metadata === undefined) return undefined;
+    return this.toAuditJson(metadata) as Prisma.InputJsonValue;
+  }
+
+  private toAuditJson(value: unknown): unknown {
+    if (value === undefined) return null;
+    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map((item) => this.toAuditJson(item));
+    if (typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([, item]) => item !== undefined)
+          .map(([key, item]) => [key, this.toAuditJson(item)]),
+      );
+    }
+    return String(value);
   }
 
   private array(value: unknown): unknown[] {

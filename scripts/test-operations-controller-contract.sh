@@ -113,6 +113,9 @@ if (!service.includes('operationConfirmationStatus(value: unknown)') || !service
 if (!service.includes('financePaymentMethod(value: unknown)') || !service.includes('FinancePaymentMethod.BANK_TRANSFER')) failures.push('finance payment method must be normalized and validated');
 if (!service.includes('Number.isNaN(date.getTime())')) failures.push('date helper must reject invalid provided dates');
 if (!service.includes("await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto })")) failures.push('cancelForm audit must include actor and reason');
+if (service.includes("await this.audit(tx, status, 'SupplierPaymentRequest'")) failures.push('payment request status changes must use verb audit actions');
+if (!service.includes("status === SupplierPaymentStatus.REQUESTED ? 'SUBMIT' : 'REJECT'")) failures.push('payment request submit/reject audit actions must be SUBMIT/REJECT');
+if (!service.includes('private auditMetadata(metadata: unknown)') || !service.includes('private toAuditJson(value: unknown)')) failures.push('operations audit metadata must be normalized before storing JSON');
 if (!suppliersService.includes("include: { category: true, supplierServices")) failures.push('generic supplier list must include supplierServices for OperationsClient');
 if (!client.includes("fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp')") || client.includes('/api/suppliers/hotels')) failures.push('OperationsClient must load the generic supplier source, not hotel-only suppliers');
 for (const copy of ['Vận hành tour và thanh toán nhà cung cấp', 'Công việc quá hạn', 'Nhà cung cấp chờ xác nhận', 'Yêu cầu thanh toán nhà cung cấp', 'Tour lỗ hoặc âm lợi nhuận']) {

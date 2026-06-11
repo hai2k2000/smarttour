@@ -260,6 +260,8 @@ async function main() {
   assert(updatedFormA.costs.length === 1 && updatedFormA.costs[0].id === originalFormACostId, 'partial update should not replace costs when costs payload is omitted');
   await rejectsMessage(() => service.updateForm(formA.id, { costs: [{ serviceId: formB.services[0].id, costName: 'Chi phí sai dịch vụ', expectedAmount: 100, actualAmount: 80 }] }), 'Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành', 'update form should reject cost linked to another form service');
   await rejectsMessage(() => service.updateForm(formA.id, { status: 'SAI' }), 'Trạng thái phiếu điều hành không hợp lệ', 'invalid operation status should be Vietnamese');
+  const auditAt = new Date('2026-01-02T03:04:05.000Z');
+  await service.updateForm(formA.id, { actor: 'audit-json', notes: 'Audit JSON', auditAt, ignoredUndefined: undefined });
 
   await rejectsMessage(() => service.cancelForm(formB.id, { actor: 'canceller-b' }), 'Cần nhập lý do hủy phiếu điều hành để lưu lịch sử xử lý', 'cancel form should require Vietnamese reason');
   const cancelledFormB = await service.cancelForm(formB.id, { actor: 'canceller-b', reason: 'Khách đổi lịch' });
@@ -399,20 +401,22 @@ async function main() {
     'CREATE:SupplierPaymentRequest',
     'UPDATE:SupplierPaymentRequest',
     'DELETE:SupplierPaymentRequest',
-    'REQUESTED:SupplierPaymentRequest',
+    'SUBMIT:SupplierPaymentRequest',
     'APPROVE:SupplierPaymentRequest',
-    'REJECTED:SupplierPaymentRequest',
+    'REJECT:SupplierPaymentRequest',
     'CREATE_FINANCE_PAYMENT:SupplierPaymentRequest',
   ]) {
     assert(auditPairs.includes(pair), `missing audit log ${pair}`);
   }
+  const jsonAudit = auditLogs.find((log) => log.action === 'UPDATE' && log.entityId === formA.id && log.metadata?.actor === 'audit-json');
+  assert(jsonAudit?.metadata?.payload?.auditAt === auditAt.toISOString() && !Object.prototype.hasOwnProperty.call(jsonAudit.metadata.payload, 'ignoredUndefined'), 'audit metadata should serialize dates and omit undefined fields');
   const cancelAudit = auditLogs.find((log) => log.action === 'CANCEL' && log.entityId === formB.id);
   assert(cancelAudit?.metadata?.reason === 'Khách đổi lịch' && cancelAudit.metadata.actor === 'canceller-b', 'cancel audit should include actor and reason');
   const deleteAudit = auditLogs.find((log) => log.action === 'DELETE' && log.entityId === deleteRequest.id);
   assert(deleteAudit?.metadata?.actor === 'test-user' && deleteAudit.metadata.code === deleteRequest.code, 'delete payment request audit should include actor and code');
-  const submitAudit = auditLogs.find((log) => log.action === 'REQUESTED' && log.entityId === request.id);
+  const submitAudit = auditLogs.find((log) => log.action === 'SUBMIT' && log.entityId === request.id);
   assert(submitAudit?.metadata?.actor === 'submitter-a', 'submit payment request audit should include actor');
-  const rejectAudit = auditLogs.find((log) => log.action === 'REJECTED' && log.entityId === rejectRequest.id);
+  const rejectAudit = auditLogs.find((log) => log.action === 'REJECT' && log.entityId === rejectRequest.id);
   assert(rejectAudit?.metadata?.actor === 'approver' && rejectAudit.metadata.note === 'Thiếu chứng từ', 'reject payment request audit should include actor and note');
   const approveAudit = auditLogs.find((log) => log.action === 'APPROVE' && log.entityId === request.id);
   assert(approveAudit?.metadata?.actor === 'approver-a', 'approve payment request audit should include actor');
