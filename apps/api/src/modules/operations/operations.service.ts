@@ -97,6 +97,7 @@ type OperationModuleCard = {
 };
 
 const OPERATION_CONFIRMATION_STATUSES = new Set(['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'DONE', 'COMPLETED', 'CANCELLED']);
+const OPERATIONS_LIST_CHILD_TAKE = 20;
 
 @Injectable()
 export class OperationsService {
@@ -1025,7 +1026,9 @@ export class OperationsService {
       booking: { select: { id: true, code: true, customerName: true, orderId: true, tourId: true } },
       order: { select: { id: true, systemCode: true, tourCode: true, name: true } },
       tour: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+      _count: { select: { services: true, tasks: true, costs: true } },
       services: {
+        take: OPERATIONS_LIST_CHILD_TAKE,
         select: {
           id: true,
           supplierId: true,
@@ -1040,8 +1043,8 @@ export class OperationsService {
         },
         orderBy: { serviceName: 'asc' },
       },
-      tasks: { select: { id: true, title: true, assignee: true, dueDate: true, status: true }, orderBy: [{ dueDate: 'asc' }, { title: 'asc' }] },
-      costs: { select: { id: true, costName: true, expectedAmount: true, actualAmount: true, currency: true, notes: true }, orderBy: { costName: 'asc' } },
+      tasks: { take: OPERATIONS_LIST_CHILD_TAKE, select: { id: true, title: true, assignee: true, dueDate: true, status: true }, orderBy: [{ dueDate: 'asc' }, { title: 'asc' }] },
+      costs: { take: OPERATIONS_LIST_CHILD_TAKE, select: { id: true, costName: true, expectedAmount: true, actualAmount: true, currency: true, notes: true }, orderBy: { costName: 'asc' } },
     } satisfies Prisma.OperationFormSelect;
   }
 
@@ -1078,7 +1081,9 @@ export class OperationsService {
       requestedAt: true,
       financePaymentId: true,
       financePayment: { select: { id: true, voucherCode: true, approvalStatus: true, paymentAmount: true } },
+      _count: { select: { items: true } },
       items: {
+        take: OPERATIONS_LIST_CHILD_TAKE,
         select: {
           id: true,
           supplierId: true,

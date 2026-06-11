@@ -70,6 +70,7 @@ for (const english of [
   if (service.includes(english)) failures.push(`English service error remains: ${english}`);
 }
 if (!service.includes('OPERATIONS_LIST_MAX_TAKE') || !service.includes('private take(value?: unknown)')) failures.push('OperationsService must honor DTO take cap');
+if (!service.includes('OPERATIONS_LIST_CHILD_TAKE = 20')) failures.push('OperationsService list endpoints must cap nested child summaries');
 if (!service.includes('type OperationDashboard') || !service.includes('type OperationModuleCard')) failures.push('Operations dashboard/modules must have explicit response contracts');
 if (!service.includes('startOfDay(now)') || !service.includes('endOfDay(this.addDays(today, 14))')) failures.push('Dashboard departure window must use full-day bounds');
 if (!service.includes('BookingStatus.CONFIRMED') || !service.includes('BookingStatus.OPERATING') || !service.includes('upcomingStandaloneBookings')) failures.push('Dashboard must include standalone confirmed/operating bookings in upcoming departures');
@@ -88,9 +89,23 @@ if (!modulesBlock.includes('permission:') || !modulesBlock.includes('metrics:') 
 const listFormsStart = service.indexOf('async listForms');
 const listFormsEnd = service.indexOf('async formDetail', listFormsStart);
 const listFormsBlock = listFormsStart === -1 || listFormsEnd === -1 ? '' : service.slice(listFormsStart, listFormsEnd);
+const formListSelectStart = service.indexOf('private formListSelect()');
+const formListSelectEnd = service.indexOf('private formDetailInclude()', formListSelectStart);
+const formListSelectBlock = formListSelectStart === -1 || formListSelectEnd === -1 ? '' : service.slice(formListSelectStart, formListSelectEnd);
+const paymentListSelectStart = service.indexOf('private paymentRequestListSelect()');
+const paymentListSelectEnd = service.indexOf('private paymentRequestDetailInclude()', paymentListSelectStart);
+const paymentListSelectBlock = paymentListSelectStart === -1 || paymentListSelectEnd === -1 ? '' : service.slice(paymentListSelectStart, paymentListSelectEnd);
 for (const token of ['customerPhone', 'booking: {', 'order: {', 'tour: {', '{ notes: contains }']) {
   if (!listFormsBlock.includes(token)) failures.push('listForms search/scope missing token: ' + token);
 }
+for (const token of ['_count: { select: { services: true, tasks: true, costs: true } }', 'take: OPERATIONS_LIST_CHILD_TAKE', 'select:', 'orderBy:']) {
+  if (!formListSelectBlock.includes(token)) failures.push('form list select must stay summary-oriented with bounded children: ' + token);
+}
+if (formListSelectBlock.includes('include:')) failures.push('form list select must not use full include payloads');
+for (const token of ['_count: { select: { items: true } }', 'take: OPERATIONS_LIST_CHILD_TAKE', 'select:', 'orderBy:']) {
+  if (!paymentListSelectBlock.includes(token)) failures.push('payment request list select must stay summary-oriented with bounded children: ' + token);
+}
+if (paymentListSelectBlock.includes('include:')) failures.push('payment request list select must not use full include payloads');
 if (service.includes('Phi?u')) failures.push('OperationsService contains mojibake Vietnamese text');
 if (!service.includes('request.status === SupplierPaymentStatus.PAID')) failures.push('approvePaymentRequest must block already paid requests explicitly');
 if (!service.includes('if (request.financePaymentId) return tx.supplierPaymentRequest.findUniqueOrThrow')) failures.push('createFinancePaymentForRequest must return existing linked payment request detail');
