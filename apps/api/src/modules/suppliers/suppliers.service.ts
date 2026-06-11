@@ -13,6 +13,18 @@ import { SUPPLIER_TYPE_LABELS } from './supplier-types';
 
 const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS)]);
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const SUPPLIER_ERRORS = {
+  categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
+  categoryExists: 'Loại nhà cung cấp đã tồn tại',
+  supplierNotFound: 'Không tìm thấy nhà cung cấp',
+  typedSupplierNotFound: 'Không tìm thấy nhà cung cấp thuộc loại đã chọn',
+  hotelSupplierNotFound: 'Không tìm thấy nhà cung cấp khách sạn',
+  fileNotFound: 'Không tìm thấy file nhà cung cấp',
+  codeExists: 'Mã nhà cung cấp đã tồn tại',
+  allotmentNotFound: 'Không tìm thấy quỹ phòng',
+  allocationNotFound: 'Không tìm thấy phân bổ quỹ phòng',
+  unsupportedType: 'Loại nhà cung cấp không được hỗ trợ',
+} as const;
 
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
@@ -33,7 +45,7 @@ export class SuppliersService {
       where: { name: { equals: name, mode: 'insensitive' } },
       select: { id: true },
     });
-    if (existing) throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+    if (existing) throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
     try {
       return await this.prisma.supplierCategory.create({
         data: { name },
@@ -41,7 +53,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
       }
       throw error;
     }
@@ -49,7 +61,7 @@ export class SuppliersService {
 
   async updateCategory(id: string, dto: CreateSupplierCategoryDto) {
     const category = await this.prisma.supplierCategory.findUnique({ where: { id }, select: { id: true, name: true } });
-    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
     const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
     if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name) && name !== category.name) {
       throw new BadRequestException('Không thể đổi tên loại nhà cung cấp hệ thống');
@@ -58,7 +70,7 @@ export class SuppliersService {
       where: { id: { not: id }, name: { equals: name, mode: 'insensitive' } },
       select: { id: true },
     });
-    if (existing) throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+    if (existing) throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
     try {
       return await this.prisma.supplierCategory.update({
         where: { id },
@@ -67,7 +79,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Loại nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
       }
       throw error;
     }
@@ -78,7 +90,7 @@ export class SuppliersService {
       where: { id },
       include: { _count: { select: { suppliers: true } } },
     });
-    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
     if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name)) {
       throw new BadRequestException('Không thể xóa loại nhà cung cấp hệ thống');
     }
@@ -129,7 +141,7 @@ export class SuppliersService {
         paymentItems: true,
       },
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.supplierNotFound);
     return supplier;
   }
 
@@ -190,7 +202,7 @@ export class SuppliersService {
   async deleteSupplierFile(id: string, fileId: string) {
     await this.getSupplier(id);
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
-    if (!file) throw new NotFoundException('Không tìm thấy file nhà cung cấp');
+    if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
     if (objectKey) await this.filesService.remove(objectKey);
     return this.prisma.supplierFile.delete({ where: { id: fileId } });
@@ -240,7 +252,7 @@ export class SuppliersService {
       where: { id, category: { name: this.getTypeLabel(type) } },
       include: this.genericInclude(),
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.typedSupplierNotFound);
     return supplier;
   }
 
@@ -259,7 +271,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
       }
       throw error;
     }
@@ -278,7 +290,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
       }
       throw error;
     }
@@ -340,7 +352,7 @@ export class SuppliersService {
       where: { id, hotelProfile: { isNot: null } },
       include: this.hotelInclude(),
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp khách sạn');
+    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
     return supplier;
   }
 
@@ -373,7 +385,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
       }
       throw error;
     }
@@ -396,7 +408,7 @@ export class SuppliersService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Mã nhà cung cấp đã tồn tại');
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
       }
       throw error;
     }
@@ -455,7 +467,7 @@ export class SuppliersService {
 
   async overrideAllotment(id: string, dto: OverrideAllotmentDto) {
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException('Không tìm thấy allotment');
+    if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
     const next = {
       allotmentQty: dto.allotmentQty ?? current.allotmentQty,
       bookedQty: dto.bookedQty ?? current.bookedQty,
@@ -463,7 +475,7 @@ export class SuppliersService {
       status: dto.status ?? current.status,
     };
     if (next.bookedQty + next.lockedQty > next.allotmentQty && next.status !== 'STOP_SELL') {
-      throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá số lượng allotment');
+      throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
     }
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.supplierAllotment.update({
@@ -494,15 +506,15 @@ export class SuppliersService {
   async lockAllotment(id: string, dto: LockAllotmentDto, user?: RequestUser) {
     const quantity = dto.quantity ?? 1;
     const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException('Không tìm thấy allotment');
-    if (current.status !== 'ACTIVE') throw new BadRequestException('Allotment chưa ở trạng thái hoạt động');
+    if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+    if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
     await this.ensureAllocationLinks(dto, user);
     if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
-      throw new BadRequestException('Service does not match allotment');
+      throw new BadRequestException('Dịch vụ không khớp với quỹ phòng');
     }
     const allotmentQty = current.allotmentQty || current.quantityLock || 0;
     if (current.bookedQty + current.lockedQty + quantity > allotmentQty) {
-      throw new BadRequestException('Not enough allotment quantity');
+      throw new BadRequestException('Số lượng quỹ phòng còn lại không đủ');
     }
     const actor = this.actorFrom(dto.actor, user);
     return this.prisma.$transaction(async (tx) => {
@@ -543,7 +555,7 @@ export class SuppliersService {
 
   private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto, user?: RequestUser) {
     const allocation = await this.prisma.supplierAllotmentAllocation.findFirst({ where: this.allotmentAllocationScopeWhere({ id }, user), include: { allotment: true } });
-    if (!allocation) throw new NotFoundException('Không tìm thấy phân bổ allotment');
+    if (!allocation) throw new NotFoundException(SUPPLIER_ERRORS.allocationNotFound);
     if (allocation.status === nextStatus) return allocation;
     if (!['LOCKED', 'CONFIRMED'].includes(allocation.status)) {
       throw new BadRequestException('Không thể thay đổi phân bổ ở trạng thái hiện tại');
@@ -589,7 +601,7 @@ export class SuppliersService {
 
   private async ensureAllocationLinks(dto: LockAllotmentDto, user?: RequestUser) {
     if (user && !hasUnrestrictedDataScope(user) && !dto.orderId && !dto.bookingId && !dto.tourId) {
-      throw new BadRequestException('Scoped allotment locks require an order, booking, or tour link');
+      throw new BadRequestException('Người dùng bị giới hạn phạm vi dữ liệu phải liên kết thao tác giữ chỗ với đơn hàng, booking hoặc tour');
     }
     if (dto.serviceId) await this.ensureExists('supplierService', dto.serviceId, 'Không tìm thấy dịch vụ nhà cung cấp', user);
     if (dto.orderId) await this.ensureExists('order', dto.orderId, 'Không tìm thấy đơn hàng', user);
@@ -644,7 +656,7 @@ export class SuppliersService {
   private async ensureCategory(id: string) {
     if (!this.optionalText(id)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
     const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
-    if (!category) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
     return category;
   }
 
@@ -680,7 +692,7 @@ export class SuppliersService {
       ...(dto.address !== undefined ? { address: this.optionalText(dto.address) } : {}),
       ...(dto.website !== undefined ? { website: this.optionalText(dto.website) } : {}),
       ...(dto.link !== undefined ? { link: this.optionalText(dto.link) } : {}),
-      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating) } : {}),
+      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
       ...(dto.market !== undefined ? { market: this.optionalText(dto.market) } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
       ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber) } : {}),
@@ -694,8 +706,8 @@ export class SuppliersService {
 
   private toHotelProfileData(dto: Partial<CreateHotelSupplierDto>) {
     return {
-      ...(dto.builtYear !== undefined ? { builtYear: this.optionalNumber(dto.builtYear) } : {}),
-      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating) } : {}),
+      ...(dto.builtYear !== undefined ? { builtYear: this.optionalNumber(dto.builtYear, 'Năm xây dựng') } : {}),
+      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
       ...(dto.classHotel !== undefined ? { classHotel: dto.classHotel.trim() } : {}),
       ...(dto.hotelProject !== undefined ? { hotelProject: dto.hotelProject.trim() } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
@@ -720,7 +732,7 @@ export class SuppliersService {
             supplierId,
             fullName: item.fullName.trim(),
             position: this.optionalText(item.position),
-            birthday: this.optionalDate(item.birthday),
+            birthday: this.optionalDate(item.birthday, 'Ngày sinh người liên hệ'),
             phone: this.optionalText(item.phone),
             email: this.optionalText(item.email),
           })),
@@ -733,20 +745,23 @@ export class SuppliersService {
       const services = dto.services.filter((item) => item.serviceName?.trim());
       if (services.length) {
         await tx.supplierService.createMany({
-          data: services.map((item) => ({
-            supplierId,
-            sku: this.optionalText(item.sku),
-            serviceName: item.serviceName.trim(),
-            startDate: this.optionalDate(item.startDate),
-            endDate: this.optionalDate(item.endDate),
-            dayType: item.dayType ?? 'ALL_DAYS',
-            quantity: 1,
-            accountingPrice: item.accountingPrice ?? 0,
-            netPrice: item.netPrice ?? 0,
-            sellingPrice: item.sellingPrice ?? 0,
-            description: this.optionalText(item.description),
-            note: this.optionalText(item.note),
-          })),
+          data: services.map((item) => {
+            const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'dịch vụ');
+            return {
+              supplierId,
+              sku: this.optionalText(item.sku),
+              serviceName: item.serviceName.trim(),
+              startDate,
+              endDate,
+              dayType: item.dayType ?? 'ALL_DAYS',
+              quantity: 1,
+              accountingPrice: item.accountingPrice ?? 0,
+              netPrice: item.netPrice ?? 0,
+              sellingPrice: item.sellingPrice ?? 0,
+              description: this.optionalText(item.description),
+              note: this.optionalText(item.note),
+            };
+          }),
         });
       }
     }
@@ -756,24 +771,27 @@ export class SuppliersService {
       const allotments = dto.allotments.filter((item) => item.serviceName?.trim());
       if (allotments.length) {
         await tx.supplierAllotment.createMany({
-          data: allotments.map((item) => ({
-            supplierId,
-            sku: this.optionalText(item.sku),
-            serviceName: item.serviceName.trim(),
-            startDate: this.optionalDate(item.startDate),
-            endDate: this.optionalDate(item.endDate),
-            dayType: item.dayType ?? 'ALL_DAYS',
-            allotmentQty: item.allotmentQty ?? item.quantityLock ?? 0,
-            bookedQty: item.bookedQty ?? 0,
-            lockedQty: item.lockedQty ?? item.quantityLock ?? 0,
-            quantityLock: item.quantityLock ?? 0,
-            cutoffDays: item.cutoffDays ?? 0,
-            netCostPerDay: item.netCostPerDay ?? 0,
-            sellingPricePerDay: item.sellingPricePerDay ?? 0,
-            status: item.status || 'ACTIVE',
-            description: this.optionalText(item.description),
-            note: this.optionalText(item.note),
-          })),
+          data: allotments.map((item) => {
+            const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
+            return {
+              supplierId,
+              sku: this.optionalText(item.sku),
+              serviceName: item.serviceName.trim(),
+              startDate,
+              endDate,
+              dayType: item.dayType ?? 'ALL_DAYS',
+              allotmentQty: item.allotmentQty ?? item.quantityLock ?? 0,
+              bookedQty: item.bookedQty ?? 0,
+              lockedQty: item.lockedQty ?? item.quantityLock ?? 0,
+              quantityLock: item.quantityLock ?? 0,
+              cutoffDays: item.cutoffDays ?? 0,
+              netCostPerDay: item.netCostPerDay ?? 0,
+              sellingPricePerDay: item.sellingPricePerDay ?? 0,
+              status: item.status || 'ACTIVE',
+              description: this.optionalText(item.description),
+              note: this.optionalText(item.note),
+            };
+          }),
         });
       }
     }
@@ -793,7 +811,7 @@ export class SuppliersService {
             supplierId,
             fullName: item.fullName.trim(),
             position: this.optionalText(item.position),
-            birthday: this.optionalDate(item.birthday),
+            birthday: this.optionalDate(item.birthday, 'Ngày sinh người liên hệ'),
             phone: this.optionalText(item.phone),
             email: this.optionalText(item.email),
           })),
@@ -888,11 +906,11 @@ export class SuppliersService {
 
   private getTypeLabel(type: string) {
     const categoryName = SUPPLIER_TYPE_LABELS[type as keyof typeof SUPPLIER_TYPE_LABELS];
-    if (!categoryName) throw new NotFoundException('Không tìm thấy loại nhà cung cấp');
+    if (!categoryName) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
     return categoryName;
   }
 
-  private requiredText(value: string | undefined, message: string) {
+  private requiredText(value: string | undefined, message = 'Cần nhập trường bắt buộc') {
     const text = this.optionalText(value);
     if (!text) throw new BadRequestException(message);
     return text;
@@ -1008,13 +1026,13 @@ export class SuppliersService {
       ['supplierPaymentItems', 'yêu cầu thanh toán'],
       ['operationServices', 'dịch vụ điều hành'],
       ['quoteComboItems', 'dịch vụ combo'],
-      ['quotationItems', 'item báo giá'],
+      ['quotationItems', 'hạng mục báo giá'],
       ['tourSuppliers', 'nhà cung cấp trong tour'],
       ['tourServices', 'dịch vụ tour'],
       ['tourCosts', 'chi phí tour'],
       ['fitBudgetServices', 'dự toán FIT'],
       ['fitOperationServices', 'điều hành FIT'],
-      ['allotmentAllocations', 'allotment đang khóa/xác nhận'],
+      ['allotmentAllocations', 'phân bổ quỹ phòng đang khóa hoặc đã xác nhận'],
     ];
     return labels
       .filter(([key]) => usage[key] > 0)
@@ -1031,11 +1049,25 @@ export class SuppliersService {
     return trimmed ? trimmed : null;
   }
 
-  private optionalNumber(value?: number) {
-    return value === undefined || Number.isNaN(value) ? null : value;
+  private optionalNumber(value?: number, fieldName = 'Giá trị số') {
+    if (value === undefined) return null;
+    if (!Number.isFinite(value)) throw new BadRequestException(`${fieldName} không hợp lệ`);
+    return value;
   }
 
-  private optionalDate(value?: string) {
-    return value ? new Date(value) : null;
+  private optionalDate(value?: string, fieldName = 'Ngày') {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${fieldName} không hợp lệ`);
+    return date;
+  }
+
+  private optionalDateRange(startValue: string | undefined, endValue: string | undefined, subject: string) {
+    const startDate = this.optionalDate(startValue, `Ngày bắt đầu ${subject}`);
+    const endDate = this.optionalDate(endValue, `Ngày kết thúc ${subject}`);
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException(`Ngày bắt đầu ${subject} không được sau ngày kết thúc ${subject}`);
+    }
+    return { startDate, endDate };
   }
 }

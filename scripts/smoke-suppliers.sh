@@ -247,7 +247,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     const typedList = await request(viewToken, 'GET', `/suppliers/${type}`);
     assert(Array.isArray(typedList), `typed route ${type} must return an array`);
   }
-  await request(viewToken, 'GET', `/suppliers/not-a-supplier-type/${usedSupplierId}`, undefined, [404]);
+  const unsupportedTypeError = await request(viewToken, 'GET', `/suppliers/not-a-supplier-type/${usedSupplierId}`, undefined, [404]);
+  assert(messageOf(unsupportedTypeError).includes('Loại nhà cung cấp không được hỗ trợ'), 'unsupported supplier type should return a clear Vietnamese message');
 
   const dashboard = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
   assert(typeof dashboard.allotmentQty === 'number', 'allotment dashboard static route should not be matched as supplier detail');
@@ -262,9 +263,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await request(viewToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [403]);
   await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [403]);
   await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/release', {}, [403]);
-  await request(manageToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', {}, [404]);
-  await request(manageToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [404]);
-  await request(manageToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [404]);
+  const missingAllotmentError = await request(manageToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', {}, [404]);
+  assert(messageOf(missingAllotmentError).includes('Không tìm thấy quỹ phòng'), 'missing allotment should return a Vietnamese message');
+  const missingLockAllotmentError = await request(manageToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [404]);
+  assert(messageOf(missingLockAllotmentError).includes('Không tìm thấy quỹ phòng'), 'locking a missing allotment should return a Vietnamese message');
+  const missingAllocationError = await request(manageToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [404]);
+  assert(messageOf(missingAllocationError).includes('Không tìm thấy phân bổ quỹ phòng'), 'missing allotment allocation should return a Vietnamese message');
   await request(manageToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/release', {}, [404]);
 
   await request(viewToken, 'POST', '/supplier-categories', { name: `${run} forbidden category` }, [403]);
@@ -289,7 +293,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const updatedCategoryName = `${run} API Category Updated`;
   const updatedCategory = await request(manageToken, 'PATCH', `/supplier-categories/${category.id}`, { name: `  ${updatedCategoryName}  ` });
   assert(updatedCategory.name === updatedCategoryName, 'updated category should be trimmed and returned');
-  await request(manageToken, 'POST', '/supplier-categories', { name: updatedCategoryName.toLowerCase() }, [409]);
+  const duplicateCategoryError = await request(manageToken, 'POST', '/supplier-categories', { name: updatedCategoryName.toLowerCase() }, [409]);
+  assert(messageOf(duplicateCategoryError).includes('Loại nhà cung cấp đã tồn tại'), 'duplicate category should return a Vietnamese message');
 
   const disposableCategory = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Disposable Category` });
   const renamedDisposableCategory = await request(manageToken, 'PATCH', `/supplier-categories/${disposableCategory.id}`, { name: `${run} Disposable Category Updated` });
@@ -325,6 +330,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(uploadedFile.id && uploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'supplier upload should record the authenticated user id');
   await request(viewToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [403]);
   await request(manageToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`);
+  const missingFileError = await request(manageToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [404]);
+  assert(messageOf(missingFileError).includes('Không tìm thấy file nhà cung cấp'), 'missing supplier file should return a Vietnamese message');
 
   const categoriesAfterCreate = await request(manageToken, 'GET', '/supplier-categories');
   const counted = categoriesAfterCreate.find((item) => item.id === category.id);
@@ -385,7 +392,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     name: `${run} Restaurant Supplier`,
     phone: '0907777888',
   });
-  await request(manageToken, 'DELETE', `/suppliers/flights/${typedSupplier.id}`, undefined, [404]);
+  const wrongTypedSupplierError = await request(manageToken, 'DELETE', `/suppliers/flights/${typedSupplier.id}`, undefined, [404]);
+  assert(messageOf(wrongTypedSupplierError).includes('Không tìm thấy nhà cung cấp thuộc loại đã chọn'), 'typed supplier mismatch should return a clear Vietnamese message');
   const typedSupplierAfterWrongDelete = await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`);
   assert(typedSupplierAfterWrongDelete.id === typedSupplier.id, 'wrong typed delete must not remove supplier from another type');
   const typedUpdated = await request(manageToken, 'PUT', `/suppliers/restaurants/${typedSupplier.id}`, { name: `${run} Restaurant Supplier Updated` });
@@ -394,6 +402,36 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(typedInactive.status === 'INACTIVE', 'typed supplier manage permission should allow status update');
   await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
   await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
+
+  const invalidHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-DATE`,
+    name: `${run} Hotel Invalid Date`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Invalid Date Project`,
+    services: [{ serviceName: 'Phòng tiêu chuẩn', startDate: 'khong-phai-ngay' }],
+  }, [400]);
+  assert(messageOf(invalidHotelDateError).includes('Ngày bắt đầu dịch vụ không hợp lệ'), 'invalid service date should return a Vietnamese message');
+
+  const reversedHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-REVERSED-DATE`,
+    name: `${run} Hotel Reversed Date`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Reversed Date Project`,
+    allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', startDate: '2026-06-12', endDate: '2026-06-11' }],
+  }, [400]);
+  assert(messageOf(reversedHotelDateError).includes('Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng'), 'reversed allotment dates should return a Vietnamese message');
+
+  const invalidAllotmentStatusError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-STATUS`,
+    name: `${run} Hotel Invalid Status`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Invalid Status Project`,
+    allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', status: 'UNKNOWN' }],
+  }, [400]);
+  assert(messageOf(invalidAllotmentStatusError).includes('Trạng thái quỹ phòng không hợp lệ'), 'invalid allotment status should return a Vietnamese message');
 
   const hotel = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL`,

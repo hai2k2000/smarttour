@@ -3,9 +3,11 @@ import { SupplierDayType, SupplierStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsDateString,
   IsEmail,
   IsEnum,
   IsInt,
+  IsIn,
   IsNumber,
   IsOptional,
   Matches,
@@ -26,8 +28,8 @@ const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 
 class SupplierContactInputDto {
   @ApiProperty()
-  @IsString()
-  @MinLength(2)
+  @IsString({ message: 'Tên người liên hệ phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên người liên hệ phải có ít nhất 2 ký tự' })
   fullName!: string;
 
   @ApiPropertyOptional()
@@ -37,7 +39,7 @@ class SupplierContactInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({}, { message: 'Ngày sinh người liên hệ không hợp lệ' })
   birthday?: string;
 
   @ApiPropertyOptional()
@@ -58,18 +60,18 @@ class SupplierServiceInputDto {
   sku?: string;
 
   @ApiProperty()
-  @IsString()
-  @MinLength(2)
+  @IsString({ message: 'Tên dịch vụ phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên dịch vụ phải có ít nhất 2 ký tự' })
   serviceName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({}, { message: 'Ngày bắt đầu dịch vụ không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({}, { message: 'Ngày kết thúc dịch vụ không hợp lệ' })
   endDate?: string;
 
   @ApiPropertyOptional({ enum: SupplierDayType })
@@ -116,18 +118,18 @@ class SupplierAllotmentInputDto {
   sku?: string;
 
   @ApiProperty()
-  @IsString()
-  @MinLength(2)
+  @IsString({ message: 'Tên quỹ phòng phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên quỹ phòng phải có ít nhất 2 ký tự' })
   serviceName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({}, { message: 'Ngày bắt đầu quỹ phòng không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({}, { message: 'Ngày kết thúc quỹ phòng không hợp lệ' })
   endDate?: string;
 
   @ApiPropertyOptional({ enum: SupplierDayType })
@@ -196,7 +198,7 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsIn(['ACTIVE', 'INACTIVE', 'STOP_SELL'], { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: string;
 }
 
@@ -310,7 +312,7 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional({ enum: SupplierStatus })
   @IsOptional()
-  @IsEnum(SupplierStatus)
+  @IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không hợp lệ' })
   status?: SupplierStatus;
 
   @ApiPropertyOptional({ type: [SupplierContactInputDto] })
@@ -339,7 +341,7 @@ export class UpdateHotelSupplierDto extends PartialType(CreateHotelSupplierDto) 
 
 export class UpdateSupplierStatusDto {
   @ApiProperty({ enum: SupplierStatus })
-  @IsEnum(SupplierStatus)
+  @IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không hợp lệ' })
   status!: SupplierStatus;
 }
 
@@ -367,7 +369,7 @@ export class OverrideAllotmentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsIn(['ACTIVE', 'INACTIVE', 'STOP_SELL'], { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: string;
 
   @ApiPropertyOptional()
