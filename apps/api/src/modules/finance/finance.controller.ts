@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { FileUploadSizeExceptionFilter } from '../files/file-upload-size-exception.filter';
+import { fileUploadInterceptorOptions } from '../files/files.service';
 import { FinanceCashflowService } from './finance-cashflow.service';
 import { FinanceInvoiceService } from './finance-invoice.service';
 import { FinanceLedgerService } from './finance-ledger.service';
@@ -54,12 +56,15 @@ export class FinanceController {
 
   @Post('receipts/:id/file')
   @RequirePermissions('finance.receipt.update')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(FileUploadSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   uploadReceiptFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
+    if (!file) throw new BadRequestException('Cần chọn file để tải lên');
     return this.receiptsService.uploadFile(id, file, request.user?.id, request.user);
   }
 
@@ -133,12 +138,15 @@ export class FinanceController {
 
   @Post('payments/:id/file')
   @RequirePermissions('finance.payment.update')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(FileUploadSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   uploadPaymentFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
+    if (!file) throw new BadRequestException('Cần chọn file để tải lên');
     return this.paymentsService.uploadFile(id, file, request.user?.id, request.user);
   }
 
@@ -206,12 +214,15 @@ export class FinanceController {
 
   @Post('invoices/:id/files')
   @RequirePermissions('finance.invoice.update')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(FileUploadSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   uploadInvoiceFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
+    if (!file) throw new BadRequestException('Cần chọn file để tải lên');
     return this.invoicesService.uploadFile(id, file, request.user?.id, request.user);
   }
 
@@ -252,7 +263,7 @@ export class FinanceController {
   }
 
   @Get('debt/customers')
-  @RequirePermissions('finance.cashflow.view')
+  @RequirePermissions('finance.debt.view')
   customerDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
     return this.ledgerService.customerDebt(query, request.user);
   }
@@ -264,7 +275,7 @@ export class FinanceController {
   }
 
   @Get('debt/suppliers')
-  @RequirePermissions('finance.cashflow.view')
+  @RequirePermissions('finance.debt.view')
   supplierDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
     return this.ledgerService.supplierDebt(query, request.user);
   }

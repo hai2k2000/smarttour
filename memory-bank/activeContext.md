@@ -1569,3 +1569,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Create payload now trims fields, maps route/itinerarySummary, normalizes numeric inputs, and only sends sales/operation service rows when the user entered real service data.
   - List rows now show payment status, workflow status, service/term counts, copy-services modal with explicit source tour, and delete confirmation modal.
   - TEST_TOUR_TYPE_APIS_OK has static guards for the LandTour frontend query/copy/delete/payment/payload contract.
+
+- 2026-06-11 Finance controller permission/upload hardening:
+  - Receipt/payment/invoice routes keep separate view/create/update/delete/approve/import/export permissions; reject and cancel intentionally share each entity's approve permission because they are final-state approval actions.
+  - Customer and supplier debt reads now use dedicated `finance.debt.view`; migration `20260611150000_finance_debt_view_permission` grants it to every role that already had `finance.cashflow.view`, preserving existing access.
+  - Finance upload endpoints now use shared configurable upload limits and blocked MIME/extension rules, document multipart Swagger contracts, reject missing files in Vietnamese, and translate oversized uploads to a clear 413 response.
+  - Updated finance controller and file rollback regression coverage for the current FinanceService API.

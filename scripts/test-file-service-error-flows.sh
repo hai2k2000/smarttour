@@ -26,12 +26,17 @@ const oldKey = 'tests/2027/01/old.txt';
 const testFile = { originalname: 'uploaded.txt', mimetype: 'text/plain', size: 12, buffer: Buffer.from('hello world!') };
 
 function filesService(options = {}) {
-  const calls = { upload: 0, removeIfPresent: [], removeQuietly: [] };
+  const calls = { upload: 0, remove: [], removeIfPresent: [], removeQuietly: [] };
   return {
     calls,
     async upload() {
       calls.upload += 1;
       return upload;
+    },
+    async remove(objectKey) {
+      calls.remove.push(objectKey);
+      if (options.failRemove) throw new Error('remove failed');
+      return { deleted: true, objectKey };
     },
     async removeIfPresent(objectKey) {
       calls.removeIfPresent.push(objectKey);
@@ -86,8 +91,8 @@ async function assertFinanceReceiptUploadCleanup() {
     },
   }, files);
 
-  await assert.rejects(() => service.uploadReceiptFileCore('receipt-1', testFile, 'actor-1'), /receipt update failed/);
-  assert.deepEqual(files.calls.removeQuietly, [upload.objectKey]);
+  await assert.rejects(() => service.uploadReceiptFile('receipt-1', testFile, 'actor-1'), /receipt update failed/);
+  assert.deepEqual(files.calls.removeIfPresent, [upload.objectKey]);
 }
 
 async function assertFinanceAttachmentDeleteRollback(kind) {
@@ -104,14 +109,11 @@ async function assertFinanceAttachmentDeleteRollback(kind) {
   const prisma = kind === 'receipt' ? { financeReceipt: model } : { financePayment: model };
   const service = new FinanceService(prisma, files);
 
-  if (kind === 'receipt') await assert.rejects(() => service.deleteReceiptFileCore('receipt-1'), /remove failed/);
-  else await assert.rejects(() => service.deletePaymentFileCore('payment-1'), /remove failed/);
+  if (kind === 'receipt') await assert.rejects(() => service.deleteReceiptFile('receipt-1'), /remove failed/);
+  else await assert.rejects(() => service.deletePaymentFile('payment-1'), /remove failed/);
 
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
-  assert.deepEqual(updates, [
-    { attachmentName: null, attachmentUrl: null },
-    { attachmentName: 'old.txt', attachmentUrl: oldUrl },
-  ]);
+  assert.deepEqual(updates, []);
 }
 
 async function assertFinanceInvoiceUploadCleanup() {
@@ -121,8 +123,8 @@ async function assertFinanceInvoiceUploadCleanup() {
     financeInvoiceFile: { create: async () => { throw new Error('invoice file create failed'); } },
   }, files);
 
-  await assert.rejects(() => service.uploadInvoiceFileCore('invoice-1', testFile, 'actor-1'), /invoice file create failed/);
-  assert.deepEqual(files.calls.removeQuietly, [upload.objectKey]);
+  await assert.rejects(() => service.uploadInvoiceFile('invoice-1', testFile, 'actor-1'), /invoice file create failed/);
+  assert.deepEqual(files.calls.removeIfPresent, [upload.objectKey]);
 }
 
 async function assertFinanceInvoiceDeleteRollback() {
@@ -138,10 +140,9 @@ async function assertFinanceInvoiceDeleteRollback() {
     },
   }, files);
 
-  await assert.rejects(() => service.deleteInvoiceFileCore('invoice-1', 'invoice-file-1'), /remove failed/);
+  await assert.rejects(() => service.deleteInvoiceFile('invoice-1', 'invoice-file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
-  assert.equal(restored[0].id, invoiceFile.id);
-  assert.equal(restored[0].fileUrl, invoiceFile.fileUrl);
+  assert.equal(restored.length, 0);
 }
 
 async function assertSupplierDeleteRollback() {
@@ -158,9 +159,8 @@ async function assertSupplierDeleteRollback() {
   }, files);
 
   await assert.rejects(() => service.deleteSupplierFile('supplier-1', 'supplier-file-1'), /remove failed/);
-  assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
-  assert.equal(restored[0].id, supplierFile.id);
-  assert.equal(restored[0].fileUrl, supplierFile.fileUrl);
+  assert.deepEqual(files.calls.remove, [oldKey]);
+  assert.equal(restored.length, 0);
 }
 
 async function assertTourGuideDeleteRollback() {

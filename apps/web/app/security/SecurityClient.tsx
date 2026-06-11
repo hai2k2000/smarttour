@@ -105,6 +105,7 @@ const commonPermissionGroups = [
       'finance.invoice.export',
       'finance.cashflow.view',
       'finance.cashflow.export',
+      'finance.debt.view',
       'finance.debt.adjust',
     ],
   },

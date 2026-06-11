@@ -261,7 +261,7 @@ export default function FinanceClient() {
         <Metric label="Chứng từ thu" value={receiptSummary.count} /><Metric label="Tổng tiền thu" value={money(receiptSummary.totalAmount)} /><Metric label="Chứng từ chi" value={paymentSummary.count} />
         <Metric label="Tổng tiền chi" value={money(paymentSummary.totalAmount)} /><Metric label="Hóa đơn VAT" value={invoiceSummary.count} /><Metric label="Dòng tiền ròng" value={money(cashSummary.netCashflow)} />
       </section>
-      <PermissionNotice allowed={canAny(['finance.receipt.view', 'finance.payment.view', 'finance.invoice.view', 'finance.cashflow.view'])} label="xem tài chính kế toán" />
+      <PermissionNotice allowed={canAny(['finance.receipt.view', 'finance.payment.view', 'finance.invoice.view', 'finance.cashflow.view', 'finance.debt.view'])} label="xem tài chính kế toán" />
 
       <section className="panel financeFilters">
         <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Tên, số điện thoại, email, mã chứng từ, mã tour" /></label>
