@@ -347,8 +347,9 @@ export class OperationsService {
     if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
     await this.validatePaymentItems(items);
     await this.ensurePaymentItemsScoped(items, user);
+    const codeBranch = await this.paymentRequestCodeBranch(items, dto, user);
     return this.prisma.$transaction(async (tx) => {
-      const code = this.text(dto.code) || (await this.nextCode(tx, 'SUPPLIER_PAYMENT_REQUEST', 'YCTT', new Date(), this.text(dto.branch)));
+      const code = this.text(dto.code) || (await this.nextCode(tx, 'SUPPLIER_PAYMENT_REQUEST', 'YCTT', new Date(), codeBranch));
       const request = await tx.supplierPaymentRequest.create({
         data: {
           code,
@@ -358,7 +359,7 @@ export class OperationsService {
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, { actor, itemCount: items.length, payload: dto });
+      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, { actor, requestedBy: request.requestedBy, code, codeBranch, itemCount: items.length, payload: dto });
       return request;
     });
   }
@@ -569,13 +570,14 @@ export class OperationsService {
   }
 
   async deletePaymentRequest(id: string, user?: RequestUser) {
+    const actor = this.userActor(user);
     const current = await this.paymentRequestDetail(id, user);
     if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được xóa');
     if (current.financePaymentId) throw new BadRequestException('Không thể xóa yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
     return this.prisma.$transaction(async (tx) => {
       await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
       const deleted = await tx.supplierPaymentRequest.delete({ where: { id } });
-      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { status: current.status, code: current.code });
+      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { actor, status: current.status, code: current.code });
       return deleted;
     });
   }
@@ -925,6 +927,27 @@ export class OperationsService {
     if (links.tourId && !tour) throw new NotFoundException('Không tìm thấy tour');
   }
 
+  private async paymentRequestCodeBranch(items: ParsedPaymentItem[], dto: AnyRecord, user?: RequestUser) {
+    const explicitBranch = this.text(dto.branch);
+    if (user && !hasUnrestrictedDataScope(user)) {
+      this.assertScopedWriteUser(user);
+      const permissions = userPermissions(user);
+      if (permissions.has('data.scope.branch')) return user.branch ?? null;
+    }
+    const scope = await this.paymentItemsScope(items);
+    return explicitBranch || scope.branch;
+  }
+
+  private async paymentItemsScope(items: Array<{ costId: string }>): Promise<ScopeMeta> {
+    const costIds = Array.from(new Set(items.map((item) => item.costId)));
+    if (!costIds.length) return { branch: null, department: null };
+    const costs = await this.prisma.operationCost.findMany({
+      where: { id: { in: costIds } },
+      include: { operationForm: { include: { booking: { include: { customer: true } }, order: true, tour: true } } },
+    });
+    return this.commonOperationFormScope(costs.map((cost) => cost.operationForm));
+  }
+
   private async ensurePaymentItemsScoped(items: Array<{ costId: string }>, user?: RequestUser) {
     if (!user || hasUnrestrictedDataScope(user)) return;
     this.assertScopedWriteUser(user);
@@ -971,6 +994,10 @@ export class OperationsService {
 
   private operationFormDepartment(form: LinkedOperationForm) {
     return form.order?.department || form.tour?.department || form.booking?.customer?.department || null;
+  }
+
+  private userActor(user?: RequestUser) {
+    return user?.username || user?.email || user?.name || user?.id || 'operation';
   }
 
   private assertSupplierPaymentTransition(current: SupplierPaymentStatus, next: SupplierPaymentStatus) {

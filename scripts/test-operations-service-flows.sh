@@ -248,6 +248,7 @@ async function main() {
   await rejectsMessage(() => service.cancelForm(formB.id, { actor: 'canceller-b' }), 'Cần nhập lý do hủy phiếu điều hành để lưu lịch sử xử lý', 'cancel form should require Vietnamese reason');
   const cancelledFormB = await service.cancelForm(formB.id, { actor: 'canceller-b', reason: 'Khách đổi lịch' });
   assert(cancelledFormB.status === 'CANCELLED' && cancelledFormB.notes === 'Khách đổi lịch', 'cancel form should set status and reason');
+  await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [] }), 'Cần ít nhất một dòng thanh toán nhà cung cấp', 'create payment request should reject empty items');
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: 900 }] }), 'Số tiền thanh toán không được vượt quá số tiền chi phí điều hành', 'payment amount above cost should be Vietnamese');
 
   const request = await service.createPaymentRequest({
@@ -255,7 +256,7 @@ async function main() {
     code: `${run}-PAY-A`,
     items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: '700', notes: 'Thanh toán khách sạn' }],
   });
-  assert(request.status === 'DRAFT' && request.items.length === 1 && amount(request.items[0].amount) === 700, 'create payment request should create draft with item');
+  assert(request.status === 'DRAFT' && request.requestedBy === 'payment-creator' && request.items.length === 1 && amount(request.items[0].amount) === 700, 'create payment request should create draft with actor/requestedBy and item');
   assert((await service.listPaymentRequests({ search: request.code })).some((row) => row.id === request.id), 'list payment requests search should match code');
   assert((await service.listPaymentRequests({ supplierId: supplierA.id })).some((row) => row.id === request.id), 'list payment requests supplier filter should work');
   assert((await service.listPaymentRequests({ take: 50 }, branchAUser)).some((row) => row.id === request.id), 'branch scoped user should see request via operation form cost');
@@ -268,12 +269,22 @@ async function main() {
     items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: '750', notes: 'Cập nhật số tiền' }],
   });
   assert(updatedRequest.requestedBy === 'payment-updater' && amount(updatedRequest.items[0].amount) === 750, 'update payment request should replace editable fields and items');
+  await rejectsMessage(() => service.updatePaymentRequest(request.id, { items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: 900 }] }), 'Số tiền thanh toán không được vượt quá số tiền chi phí điều hành', 'invalid payment request update should be rejected before replacing items');
+  const unchangedRequest = await service.paymentRequestDetail(request.id);
+  assert(unchangedRequest.items.length === 1 && amount(unchangedRequest.items[0].amount) === 750, 'failed payment request item update should keep previous items');
   await rejectsMessage(() => service.updatePaymentRequest(request.id, { status: 'REQUESTED' }), 'đường dẫn hành động', 'direct status update should be Vietnamese action-endpoint error');
+
+  const defaultCodeBooking = await makeBooking('DEFAULT-CODE', customerA, orderA, tourA);
+  const defaultCodeForm = await service.createForm(formPayload(defaultCodeBooking, supplierA, supplierServiceA, 'DEFAULT-CODE'));
+  const defaultCodeRequest = await service.createPaymentRequest({ actor: 'payment-code-generator', items: [{ supplierId: supplierA.id, costId: defaultCodeForm.costs[0].id, amount: 100 }] }, branchAUser);
+  assert(/^YCTT-\d{6}-\d{6}$/.test(defaultCodeRequest.code), `generated payment request code should match YCTT-YYYYMM-000001 format, got ${defaultCodeRequest.code}`);
+  await service.deletePaymentRequest(defaultCodeRequest.id, branchAUser);
+  await service.updateForm(defaultCodeForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
 
   const deleteBooking = await makeBooking('DELETE', customerA, orderA, tourA);
   const deleteForm = await service.createForm(formPayload(deleteBooking, supplierA, supplierServiceA, 'DELETE'));
   const deleteRequest = await service.createPaymentRequest({ code: `${run}-PAY-DELETE`, items: [{ supplierId: supplierA.id, costId: deleteForm.costs[0].id, amount: 100 }] });
-  const deletedRequest = await service.deletePaymentRequest(deleteRequest.id);
+  const deletedRequest = await service.deletePaymentRequest(deleteRequest.id, branchAUser);
   assert(deletedRequest.id === deleteRequest.id, 'delete payment request should delete draft request');
   assert((await service.listPaymentRequests({ search: deleteRequest.code })).length === 0, 'deleted payment request should not be listed');
   await service.updateForm(deleteForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
@@ -281,6 +292,8 @@ async function main() {
   const rejectBooking = await makeBooking('REJECT', customerA, orderA, tourA);
   const rejectForm = await service.createForm(formPayload(rejectBooking, supplierA, supplierServiceA, 'REJECT'));
   const rejectRequest = await service.createPaymentRequest({ code: `${run}-PAY-REJECT`, items: [{ supplierId: supplierA.id, costId: rejectForm.costs[0].id, amount: 100 }] });
+  await rejectsMessage(() => service.rejectPaymentRequest(rejectRequest.id, { actor: 'approver' }), 'Không thể chuyển yêu cầu thanh toán nhà cung cấp từ DRAFT sang REJECTED', 'reject draft payment request should be blocked');
+  await rejectsMessage(() => service.approvePaymentRequest(rejectRequest.id, { actor: 'approver' }), 'Chỉ yêu cầu đã gửi mới được duyệt', 'approve draft payment request should be blocked');
   const submittedReject = await service.submitPaymentRequest(rejectRequest.id, { actor: 'submitter' });
   assert(submittedReject.status === 'REQUESTED', 'submit payment request should move draft to requested');
   const rejected = await service.rejectPaymentRequest(rejectRequest.id, { actor: 'approver', note: 'Thiếu chứng từ' });
@@ -289,10 +302,14 @@ async function main() {
 
   const submitted = await service.submitPaymentRequest(request.id, { actor: 'submitter-a' });
   assert(submitted.status === 'REQUESTED' && submitted.requestedBy === 'submitter-a', 'submit payment request should update actor');
+  await rejectsMessage(() => service.submitPaymentRequest(request.id, { actor: 'submitter-a' }), 'Không thể chuyển yêu cầu thanh toán nhà cung cấp từ REQUESTED sang REQUESTED', 'submit requested payment request should be blocked');
+  await rejectsMessage(() => service.deletePaymentRequest(request.id, branchAUser), 'Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được xóa', 'delete requested payment request should be blocked');
   await rejectsMessage(() => service.createFinancePaymentForRequest(request.id, { actor: 'finance' }), 'Chỉ yêu cầu đã duyệt mới được tạo phiếu chi tài chính', 'finance payment before approval should be Vietnamese');
   const approved = await service.approvePaymentRequest(request.id, { actor: 'approver-a' });
   assert(approved.status === 'APPROVED' && approved.approvedBy === 'approver-a', 'approve payment request should move requested to approved');
-  assert(await prisma.supplierLedgerEntry.count({ where: { sourceId: approved.items[0].id, entryType: 'CREDIT' } }) === 1, 'approve payment request should create supplier ledger credit');
+  const approvedLedger = await prisma.supplierLedgerEntry.findFirstOrThrow({ where: { sourceId: approved.items[0].id, entryType: 'CREDIT' } });
+  assert(approvedLedger.createdBy === 'approver-a' && approvedLedger.description === 'Cập nhật số tiền', 'approve payment request should create supplier ledger credit with actor and Vietnamese description');
+  await rejectsMessage(() => service.approvePaymentRequest(request.id, { actor: 'approver-a' }), 'Chỉ yêu cầu đã gửi mới được duyệt', 'approve approved payment request should be blocked');
 
   const linked = await service.createFinancePaymentForRequest(request.id, {
     actor: 'finance-a',
@@ -304,6 +321,7 @@ async function main() {
   assert(linked.financePayment && amount(linked.financePayment.paymentAmount) === 750, 'linked finance payment should use request total amount');
   const financePayment = await prisma.financePayment.findUniqueOrThrow({ where: { id: linked.financePaymentId } });
   assert(financePayment.orderId === orderA.id && financePayment.tourId === tourA.id, 'finance payment should link request to order/tour');
+  assert(financePayment.reason === 'Chi theo yêu cầu test' && financePayment.createdBy === 'finance-a', 'finance payment should keep Vietnamese reason and actor');
   assert(financePayment.branch === 'BR-A', 'finance payment should apply branch data scope');
   const idempotentLinked = await service.createFinancePaymentForRequest(request.id, { actor: 'finance-a' });
   assert(idempotentLinked.financePaymentId === linked.financePaymentId, 'create finance payment should be idempotent for linked requests');
@@ -364,6 +382,16 @@ async function main() {
   }
   const cancelAudit = auditLogs.find((log) => log.action === 'CANCEL' && log.entityId === formB.id);
   assert(cancelAudit?.metadata?.reason === 'Khách đổi lịch' && cancelAudit.metadata.actor === 'canceller-b', 'cancel audit should include actor and reason');
+  const deleteAudit = auditLogs.find((log) => log.action === 'DELETE' && log.entityId === deleteRequest.id);
+  assert(deleteAudit?.metadata?.actor === 'test-user' && deleteAudit.metadata.code === deleteRequest.code, 'delete payment request audit should include actor and code');
+  const submitAudit = auditLogs.find((log) => log.action === 'REQUESTED' && log.entityId === request.id);
+  assert(submitAudit?.metadata?.actor === 'submitter-a', 'submit payment request audit should include actor');
+  const rejectAudit = auditLogs.find((log) => log.action === 'REJECTED' && log.entityId === rejectRequest.id);
+  assert(rejectAudit?.metadata?.actor === 'approver' && rejectAudit.metadata.note === 'Thiếu chứng từ', 'reject payment request audit should include actor and note');
+  const approveAudit = auditLogs.find((log) => log.action === 'APPROVE' && log.entityId === request.id);
+  assert(approveAudit?.metadata?.actor === 'approver-a', 'approve payment request audit should include actor');
+  const financeAudit = auditLogs.find((log) => log.action === 'CREATE_FINANCE_PAYMENT' && log.entityId === request.id);
+  assert(financeAudit?.metadata?.actor === 'finance-a' && financeAudit.metadata.financePaymentId === linked.financePaymentId && financeAudit.metadata.total === 750, 'create finance payment audit should include actor, link, and total');
 
   const errorMessages = [
     'Cần chọn booking để tạo phiếu điều hành',
