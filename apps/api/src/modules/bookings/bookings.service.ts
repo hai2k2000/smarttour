@@ -12,6 +12,7 @@ import {
   BOOKING_EMAIL_MAX_LENGTH,
   BOOKING_EMAIL_PATTERN,
   BOOKING_ID_MAX_LENGTH,
+  BOOKING_CREATE_FIELDS,
   BOOKING_OWNER_MAX_LENGTH,
   BOOKING_OWNER_MIN_LENGTH,
   BOOKING_PHONE_MAX_LENGTH,
@@ -20,7 +21,7 @@ import {
   CreateBookingDto,
 } from './dto/create-booking.dto';
 import { BOOKING_LIST_DEFAULT_TAKE, BOOKING_LIST_MAX_TAKE } from './dto/list-bookings-query.dto';
-import { BOOKING_NON_NULLABLE_UPDATE_FIELDS, UpdateBookingDto } from './dto/update-booking.dto';
+import { BOOKING_NON_NULLABLE_UPDATE_FIELDS, BOOKING_UPDATE_FIELDS, UpdateBookingDto } from './dto/update-booking.dto';
 import { BOOKING_CODE_CONFLICT_MESSAGE, BOOKING_NOT_FOUND_MESSAGES } from './booking-errors';
 import { bookingScopeWhere } from './booking-scope';
 
@@ -202,6 +203,7 @@ export class BookingsService {
   }
 
   async create(dto: CreateBookingDto, user?: RequestUser) {
+    this.ensureAllowedBookingPayload(dto, BOOKING_CREATE_FIELDS, 'tạo');
     const references = await this.resolveBookingReferences(dto, user, { creating: true });
     this.ensureBookingValues(dto, references.tourProgram.durationDays);
     try {
@@ -219,6 +221,7 @@ export class BookingsService {
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
     this.ensureNoStatusInBookingUpdate(dto);
+    this.ensureAllowedBookingPayload(dto, BOOKING_UPDATE_FIELDS, 'cập nhật');
     this.ensureNoNullBookingUpdate(dto);
     const current = await this.loadForMutation(id, user);
     const references = await this.resolveBookingReferences(dto, user, { creating: false, current });
@@ -484,6 +487,14 @@ export class BookingsService {
   private ensureNoStatusInBookingUpdate(dto: UpdateBookingDto) {
     if ((dto as Record<string, unknown>).status !== undefined) {
       throw new BadRequestException('Dùng updateStatus hoặc PATCH /api/bookings/:id/status để cập nhật trạng thái booking');
+    }
+  }
+
+  private ensureAllowedBookingPayload(dto: object, allowedFields: readonly string[], action: 'tạo' | 'cập nhật') {
+    const allowed = new Set(allowedFields);
+    const invalidFields = Object.keys(dto as Record<string, unknown>).filter((field) => !allowed.has(field));
+    if (invalidFields.length) {
+      throw new BadRequestException(`Trường không thuộc dữ liệu booking được phép ${action}: ${invalidFields.join(', ')}`);
     }
   }
 

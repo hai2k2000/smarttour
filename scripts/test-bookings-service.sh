@@ -458,6 +458,11 @@ async function main() {
     BOOKING_NOT_FOUND_MESSAGES.tourProgram,
   );
   await rejects(
+    () => service.create({ ...bookingDto(run, 'BAD-CROSS-ENTITY', tourProgram, links), customer: { id: links.customer.id }, operationFormId: 'not-a-booking-field' }),
+    'create should reject cross-entity payload fields',
+    'Trường không thuộc dữ liệu booking được phép tạo: customer, operationFormId',
+  );
+  await rejects(
     () => service.create(bookingDto(run, 'BAD-DATE-RANGE', tourProgram, links, { startDate: '2026-10-03', endDate: '2026-10-01' })),
     'create should reject endDate before startDate',
     'Ngày khởi hành phải trước hoặc bằng ngày kết thúc',
@@ -765,6 +770,11 @@ async function main() {
   await rejects(() => service.update(created.id, { startDate: '2026-10-06' }), 'update should reject startDate after current endDate');
   await rejects(() => service.update(created.id, { endDate: '2026-10-01' }), 'update should reject endDate before current startDate');
   await rejects(() => service.update(created.id, { status: 'CANCELLED' }), 'general update should reject status changes');
+  await rejects(
+    () => service.update(created.id, { operationForm: { id: 'not-a-booking-field' }, tour: { id: links.tour.id } }),
+    'update should reject cross-entity payload fields',
+    'Trường không thuộc dữ liệu booking được phép cập nhật: operationForm, tour',
+  );
 
   const oneDayTourProgram = await createTourProgram(prisma, run, 'ONE-DAY', 1);
   const oneDayBooking = await service.create(
