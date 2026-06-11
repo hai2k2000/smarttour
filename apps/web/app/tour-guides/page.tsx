@@ -27,7 +27,7 @@ export default async function TourHDVsPage() {
           <h1>Quản lý hướng dẫn viên</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><UserCheck size={14} /> Điều hành HDV</span>
+          <span className="statusPill"><UserCheck size={14} /> Điều hành hướng dẫn viên</span>
           <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>

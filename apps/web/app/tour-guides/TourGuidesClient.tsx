@@ -6,6 +6,7 @@ import { Loader2, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'luci
 import { useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { authHeaders, authJsonHeaders } from '../authFetch';
 
 type GuideSummary = {
   id: string;
@@ -16,14 +17,29 @@ type GuideSummary = {
   guideType: string | null;
   languages: string[];
   markets: string[];
+  skills?: string[];
   status: string;
+  _count?: { cards: number; documents: number; costServices: number; schedules: number };
 };
 
 type Message = { kind: 'success' | 'error' | 'info'; text: string };
-type RowColumn = { key: string; label: string; type?: string; placeholder?: string };
+type RowColumn = { key: string; label: string; type?: string; placeholder?: string; options?: Array<{ value: string; label: string }> };
 const costValueKeys = ['serviceType', 'serviceName', 'unit', 'netPrice', 'sellingPrice', 'note'];
 const scheduleValueKeys = ['title', 'startDate', 'endDate', 'note'];
 const appTimeZone = 'Asia/Bangkok';
+const guideStatusOptions = [
+  { value: 'ACTIVE', label: 'Đang hoạt động' },
+  { value: 'INACTIVE', label: 'Tạm dừng' },
+];
+const scheduleStatusOptions = [
+  { value: 'AVAILABLE', label: 'Sẵn sàng' },
+  { value: 'BUSY', label: 'Đang bận' },
+  { value: 'CONFIRMED', label: 'Đã xác nhận' },
+  { value: 'OPERATING', label: 'Đang điều hành' },
+  { value: 'COMPLETED', label: 'Hoàn tất' },
+  { value: 'CANCELLED', label: 'Đã hủy' },
+];
+const currencyOptions = ['VND', 'USD', 'EUR'].map((value) => ({ value, label: value }));
 
 const cardSchema = z.object({ cardType: z.string().default(''), cardNumber: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
 const documentSchema = z.object({ documentType: z.string().default(''), documentNo: z.string().default(''), country: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
@@ -71,6 +87,16 @@ function browserApiBase() {
   return apiBase;
 }
 
+function tourGuidesPath(search?: string, status?: string) {
+  const params = new URLSearchParams();
+  const keyword = cleanText(search).replace(/\s+/g, ' ');
+  const normalizedStatus = cleanText(status).toUpperCase();
+  if (keyword) params.set('search', keyword);
+  if (['ACTIVE', 'INACTIVE'].includes(normalizedStatus)) params.set('status', normalizedStatus);
+  const query = params.toString();
+  return `/api/tour-guides${query ? `?${query}` : ''}`;
+}
+
 function newGuideCode() {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random =
@@ -104,9 +130,9 @@ function newGuideDefaults(): GuideForm {
     comment: '',
     status: 'ACTIVE',
     createdBy: 'Operator',
-    cards: [{ ...emptyCard, cardType: 'Thẻ HDV' }],
+    cards: [{ ...emptyCard, cardType: 'Th\u1ebb h\u01b0\u1edbng d\u1eabn vi\u00ean' }],
     documents: [{ ...emptyDocument, documentType: 'Passport' }],
-    costServices: [{ ...emptyCost, serviceType: 'Guide', serviceName: 'Công tác phí HDV', unit: 'ngày' }],
+    costServices: [{ ...emptyCost, serviceType: 'Guide', serviceName: 'C\u00f4ng t\u00e1c ph\u00ed h\u01b0\u1edbng d\u1eabn vi\u00ean', unit: 'ng\u00e0y' }],
     schedules: [{ ...emptySchedule }],
   };
 }
@@ -272,7 +298,7 @@ function mapGuideToForm(guide: any): GuideForm {
 
 function validateRows(data: GuideForm) {
   const cardMissingType = data.cards.some((row) => hasAnyValue(row, ['cardType', 'cardNumber', 'issueDate', 'expiredDate', 'issuePlace', 'note']) && !cleanText(row.cardType));
-  if (cardMissingType) return 'Có dòng thẻ HDV đã nhập dữ liệu nhưng thiếu loại thẻ.';
+  if (cardMissingType) return 'Có dòng thẻ hướng dẫn viên đã nhập dữ liệu nhưng thiếu loại thẻ.';
   const documentMissingType = data.documents.some((row) => hasAnyValue(row, ['documentType', 'documentNo', 'country', 'issueDate', 'expiredDate', 'issuePlace', 'note']) && !cleanText(row.documentType));
   if (documentMissingType) return 'Có dòng giấy tờ đã nhập dữ liệu nhưng thiếu loại giấy tờ.';
   const costMissingName = data.costServices.some((row) => hasAnyValue(row, costValueKeys) && !cleanText(row.serviceName));
@@ -349,6 +375,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
   const [guides, setGuides] = useState(initialHDVs);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [message, setMessage] = useState<Message | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -360,18 +387,23 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
   const schedules = useFieldArray({ control, name: 'schedules' });
   const filtered = useMemo(() => {
     const term = normalizeSearch(query.trim());
-    if (!term) return guides;
-    return guides.filter((item) => [item.guideCode, item.fullName, item.phone, item.email, item.guideType, join(item.languages), join(item.markets), guideStatusLabel(item.status)].some((value) => normalizeSearch(value).includes(term)));
-  }, [guides, query]);
+    const normalizedStatus = statusFilter.trim().toUpperCase();
+    return guides.filter((item) => {
+      if (normalizedStatus && item.status !== normalizedStatus) return false;
+      if (!term) return true;
+      return [item.guideCode, item.fullName, item.phone, item.email, item.guideType, join(item.languages), join(item.markets), join(item.skills), guideStatusLabel(item.status)].some((value) => normalizeSearch(value).includes(term));
+    });
+  }, [guides, query, statusFilter]);
   const table = useReactTable({
     data: filtered,
     columns: useMemo(() => {
       const helper = createColumnHelper<GuideSummary>();
       return [
-        helper.display({ id: 'code', header: 'Mã HDV', cell: ({ row }) => <div><strong>{row.original.guideCode}</strong><br /><span className="mutedText">{row.original.guideType || '-'}</span></div> }),
-        helper.display({ id: 'contact', header: 'Thông tin', cell: ({ row }) => <span>{row.original.fullName}<br />{row.original.phone || '-'}{row.original.email ? <><br />{row.original.email}</> : null}</span> }),
+        helper.display({ id: 'code', header: 'Mã hướng dẫn viên', cell: ({ row }) => <div><strong>{row.original.guideCode}</strong><br /><span className="mutedText">{row.original.guideType || '-'}</span></div> }),
+        helper.display({ id: 'contact', header: 'Thông tin liên hệ', cell: ({ row }) => <span>{row.original.fullName}<br />{row.original.phone || '-'}{row.original.email ? <><br />{row.original.email}</> : null}</span> }),
         helper.display({ id: 'lang', header: 'Ngôn ngữ / thị trường', cell: ({ row }) => <span>{join(row.original.languages) || '-'}<br />{join(row.original.markets) || '-'}</span> }),
-        helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className={guideStatusClass(info.getValue())}>{guideStatusLabel(info.getValue())}</span> }),
+        helper.display({ id: 'profileRows', header: 'Hồ sơ / lịch', cell: ({ row }) => <span>{row.original._count?.cards ?? 0} thẻ / {row.original._count?.documents ?? 0} giấy tờ<br /><span className="mutedText">{row.original._count?.costServices ?? 0} giá / {row.original._count?.schedules ?? 0} lịch</span></span> }),
+        helper.accessor('status', { header: 'Trạng thái hồ sơ', cell: (info) => <span className={guideStatusClass(info.getValue())}>{guideStatusLabel(info.getValue())}</span> }),
         helper.display({
           id: 'actions',
           header: 'Thao tác',
@@ -390,8 +422,9 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     setReloading(true);
     if (announce) setMessage({ kind: 'info', text: 'Đang tải lại danh sách hướng dẫn viên...' });
     try {
-      const response = await fetch(`${browserApiBase()}/api/tour-guides`, { cache: 'no-store' });
-      if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được danh sách hướng dẫn viên từ API /tour-guides'));
+      const path = tourGuidesPath(query, statusFilter);
+      const response = await fetch(`${browserApiBase()}${path}`, { cache: 'no-store', headers: authHeaders() });
+      if (!response.ok) throw new Error(await responseMessage(response, `Không tải được danh sách hướng dẫn viên từ ${path}`));
       const data = await response.json();
       setGuides(Array.isArray(data) ? data : []);
       if (announce) setMessage({ kind: 'success', text: 'Đã tải lại danh sách hướng dẫn viên.' });
@@ -409,7 +442,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     setMessage({ kind: 'info', text: 'Đang tải hồ sơ hướng dẫn viên...' });
     reset(newGuideDefaults());
     try {
-      const response = await fetch(`${browserApiBase()}/api/tour-guides/${id}`, { cache: 'no-store' });
+      const response = await fetch(`${browserApiBase()}/api/tour-guides/${id}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được hồ sơ hướng dẫn viên'));
       const guide = await response.json();
       reset(mapGuideToForm(guide));
@@ -433,18 +466,18 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     try {
       const response = await fetch(`${browserApiBase()}/api/tour-guides${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: authJsonHeaders(),
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(await responseMessage(response, 'Không lưu được hồ sơ HDV'));
-      const savedMessage = editingId ? 'Đã cập nhật hồ sơ HDV.' : 'Đã tạo hồ sơ HDV.';
+      if (!response.ok) throw new Error(await responseMessage(response, 'Không lưu được hồ sơ hướng dẫn viên'));
+      const savedMessage = editingId ? 'Đã cập nhật hồ sơ hướng dẫn viên.' : 'Đã tạo hồ sơ hướng dẫn viên.';
       setEditingId(null);
       setFormOpen(false);
       reset(newGuideDefaults());
       await reload(false);
       setMessage({ kind: 'success', text: savedMessage });
     } catch (error) {
-      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Không lưu được hồ sơ HDV. Kiểm tra mã HDV, email, số điện thoại hoặc lịch điều hành bị trùng.' });
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Không lưu được hồ sơ hướng dẫn viên. Kiểm tra mã hướng dẫn viên, email, số điện thoại hoặc lịch điều hành bị trùng.' });
     }
   }
 
@@ -480,16 +513,16 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
                 {loadingGuideId ? <div className="loadingBar" /> : null}
                 <div className="sectionHeader"><h2>Thông tin cá nhân</h2><span>Mã, liên hệ, ngôn ngữ và thị trường</span></div>
                 <div className="quoteFormGrid">
-                  <label>Mã HDV<input {...register('guideCode')} disabled={formBusy} /></label>
+                  <label>Mã hướng dẫn viên<input {...register('guideCode')} disabled={formBusy} /></label>
                   <label>Họ tên<input {...register('fullName')} disabled={formBusy} /></label>
                   <label>Điện thoại<input {...register('phone')} disabled={formBusy} /></label>
                   <label>Email<input type="email" {...register('email')} disabled={formBusy} /></label>
-                  <label>Loại HDV<input {...register('guideType')} disabled={formBusy} /></label>
+                  <label>Loại hướng dẫn viên<input {...register('guideType')} disabled={formBusy} /></label>
                   <label>Ngày sinh<input type="date" {...register('birthday')} disabled={formBusy} /></label>
                   <label>Giới tính<select {...register('gender')} disabled={formBusy}><option value="">Chọn giới tính</option><option value="Nam">Nam</option><option value="Nữ">Nữ</option><option value="Khác">Khác</option></select></label>
                   <label>Mã số thuế<input {...register('taxCode')} disabled={formBusy} /></label>
                   <label>Tỉnh/TP<input {...register('provinceId')} disabled={formBusy} /></label>
-                  <label>Trạng thái<select {...register('status')} disabled={formBusy}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Tạm dừng</option></select></label>
+                  <label>Trạng thái<select {...register('status')} disabled={formBusy}>{guideStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                   <label>Ngôn ngữ<input {...register('languagesText')} placeholder="VI, EN, TH..." disabled={formBusy} /></label>
                   <label>Thị trường<input {...register('marketsText')} placeholder="Nội địa, Inbound..." disabled={formBusy} /></label>
                   <label>Kỹ năng<input {...register('skillsText')} placeholder="Teambuilding, MICE..." disabled={formBusy} /></label>
@@ -508,7 +541,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
                   <label>Ngân hàng<input {...register('bankName')} disabled={formBusy} /></label>
                 </div>
               </section>
-              <Rows title="Giấy tờ - thẻ HDV" addLabel="Thêm thẻ" array={cards} prefix="cards" register={register} disabled={formBusy} empty={emptyCard} columns={[
+              <Rows title={'Gi\u1ea5y t\u1edd - th\u1ebb h\u01b0\u1edbng d\u1eabn vi\u00ean'} addLabel={'Th\u00eam th\u1ebb'} array={cards} prefix="cards" register={register} disabled={formBusy} empty={emptyCard} columns={[
                 { key: 'cardType', label: 'Loại thẻ' },
                 { key: 'cardNumber', label: 'Số thẻ' },
                 { key: 'issueDate', label: 'Ngày cấp', type: 'date' },
@@ -524,10 +557,11 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
                 { key: 'expiredDate', label: 'Hết hạn', type: 'date' },
                 { key: 'note', label: 'Ghi chú' },
               ]} />
-              <Rows title="Bảng giá dịch vụ HDV" addLabel="Thêm dòng giá" array={costs} prefix="costServices" register={register} disabled={formBusy} empty={emptyCost} columns={[
+              <Rows title={'B\u1ea3ng gi\u00e1 d\u1ecbch v\u1ee5 h\u01b0\u1edbng d\u1eabn vi\u00ean'} addLabel={'Th\u00eam d\u00f2ng gi\u00e1'} array={costs} prefix="costServices" register={register} disabled={formBusy} empty={emptyCost} columns={[
                 { key: 'serviceType', label: 'Loại dịch vụ' },
                 { key: 'serviceName', label: 'Tên dịch vụ' },
-                { key: 'unit', label: 'ĐVT' },
+                { key: 'unit', label: 'Đơn vị tính' },
+                { key: 'currency', label: 'Tiền tệ', options: currencyOptions },
                 { key: 'netPrice', label: 'Giá NET', type: 'number' },
                 { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
                 { key: 'note', label: 'Ghi chú' },
@@ -536,12 +570,12 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
                 { key: 'title', label: 'Nội dung' },
                 { key: 'startDate', label: 'Bắt đầu', type: 'datetime-local' },
                 { key: 'endDate', label: 'Kết thúc', type: 'datetime-local' },
-                { key: 'status', label: 'Trạng thái' },
+                { key: 'status', label: 'Trạng thái', options: scheduleStatusOptions },
                 { key: 'note', label: 'Ghi chú' },
               ]} />
               {message ? <span className={messageClass(message)} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
               <div className="hotelFormActions">
-                <button type="submit" disabled={formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu HDV'}</button>
+                <button type="submit" disabled={formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu hồ sơ'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm} disabled={isSubmitting}><X size={17} /> Đóng</button>
               </div>
             </form>
@@ -552,12 +586,16 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
         <div className="sectionHeader">
           <div>
             <h2>Danh sách hướng dẫn viên</h2>
-            <span>{reloading ? 'Đang tải dữ liệu...' : `${filtered.length} / ${guides.length} HDV`}</span>
+            <span>{reloading ? 'Đang tải dữ liệu...' : `${filtered.length} / ${guides.length} hướng dẫn viên`}</span>
           </div>
           <div className="pageHeaderActions">
             <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
             <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Thêm mới</button>
-            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, tên, SĐT, ngôn ngữ..." /></label>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Lọc trạng thái hướng dẫn viên">
+              <option value="">Tất cả trạng thái</option>
+              {guideStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={'T\u00ecm m\u00e3, t\u00ean, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i, ng\u00f4n ng\u1eef...'} /></label>
           </div>
         </div>
         {message && !formOpen ? <span className={messageClass(message)} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
@@ -567,7 +605,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
             <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-              {!table.getRowModel().rows.length ? <tr><td colSpan={5}><div className="tableEmptyState">{reloading ? 'Đang tải danh sách hướng dẫn viên...' : 'Chưa có hướng dẫn viên phù hợp bộ lọc.'}</div></td></tr> : null}
+              {!table.getRowModel().rows.length ? <tr><td colSpan={6}><div className="tableEmptyState">{reloading ? 'Đang tải danh sách hướng dẫn viên...' : 'Chưa có hướng dẫn viên phù hợp bộ lọc.'}</div></td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -592,15 +630,21 @@ function Rows({ title, addLabel, array, prefix, register, columns, empty, disabl
                 <td>{index + 1}</td>
                 {columns.map((column) => (
                   <td key={column.key}>
-                    <input
-                      type={column.type || 'text'}
-                      min={column.type === 'number' ? 0 : undefined}
-                      step={column.type === 'number' ? '0.01' : undefined}
-                      placeholder={column.placeholder}
-                      title={column.type === 'number' ? money(0) : column.label}
-                      disabled={disabled}
-                      {...register(`${prefix}.${index}.${column.key}`)}
-                    />
+                    {column.options ? (
+                      <select disabled={disabled} {...register(`${prefix}.${index}.${column.key}`)}>
+                        {column.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type={column.type || 'text'}
+                        min={column.type === 'number' ? 0 : undefined}
+                        step={column.type === 'number' ? '0.01' : undefined}
+                        placeholder={column.placeholder}
+                        title={column.type === 'number' ? money(0) : column.label}
+                        disabled={disabled}
+                        {...register(`${prefix}.${index}.${column.key}`)}
+                      />
+                    )}
                   </td>
                 ))}
                 <td><button type="button" className="dangerButton iconButton" disabled={disabled} onClick={() => array.remove(index)}><Trash2 size={15} /></button></td>

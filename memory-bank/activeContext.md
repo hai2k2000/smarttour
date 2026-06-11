@@ -22,6 +22,26 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Hardened Tour Guides client and API copy:
+  - Tour Guides visible labels now avoid unclear HDV abbreviations and use
+    Vietnamese copy for guide code, contact info, language/market, profile
+    sections, price book rows, schedules, loading, save, and API error states.
+  - Client reload/detail/save requests now send auth headers, reload builds a
+    sanitized `/api/tour-guides` search/status query, and the list has a status
+    filter plus profile-row counts for cards/documents/prices/schedules.
+  - Guide form mapping/submission remains row-filtered for cards, documents,
+    costServices, schedules, languages, markets, and skills; row tables now use
+    explicit select options for statuses/currency and keep numeric/date inputs.
+  - TourGuidesService user-facing errors now use Vietnamese wording without
+    HDV abbreviations for not-found, duplicate, date, status, and schedule
+    validation messages.
+  - VPS verification passed on 2026-06-11: `git diff --check`,
+    `docker compose build api web`, `TEST_TOUR_GUIDES_API_OK`,
+    `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`, api/web deploy, web `/tour-guides`
+    auth redirect 307, and API `/api/tour-guides` auth smoke 401.
+
+
+
 - Locked LandTour data/business alignment:
   - LandTour frontend list/status modal now displays and updates the common
     `workflowStep`, with localized labels matching the backend validator.

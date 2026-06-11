@@ -4,6 +4,22 @@
 
 
 
+- Hardened Tour Guides client/API contract:
+  - `TourGuidesClient` now uses fully accented Vietnamese labels, clearer list
+    columns, loading/error states, auth-aware reload/detail/save calls, status
+    filtering, and safer row controls for guide cards, documents, price-book
+    services, and schedules.
+  - `TourGuidesService` validation/conflict/not-found messages now use
+    Vietnamese wording without ambiguous HDV abbreviations.
+  - Regression now locks the Tour Guides API flow plus the client copy/query/
+    auth/row-control contract with `TEST_TOUR_GUIDES_API_OK` and
+    `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`.
+  - Verified on VPS: `git diff --check`, `docker compose build api web`,
+    Tour Guides regression, api/web deploy, web auth redirect 307, and API auth
+    smoke 401.
+
+
+
 - Locked LandTour data/business checks:
   - Frontend LandTour now exposes workflowStep in the list and status modal,
     with i18n labels for all backend-supported LandTour workflow steps.

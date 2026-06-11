@@ -339,14 +339,55 @@ docker run --rm -i -v "$PWD:/workspace:ro" -w /workspace node:22-alpine node <<'
 const fs = require('fs');
 
 const source = fs.readFileSync('apps/web/app/tour-guides/TourGuidesClient.tsx', 'utf8');
+const pageSource = fs.readFileSync('apps/web/app/tour-guides/page.tsx', 'utf8');
+const serviceSource = fs.readFileSync('apps/api/src/modules/tour-guides/tour-guides.service.ts', 'utf8');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
 assert(source.includes('Date.now().toString(36).toUpperCase()') && source.includes('crypto.randomUUID'), 'newGuideCode should use high-entropy timestamp plus random suffix');
-assert(source.includes("const appTimeZone = 'Asia/Bangkok'") && source.includes("timeZone: appTimeZone"), 'TourGuidesClient should display schedule datetimes in Asia/Bangkok');
-assert(source.includes('buildPayload') && source.includes('costServices') && source.includes('netPrice: numberOrZero(row.netPrice)'), 'TourGuidesClient should submit HDV price-book rows as explicit numbers');
+assert(source.includes("const appTimeZone = 'Asia/Bangkok'") && source.includes('timeZone: appTimeZone'), 'TourGuidesClient should display schedule datetimes in Asia/Bangkok');
+assert(source.includes('buildPayload') && source.includes('costServices') && source.includes('netPrice: numberOrZero(row.netPrice)'), 'TourGuidesClient should submit guide price-book rows as explicit numbers');
+assert(source.includes("import { authHeaders, authJsonHeaders } from '../authFetch'"), 'TourGuidesClient should send auth headers for reload/detail/save requests');
+assert(source.includes('function tourGuidesPath') && source.includes("params.set('search'") && source.includes("params.set('status'"), 'TourGuidesClient reload should pass sanitized search/status query to /tour-guides');
+assert(source.includes('const [statusFilter, setStatusFilter]') && source.includes('L\u1ecdc tr\u1ea1ng th\u00e1i h\u01b0\u1edbng d\u1eabn vi\u00ean'), 'TourGuidesClient should expose a status filter for the guide list');
+assert(source.includes('guideStatusOptions') && source.includes('scheduleStatusOptions') && source.includes('currencyOptions'), 'TourGuidesClient should use controlled options for guide status, schedule status, and currency');
+assert(source.includes('column.options ?') && source.includes('<select disabled={disabled}'), 'Rows should render selects for option columns instead of free-text fields');
+assert(source.includes('colSpan={6}'), 'Guide table empty state should match the visible column count');
+assert(source.includes('Kh\u00f4ng l\u01b0u \u0111\u01b0\u1ee3c h\u1ed3 s\u01a1 h\u01b0\u1edbng d\u1eabn vi\u00ean'), 'Save error message should be clear Vietnamese');
+assert(source.includes('M\u00e3 h\u01b0\u1edbng d\u1eabn vi\u00ean') && source.includes('Th\u00f4ng tin li\u00ean h\u1ec7') && source.includes('Ng\u00f4n ng\u1eef / th\u1ecb tr\u01b0\u1eddng') && source.includes('Tr\u1ea1ng th\u00e1i h\u1ed3 s\u01a1'), 'Guide list headers should be fully Vietnamese');
+assert(pageSource.includes('\u0110i\u1ec1u h\u00e0nh h\u01b0\u1edbng d\u1eabn vi\u00ean'), 'Tour guides page should avoid HDV abbreviation in visible copy');
+assert(serviceSource.includes('Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 h\u01b0\u1edbng d\u1eabn vi\u00ean'), 'TourGuidesService not-found message should be Vietnamese');
+
+for (const bad of [
+  'Ma HDV',
+  'Thong tin',
+  'Ngon ngu / thi truong',
+  'Trang thai',
+  'Ho so huong dan vien',
+  'Quan ly HDV doc lap voi NCC',
+  'Ho ten',
+  'Dien thoai',
+  'Loai HDV',
+  'Ngay sinh',
+  'Gioi tinh',
+  'Tinh/TP',
+  'Ngay cap',
+  'Het han',
+  'Bat dau',
+  'Ket thuc',
+  'Khong luu duoc HDV',
+  'M\u00e3 HDV',
+  'Lo\u1ea1i HDV',
+  'L\u01b0u HDV',
+  '\u0110VT',
+  'S\u0110T',
+  '\u0110i\u1ec1u h\u00e0nh HDV',
+  'Tour guide not found',
+]) {
+  assert(!source.includes(bad) && !pageSource.includes(bad) && !serviceSource.includes(bad), `tour guides visible/API contract should not keep old copy: ${bad}`);
+}
 
 console.log('TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK');
 NODE

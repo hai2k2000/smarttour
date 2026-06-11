@@ -45,7 +45,7 @@ export class TourGuidesService {
 
   async detail(id: string) {
     const guide = await this.prisma.guideProfile.findFirst({ where: { id, deletedAt: null }, include: this.includeAll() });
-    if (!guide) throw new NotFoundException('Tour guide not found');
+    if (!guide) throw new NotFoundException('Không tìm thấy hồ sơ hướng dẫn viên');
     return guide;
   }
 
@@ -75,7 +75,7 @@ export class TourGuidesService {
   async deleteFile(guideId: string, fileId: string) {
     await this.detail(guideId);
     const file = await this.prisma.guideFile.findFirst({ where: { id: fileId, guideId } });
-    if (!file) throw new NotFoundException('Không tìm thấy file HDV');
+    if (!file) throw new NotFoundException('Không tìm thấy file hướng dẫn viên');
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
     const deleted = await this.prisma.guideFile.delete({ where: { id: file.id } });
     try {
@@ -145,8 +145,8 @@ export class TourGuidesService {
           guideId,
           cardType: item.cardType.trim(),
           cardNumber: this.text(item.cardNumber),
-          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp thẻ HDV'),
-          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn thẻ HDV'),
+          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp thẻ hướng dẫn viên'),
+          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn thẻ hướng dẫn viên'),
           issuePlace: this.text(item.issuePlace),
           fileUrl: this.text(item.fileUrl),
           note: this.text(item.note),
@@ -163,8 +163,8 @@ export class TourGuidesService {
           documentType: item.documentType.trim(),
           documentNo: this.text(item.documentNo),
           country: this.text(item.country),
-          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp giấy tờ HDV'),
-          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn giấy tờ HDV'),
+          issueDate: this.dateOnly(item.issueDate, 'Ngày cấp giấy tờ hướng dẫn viên'),
+          expiredDate: this.dateOnly(item.expiredDate, 'Ngày hết hạn giấy tờ hướng dẫn viên'),
           issuePlace: this.text(item.issuePlace),
           fileUrl: this.text(item.fileUrl),
           note: this.text(item.note),
@@ -218,7 +218,7 @@ export class TourGuidesService {
       ...(dto.guideCode !== undefined ? { guideCode: dto.guideCode.trim() } : {}),
       ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.text(dto.taxCode) } : {}),
-      ...(dto.birthday !== undefined ? { birthday: this.dateOnly(dto.birthday, 'Ngày sinh HDV') } : {}),
+      ...(dto.birthday !== undefined ? { birthday: this.dateOnly(dto.birthday, 'Ngày sinh hướng dẫn viên') } : {}),
       ...(dto.gender !== undefined ? { gender: this.text(dto.gender) } : {}),
       ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
       ...(dto.email !== undefined ? { email: this.text(dto.email) } : {}),
@@ -242,9 +242,9 @@ export class TourGuidesService {
   }
 
   private validateGuidePayload(dto: Partial<CreateTourGuideDto>) {
-    if (dto.guideCode !== undefined && !this.text(dto.guideCode)) throw new BadRequestException('Mã HDV là bắt buộc');
-    if (dto.fullName !== undefined && !this.text(dto.fullName)) throw new BadRequestException('Họ tên HDV là bắt buộc');
-    if (dto.phone !== undefined && !this.text(dto.phone)) throw new BadRequestException('Số điện thoại HDV là bắt buộc');
+    if (dto.guideCode !== undefined && !this.text(dto.guideCode)) throw new BadRequestException('Mã hướng dẫn viên là bắt buộc');
+    if (dto.fullName !== undefined && !this.text(dto.fullName)) throw new BadRequestException('Họ tên hướng dẫn viên là bắt buộc');
+    if (dto.phone !== undefined && !this.text(dto.phone)) throw new BadRequestException('Số điện thoại hướng dẫn viên là bắt buộc');
     if (dto.status !== undefined) this.normalizeGuideStatus(dto.status || 'ACTIVE');
   }
 
@@ -263,7 +263,7 @@ export class TourGuidesService {
     for (let i = 0; i < normalized.length; i += 1) {
       for (let j = i + 1; j < normalized.length; j += 1) {
         if (normalized[i].status === 'CANCELLED' || normalized[j].status === 'CANCELLED') continue;
-        if (normalized[i].start < normalized[j].end && normalized[j].start < normalized[i].end) throw new BadRequestException('Lịch điều hành HDV bị trùng thời gian');
+        if (normalized[i].start < normalized[j].end && normalized[j].start < normalized[i].end) throw new BadRequestException('Lịch điều hành hướng dẫn viên bị trùng thời gian');
       }
     }
   }
@@ -278,7 +278,7 @@ export class TourGuidesService {
         where: branchDepartmentScopeWhere({ id: { in: tourIds } }, user),
         select: { id: true, status: true, startDate: true, endDate: true },
       });
-      if (tours.length !== tourIds.length) throw new NotFoundException('Không tìm thấy tour trong lịch điều hành HDV');
+      if (tours.length !== tourIds.length) throw new NotFoundException('Không tìm thấy tour trong lịch điều hành hướng dẫn viên');
       tours.forEach((tour) => context.tours.set(tour.id, tour));
     }
     if (orderIds.length) {
@@ -286,7 +286,7 @@ export class TourGuidesService {
         where: branchDepartmentScopeWhere({ id: { in: orderIds }, deletedAt: null }, user),
         select: { id: true, status: true, startDate: true, endDate: true },
       });
-      if (orders.length !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng trong lịch điều hành HDV');
+      if (orders.length !== orderIds.length) throw new NotFoundException('Không tìm thấy đơn hàng trong lịch điều hành hướng dẫn viên');
       orders.forEach((order) => context.orders.set(order.id, order));
     }
     this.validateScheduleRangesAgainstLinks(schedules, context);
@@ -316,9 +316,9 @@ export class TourGuidesService {
       select: { guideCode: true, email: true, phone: true },
       take: 3,
     });
-    if (guideCode && conflicts.some((item) => item.guideCode.toLowerCase() === guideCode.toLowerCase())) throw new ConflictException('Mã HDV đã tồn tại');
-    if (email && conflicts.some((item) => item.email?.toLowerCase() === email)) throw new ConflictException('Email HDV đã tồn tại');
-    if (phone && conflicts.some((item) => item.phone === phone)) throw new ConflictException('Số điện thoại HDV đã tồn tại');
+    if (guideCode && conflicts.some((item) => item.guideCode.toLowerCase() === guideCode.toLowerCase())) throw new ConflictException('Mã hướng dẫn viên đã tồn tại');
+    if (email && conflicts.some((item) => item.email?.toLowerCase() === email)) throw new ConflictException('Email hướng dẫn viên đã tồn tại');
+    if (phone && conflicts.some((item) => item.phone === phone)) throw new ConflictException('Số điện thoại hướng dẫn viên đã tồn tại');
   }
 
   private validateScheduleRangesAgainstLinks(schedules: Array<{ tourId?: string; orderId?: string; startDate?: string; endDate?: string }>, context: ScheduleLinkContext) {
@@ -330,20 +330,20 @@ export class TourGuidesService {
       const tour = this.text(schedule.tourId) ? context.tours.get(this.text(schedule.tourId)!) : null;
       const source = order ?? tour;
       if (!source) continue;
-      if (source.startDate && startDate < source.startDate) throw new BadRequestException('Lịch điều hành HDV không được bắt đầu trước ngày khởi hành của tour/đơn hàng liên kết');
-      if (source.endDate && endDate > source.endDate) throw new BadRequestException('Lịch điều hành HDV không được kết thúc sau ngày về của tour/đơn hàng liên kết');
+      if (source.startDate && startDate < source.startDate) throw new BadRequestException('Lịch điều hành hướng dẫn viên không được bắt đầu trước ngày khởi hành của tour/đơn hàng liên kết');
+      if (source.endDate && endDate > source.endDate) throw new BadRequestException('Lịch điều hành hướng dẫn viên không được kết thúc sau ngày về của tour/đơn hàng liên kết');
     }
   }
 
   private normalizeGuideStatus(status: string) {
     const normalized = status.toUpperCase();
-    if (!(GUIDE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái HDV không hợp lệ');
+    if (!(GUIDE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái hướng dẫn viên không hợp lệ');
     return normalized;
   }
 
   private normalizeScheduleStatus(status: string) {
     const normalized = status.toUpperCase();
-    if (!(GUIDE_SCHEDULE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái lịch điều hành HDV không hợp lệ');
+    if (!(GUIDE_SCHEDULE_STATUSES as readonly string[]).includes(normalized)) throw new BadRequestException('Trạng thái lịch điều hành hướng dẫn viên không hợp lệ');
     return normalized;
   }
 
@@ -358,7 +358,7 @@ export class TourGuidesService {
 
   private handleUniqueCodeError(error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictException('Mã HDV đã tồn tại');
+      throw new ConflictException('Mã hướng dẫn viên đã tồn tại');
     }
   }
 
