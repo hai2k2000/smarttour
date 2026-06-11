@@ -80,6 +80,11 @@ async function main() {
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const next14End = new Date(todayStart);
+  next14End.setDate(next14End.getDate() + 14);
+  next14End.setHours(23, 59, 59, 999);
 
   const category = await prisma.supplierCategory.create({ data: { name: run + '-CAT' } });
   const supplierA = await prisma.supplier.create({ data: { categoryId: category.id, supplierCode: run + '-SUP-A', name: 'Nhà cung cấp A', status: 'ACTIVE' } });
@@ -243,6 +248,8 @@ async function main() {
   assert((await service.listForms({ take: 50 }, branchDepAUser)).map((row) => row.id).join(',') === formA.id, 'branch and department scoped user should only see matching form');
   assert((await service.listForms({ take: 50 }, branchADepBUser)).length === 0, 'branch and department scoped user should not see data when department mismatches');
   assert((await service.listForms({ take: 50 }, user('data.scope.branch', null, null))).length === 0, 'missing branch scope value should see no forms');
+  await rejectsMessage(() => service.formDetail(formB.id, branchAUser), 'Không tìm thấy phiếu điều hành', 'branch scoped user cannot read another branch form detail');
+  await rejectsMessage(() => service.formDetail(formA.id, branchADepBUser), 'Không tìm thấy phiếu điều hành', 'mismatched branch and department user cannot read form detail');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingB, supplierB, supplierServiceB, 'OUT-OF-SCOPE'), actor: 'branch-a' }, branchAUser), 'Không tìm thấy booking', 'branch scoped user cannot create form from another branch booking');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-ORDER'), bookingId: bookingA.id, orderId: orderB.id }, undefined), 'Đơn hàng đã chọn không thuộc booking đã chọn', 'create form should reject order outside booking');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TOUR'), bookingId: bookingA.id, tourId: tourB.id }, undefined), 'Tour đã chọn không thuộc booking đã chọn', 'create form should reject tour outside booking');
@@ -258,10 +265,14 @@ async function main() {
   assert(updatedFormA.tasks.length === 1 && updatedFormA.tasks[0].title === 'Task mới', 'update form should replace tasks when provided');
   assert(updatedFormA.services.length === 1 && updatedFormA.services[0].id === originalFormAServiceId, 'partial update should not replace services when services payload is omitted');
   assert(updatedFormA.costs.length === 1 && updatedFormA.costs[0].id === originalFormACostId, 'partial update should not replace costs when costs payload is omitted');
+  const updatedFormATaskId = updatedFormA.tasks[0].id;
   await rejectsMessage(() => service.updateForm(formA.id, { costs: [{ serviceId: formB.services[0].id, costName: 'Chi phí sai dịch vụ', expectedAmount: 100, actualAmount: 80 }] }), 'Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành', 'update form should reject cost linked to another form service');
   await rejectsMessage(() => service.updateForm(formA.id, { status: 'SAI' }), 'Trạng thái phiếu điều hành không hợp lệ', 'invalid operation status should be Vietnamese');
   const auditAt = new Date('2026-01-02T03:04:05.000Z');
-  await service.updateForm(formA.id, { actor: 'audit-json', notes: 'Audit JSON', auditAt, ignoredUndefined: undefined });
+  const noteOnlyUpdatedFormA = await service.updateForm(formA.id, { actor: 'audit-json', notes: 'Audit JSON', auditAt, ignoredUndefined: undefined });
+  assert(noteOnlyUpdatedFormA.services.length === 1 && noteOnlyUpdatedFormA.services[0].id === originalFormAServiceId, 'note-only update should keep existing services');
+  assert(noteOnlyUpdatedFormA.tasks.length === 1 && noteOnlyUpdatedFormA.tasks[0].id === updatedFormATaskId, 'note-only update should keep existing tasks');
+  assert(noteOnlyUpdatedFormA.costs.length === 1 && noteOnlyUpdatedFormA.costs[0].id === originalFormACostId, 'note-only update should keep existing costs');
 
   await rejectsMessage(() => service.cancelForm(formB.id, { actor: 'canceller-b' }), 'Cần nhập lý do hủy phiếu điều hành để lưu lịch sử xử lý', 'cancel form should require Vietnamese reason');
   const cancelledFormB = await service.cancelForm(formB.id, { actor: 'canceller-b', reason: 'Khách đổi lịch' });
@@ -285,6 +296,8 @@ async function main() {
   assert((await service.listPaymentRequests({ take: 50 }, branchDepAUser)).some((row) => row.id === request.id), 'branch and department scoped user should see matching payment request');
   assert((await service.listPaymentRequests({ take: 50 }, branchADepBUser)).every((row) => row.id !== request.id), 'branch and department scoped user should not see payment request when department mismatches');
   assert((await service.listPaymentRequests({ take: 50 }, user('data.scope.branch', 'BR-B', null))).every((row) => row.id !== request.id), 'other branch should not see branch A request');
+  await rejectsMessage(() => service.paymentRequestDetail(request.id, branchADepBUser), 'Không tìm thấy yêu cầu thanh toán nhà cung cấp', 'mismatched branch and department user cannot read payment request detail');
+  await rejectsMessage(() => service.paymentRequestDetail(request.id, user('data.scope.branch', 'BR-B', null)), 'Không tìm thấy yêu cầu thanh toán nhà cung cấp', 'other branch user cannot read payment request detail');
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-scope', items: [{ supplierId: supplierA.id, amount: 100 }] }, branchAUser), 'Cần chọn chi phí', 'scoped payment request should require cost id');
   const scopeBookingB = await makeBooking('SCOPE-B', customerB, orderB, tourB);
   const scopeFormB = await service.createForm(formPayload(scopeBookingB, supplierB, supplierServiceB, 'SCOPE-B'));
@@ -337,6 +350,8 @@ async function main() {
   assert(approved.status === 'APPROVED' && approved.approvedBy === 'approver-a', 'approve payment request should move requested to approved');
   const approvedLedger = await prisma.supplierLedgerEntry.findFirstOrThrow({ where: { sourceId: approved.items[0].id, entryType: 'CREDIT' } });
   assert(approvedLedger.createdBy === 'approver-a' && approvedLedger.description === 'Cập nhật số tiền', 'approve payment request should create supplier ledger credit with actor and Vietnamese description');
+  assert(approvedLedger.supplierId === supplierA.id && amount(approvedLedger.creditAmount) === 750 && approvedLedger.documentCode === request.code, 'approve payment request should create ledger credit for the supplier, amount, and request code');
+  assert(approvedLedger.documentDate.getTime() === approved.requestedAt.getTime(), 'approve payment request ledger date should match request date');
   await rejectsMessage(() => service.approvePaymentRequest(request.id, { actor: 'approver-a' }), 'Chỉ yêu cầu đã gửi mới được duyệt', 'approve approved payment request should be blocked');
 
   const linked = await service.createFinancePaymentForRequest(request.id, {
@@ -350,7 +365,11 @@ async function main() {
   const financePayment = await prisma.financePayment.findUniqueOrThrow({ where: { id: linked.financePaymentId } });
   assert(financePayment.orderId === orderA.id && financePayment.tourId === tourA.id, 'finance payment should link request to order/tour');
   assert(financePayment.reason === 'Chi theo yêu cầu test' && financePayment.createdBy === 'finance-a', 'finance payment should keep Vietnamese reason and actor');
-  assert(financePayment.branch === 'BR-A', 'finance payment should apply branch data scope');
+  assert(financePayment.branch === 'BR-A' && financePayment.department === 'DEP-A', 'finance payment should apply branch and department data scope');
+  assert(financePayment.supplierId === supplierA.id && amount(financePayment.totalAmount) === 750 && amount(financePayment.paymentAmount) === 750, 'finance payment should keep supplier and request total amount');
+  const linkedRequestInDb = await prisma.supplierPaymentRequest.findUniqueOrThrow({ where: { id: request.id }, include: { financePayment: true } });
+  assert(linkedRequestInDb.financePaymentId === financePayment.id && linkedRequestInDb.financePayment?.id === financePayment.id, 'finance payment creation should persist request link in both directions');
+  await rejectsMessage(() => service.paymentRequestDetail(request.id, branchADepBUser), 'Không tìm thấy yêu cầu thanh toán nhà cung cấp', 'finance-linked request should still respect branch and department scope');
   const idempotentLinked = await service.createFinancePaymentForRequest(request.id, { actor: 'finance-a' });
   assert(idempotentLinked.financePaymentId === linked.financePaymentId, 'create finance payment should be idempotent for linked requests');
   assert((await service.listPaymentRequests({ financePaymentId: linked.financePaymentId })).some((row) => row.id === request.id), 'list payment requests finance payment filter should work');
@@ -374,6 +393,19 @@ async function main() {
   });
   assert(standaloneBooking.orderId === null, 'standalone booking seed should have no order');
   const dashboard = await service.getDashboard();
+  const expectedDashboardFromDb = {
+    upcomingDepartures:
+      (await prisma.order.count({ where: { deletedAt: null, startDate: { gte: todayStart, lte: next14End }, status: { in: ['UPCOMING', 'RUNNING'] } } })) +
+      (await prisma.booking.count({ where: { orderId: null, startDate: { gte: todayStart, lte: next14End }, status: { in: ['CONFIRMED', 'OPERATING'] } } })),
+    operatingTours:
+      (await prisma.tour.count({ where: { deletedAt: null, status: 'RUNNING' } })) +
+      (await prisma.order.count({ where: { deletedAt: null, status: 'RUNNING', tours: { none: {} } } })),
+    overdueTasks: await prisma.operationTask.count({ where: { dueDate: { lt: todayStart }, status: { notIn: ['DONE', 'CANCELLED'] }, operationForm: { status: { notIn: ['DONE', 'CANCELLED'] } } } }),
+    waitingSupplierConfirmations: await prisma.operationService.count({ where: { confirmationStatus: { in: ['WAITING', 'REQUESTED'] }, operationForm: { status: { notIn: ['DONE', 'CANCELLED'] } } } }),
+    pendingSupplierPayments: await prisma.supplierPaymentRequest.count({ where: { status: { in: ['REQUESTED', 'APPROVED'] } } }),
+    lowMarginTours: await prisma.order.count({ where: { deletedAt: null, status: { in: ['UPCOMING', 'RUNNING', 'COMPLETED'] }, totalRevenue: { gt: 0 }, profit: { lt: 0 } } }),
+  };
+  assertDeepEqual(dashboard, expectedDashboardFromDb, 'dashboard metrics should match independent database counts');
   assertDeepEqual(dashboard, {
     upcomingDepartures: 4,
     operatingTours: 1,
