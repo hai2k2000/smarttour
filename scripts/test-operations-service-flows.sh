@@ -332,6 +332,7 @@ async function main() {
     'CANCEL:OperationForm',
     'CREATE:SupplierPaymentRequest',
     'UPDATE:SupplierPaymentRequest',
+    'DELETE:SupplierPaymentRequest',
     'REQUESTED:SupplierPaymentRequest',
     'APPROVE:SupplierPaymentRequest',
     'REJECTED:SupplierPaymentRequest',
