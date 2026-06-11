@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@ne
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
+import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, ListOperationVouchersQueryDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 import { OperationVouchersService } from './operation-vouchers.service';
 
 @ApiTags('operation-vouchers')
@@ -12,8 +12,8 @@ export class OperationVouchersController {
   constructor(private readonly service: OperationVouchersService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
-    return this.service.list(search, status, request?.user);
+  list(@Query() query: ListOperationVouchersQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.list(query.search, query.status, request?.user, query.take, query.skip);
   }
 
   @Get(':id')

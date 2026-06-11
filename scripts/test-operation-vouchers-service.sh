@@ -44,6 +44,16 @@ async function rejects(action, label) {
   assert(rejected, label);
 }
 
+async function rejectsMessage(action, expected, label) {
+  let message = '';
+  try {
+    await action();
+  } catch (error) {
+    message = error?.message || String(error);
+  }
+  assert(message && message.includes(expected), `${label}: expected message containing "${expected}", got "${message}"`);
+}
+
 function amount(value) {
   return Number(value);
 }
@@ -121,15 +131,38 @@ async function main() {
     },
   });
 
-  await rejects(() => service.create({
+  await rejectsMessage(() => service.create({
     voucherCode: run + '-EMPTY',
     supplierName: supplier.name,
     serviceType: 'Hotel',
     serviceName: 'Empty detail voucher',
     serviceDate: '2026-11-01',
     details: [],
-  }), 'create should reject empty detail array');
-  await rejects(() => service.create({
+  }), 'Cần ít nhất một dòng chi tiết dịch vụ', 'create should reject empty detail array with Vietnamese message');
+  await rejectsMessage(() => service.create({
+    voucherCode: 'bad code!',
+    supplierName: supplier.name,
+    serviceType: 'Hotel',
+    serviceName: 'Bad code voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'Mã phiếu điều hành phải dài 2-64 ký tự', 'create should reject invalid voucherCode with Vietnamese message');
+  await rejectsMessage(() => service.create({
+    voucherCode: run + '-NO-SUPPLIER',
+    serviceType: 'Hotel',
+    serviceName: 'Missing supplier voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'Cần nhập tên nhà cung cấp', 'create should reject missing supplierName when supplierId is not provided');
+  await rejectsMessage(() => service.create({
+    voucherCode: run + '-BAD-DATE',
+    supplierName: supplier.name,
+    serviceType: 'Hotel',
+    serviceName: 'Bad date voucher',
+    serviceDate: '2026-02-31',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'ngày dịch vụ không hợp lệ', 'create should reject invalid serviceDate with Vietnamese message');
+  await rejectsMessage(() => service.create({
     voucherCode: run + '-BAD-DEADLINE',
     supplierName: supplier.name,
     serviceType: 'Hotel',
@@ -137,7 +170,15 @@ async function main() {
     serviceDate: '2026-11-05',
     paymentDeadline: '2026-11-04',
     details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
-  }), 'create should reject paymentDeadline before serviceDate');
+  }), 'Hạn thanh toán không được trước ngày dịch vụ', 'create should reject paymentDeadline before serviceDate with Vietnamese message');
+  await rejectsMessage(() => service.create({
+    voucherCode: run + '-BAD-DETAIL',
+    supplierName: supplier.name,
+    serviceType: 'Hotel',
+    serviceName: 'Bad detail voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 100, vat: 120 }],
+  }), 'VAT không được vượt quá 100%', 'create should reject invalid detail VAT with Vietnamese message');
 
   const created = await service.create({
     voucherCode: run + '-001',
@@ -153,7 +194,7 @@ async function main() {
       { sku: 'GUIDE', serviceName: 'Guide fee', quantity: 1, unit: 'day', netPrice: 500, vat: 0 },
     ],
   });
-  assert(created.voucherCode === run + '-001', 'create should persist voucher code');
+  assert(created.voucherCode === run + '-001', 'create should persist normalized voucher code');
   assert(created.bookingId === booking.id && created.tourId === tour.id && created.orderId === order.id, 'create should resolve booking to tour/order links');
   assert(created.supplierId === supplier.id && created.supplierName === supplier.name, 'create should link supplier and fill supplierName');
   assert(dateOnly(created.serviceDate) === '2026-11-01' && dateOnly(created.paymentDeadline) === '2026-11-06', 'create should parse serviceDate/paymentDeadline');
@@ -164,9 +205,15 @@ async function main() {
   const allRows = await service.list(run);
   assert(allRows.some((row) => row.id === created.id), 'list should include created voucher');
   assert((await service.list('operation voucher supplier')).some((row) => row.id === created.id), 'search should match supplierName');
+  assert((await service.list(supplier.supplierCode)).some((row) => row.id === created.id), 'search should match supplierCode relation');
+  assert((await service.list(booking.code)).some((row) => row.id === created.id), 'search should match booking code relation');
+  assert((await service.list(order.systemCode)).some((row) => row.id === created.id), 'search should match order code relation');
+  assert((await service.list(tour.tourCode)).some((row) => row.id === created.id), 'search should match tour code relation');
   assert((await service.list('Hotel package')).some((row) => row.id === created.id), 'search should match serviceName');
+  assert((await service.list('Hotel')).some((row) => row.id === created.id), 'search should match serviceType');
   assert((await service.list(undefined, 'PENDING')).some((row) => row.id === created.id), 'status filter should match pending voucher');
-  await rejects(() => service.list(undefined, 'BAD_STATUS'), 'list should reject invalid status filter');
+  assert((await service.list(run, undefined, undefined, 1)).length === 1, 'list should honor take limit');
+  await rejectsMessage(() => service.list(undefined, 'BAD_STATUS'), 'Trạng thái phiếu điều hành không hợp lệ', 'list should reject invalid status filter with Vietnamese message');
 
   const detail = await service.detail(created.id);
   assert(detail.id === created.id && detail.details.length === 2, 'detail should load details');
@@ -183,14 +230,15 @@ async function main() {
   assert(dateOnly(updated.serviceDate) === '2026-12-01' && dateOnly(updated.paymentDeadline) === '2026-12-03', 'update should parse serviceDate/paymentDeadline');
   assert(updated.details.length === 1 && amount(updated.details[0].amount) === 630, 'update should replace details and calculate detail amount');
   assert(amount(updated.totalAmount) === 630 && amount(updated.remainAmount) === 630 && updated.status === 'PENDING', 'update should recalculate total and remaining');
-  await rejects(() => service.update(created.id, {
+  await rejectsMessage(() => service.update(created.id, {
     paymentDeadline: '2026-11-30',
     details: [{ serviceName: 'Bad date', quantity: 1, netPrice: 100, vat: 0 }],
-  }), 'update should reject paymentDeadline before serviceDate');
+  }), 'Hạn thanh toán không được trước ngày dịch vụ', 'update should reject paymentDeadline before serviceDate with Vietnamese message');
 
-  await rejects(() => service.addPayment(created.id, { paymentAmount: 0, paymentDate: '2026-12-02' }), 'add payment should reject zero paymentAmount');
-  await rejects(() => service.addPayment(created.id, { paymentAmount: -1, paymentDate: '2026-12-02' }), 'add payment should reject negative paymentAmount');
-  await rejects(() => service.addPayment(created.id, { paymentAmount: 631, paymentDate: '2026-12-02' }), 'add payment should reject amount above remaining amount');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 0, paymentDate: '2026-12-02' }), 'Số tiền thanh toán phải lớn hơn 0', 'add payment should reject zero paymentAmount with Vietnamese message');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: -1, paymentDate: '2026-12-02' }), 'Số tiền thanh toán phải lớn hơn 0', 'add payment should reject negative paymentAmount with Vietnamese message');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 631, paymentDate: '2026-12-02' }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'add payment should reject amount above remaining amount with Vietnamese message');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1, paymentDate: '2026-02-31' }), 'ngày thanh toán không hợp lệ', 'add payment should reject invalid paymentDate with Vietnamese message');
 
   const partiallyPaid = await service.addPayment(created.id, {
     paymentAmount: 200,
@@ -199,14 +247,14 @@ async function main() {
   });
   assert(amount(partiallyPaid.paidAmount) === 200 && amount(partiallyPaid.remainAmount) === 430 && partiallyPaid.status === 'PARTIAL', 'add payment should update paidAmount/remainAmount/status');
   assert(partiallyPaid.payments.length === 1 && amount(partiallyPaid.payments[0].paidAmount) === 200 && dateOnly(partiallyPaid.payments[0].paymentDate) === '2026-12-02', 'add payment should create payment history row');
-  await rejects(() => service.update(created.id, { serviceName: 'Blocked after payment' }), 'update should reject voucher with payment history');
-  await rejects(() => service.remove(created.id), 'delete should reject voucher with payment history');
-  await rejects(() => service.addPayment(created.id, { paymentAmount: 431 }), 'partial voucher should reject payment above remaining amount');
+  await rejectsMessage(() => service.update(created.id, { serviceName: 'Blocked after payment' }), 'Chỉ phiếu chưa thanh toán mới được chỉnh sửa', 'update should reject voucher with payment history using Vietnamese message');
+  await rejectsMessage(() => service.remove(created.id), 'Chỉ phiếu chưa thanh toán mới được xóa', 'delete should reject voucher with payment history using Vietnamese message');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 431 }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'partial voucher should reject payment above remaining amount with Vietnamese message');
 
   const fullyPaid = await service.addPayment(created.id, { paidAmount: 430, paymentDate: '2026-12-03' });
   assert(amount(fullyPaid.paidAmount) === 630 && amount(fullyPaid.remainAmount) === 0 && fullyPaid.status === 'PAID', 'second payment should settle voucher totals');
   assert(fullyPaid.payments.length === 2, 'second payment should append another payment row');
-  await rejects(() => service.addPayment(created.id, { paymentAmount: 1 }), 'paid voucher should reject more payments');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1 }), 'Phiếu điều hành đã thanh toán đủ', 'paid voucher should reject more payments with Vietnamese message');
 
   const standalone = await service.create({
     voucherCode: run + '-STANDALONE',
@@ -218,7 +266,24 @@ async function main() {
   });
   assert(!standalone.bookingId && !standalone.tourId && !standalone.orderId && standalone.supplierName === 'Manual Supplier Name', 'create should allow manual supplierName without booking/tour/order links for unrestricted users');
 
-  await rejects(() => service.createPaymentVoucher(created.id), 'createPaymentVoucher should reject paid vouchers before creating finance payment');
+  const financeSource = await service.create({
+    voucherCode: run + '-FINANCE',
+    orderId: order.id,
+    supplierId: supplier.id,
+    serviceType: 'Meal',
+    serviceName: 'Finance linked meal',
+    serviceDate: '2026-12-11',
+    createdBy: 'finance-link-test',
+    details: [{ serviceName: 'Meal NET', quantity: 1, netPrice: 300, vat: 0 }],
+  });
+  const financeLinked = await service.createPaymentVoucher(financeSource.id);
+  assert(financeLinked.status === 'PAID' && amount(financeLinked.paidAmount) === 300 && amount(financeLinked.remainAmount) === 0, 'createPaymentVoucher should settle operation voucher totals');
+  assert(financeLinked.financePayments.length === 1 && financeLinked.financePayments[0].operationVoucherId === financeSource.id, 'createPaymentVoucher should link finance payment back to operation voucher');
+  assert(financeLinked.financePayments[0].voucherCode.startsWith('PC-') && amount(financeLinked.financePayments[0].paymentAmount) === 300, 'createPaymentVoucher should create a finance payment for the remaining amount');
+  assert(financeLinked.financePayments[0].reason === `Thanh toán phiếu điều hành ${financeSource.voucherCode}`, 'createPaymentVoucher should use Vietnamese finance payment reason');
+  assert(financeLinked.payments[0].paymentVoucherId === financeLinked.financePayments[0].id && financeLinked.payments[0].note === 'Tạo phiếu chi từ phiếu điều hành', 'createPaymentVoucher should create operation voucher payment history linked to finance payment');
+  await rejectsMessage(() => service.createPaymentVoucher(financeSource.id), 'Phiếu điều hành đã thanh toán đủ', 'createPaymentVoucher should reject paid vouchers after finance payment link');
+  await rejectsMessage(() => service.createPaymentVoucher(created.id), 'Phiếu điều hành đã thanh toán đủ', 'createPaymentVoucher should reject paid vouchers before creating finance payment');
 
   await prisma.$disconnect();
   console.log('TEST_OPERATION_VOUCHERS_SERVICE_OK');

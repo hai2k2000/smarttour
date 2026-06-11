@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
+import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, OPERATION_VOUCHER_LIST_DEFAULT_TAKE, OPERATION_VOUCHER_LIST_MAX_TAKE, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 
 type OperationVoucherLinks = {
   bookingId: string | null;
@@ -71,7 +71,7 @@ export class OperationVouchersService {
     } satisfies Prisma.OperationVoucherSelect;
   }
 
-  list(search?: string, status?: string, user?: RequestUser) {
+  list(search?: string, status?: string, user?: RequestUser, take?: number, skip?: number) {
     const statusFilter = this.operationVoucherStatus(status);
     const searchText = normalizeListSearch(search);
     const contains = searchText ? containsSearch(searchText) : undefined;
@@ -84,13 +84,26 @@ export class OperationVouchersService {
               OR: [
                 { voucherCode: contains },
                 { supplierName: contains },
+                { serviceType: contains },
                 { serviceName: contains },
+                { supplier: { supplierCode: contains } },
+                { supplier: { name: contains } },
+                { booking: { code: contains } },
+                { booking: { customerName: contains } },
+                { order: { systemCode: contains } },
+                { order: { tourCode: contains } },
+                { order: { name: contains } },
+                { tour: { systemCode: contains } },
+                { tour: { tourCode: contains } },
+                { tour: { name: contains } },
               ],
             }
           : {}),
       }, user),
       select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
+      take: this.take(take),
+      skip: this.skip(skip),
     });
   }
 
@@ -99,7 +112,7 @@ export class OperationVouchersService {
       where: this.scopeWhere({ id, deletedAt: null }, user),
       include: this.includeAll(),
     });
-    if (!voucher) throw new NotFoundException('Operation voucher not found');
+    if (!voucher) throw new NotFoundException('Không tìm thấy phiếu điều hành dịch vụ');
     return voucher;
   }
 
@@ -134,7 +147,7 @@ export class OperationVouchersService {
         return tx.operationVoucher.findUniqueOrThrow({ where: { id: voucher.id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Voucher code already exists');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã phiếu điều hành đã tồn tại');
       throw error;
     }
   }
@@ -195,7 +208,7 @@ export class OperationVouchersService {
         return tx.operationVoucher.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Voucher code already exists');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã phiếu điều hành đã tồn tại');
       throw error;
     }
   }
@@ -207,14 +220,14 @@ export class OperationVouchersService {
   }
 
   async addPayment(id: string, dto: AddOperationVoucherPaymentDto, user?: RequestUser) {
-    const voucher = await this.detail(id, user);
     const paymentAmount = this.paymentAmount(dto);
-    this.assertPayable(voucher, paymentAmount);
-    const paymentDate = this.optionalDate(dto.paymentDate, 'paymentDate') ?? new Date();
+    const paymentDate = this.optionalDate(dto.paymentDate, 'ngày thanh toán') ?? new Date();
     return this.prisma.$transaction(async (tx) => {
+      const voucher = await this.lockVoucherForPayment(tx, id, user);
+      this.assertPayable(voucher, paymentAmount);
       if (dto.paymentVoucherId) {
         const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id: dto.paymentVoucherId }, user), select: { id: true } });
-        if (!payment) throw new NotFoundException('Finance payment not found');
+        if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi tài chính');
       }
       await tx.operationVoucherPayment.create({
         data: { voucherId: id, paymentVoucherId: this.text(dto.paymentVoucherId), paidAmount: paymentAmount, paymentDate, note: this.text(dto.note) },
@@ -227,15 +240,15 @@ export class OperationVouchersService {
   }
 
   async createPaymentVoucher(id: string, user?: RequestUser) {
-    const voucher = await this.detail(id, user);
-    const amount = Number(voucher.remainAmount);
-    this.assertPayable(voucher, amount);
     const scopedPayment = applyWriteDataScope({ branch: undefined, department: undefined }, user);
     return this.prisma.$transaction(async (tx) => {
+      const voucher = await this.lockVoucherForPayment(tx, id, user);
+      const amount = Number(voucher.remainAmount);
+      this.assertPayable(voucher, amount);
       const financePayment = await tx.financePayment.create({
         data: {
           ...scopedPayment,
-          voucherCode: await this.nextFinancePaymentCode(tx),
+          voucherCode: await this.nextAvailableFinancePaymentCode(tx),
           voucherName: `Chi ${voucher.voucherCode}`,
           voucherType: 'SUPPLIER_PAYMENT',
           paymentMethod: 'BANK_TRANSFER',
@@ -243,7 +256,7 @@ export class OperationVouchersService {
           operationVoucherId: voucher.id,
           orderId: voucher.orderId,
           receiverName: voucher.supplierName,
-          reason: `Thanh toan phieu dieu hanh ${voucher.voucherCode}`,
+          reason: `Thanh toán phiếu điều hành ${voucher.voucherCode}`,
           totalAmount: amount,
           paymentAmount: amount,
           remainingAmount: 0,
@@ -257,7 +270,7 @@ export class OperationVouchersService {
           paymentVoucherId: financePayment.id,
           paidAmount: amount,
           paymentDate: new Date(),
-          note: 'Tao phieu chi tu phieu dieu hanh',
+          note: 'Tạo phiếu chi từ phiếu điều hành',
         },
       });
       const totals = this.calculate(voucher.details.map((item) => ({ quantity: Number(item.quantity), netPrice: Number(item.netPrice), vat: Number(item.vat) })), Number(voucher.paidAmount) + amount);
@@ -280,7 +293,7 @@ export class OperationVouchersService {
     }
     if (tourId) {
       const tour = await this.prisma.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
-      if (!tour) throw new NotFoundException('Tour not found');
+      if (!tour) throw new NotFoundException('Không tìm thấy tour');
       orderId = orderId ?? tour.orderId;
     }
     if (orderId) {
@@ -311,7 +324,7 @@ export class OperationVouchersService {
     if (!user || hasUnrestrictedDataScope(user)) return;
     applyWriteDataScope({ branch: undefined, department: undefined }, user);
     if (!links.bookingId && !links.tourId && !links.orderId) {
-      throw new BadRequestException('bookingId, orderId or tourId is required for scoped operation voucher writes');
+      throw new BadRequestException('Cần gắn booking, đơn hàng hoặc tour trong phạm vi dữ liệu để tạo phiếu điều hành');
     }
     const scoped = await this.prisma.operationVoucher.findFirst({
       where: this.scopeWhere({ bookingId: links.bookingId || undefined, tourId: links.tourId || undefined, orderId: links.orderId || undefined }, user),
@@ -335,47 +348,120 @@ export class OperationVouchersService {
       tourWhere ? this.prisma.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
       bookingWhere ? this.prisma.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
     ]);
-    if (!order && !tour && !booking) throw new NotFoundException('Linked booking, order or tour not found');
+    if (!order && !tour && !booking) throw new NotFoundException('Không tìm thấy booking, đơn hàng hoặc tour trong phạm vi dữ liệu');
   }
 
   private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
     return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
+
+  private take(value?: number) {
+    if (value === undefined || value === null) return OPERATION_VOUCHER_LIST_DEFAULT_TAKE;
+    return Math.min(Math.max(Number(value) || OPERATION_VOUCHER_LIST_DEFAULT_TAKE, 1), OPERATION_VOUCHER_LIST_MAX_TAKE);
+  }
+
+  private skip(value?: number) {
+    if (value === undefined || value === null) return 0;
+    return Math.max(Number(value) || 0, 0);
+  }
+
+  private async lockVoucherForPayment(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM "OperationVoucher" WHERE id = $1 AND "deletedAt" IS NULL FOR UPDATE', id);
+    if (!locked.length) throw new NotFoundException('Không tìm thấy phiếu điều hành dịch vụ');
+    const voucher = await tx.operationVoucher.findFirst({ where: this.scopeWhere({ id, deletedAt: null }, user), include: this.includeAll() });
+    if (!voucher) throw new NotFoundException('Không tìm thấy phiếu điều hành dịch vụ');
+    return voucher;
+  }
+
+  private async nextAvailableFinancePaymentCode(tx: Prisma.TransactionClient) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = await this.nextFinancePaymentCode(tx);
+      const existing = await tx.financePayment.findUnique({ where: { voucherCode: code }, select: { id: true } });
+      if (!existing) return code;
+    }
+    throw new ConflictException('Không thể sinh mã phiếu chi duy nhất');
+  }
+
   private async nextFinancePaymentCode(tx: Prisma.TransactionClient) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
+    const yearMonth = `${year}${String(month).padStart(2, '0')}`;
+    const codePrefix = `PC-${yearMonth}-`;
+    const existingCodes = await tx.financePayment.findMany({ where: { voucherCode: { startsWith: codePrefix } }, select: { voucherCode: true } });
+    const maxExistingNo = existingCodes.reduce((max, row) => {
+      const match = row.voucherCode.match(new RegExp(`^${codePrefix}(\d+)$`));
+      const value = match ? Number(match[1]) : 0;
+      return Number.isFinite(value) && value > max ? value : max;
+    }, 0);
+    const seedNo = maxExistingNo + 1;
+    const seq = await this.nextFinancePaymentSequence(tx, year, month, seedNo);
+    return `${codePrefix}${String(seq.currentNo).padStart(seq.padding, '0')}`;
+  }
+
+  private async nextFinancePaymentSequence(tx: Prisma.TransactionClient, year: number, month: number, seedNo: number) {
+    const supportsExpressionConflict = await this.hasCodeSequenceExpressionIndex(tx);
+    if (supportsExpressionConflict) {
+      const rows = await tx.$queryRawUnsafe<{ currentNo: number; padding: number }[]>(
+        `INSERT INTO "CodeSequence" ("id","scope","prefix","year","month","branch","currentNo","padding","updatedAt")
+         VALUES ($1,'FINANCE_PAYMENT','PC',$2,$3,NULL,$4,6,NOW())
+         ON CONFLICT ("scope","prefix","year",(COALESCE("month",0)),(COALESCE("branch",'')))
+         DO UPDATE SET "currentNo" = GREATEST("CodeSequence"."currentNo" + 1, $4), "updatedAt" = NOW()
+         RETURNING "currentNo", "padding"`,
+        randomUUID(),
+        year,
+        month,
+        seedNo,
+      );
+      return rows[0] ?? { currentNo: seedNo, padding: 6 };
+    }
     const rows = await tx.$queryRawUnsafe<{ currentNo: number; padding: number }[]>(
       `INSERT INTO "CodeSequence" ("id","scope","prefix","year","month","branch","currentNo","padding","updatedAt")
-       VALUES ($1,'FINANCE_PAYMENT','PC',$2,$3,NULL,1,6,NOW())
-       ON CONFLICT ("scope","prefix","year",(COALESCE("month",0)),(COALESCE("branch",'')))
-       DO UPDATE SET "currentNo" = "CodeSequence"."currentNo" + 1, "updatedAt" = NOW()
+       VALUES ($1,'FINANCE_PAYMENT','PC',$2,$3,'',$4,6,NOW())
+       ON CONFLICT ("scope","prefix","year","month","branch")
+       DO UPDATE SET "currentNo" = GREATEST("CodeSequence"."currentNo" + 1, $4), "updatedAt" = NOW()
        RETURNING "currentNo", "padding"`,
       randomUUID(),
       year,
       month,
+      seedNo,
     );
-    const seq = rows[0] ?? { currentNo: 1, padding: 6 };
-    return `PC-${year}${String(month).padStart(2, '0')}-${String(seq.currentNo).padStart(seq.padding, '0')}`;
+    return rows[0] ?? { currentNo: seedNo, padding: 6 };
+  }
+
+  private async hasCodeSequenceExpressionIndex(tx: Prisma.TransactionClient) {
+    const rows = await tx.$queryRawUnsafe<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_indexes
+         WHERE schemaname = current_schema()
+           AND tablename = 'CodeSequence'
+           AND indexdef ILIKE '%COALESCE%month%'
+           AND indexdef ILIKE '%COALESCE%branch%'
+       ) AS "exists"`,
+    );
+    return Boolean(rows[0]?.exists);
   }
 
   private normalizeVoucherPayload(dto: CreateOperationVoucherDto, links: OperationVoucherLinks): NormalizedOperationVoucherPayload {
-    const voucherCode = this.requiredText(dto.voucherCode, 'voucherCode is required');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/.test(voucherCode)) {
-      throw new BadRequestException('voucherCode must be 2-64 characters and only contain letters, numbers, dot, underscore or dash');
+    const voucherCode = this.requiredText(dto.voucherCode, 'Cần nhập mã phiếu điều hành').toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9._-]{1,63}$/.test(voucherCode)) {
+      throw new BadRequestException('Mã phiếu điều hành phải dài 2-64 ký tự và chỉ gồm chữ, số, dấu chấm, gạch dưới hoặc gạch ngang');
     }
     const supplierName = links.supplierName ?? this.text(dto.supplierName);
-    if (!supplierName || supplierName.length < 2) throw new BadRequestException('supplierName is required when supplierId is not provided');
-    const serviceType = this.requiredText(dto.serviceType, 'serviceType is required');
-    const serviceName = this.requiredText(dto.serviceName, 'serviceName is required');
-    const serviceDate = this.requiredDate(dto.serviceDate, 'serviceDate');
-    const paymentDeadline = this.optionalDate(dto.paymentDeadline, 'paymentDeadline');
+    if (!supplierName || supplierName.length < 2) throw new BadRequestException('Cần nhập tên nhà cung cấp khi chưa chọn nhà cung cấp liên kết');
+    const serviceType = this.requiredText(dto.serviceType, 'Cần nhập loại dịch vụ');
+    if (serviceType.length < 2) throw new BadRequestException('Loại dịch vụ phải có ít nhất 2 ký tự');
+    const serviceName = this.requiredText(dto.serviceName, 'Cần nhập tên dịch vụ');
+    if (serviceName.length < 2) throw new BadRequestException('Tên dịch vụ phải có ít nhất 2 ký tự');
+    const serviceDate = this.requiredDate(dto.serviceDate, 'ngày dịch vụ');
+    const paymentDeadline = this.optionalDate(dto.paymentDeadline, 'hạn thanh toán');
     if (paymentDeadline && paymentDeadline.getTime() < serviceDate.getTime()) {
-      throw new BadRequestException('paymentDeadline must be greater than or equal to serviceDate');
+      throw new BadRequestException('Hạn thanh toán không được trước ngày dịch vụ');
     }
     const details = this.normalizeDetails(dto.details);
-    if (this.calculate(details, 0).totalAmount <= 0) throw new BadRequestException('Total amount must be greater than zero');
+    if (this.calculate(details, 0).totalAmount <= 0) throw new BadRequestException('Tổng tiền phiếu điều hành phải lớn hơn 0');
     return {
       voucherCode,
       supplierName,
@@ -390,15 +476,17 @@ export class OperationVouchersService {
   }
 
   private normalizeDetails(details: CreateOperationVoucherDto['details']): NormalizedOperationVoucherDetail[] {
-    if (!Array.isArray(details) || !details.length) throw new BadRequestException('At least one service detail is required');
-    return details.map((item, index) => {
-      const serviceName = this.requiredText(item.serviceName, `details[${index}].serviceName is required`);
-      const quantity = this.positiveNumber(item.quantity ?? 1, `details[${index}].quantity must be greater than zero`);
-      const netPrice = this.nonNegativeNumber(item.netPrice ?? 0, `details[${index}].netPrice must be greater than or equal to zero`);
-      const vat = this.nonNegativeNumber(item.vat ?? 0, `details[${index}].vat must be greater than or equal to zero`);
-      if (vat > 100) throw new BadRequestException(`details[${index}].vat must be less than or equal to 100`);
+    if (!Array.isArray(details) || !details.length) throw new BadRequestException('Cần ít nhất một dòng chi tiết dịch vụ');
+    return details.map((raw, index) => {
+      const item = this.record(raw, `Dòng chi tiết ${index + 1} không hợp lệ`);
+      const label = `Dòng chi tiết ${index + 1}`;
+      const serviceName = this.requiredText(item.serviceName, `${label}: cần nhập tên dịch vụ`);
+      const quantity = this.positiveNumber(item.quantity ?? 1, `${label}: số lượng phải lớn hơn 0`);
+      const netPrice = this.nonNegativeNumber(item.netPrice ?? 0, `${label}: giá NET không được âm`);
+      const vat = this.nonNegativeNumber(item.vat ?? 0, `${label}: VAT không được âm`);
+      if (vat > 100) throw new BadRequestException(`${label}: VAT không được vượt quá 100%`);
       const amount = quantity * netPrice * (1 + vat / 100);
-      if (amount <= 0) throw new BadRequestException(`details[${index}].amount must be greater than zero`);
+      if (amount <= 0) throw new BadRequestException(`${label}: thành tiền phải lớn hơn 0`);
       return {
         sku: this.text(item.sku),
         serviceName,
@@ -414,9 +502,9 @@ export class OperationVouchersService {
   }
 
   private calculate(details: Array<{ quantity: number; netPrice: number; vat: number }>, paidAmount: number) {
-    const normalizedPaidAmount = this.nonNegativeNumber(paidAmount, 'paidAmount must be greater than or equal to zero');
+    const normalizedPaidAmount = this.nonNegativeNumber(paidAmount, 'Số tiền đã thanh toán không được âm');
     const totalAmount = details.reduce((sum, item) => sum + item.quantity * item.netPrice * (1 + item.vat / 100), 0);
-    if (normalizedPaidAmount > totalAmount + 0.000001) throw new BadRequestException('Paid amount cannot exceed total amount');
+    if (normalizedPaidAmount > totalAmount + 0.000001) throw new BadRequestException('Số tiền đã thanh toán không được vượt quá tổng tiền phiếu điều hành');
     const paidAmountValue = Math.min(normalizedPaidAmount, totalAmount);
     const remainAmount = Math.max(0, totalAmount - paidAmountValue);
     const status = totalAmount <= 0 || paidAmountValue <= 0 ? OperationVoucherStatus.PENDING : paidAmountValue >= totalAmount ? OperationVoucherStatus.PAID : OperationVoucherStatus.PARTIAL;
@@ -442,7 +530,15 @@ export class OperationVouchersService {
   }
 
   private includeAll() {
-    return { supplier: true, booking: true, order: true, tour: true, details: { orderBy: { sortOrder: 'asc' } }, payments: { orderBy: { paymentDate: 'desc' }, include: { paymentVoucher: true } }, financePayments: true } satisfies Prisma.OperationVoucherInclude;
+    return {
+      supplier: true,
+      booking: true,
+      order: true,
+      tour: true,
+      details: { orderBy: { sortOrder: 'asc' } },
+      payments: { orderBy: { paymentDate: 'desc' }, include: { paymentVoucher: true } },
+      financePayments: { orderBy: { paymentDate: 'desc' } },
+    } satisfies Prisma.OperationVoucherInclude;
   }
 
   private text(value?: unknown) {
@@ -456,18 +552,26 @@ export class OperationVouchersService {
     return trimmed;
   }
 
-  private requiredDate(value: unknown, field: string) {
-    const raw = this.requiredText(value, `${field} is required`);
-    const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} must be a valid date`);
-    return date;
+  private record(value: unknown, message: string): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException(message);
+    return value as Record<string, unknown>;
   }
 
-  private optionalDate(value: unknown, field: string) {
+  private requiredDate(value: unknown, label: string) {
+    const raw = this.requiredText(value, `Cần nhập ${label}`);
+    return this.parseDate(raw, `${label} không hợp lệ`);
+  }
+
+  private optionalDate(value: unknown, label: string) {
     const raw = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     if (!raw) return null;
+    return this.parseDate(raw, `${label} không hợp lệ`);
+  }
+
+  private parseDate(raw: string, message: string) {
     const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} must be a valid date`);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(message);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && date.toISOString().slice(0, 10) !== raw) throw new BadRequestException(message);
     return date;
   }
 
@@ -485,27 +589,27 @@ export class OperationVouchersService {
 
   private paymentAmount(dto: AddOperationVoucherPaymentDto) {
     const amount = dto.paidAmount ?? dto.paymentAmount;
-    return this.positiveNumber(amount, 'paymentAmount must be greater than zero');
+    return this.positiveNumber(amount, 'Số tiền thanh toán phải lớn hơn 0');
   }
 
   private assertEditable(voucher: Awaited<ReturnType<OperationVouchersService['detail']>>, action: 'update' | 'delete') {
     if (voucher.status === OperationVoucherStatus.PAID || Number(voucher.paidAmount) > 0 || voucher.payments.length > 0) {
-      throw new BadRequestException(`Only unpaid operation vouchers can be ${action === 'update' ? 'updated' : 'deleted'}`);
+      throw new BadRequestException(action === 'update' ? 'Chỉ phiếu chưa thanh toán mới được chỉnh sửa' : 'Chỉ phiếu chưa thanh toán mới được xóa');
     }
   }
 
   private assertPayable(voucher: Awaited<ReturnType<OperationVouchersService['detail']>>, amount: number) {
-    if (voucher.status === OperationVoucherStatus.PAID) throw new BadRequestException('Operation voucher is already paid');
+    if (voucher.status === OperationVoucherStatus.PAID) throw new BadRequestException('Phiếu điều hành đã thanh toán đủ');
     const remainAmount = Number(voucher.remainAmount);
-    if (remainAmount <= 0) throw new BadRequestException('Operation voucher has no remaining amount');
-    if (amount > remainAmount + 0.000001) throw new BadRequestException('paymentAmount cannot exceed remaining amount');
+    if (remainAmount <= 0) throw new BadRequestException('Phiếu điều hành không còn công nợ cần thanh toán');
+    if (amount > remainAmount + 0.000001) throw new BadRequestException('Số tiền thanh toán không được vượt quá công nợ còn lại');
   }
 
   private operationVoucherStatus(status?: string) {
     const normalized = this.text(status)?.toUpperCase();
     if (!normalized) return undefined;
     if (!Object.values(OperationVoucherStatus).includes(normalized as OperationVoucherStatus)) {
-      throw new BadRequestException('Invalid operation voucher status');
+      throw new BadRequestException('Trạng thái phiếu điều hành không hợp lệ');
     }
     return normalized as OperationVoucherStatus;
   }
