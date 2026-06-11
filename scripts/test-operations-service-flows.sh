@@ -54,11 +54,14 @@ function user(scope, branch = null, department = null) {
   };
 }
 
+const observedErrorMessages = [];
+
 async function rejectsMessage(action, expected, label) {
   try {
     await action();
   } catch (error) {
     const message = error?.response?.message || error?.message || '';
+    observedErrorMessages.push(message);
     assert(message.includes(expected), `${label}: expected "${expected}", got "${message}"`);
     return error;
   }
@@ -254,6 +257,18 @@ async function main() {
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-ORDER'), bookingId: bookingA.id, orderId: orderB.id }, undefined), 'Đơn hàng đã chọn không thuộc booking đã chọn', 'create form should reject order outside booking');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TOUR'), bookingId: bookingA.id, tourId: tourB.id }, undefined), 'Tour đã chọn không thuộc booking đã chọn', 'create form should reject tour outside booking');
   await rejectsMessage(() => service.updateForm(formB.id, { notes: 'Không được sửa', actor: 'branch-a' }, branchAUser), 'Không tìm thấy phiếu điều hành', 'branch scoped user cannot update another branch form');
+
+  const { order: resolveOrder, tour: resolveTour } = await makeOrder('RESOLVE', customerA, 'BR-A', 'DEP-A', 'COMPLETED', true);
+  const resolveBooking = await makeBooking('RESOLVE', customerA, resolveOrder, resolveTour);
+  const resolvedForm = await service.createForm(formPayload(resolveBooking, supplierA, supplierServiceA, 'RESOLVE'));
+  assert(resolvedForm.bookingId === resolveBooking.id && resolvedForm.orderId === resolveOrder.id && resolvedForm.tourId === resolveTour.id, 'resolve booking/order/tour should map booking links when creating a form');
+  const { order: orderOnly } = await makeOrder('ORDER-ONLY', customerA, 'BR-A', 'DEP-A', 'COMPLETED', false);
+  const orderOnlyBooking = await makeBooking('ORDER-ONLY', customerA, orderOnly, null);
+  const orderOnlyForm = await service.createForm(formPayload(orderOnlyBooking, supplierA, supplierServiceA, 'ORDER-ONLY'));
+  assert(orderOnlyForm.orderId === orderOnly.id && orderOnlyForm.tourId === null, 'resolve booking/order/tour should allow booking with order but no tour');
+  await rejectsMessage(() => service.updateForm(orderOnlyForm.id, { tourId: resolveTour.id, actor: 'resolve-mismatch' }), 'Tour đã chọn không thuộc đơn hàng của booking đã chọn', 'resolve booking/order/tour should reject mismatched tour on update');
+  await service.updateForm(resolvedForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.updateForm(orderOnlyForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
 
   const updatedFormA = await service.updateForm(formA.id, {
     actor: 'updater-a',
@@ -465,6 +480,8 @@ async function main() {
     'Chỉ yêu cầu đã duyệt mới được tạo phiếu chi tài chính',
   ];
   for (const message of errorMessages) assert(hasVietnameseText(message), `error message should be Vietnamese: ${message}`);
+  assert(observedErrorMessages.length >= 20, 'service flow should exercise Vietnamese validation failures');
+  for (const message of observedErrorMessages) assert(hasVietnameseText(message), `observed error message should include Vietnamese text: ${message}`);
 
   await prisma.$disconnect();
   console.log('TEST_OPERATIONS_SERVICE_FLOWS_OK');
