@@ -246,10 +246,6 @@ export default function OperationsClient() {
     if (selectedFormId && !forms.some((form) => form.id === selectedFormId)) setSelectedFormId('');
   }, [forms, selectedFormId]);
 
-  useEffect(() => {
-    if (detailRequestId && !requests.some((request) => request.id === detailRequestId)) setDetailRequestId('');
-  }, [detailRequestId, requests]);
-
   async function loadStatic(emitNotice = true) {
     setIsLoadingStatic(true);
     const errors: string[] = [];
@@ -427,6 +423,15 @@ export default function OperationsClient() {
     if (nextTab === 'payments' && selectedFormId && !forms.some((form) => form.id === selectedFormId)) setSelectedFormId('');
   }
 
+  function openReconciliation(requestId: string) {
+    setModal(null);
+    setDetailRequestId(requestId);
+  }
+
+  function closeReconciliation() {
+    setDetailRequestId('');
+  }
+
   function setActiveFilter(key: keyof FilterState, value: string) {
     setFilters((current) => ({ ...current, [tab]: { ...current[tab], [key]: value } }));
     if (tab === 'payments') setDetailRequestId('');
@@ -547,7 +552,7 @@ export default function OperationsClient() {
                     <td><strong>{cost.primary}</strong><span>{cost.secondary}</span></td>
                     <td><span className={`statusPill ${statusPillClass(form.status)}`}>{statusLabel(form.status)}</span></td>
                     <td className="operationsActions">
-                      <button data-testid="operation-form-open-reconciliation" className="secondaryButton iconButton" title={!canViewPayments ? 'Bạn chưa có quyền xem đối soát thanh toán.' : linkedRequest ? 'Mở đối soát thanh toán' : 'Chưa có yêu cầu thanh toán để đối soát.'} disabled={!canViewPayments || !linkedRequest} onClick={() => { if (!linkedRequest) return; switchTab('payments'); setSelectedFormId(form.id); setDetailRequestId(linkedRequest.id); }}><Search size={16} /></button>
+                      <button data-testid="operation-form-open-reconciliation" className="secondaryButton iconButton" title={!canViewPayments ? 'Bạn chưa có quyền xem đối soát thanh toán.' : linkedRequest ? 'Mở đối soát thanh toán' : 'Chưa có yêu cầu thanh toán để đối soát.'} disabled={!canViewPayments || !linkedRequest} onClick={() => { if (!linkedRequest) return; switchTab('payments'); setSelectedFormId(form.id); openReconciliation(linkedRequest.id); }}><Search size={16} /></button>
                       <button data-testid="operation-form-create-payment" className="secondaryButton iconButton" title={!can('operation.payment-request.create') ? 'Bạn chưa có quyền tạo yêu cầu thanh toán.' : form.status === 'CANCELLED' ? 'Phiếu đã hủy, không thể tạo yêu cầu thanh toán.' : form.costs.length === 0 ? 'Phiếu chưa có chi phí để tạo yêu cầu thanh toán.' : 'Tạo yêu cầu thanh toán'} disabled={!can('operation.payment-request.create') || form.status === 'CANCELLED' || form.costs.length === 0} onClick={() => { setSelectedFormId(form.id); switchTab('payments'); setModal('payment'); }}><WalletCards size={16} /></button>
                       <button data-testid="operation-form-cancel" className="dangerButton iconButton" title={form.status === 'CANCELLED' ? 'Phiếu đã hủy.' : 'Hủy phiếu điều hành'} disabled={!can('operation.form.manage') || form.status === 'CANCELLED'} onClick={() => { void cancelForm(form.id); }}><XCircle size={16} /></button>
                     </td>
@@ -561,13 +566,16 @@ export default function OperationsClient() {
         <section className="contentGrid operationsGrid">
           <div className="operationsPaymentStack">
             <ReconciliationPanel
+              requestId={detailRequestId}
               request={detailRequest}
+              isLoading={isLoadingList}
               canApproveFinance={canApproveFinancePayment}
               canApproveRequest={canApprovePaymentRequest}
               canCreateFinance={canCreateFinancePayment}
               canCreateRequest={canCreatePaymentRequest}
               onAction={requestAction}
               onApproveFinance={approveFinancePayment}
+              onClose={closeReconciliation}
             />
           </div>
           <OperationsTable title="Danh sách yêu cầu thanh toán" count={requests.length}>
@@ -589,7 +597,7 @@ export default function OperationsClient() {
                   <td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${statusLabel(request.financePayment.approvalStatus)} - ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></td>
                   <td><span className={`statusPill ${statusPillClass(request.status)}`}>{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
-                    <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title="Xem đối soát yêu cầu thanh toán" onClick={() => setDetailRequestId(request.id)}><Search size={16} /></button>
+                    <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title={detailRequestId === request.id ? 'Đóng đối soát yêu cầu thanh toán' : 'Xem đối soát yêu cầu thanh toán'} onClick={() => { if (detailRequestId === request.id) closeReconciliation(); else openReconciliation(request.id); }}><Search size={16} /></button>
                     <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
                     <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title={canApproveRequest ? 'Duyệt yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được duyệt.'} disabled={!canApproveRequest} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
                     <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title={canCreateFinanceForRequest ? 'Tạo phiếu chi tài chính từ yêu cầu đã duyệt' : 'Cần yêu cầu đã duyệt, chưa có phiếu chi và đủ quyền tạo phiếu chi tài chính.'} disabled={!canCreateFinanceForRequest} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
@@ -787,27 +795,45 @@ function PaymentRequestModal({
 }
 
 function ReconciliationPanel({
+  requestId,
   request,
+  isLoading,
   canApproveFinance,
   canApproveRequest,
   canCreateFinance,
   canCreateRequest,
   onAction,
   onApproveFinance,
+  onClose,
 }: {
+  requestId: string;
   request?: PaymentRequest;
+  isLoading: boolean;
   canApproveFinance: boolean;
   canApproveRequest: boolean;
   canCreateFinance: boolean;
   canCreateRequest: boolean;
   onAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') => Promise<void>;
   onApproveFinance: (id?: string) => Promise<void>;
+  onClose: () => void;
 }) {
-  if (!request) {
+  if (!requestId) {
     return (
       <aside className="panel reconciliationCard" data-testid="operation-reconciliation-empty">
         <h3>Đối soát yêu cầu thanh toán</h3>
-        <p>Chọn một yêu cầu trong bảng để xem liên kết giữa đề nghị vận hành, phiếu chi tài chính và trạng thái đã thanh toán.</p>
+        <p>Chọn một yêu cầu trong bảng để xem luồng yêu cầu thanh toán, phiếu chi tài chính và kết quả đối soát.</p>
+      </aside>
+    );
+  }
+
+  if (!request) {
+    return (
+      <aside className="panel reconciliationCard" data-testid={isLoading ? 'operation-reconciliation-loading' : 'operation-reconciliation-missing'}>
+        <div className="reconciliationHeader">
+          <h3>Đối soát yêu cầu thanh toán</h3>
+          <button type="button" data-testid="operation-reconciliation-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
+        </div>
+        <p>{isLoading ? 'Đang tải thông tin đối soát mới nhất...' : 'Yêu cầu đang chọn không còn nằm trong danh sách hiện tại. Hãy kiểm tra lại bộ lọc hoặc tải lại dữ liệu.'}</p>
       </aside>
     );
   }
@@ -819,16 +845,36 @@ function ReconciliationPanel({
   const canCreateFinanceForRequest = canApproveRequest && canCreateFinance && request.status === 'APPROVED' && !request.financePaymentId;
   const canApproveFinanceForRequest = canApproveFinance && Boolean(request.financePaymentId) && !paid && request.financePayment?.approvalStatus !== 'APPROVED';
   return (
-    <aside className="panel reconciliationCard" data-testid="operation-reconciliation-panel">
-      <h3>Đối soát yêu cầu {request.code}</h3>
+    <aside key={request.id} className="panel reconciliationCard" data-testid="operation-reconciliation-panel">
+      <div className="reconciliationHeader">
+        <h3>Đối soát yêu cầu {request.code}</h3>
+        <button type="button" data-testid="operation-reconciliation-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
+      </div>
       <div className="reconciliationTimeline">
-        <div><strong>Yêu cầu vận hành</strong><span>{statusLabel(request.status)} | {money(totalRequest(request))}</span></div>
-        <div><strong>Phiếu chi tài chính</strong><span>{request.financePayment ? `${request.financePayment.voucherCode} | ${statusLabel(request.financePayment.approvalStatus)} | ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></div>
-        <div><strong>Thanh toán nhà cung cấp</strong><span>{paid ? 'Đã ghi nhận thanh toán' : 'Chưa hoàn tất thanh toán'}</span></div>
+        <div><strong>Bước 1: Yêu cầu thanh toán</strong><span>{statusLabel(request.status)} | {money(totalRequest(request))} | Người tạo: {request.requestedBy || 'Chưa ghi nhận'}</span></div>
+        <div><strong>Bước 2: Phiếu chi tài chính</strong><span>{request.financePayment ? `${request.financePayment.voucherCode} | ${statusLabel(request.financePayment.approvalStatus)} | ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi tài chính'}</span></div>
+        <div><strong>Bước 3: Hoàn tất đối soát</strong><span>{paid ? 'Đã hoàn tất đối soát và ghi nhận thanh toán.' : 'Chưa hoàn tất đối soát thanh toán.'}</span></div>
       </div>
       <div className="reconciliationDetails">
-        <p><strong>Nhà cung cấp:</strong> {request.items.map((item) => item.supplier?.name || item.supplierId).join(', ') || '-'}</p>
-        <p><strong>Chi phí:</strong> {request.items.map((item) => item.cost?.costName || 'Không gắn chi phí').join(', ')}</p>
+        <div className="fitTableWrap reconciliationItemsWrap">
+          <table className="reconciliationItemTable">
+            <thead><tr><th>Nhà cung cấp</th><th>Khoản chi</th><th>Số tiền</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              {request.items.length === 0 ? <tr><td colSpan={4}>Yêu cầu chưa có dòng thanh toán.</td></tr> : null}
+              {request.items.map((item) => {
+                const cost = paymentItemCostSummary(item);
+                return (
+                  <tr key={item.id}>
+                    <td><strong>{paymentItemSupplierLabel(item)}</strong><span>{item.supplierId ? `Mã: ${item.supplierId}` : 'Thiếu mã nhà cung cấp'}</span></td>
+                    <td><strong>{cost.primary}</strong><span>{cost.secondary}</span></td>
+                    <td>{money(item.amount)}</td>
+                    <td>{paymentItemNote(item)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div className="reconciliationActions">
         <button data-testid="reconciliation-submit" className="secondaryButton" disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
@@ -1042,6 +1088,22 @@ function totalRequest(request: PaymentRequest) {
 }
 function linkedPaymentRequestForForm(form: OperationForm, requests: PaymentRequest[]) {
   return requests.find((request) => request.items.some((item) => item.cost?.operationForm?.id === form.id));
+}
+
+function paymentItemSupplierLabel(item: PaymentRequest['items'][number]) {
+  if (item.supplier?.name) return item.supplier.name;
+  if (item.supplierId) return 'Nhà cung cấp chưa tải tên';
+  return 'Chưa gắn nhà cung cấp';
+}
+
+function paymentItemCostSummary(item: PaymentRequest['items'][number]) {
+  const bookingCode = item.cost?.operationForm?.booking?.code;
+  if (item.cost?.costName) return { primary: item.cost.costName, secondary: bookingCode ? `Booking ${bookingCode}` : 'Đã gắn khoản chi điều hành' };
+  return { primary: 'Chưa gắn khoản chi', secondary: item.cost ? 'Thiếu tên khoản chi' : 'Không có liên kết chi phí điều hành' };
+}
+
+function paymentItemNote(item: PaymentRequest['items'][number]) {
+  return text(item.notes) || item.cost?.operationForm?.booking?.code || 'Không có ghi chú';
 }
 
 function formOrderTourSummary(form: OperationForm) {

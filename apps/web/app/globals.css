@@ -807,13 +807,20 @@ select[multiple] { min-height: 92px; }
 .operationsActions { min-width: 150px; display: flex; gap: 6px; justify-content: flex-end; }
 .operationsSelectedRow { background: #f7fbef; }
 .reconciliationCard { display: grid; gap: 10px; border-top: 1px solid #e3efd9; padding-top: 12px; }
+.reconciliationHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .reconciliationCard h3 { margin: 0; color: var(--dn-primary); font-size: 15px; }
 .reconciliationCard p { margin: 0; color: var(--dn-muted); line-height: 1.45; }
 .reconciliationTimeline { display: grid; gap: 8px; }
-.reconciliationTimeline div { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--dn-border); border-radius: 7px; padding: 9px; background: var(--dn-surface-soft); }
-.reconciliationTimeline span { color: var(--dn-muted); font-size: 12px; }
+.reconciliationTimeline div { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border: 1px solid var(--dn-border); border-radius: 7px; padding: 9px; background: var(--dn-surface-soft); }
+.reconciliationTimeline span { color: var(--dn-muted); font-size: 12px; text-align: right; line-height: 1.35; }
 .reconciliationActions { display: flex; flex-wrap: wrap; gap: 8px; }
 .reconciliationDetails { display: grid; gap: 12px; }
+.reconciliationItemsWrap { max-width: 100%; }
+.reconciliationItemTable { width: 100%; min-width: 620px; border-collapse: collapse; }
+.reconciliationItemTable th, .reconciliationItemTable td { border-bottom: 1px solid var(--dn-border); padding: 8px; text-align: left; vertical-align: top; }
+.reconciliationItemTable th { color: var(--dn-muted); font-size: 12px; font-weight: 700; }
+.reconciliationItemTable strong { display: block; overflow-wrap: anywhere; }
+.reconciliationItemTable span { display: block; color: var(--dn-muted); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
 @media (max-width: 1500px) { .operationsMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .operationsGrid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .operationsMetrics, .operationsFilters, .operationsFormPanel .formGrid, .operationsFormGrid fieldset { grid-template-columns: 1fr; } }
 
