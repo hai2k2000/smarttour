@@ -772,7 +772,7 @@ export class OperationsService {
         supplierId: this.requiredText(item.supplierId, 'Cần chọn nhà cung cấp'),
         supplierServiceId: this.requiredText(item.supplierServiceId, 'Cần chọn dịch vụ nhà cung cấp'),
         serviceType: this.requiredText(item.serviceType, 'Cần nhập loại dịch vụ'),
-        serviceName: this.requiredText(item.serviceName, 'Cần nhập tên dịch vụ'),
+        serviceName: this.requiredText(item.serviceName, 'Cần nhập tên dịch vụ điều hành'),
         confirmationStatus: this.operationConfirmationStatus(item.confirmationStatus),
         expectedCost: this.requiredNumber(item.expectedCost, 'Chi phí dự kiến phải lớn hơn 0', { positive: true }),
         actualCost: this.requiredNumber(item.actualCost, 'Chi phí thực tế phải lớn hơn hoặc bằng 0', { min: 0 }),
@@ -788,7 +788,7 @@ export class OperationsService {
         title: this.requiredText(item.title, 'Cần nhập tiêu đề công việc'),
         assignee: this.text(item.assignee),
         dueDate: this.date(item.dueDate, 'H\u1ea1n c\u00f4ng vi\u1ec7c kh\u00f4ng h\u1ee3p l\u1ec7'),
-        status: this.operationStatus(item.status, OperationStatus.PENDING),
+        status: this.operationStatus(item.status, OperationStatus.PENDING, 'công việc điều hành'),
         notes: this.text(item.notes),
       };
     });
@@ -1208,11 +1208,11 @@ export class OperationsService {
     throw new BadRequestException('Ph\u01b0\u01a1ng th\u1ee9c thanh to\u00e1n kh\u00f4ng h\u1ee3p l\u1ec7: ' + text);
   }
 
-  private operationStatus(value: unknown, fallback: OperationStatus) {
+  private operationStatus(value: unknown, fallback: OperationStatus, label = 'phiếu điều hành') {
     const text = this.text(value);
     if (!text) return fallback;
     if (Object.values(OperationStatus).includes(text as OperationStatus)) return text as OperationStatus;
-    throw new BadRequestException(`Tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh kh\u00f4ng h\u1ee3p l\u1ec7: ${text}`);
+    throw new BadRequestException(`Trạng thái ${label} không hợp lệ: ${text}`);
   }
 
   private supplierPaymentStatus(value: unknown, fallback: SupplierPaymentStatus) {
