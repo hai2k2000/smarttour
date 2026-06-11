@@ -321,12 +321,35 @@ export class OperationsService {
 
   async listPaymentRequests(query: ListSupplierPaymentRequestsQueryDto, user?: RequestUser) {
     const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     return this.prisma.supplierPaymentRequest.findMany({
       where: this.paymentRequestScopeWhere({
         ...(query.status ? { status: this.supplierPaymentStatus(query.status, SupplierPaymentStatus.DRAFT) } : {}),
         ...(query.supplierId ? { items: { some: { supplierId: query.supplierId } } } : {}),
         ...(query.financePaymentId ? { financePaymentId: query.financePaymentId } : {}),
-        ...(search ? { code: containsSearch(search) } : {}),
+        ...(contains
+          ? {
+              OR: [
+                { code: contains },
+                { requestedBy: contains },
+                { approvedBy: contains },
+                { financePayment: { voucherCode: contains } },
+                { items: { some: { notes: contains } } },
+                { items: { some: { supplier: { supplierCode: contains } } } },
+                { items: { some: { supplier: { name: contains } } } },
+                { items: { some: { cost: { costName: contains } } } },
+                { items: { some: { cost: { notes: contains } } } },
+                { items: { some: { cost: { operationForm: { booking: { code: contains } } } } } },
+                { items: { some: { cost: { operationForm: { booking: { customerName: contains } } } } } },
+                { items: { some: { cost: { operationForm: { order: { systemCode: contains } } } } } },
+                { items: { some: { cost: { operationForm: { order: { tourCode: contains } } } } } },
+                { items: { some: { cost: { operationForm: { order: { name: contains } } } } } },
+                { items: { some: { cost: { operationForm: { tour: { systemCode: contains } } } } } },
+                { items: { some: { cost: { operationForm: { tour: { tourCode: contains } } } } } },
+                { items: { some: { cost: { operationForm: { tour: { name: contains } } } } } },
+              ],
+            }
+          : {}),
       }, user),
       select: this.paymentRequestListSelect(),
       orderBy: [{ requestedAt: 'desc' }, { code: 'asc' }],

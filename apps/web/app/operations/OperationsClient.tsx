@@ -73,8 +73,8 @@ const defaultFilters: Record<OperationsTab, FilterState> = {
   forms: { search: '', status: '' },
   payments: { search: '', status: '' },
 };
-const formStatuses = ['PENDING', 'IN_PROGRESS', 'DONE', 'PROBLEM', 'CANCELLED'];
-const paymentStatuses = ['DRAFT', 'REQUESTED', 'APPROVED', 'PAID', 'REJECTED'];
+const operationFormStatusValues = ['PENDING', 'IN_PROGRESS', 'DONE', 'PROBLEM', 'CANCELLED'];
+const supplierPaymentStatusValues = ['DRAFT', 'REQUESTED', 'APPROVED', 'PAID', 'REJECTED'];
 const confirmationStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'DONE'];
 const operationTabs: Record<OperationsTab, { label: string; createLabel: string; viewPermission: string; createPermission: string }> = {
   forms: {
@@ -88,6 +88,20 @@ const operationTabs: Record<OperationsTab, { label: string; createLabel: string;
     createLabel: 'Tạo yêu cầu thanh toán',
     viewPermission: 'operation.payment-request.view',
     createPermission: 'operation.payment-request.create',
+  },
+};
+const operationsFilterConfig: Record<OperationsTab, { searchPlaceholder: string; statusLabel: string; allStatusesLabel: string; statuses: string[] }> = {
+  forms: {
+    searchPlaceholder: 'Mã booking, mã đơn hàng, mã tour, tên khách hoặc ghi chú...',
+    statusLabel: 'Trạng thái phiếu điều hành',
+    allStatusesLabel: 'Tất cả phiếu điều hành',
+    statuses: operationFormStatusValues,
+  },
+  payments: {
+    searchPlaceholder: 'Mã yêu cầu thanh toán, nhà cung cấp, chi phí hoặc booking liên quan...',
+    statusLabel: 'Trạng thái yêu cầu thanh toán',
+    allStatusesLabel: 'Tất cả yêu cầu thanh toán',
+    statuses: supplierPaymentStatusValues,
   },
 };
 
@@ -150,7 +164,8 @@ export default function OperationsClient() {
   );
   const selectedForm = forms.find((form) => form.id === selectedFormId);
   const detailRequest = requests.find((request) => request.id === detailRequestId);
-  const statusOptions = tab === 'forms' ? formStatuses : paymentStatuses;
+  const activeFilterConfig = operationsFilterConfig[tab];
+  const statusOptions = activeFilterConfig.statuses;
   const activeTab = operationTabs[tab];
   const canViewForms = can(operationTabs.forms.viewPermission);
   const canViewPayments = can(operationTabs.payments.viewPermission);
@@ -450,12 +465,12 @@ export default function OperationsClient() {
       <section className="panel operationsFilters">
         <label>
           <Search size={15} /> Tìm kiếm
-          <input data-testid="operations-search" value={activeFilter.search} onChange={(event) => setActiveFilter('search', event.target.value)} placeholder={tab === 'forms' ? 'Booking, order, tour, ghi chú...' : 'Mã yêu cầu thanh toán...'} />
+          <input data-testid="operations-search" value={activeFilter.search} onChange={(event) => setActiveFilter('search', event.target.value)} placeholder={activeFilterConfig.searchPlaceholder} />
         </label>
         <label>
-          Trạng thái
+          {activeFilterConfig.statusLabel}
           <select data-testid="operations-status-filter" value={activeFilter.status} onChange={(event) => setActiveFilter('status', event.target.value)}>
-            <option value="">Tất cả</option>
+            <option value="">{activeFilterConfig.allStatusesLabel}</option>
             {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select>
         </label>
@@ -592,7 +607,7 @@ function OperationFormModal({
           <fieldset>
             <legend>Thông tin booking</legend>
             <label>Booking<select name="bookingId" required><option value="">Chọn booking</option>{bookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.code} - {booking.customerName || 'Khách'}</option>)}</select></label>
-            <label>Trạng thái<select name="status" defaultValue="PENDING">{formStatuses.filter((status) => status !== 'CANCELLED').map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
+            <label>Trạng thái<select name="status" defaultValue="PENDING">{operationFormStatusValues.filter((status) => status !== 'CANCELLED').map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Dịch vụ nhà cung cấp</legend>
