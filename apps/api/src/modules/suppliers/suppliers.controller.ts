@@ -8,7 +8,7 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
-import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
+import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { isTypedSupplierRoute } from './supplier-types';
 import { SuppliersService } from './suppliers.service';
@@ -20,8 +20,8 @@ export class SupplierCategoriesController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Get()
-  list() {
-    return this.suppliersService.listCategories();
+  list(@Query() query: SupplierCategoryListQueryDto) {
+    return this.suppliersService.listCategories(query);
   }
 
   @Post()
@@ -50,8 +50,8 @@ export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('categoryId') categoryId?: string) {
-    return this.suppliersService.listSuppliers(search, categoryId);
+  list(@Query() query: SupplierListQueryDto) {
+    return this.suppliersService.listSuppliers(query);
   }
 
   @Get('hotels')

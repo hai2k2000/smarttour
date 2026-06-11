@@ -8,8 +8,20 @@ const trimOptional = ({ value }: { value: unknown }) => {
   const trimmed = value.trim();
   return trimmed || undefined;
 };
+const uppercaseOptional = ({ value }: { value: unknown }) => {
+  const trimmed = trimOptional({ value });
+  return typeof trimmed === 'string' ? trimmed.toUpperCase() : trimmed;
+};
 
 export class CreateSupplierDto {
+  @ApiPropertyOptional()
+  @Transform(uppercaseOptional)
+  @IsOptional()
+  @IsString({ message: 'Mã nhà cung cấp phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Mã nhà cung cấp phải có ít nhất 2 ký tự' })
+  @MaxLength(80, { message: 'Mã nhà cung cấp không được vượt quá 80 ký tự' })
+  supplierCode?: string;
+
   @ApiProperty()
   @Transform(trimRequired)
   @IsString({ message: 'Mã loại nhà cung cấp phải là chuỗi ký tự' })
@@ -26,8 +38,8 @@ export class CreateSupplierDto {
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
+  @IsString({ message: 'Người liên hệ phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Người liên hệ không được vượt quá 120 ký tự' })
   contactPerson?: string;
 
   @ApiPropertyOptional()
@@ -48,8 +60,8 @@ export class CreateSupplierDto {
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsString({ message: 'Địa chỉ nhà cung cấp phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Địa chỉ nhà cung cấp không được vượt quá 500 ký tự' })
   address?: string;
 
   @ApiPropertyOptional()
@@ -69,7 +81,7 @@ export class CreateSupplierDto {
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
-  @IsString()
-  @MaxLength(2000)
+  @IsString({ message: 'Ghi chú nhà cung cấp phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú nhà cung cấp không được vượt quá 2.000 ký tự' })
   notes?: string;
 }

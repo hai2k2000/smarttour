@@ -8,6 +8,7 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
+import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_TYPE_LABELS } from './supplier-types';
 
@@ -32,8 +33,13 @@ type UploadFile = { originalname: string; mimetype: string; size: number; buffer
 export class SuppliersService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
-  listCategories() {
+  listCategories(query: SupplierCategoryListQueryDto = {}) {
+    const searchText = normalizeListSearch(query.search);
     return this.prisma.supplierCategory.findMany({
+      where: {
+        ...(searchText ? { name: containsSearch(searchText) } : {}),
+        ...(query.includeEmpty === false ? { suppliers: { some: { deletedAt: null } } } : {}),
+      },
       orderBy: { name: 'asc' },
       include: { _count: { select: { suppliers: { where: { deletedAt: null } } } } },
     });
@@ -41,11 +47,7 @@ export class SuppliersService {
 
   async createCategory(dto: CreateSupplierCategoryDto) {
     const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
-    const existing = await this.prisma.supplierCategory.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } },
-      select: { id: true },
-    });
-    if (existing) throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
+    await this.ensureCategoryNameAvailable(name);
     try {
       return await this.prisma.supplierCategory.create({
         data: { name },
@@ -66,11 +68,7 @@ export class SuppliersService {
     if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name) && name !== category.name) {
       throw new BadRequestException('Không thể đổi tên loại nhà cung cấp hệ thống');
     }
-    const existing = await this.prisma.supplierCategory.findFirst({
-      where: { id: { not: id }, name: { equals: name, mode: 'insensitive' } },
-      select: { id: true },
-    });
-    if (existing) throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
+    await this.ensureCategoryNameAvailable(name, id);
     try {
       return await this.prisma.supplierCategory.update({
         where: { id },
@@ -100,12 +98,15 @@ export class SuppliersService {
     return this.prisma.supplierCategory.delete({ where: { id } });
   }
 
-  listSuppliers(search?: string, categoryId?: string) {
-    const searchText = normalizeListSearch(search);
+  listSuppliers(query: SupplierListQueryDto = {}) {
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
-      ...(categoryId ? { categoryId } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.province ? { province: containsSearch(query.province) } : {}),
+      ...(query.market ? { market: containsSearch(query.market) } : {}),
       ...(contains
         ? {
             OR: [
@@ -115,6 +116,8 @@ export class SuppliersService {
               { contactPerson: contains },
               { phone: contains },
               { email: contains },
+              { province: contains },
+              { market: contains },
             ],
           }
         : {}),
@@ -148,10 +151,15 @@ export class SuppliersService {
   async createSupplier(dto: CreateSupplierDto) {
     this.validateSupplierPayload(dto);
     await this.ensureCategory(dto.categoryId);
-    return this.prisma.supplier.create({
-      data: this.toSupplierData(dto) as Prisma.SupplierUncheckedCreateInput,
-      include: this.supplierListInclude(),
-    });
+    await this.ensureSupplierCodeAvailable(dto.supplierCode);
+    try {
+      return await this.prisma.supplier.create({
+        data: this.toSupplierData(dto) as Prisma.SupplierUncheckedCreateInput,
+        include: this.supplierListInclude(),
+      });
+    } catch (error) {
+      this.rethrowSupplierUniqueConflict(error);
+    }
   }
 
   async updateSupplier(id: string, dto: UpdateSupplierDto) {
@@ -163,11 +171,16 @@ export class SuppliersService {
         throw new BadRequestException('Không thể đổi loại của nhà cung cấp chuyên biệt tại màn hình nhà cung cấp tổng. Hãy cập nhật trong phân hệ tương ứng.');
       }
     }
-    return this.prisma.supplier.update({
-      where: { id },
-      data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
-      include: this.supplierListInclude(),
-    });
+    if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
+    try {
+      return await this.prisma.supplier.update({
+        where: { id },
+        data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
+        include: this.supplierListInclude(),
+      });
+    } catch (error) {
+      this.rethrowSupplierUniqueConflict(error);
+    }
   }
 
   async deleteSupplier(id: string) {
@@ -258,6 +271,7 @@ export class SuppliersService {
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
     const category = await this.ensureCategoryByName(this.getTypeLabel(type));
+    await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const supplier = await tx.supplier.create({
@@ -279,6 +293,7 @@ export class SuppliersService {
 
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
     await this.getTypedSupplier(type, id);
+    if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.supplier.update({
@@ -358,6 +373,7 @@ export class SuppliersService {
 
   async createHotelSupplier(dto: CreateHotelSupplierDto) {
     const category = await this.ensureCategoryByName('Hotel');
+    await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const supplier = await tx.supplier.create({
@@ -393,6 +409,7 @@ export class SuppliersService {
 
   async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto) {
     await this.getHotelSupplier(id);
+    if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.supplier.update({
@@ -653,6 +670,40 @@ export class SuppliersService {
     };
   }
 
+  private async ensureCategoryNameAvailable(name: string, excludedId?: string) {
+    const normalizedName = this.categoryNameKey(name);
+    const categories = await this.prisma.supplierCategory.findMany({
+      where: excludedId ? { id: { not: excludedId } } : undefined,
+      select: { name: true },
+    });
+    if (categories.some((category) => this.categoryNameKey(category.name) === normalizedName)) {
+      throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
+    }
+  }
+
+  private categoryNameKey(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/đ/gi, 'd')
+      .toLocaleLowerCase('vi')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private async ensureSupplierCodeAvailable(value?: string | null, excludedId?: string) {
+    const supplierCode = this.optionalCode(value);
+    if (!supplierCode) return;
+    const existing = await this.prisma.supplier.findFirst({
+      where: {
+        ...(excludedId ? { id: { not: excludedId } } : {}),
+        supplierCode: { equals: supplierCode, mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException(SUPPLIER_ERRORS.codeExists);
+  }
+
   private async ensureCategory(id: string) {
     if (!this.optionalText(id)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
     const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
@@ -681,7 +732,7 @@ export class SuppliersService {
   private toSupplierData(dto: UpdateSupplierDto & Partial<CreateHotelSupplierDto & CreateGenericSupplierDto>) {
     return {
       ...(dto.categoryId !== undefined ? { categoryId: this.requiredText(dto.categoryId, 'Cần chọn loại nhà cung cấp') } : {}),
-      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalText(dto.supplierCode) } : {}),
+      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalCode(dto.supplierCode) } : {}),
       ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Tên nhà cung cấp phải có ít nhất 2 ký tự') } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode) } : {}),
       ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson) } : {}),
@@ -946,8 +997,8 @@ export class SuppliersService {
     }
   }
 
-  private isSpecializedSupplier(supplier: { supplierCode?: string | null; hotelProfile?: unknown; category?: { name: string } | null }) {
-    return Boolean(supplier.hotelProfile || this.optionalText(supplier.supplierCode) || (supplier.category && SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(supplier.category.name)));
+  private isSpecializedSupplier(supplier: { hotelProfile?: unknown; category?: { name: string } | null }) {
+    return Boolean(supplier.hotelProfile || (supplier.category && SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(supplier.category.name)));
   }
 
   private supplierListInclude() {
@@ -975,6 +1026,9 @@ export class SuppliersService {
       fitBudgetServices,
       fitOperationServices,
       allotmentAllocations,
+      supplierServices,
+      allotments,
+      files,
     ] = await Promise.all([
       this.prisma.orderSalesItem.count({ where: { supplierId: id } }),
       this.prisma.orderOperationItem.count({ where: { supplierId: id } }),
@@ -992,6 +1046,9 @@ export class SuppliersService {
       this.prisma.fitBudgetService.count({ where: { supplierId: id } }),
       this.prisma.fitOperationService.count({ where: { supplierId: id } }),
       this.prisma.supplierAllotmentAllocation.count({ where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
+      this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: null } }),
+      this.prisma.supplierAllotment.count({ where: { supplierId: id } }),
+      this.prisma.supplierFile.count({ where: { supplierId: id } }),
     ]);
     const usage = {
       orderSalesItems,
@@ -1010,6 +1067,9 @@ export class SuppliersService {
       fitBudgetServices,
       fitOperationServices,
       allotmentAllocations,
+      supplierServices,
+      allotments,
+      files,
     };
 
     return { ...usage, total: Object.values(usage).reduce((sum, count) => sum + count, 0) };
@@ -1033,6 +1093,9 @@ export class SuppliersService {
       ['fitBudgetServices', 'dự toán FIT'],
       ['fitOperationServices', 'điều hành FIT'],
       ['allotmentAllocations', 'phân bổ quỹ phòng đang khóa hoặc đã xác nhận'],
+      ['supplierServices', 'dịch vụ nhà cung cấp'],
+      ['allotments', 'quỹ phòng'],
+      ['files', 'file nhà cung cấp'],
     ];
     return labels
       .filter(([key]) => usage[key] > 0)
@@ -1042,6 +1105,18 @@ export class SuppliersService {
 
   private actorFrom(dtoActor?: string | null, user?: RequestUser) {
     return this.optionalText(dtoActor) || this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || null;
+  }
+
+  private rethrowSupplierUniqueConflict(error: unknown): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException(SUPPLIER_ERRORS.codeExists);
+    }
+    throw error;
+  }
+
+  private optionalCode(value?: string | null) {
+    const code = this.optionalText(value);
+    return code ? code.toUpperCase() : null;
   }
 
   private optionalText(value?: string | null) {

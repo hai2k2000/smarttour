@@ -96,7 +96,7 @@ VALUES
 INSERT INTO "SupplierCategory" (id, name, "createdAt", "updatedAt")
 VALUES ('${USED_CATEGORY_ID}', '${RUN_ID} Used Category', now(), now());
 
-INSERT INTO "Supplier" (id, "categoryId", "supplierCode", name, phone, email, status, "createdAt", "updatedAt")
+INSERT INTO "Supplier" (id, "categoryId", "supplierCode", name, phone, email, province, market, status, "createdAt", "updatedAt")
 VALUES (
   '${USED_SUPPLIER_ID}',
   '${USED_CATEGORY_ID}',
@@ -104,6 +104,8 @@ VALUES (
   '${RUN_ID} Used Supplier',
   '0900000000',
   'used-${RUN_ID_LOWER}@smarttour.local',
+  'Hà Nội',
+  'Nội địa',
   'ACTIVE',
   now(),
   now()
@@ -225,6 +227,21 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(seeded, 'seeded used supplier must be visible');
   assert(seeded.category?.id, 'supplier list must include category shape');
 
+  const categorySearch = await request(manageToken, 'GET', `/supplier-categories?search=${encodeURIComponent(`${run} Used`)}`);
+  assert(categorySearch.length === 1 && categorySearch[0].id === process.env.USED_CATEGORY_ID, 'category search should filter by name');
+  const nonEmptyCategories = await request(manageToken, 'GET', '/supplier-categories?includeEmpty=false');
+  assert(nonEmptyCategories.some((category) => category.id === process.env.USED_CATEGORY_ID), 'non-empty category filter should keep categories with active suppliers');
+  await request(manageToken, 'GET', '/supplier-categories?includeEmpty=maybe', undefined, [400]);
+
+  const activeSuppliers = await request(manageToken, 'GET', '/suppliers?status=ACTIVE');
+  assert(activeSuppliers.some((item) => item.id === usedSupplierId), 'status filter should include matching suppliers');
+  const provinceSuppliers = await request(manageToken, 'GET', `/suppliers?province=${encodeURIComponent('Hà Nội')}`);
+  assert(provinceSuppliers.some((item) => item.id === usedSupplierId), 'province filter should include matching suppliers');
+  const marketSuppliers = await request(manageToken, 'GET', `/suppliers?market=${encodeURIComponent('Nội địa')}`);
+  assert(marketSuppliers.some((item) => item.id === usedSupplierId), 'market filter should include matching suppliers');
+  await request(manageToken, 'GET', '/suppliers?categoryId=not-a-uuid', undefined, [400]);
+  await request(manageToken, 'GET', '/suppliers?status=UNKNOWN', undefined, [400]);
+
   await request(viewToken, 'GET', '/suppliers');
   const supplierDetail = await request(viewToken, 'GET', `/suppliers/${usedSupplierId}`);
   assert(supplierDetail.id === usedSupplierId && supplierDetail.category?.id, 'single-segment supplier detail route should not be mistaken for a typed route');
@@ -297,6 +314,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(messageOf(duplicateCategoryError).includes('Loại nhà cung cấp đã tồn tại'), 'duplicate category should return a Vietnamese message');
 
   const disposableCategory = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Disposable Category` });
+  const categoriesWithoutEmpty = await request(manageToken, 'GET', '/supplier-categories?includeEmpty=false');
+  assert(!categoriesWithoutEmpty.some((item) => item.id === disposableCategory.id), 'includeEmpty=false should omit unused categories');
+  const normalizedCategory = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Đối Tác` });
+  const normalizedDuplicateError = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Doi Tac` }, [409]);
+  assert(messageOf(normalizedDuplicateError).includes('Loại nhà cung cấp đã tồn tại'), 'category names should be unique regardless of accents and case');
+  await request(manageToken, 'DELETE', `/supplier-categories/${normalizedCategory.id}`);
   const renamedDisposableCategory = await request(manageToken, 'PATCH', `/supplier-categories/${disposableCategory.id}`, { name: `${run} Disposable Category Updated` });
   assert(renamedDisposableCategory.name.endsWith('Updated'), 'category update should persist name');
   await request(manageToken, 'DELETE', `/supplier-categories/${disposableCategory.id}`);
@@ -308,6 +331,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   }
 
   const supplier = await request(manageToken, 'POST', '/suppliers', {
+    supplierCode: `  ${lowerRun}-common  `,
     categoryId: category.id,
     name: `  ${run} API Supplier  `,
     contactPerson: '  Supplier Contact  ',
@@ -319,15 +343,31 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     notes: 'Smoke note',
   });
   assert(supplier.id, 'created supplier must have id');
+  assert(supplier.supplierCode === `${run}-COMMON`, 'common supplier code should be trimmed and uppercased');
   assert(supplier.name === `${run} API Supplier`, 'created supplier should be trimmed');
   assert(supplier.category?.id === category.id, 'created supplier must include category');
   assert(Array.isArray(supplier.supplierServices), 'created supplier must include supplierServices');
+  const duplicateCodeError = await request(manageToken, 'POST', '/suppliers', {
+    supplierCode: `${lowerRun}-COMMON`,
+    categoryId: category.id,
+    name: `${run} Duplicate Code Supplier`,
+  }, [409]);
+  assert(messageOf(duplicateCodeError).includes('Mã nhà cung cấp đã tồn tại'), 'supplier code should be unique regardless of case');
+
+  const partialUpdate = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}`, { name: `${run} API Supplier Partial` });
+  assert(partialUpdate.name.endsWith('Partial'), 'partial supplier update should update the requested field');
+  const partialDetail = await request(manageToken, 'GET', `/suppliers/${supplier.id}`);
+  assert(partialDetail.address === 'Hanoi', 'partial supplier update must preserve address');
+  assert(partialDetail.debtNote === 'Payable after reconciliation', 'partial supplier update must preserve debt note');
+  assert(partialDetail.categoryId === category.id, 'partial supplier update must preserve category linkage');
 
   await uploadRequest(viewToken, `/suppliers/${supplier.id}/files`, 'forbidden.txt', 'text/plain', 'forbidden', [403]);
   const blockedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.svg', 'image/svg+xml', '<svg />', [400]);
   assert(messageOf(blockedUpload).includes('Loại file không được phép'), 'dangerous supplier file type should be rejected');
   const uploadedFile = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'supplier-note.txt', 'text/plain', 'supplier file smoke');
   assert(uploadedFile.id && uploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'supplier upload should record the authenticated user id');
+  const fileUsageDeleteError = await request(manageToken, 'DELETE', `/suppliers/${supplier.id}`, undefined, [409]);
+  assert(messageOf(fileUsageDeleteError).includes('file nhà cung cấp'), 'supplier delete should be blocked while files remain');
   await request(viewToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [403]);
   await request(manageToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`);
   const missingFileError = await request(manageToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [404]);
@@ -402,6 +442,20 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(typedInactive.status === 'INACTIVE', 'typed supplier manage permission should allow status update');
   await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
   await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
+
+  const ownedDataHotel = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-OWNED-DATA`,
+    name: `${run} Hotel Owned Data`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Owned Data Project`,
+    services: [{ serviceName: 'Phòng tiêu chuẩn' }],
+    allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', allotmentQty: 2 }],
+  });
+  const ownedDataDeleteError = await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}`, undefined, [409]);
+  const ownedDataDeleteMessage = messageOf(ownedDataDeleteError);
+  assert(ownedDataDeleteMessage.includes('dịch vụ nhà cung cấp'), 'supplier delete should report linked supplier services');
+  assert(ownedDataDeleteMessage.includes('quỹ phòng'), 'supplier delete should report linked allotments');
 
   const invalidHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-DATE`,
