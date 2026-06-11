@@ -303,6 +303,7 @@ export class OperationsService {
     const reason = this.text(dto.reason) ?? this.text(dto.notes);
     const current = await this.formDetail(id, user);
     if (current.status === OperationStatus.CANCELLED) return current;
+    if (!reason) throw new BadRequestException('C\u1ea7n nh\u1eadp l\u00fd do h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
     if (current.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 h\u1ee7y');
     await this.ensureFormCanBeCancelled(id);
     return this.prisma.$transaction(async (tx) => {
