@@ -380,6 +380,46 @@ async function main() {
   assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'receipt cancel should net customer debt report back to zero');
   await rejects(() => finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' }), 'double cancel receipt should be rejected as a final-state transition');
 
+  const rollbackReceipt = await finance.createReceipt({
+    receiptCode: run + '-RCPT-ROLLBACK',
+    receiptName: 'Receipt rollback guard',
+    receiptType: 'TOUR_PAYMENT',
+    paymentMethod: 'BANK_TRANSFER',
+    customerId: customer.id,
+    totalAmount: 40,
+    receiptAmount: 40,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+    orders: [{ orderId: order.id, orderCode: order.systemCode, tourCode: order.tourCode, tourName: order.name, amount: 40 }],
+  });
+  await finance.approveReceipt(rollbackReceipt.id, { actor: 'finance-test' });
+  await prisma.customerLedgerEntry.deleteMany({ where: { sourceType: 'FINANCE_RECEIPT', sourceId: rollbackReceipt.id } });
+  await rejects(() => finance.cancelReceipt(rollbackReceipt.id, { actor: 'finance-test', reason: 'missing receipt ledger' }), 'receipt cancel should roll back when original ledger is missing');
+  const rollbackReceiptAfter = await prisma.financeReceipt.findUniqueOrThrow({ where: { id: rollbackReceipt.id } });
+  assert(rollbackReceiptAfter.approvalStatus === 'APPROVED' && !rollbackReceiptAfter.cancelledAt, 'failed receipt cancel should preserve approved status');
+  assert(await prisma.financeReceipt.count({ where: { reversalOfId: rollbackReceipt.id } }) === 0, 'failed receipt cancel should not leave a reversal document');
+  assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'RECEIPT_REVERSAL', receipt: { reversalOfId: rollbackReceipt.id } } }) === 0, 'failed receipt cancel should not leave reversal cashflow');
+  assert(await prisma.customerLedgerEntry.count({ where: { entryType: 'REVERSAL', receipt: { reversalOfId: rollbackReceipt.id } } }) === 0, 'failed receipt cancel should not leave reversal customer ledger');
+  await prisma.customerLedgerEntry.create({
+    data: {
+      customerId: customer.id,
+      receiptId: rollbackReceipt.id,
+      orderId: order.id,
+      tourId: tour.id,
+      sourceType: 'FINANCE_RECEIPT',
+      sourceId: rollbackReceipt.id,
+      entryType: 'CREDIT',
+      creditAmount: 40,
+      documentCode: rollbackReceipt.receiptCode,
+      documentDate: new Date(),
+      branch: 'FIN-BR',
+      department: 'FIN-DEP',
+      createdBy: 'finance-test',
+    },
+  });
+  await finance.cancelReceipt(rollbackReceipt.id, { actor: 'finance-test', reason: 'cleanup receipt rollback guard' });
+
   const rejectedReceiptDraft = await finance.createReceipt({
     receiptCode: run + '-RCPT-REJECT',
     receiptName: 'Receipt Reject Flow',
@@ -546,6 +586,41 @@ async function main() {
   assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'invoice cancel should net customer debt report back to zero');
   await rejects(() => finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' }), 'double cancel invoice should be rejected as a final-state transition');
 
+  const rollbackInvoice = await finance.createInvoice({
+    invoiceCode: run + '-INV-ROLLBACK',
+    systemCode: run + '-SYS-ROLLBACK',
+    customerId: customer.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    issuedDate: '2026-11-04',
+    tourId: tour.id,
+    items: [{ itemName: 'Invoice rollback service', unit: 'pax', quantity: 1, unitPrice: 30, taxRate: 10 }],
+  });
+  await finance.approveInvoice(rollbackInvoice.id, { actor: 'finance-test' });
+  await prisma.customerLedgerEntry.deleteMany({ where: { sourceType: 'FINANCE_INVOICE', sourceId: rollbackInvoice.id } });
+  await rejects(() => finance.cancelInvoice(rollbackInvoice.id, { actor: 'finance-test', reason: 'missing invoice ledger' }), 'invoice cancel should roll back when original ledger is missing');
+  const rollbackInvoiceAfter = await prisma.financeInvoice.findUniqueOrThrow({ where: { id: rollbackInvoice.id } });
+  assert(rollbackInvoiceAfter.approvalStatus === 'APPROVED' && !rollbackInvoiceAfter.cancelledAt, 'failed invoice cancel should preserve approved status');
+  assert(await prisma.financeInvoice.count({ where: { reversalOfId: rollbackInvoice.id } }) === 0, 'failed invoice cancel should not leave a reversal document');
+  assert(await prisma.customerLedgerEntry.count({ where: { entryType: 'REVERSAL', invoice: { reversalOfId: rollbackInvoice.id } } }) === 0, 'failed invoice cancel should not leave reversal customer ledger');
+  await prisma.customerLedgerEntry.create({
+    data: {
+      customerId: customer.id,
+      invoiceId: rollbackInvoice.id,
+      tourId: tour.id,
+      sourceType: 'FINANCE_INVOICE',
+      sourceId: rollbackInvoice.id,
+      entryType: 'DEBIT',
+      debitAmount: rollbackInvoice.totalAfterTax,
+      documentCode: rollbackInvoice.invoiceCode,
+      documentDate: new Date(),
+      branch: 'FIN-BR',
+      department: 'FIN-DEP',
+      createdBy: 'finance-test',
+    },
+  });
+  await finance.cancelInvoice(rollbackInvoice.id, { actor: 'finance-test', reason: 'cleanup invoice rollback guard' });
+
   const rejectedInvoiceDraft = await finance.createInvoice({
     invoiceCode: run + '-INV-REJECT',
     systemCode: run + '-SYS-REJECT',
@@ -599,14 +674,14 @@ async function main() {
       'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department,tourId',
       `${run}-IMP-RCPT-CTRL,Controller Receipt,TOUR_PAYMENT,CASH,2026-11-07,120,0,120,Controller Customer,FIN-BR,FIN-DEP,${tour.id}`,
     ].join('\n'),
-  }, { user: undefined });
+  }, undefined, { user: undefined });
   assert(controllerReceiptImport.imported === 1 && controllerReceiptImport.rows[0].department === 'FIN-DEP', 'receipt controller import should call real import flow');
   const controllerPaymentImport = await controller.importPayments({
     csv: [
       'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId',
       `${run}-IMP-PAY-CTRL,Controller Payment,SUPPLIER_PAYMENT,CASH,2026-11-08,220,200,Controller Supplier,FIN-BR,FIN-DEP,${tour.id}`,
     ].join('\n'),
-  }, { user: undefined });
+  }, undefined, { user: undefined });
   assert(controllerPaymentImport.imported === 1 && controllerPaymentImport.rows[0].branch === 'FIN-BR', 'payment controller import should call real import flow');
 
   const receiptExport = await finance.exportReceipts({ search: run });

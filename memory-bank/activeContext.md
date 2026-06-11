@@ -21,6 +21,26 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Hardened Finance frontend UX and data rollback checks:
+  - FinanceClient now uses fully accented Vietnamese tab/sidebar/status labels,
+    branch-specific load error notices, distinct save/approve/reject/cancel
+    feedback, guarded row actions, safer dirty-modal close behavior, clearer
+    CSV/import/upload messages, and debt overdue summaries.
+  - Finance CSV import endpoints now accept real multipart uploads with CSV-only
+    filtering and 5 MB limits; browser smoke confirmed multipart reaches the
+    import parser instead of falling through as a missing file.
+  - Finance service regression now explicitly verifies receipt and invoice
+    cancellation rollback when original ledger rows are missing, ensuring failed
+    cancel attempts leave no reversal document, cashflow, ledger entry, or status
+    mutation.
+  - VPS verification passed on 2026-06-11: `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_FINANCE_CLIENT_CONTRACT_OK`,
+    `TEST_FINANCE_HELPER_CONTRACTS_OK`, `docker compose build api web`,
+    api/web deploy, API auth smoke 401, web auth redirect 307, and Chrome
+    desktop/mobile screenshots for `/finance`.
+
+
 - Consolidated Finance auxiliary helpers into the live transaction flows:
   - FinanceService now delegates cashflow postings, customer/supplier ledger
     postings, order reconciliation, payment-voucher reconciliation, and CSV

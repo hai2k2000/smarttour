@@ -7,6 +7,8 @@ import { FileUploadSizeExceptionFilter } from '../files/file-upload-size-excepti
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { FinanceCashflowService } from './finance-cashflow.service';
 import { FinanceInvoiceService } from './finance-invoice.service';
+import { financeImportInterceptorOptions } from './finance-import';
+import { FinanceImportSizeExceptionFilter } from './finance-import-size-exception.filter';
 import { FinanceLedgerService } from './finance-ledger.service';
 import { FinancePaymentService } from './finance-payment.service';
 import { FinanceReceiptService } from './finance-receipt.service';
@@ -44,8 +46,15 @@ export class FinanceController {
 
   @Post('receipts/import')
   @RequirePermissions('finance.receipt.import')
-  importReceipts(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.receiptsService.import(dto, undefined, request.user);
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(FinanceImportSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', financeImportInterceptorOptions()))
+  importReceipts(
+    @Body() dto: Record<string, unknown>,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.receiptsService.import(dto, file, request.user);
   }
 
   @Get('receipts/:id')
@@ -126,8 +135,15 @@ export class FinanceController {
 
   @Post('payments/import')
   @RequirePermissions('finance.payment.import')
-  importPayments(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.paymentsService.import(dto, undefined, request.user);
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(FinanceImportSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', financeImportInterceptorOptions()))
+  importPayments(
+    @Body() dto: Record<string, unknown>,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.paymentsService.import(dto, file, request.user);
   }
 
   @Get('payments/:id')

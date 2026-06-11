@@ -3,6 +3,25 @@
 ## Done
 
 
+- Hardened Finance frontend/data verification:
+  - FinanceClient now has clearer Vietnamese UI copy, branch-aware API load
+    errors, action-specific notices, safer approve/reject/cancel confirmations,
+    dirty modal protection, CSV/upload feedback, debt overdue summaries, and
+    mobile layout hardening for the finance shell.
+  - Multipart CSV import for receipts/payments is wired through FileInterceptor
+    with CSV type checks and 5 MB limits; the client contract locks the import
+    and label behavior.
+  - Service-flow regression now covers receipt/payment/invoice amount formulas,
+    remaining amounts, ledger balances, cashflow net, order/voucher reconcile,
+    cancel reversal netting, failed cancel rollback without orphan side effects,
+    and CSV mapping for amounts, dates, branch, and department.
+  - Verified on VPS: `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_FINANCE_CLIENT_CONTRACT_OK`,
+    `TEST_FINANCE_HELPER_CONTRACTS_OK`, `docker compose build api web`,
+    api/web deploy, API auth smoke 401, and web auth redirect 307.
+
+
 - Consolidated Finance helper and rollback behavior:
   - Live receipt/payment/invoice flows now use finance cashflow, ledger,
     order-link, payment-reconciliation, final-state, and import helpers instead

@@ -66,7 +66,7 @@ a { color: inherit; }
 .sidebarFooter span { color: #b9d8b2; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
 .sidebarFooter strong { color: #fff; font-size: 13px; }
 .sidebarFooter small { color: #d7efd1; font-size: 11px; line-height: 1.35; }
-.appFrame { min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.appFrame { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
 .appTopbar { min-height: 64px; background: rgba(255,255,255,.92); border-bottom: 1px solid var(--dn-border); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
 .topbarInner { width: min(100%, var(--dn-content-max)); min-height: 64px; margin-inline: auto; display: flex; align-items: center; gap: 14px; justify-content: space-between; padding: 0 22px; }
 .routeTitle { min-width: 180px; display: grid; gap: 3px; }
@@ -352,7 +352,9 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .statusPillError { background: #fee2e2; color: #b20000; }
 .status-draft { background: #f1f5f9; color: #4b6b3d; }
 .status-pending, .status-requested { background: #fef3c7; color: #9a5b00; }
-.status-approved { background: #e0e7ff; color: #4338ca; }
+.status-approved, .status-receipt { background: var(--dn-green-soft); color: var(--dn-primary); }
+.status-payment { background: #e0e7ff; color: #4338ca; }
+.status-overdue { background: #fee2e2; color: #b20000; }
 .status-paid { background: var(--dn-green-soft); color: var(--dn-primary); }
 .status-partial { background: #ffedd5; color: #9a3412; }
 .status-rejected { background: #fee2e2; color: #b20000; }
@@ -672,11 +674,38 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 @media (max-width: 900px) { .commissionMetrics { grid-template-columns: 1fr; } }
 
 .financePage { display: grid; gap: 14px; }
+
+.financeNotice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--dn-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+}
+.financeNotice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.financeNotice-success { border-color: #bbdfad; background: var(--dn-green-soft); color: var(--dn-primary); }
+.financeNotice-error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.financeNotice-info { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.financeNotice .iconButton { flex: 0 0 32px; width: 32px; height: 32px; }
+.financeApproveButton:not(:disabled) { color: var(--dn-primary); border-color: #bbdfad; }
+.financeRejectButton:not(:disabled) { color: #9a3412; border-color: #fed7aa; }
+.financeModalPanel { width: min(880px, 100%); }
+.financeModalPanel .modalFormStack { max-height: calc(100vh - 150px); overflow-y: auto; padding-right: 4px; }
+.financeModalPanel fieldset { border: 1px solid var(--dn-border); border-radius: 8px; padding: 12px; }
+.financeModalPanel legend { padding: 0 6px; color: var(--dn-primary); font-weight: 800; }
+.financeDebtAdjustment .formGrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.spinIcon { animation: financeSpin .8s linear infinite; }
+@keyframes financeSpin { to { transform: rotate(360deg); } }
 .financeMetrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .financeMetrics .metric { min-height: 96px; }
 .financeMetrics .metric strong { font-size: 22px; overflow-wrap: anywhere; }
 .financeFilters { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(130px, 170px)); gap: 10px; align-items: end; }
-.financeFilters label:first-child { grid-template-columns: 18px 1fr; align-items: center; }
+.financeFilterLabel { display: inline-flex; align-items: center; gap: 6px; }
 .financeTabs { justify-content: flex-start; }
 .financeTabs button { display: inline-flex; align-items: center; gap: 8px; }
 .financeGrid { grid-template-columns: minmax(360px, 0.45fr) minmax(0, 1.55fr); align-items: start; }

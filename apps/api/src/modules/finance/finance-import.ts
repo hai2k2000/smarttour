@@ -4,6 +4,17 @@ export type FinanceImportRecord = Record<string, unknown>;
 export type FinanceImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 export const MAX_FINANCE_IMPORT_BYTES = 5 * 1024 * 1024;
 
+
+export function financeImportInterceptorOptions() {
+  return {
+    limits: { fileSize: MAX_FINANCE_IMPORT_BYTES },
+    fileFilter: (_request: unknown, file: Pick<FinanceImportFile, 'originalname' | 'mimetype'>, callback: (error: Error | null, acceptFile: boolean) => void) => {
+      const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
+      callback(isCsv ? null : new BadRequestException('Chỉ hỗ trợ file CSV. XLSX cần được xuất thành CSV trước khi tải lên.'), isCsv);
+    },
+  };
+}
+
 export function financeImportRows(dto: FinanceImportRecord, file?: FinanceImportFile) {
   let rows: unknown[];
   if (file) {

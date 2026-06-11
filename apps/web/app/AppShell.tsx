@@ -126,10 +126,10 @@ const workflowLinks: Record<string, { label: string; href: string }[]> = {
   ],
   'Tài chính / Kế toán': [
     { label: 'Tổng quan', href: '/finance' },
-    { label: 'Thu chờ', href: '/finance?tab=pending' },
+    { label: 'Phiếu thu chờ', href: '/finance?tab=pending' },
     { label: 'Phiếu thu', href: '/finance?tab=receipts' },
     { label: 'Phiếu chi', href: '/finance?tab=payments' },
-    { label: 'VAT', href: '/finance?tab=invoices' },
+    { label: 'Hóa đơn VAT', href: '/finance?tab=invoices' },
     { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
     { label: 'Công nợ', href: '/finance?tab=debt' },
   ],

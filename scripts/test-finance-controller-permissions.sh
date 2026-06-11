@@ -102,8 +102,14 @@ const uploadMethods = ['uploadReceiptFile', 'uploadPaymentFile', 'uploadInvoiceF
 if ((rawSource.match(/fileUploadInterceptorOptions\(\)/g) || []).length !== uploadMethods.length) {
   failures.push('finance uploads must use the shared file upload interceptor options');
 }
-if ((rawSource.match(/@ApiConsumes\('multipart\/form-data'\)/g) || []).length !== uploadMethods.length) {
-  failures.push('finance uploads must document multipart/form-data');
+if ((rawSource.match(/@ApiConsumes\('multipart\/form-data'\)/g) || []).length !== uploadMethods.length + 2) {
+  failures.push('finance uploads and CSV imports must document multipart/form-data');
+}
+if ((rawSource.match(/financeImportInterceptorOptions\(\)/g) || []).length !== 2) {
+  failures.push('finance CSV imports must use the dedicated import interceptor options');
+}
+if ((rawSource.match(/@UseFilters\(FinanceImportSizeExceptionFilter\)/g) || []).length !== 2) {
+  failures.push('finance CSV imports must translate oversized file errors');
 }
 if ((rawSource.match(/@UseFilters\(FileUploadSizeExceptionFilter\)/g) || []).length !== uploadMethods.length) {
   failures.push('finance uploads must translate oversized upload errors');
