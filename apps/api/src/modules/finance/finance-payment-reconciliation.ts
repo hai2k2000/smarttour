@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { OperationVoucherStatus, Prisma } from '@prisma/client';
 
 export async function reconcileApprovedPayment(
@@ -7,8 +8,8 @@ export async function reconcileApprovedPayment(
   await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'APPROVED' }, data: { status: 'PAID' } });
   if (!payment.operationVoucherId) return;
 
-  const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-  if (!voucher) return;
+  const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null } });
+  if (!voucher) throw new BadRequestException('Không tìm thấy phiếu điều hành liên kết với phiếu chi');
 
   const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
   if (existing) return;
@@ -22,7 +23,7 @@ export async function reconcileApprovedPayment(
       paymentVoucherId: payment.id,
       paidAmount: amount,
       paymentDate: new Date(),
-      note: 'Duyet phieu chi tai chinh',
+      note: 'Duyệt phiếu chi tài chính',
     },
   });
 
@@ -45,11 +46,11 @@ export async function reconcileCancelledPayment(
   await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'PAID' }, data: { status: 'APPROVED', financePaymentId: null } });
   if (!payment.operationVoucherId) return;
 
-  const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-  if (!voucher) return;
+  const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null } });
+  if (!voucher) throw new BadRequestException('Không tìm thấy phiếu điều hành để hoàn tác phiếu chi');
 
   const reconciled = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
-  if (!reconciled) return;
+  if (!reconciled) throw new BadRequestException('Không tìm thấy dữ liệu đối soát của phiếu chi để hoàn tác');
 
   await tx.operationVoucherPayment.delete({ where: { id: reconciled.id } });
 

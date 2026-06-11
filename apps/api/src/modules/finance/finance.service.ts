@@ -5,9 +5,13 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
+import { createPaymentReversalCashflow, createReceiptReversalCashflow, upsertPaymentCashflow, upsertReceiptCashflow } from './finance-cashflow-postings';
+import { createInvoiceReversalCustomerLedger, createPaymentReversalSupplierLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertPaymentSupplierLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
+import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanChangeFinanceAmount, assertCanDeleteFinanceEntity, assertCanRejectFinanceEntity, lockFinanceInvoice, lockFinancePayment, lockFinanceReceipt } from './finance-final-state';
+import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
+import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
+import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
-import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanChangeFinanceAmount, assertCanDeleteFinanceEntity, assertCanRejectFinanceEntity } from './finance-final-state';
-import { assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks } from './finance-order-links';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -30,7 +34,7 @@ export class FinanceService {
 
   async receiptDetail(id: string, user?: RequestUser) {
     const row = await this.prisma.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true, cashflowEntries: true } });
-    if (!row) throw new NotFoundException('Kh?ng t?m th?y phi?u thu');
+    if (!row) throw new NotFoundException('Không tìm thấy phiếu thu');
     return row;
   }
 
@@ -65,8 +69,8 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
       const orders = this.receiptOrders(dto);
-      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orders }), 'Phiếu thu');
+      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orders }, user), 'Phiếu thu');
       const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode, tourId }), orders: { create: orders } }, include: { orders: true } });
       await this.audit(tx, 'CREATE', 'FinanceReceipt', receipt.id, dto);
       return receipt;
@@ -76,12 +80,12 @@ export class FinanceService {
   async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     dto = applyWriteDataScope(dto, user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phi?u thu');
+    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu thu');
     return this.prisma.$transaction(async (tx) => {
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
       const orders = hasOrders ? this.receiptOrders(dto) : current.orders;
-      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orders });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orders }) || current.tourId, 'Phi?u thu');
+      await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orders }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orders }, user) || current.tourId, 'Phiếu thu');
       const data: AnyRecord = this.receiptData({ ...current, ...dto, receiptCode: this.text(dto.receiptCode) || current.receiptCode, tourId });
       if (hasOrders) {
         await tx.financeReceiptOrder.deleteMany({ where: { receiptId: id } });
@@ -102,82 +106,24 @@ export class FinanceService {
   async approveReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y phi?u thu');
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       assertCanApproveFinanceEntity(current, 'Phiếu thu');
+      await assertReceiptOrderLinks(tx, { customerId: current.customerId, orders: current.orders }, user);
       const receipt = await tx.financeReceipt.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
         include: { orders: true },
       });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: receipt.tourId, receiptId: id, orders: receipt.orders }), 'Phiếu thu');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: receipt.tourId, receiptId: id, orders: receipt.orders }, user), 'Phiếu thu');
       if (tourId && receipt.tourId !== tourId) await tx.financeReceipt.update({ where: { id }, data: { tourId } });
-      const customerId = await this.resolveReceiptCustomer(tx, receipt);
-      await tx.financeCashflowEntry.upsert({
-        where: { sourceType_sourceId: { sourceType: 'RECEIPT', sourceId: id } },
-        create: {
-          sourceType: 'RECEIPT',
-          sourceId: id,
-          entryType: 'RECEIPT',
-          amount: receipt.receiptAmount,
-          paymentMethod: receipt.paymentMethod,
-          paymentDate: receipt.paymentDate || new Date(),
-          branch: receipt.branch,
-          department: receipt.department,
-          staff: receipt.assignedStaff,
-          customerId,
-          tourId,
-          receiptId: id,
-          note: receipt.reason,
-        },
-        update: {
-          amount: receipt.receiptAmount,
-          paymentMethod: receipt.paymentMethod,
-          paymentDate: receipt.paymentDate || new Date(),
-          branch: receipt.branch,
-          department: receipt.department,
-          staff: receipt.assignedStaff,
-          customerId,
-          tourId,
-          receiptId: id,
-          note: receipt.reason,
-        },
-      });
-      if (customerId) {
-        await tx.customerLedgerEntry.upsert({
-          where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_RECEIPT', sourceId: id, entryType: 'CREDIT' } },
-          create: {
-            customerId,
-            receiptId: id,
-            orderId: receipt.orders.find((line) => line.orderId)?.orderId,
-            tourId,
-            sourceType: 'FINANCE_RECEIPT',
-            sourceId: id,
-            entryType: 'CREDIT',
-            creditAmount: receipt.receiptAmount,
-            documentCode: receipt.receiptCode,
-            documentDate: receipt.paymentDate || new Date(),
-            branch: receipt.branch,
-            department: receipt.department,
-            staff: receipt.assignedStaff,
-            description: receipt.reason || receipt.receiptName,
-            createdBy: actor,
-          },
-          update: {
-            customerId,
-            tourId,
-            creditAmount: receipt.receiptAmount,
-            documentCode: receipt.receiptCode,
-            documentDate: receipt.paymentDate || new Date(),
-            branch: receipt.branch,
-            department: receipt.department,
-            staff: receipt.assignedStaff,
-            description: receipt.reason || receipt.receiptName,
-          },
-        });
-      }
+      const postedReceipt = { ...receipt, tourId };
+      const customerId = await resolveReceiptCustomer(tx, postedReceipt, user);
+      await upsertReceiptCashflow(tx, postedReceipt, customerId);
+      await upsertReceiptCustomerLedger(tx, postedReceipt, customerId, actor);
       for (const line of receipt.orders) {
-        if (line.orderId) await this.applyOrderReceipt(tx, line.orderId, Number(line.amount));
+        if (line.orderId) await applyOrderReceipt(tx, line.orderId, Number(line.amount));
       }
       await this.audit(tx, 'APPROVE', 'FinanceReceipt', id, { actor, note: this.text(dto.note) });
       return receipt;
@@ -190,12 +136,14 @@ export class FinanceService {
 
   async cancelReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
-    const reason = this.text(dto.reason) || this.text(dto.note) || 'H?y phi?u thu ?? duy?t';
+    const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu thu đã duyệt';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
       const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
-      if (!receipt) throw new NotFoundException('Kh?ng t?m th?y phi?u thu');
-      assertCanCancelFinanceEntity(receipt, 'Phi?u thu');
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: receipt.tourId, receiptId: id, orders: receipt.orders }), 'Phiếu thu');
+      if (!receipt) throw new NotFoundException('Không tìm thấy phiếu thu');
+      assertCanCancelFinanceEntity(receipt, 'Phiếu thu');
+      await assertReceiptOrderLinks(tx, { customerId: receipt.customerId, orders: receipt.orders }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: receipt.tourId, receiptId: id, orders: receipt.orders }, user), 'Phiếu thu');
       const reversalCode = await this.nextCode(tx, 'FINANCE_RECEIPT', 'PTDC', new Date(), receipt.branch || undefined);
       const reversal = await tx.financeReceipt.create({
         data: {
@@ -237,18 +185,12 @@ export class FinanceService {
         });
       }
       await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      await tx.financeCashflowEntry.create({
-        data: { sourceType: 'RECEIPT_REVERSAL', sourceId: reversal.id, entryType: 'PAYMENT', amount: receipt.receiptAmount, paymentMethod: receipt.paymentMethod, paymentDate: new Date(), branch: receipt.branch, department: receipt.department, staff: actor, customerId: receipt.customerId, tourId, receiptId: reversal.id, note: reason },
-      });
-      const customerId = await this.resolveReceiptCustomer(tx, receipt);
-      if (customerId) {
-        const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_RECEIPT', sourceId: id, entryType: 'CREDIT' } } });
-        await tx.customerLedgerEntry.create({
-          data: { customerId, receiptId: reversal.id, orderId: receipt.orders.find((line) => line.orderId)?.orderId, tourId, sourceType: 'FINANCE_RECEIPT', sourceId: reversal.id, entryType: 'REVERSAL', debitAmount: receipt.receiptAmount, documentCode: reversalCode, documentDate: new Date(), branch: receipt.branch, department: receipt.department, staff: actor, description: reason, reversedEntryId: original?.id, createdBy: actor },
-        });
-      }
+      const postedReceipt = { ...receipt, tourId };
+      const customerId = await resolveReceiptCustomer(tx, postedReceipt, user);
+      await createReceiptReversalCashflow(tx, postedReceipt, reversal.id, customerId, actor, reason);
+      await createReceiptReversalCustomerLedger(tx, postedReceipt, reversal.id, customerId, reversalCode, reason, actor);
       for (const line of receipt.orders) {
-        if (line.orderId) await this.applyOrderReceipt(tx, line.orderId, -Number(line.amount));
+        if (line.orderId) await applyOrderReceipt(tx, line.orderId, -Number(line.amount));
       }
       await this.audit(tx, 'CANCEL', 'FinanceReceipt', id, { actor, reason, reversalId: reversal.id });
       return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
@@ -279,7 +221,7 @@ export class FinanceService {
         supplierPaymentRequests: { select: { code: true, status: true } },
       },
     });
-    if (!row) throw new NotFoundException('Kh?ng t?m th?y phi?u chi');
+    if (!row) throw new NotFoundException('Không tìm thấy phiếu chi');
     return row;
   }
 
@@ -313,8 +255,8 @@ export class FinanceService {
     dto = applyWriteDataScope(dto, user);
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
-      await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }), 'Phiếu chi');
+      await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), 'Phiếu chi');
       const payment = await tx.financePayment.create({ data: this.paymentData({ ...dto, voucherCode, tourId }) });
       await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto);
       return payment;
@@ -324,10 +266,10 @@ export class FinanceService {
   async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     dto = applyWriteDataScope(dto, user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phi?u chi');
+    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
-      await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }) || current.tourId, 'Phi?u chi');
+      await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, 'Phiếu chi');
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode, tourId }) });
       await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto);
       return payment;
@@ -346,84 +288,23 @@ export class FinanceService {
   async approvePayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y phi?u chi');
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
       assertCanApproveFinanceEntity(current, 'Phiếu chi');
+      await assertPaymentLinks(tx, { supplierId: current.supplierId, orderId: current.orderId, operationVoucherId: current.operationVoucherId, tourId: current.tourId }, user);
       const payment = await tx.financePayment.update({
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
       });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }), 'Phiếu chi');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), 'Phiếu chi');
       if (tourId && payment.tourId !== tourId) await tx.financePayment.update({ where: { id }, data: { tourId } });
-      const supplierId = await this.resolvePaymentSupplier(tx, payment);
-      await tx.financeCashflowEntry.upsert({
-        where: { sourceType_sourceId: { sourceType: 'PAYMENT', sourceId: id } },
-        create: {
-          sourceType: 'PAYMENT',
-          sourceId: id,
-          entryType: 'PAYMENT',
-          amount: payment.paymentAmount,
-          paymentMethod: payment.paymentMethod,
-          paymentDate: payment.paymentDate || new Date(),
-          branch: payment.branch,
-          department: payment.department,
-          staff: payment.assignedStaff,
-          orderId: payment.orderId,
-          tourId,
-          supplierId,
-          paymentId: id,
-          note: payment.reason,
-        },
-        update: {
-          amount: payment.paymentAmount,
-          paymentMethod: payment.paymentMethod,
-          paymentDate: payment.paymentDate || new Date(),
-          branch: payment.branch,
-          department: payment.department,
-          staff: payment.assignedStaff,
-          orderId: payment.orderId,
-          tourId,
-          supplierId,
-          paymentId: id,
-          note: payment.reason,
-        },
-      });
-      if (supplierId) {
-        await tx.supplierLedgerEntry.upsert({
-          where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } },
-          create: {
-            supplierId,
-            paymentId: id,
-            orderId: payment.orderId,
-            tourId,
-            operationVoucherId: payment.operationVoucherId,
-            sourceType: 'FINANCE_PAYMENT',
-            sourceId: id,
-            entryType: 'DEBIT',
-            debitAmount: payment.paymentAmount,
-            documentCode: payment.voucherCode,
-            documentDate: payment.paymentDate || new Date(),
-            branch: payment.branch,
-            department: payment.department,
-            staff: payment.assignedStaff,
-            description: payment.reason || payment.voucherName,
-            createdBy: actor,
-          },
-          update: {
-            supplierId,
-            tourId,
-            debitAmount: payment.paymentAmount,
-            documentCode: payment.voucherCode,
-            documentDate: payment.paymentDate || new Date(),
-            branch: payment.branch,
-            department: payment.department,
-            staff: payment.assignedStaff,
-            description: payment.reason || payment.voucherName,
-          },
-        });
-      }
-      if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
-      await this.reconcileApprovedPayment(tx, payment);
+      const postedPayment = { ...payment, tourId };
+      const supplierId = await resolvePaymentSupplier(tx, postedPayment);
+      await upsertPaymentCashflow(tx, postedPayment, supplierId);
+      await upsertPaymentSupplierLedger(tx, postedPayment, supplierId, actor);
+      if (payment.orderId) await applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
+      await reconcileApprovedPayment(tx, payment);
       await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) });
       return payment;
     });
@@ -435,27 +316,25 @@ export class FinanceService {
 
   async cancelPayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
-    const reason = this.text(dto.reason) || this.text(dto.note) || 'H?y phi?u chi ?? duy?t';
+    const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu chi đã duyệt';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
       const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
-      if (!payment) throw new NotFoundException('Kh?ng t?m th?y phi?u chi');
-      assertCanCancelFinanceEntity(payment, 'Phi?u chi');
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }), 'Phiếu chi');
+      if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi');
+      assertCanCancelFinanceEntity(payment, 'Phiếu chi');
+      await assertPaymentLinks(tx, { supplierId: payment.supplierId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, tourId: payment.tourId }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), 'Phiếu chi');
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
         data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, operationVoucherId: payment.operationVoucherId, orderId: payment.orderId, tourId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, branch: payment.branch, department: payment.department, assignedStaff: payment.assignedStaff, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
       });
       await tx.financePayment.update({ where: { id }, data: { approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      await tx.financeCashflowEntry.create({
-        data: { sourceType: 'PAYMENT_REVERSAL', sourceId: reversal.id, entryType: 'RECEIPT', amount: payment.paymentAmount, paymentMethod: payment.paymentMethod, paymentDate: new Date(), branch: payment.branch, department: payment.department, staff: actor, orderId: payment.orderId, tourId, supplierId: payment.supplierId, paymentId: reversal.id, note: reason },
-      });
-      const supplierId = await this.resolvePaymentSupplier(tx, payment);
-      if (supplierId) {
-        const original = await tx.supplierLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_PAYMENT', sourceId: id, entryType: 'DEBIT' } } });
-        await tx.supplierLedgerEntry.create({ data: { supplierId, paymentId: reversal.id, orderId: payment.orderId, tourId, operationVoucherId: payment.operationVoucherId, sourceType: 'FINANCE_PAYMENT', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: payment.paymentAmount, documentCode: reversalCode, documentDate: new Date(), branch: payment.branch, department: payment.department, staff: actor, description: reason, reversedEntryId: original?.id, createdBy: actor } });
-      }
-      if (payment.orderId) await this.applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
-      await this.reconcileCancelledPayment(tx, payment);
+      const postedPayment = { ...payment, tourId };
+      const supplierId = await resolvePaymentSupplier(tx, postedPayment);
+      await createPaymentReversalCashflow(tx, postedPayment, reversal.id, supplierId, actor, reason);
+      await createPaymentReversalSupplierLedger(tx, postedPayment, reversal.id, supplierId, reversalCode, reason, actor);
+      if (payment.orderId) await applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
+      await reconcileCancelledPayment(tx, payment);
       await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id });
       return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
     });
@@ -470,7 +349,7 @@ export class FinanceService {
 
   async invoiceDetail(id: string, user?: RequestUser) {
     const row = await this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), include: { items: true, files: true } });
-    if (!row) throw new NotFoundException('Kh?ng t?m th?y h?a ??n');
+    if (!row) throw new NotFoundException('Không tìm thấy hóa đơn');
     return row;
   }
 
@@ -495,7 +374,7 @@ export class FinanceService {
   async deleteInvoiceFile(id: string, fileId: string, user?: RequestUser) {
     await this.invoiceDetail(id, user);
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
-    if (!file) throw new NotFoundException('Kh?ng t?m th?y file h?a ??n');
+    if (!file) throw new NotFoundException('Không tìm thấy file hóa đơn');
     const objectKey = this.objectKey(file.fileUrl);
     if (objectKey) await this.filesService.removeIfPresent(objectKey);
     return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
@@ -504,10 +383,10 @@ export class FinanceService {
   async createInvoice(dto: AnyRecord, user?: RequestUser) {
     dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     return this.prisma.$transaction(async (tx) => {
-      await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) });
+      await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user);
       await this.assertInvoiceWriteScope(tx, dto, user);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }), 'Hóa đơn');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user), 'Hóa đơn');
       const calculated = this.invoiceData({ ...dto, tourId });
       const invoice = await tx.financeInvoice.create({ data: { ...calculated, invoiceCode, items: { create: this.invoiceItems(dto) } }, include: { items: true } });
       await this.audit(tx, 'CREATE', 'FinanceInvoice', invoice.id, dto);
@@ -518,11 +397,11 @@ export class FinanceService {
   async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.invoiceDetail(id, user);
     dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'H?a ??n');
+    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Hóa đơn');
     return this.prisma.$transaction(async (tx) => {
       const hasItems = Object.prototype.hasOwnProperty.call(dto, 'items');
-      await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }) || current.tourId, 'H?a ??n');
+      await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user) || current.tourId, 'Hóa đơn');
       await this.assertInvoiceWriteScope(tx, {
         customerId: this.text(dto.customerId) || current.customerId,
         orderId: this.text(dto.orderId) || current.orderId,
@@ -549,45 +428,16 @@ export class FinanceService {
   async approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y h?a ??n');
+      if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
       assertCanApproveFinanceEntity(current, 'Hóa đơn');
+      await assertInvoiceLinks(tx, { customerId: current.customerId, orderId: current.orderId, receiptId: current.receiptId, tourId: current.tourId }, user);
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date() } });
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: invoice.tourId, orderId: invoice.orderId, receiptId: invoice.receiptId }), 'Hóa đơn');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: invoice.tourId, orderId: invoice.orderId, receiptId: invoice.receiptId }, user), 'Hóa đơn');
       if (tourId && invoice.tourId !== tourId) await tx.financeInvoice.update({ where: { id }, data: { tourId } });
-      const invoiceCustomerScope = await this.resolveInvoiceCustomerScope(tx, invoice);
-      const customerId = invoiceCustomerScope.customerId;
-      if (customerId) {
-        await tx.customerLedgerEntry.upsert({
-          where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } },
-          create: {
-            customerId,
-            invoiceId: id,
-            orderId: invoice.orderId,
-            tourId,
-            sourceType: 'FINANCE_INVOICE',
-            sourceId: id,
-            entryType: 'DEBIT',
-            debitAmount: invoice.totalAfterTax,
-            documentCode: invoice.invoiceNumber || invoice.invoiceCode,
-            documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
-            branch: invoiceCustomerScope.branch,
-            department: invoiceCustomerScope.department,
-            description: invoice.note || invoice.companyName || invoice.customerName,
-            createdBy: actor,
-          },
-          update: {
-            customerId,
-            tourId,
-            debitAmount: invoice.totalAfterTax,
-            documentCode: invoice.invoiceNumber || invoice.invoiceCode,
-            documentDate: invoice.issuedDate || invoice.invoiceDate || new Date(),
-            branch: invoiceCustomerScope.branch,
-            department: invoiceCustomerScope.department,
-            description: invoice.note || invoice.companyName || invoice.customerName,
-          },
-        });
-      }
+      const invoiceCustomerScope = await resolveInvoiceCustomerScope(tx, invoice, user);
+      await upsertInvoiceCustomerLedger(tx, { ...invoice, tourId, branch: invoiceCustomerScope.branch, department: invoiceCustomerScope.department }, invoiceCustomerScope.customerId, actor);
       await this.audit(tx, 'APPROVE', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
       return invoice;
     });
@@ -596,8 +446,9 @@ export class FinanceService {
   async rejectInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y h?a ??n');
+      if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
       assertCanRejectFinanceEntity(current, 'Hóa đơn');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
@@ -607,23 +458,21 @@ export class FinanceService {
 
   async cancelInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
-    const reason = this.text(dto.reason) || this.text(dto.note) || 'H?y h?a ??n ?? duy?t';
+    const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy hóa đơn đã duyệt';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
       const invoice = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
-      if (!invoice) throw new NotFoundException('Kh?ng t?m th?y h?a ??n');
-      assertCanCancelFinanceEntity(invoice, 'H?a ??n');
-      const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: invoice.tourId, orderId: invoice.orderId, receiptId: invoice.receiptId }), 'Hóa đơn');
+      if (!invoice) throw new NotFoundException('Không tìm thấy hóa đơn');
+      assertCanCancelFinanceEntity(invoice, 'Hóa đơn');
+      await assertInvoiceLinks(tx, { customerId: invoice.customerId, orderId: invoice.orderId, receiptId: invoice.receiptId, tourId: invoice.tourId }, user);
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: invoice.tourId, orderId: invoice.orderId, receiptId: invoice.receiptId }, user), 'Hóa đơn');
       const reversalCode = await this.nextCode(tx, 'FINANCE_INVOICE', 'VATDC', new Date(), undefined);
       const reversal = await tx.financeInvoice.create({
         data: { invoiceCode: reversalCode, systemCode: invoice.systemCode, orderId: invoice.orderId, tourId, receiptId: invoice.receiptId, customerId: invoice.customerId, customerName: invoice.customerName, customerPhone: invoice.customerPhone, customerEmail: invoice.customerEmail, invoiceType: 'ADJUSTMENT', issuedDate: new Date(), totalBeforeTax: invoice.totalBeforeTax, totalTax: invoice.totalTax, totalAfterTax: invoice.totalAfterTax, amountInWords: invoice.amountInWords, status: 'APPROVED', approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), reversalOfId: id, note: reason, createdBy: actor },
       });
       await tx.financeInvoice.update({ where: { id }, data: { status: 'CANCELLED', approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
-      const invoiceCustomerScope = await this.resolveInvoiceCustomerScope(tx, invoice);
-      const customerId = invoiceCustomerScope.customerId;
-      if (customerId) {
-        const original = await tx.customerLedgerEntry.findUnique({ where: { sourceType_sourceId_entryType: { sourceType: 'FINANCE_INVOICE', sourceId: id, entryType: 'DEBIT' } } });
-        await tx.customerLedgerEntry.create({ data: { customerId, invoiceId: reversal.id, orderId: invoice.orderId, tourId, sourceType: 'FINANCE_INVOICE', sourceId: reversal.id, entryType: 'REVERSAL', creditAmount: invoice.totalAfterTax, documentCode: reversalCode, documentDate: new Date(), branch: invoiceCustomerScope.branch, department: invoiceCustomerScope.department, description: reason, reversedEntryId: original?.id, createdBy: actor } });
-      }
+      const invoiceCustomerScope = await resolveInvoiceCustomerScope(tx, invoice, user);
+      await createInvoiceReversalCustomerLedger(tx, { ...invoice, tourId, branch: invoiceCustomerScope.branch, department: invoiceCustomerScope.department }, reversal.id, invoiceCustomerScope.customerId, reversalCode, reason, actor);
       await this.audit(tx, 'CANCEL', 'FinanceInvoice', id, { actor, reason, reversalId: reversal.id });
       return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
     });
@@ -686,13 +535,13 @@ export class FinanceService {
 
   async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: customerId, mergedIntoId: null }, user), select: { id: true } });
-    if (!customer) throw new NotFoundException('Kh?ng t?m th?y kh?ch h?ng');
+    if (!customer) throw new NotFoundException('Không tìm thấy khách hàng');
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     const direction = this.adjustmentDirection(dto);
     const amount = this.adjustmentAmount(dto);
     const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
     return this.prisma.$transaction(async (tx) => {
-      const tourId = await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) });
+      const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
       const entry = await tx.customerLedgerEntry.create({
         data: {
           customerId,
@@ -720,13 +569,13 @@ export class FinanceService {
 
   async createSupplierDebtAdjustment(supplierId: string, dto: AnyRecord, user?: RequestUser) {
     const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } });
-    if (!supplier) throw new NotFoundException('Kh?ng t?m th?y nh? cung c?p');
+    if (!supplier) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     const direction = this.adjustmentDirection(dto);
     const amount = this.adjustmentAmount(dto);
     const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
     return this.prisma.$transaction(async (tx) => {
-      const tourId = await this.resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) });
+      const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
       const entry = await tx.supplierLedgerEntry.create({
         data: {
           supplierId,
@@ -753,16 +602,16 @@ export class FinanceService {
   }
 
   async importReceipts(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
-    const rows = this.financeImportRows(dto, file).map((row, index) => this.validateReceiptImportRow(row, index + 2));
-    await this.assertImportCodesAvailable('receipts', rows, 'receiptCode');
+    const rows = financeImportRows(dto, file).map((row, index) => validateReceiptImportRow(row, index + 2));
     return this.prisma.$transaction(async (tx) => {
+      await this.assertImportCodesAvailable('receipts', rows, 'receiptCode', tx);
       const imported = [];
       for (const rawRow of rows) {
         const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const receiptCode = this.text(row.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(row.paymentDate), this.text(row.branch));
         const orders = this.receiptOrders(row);
-        await assertReceiptOrderLinks(tx, { customerId: this.text(row.customerId), orders });
-        const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(row.tourId), orders }), 'Phiếu thu');
+        await assertReceiptOrderLinks(tx, { customerId: this.text(row.customerId), orders }, user);
+        const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orders }, user), 'Phiếu thu');
         const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode, tourId }), orders: { create: orders } }, include: { orders: true } });
         await this.audit(tx, 'IMPORT', 'FinanceReceipt', receipt.id, { source: file?.originalname || 'rows' });
         imported.push(receipt);
@@ -772,15 +621,15 @@ export class FinanceService {
   }
 
   async importPayments(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
-    const rows = this.financeImportRows(dto, file).map((row, index) => this.validatePaymentImportRow(row, index + 2));
-    await this.assertImportCodesAvailable('payments', rows, 'voucherCode');
+    const rows = financeImportRows(dto, file).map((row, index) => validatePaymentImportRow(row, index + 2));
     return this.prisma.$transaction(async (tx) => {
+      await this.assertImportCodesAvailable('payments', rows, 'voucherCode', tx);
       const imported = [];
       for (const rawRow of rows) {
         const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const voucherCode = this.text(row.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(row.paymentDate), this.text(row.branch));
-        await assertPaymentLinks(tx, { supplierId: this.text(row.supplierId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) });
-        const tourId = this.requireFinanceTourId(await this.resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }), 'Phiếu chi');
+        await assertPaymentLinks(tx, { supplierId: this.text(row.supplierId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user);
+        const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), 'Phiếu chi');
         const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode, tourId }) } });
         await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' });
         imported.push(payment);
@@ -810,7 +659,7 @@ export class FinanceService {
     const receiptAmount = this.decimal(dto.receiptAmount);
     return {
       receiptCode: this.text(dto.receiptCode) || this.code('PT'),
-      receiptName: this.text(dto.receiptName) || 'Phi?u thu',
+      receiptName: this.text(dto.receiptName) || 'Phiếu thu',
       receiptType: (this.text(dto.receiptType) || 'TOUR_PAYMENT') as never,
       documentDate: this.date(dto.documentDate),
       transferDate: this.date(dto.transferDate),
@@ -967,135 +816,12 @@ export class FinanceService {
       };
     });
   }
-
-  private async applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) return;
-    const paidAmount = Math.max(Number(order.paidAmount) + amount, 0);
-    const remainingRevenue = Math.max(Number(order.totalRevenue) - paidAmount, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidAmount, remainingRevenue, paymentStatus: remainingRevenue <= 0 ? OrderPaymentStatus.PAID : paidAmount > 0 ? OrderPaymentStatus.PARTIAL : OrderPaymentStatus.UNPAID } });
-  }
-
-  private async applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) return;
-    const paidCost = Math.max(Number(order.paidCost) + amount, 0);
-    const remainingCost = Math.max(Number(order.totalCost) - paidCost, 0);
-    await tx.order.update({ where: { id: orderId }, data: { paidCost, remainingCost, costStatus: remainingCost <= 0 ? OrderCostStatus.PAID : paidCost > 0 ? OrderCostStatus.PARTIAL : OrderCostStatus.PENDING } });
-  }
-
-  private async resolveTourId(
-    tx: Prisma.TransactionClient,
-    input: {
-      tourId?: string | null;
-      orderId?: string | null;
-      receiptId?: string | null;
-      paymentId?: string | null;
-      operationVoucherId?: string | null;
-      orders?: { orderId?: string | null }[];
-    },
-  ) {
-    const directTourId = this.text(input.tourId);
-    if (directTourId) {
-      const tour = await tx.tour.findFirst({ where: { id: directTourId, deletedAt: null }, select: { id: true } });
-      if (!tour) throw new BadRequestException('Li?n k?t tour kh?ng h?p l?');
-      return tour.id;
-    }
-
-    let orderId = this.text(input.orderId) || this.text(input.orders?.find((line) => line.orderId)?.orderId);
-    if (!orderId && input.operationVoucherId) {
-      const voucher = await tx.operationVoucher.findUnique({ where: { id: input.operationVoucherId }, select: { orderId: true } });
-      orderId = this.text(voucher?.orderId);
-    }
-    if (!orderId && input.receiptId) {
-      const receipt = await tx.financeReceipt.findUnique({ where: { id: input.receiptId }, include: { orders: true } });
-      if (receipt?.tourId) return receipt.tourId;
-      orderId = this.text(receipt?.orders.find((line) => line.orderId)?.orderId);
-    }
-    if (!orderId && input.paymentId) {
-      const payment = await tx.financePayment.findUnique({ where: { id: input.paymentId }, select: { tourId: true, orderId: true } });
-      if (payment?.tourId) return payment.tourId;
-      orderId = this.text(payment?.orderId);
-    }
-    if (!orderId) return null;
-
-    const tour = await tx.tour.findFirst({ where: { orderId, deletedAt: null }, select: { id: true } });
-    return tour?.id || null;
-  }
-
-  private async resolveReceiptCustomer(tx: Prisma.TransactionClient, receipt: { customerId: string | null; orders: { orderId: string | null }[] }) {
-    if (receipt.customerId) return receipt.customerId;
-    const orderId = receipt.orders.find((line) => line.orderId)?.orderId;
-    if (!orderId) return null;
-    const order = await tx.order.findUnique({ where: { id: orderId }, select: { customerId: true } });
-    return order?.customerId || null;
-  }
-
-  private async resolvePaymentSupplier(tx: Prisma.TransactionClient, payment: { supplierId: string | null; operationVoucherId: string | null }) {
-    if (payment.supplierId) return payment.supplierId;
-    if (!payment.operationVoucherId) return null;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId }, select: { supplierId: true } });
-    return voucher?.supplierId || null;
-  }
-
-  private async reconcileApprovedPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null; paymentAmount: Prisma.Decimal }) {
-    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'PAID' } });
-    if (!payment.operationVoucherId) return;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-    if (!voucher) return;
-    const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
-    if (existing) return;
-    const amount = Math.min(Number(payment.paymentAmount), Number(voucher.remainAmount));
-    if (amount <= 0) return;
-    await tx.operationVoucherPayment.create({
-      data: { voucherId: voucher.id, paymentVoucherId: payment.id, paidAmount: amount, paymentDate: new Date(), note: 'Duy?t phi?u chi t?i ch?nh' },
-    });
-    const paidAmount = Number(voucher.paidAmount) + amount;
-    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
-    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : 'PARTIAL' } });
-  }
-
-  private async reconcileCancelledPayment(tx: Prisma.TransactionClient, payment: { id: string; operationVoucherId: string | null }) {
-    await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id }, data: { status: 'APPROVED', financePaymentId: null } });
-    if (!payment.operationVoucherId) return;
-    const voucher = await tx.operationVoucher.findUnique({ where: { id: payment.operationVoucherId } });
-    if (!voucher) return;
-    const reconciled = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
-    if (!reconciled) return;
-    await tx.operationVoucherPayment.delete({ where: { id: reconciled.id } });
-    const paidAmount = Math.max(Number(voucher.paidAmount) - Number(reconciled.paidAmount), 0);
-    const remainAmount = Math.max(Number(voucher.totalAmount) - paidAmount, 0);
-    await tx.operationVoucher.update({ where: { id: voucher.id }, data: { paidAmount, remainAmount, status: remainAmount <= 0 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'PENDING' } });
-  }
-
-  private async resolveInvoiceCustomer(tx: Prisma.TransactionClient, invoice: { customerId: string | null; orderId: string | null }) {
-    if (invoice.customerId) return invoice.customerId;
-    if (!invoice.orderId) return null;
-    const order = await tx.order.findUnique({ where: { id: invoice.orderId }, select: { customerId: true } });
-    return order?.customerId || null;
-  }
-
-  private async resolveInvoiceCustomerScope(tx: Prisma.TransactionClient, invoice: { customerId: string | null; orderId: string | null; receiptId?: string | null }) {
-    if (invoice.customerId) {
-      const customer = await tx.customer.findUnique({ where: { id: invoice.customerId }, select: { id: true, branch: true, department: true } });
-      if (customer) return { customerId: customer.id, branch: customer.branch, department: customer.department };
-    }
-    if (invoice.orderId) {
-      const order = await tx.order.findUnique({ where: { id: invoice.orderId }, select: { customerId: true, branch: true, department: true } });
-      if (order?.customerId) return { customerId: order.customerId, branch: order.branch, department: order.department };
-    }
-    if (invoice.receiptId) {
-      const receipt = await tx.financeReceipt.findUnique({ where: { id: invoice.receiptId }, select: { customerId: true, branch: true, department: true } });
-      if (receipt?.customerId) return { customerId: receipt.customerId, branch: receipt.branch, department: receipt.department };
-    }
-    return { customerId: null, branch: null, department: null };
-  }
-
   private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y phi?u thu');
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu thu');
       const receipt = await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
       await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinanceReceipt', id, { actor, status, note: this.text(dto.note) });
@@ -1106,8 +832,9 @@ export class FinanceService {
   private async changePaymentStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
     const actor = this.text(dto.actor) || 'accounting';
     return this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
-      if (!current) throw new NotFoundException('Kh?ng t?m th?y phi?u chi');
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu chi');
       const payment = await tx.financePayment.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
       if (status === FinanceApprovalStatus.REJECTED) {
@@ -1204,9 +931,9 @@ export class FinanceService {
       },
     ].filter((link): link is { id: string; exists: (id: string) => Promise<{ id: string } | null> } => Boolean(link.id));
 
-    if (!links.length) throw new BadRequestException('H?a ??n c?n li?n k?t kh?ch h?ng, booking, tour ho?c phi?u thu trong ph?m vi d? li?u ???c ph?p');
+    if (!links.length) throw new BadRequestException('Hóa đơn cần liên kết khách hàng, booking, tour hoặc phiếu thu trong phạm vi dữ liệu được phép');
     for (const link of links) {
-      if (!(await link.exists(link.id))) throw new BadRequestException('Kh?ng th? ghi h?a ??n ngo?i ph?m vi d? li?u ???c ph?p');
+      if (!(await link.exists(link.id))) throw new BadRequestException('Không thể ghi hóa đơn ngoài phạm vi dữ liệu được phép');
     }
   }
 
@@ -1239,166 +966,30 @@ export class FinanceService {
     if (value instanceof Date) return value.toISOString();
     return `"${String(value ?? '').replaceAll('"', '""')}"`;
   }
-
-  private financeImportRows(dto: AnyRecord, file?: ImportFile) {
-    let rows: unknown[];
-    if (file) {
-      const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
-      if (!isCsv) throw new BadRequestException('Chỉ hỗ trợ import CSV. XLSX cần được xuất thành CSV trước khi tải lên.');
-      rows = this.parseCsv(file.buffer.toString('utf8'));
-    } else if (Array.isArray(dto.rows)) {
-      rows = dto.rows;
-    } else if (typeof dto.csv === 'string') {
-      rows = this.parseCsv(dto.csv);
-    } else {
-      throw new BadRequestException('Cần tải lên file CSV hoặc gửi mảng rows');
-    }
-    if (!rows.length) throw new BadRequestException('File import không có dòng dữ liệu');
-    if (rows.length > 500) throw new BadRequestException('Mỗi lần chỉ được import tối đa 500 dòng');
-    if (rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new BadRequestException('Dữ liệu import không hợp lệ');
-    return rows as AnyRecord[];
-  }
-
-  private parseCsv(value: string) {
-    const csv = value.replace(/^\uFEFF/, '');
-    const firstLine = csv.split(/\r?\n/, 1)[0] || '';
-    const delimiter = firstLine.includes(',') ? ',' : firstLine.includes(';') ? ';' : ',';
-    const lines: string[][] = [];
-    let row: string[] = [];
-    let cell = '';
-    let quoted = false;
-    for (let index = 0; index < csv.length; index += 1) {
-      const character = csv[index];
-      if (quoted) {
-        if (character === '"' && csv[index + 1] === '"') {
-          cell += '"';
-          index += 1;
-        } else if (character === '"') {
-          quoted = false;
-        } else {
-          cell += character;
-        }
-      } else if (character === '"') {
-        quoted = true;
-      } else if (character === delimiter) {
-        row.push(cell);
-        cell = '';
-      } else if (character === '\n') {
-        row.push(cell.replace(/\r$/, ''));
-        lines.push(row);
-        row = [];
-        cell = '';
-      } else {
-        cell += character;
-      }
-    }
-    if (quoted) throw new BadRequestException('CSV có dấu ngoặc kép chưa đóng');
-    if (cell || row.length) {
-      row.push(cell.replace(/\r$/, ''));
-      lines.push(row);
-    }
-    const header = (lines.shift() || []).map((column) => column.trim());
-    if (!header.length || header.some((column) => !column)) throw new BadRequestException('CSV thiếu header hợp lệ');
-    if (new Set(header).size !== header.length) throw new BadRequestException('CSV có header trùng lặp');
-    return lines.filter((cells) => cells.some((entry) => entry.trim())).map((cells, index) => {
-      if (cells.length > header.length) throw new BadRequestException(`CSV dòng ${index + 2} có quá nhiều cột`);
-      return Object.fromEntries(header.map((column, columnIndex) => [column, cells[columnIndex]?.trim() || undefined]));
-    });
-  }
-
-  private validateReceiptImportRow(row: AnyRecord, line: number) {
-    const receiptAmount = this.importNumber(row.receiptAmount, 'receiptAmount', line, true);
-    const paidBefore = this.importNumber(row.paidBefore, 'paidBefore', line);
-    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, receiptAmount);
-    if (totalAmount < paidBefore + receiptAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paidBefore + receiptAmount`);
-    return {
-      ...row,
-      receiptName: this.requiredImportText(row.receiptName, 'receiptName', line),
-      receiptType: this.importEnum(row.receiptType, 'receiptType', line, ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER']) || 'TOUR_PAYMENT',
-      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
-      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
-      documentDate: this.importDate(row.documentDate, 'documentDate', line),
-      transferDate: this.importDate(row.transferDate, 'transferDate', line),
-      totalAmount,
-      paidBefore,
-      receiptAmount,
-      approvalStatus: 'DRAFT',
-      createdBy: this.text(row.createdBy) || 'finance-import',
-    };
-  }
-
-  private validatePaymentImportRow(row: AnyRecord, line: number) {
-    const paymentAmount = this.importNumber(row.paymentAmount, 'paymentAmount', line, true);
-    const totalAmount = this.importNumber(row.totalAmount, 'totalAmount', line, false, paymentAmount);
-    if (totalAmount < paymentAmount) throw new BadRequestException(`Dòng ${line}: totalAmount phải lớn hơn hoặc bằng paymentAmount`);
-    return {
-      ...row,
-      voucherName: this.requiredImportText(row.voucherName, 'voucherName', line),
-      voucherType: this.importEnum(row.voucherType, 'voucherType', line, ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER']) || 'SUPPLIER_PAYMENT',
-      paymentMethod: this.importEnum(row.paymentMethod, 'paymentMethod', line, ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER']) || 'BANK_TRANSFER',
-      paymentDate: this.importDate(row.paymentDate, 'paymentDate', line),
-      documentDate: this.importDate(row.documentDate, 'documentDate', line),
-      transferDate: this.importDate(row.transferDate, 'transferDate', line),
-      totalAmount,
-      paymentAmount,
-      approvalStatus: 'DRAFT',
-      createdBy: this.text(row.createdBy) || 'finance-import',
-    };
-  }
-
-  private async assertImportCodesAvailable(type: 'receipts' | 'payments', rows: AnyRecord[], field: 'receiptCode' | 'voucherCode') {
+  private async assertImportCodesAvailable(type: 'receipts' | 'payments', rows: AnyRecord[], field: 'receiptCode' | 'voucherCode', tx: Prisma.TransactionClient = this.prisma) {
     const codes = rows.map((row) => this.text(row[field])).filter((code): code is string => Boolean(code));
     const duplicate = codes.find((code, index) => codes.indexOf(code) !== index);
     if (duplicate) throw new BadRequestException(`Mã ${duplicate} bị trùng trong file import`);
     if (!codes.length) return;
     if (type === 'receipts') {
-      const existing = await this.prisma.financeReceipt.findFirst({ where: { receiptCode: { in: codes } }, select: { receiptCode: true } });
+      const existing = await tx.financeReceipt.findFirst({ where: { receiptCode: { in: codes } }, select: { receiptCode: true } });
       if (existing) throw new BadRequestException(`Mã ${existing.receiptCode} đã tồn tại`);
     } else {
-      const existing = await this.prisma.financePayment.findFirst({ where: { voucherCode: { in: codes } }, select: { voucherCode: true } });
+      const existing = await tx.financePayment.findFirst({ where: { voucherCode: { in: codes } }, select: { voucherCode: true } });
       if (existing) throw new BadRequestException(`Mã ${existing.voucherCode} đã tồn tại`);
     }
   }
-
-  private requiredImportText(value: unknown, field: string, line: number) {
-    const text = this.text(value);
-    if (!text) throw new BadRequestException(`Dòng ${line}: thiếu ${field}`);
-    return text;
-  }
-
   private adjustmentDirection(dto: AnyRecord) {
     const direction = this.text(dto.direction);
-    if (direction !== 'INCREASE' && direction !== 'DECREASE') throw new BadRequestException('direction ph?i l? INCREASE ho?c DECREASE');
+    if (direction !== 'INCREASE' && direction !== 'DECREASE') throw new BadRequestException('direction phải là INCREASE hoặc DECREASE');
     return direction;
   }
 
   private adjustmentAmount(dto: AnyRecord) {
     const amount = this.decimal(dto.amount);
-    if (amount <= 0) throw new BadRequestException('amount ph?i l?n h?n 0');
+    if (amount <= 0) throw new BadRequestException('amount phải lớn hơn 0');
     return amount;
   }
-
-  private importNumber(value: unknown, field: string, line: number, positive = false, fallback = 0) {
-    if (value == null || value === '') return fallback;
-    const number = Number(value);
-    if (!Number.isFinite(number) || number < 0 || (positive && number <= 0)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return number;
-  }
-
-  private importDate(value: unknown, field: string, line: number) {
-    const text = this.text(value);
-    if (!text) return undefined;
-    if (!this.date(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return text;
-  }
-
-  private importEnum(value: unknown, field: string, line: number, allowed: string[]) {
-    const text = this.text(value);
-    if (!text) return undefined;
-    if (!allowed.includes(text)) throw new BadRequestException(`Dòng ${line}: ${field} không hợp lệ`);
-    return text;
-  }
-
   private text(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }

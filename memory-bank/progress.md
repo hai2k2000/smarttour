@@ -3,6 +3,22 @@
 ## Done
 
 
+- Consolidated Finance helper and rollback behavior:
+  - Live receipt/payment/invoice flows now use finance cashflow, ledger,
+    order-link, payment-reconciliation, final-state, and import helpers instead
+    of keeping divergent private copies in FinanceService.
+  - Link validation is scope-aware and repeated before terminal transitions;
+    PostgreSQL row locks serialize approve/reject/cancel for each document.
+  - Cancellation rolls back when original ledger/reconciliation data is
+    missing, and regression verifies no reversal document, cashflow, ledger, or
+    status mutation survives the failed transaction.
+  - Import is transaction-bound, capped at 5 MB, and approval postings reject
+    zero amounts.
+  - Verified on VPS with API Docker build and all finance helper/controller/
+    rules/service-flow regression suites, followed by API deploy and auth smoke
+    401.
+
+
 - Hardened Finance backend domain/final-state behavior:
   - Finance domain wrapper services are now the controller-facing boundary for
     receipts, payments, invoices, ledger/debt, and cashflow while FinanceService

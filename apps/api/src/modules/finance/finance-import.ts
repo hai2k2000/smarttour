@@ -2,16 +2,21 @@ import { BadRequestException } from '@nestjs/common';
 
 export type FinanceImportRecord = Record<string, unknown>;
 export type FinanceImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
+export const MAX_FINANCE_IMPORT_BYTES = 5 * 1024 * 1024;
 
 export function financeImportRows(dto: FinanceImportRecord, file?: FinanceImportFile) {
   let rows: unknown[];
   if (file) {
+    if (file.size > MAX_FINANCE_IMPORT_BYTES || file.buffer.length > MAX_FINANCE_IMPORT_BYTES) {
+      throw new BadRequestException('File CSV không được vượt quá 5 MB');
+    }
     const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
     if (!isCsv) throw new BadRequestException('Chỉ hỗ trợ import CSV. XLSX cần được xuất thành CSV trước khi tải lên.');
     rows = parseCsv(file.buffer.toString('utf8'));
   } else if (Array.isArray(dto.rows)) {
     rows = dto.rows;
   } else if (typeof dto.csv === 'string') {
+    if (Buffer.byteLength(dto.csv, 'utf8') > MAX_FINANCE_IMPORT_BYTES) throw new BadRequestException('Dữ liệu CSV không được vượt quá 5 MB');
     rows = parseCsv(dto.csv);
   } else {
     throw new BadRequestException('Cần tải lên file CSV hoặc gửi mảng rows');

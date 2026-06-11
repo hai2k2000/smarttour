@@ -21,6 +21,29 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Consolidated Finance auxiliary helpers into the live transaction flows:
+  - FinanceService now delegates cashflow postings, customer/supplier ledger
+    postings, order reconciliation, payment-voucher reconciliation, and CSV
+    parsing/validation to the focused finance helper modules; duplicated private
+    implementations were removed.
+  - Finance order/customer/tour/receipt links now revalidate branch/department
+    scope on create/update/import and again immediately before approve/cancel,
+    preventing legacy or changed links from updating unrelated auxiliary rows.
+  - Receipt/payment/invoice terminal transitions acquire PostgreSQL row locks
+    before state checks, preventing concurrent approve/reject/cancel requests
+    from creating duplicate reversals or postings.
+  - Missing original ledger or payment reconciliation rows now abort and roll
+    back cancellation instead of leaving partial cashflow/order/voucher side
+    effects. Posting helpers reject zero/negative amounts at approval time.
+  - Finance CSV imports now use the shared import helper, enforce a 5 MB limit,
+    and check duplicate document codes inside the transaction.
+  - VPS verification passed on 2026-06-11: `git diff --check`, API Docker build,
+    `TEST_FINANCE_HELPER_CONTRACTS_OK`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`, `TEST_FINANCE_RULES_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API deploy, and unauthenticated finance
+    endpoint smoke 401.
+
+
 - Hardened Finance backend domain/final-state contract:
   - FinanceController now routes receipt, payment, invoice, ledger/debt, and
     cashflow endpoints through focused domain services instead of injecting the

@@ -306,6 +306,29 @@ async function main() {
   await rejects(() => finance.createPayment({ voucherCode: run + '-NO-TOUR-PAY', voucherName: 'No Tour Payment', voucherType: 'SUPPLIER_PAYMENT', paymentAmount: 1 }), 'payment should require a tour link');
   await rejects(() => finance.createInvoice({ invoiceCode: run + '-NO-TOUR-INV', invoiceType: 'VAT', items: [{ itemName: 'No tour invoice', quantity: 1, unitPrice: 1 }] }), 'invoice should require a tour link');
 
+  await rejects(() => finance.createReceipt({
+    receiptCode: run + '-SCOPE-RCPT', receiptName: 'Out of scope receipt', receiptType: 'TOUR_PAYMENT',
+    customerId: customer.id, receiptAmount: 1, totalAmount: 1, tourId: tour.id,
+  }, outOfScopeUser), 'receipt create should reject customer/tour links outside data scope');
+  await rejects(() => finance.createPayment({
+    voucherCode: run + '-SCOPE-PAY', voucherName: 'Out of scope payment', voucherType: 'SUPPLIER_PAYMENT',
+    supplierId: supplier.id, orderId: order.id, paymentAmount: 1, totalAmount: 1, tourId: tour.id,
+  }, outOfScopeUser), 'payment create should reject order/tour links outside data scope');
+  await rejects(() => finance.createInvoice({
+    invoiceCode: run + '-SCOPE-INV', customerId: customer.id, tourId: tour.id, invoiceType: 'VAT',
+    items: [{ itemName: 'Out of scope invoice', quantity: 1, unitPrice: 1 }],
+  }, outOfScopeUser), 'invoice create should reject customer/tour links outside data scope');
+
+  const zeroReceipt = await finance.createReceipt({ receiptCode: run + '-ZERO-RCPT', receiptName: 'Zero receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 0, receiptAmount: 0, tourId: tour.id });
+  await rejects(() => finance.approveReceipt(zeroReceipt.id, { actor: 'finance-test' }), 'zero receipt should not create cashflow or ledger postings');
+  await finance.deleteReceipt(zeroReceipt.id);
+  const zeroPayment = await finance.createPayment({ voucherCode: run + '-ZERO-PAY', voucherName: 'Zero payment', voucherType: 'INTERNAL_EXPENSE', totalAmount: 0, paymentAmount: 0, tourId: tour.id });
+  await rejects(() => finance.approvePayment(zeroPayment.id, { actor: 'finance-test' }), 'zero payment should not create cashflow or ledger postings');
+  await finance.deletePayment(zeroPayment.id);
+  const zeroInvoice = await finance.createInvoice({ invoiceCode: run + '-ZERO-INV', customerId: customer.id, invoiceType: 'VAT', tourId: tour.id, items: [{ itemName: 'Zero invoice', quantity: 1, unitPrice: 0 }] });
+  await rejects(() => finance.approveInvoice(zeroInvoice.id, { actor: 'finance-test' }), 'zero invoice should not create customer ledger postings');
+  await finance.deleteInvoice(zeroInvoice.id);
+
   const receipt = await finance.createReceipt({
     receiptCode: run + '-RCPT',
     receiptName: 'Receipt Flow',
@@ -438,6 +461,33 @@ async function main() {
   assert(!outCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should exclude out-of-scope rows');
   await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be rejected as a final-state transition');
 
+  const rollbackPayment = await finance.createPayment({
+    voucherCode: run + '-PAY-ROLLBACK',
+    voucherName: 'Payment rollback guard',
+    voucherType: 'SUPPLIER_PAYMENT',
+    supplierId: supplier.id,
+    operationVoucherId: voucher.id,
+    orderId: order.id,
+    totalAmount: 50,
+    paymentAmount: 50,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  await finance.approvePayment(rollbackPayment.id, { actor: 'finance-test' });
+  await prisma.operationVoucherPayment.deleteMany({ where: { paymentVoucherId: rollbackPayment.id } });
+  await rejects(() => finance.cancelPayment(rollbackPayment.id, { actor: 'finance-test', reason: 'missing reconcile row' }), 'payment cancel should roll back when reconciliation data is missing');
+  const rollbackPaymentAfter = await prisma.financePayment.findUniqueOrThrow({ where: { id: rollbackPayment.id } });
+  assert(rollbackPaymentAfter.approvalStatus === 'APPROVED' && !rollbackPaymentAfter.cancelledAt, 'failed payment cancel should preserve approved status');
+  assert(await prisma.financePayment.count({ where: { reversalOfId: rollbackPayment.id } }) === 0, 'failed payment cancel should not leave a reversal document');
+  assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'PAYMENT_REVERSAL', paymentId: { not: null }, payment: { reversalOfId: rollbackPayment.id } } }) === 0, 'failed payment cancel should not leave reversal cashflow');
+  assert(await prisma.supplierLedgerEntry.count({ where: { entryType: 'REVERSAL', payment: { reversalOfId: rollbackPayment.id } } }) === 0, 'failed payment cancel should not leave reversal supplier ledger');
+
+  await prisma.operationVoucherPayment.create({
+    data: { voucherId: voucher.id, paymentVoucherId: rollbackPayment.id, paidAmount: 50, paymentDate: new Date(), note: 'Restore rollback test reconciliation' },
+  });
+  await finance.cancelPayment(rollbackPayment.id, { actor: 'finance-test', reason: 'cleanup rollback guard' });
+
   const rejectedPaymentDraft = await finance.createPayment({
     voucherCode: run + '-PAY-REJECT',
     voucherName: 'Payment Reject Flow',
@@ -533,6 +583,7 @@ async function main() {
   assert(paymentImport.rows[0].paymentMethod === 'CASH' && paymentImport.rows[0].paymentDate.toISOString().slice(0, 10) === '2026-11-06', 'payment CSV import should map method and payment date');
   assert(amount(paymentImport.rows[0].totalAmount) === 200 && amount(paymentImport.rows[0].paymentAmount) === 150 && amount(paymentImport.rows[0].remainingAmount) === 50, 'payment CSV import should map amounts and remaining amount');
   assert(paymentImport.rows[0].branch === 'FIN-BR' && paymentImport.rows[0].department === 'FIN-DEP', 'payment CSV import should map branch and department');
+  await rejects(() => finance.importReceipts({ csv: 'x'.repeat(5 * 1024 * 1024 + 1) }), 'receipt CSV import should reject payloads over 5 MB');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,totalAmount,paymentAmount\nBAD,Bad,100,200' }), 'payment CSV import should reject amount over total');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,voucherName,totalAmount,paymentAmount\nA,B,C,1,1' }), 'payment CSV import should reject duplicate headers');
 

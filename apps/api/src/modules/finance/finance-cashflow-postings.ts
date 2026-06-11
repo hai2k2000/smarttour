@@ -1,4 +1,9 @@
+import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+
+function assertPositiveAmount(value: Prisma.Decimal, label: string) {
+  if (Number(value) <= 0) throw new BadRequestException(`${label} phải lớn hơn 0 trước khi ghi nhận dòng tiền`);
+}
 
 export async function upsertReceiptCashflow(
   tx: Prisma.TransactionClient,
@@ -15,6 +20,7 @@ export async function upsertReceiptCashflow(
   },
   customerId: string | null,
 ) {
+  assertPositiveAmount(receipt.receiptAmount, 'Số tiền phiếu thu');
   await tx.financeCashflowEntry.upsert({
     where: { sourceType_sourceId: { sourceType: 'RECEIPT', sourceId: receipt.id } },
     create: {
@@ -61,6 +67,7 @@ export async function createReceiptReversalCashflow(
   actor: string,
   reason: string,
 ) {
+  assertPositiveAmount(receipt.receiptAmount, 'Số tiền đảo phiếu thu');
   await tx.financeCashflowEntry.create({
     data: {
       sourceType: 'RECEIPT_REVERSAL',
@@ -96,6 +103,7 @@ export async function upsertPaymentCashflow(
   },
   supplierId: string | null,
 ) {
+  assertPositiveAmount(payment.paymentAmount, 'Số tiền phiếu chi');
   await tx.financeCashflowEntry.upsert({
     where: { sourceType_sourceId: { sourceType: 'PAYMENT', sourceId: payment.id } },
     create: {
@@ -145,6 +153,7 @@ export async function createPaymentReversalCashflow(
   actor: string,
   reason: string,
 ) {
+  assertPositiveAmount(payment.paymentAmount, 'Số tiền đảo phiếu chi');
   await tx.financeCashflowEntry.create({
     data: {
       sourceType: 'PAYMENT_REVERSAL',

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { FinanceApprovalStatus } from '@prisma/client';
+import { FinanceApprovalStatus, Prisma } from '@prisma/client';
 
 type FinanceState = {
   approvalStatus: FinanceApprovalStatus;
@@ -40,4 +40,17 @@ export function assertCanDeleteFinanceEntity(entity: FinanceState, label: string
 export function assertCanChangeFinanceAmount(entity: FinanceState, label: string) {
   const reason = terminalReason(entity);
   if (reason) throw new BadRequestException(`${label} ${reason}, không thể sửa số tiền`);
+}
+
+
+export async function lockFinanceReceipt(tx: Prisma.TransactionClient, id: string) {
+  await tx.$queryRaw`SELECT "id" FROM "FinanceReceipt" WHERE "id" = ${id} FOR UPDATE`;
+}
+
+export async function lockFinancePayment(tx: Prisma.TransactionClient, id: string) {
+  await tx.$queryRaw`SELECT "id" FROM "FinancePayment" WHERE "id" = ${id} FOR UPDATE`;
+}
+
+export async function lockFinanceInvoice(tx: Prisma.TransactionClient, id: string) {
+  await tx.$queryRaw`SELECT "id" FROM "FinanceInvoice" WHERE "id" = ${id} FOR UPDATE`;
 }
