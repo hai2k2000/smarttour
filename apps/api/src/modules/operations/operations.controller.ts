@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { ListOperationFormsQueryDto, ListSupplierPaymentRequestsQueryDto } from './dto/list-operations-query.dto';
 import { OperationsService } from './operations.service';
 
 @ApiTags('operations')
@@ -23,7 +24,7 @@ export class OperationsController {
 
   @Get('forms')
   @RequirePermissions('operation.form.view')
-  forms(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+  forms(@Query() query: ListOperationFormsQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.listForms(query, request?.user);
   }
 
@@ -47,19 +48,21 @@ export class OperationsController {
 
   @Delete('forms/:id')
   @RequirePermissions('operation.form.manage')
-  cancelForm(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  @ApiOperation({ summary: 'Legacy alias for POST /operations/forms/{id}/cancel', deprecated: true })
+  cancelFormLegacy(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.cancelForm(id, dto, request?.user);
   }
 
   @Post('forms/:id/cancel')
   @RequirePermissions('operation.form.manage')
-  cancelFormPost(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  @ApiOperation({ summary: 'H\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh. \u0110\u00e2y l\u00e0 route ch\u00ednh th\u1ee9c; DELETE /operations/forms/{id} ch\u1ec9 gi\u1eef \u0111\u1ec3 t\u01b0\u01a1ng th\u00edch.' })
+  cancelForm(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.cancelForm(id, dto, request?.user);
   }
 
   @Get('supplier-payment-requests')
   @RequirePermissions('operation.payment-request.view')
-  paymentRequests(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+  paymentRequests(@Query() query: ListSupplierPaymentRequestsQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.listPaymentRequests(query, request?.user);
   }
 

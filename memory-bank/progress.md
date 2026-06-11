@@ -1289,3 +1289,11 @@
   - Customer and supplier debt reads now use dedicated `finance.debt.view`; migration `20260611150000_finance_debt_view_permission` grants it to every role that already had `finance.cashflow.view`, preserving existing access.
   - Finance upload endpoints now use shared configurable upload limits and blocked MIME/extension rules, document multipart Swagger contracts, reject missing files in Vietnamese, and translate oversized uploads to a clear 413 response.
   - Updated finance controller and file rollback regression coverage for the current FinanceService API.
+
+- 2026-06-11 Operations controller contract hardening:
+  - OperationsController now uses focused query DTOs for forms and supplier payment requests, with trimmed search, enum status validation, id filters, and a capped take value.
+  - Permissions are locked to operation.form.view/manage and operation.payment-request view/create/approve; create-finance-payment also keeps finance.payment.create.
+  - POST /operations/forms/:id/cancel is documented as the official cancel route; DELETE /operations/forms/:id remains a deprecated compatibility alias.
+  - OperationsService now localizes remaining English operation/payment-request errors and keeps partial list query parsing out of raw string handling.
+  - Creating a finance payment from a supplier payment request now guarantees a common Tour link: it reuses an existing form/booking/order tour or creates a minimal operation Tour, links Booking/OperationForm back to it, and uses globally unique OPT/PC code generation to avoid branch sequence collisions.
+  - Verified on VPS: TEST_OPERATIONS_CONTROLLER_CONTRACT_OK, docker compose build api, API deploy, and SMOKE_OPERATIONS_BACKEND_OK.
