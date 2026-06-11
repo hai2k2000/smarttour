@@ -430,6 +430,20 @@ async function main() {
     lowMarginTours: 1,
   }, 'dashboard metrics snapshot should match seeded operations data');
   const scopedDashboard = await service.getDashboard(branchAUser);
+  const branchAFormScope = { status: { notIn: ['DONE', 'CANCELLED'] }, OR: [{ booking: { customer: { branch: 'BR-A' } } }, { order: { branch: 'BR-A' } }, { tour: { branch: 'BR-A' } }] };
+  const expectedScopedDashboardFromDb = {
+    upcomingDepartures:
+      (await prisma.order.count({ where: { deletedAt: null, startDate: { gte: todayStart, lte: next14End }, status: { in: ['UPCOMING', 'RUNNING'] }, branch: 'BR-A' } })) +
+      (await prisma.booking.count({ where: { orderId: null, startDate: { gte: todayStart, lte: next14End }, status: { in: ['CONFIRMED', 'OPERATING'] }, OR: [{ customer: { branch: 'BR-A' } }, { order: { branch: 'BR-A' } }, { tour: { branch: 'BR-A' } }] } })),
+    operatingTours:
+      (await prisma.tour.count({ where: { deletedAt: null, status: 'RUNNING', branch: 'BR-A' } })) +
+      (await prisma.order.count({ where: { deletedAt: null, status: 'RUNNING', tours: { none: {} }, branch: 'BR-A' } })),
+    overdueTasks: await prisma.operationTask.count({ where: { dueDate: { lt: todayStart }, status: { notIn: ['DONE', 'CANCELLED'] }, operationForm: branchAFormScope } }),
+    waitingSupplierConfirmations: await prisma.operationService.count({ where: { confirmationStatus: { in: ['WAITING', 'REQUESTED'] }, operationForm: branchAFormScope } }),
+    pendingSupplierPayments: await prisma.supplierPaymentRequest.count({ where: { status: { in: ['REQUESTED', 'APPROVED'] }, OR: [{ financePayment: { branch: 'BR-A' } }, { items: { some: { cost: { operationForm: { OR: [{ booking: { customer: { branch: 'BR-A' } } }, { order: { branch: 'BR-A' } }, { tour: { branch: 'BR-A' } }] } } } } }] } }),
+    lowMarginTours: await prisma.order.count({ where: { deletedAt: null, status: { in: ['UPCOMING', 'RUNNING', 'COMPLETED'] }, totalRevenue: { gt: 0 }, profit: { lt: 0 }, branch: 'BR-A' } }),
+  };
+  assertDeepEqual(scopedDashboard, expectedScopedDashboardFromDb, 'dashboard branch scope metrics should match independent database counts');
   assertDeepEqual(scopedDashboard, {
     upcomingDepartures: 3,
     operatingTours: 1,
