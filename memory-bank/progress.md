@@ -1142,6 +1142,14 @@
 - Expanded `scripts/test-tour-type-apis.sh` to cover LandTour list search/status, detail, create/update/remove, copy-services, duplicate codes, customers/services/terms mapping, workflow/status/paymentStatus, and missing/invalid field payloads.
 - Verified on VPS: `docker compose build api`, `TEST_TOUR_TYPE_APIS_OK`, and `TEST_DATA_SCOPE_MODULE_FLOWS_OK`.
 
+
+- Hardened LandTour frontend list/action contract.
+- The /landtours page now has search/status filters wired to backend query params, summary metrics for service/term rows, visible payment/workflow status, explicit copy-services modal, and delete confirmation modal.
+- LandTour create action now trims/parses form fields and only sends service child arrays when sales/operation service input is present, avoiding empty child rows from default form values.
+- LandTour actions now redirect with success/error state so backend Vietnamese messages are visible on create/update/copy/delete failure.
+- Extended scripts/test-tour-type-apis.sh static guards for the LandTour frontend contract.
+- Verified on VPS: docker compose build web, TEST_TOUR_TYPE_APIS_OK, deployed web, and /landtours auth redirect smoke returned 307 to /login?next=/landtours.
+
 ## Not Done
 
 - UI pass for individual dense module screens: table polish, empty/loading states, drawer detail views, and consistent action toolbars, especially the now shell-aligned product/operation pages.

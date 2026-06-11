@@ -1457,3 +1457,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - LandTour create/update now checks duplicate `systemCode` and type-scoped `tourCode` before common Tour writes, returning Vietnamese conflict messages.
   - `CreateLandTourDto` now has Vietnamese validation messages for required `systemCode`, `tourCode`, and `name`, plus localized Swagger example text.
   - `TEST_TOUR_TYPE_APIS_OK` now covers LandTour missing required fields, invalid number/date payloads, duplicate `systemCode`/`tourCode` on create and update, list/search/status, detail, create/update/remove, copy-services, child mapping, workflow/status/paymentStatus, and partial child preservation.
+
+- 2026-06-11 LandTour frontend contract hardening:
+  - The /landtours page now mirrors the GIT list contract: it reads search/status query params, passes them to GET /api/landtours, and exposes a search/status filter bar.
+  - LandTour server actions now surface Vietnamese success/error state via redirect query, instead of silently revalidating after failed create/update/copy/delete calls.
+  - Create payload now trims fields, maps route/itinerarySummary, normalizes numeric inputs, and only sends sales/operation service rows when the user entered real service data.
+  - List rows now show payment status, workflow status, service/term counts, copy-services modal with explicit source tour, and delete confirmation modal.
+  - TEST_TOUR_TYPE_APIS_OK has static guards for the LandTour frontend query/copy/delete/payment/payload contract.

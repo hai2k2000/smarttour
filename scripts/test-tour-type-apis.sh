@@ -227,6 +227,19 @@ function assertLandToursControllerContract() {
   for (const field of ['tour.systemCode', 'tour.tourCode', 'tour.route', 'tour.customers[0]?.name', 'tour.landTour?.comboType', 'tour.landTour?.guideName', 'tour._count?.services', 'tour._count?.terms', 'tour.workflowStep']) {
     assert(pageSource.includes(field), `LandTours frontend list should keep using response field ${field}`);
   }
+  assert(pageSource.includes('type LandToursPageProps') && pageSource.includes('searchParams?.search') && pageSource.includes('searchParams?.status'), 'LandTours frontend should read search/status query params');
+  assert(pageSource.includes('function landToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)"), 'LandTours frontend should pass list search/status to backend query contract');
+  assert(pageSource.includes('className="filterBar"') && pageSource.includes('name="search"') && pageSource.includes('name="status"'), 'LandTours frontend should expose search/status filters');
+  assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'LandTours frontend should show backend paymentStatus');
+  assert(pageSource.includes('paymentStatuses') && pageSource.includes('name="paymentStatus"') && pageSource.includes('updateLandTourWorkflow'), 'LandTours frontend should let users update paymentStatus with workflow/status together');
+  assert(pageSource.includes('copyLandServices') && pageSource.includes('/copy-services') && pageSource.includes('sourceTourId') && pageSource.includes('#copy-'), 'LandTours frontend should expose guarded copy-services UI with explicit source tour');
+  assert(pageSource.includes('#delete-') && pageSource.includes('deleteLandTour') && pageSource.includes('dangerButton'), 'LandTours frontend should require a delete confirmation modal instead of direct row delete');
+  assert(pageSource.includes('redirectWithState') && pageSource.includes('statusPillDanger') && pageSource.includes('statusPillSuccess'), 'LandTours frontend should surface save/copy/delete action state from server actions');
+  assert(pageSource.includes('summarizeTours') && pageSource.includes('_count?.services') && pageSource.includes('_count?.terms'), 'LandTours frontend should show list summary counts for service and term child rows');
+  assert(pageSource.includes('if (salesDescription || salesUnitPrice > 0 || salesServiceType)') && pageSource.includes('if (operationDescription || operationUnitPrice > 0 || operationServiceType)'), 'LandTour create form should not always send empty service child rows');
+  assert(!pageSource.includes('updateLandTourStatus'), 'LandTours frontend should not keep the old status-only update action');
+  assert(pageSource.includes('SETTLED'), 'LandTours frontend status options should include the shared TourStatus.SETTLED value');
+  assert(!pageSource.includes('NVDH') && !pageSource.includes('SL sales') && !pageSource.includes('Sales service'), 'LandTours frontend should not use unclear abbreviated or English form labels');
   assert(pageSource.includes('landWorkflowSteps') && pageSource.includes('name="workflowStep"') && pageSource.includes('viStatus(tour.workflowStep)'), 'LandTours frontend should display and update backend workflowStep');
   for (const step of ['LANDTOUR_INFO', 'LANDTOUR_COSTING', 'LANDTOUR_OPERATION', 'LANDTOUR_HANDOVER', 'LANDTOUR_SURVEY', 'LANDTOUR_COMPLETED']) {
     assert(i18nSource.includes(step), `LandTour workflow label ${step} should be localized for frontend display`);
