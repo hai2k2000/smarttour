@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 type ItineraryDay = { id: string; dayNumber: number; title: string; description?: string | null };
 type TourProgram = { id: string; code: string; name: string; durationDays: number; itineraryDays?: ItineraryDay[] };
+type BookingTourProgram = Pick<TourProgram, 'id' | 'code' | 'name'>;
 type Booking = {
   id: string;
   code: string;
@@ -20,7 +21,7 @@ type Booking = {
   operatorOwner: string | null;
   status: string;
   totalSellPrice: string | number | null;
-  tourProgram: TourProgram;
+  tourProgram: BookingTourProgram;
   operationForm: { id: string; status: string } | null;
 };
 type BookingDeleteGuardDetail = {
@@ -55,16 +56,32 @@ const bookingCodeInputPattern = '[A-Za-z0-9][A-Za-z0-9_-]*';
 const bookingCodeRegex = /^[A-Z0-9][A-Z0-9_-]*$/;
 const bookingSafeTextPattern = '[^\\x00-\\x1F\\x7F<>]+';
 const bookingSafeTextRegex = /^[^\u0000-\u001F\u007F<>]+$/;
-const bookingStatusOptions = [
+const bookingStatuses = [
   'DRAFT',
   'CONFIRMED',
   'OPERATING',
   'COMPLETED',
   'CANCELLED',
 ] as const;
-type BookingStatus = (typeof bookingStatusOptions)[number];
-const validBookingStatuses = new Set<string>(bookingStatusOptions);
+type BookingStatus = (typeof bookingStatuses)[number];
+const validBookingStatuses = new Set<string>(bookingStatuses);
+const bookingStatusWorkflow: Record<BookingStatus, readonly BookingStatus[]> = {
+  DRAFT: ['DRAFT', 'CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['CONFIRMED', 'OPERATING', 'CANCELLED'],
+  OPERATING: ['OPERATING', 'COMPLETED', 'CANCELLED'],
+  COMPLETED: ['COMPLETED'],
+  CANCELLED: ['CANCELLED'],
+};
 const bookingPageSize = 50;
+
+function isBookingStatus(value: string): value is BookingStatus {
+  return validBookingStatuses.has(value);
+}
+
+function allowedBookingStatuses(currentStatus: string, hasOperationForm: boolean) {
+  const current = isBookingStatus(currentStatus) ? currentStatus : 'DRAFT';
+  return bookingStatusWorkflow[current].filter((status) => status !== 'OPERATING' || hasOperationForm);
+}
 
 async function responseError(response: Response) {
   try {
@@ -252,9 +269,21 @@ async function updateBookingStatus(formData: FormData) {
   'use server';
   const id = field(formData, 'id');
   const status = field(formData, 'status');
+  const currentStatus = field(formData, 'currentStatus');
+  const hasOperationForm = field(formData, 'hasOperationForm') === 'true';
   if (!id) redirectWithResult({ ok: false, message: 'Cập nhật trạng thái thất bại: thiếu ID booking.' });
-  if (!validBookingStatuses.has(status)) {
+  if (!isBookingStatus(status)) {
     redirectWithResult({ ok: false, message: `Cập nhật trạng thái thất bại: trạng thái "${status || 'trống'}" không hợp lệ.` });
+  }
+  if (!isBookingStatus(currentStatus)) {
+    redirectWithResult({ ok: false, message: 'Cập nhật trạng thái thất bại: trạng thái hiện tại không hợp lệ.' });
+  }
+  const allowedStatuses = allowedBookingStatuses(currentStatus, hasOperationForm);
+  if (!allowedStatuses.includes(status)) {
+    redirectWithResult({
+      ok: false,
+      message: `Cập nhật trạng thái thất bại: không thể chuyển booking từ ${viStatus(currentStatus)} sang ${viStatus(status)}.`,
+    });
   }
   const result = await apiMutation(
     `/bookings/${encodeURIComponent(id)}/status`,
@@ -403,7 +432,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
           <span>Trang {page} · {bookings.length} booking</span>
         </div>
         <div className="fitTableWrap">
-          <table className="fitTable orderListTable">
+          <table className="fitTable orderListTable bookingListTable">
             <thead>
               <tr>
                 <th>Mã booking</th>
@@ -454,7 +483,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
               ))}
               {bookings.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="tableEmptyState">Chưa có booking. Hãy tạo booking từ popup thêm mới.</td>
+                  <td colSpan={12} className="tableEmptyState">Chưa có booking nào. Hãy bấm "Thêm booking" để tạo booking đầu tiên.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -644,6 +673,10 @@ function BookingForm({
 }
 
 function StatusBookingModal({ booking }: { booking: Booking }) {
+  const currentStatus = isBookingStatus(booking.status) ? booking.status : 'DRAFT';
+  const statusOptions = allowedBookingStatuses(currentStatus, Boolean(booking.operationForm));
+  const hasTransition = statusOptions.some((status) => status !== currentStatus);
+
   return (
     <div id={`status-${booking.id}`} className="hashModal">
       <a href={modalCloseHref()} className="hashModalBackdrop" aria-label="Đóng modal" />
@@ -654,20 +687,28 @@ function StatusBookingModal({ booking }: { booking: Booking }) {
         </div>
         <form action={updateBookingStatus} className="modalFormStack">
           <input type="hidden" name="id" value={booking.id} />
+          <input type="hidden" name="currentStatus" value={currentStatus} />
+          <input type="hidden" name="hasOperationForm" value={booking.operationForm ? 'true' : 'false'} />
           <fieldset>
             <legend>{booking.code}</legend>
             <label>
               Trạng thái
-              <select name="status" defaultValue={validBookingStatuses.has(booking.status) ? booking.status : 'DRAFT'}>
-                {bookingStatusOptions.map((status: BookingStatus) => (
+              <select name="status" defaultValue={statusOptions.includes(currentStatus) ? currentStatus : statusOptions[0] || currentStatus} disabled={!hasTransition}>
+                {statusOptions.map((status) => (
                   <option value={status} key={status}>{viStatus(status)}</option>
                 ))}
               </select>
             </label>
+            {!booking.operationForm && currentStatus === 'CONFIRMED' ? (
+              <span className="mutedText">Booking cần có phiếu điều hành trước khi chuyển sang trạng thái đang vận hành.</span>
+            ) : null}
+            {!hasTransition ? (
+              <span className="mutedText">Booking đang ở trạng thái cuối, không còn bước chuyển hợp lệ.</span>
+            ) : null}
           </fieldset>
           <div className="modalActions">
             <a className="secondaryButton" href={modalCloseHref()}>Hủy</a>
-            <button type="submit"><Save size={14} /> Cập nhật trạng thái</button>
+            <button type="submit" disabled={!hasTransition}><Save size={14} /> Cập nhật trạng thái</button>
           </div>
         </form>
       </div>

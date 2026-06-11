@@ -27,7 +27,7 @@ import { bookingScopeWhere } from './booking-scope';
 
 const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, ReadonlySet<BookingStatus>> = {
   [BookingStatus.DRAFT]: new Set([BookingStatus.DRAFT, BookingStatus.CONFIRMED, BookingStatus.CANCELLED]),
-  [BookingStatus.CONFIRMED]: new Set([BookingStatus.CONFIRMED, BookingStatus.OPERATING, BookingStatus.COMPLETED, BookingStatus.CANCELLED]),
+  [BookingStatus.CONFIRMED]: new Set([BookingStatus.CONFIRMED, BookingStatus.OPERATING, BookingStatus.CANCELLED]),
   [BookingStatus.OPERATING]: new Set([BookingStatus.OPERATING, BookingStatus.COMPLETED, BookingStatus.CANCELLED]),
   [BookingStatus.COMPLETED]: new Set([BookingStatus.COMPLETED]),
   [BookingStatus.CANCELLED]: new Set([BookingStatus.CANCELLED]),
@@ -523,10 +523,21 @@ export class BookingsService {
     throw new BadRequestException(`Trạng thái booking không hợp lệ: ${value}`);
   }
 
+  private bookingStatusLabel(status: BookingStatus) {
+    const labels: Record<BookingStatus, string> = {
+      [BookingStatus.DRAFT]: 'Nháp',
+      [BookingStatus.CONFIRMED]: 'Đã xác nhận',
+      [BookingStatus.OPERATING]: 'Đang vận hành',
+      [BookingStatus.COMPLETED]: 'Hoàn tất',
+      [BookingStatus.CANCELLED]: 'Đã hủy',
+    };
+    return labels[status] || status;
+  }
+
   private ensureStatusTransition(current: BookingStatus, target: BookingStatus, operationFormStatus?: OperationStatus | null) {
     const allowed = BOOKING_STATUS_TRANSITIONS[current] || new Set<BookingStatus>([current]);
     if (!allowed.has(target)) {
-      throw new BadRequestException(`Không thể chuyển booking từ ${current} sang ${target}`);
+      throw new BadRequestException(`Không thể chuyển booking từ ${this.bookingStatusLabel(current)} sang ${this.bookingStatusLabel(target)}`);
     }
     if (target === BookingStatus.OPERATING && !operationFormStatus) {
       throw new BadRequestException('Booking cần có phiếu điều hành trước khi chuyển sang trạng thái đang vận hành');

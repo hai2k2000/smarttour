@@ -858,6 +858,7 @@ async function main() {
   const confirmed = await service.updateStatus(created.id, 'confirmed');
   assert(confirmed.status === 'CONFIRMED', 'updateStatus should move DRAFT to CONFIRMED');
   await rejects(() => service.updateStatus(created.id, 'DRAFT'), 'updateStatus should reject invalid backward transition');
+  await rejects(() => service.updateStatus(created.id, 'COMPLETED'), 'updateStatus should reject skipping directly from CONFIRMED to COMPLETED');
   await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
 
   const deletable = await service.create(bookingDto(run, 'DELETE', tourProgram, links, {
