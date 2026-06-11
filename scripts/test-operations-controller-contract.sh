@@ -148,6 +148,10 @@ if (!client.includes('operationFormStatusValues') || !client.includes('supplierP
 if (!client.includes('operations-dashboard-state') || !client.includes('Đang tải số liệu dashboard') || !client.includes('Không tải được dashboard vận hành') || !client.includes('Chưa có số liệu vận hành trong phạm vi hiện tại.')) failures.push('OperationsClient dashboard metrics must expose loading, error, and empty states');
 if (!client.includes('dashboardMetricDefinitions') || !client.includes('Order sắp khởi hành trong 14 ngày tới') || !client.includes('Yêu cầu thanh toán đang chờ duyệt hoặc đã duyệt')) failures.push('OperationsClient dashboard metrics must document backend counting logic');
 if (!client.includes('response.status') || !client.includes('Accept:')) failures.push('OperationsClient fetch helpers must expose detailed errors and JSON accept headers');
+if (!client.includes('staticLoadInFlight') || !client.includes('listLoadInFlight') || !client.includes('staticLoadSeq') || !client.includes('listLoadSeq') || !client.includes('normalizeLoadOptions')) failures.push('OperationsClient data loading must guard duplicate and stale requests');
+if (!client.includes('load({ ...reloadAfter, emitNotice: false })') || !client.includes('requests: false') || !client.includes('forms: false')) failures.push('OperationsClient mutations must reload only affected operation data scopes');
+if (!client.includes('setBookings([])') || !client.includes('setSuppliers([])') || !client.includes('setRequests([])') || !client.includes("setCreateFormSupplierId('')")) failures.push('OperationsClient must reset static/list state when APIs return empty, fail, or selected supplier becomes invalid');
+if (!client.includes('function openCreateModal()') || !client.includes('onClick={openCreateModal}') || !client.includes("setCreateFormSupplierId('')")) failures.push('OperationsClient create modal must reset supplier state before opening or switching tabs');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));

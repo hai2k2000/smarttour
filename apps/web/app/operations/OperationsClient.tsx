@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 type OperationsTab = 'forms' | 'payments';
 type Notice = { type: 'success' | 'error' | 'info'; text: string };
 type FilterState = { search: string; status: string };
+type LoadOptions = { emitNotice?: boolean; force?: boolean; dashboard?: boolean; forms?: boolean; requests?: boolean };
 type OperationFormDraft = {
   bookingId: string;
   supplierId: string;
@@ -179,6 +180,10 @@ export default function OperationsClient() {
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
   const reloadInFlight = useRef(false);
+  const staticLoadInFlight = useRef('');
+  const listLoadInFlight = useRef('');
+  const staticLoadSeq = useRef(0);
+  const listLoadSeq = useRef(0);
 
   const activeFilter = filters[tab];
   const formQuery = useMemo(() => queryFrom(filters.forms), [filters.forms]);
@@ -218,14 +223,16 @@ export default function OperationsClient() {
   const dashboardLoading = canViewForms && isLoadingList;
   const dashboardState = dashboardStatus(canViewForms, hasLoadedDashboard, dashboardHasData, dashboardLoading, dashboardError);
   const paymentRequestActor = userActorLabel(user);
+  const staticLoadKey = `${canCreateForm}:${canCreatePaymentRequest}`;
+  const listLoadKey = `${canViewForms}:${canViewPayments}:${formQuery}:${paymentQuery}`;
 
   useEffect(() => {
     void loadStatic();
-  }, [canCreateForm, canCreatePaymentRequest]);
+  }, [staticLoadKey]);
 
   useEffect(() => {
     void load();
-  }, [formQuery, paymentQuery, canViewForms, canViewPayments]);
+  }, [listLoadKey]);
 
   useEffect(() => {
     if (tab === 'forms' && !canViewForms && canViewPayments) {
@@ -243,78 +250,122 @@ export default function OperationsClient() {
   }, [canViewForms, canViewPayments, tab]);
 
   useEffect(() => {
-    if (selectedFormId && !forms.some((form) => form.id === selectedFormId)) setSelectedFormId('');
+    if (selectedFormId && !forms.some((form) => form.id === selectedFormId)) {
+      setSelectedFormId('');
+      setCreateFormSupplierId('');
+    }
   }, [forms, selectedFormId]);
 
-  async function loadStatic(emitNotice = true) {
+  async function loadStatic(emitNotice = true, force = false) {
+    const key = staticLoadKey;
+    if (!force && staticLoadInFlight.current === key) return [];
+    staticLoadInFlight.current = key;
+    const sequence = ++staticLoadSeq.current;
     setIsLoadingStatic(true);
     const errors: string[] = [];
-    if (!canCreateForm && !canCreatePaymentRequest) {
-      setBookings([]);
-      setSuppliers([]);
-      setIsLoadingStatic(false);
+    try {
+      if (!canCreateForm && !canCreatePaymentRequest) {
+        if (sequence === staticLoadSeq.current) {
+          setBookings([]);
+          setSuppliers([]);
+          setCreateFormSupplierId('');
+        }
+        return errors;
+      }
+      const [bookingResult, supplierResult] = await Promise.allSettled([
+        fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
+        fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
+      ]);
+      if (sequence !== staticLoadSeq.current) return errors;
+
+      if (bookingResult.status === 'fulfilled') {
+        setBookings(asRows<Booking>(bookingResult.value));
+      } else {
+        setBookings([]);
+        errors.push(`Booking: ${errorText(bookingResult.reason, 'không tải được dữ liệu')}`);
+      }
+
+      if (supplierResult.status === 'fulfilled') {
+        const rows = asRows<Supplier>(supplierResult.value).slice(0, 120);
+        setSuppliers(rows);
+        if (createFormSupplierId && !rows.some((supplier) => supplier.id === createFormSupplierId)) setCreateFormSupplierId('');
+      } else {
+        setSuppliers([]);
+        setCreateFormSupplierId('');
+        errors.push(`Nhà cung cấp: ${errorText(supplierResult.reason, 'không tải được dữ liệu')}`);
+      }
+
+      if (emitNotice && errors.length) showError(errors.join(' | '));
       return errors;
+    } finally {
+      if (sequence === staticLoadSeq.current) setIsLoadingStatic(false);
+      if (staticLoadInFlight.current === key) staticLoadInFlight.current = '';
     }
-    const [bookingResult, supplierResult] = await Promise.allSettled([
-      fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
-      fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
-    ]);
-
-    if (bookingResult.status === 'fulfilled') {
-      setBookings(asRows<Booking>(bookingResult.value));
-    } else {
-      errors.push(`Booking: ${bookingResult.reason.message || 'không tải được dữ liệu'}`);
-    }
-
-    if (supplierResult.status === 'fulfilled') {
-      setSuppliers(asRows<Supplier>(supplierResult.value).slice(0, 120));
-    } else {
-      errors.push(`Nhà cung cấp: ${supplierResult.reason.message || 'không tải được dữ liệu'}`);
-    }
-
-    setIsLoadingStatic(false);
-    if (emitNotice && errors.length) showError(errors.join(' | '));
-    return errors;
   }
 
-  async function load(emitNotice = true) {
+  async function load(options: LoadOptions = {}) {
+    const emitNotice = options.emitNotice ?? true;
+    const scope = normalizeLoadOptions(options);
+    const key = `${listLoadKey}:${scope.dashboard}:${scope.forms}:${scope.requests}`;
+    if (!scope.force && listLoadInFlight.current === key) return [];
+    listLoadInFlight.current = key;
+    const sequence = ++listLoadSeq.current;
     setIsLoadingList(true);
     const errors: string[] = [];
-    const [dashboardResult, formsResult, requestsResult] = await Promise.allSettled([
-      canViewForms ? fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành') : Promise.resolve(null),
-      canViewForms ? fetchJson<unknown>(`/api/operations/forms?${formQuery}`, 'danh sách phiếu điều hành') : Promise.resolve([]),
-      canViewPayments ? fetchJson<unknown>(`/api/operations/supplier-payment-requests?${paymentQuery}`, 'danh sách yêu cầu thanh toán') : Promise.resolve([]),
-    ]);
+    try {
+      const [dashboardResult, formsResult, requestsResult] = await Promise.allSettled([
+        scope.dashboard && canViewForms ? fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành') : Promise.resolve(null),
+        scope.forms && canViewForms ? fetchJson<unknown>(`/api/operations/forms?${formQuery}`, 'danh sách phiếu điều hành') : Promise.resolve([]),
+        scope.requests && canViewPayments ? fetchJson<unknown>(`/api/operations/supplier-payment-requests?${paymentQuery}`, 'danh sách yêu cầu thanh toán') : Promise.resolve([]),
+      ]);
+      if (sequence !== listLoadSeq.current) return errors;
 
-    if (!canViewForms) {
-      setDashboard(emptyDashboard);
-      setDashboardError('');
-      setHasLoadedDashboard(false);
-    } else if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
-      setDashboard({ ...emptyDashboard, ...dashboardResult.value });
-      setDashboardError('');
-      setHasLoadedDashboard(true);
-    } else {
-      const message = dashboardResult.status === 'rejected' ? errorText(dashboardResult.reason, 'không tải được dữ liệu') : 'không tải được dữ liệu';
-      setDashboardError(message);
-      errors.push(`Dashboard: ${message}`);
+      if (scope.dashboard) {
+        if (!canViewForms) {
+          setDashboard(emptyDashboard);
+          setDashboardError('');
+          setHasLoadedDashboard(false);
+        } else if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
+          setDashboard({ ...emptyDashboard, ...dashboardResult.value });
+          setDashboardError('');
+          setHasLoadedDashboard(true);
+        } else {
+          const message = dashboardResult.status === 'rejected' ? errorText(dashboardResult.reason, 'không tải được dữ liệu') : 'không tải được dữ liệu';
+          setDashboardError(message);
+          errors.push(`Dashboard: ${message}`);
+        }
+      }
+
+      if (scope.forms) {
+        if (!canViewForms) {
+          setForms([]);
+        } else if (formsResult.status === 'fulfilled') {
+          setForms(asRows<OperationForm>(formsResult.value));
+        } else {
+          setForms([]);
+          errors.push(`Phiếu điều hành: ${errorText(formsResult.reason, 'không tải được dữ liệu')}`);
+        }
+      }
+
+      if (scope.requests) {
+        if (!canViewPayments) {
+          setRequests([]);
+          setDetailRequestId('');
+        } else if (requestsResult.status === 'fulfilled') {
+          setRequests(asRows<PaymentRequest>(requestsResult.value));
+        } else {
+          setRequests([]);
+          setDetailRequestId('');
+          errors.push(`Yêu cầu thanh toán: ${errorText(requestsResult.reason, 'không tải được dữ liệu')}`);
+        }
+      }
+
+      if (emitNotice && errors.length) showError(errors.join(' | '));
+      return errors;
+    } finally {
+      if (sequence === listLoadSeq.current) setIsLoadingList(false);
+      if (listLoadInFlight.current === key) listLoadInFlight.current = '';
     }
-
-    if (formsResult.status === 'fulfilled') {
-      setForms(asRows<OperationForm>(formsResult.value));
-    } else {
-      errors.push(`Phiếu điều hành: ${errorText(formsResult.reason, 'không tải được dữ liệu')}`);
-    }
-
-    if (requestsResult.status === 'fulfilled') {
-      setRequests(asRows<PaymentRequest>(requestsResult.value));
-    } else {
-      errors.push(`Yêu cầu thanh toán: ${errorText(requestsResult.reason, 'không tải được dữ liệu')}`);
-    }
-
-    setIsLoadingList(false);
-    if (emitNotice && errors.length) showError(errors.join(' | '));
-    return errors;
   }
 
   async function reloadAll() {
@@ -323,7 +374,7 @@ export default function OperationsClient() {
     setIsReloading(true);
     setNotice(null);
     try {
-      const [staticErrors, loadErrors] = await Promise.all([loadStatic(false), load(false)]);
+      const [staticErrors, loadErrors] = await Promise.all([loadStatic(false, true), load({ emitNotice: false, force: true })]);
       const errors = [...staticErrors, ...loadErrors];
       if (errors.length) showError(errors.join(' | '));
       else showSuccess('Đã tải lại dữ liệu vận hành.');
@@ -359,7 +410,7 @@ export default function OperationsClient() {
       }],
       tasks: [{ title: draft.taskTitle, assignee: draft.assignee, dueDate: draft.dueDate, status: 'PENDING' }],
       costs: [{ costName: draft.costName, expectedAmount: expectedCost, actualAmount: actualCost, currency: 'VND' }],
-    }, 'Tạo phiếu điều hành');
+    }, 'Tạo phiếu điều hành', { dashboard: true, forms: true, requests: false });
 
     if (created?.id) setSelectedFormId(created.id);
   }
@@ -373,20 +424,20 @@ export default function OperationsClient() {
     const created = await post<PaymentRequest>('/api/operations/supplier-payment-requests', {
       requestedBy: draft.requestedBy || paymentRequestActor,
       items: [{ supplierId: draft.supplierId, costId: draft.costId, amount, notes: draft.notes }],
-    }, 'Tạo yêu cầu thanh toán nhà cung cấp');
+    }, 'Tạo yêu cầu thanh toán nhà cung cấp', { dashboard: true, forms: false, requests: true });
 
     if (created?.id) setDetailRequestId(created.id);
   }
 
   async function requestAction(id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') {
     const label = actionLabels[action];
-    const updated = await post<PaymentRequest>(`/api/operations/supplier-payment-requests/${id}/${action}`, { actor: actionActor(action) }, label);
+    const updated = await post<PaymentRequest>(`/api/operations/supplier-payment-requests/${id}/${action}`, { actor: actionActor(action) }, label, { dashboard: true, forms: false, requests: true });
     if (updated?.id) setDetailRequestId(updated.id);
   }
 
   async function approveFinancePayment(id?: string) {
     if (!id) return showError('Yêu cầu này chưa có phiếu chi tài chính, không thể duyệt thanh toán.');
-    await post(`/api/finance/payments/${id}/approve`, { actor: 'finance-payment-approver' }, 'Duyệt phiếu chi tài chính');
+    await post(`/api/finance/payments/${id}/approve`, { actor: 'finance-payment-approver' }, 'Duyệt phiếu chi tài chính', { dashboard: true, forms: false, requests: true });
   }
 
   async function cancelForm(id: string) {
@@ -396,21 +447,21 @@ export default function OperationsClient() {
     if (!cleanReason) return showError('Cần nhập lý do hủy phiếu điều hành.');
     const confirmed = typeof window === 'undefined' ? true : window.confirm('Xác nhận hủy phiếu điều hành với lý do đã nhập? Hành động này sẽ được lưu vào lịch sử xử lý.');
     if (!confirmed) return;
-    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operations-ui', reason: cleanReason }, 'Hủy phiếu điều hành');
+    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operations-ui', reason: cleanReason }, 'Hủy phiếu điều hành', { dashboard: true, forms: true, requests: false });
   }
 
-  async function post<T = unknown>(path: string, payload: unknown, actionLabel: string) {
+  async function post<T = unknown>(path: string, payload: unknown, actionLabel: string, reloadAfter: LoadOptions = {}) {
     setNotice(null);
     const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await parseResponse(response);
     if (!response.ok) {
-      showError(`${actionLabel} thất bại (${response.status}): ${messageOf(data) || response.statusText || 'Không thực hiện được.'}`);
+      showError(apiFailureMessage(actionLabel, response, data));
       return null;
     }
 
-    const errors = await load(false);
-    if (errors.length) showError(`${actionLabel} thành công, nhưng tải lại dữ liệu lỗi: ${errors.join(' | ')}`);
-    else showSuccess(`${actionLabel} thành công.`);
+    const errors = await load({ ...reloadAfter, emitNotice: false });
+    if (errors.length) showError(`${actionLabel} đã thực hiện xong, nhưng tải lại dữ liệu liên quan bị lỗi: ${errors.join(' | ')}`);
+    else showSuccess(`${actionLabel} thành công. Dữ liệu liên quan đã được cập nhật.`);
     setModal(null);
     return data as T;
   }
@@ -419,8 +470,15 @@ export default function OperationsClient() {
     setTab(nextTab);
     setNotice(null);
     setModal(null);
+    setCreateFormSupplierId('');
     if (nextTab === 'forms') setDetailRequestId('');
     if (nextTab === 'payments' && selectedFormId && !forms.some((form) => form.id === selectedFormId)) setSelectedFormId('');
+  }
+
+  function openCreateModal() {
+    setNotice(null);
+    if (tab === 'forms') setCreateFormSupplierId('');
+    setModal(tab === 'forms' ? 'form' : 'payment');
   }
 
   function openReconciliation(requestId: string) {
@@ -461,7 +519,7 @@ export default function OperationsClient() {
             className="iconTextButton"
             disabled={!canViewActiveTab || !canCreateActiveTab}
             title={!canViewActiveTab ? `Bạn chưa có quyền xem ${activeTab.label.toLowerCase()}.` : !canCreateActiveTab ? `Bạn chưa có quyền ${activeTab.createLabel.toLowerCase()}.` : activeTab.createLabel}
-            onClick={() => setModal(tab === 'forms' ? 'form' : 'payment')}
+            onClick={openCreateModal}
           >
             <Plus size={16} /> {activeTab.createLabel}
           </button>
@@ -955,6 +1013,21 @@ function operationFormDraftErrors(draft: OperationFormDraft, bookings: Booking[]
 
 function formatValidationErrors(title: string, errors: string[]) {
   return `${title}: ${errors.join(' ')}`;
+}
+
+function normalizeLoadOptions(options: LoadOptions) {
+  return {
+    emitNotice: options.emitNotice ?? true,
+    force: options.force ?? false,
+    dashboard: options.dashboard ?? true,
+    forms: options.forms ?? true,
+    requests: options.requests ?? true,
+  };
+}
+
+function apiFailureMessage(actionLabel: string, response: Response, data: unknown) {
+  const detail = messageOf(data) || response.statusText || `HTTP ${response.status}`;
+  return `${actionLabel} thất bại (${response.status}). Chi tiết: ${detail}`;
 }
 
 function paymentRequestDraftFromFormData(formData: FormData, selectedFormId: string, requestedByDefault: string): PaymentRequestDraft {
