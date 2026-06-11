@@ -1,58 +1,59 @@
 import { Injectable } from '@nestjs/common';
 import { RequestUser } from '../auth/data-scope';
+import { FinanceService } from './finance.service';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 @Injectable()
 export class FinanceReceiptService {
-  constructor(private readonly finance: any) {}
+  constructor(private readonly finance: FinanceService) {}
 
   list(query: Record<string, string>, user?: RequestUser) {
-    return this.finance.listReceiptsCore(query, user);
+    return this.finance.listReceipts(query, user);
   }
 
   detail(id: string, user?: RequestUser) {
-    return this.finance.receiptDetailCore(id, user);
+    return this.finance.receiptDetail(id, user);
   }
 
   uploadFile(id: string, file: ImportFile | undefined, actorId?: string, user?: RequestUser) {
-    return this.finance.uploadReceiptFileCore(id, file, actorId, user);
+    return this.finance.uploadReceiptFile(id, file, actorId, user);
   }
 
   deleteFile(id: string, user?: RequestUser) {
-    return this.finance.deleteReceiptFileCore(id, user);
+    return this.finance.deleteReceiptFile(id, user);
   }
 
   create(dto: AnyRecord, user?: RequestUser) {
-    return this.finance.createReceiptCore(dto, user);
+    return this.finance.createReceipt(dto, user);
   }
 
   update(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.finance.updateReceiptCore(id, dto, user);
+    return this.finance.updateReceipt(id, dto, user);
   }
 
   delete(id: string, user?: RequestUser) {
-    return this.finance.deleteReceiptCore(id, user);
+    return this.finance.deleteReceipt(id, user);
   }
 
   approve(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.finance.approveReceiptCore(id, dto, user);
+    return this.finance.approveReceipt(id, dto, user);
   }
 
   reject(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.finance.rejectReceiptCore(id, dto, user);
+    return this.finance.rejectReceipt(id, dto, user);
   }
 
   cancel(id: string, dto: AnyRecord, user?: RequestUser) {
-    return this.finance.cancelReceiptCore(id, dto, user);
+    return this.finance.cancelReceipt(id, dto, user);
   }
 
   export(query: Record<string, string>, user?: RequestUser) {
-    return this.finance.exportReceiptsCore(query, user);
+    return this.finance.exportReceipts(query, user);
   }
 
   import(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
-    return this.finance.importReceiptsCore(dto, file, user);
+    return this.finance.importReceipts(dto, file, user);
   }
 }

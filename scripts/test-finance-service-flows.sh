@@ -28,6 +28,11 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { FinanceController } = require('./apps/api/dist/modules/finance/finance.controller');
+const { FinanceCashflowService } = require('./apps/api/dist/modules/finance/finance-cashflow.service');
+const { FinanceInvoiceService } = require('./apps/api/dist/modules/finance/finance-invoice.service');
+const { FinanceLedgerService } = require('./apps/api/dist/modules/finance/finance-ledger.service');
+const { FinancePaymentService } = require('./apps/api/dist/modules/finance/finance-payment.service');
+const { FinanceReceiptService } = require('./apps/api/dist/modules/finance/finance-receipt.service');
 const { FinanceService } = require('./apps/api/dist/modules/finance/finance.service');
 
 function assert(condition, label) {
@@ -205,6 +210,8 @@ async function main() {
   });
   const updatedReceipt = await finance.updateReceipt(draftReceipt.id, { receiptName: 'Receipt CRUD Updated', totalAmount: 500, paidBefore: 150, receiptAmount: 250, branch: 'FIN-BR', department: 'FIN-DEP' });
   assert(updatedReceipt.receiptName === 'Receipt CRUD Updated' && amount(updatedReceipt.remainingAmount) === 100, 'receipt update should persist fields and recalculate remaining amount');
+  const partialReceipt = await finance.updateReceipt(draftReceipt.id, { note: 'Receipt partial note' });
+  assert(partialReceipt.note === 'Receipt partial note' && amount(partialReceipt.receiptAmount) === 250 && amount(partialReceipt.remainingAmount) === 100 && partialReceipt.paymentDate.toISOString().slice(0, 10) === '2026-10-01', 'receipt partial update should not reset amount or dates');
   const receiptUpload = await finance.uploadReceiptFile(draftReceipt.id, uploadFile('receipt.txt'), 'finance-test');
   assert(receiptUpload.attachmentName === 'receipt.txt' && receiptUpload.attachmentUrl.includes('/finance/receipts/'), 'receipt upload should attach file metadata');
   const receiptFileDeleted = await finance.deleteReceiptFile(draftReceipt.id);
@@ -230,6 +237,8 @@ async function main() {
   });
   const updatedPayment = await finance.updatePayment(draftPayment.id, { voucherName: 'Payment CRUD Updated', totalAmount: 700, paymentAmount: 450, branch: 'FIN-BR', department: 'FIN-DEP' });
   assert(updatedPayment.voucherName === 'Payment CRUD Updated' && amount(updatedPayment.remainingAmount) === 250, 'payment update should persist fields and recalculate remaining amount');
+  const partialPayment = await finance.updatePayment(draftPayment.id, { note: 'Payment partial note' });
+  assert(partialPayment.note === 'Payment partial note' && amount(partialPayment.paymentAmount) === 450 && amount(partialPayment.remainingAmount) === 250 && partialPayment.paymentDate.toISOString().slice(0, 10) === '2026-10-02', 'payment partial update should not reset amount or dates');
   const paymentUpload = await finance.uploadPaymentFile(draftPayment.id, uploadFile('payment.txt'), 'finance-test');
   assert(paymentUpload.attachmentName === 'payment.txt' && paymentUpload.attachmentUrl.includes('/finance/payments/'), 'payment upload should attach file metadata');
   const paymentFileDeleted = await finance.deletePaymentFile(draftPayment.id);
@@ -253,6 +262,8 @@ async function main() {
   });
   const updatedInvoice = await finance.updateInvoice(draftInvoice.id, { customerName: customer.fullName, invoiceType: 'VAT', branch: 'FIN-BR', department: 'FIN-DEP', items: [{ itemName: 'Invoice CRUD Updated', unit: 'pax', quantity: 2, unitPrice: 100, taxRate: 8 }] });
   assert(amount(updatedInvoice.totalBeforeTax) === 200 && amount(updatedInvoice.totalTax) === 16 && amount(updatedInvoice.totalAfterTax) === 216, 'invoice update should recalculate item totals');
+  const partialInvoice = await finance.updateInvoice(draftInvoice.id, { note: 'Invoice partial note' });
+  assert(partialInvoice.note === 'Invoice partial note' && partialInvoice.items.length === 1 && amount(partialInvoice.totalAfterTax) === 216 && partialInvoice.issuedDate.toISOString().slice(0, 10) === '2026-10-03', 'invoice partial update should not reset items, totals, or dates');
   const invoiceFile = await finance.uploadInvoiceFile(draftInvoice.id, uploadFile('invoice.txt'), 'finance-test');
   assert(invoiceFile.fileName === 'invoice.txt' && invoiceFile.fileUrl.includes('/finance/invoices/'), 'invoice upload should create invoice file row');
   const invoiceFileDeleted = await finance.deleteInvoiceFile(draftInvoice.id, invoiceFile.id);
@@ -328,8 +339,9 @@ async function main() {
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_RECEIPT', sourceId: receipt.id, entryType: 'CREDIT' }, 'creditAmount') === 1000, 'receipt customer ledger credit should match receipt amount');
   let orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidAmount) === 1000 && amount(orderAfter.remainingRevenue) === 0 && orderAfter.paymentStatus === 'PAID', 'receipt approve should reconcile order revenue');
-  const approvedReceiptAgain = await finance.approveReceipt(receipt.id, { actor: 'finance-test' });
-  assert(approvedReceiptAgain.id === receipt.id && approvedReceiptAgain.approvalStatus === 'APPROVED', 'double approve receipt should be idempotent');
+  await rejects(() => finance.approveReceipt(receipt.id, { actor: 'finance-test' }), 'double approve receipt should be rejected as a final-state transition');
+  await rejects(() => finance.rejectReceipt(receipt.id, { actor: 'finance-test', note: 'reject approved receipt' }), 'approved receipt should not be rejected');
+  await rejects(() => finance.updateReceipt(receipt.id, { receiptAmount: 900 }), 'approved receipt amount should not be editable');
   const cancelledReceipt = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'cancel receipt' });
   assert(cancelledReceipt.approvalStatus === 'CANCELLED' && cancelledReceipt.reversals.length === 1, 'receipt should cancel with reversal');
   const receiptReversal = await prisma.financeReceipt.findUniqueOrThrow({ where: { id: cancelledReceipt.reversals[0].id }, include: { orders: true } });
@@ -343,8 +355,7 @@ async function main() {
   assert(amount(orderAfter.paidAmount) === 0 && amount(orderAfter.remainingRevenue) === 1000 && orderAfter.paymentStatus === 'UNPAID', 'receipt cancel should undo order revenue reconcile');
   let customerDebtReport = await finance.customerDebt({ customerId: customer.id, take: '1000' });
   assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'receipt cancel should net customer debt report back to zero');
-  const cancelledReceiptAgain = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' });
-  assert(cancelledReceiptAgain.reversals.length === 1, 'double cancel receipt should be idempotent without duplicate reversal');
+  await rejects(() => finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'again' }), 'double cancel receipt should be rejected as a final-state transition');
 
   const rejectedReceiptDraft = await finance.createReceipt({
     receiptCode: run + '-RCPT-REJECT',
@@ -364,6 +375,8 @@ async function main() {
   const rejectedReceipt = await finance.rejectReceipt(rejectedReceiptDraft.id, { actor: 'finance-test', note: 'reject receipt' });
   assert(rejectedReceipt.approvalStatus === 'REJECTED', 'receipt should reject');
   await rejects(() => finance.approveReceipt(rejectedReceiptDraft.id, { actor: 'finance-test' }), 'rejected receipt should not approve');
+  await rejects(() => finance.rejectReceipt(rejectedReceiptDraft.id, { actor: 'finance-test' }), 'rejected receipt should not reject again');
+  await rejects(() => finance.deleteReceipt(rejectedReceiptDraft.id), 'rejected receipt should not be deleted');
 
   const payment = await finance.createPayment({
     voucherCode: run + '-PAY',
@@ -399,8 +412,9 @@ async function main() {
   assert(await sum(prisma, 'supplierLedgerEntry', { sourceType: 'FINANCE_PAYMENT', sourceId: payment.id, entryType: 'DEBIT' }, 'debitAmount') === 600, 'payment supplier ledger debit should match payment amount');
   orderAfter = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   assert(amount(orderAfter.paidCost) === 600 && amount(orderAfter.remainingCost) === 100 && orderAfter.costStatus === 'PARTIAL', 'payment approve should reconcile order cost');
-  const approvedPaymentAgain = await finance.approvePayment(payment.id, { actor: 'finance-test' });
-  assert(approvedPaymentAgain.id === payment.id && approvedPaymentAgain.approvalStatus === 'APPROVED', 'double approve payment should be idempotent');
+  await rejects(() => finance.approvePayment(payment.id, { actor: 'finance-test' }), 'double approve payment should be rejected as a final-state transition');
+  await rejects(() => finance.rejectPayment(payment.id, { actor: 'finance-test', note: 'reject approved payment' }), 'approved payment should not be rejected');
+  await rejects(() => finance.updatePayment(payment.id, { paymentAmount: 500 }), 'approved payment amount should not be editable');
   const cancelledPayment = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'cancel payment' });
   assert(cancelledPayment.approvalStatus === 'CANCELLED' && cancelledPayment.reversals.length === 1, 'payment should cancel with reversal');
   const paymentReversal = await prisma.financePayment.findUniqueOrThrow({ where: { id: cancelledPayment.reversals[0].id } });
@@ -422,8 +436,7 @@ async function main() {
   const outCashflow = await finance.cashflow({ take: '1000' }, outOfScopeUser);
   assert(branchCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should include branch scoped rows');
   assert(!outCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should exclude out-of-scope rows');
-  const cancelledPaymentAgain = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' });
-  assert(cancelledPaymentAgain.reversals.length === 1, 'double cancel payment should be idempotent without duplicate reversal');
+  await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be rejected as a final-state transition');
 
   const rejectedPaymentDraft = await finance.createPayment({
     voucherCode: run + '-PAY-REJECT',
@@ -442,6 +455,8 @@ async function main() {
   const rejectedPayment = await finance.rejectPayment(rejectedPaymentDraft.id, { actor: 'finance-test', note: 'reject payment' });
   assert(rejectedPayment.approvalStatus === 'REJECTED', 'payment should reject');
   await rejects(() => finance.approvePayment(rejectedPaymentDraft.id, { actor: 'finance-test' }), 'rejected payment should not approve');
+  await rejects(() => finance.rejectPayment(rejectedPaymentDraft.id, { actor: 'finance-test' }), 'rejected payment should not reject again');
+  await rejects(() => finance.deletePayment(rejectedPaymentDraft.id), 'rejected payment should not be deleted');
 
   const invoice = await finance.createInvoice({
     invoiceCode: run + '-INV',
@@ -468,8 +483,9 @@ async function main() {
   assert(await sum(prisma, 'customerLedgerEntry', { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' }, 'debitAmount') === 1100, 'invoice customer ledger debit should match total after tax');
   const invoiceLedger = await prisma.customerLedgerEntry.findFirstOrThrow({ where: { sourceType: 'FINANCE_INVOICE', sourceId: invoice.id, entryType: 'DEBIT' } });
   assert(invoiceLedger.branch === 'FIN-BR' && invoiceLedger.department === 'FIN-DEP', 'invoice customer ledger should preserve resolved customer scope');
-  const approvedInvoiceAgain = await finance.approveInvoice(invoice.id, { actor: 'finance-test' });
-  assert(approvedInvoiceAgain.id === invoice.id && approvedInvoiceAgain.approvalStatus === 'APPROVED', 'double approve invoice should be idempotent');
+  await rejects(() => finance.approveInvoice(invoice.id, { actor: 'finance-test' }), 'double approve invoice should be rejected as a final-state transition');
+  await rejects(() => finance.rejectInvoice(invoice.id, { actor: 'finance-test', note: 'reject approved invoice' }), 'approved invoice should not be rejected');
+  await rejects(() => finance.updateInvoice(invoice.id, { items: [{ itemName: 'Blocked edit', quantity: 1, unitPrice: 1, taxRate: 0 }] }), 'approved invoice amount should not be editable');
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'debitAmount') === 1100, 'invoice original ledger debit should remain');
@@ -478,8 +494,7 @@ async function main() {
   assert(invoiceReversalLedger.branch === 'FIN-BR' && invoiceReversalLedger.department === 'FIN-DEP', 'invoice reversal ledger should preserve resolved customer scope');
   customerDebtReport = await finance.customerDebt({ customerId: customer.id, take: '1000' });
   assert(customerDebtReport.summary.balance === 0 && !customerDebtReport.rows.find((row) => row.id === customer.id), 'invoice cancel should net customer debt report back to zero');
-  const cancelledInvoiceAgain = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' });
-  assert(cancelledInvoiceAgain.reversals.length === 1, 'double cancel invoice should be idempotent without duplicate reversal');
+  await rejects(() => finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'again' }), 'double cancel invoice should be rejected as a final-state transition');
 
   const rejectedInvoiceDraft = await finance.createInvoice({
     invoiceCode: run + '-INV-REJECT',
@@ -494,6 +509,8 @@ async function main() {
   const rejectedInvoice = await finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test', note: 'reject invoice' });
   assert(rejectedInvoice.approvalStatus === 'REJECTED', 'invoice should reject');
   await rejects(() => finance.approveInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not approve');
+  await rejects(() => finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not reject again');
+  await rejects(() => finance.deleteInvoice(rejectedInvoiceDraft.id), 'rejected invoice should not be deleted');
 
   const receiptImportCsv = [
     'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department,tourId',
@@ -519,7 +536,13 @@ async function main() {
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,totalAmount,paymentAmount\nBAD,Bad,100,200' }), 'payment CSV import should reject amount over total');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,voucherName,totalAmount,paymentAmount\nA,B,C,1,1' }), 'payment CSV import should reject duplicate headers');
 
-  const controller = new FinanceController(finance);
+  const controller = new FinanceController(
+    new FinanceReceiptService(finance),
+    new FinancePaymentService(finance),
+    new FinanceInvoiceService(finance),
+    new FinanceLedgerService(finance),
+    new FinanceCashflowService(finance),
+  );
   const controllerReceiptImport = await controller.importReceipts({
     csv: [
       'receiptCode,receiptName,receiptType,paymentMethod,paymentDate,totalAmount,paidBefore,receiptAmount,payerName,branch,department,tourId',

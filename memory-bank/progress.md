@@ -3,6 +3,23 @@
 ## Done
 
 
+- Hardened Finance backend domain/final-state behavior:
+  - Finance domain wrapper services are now the controller-facing boundary for
+    receipts, payments, invoices, ledger/debt, and cashflow while FinanceService
+    remains the shared core implementation.
+  - Shared final-state guards block duplicate approve/reject/cancel, deletion
+    of terminal records, and amount edits after approval/rejection/cancel.
+  - Receipt/payment/invoice partial updates preserve existing financial fields,
+    dates, receipt orders, and invoice items unless the payload explicitly
+    changes the relevant money/child arrays.
+  - Regression now locks controller domain-service injection, finance rules,
+    service flows, double-transition rejection, reversal side effects, and
+    partial-update preservation.
+  - Verified on VPS: `git diff --check`, `docker compose build api`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`, `TEST_FINANCE_RULES_OK`,
+    `TEST_FINANCE_SERVICE_FLOWS_OK`, API deploy, and finance API auth smoke 401.
+
+
 
 - Locked Tour Guides data/business checks:
   - Guide code generation now uses a longer random suffix and regression checks

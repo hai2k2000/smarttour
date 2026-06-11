@@ -71,6 +71,16 @@ async function request(token, method, path, body, ok = [200, 201]) {
   return data;
 }
 
+async function rejects(fn, message) {
+  try {
+    await fn();
+  } catch (error) {
+    console.log('EXPECTED_REJECT ' + message + ': ' + error.message);
+    return;
+  }
+  throw new Error(message);
+}
+
 (async () => {
   const token = await login();
   const customer = await request(token, 'POST', '/customers', { code: run + '-CUS', fullName: 'Cancel Smoke Customer', phone: '094' + String(Date.now()).slice(-7) });
@@ -106,11 +116,11 @@ async function request(token, method, path, body, ok = [200, 201]) {
   if (Number(paidOrder.paidAmount) !== 1000000 || paidOrder.paymentStatus !== 'PAID' || Number(paidOrder.paidCost) !== 400000 || paidOrder.costStatus !== 'PAID') throw new Error('Order totals were not updated after finance approval');
 
   const cancelledReceipt = await request(token, 'POST', '/finance/receipts/' + receipt.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel receipt' });
-  const cancelledReceiptAgain = await request(token, 'POST', '/finance/receipts/' + receipt.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel receipt again' });
-  if (cancelledReceipt.reversals?.length !== 1 || cancelledReceiptAgain.reversals?.length !== 1) throw new Error('Receipt cancellation is not idempotent');
+  if (cancelledReceipt.reversals?.length !== 1) throw new Error('Receipt cancellation did not create one reversal');
+  await rejects(() => request(token, 'POST', '/finance/receipts/' + receipt.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel receipt again' }), 'double cancel receipt should be rejected');
   const cancelledPayment = await request(token, 'POST', '/finance/payments/' + payment.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel payment' });
-  const cancelledPaymentAgain = await request(token, 'POST', '/finance/payments/' + payment.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel payment again' });
-  if (cancelledPayment.reversals?.length !== 1 || cancelledPaymentAgain.reversals?.length !== 1) throw new Error('Payment cancellation is not idempotent');
+  if (cancelledPayment.reversals?.length !== 1) throw new Error('Payment cancellation did not create one reversal');
+  await rejects(() => request(token, 'POST', '/finance/payments/' + payment.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel payment again' }), 'double cancel payment should be rejected');
   const reopenedOrder = await request(token, 'GET', '/orders/single-services/' + order.id);
   if (Number(reopenedOrder.paidAmount) !== 0 || reopenedOrder.paymentStatus !== 'UNPAID' || Number(reopenedOrder.paidCost) !== 0 || reopenedOrder.costStatus !== 'PENDING') throw new Error('Order totals were not reversed after finance cancellation');
 
@@ -123,8 +133,8 @@ async function request(token, method, path, body, ok = [200, 201]) {
   });
   await request(token, 'POST', '/finance/invoices/' + invoice.id + '/approve', { actor: 'cancel-smoke' });
   const cancelledInvoice = await request(token, 'POST', '/finance/invoices/' + invoice.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel invoice' });
-  const cancelledInvoiceAgain = await request(token, 'POST', '/finance/invoices/' + invoice.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel invoice again' });
-  if (cancelledInvoice.reversals?.length !== 1 || cancelledInvoiceAgain.reversals?.length !== 1) throw new Error('Invoice cancellation is not idempotent');
+  if (cancelledInvoice.reversals?.length !== 1) throw new Error('Invoice cancellation did not create one reversal');
+  await rejects(() => request(token, 'POST', '/finance/invoices/' + invoice.id + '/cancel', { actor: 'cancel-smoke', reason: run + ' cancel invoice again' }), 'double cancel invoice should be rejected');
   console.log('SMOKE_FINANCE_CANCELLATIONS_OK');
 })().catch((error) => { console.error(error.stack || error.message); process.exit(1); });
 NODE

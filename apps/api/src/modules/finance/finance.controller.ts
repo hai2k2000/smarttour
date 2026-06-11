@@ -3,23 +3,33 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { FinanceService } from './finance.service';
+import { FinanceCashflowService } from './finance-cashflow.service';
+import { FinanceInvoiceService } from './finance-invoice.service';
+import { FinanceLedgerService } from './finance-ledger.service';
+import { FinancePaymentService } from './finance-payment.service';
+import { FinanceReceiptService } from './finance-receipt.service';
 
 @ApiTags('finance')
 @Controller('finance')
 export class FinanceController {
-  constructor(private readonly service: FinanceService) {}
+  constructor(
+    private readonly receiptsService: FinanceReceiptService,
+    private readonly paymentsService: FinancePaymentService,
+    private readonly invoicesService: FinanceInvoiceService,
+    private readonly ledgerService: FinanceLedgerService,
+    private readonly cashflowService: FinanceCashflowService,
+  ) {}
 
   @Get('receipts')
   @RequirePermissions('finance.receipt.view')
   receipts(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.listReceipts(query, request.user);
+    return this.receiptsService.list(query, request.user);
   }
 
   @Post('receipts')
   @RequirePermissions('finance.receipt.create')
   createReceipt(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.createReceipt(dto, request.user);
+    return this.receiptsService.create(dto, request.user);
   }
 
   @Get('receipts/export')
@@ -27,19 +37,19 @@ export class FinanceController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-receipts.csv"')
   exportReceipts(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.exportReceipts(query, request.user);
+    return this.receiptsService.export(query, request.user);
   }
 
   @Post('receipts/import')
   @RequirePermissions('finance.receipt.import')
   importReceipts(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.importReceipts(dto, undefined, request.user);
+    return this.receiptsService.import(dto, undefined, request.user);
   }
 
   @Get('receipts/:id')
   @RequirePermissions('finance.receipt.view')
   receipt(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.receiptDetail(id, request.user);
+    return this.receiptsService.detail(id, request.user);
   }
 
   @Post('receipts/:id/file')
@@ -50,55 +60,55 @@ export class FinanceController {
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
-    return this.service.uploadReceiptFile(id, file, request.user?.id, request.user);
+    return this.receiptsService.uploadFile(id, file, request.user?.id, request.user);
   }
 
   @Delete('receipts/:id/file')
   @RequirePermissions('finance.receipt.update')
   deleteReceiptFile(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deleteReceiptFile(id, request.user);
+    return this.receiptsService.deleteFile(id, request.user);
   }
 
   @Put('receipts/:id')
   @RequirePermissions('finance.receipt.update')
   updateReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.updateReceipt(id, dto, request.user);
+    return this.receiptsService.update(id, dto, request.user);
   }
 
   @Delete('receipts/:id')
   @RequirePermissions('finance.receipt.delete')
   deleteReceipt(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deleteReceipt(id, request.user);
+    return this.receiptsService.delete(id, request.user);
   }
 
   @Post('receipts/:id/approve')
   @RequirePermissions('finance.receipt.approve')
   approveReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.approveReceipt(id, dto, request.user);
+    return this.receiptsService.approve(id, dto, request.user);
   }
 
   @Post('receipts/:id/reject')
   @RequirePermissions('finance.receipt.approve')
   rejectReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.rejectReceipt(id, dto, request.user);
+    return this.receiptsService.reject(id, dto, request.user);
   }
 
   @Post('receipts/:id/cancel')
   @RequirePermissions('finance.receipt.approve')
   cancelReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.cancelReceipt(id, dto, request.user);
+    return this.receiptsService.cancel(id, dto, request.user);
   }
 
   @Get('payments')
   @RequirePermissions('finance.payment.view')
   payments(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.listPayments(query, request.user);
+    return this.paymentsService.list(query, request.user);
   }
 
   @Post('payments')
   @RequirePermissions('finance.payment.create')
   createPayment(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.createPayment(dto, request.user);
+    return this.paymentsService.create(dto, request.user);
   }
 
   @Get('payments/export')
@@ -106,19 +116,19 @@ export class FinanceController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-payments.csv"')
   exportPayments(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.exportPayments(query, request.user);
+    return this.paymentsService.export(query, request.user);
   }
 
   @Post('payments/import')
   @RequirePermissions('finance.payment.import')
   importPayments(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.importPayments(dto, undefined, request.user);
+    return this.paymentsService.import(dto, undefined, request.user);
   }
 
   @Get('payments/:id')
   @RequirePermissions('finance.payment.view')
   payment(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.paymentDetail(id, request.user);
+    return this.paymentsService.detail(id, request.user);
   }
 
   @Post('payments/:id/file')
@@ -129,55 +139,55 @@ export class FinanceController {
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
-    return this.service.uploadPaymentFile(id, file, request.user?.id, request.user);
+    return this.paymentsService.uploadFile(id, file, request.user?.id, request.user);
   }
 
   @Delete('payments/:id/file')
   @RequirePermissions('finance.payment.update')
   deletePaymentFile(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deletePaymentFile(id, request.user);
+    return this.paymentsService.deleteFile(id, request.user);
   }
 
   @Put('payments/:id')
   @RequirePermissions('finance.payment.update')
   updatePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.updatePayment(id, dto, request.user);
+    return this.paymentsService.update(id, dto, request.user);
   }
 
   @Delete('payments/:id')
   @RequirePermissions('finance.payment.delete')
   deletePayment(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deletePayment(id, request.user);
+    return this.paymentsService.delete(id, request.user);
   }
 
   @Post('payments/:id/approve')
   @RequirePermissions('finance.payment.approve')
   approvePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.approvePayment(id, dto, request.user);
+    return this.paymentsService.approve(id, dto, request.user);
   }
 
   @Post('payments/:id/reject')
   @RequirePermissions('finance.payment.approve')
   rejectPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.rejectPayment(id, dto, request.user);
+    return this.paymentsService.reject(id, dto, request.user);
   }
 
   @Post('payments/:id/cancel')
   @RequirePermissions('finance.payment.approve')
   cancelPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.cancelPayment(id, dto, request.user);
+    return this.paymentsService.cancel(id, dto, request.user);
   }
 
   @Get('invoices')
   @RequirePermissions('finance.invoice.view')
   invoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.listInvoices(query, request.user);
+    return this.invoicesService.list(query, request.user);
   }
 
   @Post('invoices')
   @RequirePermissions('finance.invoice.create')
   createInvoice(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.createInvoice(dto, request.user);
+    return this.invoicesService.create(dto, request.user);
   }
 
   @Get('invoices/export')
@@ -185,13 +195,13 @@ export class FinanceController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-invoices.csv"')
   exportInvoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.exportInvoices(query, request.user);
+    return this.invoicesService.export(query, request.user);
   }
 
   @Get('invoices/:id')
   @RequirePermissions('finance.invoice.view')
   invoice(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.invoiceDetail(id, request.user);
+    return this.invoicesService.detail(id, request.user);
   }
 
   @Post('invoices/:id/files')
@@ -202,73 +212,73 @@ export class FinanceController {
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
-    return this.service.uploadInvoiceFile(id, file, request.user?.id, request.user);
+    return this.invoicesService.uploadFile(id, file, request.user?.id, request.user);
   }
 
   @Delete('invoices/:id/files/:fileId')
   @RequirePermissions('finance.invoice.update')
   deleteInvoiceFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deleteInvoiceFile(id, fileId, request.user);
+    return this.invoicesService.deleteFile(id, fileId, request.user);
   }
 
   @Put('invoices/:id')
   @RequirePermissions('finance.invoice.update')
   updateInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.updateInvoice(id, dto, request.user);
+    return this.invoicesService.update(id, dto, request.user);
   }
 
   @Delete('invoices/:id')
   @RequirePermissions('finance.invoice.delete')
   deleteInvoice(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
-    return this.service.deleteInvoice(id, request.user);
+    return this.invoicesService.delete(id, request.user);
   }
 
   @Post('invoices/:id/approve')
   @RequirePermissions('finance.invoice.approve')
   approveInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.approveInvoice(id, dto, request.user);
+    return this.invoicesService.approve(id, dto, request.user);
   }
 
   @Post('invoices/:id/reject')
   @RequirePermissions('finance.invoice.approve')
   rejectInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.rejectInvoice(id, dto, request.user);
+    return this.invoicesService.reject(id, dto, request.user);
   }
 
   @Post('invoices/:id/cancel')
   @RequirePermissions('finance.invoice.approve')
   cancelInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.cancelInvoice(id, dto, request.user);
+    return this.invoicesService.cancel(id, dto, request.user);
   }
 
   @Get('debt/customers')
   @RequirePermissions('finance.cashflow.view')
   customerDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.customerDebt(query, request.user);
+    return this.ledgerService.customerDebt(query, request.user);
   }
 
   @Post('debt/customers/:customerId/adjustments')
   @RequirePermissions('finance.debt.adjust')
   createCustomerDebtAdjustment(@Param('customerId') customerId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.createCustomerDebtAdjustment(customerId, dto, request.user);
+    return this.ledgerService.createCustomerAdjustment(customerId, dto, request.user);
   }
 
   @Get('debt/suppliers')
   @RequirePermissions('finance.cashflow.view')
   supplierDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.supplierDebt(query, request.user);
+    return this.ledgerService.supplierDebt(query, request.user);
   }
 
   @Post('debt/suppliers/:supplierId/adjustments')
   @RequirePermissions('finance.debt.adjust')
   createSupplierDebtAdjustment(@Param('supplierId') supplierId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
-    return this.service.createSupplierDebtAdjustment(supplierId, dto, request.user);
+    return this.ledgerService.createSupplierAdjustment(supplierId, dto, request.user);
   }
 
   @Get('cashflow')
   @RequirePermissions('finance.cashflow.view')
   cashflow(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.cashflow(query, request.user);
+    return this.cashflowService.list(query, request.user);
   }
 
   @Get('cashflow/export')
@@ -276,6 +286,6 @@ export class FinanceController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-cashflow.csv"')
   exportCashflow(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.exportCashflow(query, request.user);
+    return this.cashflowService.export(query, request.user);
   }
 }

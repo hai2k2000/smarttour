@@ -21,6 +21,26 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Hardened Finance backend domain/final-state contract:
+  - FinanceController now routes receipt, payment, invoice, ledger/debt, and
+    cashflow endpoints through focused domain services instead of injecting the
+    monolithic FinanceService directly.
+  - Receipt/payment/invoice approve, reject, cancel, delete, and amount-edit
+    paths now share Vietnamese final-state guards so approved/rejected/cancelled
+    records cannot be transitioned or money-edited again.
+  - Cancel flows still create reversal documents/ledger/cashflow adjustments,
+    but a second cancel is now rejected instead of treated as idempotent.
+  - Draft partial updates merge current receipt/payment/invoice data first and
+    only replace receipt orders or invoice items when those arrays are included,
+    preventing accidental reset of dates, totals, children, or amounts.
+  - VPS verification passed on 2026-06-11: `git diff --check`,
+    `docker compose build api`, `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_FINANCE_RULES_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, and API deploy
+    with `/api/finance/receipts` unauthenticated smoke 401. HTTP finance smoke
+    scripts requiring `ADMIN_PASSWORD` were not run because the VPS env does
+    not expose that variable.
+
+
 
 - Locked Tour Guides data/business checks:
   - Frontend guideCode generation now uses an 8-character random suffix on top

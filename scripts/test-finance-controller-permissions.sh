@@ -7,7 +7,16 @@ cd "$REPO_DIR"
 docker run --rm -i -v "$PWD:/workspace:ro" -w /workspace node:22-alpine node <<'NODE'
 const fs = require('fs');
 const file = 'apps/api/src/modules/finance/finance.controller.ts';
-const source = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+const rawSource = fs.readFileSync(file, 'utf8');
+const source = rawSource.split(/\r?\n/);
+
+const domainServices = [
+  'FinanceReceiptService',
+  'FinancePaymentService',
+  'FinanceInvoiceService',
+  'FinanceLedgerService',
+  'FinanceCashflowService',
+];
 
 const expected = {
   receipts: ['GET', 'finance.receipt.view'],
@@ -75,6 +84,12 @@ for (const line of source) {
 }
 
 const failures = [];
+if (rawSource.includes("import { FinanceService } from './finance.service';")) {
+  failures.push('FinanceController must route through finance domain services instead of injecting FinanceService directly');
+}
+for (const service of domainServices) {
+  if (!rawSource.includes(service)) failures.push(`FinanceController missing domain service injection: ${service}`);
+}
 for (const [method, [http, permission]] of Object.entries(expected)) {
   const route = routes[method];
   if (!route) {
