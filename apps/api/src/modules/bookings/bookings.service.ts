@@ -64,6 +64,8 @@ type BookingMutationState = {
 };
 
 const BOOKING_LINKED_REFERENCE_KEYS = ['customerId', 'orderId', 'tourId'] as const satisfies readonly BookingLinkedReferenceKey[];
+const BOOKING_SEARCH_FIELDS = ['code', 'customerName', 'customerPhone', 'customerEmail', 'saleOwner', 'operatorOwner'] as const;
+const BOOKING_TOUR_PROGRAM_SEARCH_FIELDS = ['code', 'name', 'route'] as const;
 
 @Injectable()
 export class BookingsService {
@@ -323,15 +325,8 @@ export class BookingsService {
   private searchConditions(search: string): Prisma.BookingWhereInput[] {
     const contains = containsSearch(search);
     return [
-      { code: contains },
-      { customerName: contains },
-      { customerPhone: contains },
-      { customerEmail: contains },
-      { saleOwner: contains },
-      { operatorOwner: contains },
-      { tourProgram: { code: contains } },
-      { tourProgram: { name: contains } },
-      { tourProgram: { route: contains } },
+      ...BOOKING_SEARCH_FIELDS.map((field) => ({ [field]: contains }) as Prisma.BookingWhereInput),
+      ...BOOKING_TOUR_PROGRAM_SEARCH_FIELDS.map((field) => ({ tourProgram: { [field]: contains } }) as Prisma.BookingWhereInput),
     ];
   }
 
@@ -343,15 +338,11 @@ export class BookingsService {
     const values = this.normalizedBookingReferences(input, options.creating);
     const tourProgram =
       values.tourProgramId !== undefined
-        ? await this.ensureTourProgramReference(values.tourProgramId)
+        ? await this.ensureTourProgram(values.tourProgramId)
         : options.current?.tourProgram;
     if (!tourProgram) throw new BadRequestException('Tour mẫu không được để trống');
 
-    await Promise.all(
-      BOOKING_LINKED_REFERENCE_KEYS
-        .filter((key) => values[key] !== undefined && values[key])
-        .map((key) => this.ensureBookingReference(key, values[key] as string, user)),
-    );
+    await this.ensureBookingLinks(values, user);
 
     const finalLinks = this.finalLinkedReferences(options.creating ? undefined : options.current, values);
     await this.ensureScopedLinkedReferences(finalLinks, user, options.creating);
@@ -377,16 +368,24 @@ export class BookingsService {
     };
   }
 
-  private async ensureTourProgramReference(id: string | null | undefined): Promise<BookingTourProgramSnapshot> {
+  private async ensureTourProgram(id: string | null | undefined): Promise<BookingTourProgramSnapshot> {
     if (!id) throw new BadRequestException('Tour mẫu không được để trống');
-    const tourProgram = await this.ensureBookingReference('tourProgramId', id);
+    const tourProgram = await this.ensureExists('tourProgramId', id);
     this.ensureTourProgramItineraryComplete(tourProgram);
     return tourProgram;
   }
 
-  private async ensureBookingReference(key: 'tourProgramId', id: string, user?: RequestUser): Promise<BookingTourProgramSnapshot>;
-  private async ensureBookingReference(key: BookingLinkedReferenceKey, id: string, user?: RequestUser): Promise<{ id: string }>;
-  private async ensureBookingReference(key: BookingReferenceKey, id: string, user?: RequestUser) {
+  private async ensureBookingLinks(values: BookingReferenceValues, user?: RequestUser) {
+    await Promise.all(
+      BOOKING_LINKED_REFERENCE_KEYS
+        .filter((key) => values[key] !== undefined && values[key])
+        .map((key) => this.ensureExists(key, values[key] as string, user)),
+    );
+  }
+
+  private async ensureExists(key: 'tourProgramId', id: string, user?: RequestUser): Promise<BookingTourProgramSnapshot>;
+  private async ensureExists(key: BookingLinkedReferenceKey, id: string, user?: RequestUser): Promise<{ id: string }>;
+  private async ensureExists(key: BookingReferenceKey, id: string, user?: RequestUser) {
     const config = this.referenceConfig(key);
     const row =
       config.model === 'tourProgram'
@@ -469,7 +468,7 @@ export class BookingsService {
   }
 
   private async ensureScopedLinkedReferenceExists(key: BookingLinkedReferenceKey, id: string, user?: RequestUser) {
-    return this.ensureBookingReference(key, id, user).catch((error) => {
+    return this.ensureExists(key, id, user).catch((error) => {
       if (error instanceof NotFoundException) return null;
       throw error;
     });

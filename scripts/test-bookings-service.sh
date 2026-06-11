@@ -91,6 +91,16 @@ function sortedKeys(value) {
   return Object.keys(value || {}).sort();
 }
 
+function scopedUser(scope, branch = null, department = null) {
+  const permissions = Array.isArray(scope) ? scope : [scope];
+  return {
+    id: 'booking-scope-user',
+    branch,
+    department,
+    roles: [{ role: { permissions: permissions.map((permission) => ({ permission })) } }],
+  };
+}
+
 async function validationMessages(DtoClass, payload) {
   const errors = await validate(plainToInstance(DtoClass, payload));
   return errors.flatMap((error) => Object.values(error.constraints || {}));
@@ -118,15 +128,15 @@ async function createTourProgram(prisma, run, suffix, durationDays = 3) {
   });
 }
 
-async function createLinkedData(prisma, run, suffix = 'MAIN') {
+async function createLinkedData(prisma, run, suffix = 'MAIN', branch = 'BOOK-BR', department = 'BOOK-DEP') {
   const customer = await prisma.customer.create({
     data: {
       code: `${run}-CUS-${suffix}`,
       fullName: `Bookings Service Customer ${suffix}`,
       phone: '090' + String(Date.now()).slice(-7),
       email: `${run.toLowerCase()}-${suffix.toLowerCase()}@smarttour.local`,
-      branch: 'BOOK-BR',
-      department: 'BOOK-DEP',
+      branch,
+      department,
     },
   });
   const order = await prisma.order.create({
@@ -135,8 +145,8 @@ async function createLinkedData(prisma, run, suffix = 'MAIN') {
       systemCode: `${run}-ORD-${suffix}`,
       name: `Bookings Service Order ${suffix}`,
       customerId: customer.id,
-      branch: 'BOOK-BR',
-      department: 'BOOK-DEP',
+      branch,
+      department,
     },
   });
   const tour = await prisma.tour.create({
@@ -146,8 +156,8 @@ async function createLinkedData(prisma, run, suffix = 'MAIN') {
       tourCode: `${run}-TOUR-${suffix}`,
       name: `Bookings Service Tour ${suffix}`,
       orderId: order.id,
-      branch: 'BOOK-BR',
-      department: 'BOOK-DEP',
+      branch,
+      department,
     },
   });
   return { customer, order, tour };
@@ -609,11 +619,13 @@ async function main() {
   const listed = await service.list(run);
   assert(listed.some((row) => row.id === created.id), 'list should include created booking');
   assert((await service.list('Bookings Service Customer')).some((row) => row.id === created.id), 'list search should match customerName');
+  assert((await service.list('  bookings   service   customer  ')).some((row) => row.id === created.id), 'list search should trim, collapse spaces, and match case-insensitively');
   assert((await service.list(links.customer.phone)).some((row) => row.id === created.id), 'list search should match customerPhone');
   assert((await service.list(links.customer.email)).some((row) => row.id === created.id), 'list search should match customerEmail');
   assert((await service.list('Operator Test')).some((row) => row.id === created.id), 'list search should match operatorOwner');
   assert((await service.list(tourProgram.code)).some((row) => row.id === created.id), 'list search should match tourProgram code');
   assert((await service.list('Ha Long')).some((row) => row.id === created.id), 'list search should match tourProgram route');
+  assert((await service.list('x', undefined, undefined, undefined, 500)).some((row) => row.id === created.id), 'one-character list search should skip expensive contains filters');
   assert((await service.list(undefined, 'DRAFT')).some((row) => row.id === created.id), 'list status filter should match DRAFT');
   assert((await service.list(undefined, undefined, tourProgram.id)).some((row) => row.id === created.id), 'list tourProgramId filter should match created booking');
   const listedCreated = listed.find((row) => row.id === created.id);
@@ -646,6 +658,20 @@ async function main() {
   await rejects(() => service.list(undefined, undefined, undefined, undefined, 0), 'list should reject take below one');
   await rejects(() => service.list(undefined, undefined, undefined, undefined, 501), 'list should reject take above maximum');
   await rejects(() => service.list(undefined, undefined, undefined, undefined, 10, -1), 'list should reject negative skip');
+
+  const otherScopeLinks = await createLinkedData(prisma, run, 'OTHER-SCOPE', 'OTHER-BR', 'OTHER-DEP');
+  const otherScopeBooking = await service.create(bookingDto(run, 'OTHER-SCOPE', tourProgram, otherScopeLinks, { startDate: '2026-10-08', endDate: '2026-10-10' }));
+  const branchUser = scopedUser('data.scope.branch', 'BOOK-BR');
+  const departmentUser = scopedUser('data.scope.department', null, 'BOOK-DEP');
+  const branchDepartmentUser = scopedUser(['data.scope.branch', 'data.scope.department'], 'BOOK-BR', 'BOOK-DEP');
+  const mismatchedScopeUser = scopedUser(['data.scope.branch', 'data.scope.department'], 'BOOK-BR', 'OTHER-DEP');
+  assert((await service.list(run, undefined, undefined, branchUser, 500)).some((row) => row.id === created.id), 'branch scoped list should include in-scope booking');
+  assert((await service.list(run, undefined, undefined, branchUser, 500)).every((row) => row.id !== otherScopeBooking.id), 'branch scoped list should hide out-of-scope booking');
+  assert((await service.list(run, undefined, undefined, departmentUser, 500)).some((row) => row.id === created.id), 'department scoped list should include in-scope booking');
+  assert((await service.list(run, undefined, undefined, branchDepartmentUser, 500)).some((row) => row.id === created.id), 'branch and department scoped list should include matching booking');
+  assert((await service.list(run, undefined, undefined, mismatchedScopeUser, 500)).every((row) => row.id !== created.id), 'branch and department scoped list should require both dimensions');
+  await rejects(() => service.detail(otherScopeBooking.id, branchUser), 'branch scoped detail should reject out-of-scope booking', BOOKING_NOT_FOUND_MESSAGES.booking);
+  await rejects(() => service.detail(created.id, mismatchedScopeUser), 'mismatched branch and department detail should reject booking', BOOKING_NOT_FOUND_MESSAGES.booking);
 
   const detail = await service.detail(created.id);
   assert(detail.id === created.id, 'detail should load booking');
