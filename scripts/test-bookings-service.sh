@@ -265,7 +265,7 @@ async function main() {
   );
   assert(
     JSON.stringify(BOOKING_OPERATIONAL_EDITABLE_FIELDS) === JSON.stringify(['saleOwner', 'operatorOwner']),
-    'only owner assignments should remain editable after operational data exists',
+    'owner assignments stay classified as editable for non-form operational dependencies',
   );
   assert(
     JSON.stringify([...BOOKING_OPERATIONAL_LOCKED_FIELDS, ...BOOKING_OPERATIONAL_EDITABLE_FIELDS].sort()) ===
@@ -553,6 +553,15 @@ async function main() {
   await rejects(
     () => service.create(bookingDto(run, 'BAD-MONEY', tourProgram, links, { totalSellPrice: -1 })),
     'create should reject negative totalSellPrice',
+  );
+  const independentPrice = await service.create(bookingDto(run, 'INDEPENDENT-PRICE', tourProgram, links, {
+    totalSellPrice: 1234567,
+    startDate: '2026-09-09',
+    endDate: '2026-09-11',
+  }));
+  assert(
+    amount(independentPrice.totalSellPrice) === 1234567,
+    'booking totalSellPrice should remain an independent booking snapshot because tourProgram has no canonical pricing field',
   );
   await rejects(
     () => service.create(bookingDto(run, 'BAD-CODE-SPACE', tourProgram, links, { code: `${run} BAD CODE` })),
@@ -965,18 +974,37 @@ async function main() {
   const operationFormDeleteGuard = await service.deleteGuard(created.id);
   assert(!operationFormDeleteGuard.canDelete && operationFormDeleteGuard.operationForms === 1, 'delete guard should count operation forms');
   assert((await service.list(run)).find((row) => row.id === created.id)?.operationForm?.id === operationForm.id, 'list should include operationForm after it is created');
-  await rejects(() => service.update(created.id, { customerName: 'Blocked customer edit' }), 'update should reject customerName change after operationForm exists');
-  await rejects(() => service.update(created.id, { paxCount: 5 }), 'update should reject paxCount change after operationForm exists');
-  await rejects(() => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }), 'update should reject date change after operationForm exists');
-  await rejects(() => service.update(created.id, { totalSellPrice: 9000000 }), 'update should reject totalSellPrice change after operationForm exists');
-  await rejects(() => service.update(created.id, { orderId: null }), 'update should reject linked order changes after operationForm exists');
-  const reassigned = await service.update(created.id, {
-    saleOwner: 'Sale Reassigned',
-    operatorOwner: 'Operator Reassigned',
-  });
-  assert(
-    reassigned.saleOwner === 'Sale Reassigned' && reassigned.operatorOwner === 'Operator Reassigned',
-    'owner assignments should remain editable after operation data exists',
+  const emptyAfterOperationForm = await service.update(created.id, {});
+  assert(emptyAfterOperationForm.id === created.id, 'empty update should remain a no-op after operationForm exists');
+  await rejects(
+    () => service.update(created.id, { customerName: 'Blocked customer edit' }),
+    'update should reject customerName change after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
+  );
+  await rejects(
+    () => service.update(created.id, { paxCount: 5 }),
+    'update should reject paxCount change after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
+  );
+  await rejects(
+    () => service.update(created.id, { startDate: '2026-10-03', endDate: '2026-10-05' }),
+    'update should reject date change after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
+  );
+  await rejects(
+    () => service.update(created.id, { totalSellPrice: 9000000 }),
+    'update should reject totalSellPrice change after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
+  );
+  await rejects(
+    () => service.update(created.id, { orderId: null }),
+    'update should reject linked order changes after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
+  );
+  await rejects(
+    () => service.update(created.id, { saleOwner: 'Sale Reassigned', operatorOwner: 'Operator Reassigned' }),
+    'update should reject owner assignment changes after operationForm exists',
+    'Booking đã có phiếu điều hành, không thể chỉnh sửa booking.',
   );
   await rejects(
     () => service.remove(created.id),

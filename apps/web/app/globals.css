@@ -365,6 +365,7 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 td svg { vertical-align: -2px; color: var(--dn-muted); }
 .bookingTable td:last-child { color: inherit; font-weight: inherit; }
 .bookingTable select { min-width: 142px; }
+.bookingActionDisabled { opacity: .45; cursor: not-allowed; }
 .inlineStatusForm { display: flex; align-items: center; gap: 8px; min-width: 250px; }
 .inlineStatusForm button { white-space: nowrap; padding: 9px 10px; }
 .actionsCell { text-align: right; }

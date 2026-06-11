@@ -471,9 +471,15 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
                       <a className="secondaryButton iconOnlyButton" href={`#status-${booking.id}`} title="Cập nhật trạng thái" aria-label={`Cập nhật trạng thái ${booking.code}`}>
                         <ClipboardCheck size={14} />
                       </a>
-                      <a className="secondaryButton iconOnlyButton" href={`#edit-${booking.id}`} title="Sửa booking" aria-label={`Sửa ${booking.code}`}>
-                        <Pencil size={14} />
-                      </a>
+                      {booking.operationForm ? (
+                        <span className="secondaryButton iconOnlyButton bookingActionDisabled" title="Booking đã có phiếu điều hành, không thể sửa" aria-disabled="true">
+                          <Pencil size={14} />
+                        </span>
+                      ) : (
+                        <a className="secondaryButton iconOnlyButton" href={`#edit-${booking.id}`} title="Sửa booking" aria-label={`Sửa ${booking.code}`}>
+                          <Pencil size={14} />
+                        </a>
+                      )}
                       <a className="dangerButton iconOnlyButton" href={`#delete-${booking.id}`} title="Xóa booking" aria-label={`Xóa ${booking.code}`}>
                         <Trash2 size={14} />
                       </a>
@@ -500,7 +506,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
       <BookingModal id="create-booking" title="Tạo booking" icon={<Plus size={18} />}>
         <BookingForm tourPrograms={tourPrograms} action={createBooking} submitLabel="Tạo booking" />
       </BookingModal>
-      {bookings.map((booking) => (
+      {bookings.filter((booking) => !booking.operationForm).map((booking) => (
         <BookingModal id={`edit-${booking.id}`} title={`Sửa ${booking.code}`} icon={<Pencil size={18} />} key={`edit-${booking.id}`}>
           <BookingForm tourPrograms={tourPrograms} booking={booking} action={updateBooking} submitLabel="Lưu booking" />
         </BookingModal>

@@ -61,6 +61,7 @@ type BookingMutationState = {
   endDate: Date;
   totalSellPrice: unknown;
   tourProgram: BookingTourProgramSnapshot;
+  operationForm: { id: string; status: OperationStatus } | null;
 };
 
 const BOOKING_LINKED_REFERENCE_KEYS = ['customerId', 'orderId', 'tourId'] as const satisfies readonly BookingLinkedReferenceKey[];
@@ -226,6 +227,7 @@ export class BookingsService {
     this.ensureAllowedBookingPayload(dto, BOOKING_UPDATE_FIELDS, 'cập nhật');
     this.ensureNoNullBookingUpdate(dto);
     const current = await this.loadForMutation(id, user);
+    this.ensureOperationFormEditAllowed(current, dto);
     const references = await this.resolveBookingReferences(dto, user, { creating: false, current });
     await this.ensureOperationalDataEditAllowed(current, dto, references.values);
     this.ensureBookingValues(
@@ -510,6 +512,16 @@ export class BookingsService {
     for (const field of BOOKING_NON_NULLABLE_UPDATE_FIELDS) {
       if (dto[field] === null) throw new BadRequestException(`${labels[field]} không được là null`);
     }
+  }
+
+  private ensureOperationFormEditAllowed(current: BookingMutationState, dto: UpdateBookingDto) {
+    if (!current.operationForm || !this.hasBookingUpdatePayload(dto)) return;
+    throw new ConflictException('Booking đã có phiếu điều hành, không thể chỉnh sửa booking.');
+  }
+
+  private hasBookingUpdatePayload(dto: UpdateBookingDto) {
+    const payload = dto as Record<string, unknown>;
+    return BOOKING_UPDATE_FIELDS.some((field) => payload[field] !== undefined);
   }
 
   private bookingStatus(status?: string | BookingStatus, required = false) {
