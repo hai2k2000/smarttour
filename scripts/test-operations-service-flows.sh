@@ -198,7 +198,7 @@ async function main() {
   const bookingB = await makeBooking('B', customerB, orderB, tourB);
 
   await rejectsMessage(() => service.createForm({}, undefined), 'Cần chọn booking', 'create form missing booking should be Vietnamese');
-  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD'), services: [] }, undefined), 'Cần ít nhất một service là bắt buộc', 'create form missing services should be Vietnamese');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD'), services: [] }, undefined), 'Cần ít nhất một dòng dịch vụ điều hành', 'create form missing services should be Vietnamese');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceB, 'WRONG-SUPPLIER') }, undefined), 'Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn', 'create form should reject wrong supplier service in Vietnamese');
 
   const formA = await service.createForm(formPayload(bookingA, supplierA, supplierServiceA, 'A', 'creator-a'));
@@ -255,7 +255,7 @@ async function main() {
     items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: '750', notes: 'Cập nhật số tiền' }],
   });
   assert(updatedRequest.requestedBy === 'payment-updater' && amount(updatedRequest.items[0].amount) === 750, 'update payment request should replace editable fields and items');
-  await rejectsMessage(() => service.updatePaymentRequest(request.id, { status: 'REQUESTED' }), 'endpoint hành động', 'direct status update should be Vietnamese action-endpoint error');
+  await rejectsMessage(() => service.updatePaymentRequest(request.id, { status: 'REQUESTED' }), 'đường dẫn hành động', 'direct status update should be Vietnamese action-endpoint error');
 
   const deleteBooking = await makeBooking('DELETE', customerA, orderA, tourA);
   const deleteForm = await service.createForm(formPayload(deleteBooking, supplierA, supplierServiceA, 'DELETE'));
@@ -345,7 +345,7 @@ async function main() {
 
   const errorMessages = [
     'Cần chọn booking',
-    'Cần ít nhất một service là bắt buộc',
+    'Cần ít nhất một dòng dịch vụ điều hành',
     'Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn',
     'Trạng thái phiếu điều hành không hợp lệ',
     'Cần nhập lý do hủy phiếu điều hành',

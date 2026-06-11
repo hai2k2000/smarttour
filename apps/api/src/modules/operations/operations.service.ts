@@ -162,7 +162,7 @@ export class OperationsService {
       {
         key: 'operation-forms',
         label: 'Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh',
-        description: 'Qu\u1ea3n l\u00fd d\u1ecbch v\u1ee5, task v\u00e0 chi ph\u00ed \u0111i\u1ec1u h\u00e0nh theo booking.',
+        description: 'Qu\u1ea3n l\u00fd d\u1ecbch v\u1ee5, c\u00f4ng vi\u1ec7c v\u00e0 chi ph\u00ed \u0111i\u1ec1u h\u00e0nh theo booking.',
         route: '/operations?tab=forms',
         permission: 'operation.form.view',
         metrics: ['overdueTasks', 'waitingSupplierConfirmations'],
@@ -368,7 +368,7 @@ export class OperationsService {
     if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được chỉnh sửa');
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
     if (dto.status !== undefined && this.supplierPaymentStatus(dto.status, current.status) !== current.status) {
-      throw new BadRequestException('Vui l\u00f2ng d\u00f9ng endpoint h\u00e0nh \u0111\u1ed9ng \u0111\u1ec3 \u0111\u1ed5i tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
+      throw new BadRequestException('Vui l\u00f2ng d\u00f9ng \u0111\u01b0\u1eddng d\u1eabn h\u00e0nh \u0111\u1ed9ng \u0111\u1ec3 \u0111\u1ed5i tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
     }
     if (items) {
       if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
@@ -638,7 +638,7 @@ export class OperationsService {
     if (!booking) throw new NotFoundException('Không tìm thấy booking');
     let orderId = input.orderId ?? booking.orderId;
     let tourId = input.tourId ?? booking.tourId;
-    if (input.tourId && booking.tourId && input.tourId !== booking.tourId) throw new BadRequestException('tourId không thuộc booking đã chọn');
+    if (input.tourId && booking.tourId && input.tourId !== booking.tourId) throw new BadRequestException('Tour đã chọn không thuộc booking đã chọn');
     let tourOrderId: string | null = null;
     if (tourId) {
       const tour = await this.prisma.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
@@ -646,9 +646,9 @@ export class OperationsService {
       tourOrderId = tour.orderId;
       orderId = orderId ?? tour.orderId;
     }
-    if (booking.orderId && tourOrderId && booking.orderId !== tourOrderId) throw new BadRequestException('tourId kh\u00f4ng thu\u1ed9c \u0111\u01a1n h\u00e0ng c\u1ee7a booking \u0111\u00e3 ch\u1ecdn');
-    if (input.orderId && booking.orderId && input.orderId !== booking.orderId) throw new BadRequestException('orderId không thuộc booking đã chọn');
-    if (input.orderId && tourOrderId && input.orderId !== tourOrderId) throw new BadRequestException('orderId không thuộc tour đã chọn');
+    if (booking.orderId && tourOrderId && booking.orderId !== tourOrderId) throw new BadRequestException('Tour \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c \u0111\u01a1n h\u00e0ng c\u1ee7a booking \u0111\u00e3 ch\u1ecdn');
+    if (input.orderId && booking.orderId && input.orderId !== booking.orderId) throw new BadRequestException('Đơn hàng đã chọn không thuộc booking đã chọn');
+    if (input.orderId && tourOrderId && input.orderId !== tourOrderId) throw new BadRequestException('Đơn hàng đã chọn không thuộc tour đã chọn');
     if (orderId) {
       const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
@@ -657,9 +657,10 @@ export class OperationsService {
   }
 
   private async validateFormPayload(dto: AnyRecord, mode: FormWriteMode) {
+    const childLabels = { services: 'dòng dịch vụ điều hành', tasks: 'công việc điều hành', costs: 'dòng chi phí điều hành' } satisfies Record<'services' | 'tasks' | 'costs', string>;
     const validateChild = async <T>(key: 'services' | 'tasks' | 'costs', rows: T[], validate?: (rows: T[]) => Promise<void>) => {
       if (mode === 'create' || dto[key] !== undefined) {
-        if (!rows.length) throw new BadRequestException(`Cần ít nhất một ${key.slice(0, -1)} là bắt buộc`);
+        if (!rows.length) throw new BadRequestException(`Cần ít nhất một ${childLabels[key]}`);
         if (validate) await validate(rows);
       }
     };
@@ -773,9 +774,9 @@ export class OperationsService {
     return this.array(dto.tasks).map((raw) => {
       const item = this.record(raw);
       return {
-        title: this.requiredText(item.title, 'Cần nhập tiêu đề task'),
+        title: this.requiredText(item.title, 'Cần nhập tiêu đề công việc'),
         assignee: this.text(item.assignee),
-        dueDate: this.date(item.dueDate, 'H\u1ea1n task kh\u00f4ng h\u1ee3p l\u1ec7'),
+        dueDate: this.date(item.dueDate, 'H\u1ea1n c\u00f4ng vi\u1ec7c kh\u00f4ng h\u1ee3p l\u1ec7'),
         status: this.operationStatus(item.status, OperationStatus.PENDING),
         notes: this.text(item.notes),
       };
@@ -925,9 +926,9 @@ export class OperationsService {
 
   private assertScopedWriteUser(user: RequestUser) {
     const permissions = userPermissions(user);
-    if (permissions.has('data.scope.branch') && !user.branch) throw new BadRequestException('Cần có branch của user để ghi dữ liệu theo phạm vi branch');
-    if (permissions.has('data.scope.department') && !user.department) throw new BadRequestException('Cần có department của user để ghi dữ liệu theo phạm vi phòng ban');
-    if (!permissions.has('data.scope.branch') && !permissions.has('data.scope.department')) throw new BadRequestException('User data scope là bắt buộc for scoped writes');
+    if (permissions.has('data.scope.branch') && !user.branch) throw new BadRequestException('Cần có chi nhánh của người dùng để ghi dữ liệu theo phạm vi chi nhánh');
+    if (permissions.has('data.scope.department') && !user.department) throw new BadRequestException('Cần có phòng ban của người dùng để ghi dữ liệu theo phạm vi phòng ban');
+    if (!permissions.has('data.scope.branch') && !permissions.has('data.scope.department')) throw new BadRequestException('Cần cấu hình phạm vi dữ liệu của người dùng để ghi dữ liệu theo phạm vi');
   }
 
   private applyScopedWriteMeta(meta: ScopeMeta, user?: RequestUser): ScopeMeta {

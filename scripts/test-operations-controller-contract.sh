@@ -40,7 +40,33 @@ if (!controller.includes("@Post('forms/:id/cancel')") || !controller.includes('r
 if (!controller.includes("@Delete('forms/:id')") || !controller.includes('deprecated: true') || !controller.includes('cancelFormLegacy')) failures.push('DELETE cancel route must be a deprecated legacy alias');
 if (controller.lastIndexOf("@RequirePermissions('operation.form.manage')", controller.indexOf('cancelForm(@Param')) === -1) failures.push('POST cancel route must require operation.form.manage');
 if (!client.includes("/api/operations/forms/${id}/cancel") || !client.includes("/api/operations/supplier-payment-requests/${id}/${action}")) failures.push('OperationsClient endpoint contract changed unexpectedly');
-for (const english of ['Cannot create finance payment', 'Cannot submit payment request', 'Use supplier payment request action endpoints', 'Invalid operation status', 'Invalid supplier payment status', 'does not belong to']) {
+for (const english of [
+  'At least one supplier payment item is required',
+  'Cannot create finance payment',
+  'Cannot submit payment request',
+  'Only draft or rejected requests can be edited',
+  'Only draft or rejected requests can be deleted',
+  'Payment amount must be greater than zero',
+  'Use supplier payment request action endpoints',
+  'Invalid operation status',
+  'Invalid supplier payment status',
+  'Tour not found',
+  'Yeu cau thanh toan',
+  'Nhieu nha cung cap',
+  'serviceType is required',
+  'task title is required',
+  'supplierId is required',
+  'costId is required for scoped supplier payment requests',
+  'User data scope',
+  'scoped writes',
+  'Cần có branch',
+  'Cần có department',
+  'Cần nhập tiêu đề task',
+  'Hạn task',
+  'Cần ít nhất một service',
+  'endpoint hành động',
+  'does not belong to',
+]) {
   if (service.includes(english)) failures.push(`English service error remains: ${english}`);
 }
 if (!service.includes('OPERATIONS_LIST_MAX_TAKE') || !service.includes('private take(value?: unknown)')) failures.push('OperationsService must honor DTO take cap');
