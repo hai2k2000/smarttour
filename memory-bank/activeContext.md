@@ -22,6 +22,27 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Hardened Tour Guides backend contract:
+  - Controller permission behavior was rechecked: class-level `guide.view` covers
+    list/detail and method-level `guide.manage` overrides it for create/update,
+    delete, and file endpoints through the auth guard's `getAllAndOverride`.
+  - Tour guide DTO validation now has Vietnamese messages for guideCode,
+    fullName, phone, email, cards, documents, costServices, and schedules;
+    empty nested rows and blank language/market/skill entries are compacted at
+    the API boundary before service mapping.
+  - TourGuidesService list search now matches guide root fields plus languages,
+    markets, and skills with accent-insensitive Vietnamese matching while still
+    validating status query values.
+  - Regression now locks permission denied cases, duplicate guideCode/email/
+    phone, detail edit response shape, child update preservation/clearing,
+    empty row compaction, Vietnamese validation messages, and order-linked
+    schedule status sync for CANCELLED and COMPLETED.
+  - VPS verification passed on 2026-06-11: `git diff --check`, API Docker
+    build, `TEST_TOUR_GUIDES_API_OK`, `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`,
+    API deploy, and `/api/tour-guides` unauthenticated smoke 401.
+
+
+
 - Hardened Tour Guides client and API copy:
   - Tour Guides visible labels now avoid unclear HDV abbreviations and use
     Vietnamese copy for guide code, contact info, language/market, profile

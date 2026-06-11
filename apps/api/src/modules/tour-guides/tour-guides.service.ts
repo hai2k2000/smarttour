@@ -3,7 +3,7 @@ import { OrderStatus, Prisma, TourStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
-import { containsSearch, normalizeListSearch } from '../list-search';
+import { normalizeListSearch } from '../list-search';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
@@ -18,29 +18,20 @@ type ScheduleLinkContext = {
 export class TourGuidesService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
-  list(search?: string, status?: string) {
+  async list(search?: string, status?: string) {
     const normalizedStatus = status ? this.normalizeGuideStatus(status) : undefined;
     const searchText = normalizeListSearch(search);
-    const contains = searchText ? containsSearch(searchText) : undefined;
-    return this.prisma.guideProfile.findMany({
+    const rows = await this.prisma.guideProfile.findMany({
       where: {
         deletedAt: null,
         ...(normalizedStatus ? { status: normalizedStatus } : {}),
-        ...(contains
-          ? {
-              OR: [
-                { guideCode: contains },
-                { fullName: contains },
-                { phone: contains },
-                { email: contains },
-                { guideType: contains },
-              ],
-            }
-          : {}),
       },
       include: { _count: { select: { cards: true, documents: true, costServices: true, schedules: true } } },
       orderBy: [{ updatedAt: 'desc' }, { guideCode: 'asc' }],
     });
+    if (!searchText) return rows;
+    const needle = this.normalizeSearchText(searchText);
+    return rows.filter((item) => this.guideSearchValues(item).some((value) => this.normalizeSearchText(value).includes(needle)));
   }
 
   async detail(id: string) {
@@ -354,6 +345,29 @@ export class TourGuidesService {
     if (orderStatus === 'CANCELLED' || tourStatus === 'CANCELLED') return 'CANCELLED';
     if (orderStatus === 'COMPLETED' || orderStatus === 'SETTLED' || tourStatus === 'COMPLETED' || tourStatus === 'SETTLED') return 'COMPLETED';
     return requested;
+  }
+
+  private guideSearchValues(item: { guideCode: string; fullName: string; phone: string | null; email: string | null; guideType: string | null; languages: string[]; markets: string[]; skills: string[]; status: string }) {
+    return [
+      item.guideCode,
+      item.fullName,
+      item.phone,
+      item.email,
+      item.guideType,
+      item.status,
+      ...item.languages,
+      ...item.markets,
+      ...item.skills,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  private normalizeSearchText(value?: string | null) {
+    return (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase();
   }
 
   private handleUniqueCodeError(error: unknown) {

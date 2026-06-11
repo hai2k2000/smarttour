@@ -4,6 +4,23 @@
 
 
 
+- Hardened Tour Guides backend contract:
+  - `CreateTourGuideDto` / `UpdateTourGuideDto` now trim and compact language,
+    market, skill, card, document, cost service, and schedule payloads with
+    Vietnamese validation messages for key root and child fields.
+  - Tour guide list search now covers root fields plus languages, markets, and
+    skills with accent-insensitive matching; status query validation remains
+    explicit.
+  - Regression covers list/detail/create/update permissions, duplicate
+    code/email/phone, edit detail relation shape, child row preserve/replace/
+    clear behavior, empty child row compaction, Vietnamese validation messages,
+    and linked order schedule status sync.
+  - Verified on VPS: `git diff --check`, API Docker build,
+    `TEST_TOUR_GUIDES_API_OK`, `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`, API
+    deploy, and API auth smoke 401.
+
+
+
 - Hardened Tour Guides client/API contract:
   - `TourGuidesClient` now uses fully accented Vietnamese labels, clearer list
     columns, loading/error states, auth-aware reload/detail/save calls, status

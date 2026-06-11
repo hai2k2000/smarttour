@@ -134,14 +134,16 @@ async function main() {
     const noGuideToken = await login(`${run}_noguide`);
 
     await request('GET', '/tour-guides', { token: noGuideToken, status: 403 });
+    await request('GET', '/tour-guides/not-a-real-guide', { token: noGuideToken, status: 403 });
     await request('GET', '/tour-guides', { token: viewToken });
     await request('POST', '/tour-guides', { token: viewToken, body: guidePayload(`${run}_VIEW_DENY`), status: 403 });
 
-    await request('POST', '/tour-guides', {
+    const badCodeResponse = await request('POST', '/tour-guides', {
       token: adminToken,
       body: { ...guidePayload(`${run}_BAD`), guideCode: 'bad code with spaces' },
       status: 400,
     });
+    assert(JSON.stringify(badCodeResponse).includes('Mã hướng dẫn viên'), 'guideCode validation should return a Vietnamese field message');
     const missingCode = guidePayload(`${run}_MISSING_CODE`);
     delete missingCode.guideCode;
     await request('POST', '/tour-guides', {
@@ -184,6 +186,17 @@ async function main() {
       body: { ...guidePayload(`${run}_BAD_CARD_DATE`), cards: [{ cardType: 'Thẻ HDV', issueDate: 'wrong-date' }] },
       status: 400,
     });
+    const missingCardType = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_CARD_TYPE`), cards: [{ note: 'missing card type' }] },
+      status: 400,
+    });
+    assert(JSON.stringify(missingCardType).includes('Loại thẻ'), 'card row validation should name the missing card type in Vietnamese');
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_COST_PRICE`), costServices: [{ serviceName: 'Guide half day', netPrice: -1 }] },
+      status: 400,
+    });
     await request('POST', '/tour-guides', {
       token: adminToken,
       body: { ...guidePayload(`${run}_BAD_SCHEDULE`), schedules: [{ title: 'Missing date', status: 'BUSY' }] },
@@ -221,6 +234,26 @@ async function main() {
     assert(guide.cards[0].issueDate.startsWith('2030-01-01'), 'date-only card issue date should not shift calendar day');
     assert(guide.schedules[0].startDate === '2030-02-01T01:00:00.000Z' && guide.schedules[0].endDate === '2030-02-01T10:00:00.000Z', 'datetime-local schedule should be parsed as Asia/Bangkok time');
 
+    const compacted = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: guidePayload(`${run}_COMPACT`, {
+        phone: '0900000006',
+        email: `${run}_compact@smarttour.local`,
+        languages: [' VI ', ''],
+        markets: [' Nội địa ', ''],
+        skills: [' Team building ', ''],
+        cards: [{}],
+        documents: [{}],
+        costServices: [{}],
+        schedules: [{}],
+      }),
+      status: 201,
+    });
+    assert(compacted.languages.length === 1 && compacted.languages[0] === 'VI', 'languages should be trimmed and compacted');
+    assert(compacted.markets.length === 1 && compacted.markets[0] === 'Nội địa', 'markets should be trimmed and compacted');
+    assert(compacted.skills.length === 1 && compacted.skills[0] === 'Team building', 'skills should be trimmed and compacted');
+    assert(compacted.cards.length === 0 && compacted.documents.length === 0 && compacted.costServices.length === 0 && compacted.schedules.length === 0, 'empty child rows should be compacted before save');
+
     const listRows = await request('GET', '/tour-guides', { token: viewToken });
     assert(listRows.some((row) => row.id === guide.id), 'list should include created guide');
     const searchByCode = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_MAIN`)}`, { token: viewToken });
@@ -231,6 +264,10 @@ async function main() {
     assert(searchByPhone.some((row) => row.id === guide.id), 'search should find guide by phone');
     const searchByType = await request('GET', '/tour-guides?search=Local', { token: viewToken });
     assert(searchByType.some((row) => row.id === guide.id), 'search should find guide by guide type');
+    const searchByMarketNoAccent = await request('GET', `/tour-guides?search=${encodeURIComponent('noi dia')}`, { token: viewToken });
+    assert(searchByMarketNoAccent.some((row) => row.id === guide.id), 'search should find guide by Vietnamese market without accents');
+    const searchBySkill = await request('GET', `/tour-guides?search=${encodeURIComponent('team building')}`, { token: viewToken });
+    assert(searchBySkill.some((row) => row.id === guide.id), 'search should find guide by skills');
     const activeRows = await request('GET', '/tour-guides?status=ACTIVE', { token: viewToken });
     assert(activeRows.some((row) => row.id === guide.id), 'status filter should include active guide');
     await request('GET', '/tour-guides?status=LOCKED', { token: viewToken, status: 400 });
@@ -240,6 +277,7 @@ async function main() {
     assert(detail.cards[0].cardType === 'Thẻ HDV' && String(detail.costServices[0].netPrice) === '1000000', 'detail should return enough child data for edit form');
     assert(String(detail.costServices[0].sellingPrice) === '1200000' && !('amount' in detail.costServices[0]), 'guide cost service should save price-book values without derived calculations');
     await request('PUT', `/tour-guides/${guide.id}`, { token: viewToken, body: { fullName: 'Viewer cannot update' }, status: 403 });
+    await request('DELETE', `/tour-guides/${guide.id}`, { token: viewToken, status: 403 });
 
     const searchRows = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_main@smarttour.local`)}`, { token: viewToken });
     assert(searchRows.some((row) => row.id === guide.id), 'list search should include email');
@@ -303,6 +341,16 @@ async function main() {
         endDate: new Date('2030-06-05T23:59:59.000Z'),
       },
     });
+    const completedOrder = await prisma.order.create({
+      data: {
+        type: 'FIT_TOUR',
+        systemCode: `${run}_ORDER_COMPLETED`,
+        name: 'Completed guide order',
+        status: 'COMPLETED',
+        startDate: new Date('2030-07-01T00:00:00.000Z'),
+        endDate: new Date('2030-07-05T23:59:59.000Z'),
+      },
+    });
     const linkedGuide = await request('POST', '/tour-guides', {
       token: adminToken,
       body: guidePayload(`${run}_LINKED`, {
@@ -313,6 +361,16 @@ async function main() {
       status: 201,
     });
     assert(linkedGuide.schedules[0].status === 'CANCELLED', 'schedule linked to cancelled order should sync to CANCELLED');
+    const completedLinkedGuide = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: guidePayload(`${run}_COMPLETED_LINKED`, {
+        phone: '0900000007',
+        email: `${run}_completed_linked@smarttour.local`,
+        schedules: [{ title: 'Completed order link', orderId: completedOrder.id, startDate: '2030-07-02T08:00:00.000Z', endDate: '2030-07-02T17:00:00.000Z', status: 'BUSY' }],
+      }),
+      status: 201,
+    });
+    assert(completedLinkedGuide.schedules[0].status === 'COMPLETED', 'schedule linked to completed order should sync to COMPLETED');
     await request('POST', '/tour-guides', {
       token: adminToken,
       body: guidePayload(`${run}_OUTSIDE`, {
