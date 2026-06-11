@@ -2,7 +2,8 @@
 
 import { CheckCircle2, ClipboardCheck, FileCheck2, HandCoins, Plus, RefreshCcw, Search, Send, WalletCards, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { viStatus } from '../i18n';
+import { authJsonHeaders } from '../authFetch';
+import { viPermission, viStatus } from '../i18n';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -216,6 +217,10 @@ export default function OperationsClient() {
   const canApprovePaymentRequest = can('operation.payment-request.approve');
   const canCreateFinancePayment = can('finance.payment.create');
   const canApproveFinancePayment = can('finance.payment.approve');
+  const missingOperationsViewPermissions = [
+    !canViewForms ? operationTabs.forms.viewPermission : '',
+    !canViewPayments ? operationTabs.payments.viewPermission : '',
+  ].filter(Boolean);
   const canViewActiveTab = can(activeTab.viewPermission);
   const canCreateActiveTab = can(activeTab.createPermission);
   const isBusy = isLoadingStatic || isLoadingList || isReloading;
@@ -518,7 +523,7 @@ export default function OperationsClient() {
             data-testid="operations-create-button"
             className="iconTextButton"
             disabled={!canViewActiveTab || !canCreateActiveTab}
-            title={!canViewActiveTab ? `Bạn chưa có quyền xem ${activeTab.label.toLowerCase()}.` : !canCreateActiveTab ? `Bạn chưa có quyền ${activeTab.createLabel.toLowerCase()}.` : activeTab.createLabel}
+            title={!canViewActiveTab ? permissionDeniedTitle(activeTab.viewPermission) : !canCreateActiveTab ? permissionDeniedTitle(activeTab.createPermission) : activeTab.createLabel}
             onClick={openCreateModal}
           >
             <Plus size={16} /> {activeTab.createLabel}
@@ -541,7 +546,7 @@ export default function OperationsClient() {
         ))}
       </section>
       {dashboardState ? <div data-testid="operations-dashboard-state" className={`operationsDashboardState ${dashboardStateClass(dashboardState.type)}`}>{dashboardState.text}</div> : null}
-      <PermissionNotice allowed={canViewForms || canViewPayments} label="xem vận hành tour" />
+      <PermissionNotice allowed={canViewForms || canViewPayments} label="xem vận hành tour" missingPermissions={missingOperationsViewPermissions} />
 
       <section className="panel operationsFilters">
         <label>
@@ -558,8 +563,8 @@ export default function OperationsClient() {
       </section>
 
       <div className="moduleTabs operationsTabs">
-        <button data-testid="operations-tab-forms" className={tab === 'forms' ? 'active' : ''} disabled={!canViewForms} title={canViewForms ? operationTabs.forms.label : 'Bạn chưa có quyền xem phiếu điều hành.'} onClick={() => switchTab('forms')}><ClipboardCheck size={16} /> {operationTabs.forms.label}</button>
-        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} disabled={!canViewPayments} title={canViewPayments ? operationTabs.payments.label : 'Bạn chưa có quyền xem thanh toán nhà cung cấp.'} onClick={() => switchTab('payments')}><HandCoins size={16} /> {operationTabs.payments.label}</button>
+        <button data-testid="operations-tab-forms" className={tab === 'forms' ? 'active' : ''} disabled={!canViewForms} title={canViewForms ? operationTabs.forms.label : permissionDeniedTitle(operationTabs.forms.viewPermission)} onClick={() => switchTab('forms')}><ClipboardCheck size={16} /> {operationTabs.forms.label}</button>
+        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} disabled={!canViewPayments} title={canViewPayments ? operationTabs.payments.label : permissionDeniedTitle(operationTabs.payments.viewPermission)} onClick={() => switchTab('payments')}><HandCoins size={16} /> {operationTabs.payments.label}</button>
       </div>
 
       {modal === 'form' ? (
@@ -568,7 +573,7 @@ export default function OperationsClient() {
           suppliers={suppliers}
           createFormServiceOptions={createFormServiceOptions}
           createFormSupplierId={createFormSupplierId}
-          canCreate={can('operation.form.manage')}
+          canCreate={canCreateForm}
           onSupplierChange={setCreateFormSupplierId}
           onClose={() => setModal(null)}
           onSubmit={createForm}
@@ -610,9 +615,9 @@ export default function OperationsClient() {
                     <td><strong>{cost.primary}</strong><span>{cost.secondary}</span></td>
                     <td><span className={`statusPill ${statusPillClass(form.status)}`}>{statusLabel(form.status)}</span></td>
                     <td className="operationsActions">
-                      <button data-testid="operation-form-open-reconciliation" className="secondaryButton iconButton" title={!canViewPayments ? 'Bạn chưa có quyền xem đối soát thanh toán.' : linkedRequest ? 'Mở đối soát thanh toán' : 'Chưa có yêu cầu thanh toán để đối soát.'} disabled={!canViewPayments || !linkedRequest} onClick={() => { if (!linkedRequest) return; switchTab('payments'); setSelectedFormId(form.id); openReconciliation(linkedRequest.id); }}><Search size={16} /></button>
-                      <button data-testid="operation-form-create-payment" className="secondaryButton iconButton" title={!can('operation.payment-request.create') ? 'Bạn chưa có quyền tạo yêu cầu thanh toán.' : form.status === 'CANCELLED' ? 'Phiếu đã hủy, không thể tạo yêu cầu thanh toán.' : form.costs.length === 0 ? 'Phiếu chưa có chi phí để tạo yêu cầu thanh toán.' : 'Tạo yêu cầu thanh toán'} disabled={!can('operation.payment-request.create') || form.status === 'CANCELLED' || form.costs.length === 0} onClick={() => { setSelectedFormId(form.id); switchTab('payments'); setModal('payment'); }}><WalletCards size={16} /></button>
-                      <button data-testid="operation-form-cancel" className="dangerButton iconButton" title={form.status === 'CANCELLED' ? 'Phiếu đã hủy.' : 'Hủy phiếu điều hành'} disabled={!can('operation.form.manage') || form.status === 'CANCELLED'} onClick={() => { void cancelForm(form.id); }}><XCircle size={16} /></button>
+                      <button data-testid="operation-form-open-reconciliation" className="secondaryButton iconButton" title={!canViewPayments ? permissionDeniedTitle(operationTabs.payments.viewPermission) : linkedRequest ? 'Mở đối soát thanh toán' : 'Chưa có yêu cầu thanh toán để đối soát.'} disabled={!canViewPayments || !linkedRequest} onClick={() => { if (!linkedRequest) return; switchTab('payments'); setSelectedFormId(form.id); openReconciliation(linkedRequest.id); }}><Search size={16} /></button>
+                      <button data-testid="operation-form-create-payment" className="secondaryButton iconButton" title={!canViewPayments ? permissionDeniedTitle(operationTabs.payments.viewPermission) : !canCreatePaymentRequest ? permissionDeniedTitle(operationTabs.payments.createPermission) : form.status === 'CANCELLED' ? 'Phiếu đã hủy, không thể tạo yêu cầu thanh toán.' : form.costs.length === 0 ? 'Phiếu chưa có chi phí để tạo yêu cầu thanh toán.' : 'Tạo yêu cầu thanh toán'} disabled={!canViewPayments || !canCreatePaymentRequest || form.status === 'CANCELLED' || form.costs.length === 0} onClick={() => { setSelectedFormId(form.id); switchTab('payments'); setModal('payment'); }}><WalletCards size={16} /></button>
+                      <button data-testid="operation-form-cancel" className="dangerButton iconButton" title={!canCreateForm ? permissionDeniedTitle(operationTabs.forms.createPermission) : form.status === 'CANCELLED' ? 'Phiếu đã hủy.' : 'Hủy phiếu điều hành'} disabled={!canCreateForm || form.status === 'CANCELLED'} onClick={() => { void cancelForm(form.id); }}><XCircle size={16} /></button>
                     </td>
                   </tr>
                 );
@@ -656,11 +661,11 @@ export default function OperationsClient() {
                   <td><span className={`statusPill ${statusPillClass(request.status)}`}>{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
                     <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title={detailRequestId === request.id ? 'Đóng đối soát yêu cầu thanh toán' : 'Xem đối soát yêu cầu thanh toán'} onClick={() => { if (detailRequestId === request.id) closeReconciliation(); else openReconciliation(request.id); }}><Search size={16} /></button>
-                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
-                    <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title={canApproveRequest ? 'Duyệt yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được duyệt.'} disabled={!canApproveRequest} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
-                    <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title={canCreateFinanceForRequest ? 'Tạo phiếu chi tài chính từ yêu cầu đã duyệt' : 'Cần yêu cầu đã duyệt, chưa có phiếu chi và đủ quyền tạo phiếu chi tài chính.'} disabled={!canCreateFinanceForRequest} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
-                    <button data-testid="operation-payment-approve-finance" className="secondaryButton iconButton" title={canApproveFinanceForRequest ? 'Duyệt phiếu chi tài chính' : 'Cần có phiếu chi tài chính chưa duyệt.'} disabled={!canApproveFinanceForRequest} onClick={() => { void approveFinancePayment(request.financePaymentId); }}><HandCoins size={16} /></button>
-                    <button data-testid="operation-payment-reject" className="dangerButton iconButton" title={canRejectRequest ? 'Từ chối yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được từ chối.'} disabled={!canRejectRequest} onClick={() => { void requestAction(request.id, 'reject'); }}><XCircle size={16} /></button>
+                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={!canCreatePaymentRequest ? permissionDeniedTitle(operationTabs.payments.createPermission) : canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
+                    <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title={!canApprovePaymentRequest ? permissionDeniedTitle('operation.payment-request.approve') : canApproveRequest ? 'Duyệt yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được duyệt.'} disabled={!canApproveRequest} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
+                    <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title={!canApprovePaymentRequest ? permissionDeniedTitle('operation.payment-request.approve') : !canCreateFinancePayment ? permissionDeniedTitle('finance.payment.create') : canCreateFinanceForRequest ? 'Tạo phiếu chi tài chính từ yêu cầu đã duyệt' : 'Cần yêu cầu đã duyệt và chưa có phiếu chi tài chính.'} disabled={!canCreateFinanceForRequest} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
+                    <button data-testid="operation-payment-approve-finance" className="secondaryButton iconButton" title={!canApproveFinancePayment ? permissionDeniedTitle('finance.payment.approve') : canApproveFinanceForRequest ? 'Duyệt phiếu chi tài chính' : 'Cần có phiếu chi tài chính chưa duyệt.'} disabled={!canApproveFinanceForRequest} onClick={() => { void approveFinancePayment(request.financePaymentId); }}><HandCoins size={16} /></button>
+                    <button data-testid="operation-payment-reject" className="dangerButton iconButton" title={!canApprovePaymentRequest ? permissionDeniedTitle('operation.payment-request.approve') : canRejectRequest ? 'Từ chối yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được từ chối.'} disabled={!canRejectRequest} onClick={() => { void requestAction(request.id, 'reject'); }}><XCircle size={16} /></button>
                   </td>
                 </tr>
                 );
@@ -935,19 +940,18 @@ function ReconciliationPanel({
         </div>
       </div>
       <div className="reconciliationActions">
-        <button data-testid="reconciliation-submit" className="secondaryButton" disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
-        <button data-testid="reconciliation-approve" className="secondaryButton" disabled={!canApproveSubmittedRequest} onClick={() => { void onAction(request.id, 'approve'); }}>Duyệt yêu cầu</button>
-        <button data-testid="reconciliation-create-finance" className="secondaryButton" disabled={!canCreateFinanceForRequest} onClick={() => { void onAction(request.id, 'create-finance-payment'); }}>Tạo phiếu chi</button>
-        <button data-testid="reconciliation-approve-finance" className="secondaryButton" disabled={!canApproveFinanceForRequest} onClick={() => { void onApproveFinance(request.financePaymentId); }}>Duyệt phiếu chi</button>
-        <button data-testid="reconciliation-reject" className="dangerButton" disabled={!canRejectSubmittedRequest} onClick={() => { void onAction(request.id, 'reject'); }}>Từ chối yêu cầu</button>
+        <button data-testid="reconciliation-submit" className="secondaryButton" title={!canCreateRequest ? permissionDeniedTitle('operation.payment-request.create') : undefined} disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
+        <button data-testid="reconciliation-approve" className="secondaryButton" title={!canApproveRequest ? permissionDeniedTitle('operation.payment-request.approve') : undefined} disabled={!canApproveSubmittedRequest} onClick={() => { void onAction(request.id, 'approve'); }}>Duyệt yêu cầu</button>
+        <button data-testid="reconciliation-create-finance" className="secondaryButton" title={!canApproveRequest ? permissionDeniedTitle('operation.payment-request.approve') : !canCreateFinance ? permissionDeniedTitle('finance.payment.create') : undefined} disabled={!canCreateFinanceForRequest} onClick={() => { void onAction(request.id, 'create-finance-payment'); }}>Tạo phiếu chi</button>
+        <button data-testid="reconciliation-approve-finance" className="secondaryButton" title={!canApproveFinance ? permissionDeniedTitle('finance.payment.approve') : undefined} disabled={!canApproveFinanceForRequest} onClick={() => { void onApproveFinance(request.financePaymentId); }}>Duyệt phiếu chi</button>
+        <button data-testid="reconciliation-reject" className="dangerButton" title={!canApproveRequest ? permissionDeniedTitle('operation.payment-request.approve') : undefined} disabled={!canRejectSubmittedRequest} onClick={() => { void onAction(request.id, 'reject'); }}>Từ chối yêu cầu</button>
       </div>
     </aside>
   );
 }
 
 function authHeaders() {
-  const token = typeof window !== 'undefined' ? window.localStorage.getItem('smarttour.auth.token') : null;
-  return { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  return authJsonHeaders();
 }
 
 function OperationsTable({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
@@ -1284,6 +1288,10 @@ function serviceLabel(service: SupplierServiceOption) {
 
 function userActorLabel(user: { id?: string; username?: string; email?: string; name?: string; fullName?: string; displayName?: string } | null) {
   return text(user?.displayName) || text(user?.fullName) || text(user?.name) || text(user?.username) || text(user?.email) || text(user?.id) || 'operations-ui';
+}
+
+function permissionDeniedTitle(permission: string) {
+  return `Bạn chưa có quyền ${viPermission(permission).toLowerCase()} (${permission}).`;
 }
 
 function noticeClass(type: Notice['type']) {

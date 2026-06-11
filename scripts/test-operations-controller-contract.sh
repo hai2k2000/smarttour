@@ -8,6 +8,9 @@ const controller = fs.readFileSync('apps/api/src/modules/operations/operations.c
 const service = fs.readFileSync('apps/api/src/modules/operations/operations.service.ts', 'utf8');
 const dto = fs.readFileSync('apps/api/src/modules/operations/dto/list-operations-query.dto.ts', 'utf8');
 const client = fs.readFileSync('apps/web/app/operations/OperationsClient.tsx', 'utf8');
+const authFetch = fs.readFileSync('apps/web/app/authFetch.ts', 'utf8');
+const usePermissions = fs.readFileSync('apps/web/app/usePermissions.tsx', 'utf8');
+const appShell = fs.readFileSync('apps/web/app/AppShell.tsx', 'utf8');
 const suppliersService = fs.readFileSync('apps/api/src/modules/suppliers/suppliers.service.ts', 'utf8');
 const failures = [];
 const requiredPermissions = [
@@ -147,11 +150,20 @@ if (!client.includes('formOrderTourSummary') || !client.includes('formServiceSum
 if (!client.includes('operationFormStatusValues') || !client.includes('supplierPaymentStatusValues')) failures.push('OperationsClient status filters must be split by forms and payment requests');
 if (!client.includes('operations-dashboard-state') || !client.includes('Đang tải số liệu dashboard') || !client.includes('Không tải được dashboard vận hành') || !client.includes('Chưa có số liệu vận hành trong phạm vi hiện tại.')) failures.push('OperationsClient dashboard metrics must expose loading, error, and empty states');
 if (!client.includes('dashboardMetricDefinitions') || !client.includes('Order sắp khởi hành trong 14 ngày tới') || !client.includes('Yêu cầu thanh toán đang chờ duyệt hoặc đã duyệt')) failures.push('OperationsClient dashboard metrics must document backend counting logic');
-if (!client.includes('response.status') || !client.includes('Accept:')) failures.push('OperationsClient fetch helpers must expose detailed errors and JSON accept headers');
+if (!client.includes('response.status') || !client.includes('authJsonHeaders') || !authFetch.includes("Accept: 'application/json'")) failures.push('OperationsClient fetch helpers must expose detailed errors and shared JSON accept headers');
 if (!client.includes('staticLoadInFlight') || !client.includes('listLoadInFlight') || !client.includes('staticLoadSeq') || !client.includes('listLoadSeq') || !client.includes('normalizeLoadOptions')) failures.push('OperationsClient data loading must guard duplicate and stale requests');
 if (!client.includes('load({ ...reloadAfter, emitNotice: false })') || !client.includes('requests: false') || !client.includes('forms: false')) failures.push('OperationsClient mutations must reload only affected operation data scopes');
 if (!client.includes('setBookings([])') || !client.includes('setSuppliers([])') || !client.includes('setRequests([])') || !client.includes("setCreateFormSupplierId('')")) failures.push('OperationsClient must reset static/list state when APIs return empty, fail, or selected supplier becomes invalid');
 if (!client.includes('function openCreateModal()') || !client.includes('onClick={openCreateModal}') || !client.includes("setCreateFormSupplierId('')")) failures.push('OperationsClient create modal must reset supplier state before opening or switching tabs');
+if (!client.includes('permissionDeniedTitle') || !client.includes('missingOperationsViewPermissions') || !client.includes('missingPermissions={missingOperationsViewPermissions}') || !client.includes('canCreate={canCreateForm}')) failures.push('OperationsClient permissions must use explicit permission labels and shared manage/create booleans');
+if (!client.includes('permissionDeniedTitle(operationTabs.forms.createPermission)')) failures.push('OperationsClient form manage buttons must explain missing operation.form.manage');
+if (!client.includes('permissionDeniedTitle(operationTabs.payments.createPermission)') || !client.includes("permissionDeniedTitle('operation.payment-request.create')")) failures.push('OperationsClient payment create/submit buttons must explain missing operation.payment-request.create');
+if (!client.includes("permissionDeniedTitle('operation.payment-request.approve')")) failures.push('OperationsClient approve/reject/create-finance buttons must explain missing operation.payment-request.approve');
+if (!client.includes("permissionDeniedTitle('finance.payment.approve')")) failures.push('OperationsClient finance approve buttons must explain missing finance.payment.approve');
+if (!client.includes('authJsonHeaders') || !client.includes('return authJsonHeaders()')) failures.push('OperationsClient must use shared auth JSON headers instead of reading token directly');
+if (!usePermissions.includes('missingPermissions') || !usePermissions.includes('viPermission(permission)') || !usePermissions.includes('Quyền cần bổ sung')) failures.push('PermissionNotice must show exact missing permissions in Vietnamese');
+if (!authFetch.includes('authCookieToken') || !authFetch.includes('clearAuthSession') || !authFetch.includes("Accept: 'application/json'") || !authFetch.includes('window.localStorage.getItem')) failures.push('authFetch must share token lookup, JSON headers, and logout cleanup across modules');
+if (!appShell.includes('clearAuthSession()') || !appShell.includes('/api/auth/logout')) failures.push('AppShell logout must clear local/cookie token and revoke server session');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));

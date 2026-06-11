@@ -36,6 +36,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ReactNode, Suspense, useEffect, useMemo, useState } from 'react';
+import { clearAuthSession } from './authFetch';
 import { orderNavigation } from './orders/order-config';
 
 const orderIcons = {
@@ -299,9 +300,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   function logout() {
     const token = window.localStorage.getItem('smarttour.auth.token');
-    window.localStorage.removeItem('smarttour.auth.token');
-    window.localStorage.removeItem('smarttour.auth.user');
-    document.cookie = 'smarttour.auth.token=; path=/; max-age=0; samesite=lax';
+    clearAuthSession();
     setAuthUser(null);
     setAccountOpen(false);
     if (token) {
