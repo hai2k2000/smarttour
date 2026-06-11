@@ -151,6 +151,7 @@ a { color: inherit; }
 .dashboardPage { display: grid; gap: 16px; }
 .pageHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
 .pageHeaderActions { display: flex; align-items: center; gap: 10px; }
+.pageSubtitle { margin: 4px 0 0; color: var(--dn-muted); font-size: 13px; line-height: 1.45; max-width: 760px; }
 .dashboardMetrics { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .metricTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .metricTop span { font-size: 12px; }
@@ -771,6 +772,7 @@ select[multiple] { min-height: 92px; }
 .moduleTabs { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--dn-border); padding-bottom: 12px; }
 .moduleTabs button { border: 1px solid var(--dn-border); background: #fff; color: #276c72; border-radius: 7px; padding: 9px 12px; font-weight: 700; cursor: pointer; }
 .moduleTabs button.active { background: var(--dn-primary); border-color: var(--dn-primary); color: #fff; }
+.moduleTabs button:disabled { cursor: not-allowed; opacity: 0.55; background: #f6f8f8; color: var(--dn-muted); }
 .operationsPage { display: grid; gap: 14px; }
 .operationsMetrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .operationsMetrics .metric { min-height: 96px; }

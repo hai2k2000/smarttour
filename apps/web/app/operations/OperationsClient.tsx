@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckCircle2, ClipboardCheck, FileCheck2, HandCoins, Plus, RefreshCcw, Search, Send, WalletCards, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { viStatus } from '../i18n';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
@@ -67,6 +67,21 @@ const defaultFilters: Record<OperationsTab, FilterState> = {
 const formStatuses = ['PENDING', 'IN_PROGRESS', 'DONE', 'PROBLEM', 'CANCELLED'];
 const paymentStatuses = ['DRAFT', 'REQUESTED', 'APPROVED', 'PAID', 'REJECTED'];
 const confirmationStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'DONE'];
+const operationTabs: Record<OperationsTab, { label: string; createLabel: string; viewPermission: string; createPermission: string }> = {
+  forms: {
+    label: 'Phiếu điều hành',
+    createLabel: 'Tạo phiếu điều hành',
+    viewPermission: 'operation.form.view',
+    createPermission: 'operation.form.manage',
+  },
+  payments: {
+    label: 'Thanh toán nhà cung cấp',
+    createLabel: 'Tạo yêu cầu thanh toán',
+    viewPermission: 'operation.payment-request.view',
+    createPermission: 'operation.payment-request.create',
+  },
+};
+
 const statusLabels: Record<string, string> = {
   PENDING: 'Chờ xử lý',
   IN_PROGRESS: 'Đang xử lý',
@@ -85,7 +100,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function OperationsClient() {
-  const { can, canAny } = usePermissions();
+  const { can } = usePermissions();
   const [tab, setTab] = useState<OperationsTab>('forms');
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [forms, setForms] = useState<OperationForm[]>([]);
@@ -100,6 +115,8 @@ export default function OperationsClient() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isLoadingStatic, setIsLoadingStatic] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  const reloadInFlight = useRef(false);
 
   const activeFilter = filters[tab];
   const formQuery = useMemo(() => queryFrom(filters.forms), [filters.forms]);
@@ -123,14 +140,37 @@ export default function OperationsClient() {
   const selectedForm = forms.find((form) => form.id === selectedFormId);
   const detailRequest = requests.find((request) => request.id === detailRequestId);
   const statusOptions = tab === 'forms' ? formStatuses : paymentStatuses;
+  const activeTab = operationTabs[tab];
+  const canViewForms = can(operationTabs.forms.viewPermission);
+  const canViewPayments = can(operationTabs.payments.viewPermission);
+  const canCreateForm = can(operationTabs.forms.createPermission);
+  const canCreatePaymentRequest = can(operationTabs.payments.createPermission);
+  const canViewActiveTab = can(activeTab.viewPermission);
+  const canCreateActiveTab = can(activeTab.createPermission);
+  const isBusy = isLoadingStatic || isLoadingList || isReloading;
 
   useEffect(() => {
     void loadStatic();
-  }, []);
+  }, [canCreateForm, canCreatePaymentRequest]);
 
   useEffect(() => {
     void load();
-  }, [formQuery, paymentQuery]);
+  }, [formQuery, paymentQuery, canViewForms, canViewPayments]);
+
+  useEffect(() => {
+    if (tab === 'forms' && !canViewForms && canViewPayments) {
+      setTab('payments');
+      setNotice(null);
+      setModal(null);
+      setDetailRequestId('');
+    }
+    if (tab === 'payments' && !canViewPayments && canViewForms) {
+      setTab('forms');
+      setNotice(null);
+      setModal(null);
+      setDetailRequestId('');
+    }
+  }, [canViewForms, canViewPayments, tab]);
 
   useEffect(() => {
     if (selectedFormId && !forms.some((form) => form.id === selectedFormId)) setSelectedFormId('');
@@ -143,6 +183,12 @@ export default function OperationsClient() {
   async function loadStatic(emitNotice = true) {
     setIsLoadingStatic(true);
     const errors: string[] = [];
+    if (!canCreateForm && !canCreatePaymentRequest) {
+      setBookings([]);
+      setSuppliers([]);
+      setIsLoadingStatic(false);
+      return errors;
+    }
     const [bookingResult, supplierResult] = await Promise.allSettled([
       fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
       fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
@@ -169,9 +215,9 @@ export default function OperationsClient() {
     setIsLoadingList(true);
     const errors: string[] = [];
     const [dashboardResult, formsResult, requestsResult] = await Promise.allSettled([
-      fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành'),
-      fetchJson<unknown>(`/api/operations/forms?${formQuery}`, 'danh sách phiếu điều hành'),
-      fetchJson<unknown>(`/api/operations/supplier-payment-requests?${paymentQuery}`, 'danh sách yêu cầu thanh toán'),
+      canViewForms ? fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành') : Promise.resolve(emptyDashboard),
+      canViewForms ? fetchJson<unknown>(`/api/operations/forms?${formQuery}`, 'danh sách phiếu điều hành') : Promise.resolve([]),
+      canViewPayments ? fetchJson<unknown>(`/api/operations/supplier-payment-requests?${paymentQuery}`, 'danh sách yêu cầu thanh toán') : Promise.resolve([]),
     ]);
 
     if (dashboardResult.status === 'fulfilled') {
@@ -198,11 +244,19 @@ export default function OperationsClient() {
   }
 
   async function reloadAll() {
+    if (reloadInFlight.current || isLoadingStatic || isLoadingList) return;
+    reloadInFlight.current = true;
+    setIsReloading(true);
     setNotice(null);
-    const [staticErrors, loadErrors] = await Promise.all([loadStatic(false), load(false)]);
-    const errors = [...staticErrors, ...loadErrors];
-    if (errors.length) showError(errors.join(' | '));
-    else showSuccess('Đã tải lại dữ liệu vận hành.');
+    try {
+      const [staticErrors, loadErrors] = await Promise.all([loadStatic(false), load(false)]);
+      const errors = [...staticErrors, ...loadErrors];
+      if (errors.length) showError(errors.join(' | '));
+      else showSuccess('Đã tải lại dữ liệu vận hành.');
+    } finally {
+      reloadInFlight.current = false;
+      setIsReloading(false);
+    }
   }
 
   async function createForm(formData: FormData) {
@@ -338,14 +392,21 @@ export default function OperationsClient() {
         <div>
           <p className="eyebrow">Sản phẩm & vận hành</p>
           <h1>Vận hành tour và thanh toán nhà cung cấp</h1>
+          <p className="pageSubtitle">Theo dõi phiếu điều hành, yêu cầu thanh toán nhà cung cấp và phiếu chi liên quan.</p>
         </div>
         <div className="pageHeaderActions">
           {notice ? <span className={`statusPill ${noticeClass(notice.type)}`}>{notice.text}</span> : null}
-          <button data-testid="operations-create-button" className="iconTextButton" disabled={tab === 'forms' ? !can('operation.form.manage') : !can('operation.payment-request.create')} onClick={() => setModal(tab === 'forms' ? 'form' : 'payment')}>
-            <Plus size={16} /> Tạo mới
+          <button
+            data-testid="operations-create-button"
+            className="iconTextButton"
+            disabled={!canViewActiveTab || !canCreateActiveTab}
+            title={!canViewActiveTab ? `Bạn chưa có quyền xem ${activeTab.label.toLowerCase()}.` : !canCreateActiveTab ? `Bạn chưa có quyền ${activeTab.createLabel.toLowerCase()}.` : activeTab.createLabel}
+            onClick={() => setModal(tab === 'forms' ? 'form' : 'payment')}
+          >
+            <Plus size={16} /> {activeTab.createLabel}
           </button>
-          <button className="secondaryButton iconTextButton" disabled={isLoadingStatic || isLoadingList} onClick={() => { void reloadAll(); }}>
-            <RefreshCcw size={16} /> {isLoadingStatic || isLoadingList ? 'Đang tải...' : 'Tải lại'}
+          <button className="secondaryButton iconTextButton" disabled={isBusy} onClick={() => { void reloadAll(); }}>
+            <RefreshCcw size={16} /> {isBusy ? 'Đang tải...' : 'Tải lại'}
           </button>
         </div>
       </header>
@@ -358,7 +419,7 @@ export default function OperationsClient() {
         <Metric label="Yêu cầu thanh toán nhà cung cấp" value={dashboard.pendingSupplierPayments} />
         <Metric label="Tour lỗ hoặc âm lợi nhuận" value={dashboard.lowMarginTours} />
       </section>
-      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage', 'operation.payment-request.view', 'operation.payment-request.create'])} label="xem vận hành tour" />
+      <PermissionNotice allowed={canViewForms || canViewPayments} label="xem vận hành tour" />
 
       <section className="panel operationsFilters">
         <label>
@@ -375,8 +436,8 @@ export default function OperationsClient() {
       </section>
 
       <div className="moduleTabs operationsTabs">
-        <button data-testid="operations-tab-forms" className={tab === 'forms' ? 'active' : ''} onClick={() => switchTab('forms')}><ClipboardCheck size={16} /> Phiếu điều hành</button>
-        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} onClick={() => switchTab('payments')}><HandCoins size={16} /> Thanh toán nhà cung cấp</button>
+        <button data-testid="operations-tab-forms" className={tab === 'forms' ? 'active' : ''} disabled={!canViewForms} title={canViewForms ? operationTabs.forms.label : 'Bạn chưa có quyền xem phiếu điều hành.'} onClick={() => switchTab('forms')}><ClipboardCheck size={16} /> {operationTabs.forms.label}</button>
+        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} disabled={!canViewPayments} title={canViewPayments ? operationTabs.payments.label : 'Bạn chưa có quyền xem thanh toán nhà cung cấp.'} onClick={() => switchTab('payments')}><HandCoins size={16} /> {operationTabs.payments.label}</button>
       </div>
 
       {modal === 'form' ? (
