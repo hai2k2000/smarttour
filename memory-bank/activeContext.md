@@ -22,6 +22,27 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 
 
+- Locked Tour Guides data/business checks:
+  - Frontend guideCode generation now uses an 8-character random suffix on top
+    of the base36 timestamp; regression simulates 5,000 rapid generated codes
+    and asserts no collisions plus the expected `HDV-<timestamp>-<random>`
+    format.
+  - Tour guide date behavior is regression-checked for card/document issue and
+    expiry date-only fields, and schedule datetime-local values are parsed as
+    Asia/Bangkok before storage.
+  - Guide cost service rows remain an explicit price-book contract: netPrice,
+    sellingPrice, currency, unit, and notes are stored/displayed without
+    derived `amount` calculation.
+  - Child row replacement is now covered with multiple cards, documents,
+    price rows, and schedules followed by an update/delete pass that verifies
+    the remaining row data, order, prices, and timezone conversion survive.
+  - VPS verification passed on 2026-06-11: `git diff --check`,
+    `docker compose build api web`, `TEST_TOUR_GUIDES_API_OK`,
+    `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`, api/web deploy, web `/tour-guides`
+    auth redirect 307, and API `/api/tour-guides` auth smoke 401.
+
+
+
 - Hardened Tour Guides backend contract:
   - Controller permission behavior was rechecked: class-level `guide.view` covers
     list/detail and method-level `guide.manage` overrides it for create/update,

@@ -101,8 +101,8 @@ function newGuideCode() {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID().replace(/-/g, '').slice(0, 4).toUpperCase()
-      : Math.random().toString(36).slice(2, 6).toUpperCase();
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+      : Math.random().toString(36).slice(2, 10).toUpperCase();
   return `HDV-${timestamp}-${random}`;
 }
 

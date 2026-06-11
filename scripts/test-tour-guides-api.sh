@@ -231,7 +231,8 @@ async function main() {
     });
     assert(guide.cards.length === 1 && guide.documents.length === 1 && guide.costServices.length === 1 && guide.schedules.length === 1, 'create should return detail with child arrays');
     assert(Array.isArray(guide.files), 'detail response should include files array for edit form');
-    assert(guide.cards[0].issueDate.startsWith('2030-01-01'), 'date-only card issue date should not shift calendar day');
+    assert(guide.cards[0].issueDate.startsWith('2030-01-01') && guide.cards[0].expiredDate.startsWith('2031-01-01'), 'date-only card issue/expired dates should not shift calendar day');
+    assert(guide.documents[0].issueDate.startsWith('2030-01-01') && guide.documents[0].expiredDate.startsWith('2031-01-01'), 'date-only document issue/expired dates should not shift calendar day');
     assert(guide.schedules[0].startDate === '2030-02-01T01:00:00.000Z' && guide.schedules[0].endDate === '2030-02-01T10:00:00.000Z', 'datetime-local schedule should be parsed as Asia/Bangkok time');
 
     const compacted = await request('POST', '/tour-guides', {
@@ -312,6 +313,8 @@ async function main() {
     assert(updated.cards.length === 1 && updated.cards[0].cardType === 'Thẻ quốc tế', 'update should replace card rows predictably');
     assert(updated.documents.length === 0 && updated.schedules.length === 0, 'update with empty child arrays should clear those sections');
     assert(updated.costServices.length === 1 && updated.costServices[0].serviceName === 'Guide full day', 'update should keep submitted cost service row');
+    assert(String(updated.costServices[0].netPrice) === '1500000' && String(updated.costServices[0].sellingPrice) === '1800000', 'guide price-book update should persist explicit net/selling prices');
+    assert(!('amount' in updated.costServices[0]), 'guide price-book rows should not calculate or expose derived amount');
     const preserved = await request('PUT', `/tour-guides/${guide.id}`, {
       token: adminToken,
       body: { fullName: 'Nguyen Van HDV Preserve Children' },
@@ -330,6 +333,47 @@ async function main() {
     assert(cleared.cards.length === 0 && cleared.costServices.length === 0, 'submitted empty child arrays should delete those rows after save');
     assert(cleared.documents.length === 1 && cleared.documents[0].documentType === 'Visa', 'submitted document rows should be saved after deleting other child rows');
     assert(cleared.schedules.length === 1 && cleared.schedules[0].startDate === '2030-08-01T02:30:00.000Z', 'saved schedule rows should keep Asia/Bangkok local time conversion');
+
+    const multiRows = await request('PUT', `/tour-guides/${guide.id}`, {
+      token: adminToken,
+      body: {
+        cards: [
+          { cardType: 'Thẻ nội địa', cardNumber: 'CARD-A', issueDate: '2030-09-01', expiredDate: '2031-09-01' },
+          { cardType: 'Thẻ quốc tế', cardNumber: 'CARD-B', issueDate: '2030-09-02', expiredDate: '2031-09-02' },
+        ],
+        documents: [
+          { documentType: 'Passport', documentNo: 'PASS-A', issueDate: '2030-09-01', expiredDate: '2031-09-01' },
+          { documentType: 'Visa', documentNo: 'VISA-B', issueDate: '2030-09-02', expiredDate: '2031-09-02' },
+        ],
+        costServices: [
+          { serviceType: 'Guide', serviceName: 'Guide morning', unit: 'buổi', currency: 'VND', netPrice: 700000, sellingPrice: 900000 },
+          { serviceType: 'Guide', serviceName: 'Guide evening', unit: 'buổi', currency: 'USD', netPrice: 50, sellingPrice: 70 },
+        ],
+        schedules: [
+          { title: 'Morning tour', startDate: '2030-09-01T08:00', endDate: '2030-09-01T12:00', status: 'CONFIRMED' },
+          { title: 'Evening tour', startDate: '2030-09-02T18:00', endDate: '2030-09-02T22:00', status: 'BUSY' },
+        ],
+      },
+    });
+    assert(multiRows.cards.map((row) => row.cardNumber).join(',') === 'CARD-A,CARD-B', 'multiple card rows should keep submitted order after save');
+    assert(multiRows.documents.map((row) => row.documentNo).join(',') === 'PASS-A,VISA-B', 'multiple document rows should keep submitted order after save');
+    assert(multiRows.costServices.map((row) => row.serviceName).join(',') === 'Guide morning,Guide evening', 'multiple guide price rows should keep submitted order after save');
+    assert(multiRows.schedules.map((row) => row.title).join(',') === 'Morning tour,Evening tour', 'multiple schedule rows should keep submitted order after save');
+    assert(String(multiRows.costServices[1].netPrice) === '50' && multiRows.costServices[1].currency === 'USD', 'price-book rows should preserve currency and explicit price values');
+
+    const rowDelete = await request('PUT', `/tour-guides/${guide.id}`, {
+      token: adminToken,
+      body: {
+        cards: [{ cardType: 'Thẻ quốc tế cập nhật', cardNumber: 'CARD-B', issueDate: '2030-09-02', expiredDate: '2032-09-02' }],
+        documents: [{ documentType: 'Visa cập nhật', documentNo: 'VISA-B', issueDate: '2030-09-02', expiredDate: '2032-09-02' }],
+        costServices: [{ serviceType: 'Guide', serviceName: 'Guide evening updated', unit: 'buổi', currency: 'USD', netPrice: 55, sellingPrice: 75 }],
+        schedules: [{ title: 'Evening tour updated', startDate: '2030-09-02T18:30', endDate: '2030-09-02T22:30', status: 'OPERATING' }],
+      },
+    });
+    assert(rowDelete.cards.length === 1 && rowDelete.cards[0].cardType === 'Thẻ quốc tế cập nhật' && rowDelete.cards[0].expiredDate.startsWith('2032-09-02'), 'updating/deleting card rows should persist the remaining row data');
+    assert(rowDelete.documents.length === 1 && rowDelete.documents[0].documentType === 'Visa cập nhật' && rowDelete.documents[0].expiredDate.startsWith('2032-09-02'), 'updating/deleting document rows should persist the remaining row data');
+    assert(rowDelete.costServices.length === 1 && rowDelete.costServices[0].serviceName === 'Guide evening updated' && String(rowDelete.costServices[0].netPrice) === '55' && String(rowDelete.costServices[0].sellingPrice) === '75', 'updating/deleting price rows should persist the remaining row data');
+    assert(rowDelete.schedules.length === 1 && rowDelete.schedules[0].title === 'Evening tour updated' && rowDelete.schedules[0].startDate === '2030-09-02T11:30:00.000Z', 'updating/deleting schedule rows should persist remaining row data with Asia/Bangkok conversion');
 
     const cancelledOrder = await prisma.order.create({
       data: {
@@ -405,6 +449,14 @@ function assert(condition, label) {
 }
 
 assert(source.includes('Date.now().toString(36).toUpperCase()') && source.includes('crypto.randomUUID'), 'newGuideCode should use high-entropy timestamp plus random suffix');
+function simulateGuideCode() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `HDV-${timestamp}-${random}`;
+}
+const generatedCodes = new Set(Array.from({ length: 5000 }, simulateGuideCode));
+assert(generatedCodes.size === 5000, 'new guide code generation should not collide during rapid consecutive create form opens');
+assert([...generatedCodes].every((code) => /^HDV-[A-Z0-9]+-[A-Z0-9]{8}$/.test(code)), 'new guide code should keep the expected HDV timestamp-random format');
 assert(source.includes("const appTimeZone = 'Asia/Bangkok'") && source.includes('timeZone: appTimeZone'), 'TourGuidesClient should display schedule datetimes in Asia/Bangkok');
 assert(source.includes('buildPayload') && source.includes('costServices') && source.includes('netPrice: numberOrZero(row.netPrice)'), 'TourGuidesClient should submit guide price-book rows as explicit numbers');
 assert(source.includes("import { authHeaders, authJsonHeaders } from '../authFetch'"), 'TourGuidesClient should send auth headers for reload/detail/save requests');

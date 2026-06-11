@@ -4,6 +4,18 @@
 
 
 
+- Locked Tour Guides data/business checks:
+  - Guide code generation now uses a longer random suffix and regression checks
+    rapid consecutive generation for uniqueness and format.
+  - Regression verifies issue/expiry date-only fields, Asia/Bangkok schedule
+    parsing, explicit price-book storage without derived amount, and child row
+    add/update/delete persistence for cards, documents, costs, and schedules.
+  - Verified on VPS: `git diff --check`, `docker compose build api web`,
+    `TEST_TOUR_GUIDES_API_OK`, `TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK`, api/web
+    deploy, web auth redirect 307, and API auth smoke 401.
+
+
+
 - Hardened Tour Guides backend contract:
   - `CreateTourGuideDto` / `UpdateTourGuideDto` now trim and compact language,
     market, skill, card, document, cost service, and schedule payloads with
