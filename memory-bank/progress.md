@@ -1297,3 +1297,11 @@
   - OperationsService now localizes remaining English operation/payment-request errors and keeps partial list query parsing out of raw string handling.
   - Creating a finance payment from a supplier payment request now guarantees a common Tour link: it reuses an existing form/booking/order tour or creates a minimal operation Tour, links Booking/OperationForm back to it, and uses globally unique OPT/PC code generation to avoid branch sequence collisions.
   - Verified on VPS: TEST_OPERATIONS_CONTROLLER_CONTRACT_OK, docker compose build api, API deploy, and SMOKE_OPERATIONS_BACKEND_OK.
+
+- 2026-06-11 Operations dashboard/module hardening:
+  - getDashboard() now uses full-day date bounds for the next-14-day departure window, typed Booking/Order/Tour enums, and a shared active OperationForm scope for overdue task and supplier confirmation metrics.
+  - upcomingDepartures now counts upcoming/running orders plus standalone confirmed/operating bookings without an order, avoiding blind spots for booking-only flows.
+  - operatingTours now counts common running Tours plus legacy running Orders that do not yet have a common Tour, avoiding duplicate counts when the common Tour exists.
+  - lowMarginTours now ignores cancelled/settled/deleted orders and focuses on upcoming/running/completed orders with revenue and negative profit.
+  - getModules() now returns structured module-card metadata with key, Vietnamese label, route, permission, metrics, order, and enabled flag; child tables operation-services/operation-costs are no longer exposed as standalone modules.
+  - Verified on VPS: TEST_OPERATIONS_CONTROLLER_CONTRACT_OK, docker compose build api, API deploy, and SMOKE_OPERATIONS_BACKEND_OK.

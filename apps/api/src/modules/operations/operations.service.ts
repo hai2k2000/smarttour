@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { OperationStatus, Prisma, SupplierPaymentStatus, TourStatus, TourType } from '@prisma/client';
+import { BookingStatus, OperationStatus, OrderStatus, Prisma, SupplierPaymentStatus, TourStatus, TourType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
@@ -77,29 +77,127 @@ type FinancePaymentOperationForm = LinkedOperationForm & {
   }) | null;
   tour?: (ScopeMeta & { id: string }) | null;
 };
+type OperationDashboard = {
+  upcomingDepartures: number;
+  operatingTours: number;
+  overdueTasks: number;
+  waitingSupplierConfirmations: number;
+  pendingSupplierPayments: number;
+  lowMarginTours: number;
+};
+type OperationModuleCard = {
+  key: string;
+  label: string;
+  description: string;
+  route: string;
+  permission: string;
+  metrics: Array<keyof OperationDashboard>;
+  order: number;
+  enabled: boolean;
+};
 
 @Injectable()
 export class OperationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(user?: RequestUser) {
+  async getDashboard(user?: RequestUser): Promise<OperationDashboard> {
     const now = new Date();
-    const next14 = new Date(now);
-    next14.setDate(next14.getDate() + 14);
-    const activeFormScope = this.formScopeWhere({ status: { notIn: [OperationStatus.DONE, OperationStatus.CANCELLED] } }, user);
-    const [upcomingDepartures, operatingTours, overdueTasks, waitingSupplierConfirmations, pendingSupplierPayments, lowMarginTours] = await Promise.all([
-      this.prisma.order.count({ where: this.orderScopeWhere({ deletedAt: null, startDate: { gte: now, lte: next14 }, status: { in: ['UPCOMING', 'RUNNING'] as never[] } }, user) }),
-      this.prisma.tour.count({ where: this.tourScopeWhere({ status: { in: ['RUNNING'] as never[] } }, user) }),
-      this.prisma.operationTask.count({ where: { dueDate: { lt: now }, status: { notIn: [OperationStatus.DONE, OperationStatus.CANCELLED] }, operationForm: activeFormScope } }),
+    const today = this.startOfDay(now);
+    const next14 = this.endOfDay(this.addDays(today, 14));
+    const departureWindow = { gte: today, lte: next14 };
+    const activeFormScope = this.activeOperationFormScope(user);
+    const [upcomingOrderDepartures, upcomingStandaloneBookings, runningTours, runningLegacyOrders, overdueTasks, waitingSupplierConfirmations, pendingSupplierPayments, lowMarginTours] = await Promise.all([
+      this.prisma.order.count({
+        where: this.orderScopeWhere({ deletedAt: null, startDate: departureWindow, status: { in: [OrderStatus.UPCOMING, OrderStatus.RUNNING] } }, user),
+      }),
+      this.prisma.booking.count({
+        where: this.bookingScopeWhere({ orderId: null, startDate: departureWindow, status: { in: [BookingStatus.CONFIRMED, BookingStatus.OPERATING] } }, user),
+      }),
+      this.prisma.tour.count({ where: this.tourScopeWhere({ deletedAt: null, status: TourStatus.RUNNING }, user) }),
+      this.prisma.order.count({ where: this.orderScopeWhere({ deletedAt: null, status: OrderStatus.RUNNING, tours: { none: {} } }, user) }),
+      this.prisma.operationTask.count({ where: { dueDate: { lt: today }, status: { notIn: [OperationStatus.DONE, OperationStatus.CANCELLED] }, operationForm: activeFormScope } }),
       this.prisma.operationService.count({ where: { confirmationStatus: { in: ['WAITING', 'REQUESTED'] }, operationForm: activeFormScope } }),
       this.prisma.supplierPaymentRequest.count({ where: this.paymentRequestScopeWhere({ status: { in: [SupplierPaymentStatus.REQUESTED, SupplierPaymentStatus.APPROVED] } }, user) }),
-      this.prisma.order.count({ where: this.orderScopeWhere({ deletedAt: null, totalRevenue: { gt: 0 }, profit: { lt: 0 } }, user) }),
+      this.prisma.order.count({ where: this.orderScopeWhere({ deletedAt: null, status: { in: [OrderStatus.UPCOMING, OrderStatus.RUNNING, OrderStatus.COMPLETED] }, totalRevenue: { gt: 0 }, profit: { lt: 0 } }, user) }),
     ]);
+    const upcomingDepartures = upcomingOrderDepartures + upcomingStandaloneBookings;
+    const operatingTours = runningTours + runningLegacyOrders;
     return { upcomingDepartures, operatingTours, overdueTasks, waitingSupplierConfirmations, pendingSupplierPayments, lowMarginTours };
   }
 
-  getModules() {
-    return ['suppliers', 'tour-programs', 'bookings', 'operation-forms', 'operation-services', 'operation-costs', 'supplier-payment-requests', 'profit-loss-reports'];
+  getModules(): OperationModuleCard[] {
+    return [
+      {
+        key: 'suppliers',
+        label: 'Nh\u00e0 cung c\u1ea5p',
+        description: 'Danh m\u1ee5c NCC v\u00e0 d\u1ecbch v\u1ee5 \u0111\u1ec3 \u0111i\u1ec1u h\u00e0nh ch\u1ecdn ngu\u1ed3n cung \u1ee9ng.',
+        route: '/suppliers',
+        permission: 'supplier.view',
+        metrics: [],
+        order: 10,
+        enabled: true,
+      },
+      {
+        key: 'tour-programs',
+        label: 'Tour m\u1eabu',
+        description: 'Ch\u01b0\u01a1ng tr\u00ecnh tour v\u00e0 ng\u00e0y h\u00e0nh tr\u00ecnh l\u00e0m n\u1ec1n cho booking.',
+        route: '/tour-programs',
+        permission: 'tour.view',
+        metrics: [],
+        order: 20,
+        enabled: true,
+      },
+      {
+        key: 'bookings',
+        label: 'Booking',
+        description: 'Ngu\u1ed3n tour c\u1ea7n \u0111i\u1ec1u h\u00e0nh v\u00e0 theo d\u00f5i ng\u00e0y kh\u1edfi h\u00e0nh.',
+        route: '/bookings',
+        permission: 'booking.view',
+        metrics: ['upcomingDepartures'],
+        order: 30,
+        enabled: true,
+      },
+      {
+        key: 'operation-forms',
+        label: 'Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh',
+        description: 'Qu\u1ea3n l\u00fd d\u1ecbch v\u1ee5, task v\u00e0 chi ph\u00ed \u0111i\u1ec1u h\u00e0nh theo booking.',
+        route: '/operations?tab=forms',
+        permission: 'operation.form.view',
+        metrics: ['overdueTasks', 'waitingSupplierConfirmations'],
+        order: 40,
+        enabled: true,
+      },
+      {
+        key: 'supplier-payment-requests',
+        label: 'Thanh to\u00e1n nh\u00e0 cung c\u1ea5p',
+        description: 'Theo d\u00f5i y\u00eau c\u1ea7u thanh to\u00e1n v\u00e0 li\u00ean k\u1ebft phi\u1ebfu chi t\u00e0i ch\u00ednh.',
+        route: '/operations?tab=payments',
+        permission: 'operation.payment-request.view',
+        metrics: ['pendingSupplierPayments'],
+        order: 50,
+        enabled: true,
+      },
+      {
+        key: 'operation-vouchers',
+        label: 'Phi\u1ebfu d\u1ecbch v\u1ee5',
+        description: 'Theo d\u00f5i voucher d\u1ecbch v\u1ee5, thanh to\u00e1n v\u00e0 \u0111\u1ed1i so\u00e1t v\u1eadn h\u00e0nh.',
+        route: '/operation-vouchers',
+        permission: 'operation.form.view',
+        metrics: ['operatingTours'],
+        order: 60,
+        enabled: true,
+      },
+      {
+        key: 'profit-loss-reports',
+        label: 'C\u1ea3nh b\u00e1o l\u1ee3i nhu\u1eadn',
+        description: 'C\u00e1c tour/order c\u00f3 l\u1ee3i nhu\u1eadn \u00e2m c\u1ea7n ki\u1ec3m tra tr\u01b0\u1edbc khi ch\u1ed1t v\u1eadn h\u00e0nh.',
+        route: '/reports/profit',
+        permission: 'report.view',
+        metrics: ['lowMarginTours'],
+        order: 70,
+        enabled: true,
+      },
+    ];
   }
 
   async listForms(query: ListOperationFormsQueryDto, user?: RequestUser) {
@@ -716,6 +814,28 @@ export class OperationsService {
     }
     if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
     return { AND };
+  }
+
+  private activeOperationFormScope(user?: RequestUser) {
+    return this.formScopeWhere({ status: { notIn: [OperationStatus.DONE, OperationStatus.CANCELLED] } }, user);
+  }
+
+  private startOfDay(date: Date) {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }
+
+  private endOfDay(date: Date) {
+    const next = new Date(date);
+    next.setHours(23, 59, 59, 999);
+    return next;
+  }
+
+  private addDays(date: Date, days: number) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
   }
 
   private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {

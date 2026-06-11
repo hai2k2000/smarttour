@@ -43,6 +43,21 @@ for (const english of ['Cannot create finance payment', 'Cannot submit payment r
   if (service.includes(english)) failures.push(`English service error remains: ${english}`);
 }
 if (!service.includes('OPERATIONS_LIST_MAX_TAKE') || !service.includes('private take(value?: unknown)')) failures.push('OperationsService must honor DTO take cap');
+if (!service.includes('type OperationDashboard') || !service.includes('type OperationModuleCard')) failures.push('Operations dashboard/modules must have explicit response contracts');
+if (!service.includes('startOfDay(now)') || !service.includes('endOfDay(this.addDays(today, 14))')) failures.push('Dashboard departure window must use full-day bounds');
+if (!service.includes('BookingStatus.CONFIRMED') || !service.includes('BookingStatus.OPERATING') || !service.includes('upcomingStandaloneBookings')) failures.push('Dashboard must include standalone confirmed/operating bookings in upcoming departures');
+if (!service.includes('OrderStatus.RUNNING, tours: { none: {} }') || !service.includes('runningLegacyOrders')) failures.push('Dashboard must include running legacy orders without common tours');
+if (!service.includes('activeOperationFormScope(user)') || !service.includes("confirmationStatus: { in: ['WAITING', 'REQUESTED'] }")) failures.push('Dashboard must scope active operation forms for task and supplier confirmation counts');
+const modulesStart = service.indexOf('getModules(): OperationModuleCard[]');
+const modulesEnd = service.indexOf('async listForms', modulesStart);
+const modulesBlock = modulesStart === -1 || modulesEnd === -1 ? '' : service.slice(modulesStart, modulesEnd);
+for (const key of ['suppliers', 'tour-programs', 'bookings', 'operation-forms', 'supplier-payment-requests', 'operation-vouchers', 'profit-loss-reports']) {
+  if (!modulesBlock.includes("key: '" + key + "'")) failures.push('Operations modules missing key: ' + key);
+}
+for (const childOnly of ['operation-services', 'operation-costs']) {
+  if (modulesBlock.includes("key: '" + childOnly + "'")) failures.push('Child operation data should not be exposed as standalone module: ' + childOnly);
+}
+if (!modulesBlock.includes('permission:') || !modulesBlock.includes('metrics:') || !modulesBlock.includes('route:')) failures.push('Operations modules must expose route, permission, and metric metadata');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));
