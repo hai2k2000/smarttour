@@ -18,6 +18,7 @@ type Dashboard = {
   pendingSupplierPayments: number;
   lowMarginTours: number;
 };
+type DashboardMetricDefinition = { key: keyof Dashboard; label: string; title: string };
 type Booking = { id: string; code: string; customerName?: string; orderId?: string; tourId?: string };
 type Supplier = { id: string; name: string; supplierCode?: string; supplierServices?: SupplierService[] };
 type SupplierService = { id: string; serviceName: string; sku?: string; netPrice?: string; sellingPrice?: string };
@@ -60,6 +61,14 @@ type PaymentRequest = {
 };
 
 const emptyDashboard: Dashboard = { upcomingDepartures: 0, operatingTours: 0, overdueTasks: 0, waitingSupplierConfirmations: 0, pendingSupplierPayments: 0, lowMarginTours: 0 };
+const dashboardMetricDefinitions: DashboardMetricDefinition[] = [
+  { key: 'upcomingDepartures', label: 'Sắp khởi hành', title: 'Order sắp khởi hành trong 14 ngày tới và booking độc lập đã xác nhận hoặc đang vận hành.' },
+  { key: 'operatingTours', label: 'Đang vận hành', title: 'Tour đang chạy và order cũ đang chạy nhưng chưa gắn tour chung.' },
+  { key: 'overdueTasks', label: 'Công việc quá hạn', title: 'Task vận hành quá hạn, chưa hoàn tất và chưa hủy.' },
+  { key: 'waitingSupplierConfirmations', label: 'Nhà cung cấp chờ xác nhận', title: 'Dịch vụ nhà cung cấp đang chờ xác nhận hoặc đã gửi yêu cầu xác nhận.' },
+  { key: 'pendingSupplierPayments', label: 'Yêu cầu thanh toán nhà cung cấp', title: 'Yêu cầu thanh toán đang chờ duyệt hoặc đã duyệt, chưa ghi nhận đã thanh toán.' },
+  { key: 'lowMarginTours', label: 'Tour lỗ hoặc âm lợi nhuận', title: 'Order sắp chạy, đang chạy hoặc hoàn tất có doanh thu và lợi nhuận âm.' },
+];
 const defaultFilters: Record<OperationsTab, FilterState> = {
   forms: { search: '', status: '' },
   payments: { search: '', status: '' },
@@ -113,6 +122,8 @@ export default function OperationsClient() {
   const [createFormSupplierId, setCreateFormSupplierId] = useState('');
   const [modal, setModal] = useState<'form' | 'payment' | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const [hasLoadedDashboard, setHasLoadedDashboard] = useState(false);
   const [isLoadingStatic, setIsLoadingStatic] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
@@ -148,6 +159,9 @@ export default function OperationsClient() {
   const canViewActiveTab = can(activeTab.viewPermission);
   const canCreateActiveTab = can(activeTab.createPermission);
   const isBusy = isLoadingStatic || isLoadingList || isReloading;
+  const dashboardHasData = dashboardMetricDefinitions.some((metric) => numberValue(dashboard[metric.key]) > 0);
+  const dashboardLoading = canViewForms && isLoadingList;
+  const dashboardState = dashboardStatus(canViewForms, hasLoadedDashboard, dashboardHasData, dashboardLoading, dashboardError);
 
   useEffect(() => {
     void loadStatic();
@@ -215,27 +229,35 @@ export default function OperationsClient() {
     setIsLoadingList(true);
     const errors: string[] = [];
     const [dashboardResult, formsResult, requestsResult] = await Promise.allSettled([
-      canViewForms ? fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành') : Promise.resolve(emptyDashboard),
+      canViewForms ? fetchJson<Dashboard>('/api/operations/dashboard', 'dashboard vận hành') : Promise.resolve(null),
       canViewForms ? fetchJson<unknown>(`/api/operations/forms?${formQuery}`, 'danh sách phiếu điều hành') : Promise.resolve([]),
       canViewPayments ? fetchJson<unknown>(`/api/operations/supplier-payment-requests?${paymentQuery}`, 'danh sách yêu cầu thanh toán') : Promise.resolve([]),
     ]);
 
-    if (dashboardResult.status === 'fulfilled') {
+    if (!canViewForms) {
+      setDashboard(emptyDashboard);
+      setDashboardError('');
+      setHasLoadedDashboard(false);
+    } else if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
       setDashboard({ ...emptyDashboard, ...dashboardResult.value });
+      setDashboardError('');
+      setHasLoadedDashboard(true);
     } else {
-      errors.push(`Dashboard: ${dashboardResult.reason.message || 'không tải được dữ liệu'}`);
+      const message = dashboardResult.status === 'rejected' ? errorText(dashboardResult.reason, 'không tải được dữ liệu') : 'không tải được dữ liệu';
+      setDashboardError(message);
+      errors.push(`Dashboard: ${message}`);
     }
 
     if (formsResult.status === 'fulfilled') {
       setForms(asRows<OperationForm>(formsResult.value));
     } else {
-      errors.push(`Phiếu điều hành: ${formsResult.reason.message || 'không tải được dữ liệu'}`);
+      errors.push(`Phiếu điều hành: ${errorText(formsResult.reason, 'không tải được dữ liệu')}`);
     }
 
     if (requestsResult.status === 'fulfilled') {
       setRequests(asRows<PaymentRequest>(requestsResult.value));
     } else {
-      errors.push(`Yêu cầu thanh toán: ${requestsResult.reason.message || 'không tải được dữ liệu'}`);
+      errors.push(`Yêu cầu thanh toán: ${errorText(requestsResult.reason, 'không tải được dữ liệu')}`);
     }
 
     setIsLoadingList(false);
@@ -411,14 +433,18 @@ export default function OperationsClient() {
         </div>
       </header>
 
-      <section className="metrics operationsMetrics" data-testid="operations-dashboard">
-        <Metric label="Sắp khởi hành" value={dashboard.upcomingDepartures} />
-        <Metric label="Đang vận hành" value={dashboard.operatingTours} />
-        <Metric label="Công việc quá hạn" value={dashboard.overdueTasks} />
-        <Metric label="Nhà cung cấp chờ xác nhận" value={dashboard.waitingSupplierConfirmations} />
-        <Metric label="Yêu cầu thanh toán nhà cung cấp" value={dashboard.pendingSupplierPayments} />
-        <Metric label="Tour lỗ hoặc âm lợi nhuận" value={dashboard.lowMarginTours} />
+      <section className="metrics operationsMetrics" data-testid="operations-dashboard" aria-busy={dashboardLoading}>
+        {dashboardMetricDefinitions.map((metric) => (
+          <Metric
+            key={metric.key}
+            label={metric.label}
+            value={dashboardMetricValue(dashboard[metric.key], dashboardLoading, hasLoadedDashboard, dashboardError)}
+            title={metric.title}
+            muted={Boolean(dashboardError && !hasLoadedDashboard)}
+          />
+        ))}
       </section>
+      {dashboardState ? <div data-testid="operations-dashboard-state" className={`operationsDashboardState ${dashboardStateClass(dashboardState.type)}`}>{dashboardState.text}</div> : null}
       <PermissionNotice allowed={canViewForms || canViewPayments} label="xem vận hành tour" />
 
       <section className="panel operationsFilters">
@@ -704,8 +730,28 @@ function OperationsTable({ title, count, children }: { title: string; count: num
   return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{new Intl.NumberFormat('vi-VN').format(count)} bản ghi</span></div><div className="fitTableWrap"><table className="operationsTable">{children}</table></div></section>;
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return <article className="metric"><span>{label}</span><strong>{value}</strong></article>;
+function dashboardStatus(canView: boolean, loaded: boolean, hasData: boolean, loading: boolean, error: string): Notice | null {
+  if (!canView) return { type: 'info', text: 'Bạn chưa có quyền xem dashboard vận hành.' };
+  if (loading && !loaded && !error) return { type: 'info', text: 'Đang tải số liệu dashboard...' };
+  if (error) return { type: 'error', text: loaded ? `Không cập nhật được dashboard vận hành. Đang giữ số liệu gần nhất: ${error}` : `Không tải được dashboard vận hành: ${error}` };
+  if (loading && loaded) return { type: 'info', text: 'Đang cập nhật số liệu dashboard...' };
+  if (loaded && !hasData) return { type: 'info', text: 'Chưa có số liệu vận hành trong phạm vi hiện tại.' };
+  return null;
+}
+
+function dashboardMetricValue(value: number, loading: boolean, loaded: boolean, error: string) {
+  if (loading && !loaded && !error) return '...';
+  if (error && !loaded) return '-';
+  return value;
+}
+
+function dashboardStateClass(type: Notice['type']) {
+  return type === 'error' ? 'operationsDashboardStateError' : 'operationsDashboardStateInfo';
+}
+
+function Metric({ label, value, title, muted }: { label: string; value: string | number; title?: string; muted?: boolean }) {
+  const displayValue = typeof value === 'number' ? new Intl.NumberFormat('vi-VN').format(value) : value;
+  return <article className={`metric${muted ? ' metricMuted' : ''}`} title={title}><span>{label}</span><strong>{displayValue}</strong></article>;
 }
 
 async function fetchJson<T>(path: string, label: string): Promise<T> {
@@ -811,6 +857,15 @@ function noticeClass(type: Notice['type']) {
   if (type === 'success') return 'statusPillSuccess';
   if (type === 'error') return 'statusPillError';
   return 'statusPillNeutral';
+}
+
+function errorText(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message.replace(/^dashboard vận hành:\s*/i, '') || fallback;
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
 }
 
 function messageOf(data: unknown) {

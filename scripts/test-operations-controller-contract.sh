@@ -126,6 +126,8 @@ if (!client.includes("window.prompt('Nhập lý do hủy phiếu điều hành:'
 if (!client.includes('actionActor(action)') || !client.includes("operation-payment-approver")) failures.push('payment request actions must send explicit UI actors');
 if (!client.includes('function numberValue(value: unknown)') || !client.includes('money(value: unknown)') || client.includes('Number(request.financePayment.paymentAmount)')) failures.push('OperationsClient money helpers must parse numbers safely');
 if (!client.includes('Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.') || !client.includes('Cần chọn chi phí điều hành cần thanh toán.')) failures.push('payment request modal must validate selected form and cost clearly');
+if (!client.includes('operations-dashboard-state') || !client.includes('Đang tải số liệu dashboard') || !client.includes('Không tải được dashboard vận hành') || !client.includes('Chưa có số liệu vận hành trong phạm vi hiện tại.')) failures.push('OperationsClient dashboard metrics must expose loading, error, and empty states');
+if (!client.includes('dashboardMetricDefinitions') || !client.includes('Order sắp khởi hành trong 14 ngày tới') || !client.includes('Yêu cầu thanh toán đang chờ duyệt hoặc đã duyệt')) failures.push('OperationsClient dashboard metrics must document backend counting logic');
 if (!client.includes('response.status') || !client.includes('Accept:')) failures.push('OperationsClient fetch helpers must expose detailed errors and JSON accept headers');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');

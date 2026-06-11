@@ -777,6 +777,10 @@ select[multiple] { min-height: 92px; }
 .operationsMetrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .operationsMetrics .metric { min-height: 96px; }
 .operationsMetrics .metric strong { font-size: 22px; overflow-wrap: anywhere; }
+.metricMuted strong { color: var(--dn-muted); }
+.operationsDashboardState { margin-top: -4px; border: 1px solid var(--dn-border); border-radius: 8px; background: #fff; padding: 10px 12px; color: var(--dn-muted); font-size: 13px; line-height: 1.45; }
+.operationsDashboardStateInfo { border-color: #c7dceb; background: #f8fbff; color: #245f7a; }
+.operationsDashboardStateError { border-color: #fecaca; background: #fff5f5; color: #b20000; }
 .operationsFilters { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px); gap: 10px; align-items: end; }
 .operationsFilters label:first-child { grid-template-columns: 18px 1fr; align-items: center; }
 .operationsTabs { justify-content: flex-start; }
