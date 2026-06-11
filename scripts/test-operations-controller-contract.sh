@@ -118,6 +118,7 @@ if (paymentListSelectBlock.includes('include:')) failures.push('payment request 
 if (service.includes('Phi?u')) failures.push('OperationsService contains mojibake Vietnamese text');
 if (!service.includes('request.status === SupplierPaymentStatus.PAID')) failures.push('approvePaymentRequest must block already paid requests explicitly');
 if (!service.includes('if (request.financePaymentId) return tx.supplierPaymentRequest.findUniqueOrThrow')) failures.push('createFinancePaymentForRequest must return existing linked payment request detail');
+if (!service.includes('nextAvailablePaymentRequestCode') || !service.includes('Kh\\u00f4ng th\\u1ec3 sinh m\\u00e3 y\\u00eau c\\u1ea7u thanh to\\u00e1n duy nh\\u1ea5t')) failures.push('payment request code generator must skip existing request codes');
 if (!service.includes('operationConfirmationStatus(value: unknown)') || !service.includes('OPERATION_CONFIRMATION_STATUSES.has(text)')) failures.push('form service confirmation status must be normalized and validated');
 if (!service.includes('financePaymentMethod(value: unknown)') || !service.includes('FinancePaymentMethod.BANK_TRANSFER')) failures.push('finance payment method must be normalized and validated');
 if (!service.includes('Number.isNaN(date.getTime())')) failures.push('date helper must reject invalid provided dates');

@@ -278,7 +278,7 @@ export default function OperationsClient() {
         return errors;
       }
       const [bookingResult, supplierResult] = await Promise.allSettled([
-        fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
+        fetchJson<unknown>('/api/bookings?take=500', 'danh sách booking'),
         fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
       ]);
       if (sequence !== staticLoadSeq.current) return errors;
@@ -722,7 +722,7 @@ function OperationFormModal({
           <h2 id="operation-form-title"><Plus size={18} /> Tạo phiếu điều hành</h2>
           <button type="button" data-testid="operation-form-modal-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
         </header>
-        <form action={onSubmit} onSubmit={(event) => { if (!canSubmit) event.preventDefault(); }} className="formGrid operationsFormGrid">
+        <form onSubmit={(event) => { event.preventDefault(); if (canSubmit) void onSubmit(new FormData(event.currentTarget)); }} className="formGrid operationsFormGrid">
           {formErrors.length ? (
             <div data-testid="operation-form-validation" className="formValidationSummary" aria-live="polite">
               <strong>Cần hoàn tất thông tin trước khi tạo phiếu:</strong>
@@ -833,7 +833,7 @@ function PaymentRequestModal({
           <h2 id="operation-payment-title"><Plus size={18} /> Tạo yêu cầu thanh toán nhà cung cấp</h2>
           <button type="button" data-testid="operation-payment-modal-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
         </header>
-        <form action={onSubmit} onSubmit={(event) => { if (!canSubmit) event.preventDefault(); }} className="formGrid operationsFormGrid">
+        <form onSubmit={(event) => { event.preventDefault(); if (canSubmit) void onSubmit(new FormData(event.currentTarget)); }} className="formGrid operationsFormGrid">
           {formErrors.length ? (
             <div data-testid="operation-payment-validation" className="formValidationSummary" aria-live="polite">
               <strong>Cần hoàn tất thông tin trước khi tạo yêu cầu thanh toán:</strong>

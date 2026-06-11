@@ -338,7 +338,27 @@ async function main() {
   const defaultCodeForm = await service.createForm(formPayload(defaultCodeBooking, supplierA, supplierServiceA, 'DEFAULT-CODE'));
   const defaultCodeRequest = await service.createPaymentRequest({ actor: 'payment-code-generator', items: [{ supplierId: supplierA.id, costId: defaultCodeForm.costs[0].id, amount: 100 }] }, branchAUser);
   assert(/^YCTT-\d{6}-\d{6}$/.test(defaultCodeRequest.code), `generated payment request code should match YCTT-YYYYMM-000001 format, got ${defaultCodeRequest.code}`);
+  const defaultCodeCollisionBooking = await makeBooking('DEFAULT-CODE-COLLISION', customerA, orderA, tourA);
+  const defaultCodeCollisionForm = await service.createForm(formPayload(defaultCodeCollisionBooking, supplierA, supplierServiceA, 'DEFAULT-CODE-COLLISION'));
+  const nowForCode = new Date();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "CodeSequence" SET "currentNo" = 0
+     WHERE "scope" = $1
+       AND "prefix" = $2
+       AND "year" = $3
+       AND COALESCE("month", 0) = $4
+       AND COALESCE("branch", '') = $5`,
+    'SUPPLIER_PAYMENT_REQUEST',
+    'YCTT',
+    nowForCode.getFullYear(),
+    nowForCode.getMonth() + 1,
+    'BR-A',
+  );
+  const defaultCodeCollisionRequest = await service.createPaymentRequest({ actor: 'payment-code-generator', items: [{ supplierId: supplierA.id, costId: defaultCodeCollisionForm.costs[0].id, amount: 100 }] }, branchAUser);
+  assert(defaultCodeCollisionRequest.code !== defaultCodeRequest.code && /^YCTT-\d{6}-\d{6}$/.test(defaultCodeCollisionRequest.code), 'generated payment request code should skip existing request codes');
+  await service.deletePaymentRequest(defaultCodeCollisionRequest.id, branchAUser);
   await service.deletePaymentRequest(defaultCodeRequest.id, branchAUser);
+  await service.updateForm(defaultCodeCollisionForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
   await service.updateForm(defaultCodeForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
 
   const deleteBooking = await makeBooking('DELETE', customerA, orderA, tourA);

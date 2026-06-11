@@ -373,7 +373,7 @@ export class OperationsService {
     await this.ensurePaymentItemsScoped(items, user);
     const codeBranch = await this.paymentRequestCodeBranch(items, dto, user);
     return this.prisma.$transaction(async (tx) => {
-      const code = this.text(dto.code) || (await this.nextCode(tx, 'SUPPLIER_PAYMENT_REQUEST', 'YCTT', new Date(), codeBranch));
+      const code = this.text(dto.code) || (await this.nextAvailablePaymentRequestCode(tx, new Date(), codeBranch));
       const request = await tx.supplierPaymentRequest.create({
         data: {
           code,
@@ -1167,6 +1167,15 @@ export class OperationsService {
       if (!existing) return code;
     }
     throw new ConflictException('Kh\u00f4ng th\u1ec3 sinh m\u00e3 phi\u1ebfu chi duy nh\u1ea5t');
+  }
+
+  private async nextAvailablePaymentRequestCode(tx: Prisma.TransactionClient, date: Date | null, branch?: string | null) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = await this.nextCode(tx, 'SUPPLIER_PAYMENT_REQUEST', 'YCTT', date, branch);
+      const existing = await tx.supplierPaymentRequest.findUnique({ where: { code }, select: { id: true } });
+      if (!existing) return code;
+    }
+    throw new ConflictException('Kh\u00f4ng th\u1ec3 sinh m\u00e3 y\u00eau c\u1ea7u thanh to\u00e1n duy nh\u1ea5t');
   }
 
   private async nextCode(tx: Prisma.TransactionClient, scope: string, prefix: string, date: Date | null, branch?: string | null) {
