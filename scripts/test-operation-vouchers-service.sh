@@ -199,8 +199,10 @@ async function main() {
   assert(created.supplierId === supplier.id && created.supplierName === supplier.name, 'create should link supplier and fill supplierName');
   assert(dateOnly(created.serviceDate) === '2026-11-01' && dateOnly(created.paymentDeadline) === '2026-11-06', 'create should parse serviceDate/paymentDeadline');
   assert(created.details.length === 2, 'create should persist voucher details');
-  assert(amount(created.details[0].amount) === 2200 && amount(created.details[1].amount) === 500, 'create should calculate each detail amount from netPrice and VAT');
-  assert(amount(created.totalAmount) === 2700 && amount(created.paidAmount) === 0 && amount(created.remainAmount) === 2700 && created.status === 'PENDING', 'create should calculate total and remaining amount');
+  const roomAmount = amount(created.details.find((item) => item.sku === 'ROOM')?.amount);
+  const guideAmount = amount(created.details.find((item) => item.sku === 'GUIDE')?.amount);
+  assert(roomAmount === 2 * 1000 * 1.1 && guideAmount === 1 * 500, 'create should calculate each detail amount from quantity, netPrice, and VAT');
+  assert(amount(created.totalAmount) === roomAmount + guideAmount && amount(created.paidAmount) === 0 && amount(created.remainAmount) === roomAmount + guideAmount && created.status === 'PENDING', 'create should calculate total and remaining amount from detail line totals');
 
   const allRows = await service.list(run);
   assert(allRows.some((row) => row.id === created.id), 'list should include created voucher');
@@ -228,8 +230,12 @@ async function main() {
   });
   assert(updated.serviceName === 'Updated hotel package', 'update should persist serviceName');
   assert(dateOnly(updated.serviceDate) === '2026-12-01' && dateOnly(updated.paymentDeadline) === '2026-12-03', 'update should parse serviceDate/paymentDeadline');
-  assert(updated.details.length === 1 && amount(updated.details[0].amount) === 630, 'update should replace details and calculate detail amount');
-  assert(amount(updated.totalAmount) === 630 && amount(updated.remainAmount) === 630 && updated.status === 'PENDING', 'update should recalculate total and remaining');
+  assert(updated.bookingId === booking.id && updated.tourId === tour.id && updated.orderId === order.id && updated.supplierId === supplier.id, 'partial update should keep booking/tour/order/supplier links');
+  assert(updated.details.length === 1 && amount(updated.details[0].amount) === 3 * 200 * 1.05, 'update should replace details and calculate detail amount from netPrice and VAT');
+  assert(amount(updated.totalAmount) === amount(updated.details[0].amount) && amount(updated.remainAmount) === amount(updated.totalAmount) && updated.status === 'PENDING', 'update should recalculate total and remaining from edited details');
+  const savedAfterUpdate = await service.detail(created.id);
+  assert(dateOnly(savedAfterUpdate.serviceDate) === '2026-12-01' && dateOnly(savedAfterUpdate.paymentDeadline) === '2026-12-03', 'detail after update should return saved serviceDate/paymentDeadline for edit form');
+  assert(savedAfterUpdate.booking?.id === booking.id && savedAfterUpdate.tour?.id === tour.id && savedAfterUpdate.order?.id === order.id && savedAfterUpdate.supplier?.id === supplier.id, 'detail after update should keep full booking/tour/order/supplier relations');
   await rejectsMessage(() => service.update(created.id, {
     paymentDeadline: '2026-11-30',
     details: [{ serviceName: 'Bad date', quantity: 1, netPrice: 100, vat: 0 }],
@@ -245,15 +251,18 @@ async function main() {
     paymentDate: '2026-12-02',
     note: 'Partial payment from test',
   });
-  assert(amount(partiallyPaid.paidAmount) === 200 && amount(partiallyPaid.remainAmount) === 430 && partiallyPaid.status === 'PARTIAL', 'add payment should update paidAmount/remainAmount/status');
+  assert(amount(partiallyPaid.paidAmount) === 200 && amount(partiallyPaid.remainAmount) === amount(partiallyPaid.totalAmount) - 200 && partiallyPaid.status === 'PARTIAL', 'add payment should update paidAmount/remainAmount/status');
   assert(partiallyPaid.payments.length === 1 && amount(partiallyPaid.payments[0].paidAmount) === 200 && dateOnly(partiallyPaid.payments[0].paymentDate) === '2026-12-02', 'add payment should create payment history row');
+  const partialReload = await service.detail(created.id);
+  const partialPaymentTotal = partialReload.payments.reduce((sum, item) => sum + amount(item.paidAmount), 0);
+  assert(partialPaymentTotal === amount(partialReload.paidAmount) && amount(partialReload.remainAmount) === amount(partialReload.totalAmount) - partialPaymentTotal, 'detail after payment should keep paid/remain amounts in sync with payment history');
   await rejectsMessage(() => service.update(created.id, { serviceName: 'Blocked after payment' }), 'Chỉ phiếu chưa thanh toán mới được chỉnh sửa', 'update should reject voucher with payment history using Vietnamese message');
   await rejectsMessage(() => service.remove(created.id), 'Chỉ phiếu chưa thanh toán mới được xóa', 'delete should reject voucher with payment history using Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 431 }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'partial voucher should reject payment above remaining amount with Vietnamese message');
 
   const fullyPaid = await service.addPayment(created.id, { paidAmount: 430, paymentDate: '2026-12-03' });
-  assert(amount(fullyPaid.paidAmount) === 630 && amount(fullyPaid.remainAmount) === 0 && fullyPaid.status === 'PAID', 'second payment should settle voucher totals');
-  assert(fullyPaid.payments.length === 2, 'second payment should append another payment row');
+  assert(amount(fullyPaid.paidAmount) === amount(fullyPaid.totalAmount) && amount(fullyPaid.remainAmount) === 0 && fullyPaid.status === 'PAID', 'second payment should settle voucher totals');
+  assert(fullyPaid.payments.length === 2 && fullyPaid.payments.reduce((sum, item) => sum + amount(item.paidAmount), 0) === amount(fullyPaid.totalAmount), 'second payment should append another payment row and match total paid amount');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1 }), 'Phiếu điều hành đã thanh toán đủ', 'paid voucher should reject more payments with Vietnamese message');
 
   const standalone = await service.create({
