@@ -38,6 +38,12 @@ function amount(value) {
   return Number(value);
 }
 
+function assertDeepEqual(actual, expected, label) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  assert(actualJson === expectedJson, `${label}: expected ${expectedJson}, got ${actualJson}`);
+}
+
 function user(scope, branch = null, department = null) {
   const permissions = Array.isArray(scope) ? scope : [scope];
   return {
@@ -315,14 +321,23 @@ async function main() {
   });
   assert(standaloneBooking.orderId === null, 'standalone booking seed should have no order');
   const dashboard = await service.getDashboard();
-  assert(dashboard.upcomingDepartures === 4, `dashboard upcomingDepartures expected 4 got ${dashboard.upcomingDepartures}`);
-  assert(dashboard.operatingTours === 1, `dashboard operatingTours expected 1 got ${dashboard.operatingTours}`);
-  assert(dashboard.overdueTasks === 1, `dashboard overdueTasks expected 1 got ${dashboard.overdueTasks}`);
-  assert(dashboard.waitingSupplierConfirmations === 1, `dashboard waitingSupplierConfirmations expected 1 got ${dashboard.waitingSupplierConfirmations}`);
-  assert(dashboard.pendingSupplierPayments === 1, `dashboard pendingSupplierPayments expected 1 got ${dashboard.pendingSupplierPayments}`);
-  assert(dashboard.lowMarginTours === 1, `dashboard lowMarginTours expected 1 got ${dashboard.lowMarginTours}`);
+  assertDeepEqual(dashboard, {
+    upcomingDepartures: 4,
+    operatingTours: 1,
+    overdueTasks: 1,
+    waitingSupplierConfirmations: 1,
+    pendingSupplierPayments: 1,
+    lowMarginTours: 1,
+  }, 'dashboard metrics snapshot should match seeded operations data');
   const scopedDashboard = await service.getDashboard(branchAUser);
-  assert(scopedDashboard.upcomingDepartures === 3 && scopedDashboard.waitingSupplierConfirmations === 1, 'dashboard should honor branch data scope');
+  assertDeepEqual(scopedDashboard, {
+    upcomingDepartures: 3,
+    operatingTours: 1,
+    overdueTasks: 1,
+    waitingSupplierConfirmations: 1,
+    pendingSupplierPayments: 1,
+    lowMarginTours: 1,
+  }, 'dashboard branch scope snapshot should match seeded operations data');
 
   const auditLogs = await prisma.auditLog.findMany({ orderBy: { createdAt: 'asc' } });
   const auditPairs = auditLogs.map((log) => `${log.action}:${log.entity}`);
