@@ -236,6 +236,8 @@ async function main() {
 
   const allForms = await service.listForms({ take: 50 });
   assert(allForms.length === 2, 'list forms should include created forms');
+  const listedFormA = allForms.find((row) => row.id === formA.id);
+  assert(listedFormA?.costs?.[0]?.serviceId === originalFormAServiceId, 'list forms should expose cost serviceId for supplier/payment mapping');
   assert((await service.listForms({ status: 'PENDING' })).length === 2, 'list forms status filter should work');
   assert((await service.listForms({ search: customerA.phone })).some((row) => row.id === formA.id), 'list forms search should match booking customer phone');
   assert((await service.listForms({ search: orderA.systemCode })).some((row) => row.id === formA.id), 'list forms search should match order system code');
@@ -297,6 +299,7 @@ async function main() {
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierA.id, amount: 100 }] }), 'Cần chọn chi phí', 'payment item should require cost');
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: 0 }] }), 'Số tiền thanh toán phải lớn hơn 0', 'payment item should require positive amount');
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: 900 }] }), 'Số tiền thanh toán không được vượt quá số tiền chi phí điều hành', 'payment amount above cost should be Vietnamese');
+  await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-request', items: [{ supplierId: supplierB.id, costId: formA.costs[0].id, amount: 100 }] }), 'Nhà cung cấp thanh toán không khớp với nhà cung cấp của dịch vụ điều hành', 'payment request should reject supplier that does not match selected operation cost service');
 
   const request = await service.createPaymentRequest({
     actor: 'payment-creator',
@@ -304,6 +307,7 @@ async function main() {
     items: [{ supplierId: supplierA.id, costId: formA.costs[0].id, amount: '700', notes: 'Thanh toán khách sạn' }],
   });
   assert(request.status === 'DRAFT' && request.requestedBy === 'payment-creator' && request.items.length === 1 && amount(request.items[0].amount) === 700, 'create payment request should create draft with actor/requestedBy and item');
+  assert(request.items[0].supplierId === supplierA.id && request.items[0].costId === formA.costs[0].id, 'create payment request should keep supplier and cost selected from operation form');
   assert((await service.listPaymentRequests({ search: request.code })).some((row) => row.id === request.id), 'list payment requests search should match code');
   assert((await service.listPaymentRequests({ supplierId: supplierA.id })).some((row) => row.id === request.id), 'list payment requests supplier filter should work');
   assert((await service.listPaymentRequests({ take: 50 }, branchAUser)).some((row) => row.id === request.id), 'branch scoped user should see request via operation form cost');
@@ -376,8 +380,10 @@ async function main() {
     reason: 'Chi theo yêu cầu test',
   }, branchAUser);
   assert(linked.financePaymentId, 'create finance payment should link request to finance payment');
+  assert(linked.financePayment?.approvalStatus === 'PENDING', 'linked finance payment should use pending approval status before finance approval');
   assert(linked.financePayment && amount(linked.financePayment.paymentAmount) === 750, 'linked finance payment should use request total amount');
   const financePayment = await prisma.financePayment.findUniqueOrThrow({ where: { id: linked.financePaymentId } });
+  assert(financePayment.approvalStatus === 'PENDING', 'finance payment should start with pending approval status');
   assert(financePayment.orderId === orderA.id && financePayment.tourId === tourA.id, 'finance payment should link request to order/tour');
   assert(financePayment.reason === 'Chi theo yêu cầu test' && financePayment.createdBy === 'finance-a', 'finance payment should keep Vietnamese reason and actor');
   assert(financePayment.branch === 'BR-A' && financePayment.department === 'DEP-A', 'finance payment should apply branch and department data scope');

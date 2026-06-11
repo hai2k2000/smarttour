@@ -1068,7 +1068,7 @@ export class OperationsService {
         orderBy: { serviceName: 'asc' },
       },
       tasks: { take: OPERATIONS_LIST_CHILD_TAKE, select: { id: true, title: true, assignee: true, dueDate: true, status: true }, orderBy: [{ dueDate: 'asc' }, { title: 'asc' }] },
-      costs: { take: OPERATIONS_LIST_CHILD_TAKE, select: { id: true, costName: true, expectedAmount: true, actualAmount: true, currency: true, notes: true }, orderBy: { costName: 'asc' } },
+      costs: { take: OPERATIONS_LIST_CHILD_TAKE, select: { id: true, serviceId: true, costName: true, expectedAmount: true, actualAmount: true, currency: true, notes: true }, orderBy: { costName: 'asc' } },
     } satisfies Prisma.OperationFormSelect;
   }
 

@@ -70,7 +70,7 @@ type OperationForm = {
     supplierService?: SupplierService;
   }[];
   tasks: { id: string; title: string; assignee?: string; dueDate?: string; status: string }[];
-  costs: { id: string; costName: string; expectedAmount: string; actualAmount: string; currency: string; notes?: string }[];
+  costs: { id: string; serviceId?: string | null; costName: string; expectedAmount: string; actualAmount: string; currency: string; notes?: string }[];
 };
 type PaymentRequest = {
   id: string;
@@ -798,7 +798,7 @@ function PaymentRequestModal({
         ...current,
         formId: selectedFormId,
         costId,
-        supplierId: selectedForm ? defaultSupplierId(selectedForm) || current.supplierId : '',
+        supplierId: selectedForm ? supplierIdForCost(selectedForm, costId) || current.supplierId : '',
         amount: selectedForm ? paymentAmountForCost(selectedForm, costId) : '',
         requestedBy: current.requestedBy || requestedByDefault,
       };
@@ -815,7 +815,12 @@ function PaymentRequestModal({
   }
 
   function changeCost(costId: string) {
-    setDraft((current) => ({ ...current, costId, amount: paymentAmountForCost(selectedForm, costId) }));
+    setDraft((current) => ({
+      ...current,
+      costId,
+      supplierId: supplierIdForCost(selectedForm, costId) || current.supplierId,
+      amount: paymentAmountForCost(selectedForm, costId),
+    }));
   }
 
   const formErrors = paymentRequestDraftErrors(draft, selectedForm, suppliers);
@@ -1050,7 +1055,7 @@ function paymentRequestDraftForForm(form?: OperationForm, requestedBy = 'operati
   return {
     formId: form?.id || formId,
     costId,
-    supplierId: defaultSupplierId(form),
+    supplierId: supplierIdForCost(form, costId),
     amount: paymentAmountForCost(form, costId),
     requestedBy,
     notes: '',
@@ -1064,6 +1069,8 @@ function paymentRequestDraftErrors(draft: PaymentRequestDraft, selectedForm: Ope
   const notes = text(draft.notes);
   const supplier = suppliers.find((item) => item.id === draft.supplierId);
   const selectedCost = selectedForm?.costs.find((cost) => cost.id === draft.costId);
+  const selectedCostService = selectedCost?.serviceId ? selectedForm?.services.find((service) => service.id === selectedCost.serviceId) : undefined;
+  const selectedCostSupplierId = supplierIdFromService(selectedCostService);
 
   if (!draft.formId) errors.push('Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.');
   else if (!selectedForm || selectedForm.id !== draft.formId) errors.push('Phiếu điều hành đã chọn không hợp lệ hoặc chưa được tải.');
@@ -1072,6 +1079,7 @@ function paymentRequestDraftErrors(draft: PaymentRequestDraft, selectedForm: Ope
   else if (selectedForm && !selectedCost) errors.push('Chi phí được chọn không thuộc phiếu điều hành hiện tại.');
   if (!draft.supplierId) errors.push('Cần chọn nhà cung cấp nhận thanh toán.');
   else if (!supplier) errors.push('Nhà cung cấp không hợp lệ hoặc chưa được tải.');
+  else if (selectedCostSupplierId && draft.supplierId !== selectedCostSupplierId) errors.push('Nhà cung cấp không khớp với dịch vụ của khoản chi đã chọn.');
   if (!Number.isFinite(amount) || amount <= 0) errors.push('Số tiền thanh toán phải là số lớn hơn 0.');
   if (!requestedBy) errors.push('Cần xác định người tạo yêu cầu thanh toán.');
   else if (requestedBy.length > 120) errors.push('Người tạo yêu cầu không được vượt quá 120 ký tự.');
@@ -1155,9 +1163,19 @@ function paymentAmountForCost(form?: OperationForm, costId?: string) {
   return amount > 0 ? String(amount) : '';
 }
 
-function defaultSupplierId(form?: OperationForm) {
-  const service = form?.services?.find((item) => item.supplier?.id || item.supplierId);
+function supplierIdFromService(service?: OperationForm['services'][number]) {
   return service?.supplier?.id || service?.supplierId || '';
+}
+
+function defaultSupplierId(form?: OperationForm) {
+  const service = form?.services?.find((item) => supplierIdFromService(item));
+  return supplierIdFromService(service);
+}
+
+function supplierIdForCost(form?: OperationForm, costId?: string) {
+  const cost = costId ? form?.costs.find((item) => item.id === costId) : form?.costs?.[0];
+  const linkedService = cost?.serviceId ? form?.services.find((item) => item.id === cost.serviceId) : undefined;
+  return supplierIdFromService(linkedService) || defaultSupplierId(form);
 }
 
 function totalRequest(request: PaymentRequest) {
