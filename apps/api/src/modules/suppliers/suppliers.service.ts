@@ -77,7 +77,7 @@ export class SuppliersService {
 
     return this.prisma.supplier.findMany({
       where,
-      include: { category: true },
+      include: { category: true, supplierServices: { orderBy: { createdAt: 'asc' } } },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
   }

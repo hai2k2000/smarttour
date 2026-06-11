@@ -8,6 +8,7 @@ const controller = fs.readFileSync('apps/api/src/modules/operations/operations.c
 const service = fs.readFileSync('apps/api/src/modules/operations/operations.service.ts', 'utf8');
 const dto = fs.readFileSync('apps/api/src/modules/operations/dto/list-operations-query.dto.ts', 'utf8');
 const client = fs.readFileSync('apps/web/app/operations/OperationsClient.tsx', 'utf8');
+const suppliersService = fs.readFileSync('apps/api/src/modules/suppliers/suppliers.service.ts', 'utf8');
 const failures = [];
 const requiredPermissions = [
   ["dashboard", "operation.form.view"],
@@ -71,6 +72,17 @@ if (!service.includes('operationConfirmationStatus(value: unknown)') || !service
 if (!service.includes('financePaymentMethod(value: unknown)') || !service.includes('FinancePaymentMethod.BANK_TRANSFER')) failures.push('finance payment method must be normalized and validated');
 if (!service.includes('Number.isNaN(date.getTime())')) failures.push('date helper must reject invalid provided dates');
 if (!service.includes("await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto })")) failures.push('cancelForm audit must include actor and reason');
+if (!suppliersService.includes("include: { category: true, supplierServices")) failures.push('generic supplier list must include supplierServices for OperationsClient');
+if (!client.includes("fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp')") || client.includes('/api/suppliers/hotels')) failures.push('OperationsClient must load the generic supplier source, not hotel-only suppliers');
+for (const copy of ['Vận hành tour và thanh toán nhà cung cấp', 'Công việc quá hạn', 'Nhà cung cấp chờ xác nhận', 'Yêu cầu thanh toán nhà cung cấp', 'Tour lỗ hoặc âm lợi nhuận']) {
+  if (!client.includes(copy)) failures.push('OperationsClient missing normalized Vietnamese copy: ' + copy);
+}
+if (client.includes('NCC')) failures.push('OperationsClient should not expose NCC abbreviation in visible copy');
+if (!client.includes("window.prompt('Nhập lý do hủy phiếu điều hành:'") || !client.includes("Cần nhập lý do hủy phiếu điều hành.")) failures.push('cancelForm must ask for a visible cancellation reason');
+if (!client.includes('actionActor(action)') || !client.includes("operation-payment-approver")) failures.push('payment request actions must send explicit UI actors');
+if (!client.includes('function numberValue(value: unknown)') || !client.includes('money(value: unknown)') || client.includes('Number(request.financePayment.paymentAmount)')) failures.push('OperationsClient money helpers must parse numbers safely');
+if (!client.includes('Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.') || !client.includes('Cần chọn chi phí điều hành cần thanh toán.')) failures.push('payment request modal must validate selected form and cost clearly');
+if (!client.includes('response.status') || !client.includes('Accept:')) failures.push('OperationsClient fetch helpers must expose detailed errors and JSON accept headers');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));

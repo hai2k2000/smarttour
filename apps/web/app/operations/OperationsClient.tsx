@@ -145,7 +145,7 @@ export default function OperationsClient() {
     const errors: string[] = [];
     const [bookingResult, supplierResult] = await Promise.allSettled([
       fetchJson<unknown>('/api/bookings?take=80', 'danh sách booking'),
-      fetchJson<unknown>('/api/suppliers/hotels', 'danh sách NCC khách sạn'),
+      fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
     ]);
 
     if (bookingResult.status === 'fulfilled') {
@@ -155,9 +155,9 @@ export default function OperationsClient() {
     }
 
     if (supplierResult.status === 'fulfilled') {
-      setSuppliers(asRows<Supplier>(supplierResult.value).slice(0, 80));
+      setSuppliers(asRows<Supplier>(supplierResult.value).slice(0, 120));
     } else {
-      errors.push(`NCC: ${supplierResult.reason.message || 'không tải được dữ liệu'}`);
+      errors.push(`Nhà cung cấp: ${supplierResult.reason.message || 'không tải được dữ liệu'}`);
     }
 
     setIsLoadingStatic(false);
@@ -213,19 +213,20 @@ export default function OperationsClient() {
     const serviceName = text(formData.get('serviceName')) || 'Dịch vụ điều hành';
     const expectedCost = readAmount(formData.get('expectedCost'));
     const actualCost = readAmount(formData.get('actualCost'));
-    const costName = text(formData.get('costName')) || 'Chi phí NCC';
+    const costName = text(formData.get('costName')) || 'Chi phí nhà cung cấp';
     const taskTitle = text(formData.get('taskTitle'));
     const supplier = suppliers.find((item) => item.id === supplierId);
     const supplierService = supplierServiceOptions.find((item) => item.id === supplierServiceId);
 
     const validation = [
       !bookingId ? 'Cần chọn booking để tạo phiếu điều hành.' : '',
-      !supplierId ? 'Cần chọn NCC.' : '',
-      !supplier ? 'NCC không hợp lệ hoặc chưa được tải.' : '',
-      !supplierServiceId ? 'Cần chọn dịch vụ NCC.' : '',
-      supplierService && supplierService.supplierId !== supplierId ? 'Dịch vụ NCC không thuộc nhà cung cấp đã chọn.' : '',
+      !supplierId ? 'Cần chọn nhà cung cấp.' : '',
+      !supplier ? 'Nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
+      !supplierServiceId ? 'Cần chọn dịch vụ nhà cung cấp.' : '',
+      supplierServiceId && !supplierService ? 'Dịch vụ nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
+      supplierService && supplierService.supplierId !== supplierId ? 'Dịch vụ không thuộc nhà cung cấp đã chọn.' : '',
       !Number.isFinite(expectedCost) || expectedCost <= 0 ? 'Dự kiến chi phải là số lớn hơn 0.' : '',
-      !Number.isFinite(actualCost) || actualCost < 0 ? 'Thực chi phải là số không âm.' : '',
+      !Number.isFinite(actualCost) || actualCost < 0 ? 'Thực chi phải là số lớn hơn hoặc bằng 0.' : '',
       !taskTitle ? 'Cần nhập task vận hành.' : '',
     ].filter(Boolean);
     if (validation.length) return showError(validation.join(' '));
@@ -257,36 +258,40 @@ export default function OperationsClient() {
     const supplier = suppliers.find((item) => item.id === supplierId);
     const selectedCost = selectedForm?.costs.find((cost) => cost.id === costId);
     const validation = [
-      !supplierId ? 'Cần chọn NCC trước khi tạo yêu cầu thanh toán.' : '',
-      !supplier ? 'NCC không hợp lệ hoặc chưa được tải.' : '',
+      !selectedForm ? 'Cần chọn phiếu điều hành trước khi tạo yêu cầu thanh toán.' : '',
+      !costId ? 'Cần chọn chi phí điều hành cần thanh toán.' : '',
+      !supplierId ? 'Cần chọn nhà cung cấp nhận thanh toán.' : '',
+      !supplier ? 'Nhà cung cấp không hợp lệ hoặc chưa được tải.' : '',
       !Number.isFinite(amount) || amount <= 0 ? 'Số tiền thanh toán phải là số lớn hơn 0.' : '',
-      selectedForm && costId && !selectedCost ? 'Chi phí được chọn không thuộc phiếu điều hành hiện tại.' : '',
+      selectedForm && !selectedCost ? 'Chi phí được chọn không thuộc phiếu điều hành hiện tại.' : '',
     ].filter(Boolean);
     if (validation.length) return showError(validation.join(' '));
 
     const created = await post<PaymentRequest>('/api/operations/supplier-payment-requests', {
-      requestedBy: text(formData.get('requestedBy')) || 'operation',
+      requestedBy: text(formData.get('requestedBy')) || 'operations-ui',
       items: [{ supplierId, costId: costId || undefined, amount, notes: text(formData.get('notes')) }],
-    }, 'Tạo yêu cầu thanh toán NCC');
+    }, 'Tạo yêu cầu thanh toán nhà cung cấp');
 
     if (created?.id) setDetailRequestId(created.id);
   }
 
   async function requestAction(id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') {
     const label = actionLabels[action];
-    const updated = await post<PaymentRequest>(`/api/operations/supplier-payment-requests/${id}/${action}`, { actor: action === 'approve' ? 'chief-accountant' : 'operation' }, label);
+    const updated = await post<PaymentRequest>(`/api/operations/supplier-payment-requests/${id}/${action}`, { actor: actionActor(action) }, label);
     if (updated?.id) setDetailRequestId(updated.id);
   }
 
   async function approveFinancePayment(id?: string) {
     if (!id) return showError('Yêu cầu này chưa có phiếu chi tài chính, không thể duyệt thanh toán.');
-    await post(`/api/finance/payments/${id}/approve`, { actor: 'accounting' }, 'Duyệt phiếu chi tài chính');
+    await post(`/api/finance/payments/${id}/approve`, { actor: 'finance-payment-approver' }, 'Duyệt phiếu chi tài chính');
   }
 
   async function cancelForm(id: string) {
-    const confirmed = typeof window === 'undefined' || window.confirm('Bạn chắc chắn muốn hủy phiếu điều hành này? Thao tác này sẽ đổi trạng thái phiếu sang Đã hủy.');
-    if (!confirmed) return;
-    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operation', reason: 'Hủy từ màn hình vận hành' }, 'Hủy phiếu điều hành');
+    const reason = typeof window === 'undefined' ? 'Hủy từ màn hình vận hành' : window.prompt('Nhập lý do hủy phiếu điều hành:');
+    if (reason === null) return;
+    const cleanReason = reason.trim();
+    if (!cleanReason) return showError('Cần nhập lý do hủy phiếu điều hành.');
+    await post(`/api/operations/forms/${id}/cancel`, { actor: 'operations-ui', reason: cleanReason }, 'Hủy phiếu điều hành');
   }
 
   async function post<T = unknown>(path: string, payload: unknown, actionLabel: string) {
@@ -294,12 +299,11 @@ export default function OperationsClient() {
     const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await parseResponse(response);
     if (!response.ok) {
-      showError(`${actionLabel} thất bại: ${messageOf(data) || 'Không thực hiện được.'}`);
+      showError(`${actionLabel} thất bại (${response.status}): ${messageOf(data) || response.statusText || 'Không thực hiện được.'}`);
       return null;
     }
 
-    const [staticErrors, loadErrors] = await Promise.all([loadStatic(false), load(false)]);
-    const errors = [...staticErrors, ...loadErrors];
+    const errors = await load(false);
     if (errors.length) showError(`${actionLabel} thành công, nhưng tải lại dữ liệu lỗi: ${errors.join(' | ')}`);
     else showSuccess(`${actionLabel} thành công.`);
     setModal(null);
@@ -333,7 +337,7 @@ export default function OperationsClient() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Sản phẩm & vận hành</p>
-          <h1>Vận hành tour và thanh toán NCC</h1>
+          <h1>Vận hành tour và thanh toán nhà cung cấp</h1>
         </div>
         <div className="pageHeaderActions">
           {notice ? <span className={`statusPill ${noticeClass(notice.type)}`}>{notice.text}</span> : null}
@@ -349,10 +353,10 @@ export default function OperationsClient() {
       <section className="metrics operationsMetrics" data-testid="operations-dashboard">
         <Metric label="Sắp khởi hành" value={dashboard.upcomingDepartures} />
         <Metric label="Đang vận hành" value={dashboard.operatingTours} />
-        <Metric label="Task quá hạn" value={dashboard.overdueTasks} />
-        <Metric label="NCC chờ xác nhận" value={dashboard.waitingSupplierConfirmations} />
-        <Metric label="Yêu cầu thanh toán" value={dashboard.pendingSupplierPayments} />
-        <Metric label="Tour âm lợi nhuận" value={dashboard.lowMarginTours} />
+        <Metric label="Công việc quá hạn" value={dashboard.overdueTasks} />
+        <Metric label="Nhà cung cấp chờ xác nhận" value={dashboard.waitingSupplierConfirmations} />
+        <Metric label="Yêu cầu thanh toán nhà cung cấp" value={dashboard.pendingSupplierPayments} />
+        <Metric label="Tour lỗ hoặc âm lợi nhuận" value={dashboard.lowMarginTours} />
       </section>
       <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage', 'operation.payment-request.view', 'operation.payment-request.create'])} label="xem vận hành tour" />
 
@@ -372,7 +376,7 @@ export default function OperationsClient() {
 
       <div className="moduleTabs operationsTabs">
         <button data-testid="operations-tab-forms" className={tab === 'forms' ? 'active' : ''} onClick={() => switchTab('forms')}><ClipboardCheck size={16} /> Phiếu điều hành</button>
-        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} onClick={() => switchTab('payments')}><HandCoins size={16} /> Thanh toán NCC</button>
+        <button data-testid="operations-tab-payments" className={tab === 'payments' ? 'active' : ''} onClick={() => switchTab('payments')}><HandCoins size={16} /> Thanh toán nhà cung cấp</button>
       </div>
 
       {modal === 'form' ? (
@@ -442,7 +446,7 @@ export default function OperationsClient() {
             />
           </div>
           <OperationsTable title="Danh sách yêu cầu thanh toán" count={requests.length}>
-            <thead><tr><th>Mã yêu cầu</th><th>NCC</th><th>Chi phí</th><th>Số tiền</th><th>Phiếu chi</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+            <thead><tr><th>Mã yêu cầu</th><th>Nhà cung cấp</th><th>Chi phí</th><th>Số tiền</th><th>Phiếu chi</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
             <tbody>
               {requests.length === 0 ? <tr><td colSpan={7}>Chưa có yêu cầu thanh toán phù hợp bộ lọc.</td></tr> : null}
               {requests.map((request) => (
@@ -451,7 +455,7 @@ export default function OperationsClient() {
                   <td>{request.items[0]?.supplier?.name || '-'}</td>
                   <td>{request.items[0]?.cost?.costName || '-'}<span>{request.items[0]?.notes || request.items[0]?.cost?.operationForm?.booking?.code || ''}</span></td>
                   <td>{money(totalRequest(request))}</td>
-                  <td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${statusLabel(request.financePayment.approvalStatus)} - ${money(Number(request.financePayment.paymentAmount))}` : 'Chưa tạo phiếu chi'}</span></td>
+                  <td>{request.financePayment?.voucherCode || '-'}<span>{request.financePayment ? `${statusLabel(request.financePayment.approvalStatus)} - ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></td>
                   <td><span className="statusPill">{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
                     <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title="Xem đối soát" onClick={() => setDetailRequestId(request.id)}><Search size={16} /></button>
@@ -505,18 +509,18 @@ function OperationFormModal({
           </fieldset>
           <fieldset>
             <legend>Dịch vụ nhà cung cấp</legend>
-            <label>NCC<select name="supplierId" value={createFormSupplierId} onChange={(event) => onSupplierChange(event.target.value)}><option value="">Chọn NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
-            <label>Dịch vụ NCC<select key={createFormSupplierId || 'all-services'} name="supplierServiceId"><option value="">Chọn dịch vụ</option>{createFormServiceOptions.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</select></label>
+            <label>Nhà cung cấp<select name="supplierId" value={createFormSupplierId} onChange={(event) => onSupplierChange(event.target.value)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
+            <label>Dịch vụ nhà cung cấp<select key={createFormSupplierId || 'all-services'} name="supplierServiceId"><option value="">Chọn dịch vụ</option>{createFormServiceOptions.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</select></label>
             <label>Loại dịch vụ<input name="serviceType" defaultValue="HOTEL" /></label>
             <label>Tên dịch vụ<input name="serviceName" defaultValue="Dịch vụ điều hành" /></label>
-            <label>Xác nhận NCC<select name="confirmationStatus" defaultValue="WAITING">{confirmationStatuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
+            <label>Nhà cung cấp xác nhận<select name="confirmationStatus" defaultValue="WAITING">{confirmationStatuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Chi phí & task</legend>
             <label>Dự kiến chi<input name="expectedCost" type="number" min={0} step={1000} defaultValue={0} /></label>
             <label>Thực chi<input name="actualCost" type="number" min={0} step={1000} defaultValue={0} /></label>
-            <label>Tên chi phí<input name="costName" defaultValue="Chi phí NCC" /></label>
-            <label>Task vận hành<input name="taskTitle" defaultValue="Xác nhận NCC" /></label>
+            <label>Tên chi phí<input name="costName" defaultValue="Chi phí nhà cung cấp" /></label>
+            <label>Task vận hành<input name="taskTitle" defaultValue="Xác nhận nhà cung cấp" /></label>
             <label>Người phụ trách<input name="assignee" /></label>
             <label>Hạn task<input name="dueDate" type="date" /></label>
           </fieldset>
@@ -557,20 +561,20 @@ function PaymentRequestModal({
     <div className="modalOverlay" role="presentation">
       <div data-testid="operation-payment-modal" className="modalPanel operationsFormPanel" role="dialog" aria-modal="true" aria-labelledby="operation-payment-title">
         <header>
-          <h2 id="operation-payment-title"><Plus size={18} /> Tạo yêu cầu thanh toán NCC</h2>
+          <h2 id="operation-payment-title"><Plus size={18} /> Tạo yêu cầu thanh toán nhà cung cấp</h2>
           <button type="button" data-testid="operation-payment-modal-close" className="secondaryButton iconTextButton" onClick={onClose}>Đóng</button>
         </header>
         <form key={selectedFormId || 'manual-request'} action={onSubmit} className="formGrid operationsFormGrid">
           <fieldset>
             <legend>Nguồn yêu cầu</legend>
-            <label>Phiếu điều hành<select value={selectedFormId} onChange={(event) => onSelectedFormChange(event.target.value)}><option value="">Không gắn phiếu</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dịch vụ'}</option>)}</select></label>
-            <label>Chi phí<select name="costId" defaultValue={selectedForm?.costs?.[0]?.id || ''}><option value="">Không gắn chi phí</option>{selectedForm?.costs.map((cost) => <option key={cost.id} value={cost.id}>{cost.costName} - {money(costDisplayAmount(cost))}</option>)}</select></label>
+            <label>Phiếu điều hành<select value={selectedFormId} onChange={(event) => onSelectedFormChange(event.target.value)}><option value="">Chọn phiếu điều hành</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.booking?.code || form.id} - {form.services[0]?.serviceName || 'Dịch vụ'}</option>)}</select></label>
+            <label>Chi phí<select name="costId" defaultValue={selectedForm?.costs?.[0]?.id || ''}><option value="">Chọn chi phí</option>{selectedForm?.costs.map((cost) => <option key={cost.id} value={cost.id}>{cost.costName} - {money(costDisplayAmount(cost))}</option>)}</select></label>
           </fieldset>
           <fieldset>
             <legend>Thanh toán</legend>
-            <label>NCC<select name="supplierId" defaultValue={defaultSupplierId(selectedForm)}><option value="">Chọn NCC</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
+            <label>Nhà cung cấp<select name="supplierId" defaultValue={defaultSupplierId(selectedForm)}><option value="">Chọn nhà cung cấp</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplierLabel(supplier)}</option>)}</select></label>
             <label>Số tiền<input name="amount" type="number" min={0} step={1000} defaultValue={defaultPaymentAmount(selectedForm)} /></label>
-            <label>Người tạo<input name="requestedBy" defaultValue="operation" /></label>
+            <label>Người tạo<input name="requestedBy" defaultValue="operations-ui" /></label>
             <label>Ghi chú<textarea name="notes" rows={3} /></label>
           </fieldset>
           <div className="modalActions">
@@ -613,11 +617,11 @@ function ReconciliationPanel({
       <h3>Đối soát yêu cầu {request.code}</h3>
       <div className="reconciliationTimeline">
         <div><strong>Yêu cầu vận hành</strong><span>{statusLabel(request.status)} | {money(totalRequest(request))}</span></div>
-        <div><strong>Phiếu chi tài chính</strong><span>{request.financePayment ? `${request.financePayment.voucherCode} | ${statusLabel(request.financePayment.approvalStatus)} | ${money(Number(request.financePayment.paymentAmount))}` : 'Chưa tạo phiếu chi'}</span></div>
-        <div><strong>Thanh toán NCC</strong><span>{paid ? 'Đã ghi nhận thanh toán' : 'Chưa hoàn tất thanh toán'}</span></div>
+        <div><strong>Phiếu chi tài chính</strong><span>{request.financePayment ? `${request.financePayment.voucherCode} | ${statusLabel(request.financePayment.approvalStatus)} | ${money(request.financePayment.paymentAmount)}` : 'Chưa tạo phiếu chi'}</span></div>
+        <div><strong>Thanh toán nhà cung cấp</strong><span>{paid ? 'Đã ghi nhận thanh toán' : 'Chưa hoàn tất thanh toán'}</span></div>
       </div>
       <div className="reconciliationDetails">
-        <p><strong>NCC:</strong> {request.items.map((item) => item.supplier?.name || item.supplierId).join(', ') || '-'}</p>
+        <p><strong>Nhà cung cấp:</strong> {request.items.map((item) => item.supplier?.name || item.supplierId).join(', ') || '-'}</p>
         <p><strong>Chi phí:</strong> {request.items.map((item) => item.cost?.costName || 'Không gắn chi phí').join(', ')}</p>
       </div>
       <div className="reconciliationActions">
@@ -632,11 +636,11 @@ function ReconciliationPanel({
 
 function authHeaders() {
   const token = typeof window !== 'undefined' ? window.localStorage.getItem('smarttour.auth.token') : null;
-  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  return { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
 function OperationsTable({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
-  return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{count} dòng</span></div><div className="fitTableWrap"><table className="operationsTable">{children}</table></div></section>;
+  return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{new Intl.NumberFormat('vi-VN').format(count)} bản ghi</span></div><div className="fitTableWrap"><table className="operationsTable">{children}</table></div></section>;
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {
@@ -674,14 +678,14 @@ function queryFrom(filter: FilterState) {
 }
 
 function costSummary(form: OperationForm) {
-  const expected = form.costs.reduce((sum, cost) => sum + Number(cost.expectedAmount || 0), 0);
-  const actual = form.costs.reduce((sum, cost) => sum + Number(cost.actualAmount || 0), 0);
+  const expected = form.costs.reduce((sum, cost) => sum + numberValue(cost.expectedAmount), 0);
+  const actual = form.costs.reduce((sum, cost) => sum + numberValue(cost.actualAmount), 0);
   return { expected, actual, display: actual > 0 ? actual : expected };
 }
 
 function costDisplayAmount(cost: { expectedAmount?: string; actualAmount?: string }) {
-  const actual = Number(cost.actualAmount || 0);
-  return actual > 0 ? actual : Number(cost.expectedAmount || 0);
+  const actual = numberValue(cost.actualAmount);
+  return actual > 0 ? actual : numberValue(cost.expectedAmount);
 }
 
 function defaultPaymentAmount(form?: OperationForm) {
@@ -694,11 +698,11 @@ function defaultSupplierId(form?: OperationForm) {
 }
 
 function totalRequest(request: PaymentRequest) {
-  return request.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  return request.items.reduce((sum, item) => sum + numberValue(item.amount), 0);
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat('vi-VN').format(value || 0);
+function money(value: unknown) {
+  return new Intl.NumberFormat('vi-VN').format(numberValue(value));
 }
 
 function date(value?: string) {
@@ -711,8 +715,19 @@ function text(value: FormDataEntryValue | null) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function numberValue(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string') return 0;
+  const normalized = value.trim().replace(/\s/g, '').replace(/,/g, '');
+  if (!normalized) return 0;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 function readAmount(value: FormDataEntryValue | null) {
-  const amount = Number(text(value) || 0);
+  const raw = text(value);
+  if (!raw) return Number.NaN;
+  const amount = Number(raw.replace(/\s/g, '').replace(/,/g, ''));
   return Number.isFinite(amount) ? amount : Number.NaN;
 }
 
@@ -756,3 +771,12 @@ const actionLabels: Record<'submit' | 'approve' | 'reject' | 'create-finance-pay
   reject: 'Từ chối yêu cầu thanh toán',
   'create-finance-payment': 'Tạo phiếu chi tài chính',
 };
+
+function actionActor(action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') {
+  return {
+    submit: 'operation-requester',
+    approve: 'operation-payment-approver',
+    reject: 'operation-payment-approver',
+    'create-finance-payment': 'operation-payment-approver',
+  }[action];
+}

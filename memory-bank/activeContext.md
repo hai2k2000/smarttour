@@ -21,6 +21,24 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- Hardened OperationsClient copy/source/UX contract:
+  - Operations now loads the generic supplier endpoint instead of hotel-only
+    suppliers; generic supplier list includes supplierServices so operation
+    service/payment forms can select services from all supplier types.
+  - OperationsClient visible copy now uses fully accented Vietnamese and avoids
+    the NCC abbreviation in headings, metrics, table headers, modal labels,
+    reconciliation details, and payment request actions.
+  - Form/payment creation now validates booking, supplier, supplier service,
+    selected operation form, selected cost, and amounts before submit; cancel
+    form asks for an explicit reason; payment/finance actors are role-specific.
+  - Money helpers now parse backend string amounts safely, failed POST notices
+    include HTTP status, auth headers include Accept, and mutation success only
+    reloads dashboard/lists instead of reloading static data every time.
+  - VPS verification passed on 2026-06-11: `TEST_OPERATIONS_CONTROLLER_CONTRACT_OK`,
+    `docker compose build api web`, api/web deploy, `SMOKE_OPERATIONS_BACKEND_OK`,
+    and web /operations auth redirect 307.
+
+
 - Hardened Operations form/payment request service behavior:
   - Operation form list search now covers booking code/customer name/phone,
     order/tour systemCode, tourCode, name, route, and notes while keeping typed

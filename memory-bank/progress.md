@@ -3,6 +3,19 @@
 ## Done
 
 
+- Hardened Operations frontend contract:
+  - OperationsClient now uses generic supplier data with supplierServices,
+    normalized Vietnamese copy, explicit form/payment validation, cancellation
+    reason prompt, role-specific action actors, safer amount parsing, clearer
+    fetch errors, and lighter post-mutation reloads.
+  - Regression locks the generic supplier source, supplierServices include,
+    visible copy, payment form/cost validation, cancel reason prompt, action
+    actors, and safe money helpers.
+  - Verified on VPS with `TEST_OPERATIONS_CONTROLLER_CONTRACT_OK`,
+    `docker compose build api web`, api/web deploy,
+    `SMOKE_OPERATIONS_BACKEND_OK`, and web /operations auth redirect 307.
+
+
 - Hardened Operations form/payment request backend behavior:
   - Form search/filter and payment request flows now have stronger validation,
     Vietnamese error coverage for the touched paths, safer child replacement
