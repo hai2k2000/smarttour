@@ -19,7 +19,8 @@ for source in [hotel, generic]:
     assert 'supplier.manage' in source and 'supplier.view' in source
     assert 'window.confirm' in source, 'destructive supplier actions must require confirmation'
     assert 'Không tìm thấy' in source and 'Đang tải' in source
-    assert 'ACTIVE\">Đang hoạt động' in source and 'INACTIVE\">Ngừng hoạt động' in source
+    assert 'supplierLifecycleStatusOptions' in source
+    assert 'z.enum(supplierLifecycleStatuses)' in source
     assert 'Quản lý loại nhà cung cấp' in source
     assert 'Công nợ' not in source, 'typed list must not expose fake debt values'
 
@@ -30,6 +31,8 @@ for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHo
 
 assert "authJsonHeaders()" in shared and "authHeaders()" in shared
 assert 'HTTP ${response.status}' in shared
+assert "supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const" in shared
+assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared
 assert 'uploadSupplierFiles' in shared
 assert '/files/${file.id}' in hotel and '/files/${file.id}' in generic
 assert "method: 'DELETE'" in hotel and "method: 'DELETE'" in generic

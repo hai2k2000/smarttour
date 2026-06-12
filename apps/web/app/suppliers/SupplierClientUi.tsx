@@ -97,8 +97,10 @@ export function SupplierFiles({
   );
 }
 
-export function supplierStatusLabel(status: string) {
-  return {
+export const supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const;
+export type SupplierLifecycleStatus = (typeof supplierLifecycleStatuses)[number];
+
+const supplierStatusLabels: Record<string, string> = {
     ACTIVE: 'Đang hoạt động',
     INACTIVE: 'Ngừng hoạt động',
     STOP_SELL: 'Dừng bán',
@@ -106,7 +108,15 @@ export function supplierStatusLabel(status: string) {
     LOCKED: 'Đang giữ chỗ',
     CONFIRMED: 'Đã xác nhận',
     RELEASED: 'Đã giải phóng',
-  }[status] || status;
+};
+
+export const supplierLifecycleStatusOptions = supplierLifecycleStatuses.map((value) => ({
+  value,
+  label: supplierStatusLabels[value],
+}));
+
+export function supplierStatusLabel(status: string) {
+  return supplierStatusLabels[status] || status;
 }
 
 export function dayTypeLabel(value: string) {

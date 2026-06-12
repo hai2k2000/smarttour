@@ -55,6 +55,8 @@ assert "message = 'Cần nhập trường bắt buộc'" in service, 'requiredTe
 assert 'Number.isFinite(number)' in service, 'optionalNumber must reject non-finite values'
 assert 'optionalNonNegativeNumber' in service and 'optionalNonNegativeInt' in service, 'supplier child numeric rows must be validated before persistence'
 assert 'toSupplierStatus' in service and 'Trạng thái nhà cung cấp không hợp lệ' in service, 'supplier status must be validated in the service layer'
+assert 'SUPPLIER_STATUS_TRANSITIONS' in service and 'ensureSupplierStatusTransition' in service, 'supplier status updates must validate lifecycle transitions'
+assert 'Nhà cung cấp đã ở trạng thái' in service and 'Chuyển trạng thái nhà cung cấp không hợp lệ' in service, 'supplier status transition errors must be Vietnamese'
 assert 'toDayType' in service and 'Loại ngày dịch vụ không hợp lệ' in service, 'supplier day type must be validated in the service layer'
 assert 'toAllotmentStatus' in service and 'Trạng thái quỹ phòng không hợp lệ' in service, 'allotment status must be validated in the service layer'
 assert 'normalizeGenericServices' in service and 'normalizeHotelAllotments' in service, 'child rows must be normalized before delete/create replacement'

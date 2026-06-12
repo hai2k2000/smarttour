@@ -13,7 +13,10 @@ import {
   SupplierNoticeBanner,
   SupplierStatus,
   dayTypeLabel,
+  supplierLifecycleStatusOptions,
+  supplierLifecycleStatuses,
   supplierApi,
+  type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
 import { SupplierFile } from '../uploadSupplierFiles';
@@ -76,7 +79,7 @@ type HotelSupplier = {
   address: string | null;
   website: string | null;
   notes?: string | null;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: SupplierLifecycleStatus;
   hotelProfile: {
     builtYear: number | null;
     rating: number | null;
@@ -228,7 +231,7 @@ const hotelSchema = z.object({
   bankName: z.string().default(''),
   market: z.string().default(''),
   link: optionalUrl('Liên kết tham khảo'),
-  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  status: z.enum(supplierLifecycleStatuses).default('ACTIVE'),
   contacts: z.array(contactSchema).default([]),
   services: z.array(serviceSchema).default([]),
   allotments: z.array(allotmentSchema).default([]),
@@ -714,7 +717,7 @@ export default function HotelSuppliersClient({
           <section className="panel supplierFilterPanel">
             <form className="supplierFilters supplierHotelFilters" onSubmit={submitFilters}>
               <label className="searchBox"><Search size={16} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Tìm mã, tên, điện thoại, dự án hoặc hạng khách sạn..." /></label>
-              <label>Trạng thái<select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Tất cả trạng thái</option><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
+              <label>Trạng thái<select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Tất cả trạng thái</option>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               <label>Tỉnh/thành<input value={filters.province} onChange={(event) => setFilters((current) => ({ ...current, province: event.target.value }))} /></label>
               <label>Thị trường<input value={filters.market} onChange={(event) => setFilters((current) => ({ ...current, market: event.target.value }))} /></label>
               <label>Dự án<input value={filters.hotelProject} onChange={(event) => setFilters((current) => ({ ...current, hotelProject: event.target.value }))} /></label>
@@ -765,7 +768,7 @@ export default function HotelSuppliersClient({
                       <label>Dòng sản phẩm/Dự án *<input required {...register('hotelProject')} /></label>
                       <label>Thị trường<input {...register('market')} /></label>
                       <label>Xếp hạng<input type="number" min="0" max="5" step="1" {...register('rating')} /></label>
-                      <label>Trạng thái<select {...register('status')}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
+                      <label>Trạng thái<select {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                       <label>Website<input type="url" placeholder="https://example.com" {...register('website')} /></label>
                       <label>Liên kết tham khảo<input type="url" placeholder="https://example.com/tham-khao" {...register('link')} /></label>
                       <label className="span2">Địa chỉ<input {...register('address')} /></label>

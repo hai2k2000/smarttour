@@ -518,7 +518,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(updated.category?.id === category.id && Array.isArray(updated.supplierServices), 'supplier update response shape should match list response');
   const inactiveSupplier = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'INACTIVE' });
   assert(inactiveSupplier.status === 'INACTIVE', 'supplier manage permission should allow status update');
-  await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'ACTIVE' });
+  const inactiveNoop = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'INACTIVE' }, [400]);
+  assert(messageOf(inactiveNoop).includes('đã ở trạng thái Ngừng hoạt động'), 'supplier status update should reject no-op transitions');
+  const reactivatedSupplier = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'ACTIVE' });
+  assert(reactivatedSupplier.status === 'ACTIVE', 'supplier status update should allow reactivation');
 
   const suppliersAfterUpdate = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(run)}`);
   assert(suppliersAfterUpdate.some((item) => item.id === supplier.id), 'search should include updated supplier');
@@ -692,6 +695,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(typedUpdated.name.endsWith('Updated'), 'typed supplier manage permission should allow update');
   const typedInactive = await request(manageToken, 'PATCH', `/suppliers/restaurants/${typedSupplier.id}/status`, { status: 'INACTIVE' });
   assert(typedInactive.status === 'INACTIVE', 'typed supplier manage permission should allow status update');
+  const typedInactiveNoop = await request(manageToken, 'PATCH', `/suppliers/restaurants/${typedSupplier.id}/status`, { status: 'INACTIVE' }, [400]);
+  assert(messageOf(typedInactiveNoop).includes('đã ở trạng thái Ngừng hoạt động'), 'typed supplier status update should reject no-op transitions');
   const typedInactiveDetail = await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`);
   assert(typedInactiveDetail.status === 'INACTIVE', 'typed supplier detail must reflect the latest status');
   const typedInactiveList = await request(manageToken, 'GET', `/suppliers/restaurants?status=INACTIVE&search=${encodeURIComponent(`${run} Restaurant Supplier Updated`)}`);

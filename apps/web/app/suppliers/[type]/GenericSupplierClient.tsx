@@ -12,7 +12,10 @@ import {
   SupplierNotice,
   SupplierNoticeBanner,
   SupplierStatus,
+  supplierLifecycleStatusOptions,
+  supplierLifecycleStatuses,
   supplierApi,
+  type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
 import { SupplierFile } from '../uploadSupplierFiles';
@@ -250,7 +253,7 @@ type Supplier = {
   bankAccountNumber: string | null;
   bankName: string | null;
   notes: string | null;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: SupplierLifecycleStatus;
   contacts?: Contact[];
   supplierServices?: Array<Omit<Service, 'metadata'> & { metadata?: Record<string, string | number> | null }>;
   files?: SupplierFile[];
@@ -291,7 +294,7 @@ const supplierSchema = z.object({
   bankAccountNumber: z.string().default(''),
   bankName: z.string().default(''),
   notes: z.string().default(''),
-  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  status: z.enum(supplierLifecycleStatuses).default('ACTIVE'),
   contacts: z.array(contactSchema).default([]),
   services: z.array(serviceSchema).default([]),
 });
@@ -582,8 +585,7 @@ export default function GenericSupplierClient({
               <label>Trạng thái
                 <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">Tất cả trạng thái</option>
-                  <option value="ACTIVE">Đang hoạt động</option>
-                  <option value="INACTIVE">Ngừng hoạt động</option>
+                  {supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
               <label>Tỉnh/thành<input value={filters.province} onChange={(event) => setFilters((current) => ({ ...current, province: event.target.value }))} /></label>
@@ -630,7 +632,7 @@ export default function GenericSupplierClient({
                       <label>Tỉnh/thành<input {...register('province')} /></label>
                       <label>Thị trường<input {...register('market')} /></label>
                       <label>Xếp hạng<input type="number" min="0" max="5" {...register('rating')} /></label>
-                      <label>Trạng thái<select {...register('status')}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
+                      <label>Trạng thái<select {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                       <label>Website<input {...register('website')} /></label>
                       <label>Liên kết tham khảo<input {...register('link')} /></label>
                       <label className="span2">Địa chỉ<input {...register('address')} /></label>

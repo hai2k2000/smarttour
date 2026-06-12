@@ -35,6 +35,14 @@ const MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH = 180;
 const MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS = 365;
 const SUPPLIER_ALLOTMENT_STATUSES = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
 type SupplierAllotmentStatus = (typeof SUPPLIER_ALLOTMENT_STATUSES)[number];
+const SUPPLIER_STATUS_LABELS: Record<SupplierStatus, string> = {
+  [SupplierStatus.ACTIVE]: 'Đang hoạt động',
+  [SupplierStatus.INACTIVE]: 'Ngừng hoạt động',
+};
+const SUPPLIER_STATUS_TRANSITIONS: Record<SupplierStatus, readonly SupplierStatus[]> = {
+  [SupplierStatus.ACTIVE]: [SupplierStatus.INACTIVE],
+  [SupplierStatus.INACTIVE]: [SupplierStatus.ACTIVE],
+};
 const SUPPLIER_ERRORS = {
   categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
   categoryExists: 'Loại nhà cung cấp đã tồn tại',
@@ -273,10 +281,12 @@ export class SuppliersService {
   }
 
   async updateSupplierStatus(id: string, status: SupplierStatus) {
-    await this.getSupplier(id);
+    const supplier = await this.getSupplier(id);
+    const nextStatus = this.toSupplierStatus(status);
+    this.ensureSupplierStatusTransition(supplier.status, nextStatus);
     return this.prisma.supplier.update({
       where: { id },
-      data: { status: this.toSupplierStatus(status) },
+      data: { status: nextStatus },
       include: { ...this.supplierListInclude(), hotelProfile: true },
     });
   }
@@ -380,8 +390,10 @@ export class SuppliersService {
 
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
     const typedRoute = this.getTypedRoute(type);
-    await this.ensureTypedSupplier(typedRoute, id);
-    return this.prisma.supplier.update({ where: { id }, data: { status: this.toSupplierStatus(status) }, include: this.genericInclude() });
+    const supplier = await this.ensureTypedSupplier(typedRoute, id);
+    const nextStatus = this.toSupplierStatus(status);
+    this.ensureSupplierStatusTransition(supplier.status, nextStatus);
+    return this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() });
   }
 
   async deleteTypedSupplier(type: string, id: string) {
@@ -1597,6 +1609,15 @@ export class SuppliersService {
   private toSupplierStatus(value: unknown) {
     if (Object.values(SupplierStatus).includes(value as SupplierStatus)) return value as SupplierStatus;
     throw new BadRequestException('Trạng thái nhà cung cấp không hợp lệ');
+  }
+
+  private ensureSupplierStatusTransition(current: SupplierStatus, next: SupplierStatus) {
+    if (current === next) {
+      throw new BadRequestException(`Nhà cung cấp đã ở trạng thái ${SUPPLIER_STATUS_LABELS[next]}`);
+    }
+    if (!SUPPLIER_STATUS_TRANSITIONS[current]?.includes(next)) {
+      throw new BadRequestException('Chuyển trạng thái nhà cung cấp không hợp lệ');
+    }
   }
 
   private toDayType(value?: unknown, subject = 'dịch vụ') {
