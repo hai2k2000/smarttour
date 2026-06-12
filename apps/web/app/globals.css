@@ -1623,6 +1623,122 @@ label { min-width: 0; }
   max-width: 100%;
 }
 
+/* Compact list tables: keep long operational codes from widening the whole workspace. */
+.fitTableWrap > .fitTable.orderListTable,
+.fitTableWrap > .fitTable.hotelListTable,
+.fitTableWrap > .fitTable.tourProgramTable,
+.fitTableWrap > .fitTable.fitTourListTable,
+.fitTableWrap > .fitTable.quoteListTable,
+.fitTableWrap > .fitTable.quoteComboListTable,
+.fitTableWrap > .fitTable.quotationListTable,
+.fitTableWrap > .fitTable.reportTable,
+.fitTableWrap > .fitTable.commissionTable,
+.fitTableWrap > .fitTable.customerTable {
+  width: max(100%, var(--list-table-min-width, 1080px));
+  table-layout: fixed;
+}
+
+.fitTableWrap > .fitTable.orderListTable th,
+.fitTableWrap > .fitTable.orderListTable td,
+.fitTableWrap > .fitTable.hotelListTable th,
+.fitTableWrap > .fitTable.hotelListTable td,
+.fitTableWrap > .fitTable.tourProgramTable th,
+.fitTableWrap > .fitTable.tourProgramTable td,
+.fitTableWrap > .fitTable.fitTourListTable th,
+.fitTableWrap > .fitTable.fitTourListTable td,
+.fitTableWrap > .fitTable.quoteListTable th,
+.fitTableWrap > .fitTable.quoteListTable td,
+.fitTableWrap > .fitTable.quoteComboListTable th,
+.fitTableWrap > .fitTable.quoteComboListTable td,
+.fitTableWrap > .fitTable.quotationListTable th,
+.fitTableWrap > .fitTable.quotationListTable td,
+.fitTableWrap > .fitTable.reportTable th,
+.fitTableWrap > .fitTable.reportTable td,
+.fitTableWrap > .fitTable.commissionTable th,
+.fitTableWrap > .fitTable.commissionTable td,
+.fitTableWrap > .fitTable.customerTable th,
+.fitTableWrap > .fitTable.customerTable td {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.fitTableWrap > .fitTable.orderListTable td > strong,
+.fitTableWrap > .fitTable.orderListTable td > span,
+.fitTableWrap > .fitTable.hotelListTable td > strong,
+.fitTableWrap > .fitTable.hotelListTable td > span,
+.fitTableWrap > .fitTable.tourProgramTable td > strong,
+.fitTableWrap > .fitTable.tourProgramTable td > span,
+.fitTableWrap > .fitTable.fitTourListTable td > strong,
+.fitTableWrap > .fitTable.fitTourListTable td > span,
+.fitTableWrap > .fitTable.quoteListTable td > strong,
+.fitTableWrap > .fitTable.quoteListTable td > span,
+.fitTableWrap > .fitTable.quoteComboListTable td > strong,
+.fitTableWrap > .fitTable.quoteComboListTable td > span,
+.fitTableWrap > .fitTable.quotationListTable td > strong,
+.fitTableWrap > .fitTable.quotationListTable td > span,
+.fitTableWrap > .fitTable.reportTable td > strong,
+.fitTableWrap > .fitTable.reportTable td > span,
+.fitTableWrap > .fitTable.commissionTable td > strong,
+.fitTableWrap > .fitTable.commissionTable td > span,
+.fitTableWrap > .fitTable.customerTable td > strong,
+.fitTableWrap > .fitTable.customerTable td > span {
+  max-width: 100%;
+}
+
+.fitTableWrap > .fitTable.orderListTable .orderCellStack,
+.fitTableWrap > .fitTable.orderListTable .rowActions,
+.fitTableWrap > .fitTable.orderListTable .actionsCell,
+.fitTableWrap > .fitTable.hotelListTable .rowActions,
+.fitTableWrap > .fitTable.hotelListTable .actionsCell {
+  min-width: 0;
+}
+
+.fitTableWrap > .fitTable.orderListTable .rowActions,
+.fitTableWrap > .fitTable.hotelListTable .rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bookingListTable {
+  --list-table-min-width: 1180px;
+}
+
+.bookingListTable th:nth-child(1),
+.bookingListTable td:nth-child(1) { width: 13%; }
+.bookingListTable th:nth-child(2),
+.bookingListTable td:nth-child(2) { width: 12%; }
+.bookingListTable th:nth-child(3),
+.bookingListTable td:nth-child(3) { width: 14%; }
+.bookingListTable th:nth-child(4),
+.bookingListTable td:nth-child(4),
+.bookingListTable th:nth-child(5),
+.bookingListTable td:nth-child(5) { width: 8%; }
+.bookingListTable th:nth-child(6),
+.bookingListTable td:nth-child(6) { width: 4%; }
+.bookingListTable th:nth-child(7),
+.bookingListTable td:nth-child(7),
+.bookingListTable th:nth-child(8),
+.bookingListTable td:nth-child(8) { width: 8%; }
+.bookingListTable th:nth-child(9),
+.bookingListTable td:nth-child(9) { width: 8%; }
+.bookingListTable th:nth-child(10),
+.bookingListTable td:nth-child(10),
+.bookingListTable th:nth-child(11),
+.bookingListTable td:nth-child(11) { width: 7%; }
+.bookingListTable th:nth-child(12),
+.bookingListTable td:nth-child(12) { width: 4%; }
+
+.bookingListTable td:nth-child(4),
+.bookingListTable td:nth-child(5),
+.bookingListTable td:nth-child(9) {
+  white-space: nowrap;
+}
+
 .supplierPrimaryCell strong,
 .supplierPrimaryCell span {
   min-width: 0;
