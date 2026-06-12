@@ -263,6 +263,7 @@ class SupplierAllotmentInputDto {
 export class CreateHotelSupplierDto {
   @ApiProperty()
   @Transform(uppercaseRequired)
+  @IsNotEmpty({ message: 'Cần nhập mã nhà cung cấp' })
   @IsString({ message: 'Mã nhà cung cấp phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Mã nhà cung cấp phải có ít nhất 2 ký tự' })
   @MaxLength(80, { message: 'Mã nhà cung cấp không được vượt quá 80 ký tự' })
@@ -270,6 +271,7 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập tên nhà cung cấp' })
   @IsString({ message: 'Tên nhà cung cấp phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên nhà cung cấp phải có ít nhất 2 ký tự' })
   @MaxLength(180, { message: 'Tên nhà cung cấp không được vượt quá 180 ký tự' })
@@ -284,6 +286,7 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập số điện thoại nhà cung cấp' })
   @IsString({ message: 'Số điện thoại nhà cung cấp phải là chuỗi ký tự' })
   @Matches(supplierPhonePattern, { message: 'Số điện thoại nhà cung cấp không hợp lệ' })
   phone!: string;
@@ -348,6 +351,7 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập hạng khách sạn' })
   @IsString({ message: 'Hạng khách sạn phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Hạng khách sạn phải có ít nhất 2 ký tự' })
   @MaxLength(80, { message: 'Hạng khách sạn không được vượt quá 80 ký tự' })
@@ -355,6 +359,7 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập dự án khách sạn' })
   @IsString({ message: 'Dự án khách sạn phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Dự án khách sạn phải có ít nhất 2 ký tự' })
   @MaxLength(180, { message: 'Dự án khách sạn không được vượt quá 180 ký tự' })
