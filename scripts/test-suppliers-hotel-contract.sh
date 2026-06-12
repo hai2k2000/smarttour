@@ -79,6 +79,10 @@ assert 'overbookedQty' in service
 assert 'private percent(part: number, total: number)' in service
 assert 'occupancyRate: this.percent(metrics.bookedQty, metrics.allotmentQty)' in service
 assert 'sellThroughRate: this.percent(metrics.bookedQty + metrics.lockedQty, metrics.allotmentQty)' in service
+assert "const computedStatus = item.status === 'STOP_SELL' || metrics.remainingQty <= 0" in service, 'dashboard must prioritize stop-sell or sold-out inventory before COD lock'
+assert "acc.activeAllotments += computedStatus === 'ACTIVE' ? 1 : 0" in service
+assert "acc.stopSellAllotments += computedStatus === 'STOP_SELL' ? 1 : 0" in service
+assert "acc.codLockedAllotments += computedStatus === 'COD_LOCKED' ? 1 : 0" in service, 'dashboard status buckets must be mutually exclusive'
 assert 'const today = this.startOfUtcDay(new Date())' in service, 'inventory and dashboard must use UTC-day calculations'
 assert "logs: { orderBy: { createdAt: 'desc' }, take: 5 }" in service
 assert "allocations: { orderBy: { createdAt: 'desc' } }" in service

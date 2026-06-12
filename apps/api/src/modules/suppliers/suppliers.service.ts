@@ -606,9 +606,14 @@ export class SuppliersService {
         acc.remainingQty += metrics.remainingQty;
         acc.revenue += metrics.bookedQty * Number(item.sellingPricePerDay || 0);
         const isCodLocked = item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil);
-        acc.activeAllotments += item.status === 'ACTIVE' && metrics.remainingQty > 0 && !isCodLocked ? 1 : 0;
-        acc.stopSellAllotments += item.status === 'STOP_SELL' || metrics.remainingQty <= 0 ? 1 : 0;
-        acc.codLockedAllotments += isCodLocked ? 1 : 0;
+        const computedStatus = item.status === 'STOP_SELL' || metrics.remainingQty <= 0
+          ? 'STOP_SELL'
+          : isCodLocked
+            ? 'COD_LOCKED'
+            : 'ACTIVE';
+        acc.activeAllotments += computedStatus === 'ACTIVE' ? 1 : 0;
+        acc.stopSellAllotments += computedStatus === 'STOP_SELL' ? 1 : 0;
+        acc.codLockedAllotments += computedStatus === 'COD_LOCKED' ? 1 : 0;
         return acc;
       },
       { allotmentQty: 0, bookedQty: 0, lockedQty: 0, remainingQty: 0, revenue: 0, activeAllotments: 0, stopSellAllotments: 0, codLockedAllotments: 0 },

@@ -1371,6 +1371,19 @@ function typedMatrixPayload(type, suffix) {
   assert(cutoffInventory.find((item) => item.id === cutoffAllotmentId)?.computedStatus === 'COD_LOCKED', 'inventory must expose the COD-locked computed status');
   const cutoffLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
   assert(messageOf(cutoffLockError).includes('đã tới hạn chốt'), 'allotment lock must reject inventory after the cutoff date');
+  const soldOutCutoff = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${cutoffAllotmentId}/override`, {
+    bookedQty: 1,
+    note: 'Sold-out COD dashboard classification smoke',
+  });
+  assert(soldOutCutoff.computedStatus === 'STOP_SELL', 'sold-out inventory must take priority over COD lock in inventory');
+  const dashboardAfterSoldOutCutoff = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
+  assert(dashboardAfterSoldOutCutoff.stopSellAllotments === dashboardAfterCutoff.stopSellAllotments + 1, 'sold-out COD inventory must enter the stop-sell dashboard bucket');
+  assert(dashboardAfterSoldOutCutoff.codLockedAllotments === dashboardAfterCutoff.codLockedAllotments - 1, 'sold-out COD inventory must leave the COD-locked dashboard bucket');
+  assert(
+    dashboardAfterSoldOutCutoff.activeAllotments + dashboardAfterSoldOutCutoff.stopSellAllotments + dashboardAfterSoldOutCutoff.codLockedAllotments
+      === dashboardAfterSoldOutCutoff.allotmentCount,
+    'dashboard inventory status buckets must be mutually exclusive and complete',
+  );
 
   await request(manageToken, 'PATCH', `/suppliers/${ownedDataHotel.id}/status`, { status: 'INACTIVE' });
   const inactiveHotelList = await request(viewToken, 'GET', `/suppliers/hotels?status=INACTIVE&search=${encodeURIComponent(ownedDataHotel.supplierCode)}`);
