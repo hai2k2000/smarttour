@@ -10,6 +10,7 @@ service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(
 types_source = Path('apps/api/src/modules/suppliers/supplier-types.ts').read_text()
 dto = Path('apps/api/src/modules/suppliers/dto/generic-supplier.dto.ts').read_text()
 frontend = Path('apps/web/app/suppliers/[type]/GenericSupplierClient.tsx').read_text()
+schema = Path('prisma/schema.prisma').read_text()
 
 expected_routes = {
     'restaurants', 'flights', 'attraction-tickets', 'landtour-suppliers', 'water', 'transport',
@@ -48,6 +49,13 @@ assert 'return this.deleteSupplierRecord(id)' in service
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service
 assert 'item.metadata ? (this.normalizeTypedMetadata(type, item.metadata)' in service
 assert '@Max(5' in dto and 'Xếp hạng nhà cung cấp không được lớn hơn 5' in dto
+
+supplier_service_model = schema.split('model SupplierService {', 1)[1].split('\n}', 1)[0]
+assert 'metadata' in supplier_service_model and 'Json?' in supplier_service_model, 'typed fields must use shared supplier-service metadata'
+for model in ['RestaurantSupplier', 'FlightSupplier', 'TransportSupplier', 'GuideSupplier', 'VillaSupplier']:
+    assert f'model {model} ' not in schema, f'{model} must not split typed suppliers into duplicate lifecycle tables'
+assert 'const supplier = await tx.supplier.create' in service, 'typed suppliers must use the shared Supplier table'
+assert 'return this.deleteSupplierRecord(id)' in service, 'typed suppliers must use the shared delete guard'
 
 english_errors = ['typed supplier not found', 'supplier type not found', 'unsupported supplier type', 'invalid supplier type']
 for error in english_errors:

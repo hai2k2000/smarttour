@@ -12,7 +12,16 @@ import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/suppli
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
-const SPECIALIZED_SUPPLIER_CATEGORY_NAMES = new Set(['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS), ...Object.values(SUPPLIER_TYPE_CATEGORY_ALIASES).flat()]);
+const supplierCategoryNameKey = (value: string) => value
+  .normalize('NFD')
+  .replace(/[̀-ͯ]/g, '')
+  .replace(/đ/gi, 'd')
+  .toLocaleLowerCase('vi')
+  .replace(/\s+/g, ' ')
+  .trim();
+const SPECIALIZED_SUPPLIER_CATEGORY_KEYS = new Set(
+  ['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS), ...Object.values(SUPPLIER_TYPE_CATEGORY_ALIASES).flat()].map(supplierCategoryNameKey),
+);
 const SUPPLIER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPLIER_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
@@ -33,6 +42,7 @@ type UploadFile = { originalname: string; mimetype: string; size: number; buffer
 
 @Injectable()
 export class SuppliersService {
+  // Supplier records are global master data; branch/department scope applies to linked transactions and allotment actions.
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
   listCategories(query: SupplierCategoryListQueryDto = {}) {
@@ -48,7 +58,7 @@ export class SuppliersService {
   }
 
   async createCategory(dto: CreateSupplierCategoryDto) {
-    const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
+    const name = this.requiredLabel(dto.name, 'Cần nhập tên loại nhà cung cấp');
     await this.ensureCategoryNameAvailable(name);
     try {
       return await this.prisma.supplierCategory.create({
@@ -66,8 +76,8 @@ export class SuppliersService {
   async updateCategory(id: string, dto: CreateSupplierCategoryDto) {
     const category = await this.prisma.supplierCategory.findUnique({ where: { id }, select: { id: true, name: true } });
     if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
-    const name = this.requiredText(dto.name, 'Cần nhập tên loại nhà cung cấp');
-    if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name) && name !== category.name) {
+    const name = this.requiredLabel(dto.name, 'Cần nhập tên loại nhà cung cấp');
+    if (this.isSpecializedCategoryName(category.name) && this.categoryNameKey(name) !== this.categoryNameKey(category.name)) {
       throw new BadRequestException('Không thể đổi tên loại nhà cung cấp hệ thống');
     }
     await this.ensureCategoryNameAvailable(name, id);
@@ -91,7 +101,7 @@ export class SuppliersService {
       include: { _count: { select: { suppliers: true } } },
     });
     if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
-    if (SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(category.name)) {
+    if (this.isSpecializedCategoryName(category.name)) {
       throw new BadRequestException('Không thể xóa loại nhà cung cấp hệ thống');
     }
     if (category._count.suppliers > 0) {
@@ -103,12 +113,14 @@ export class SuppliersService {
   listSuppliers(query: SupplierListQueryDto = {}) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
+    const province = this.optionalLabel(query.province);
+    const market = this.optionalLabel(query.market);
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.province ? { province: containsSearch(query.province) } : {}),
-      ...(query.market ? { market: containsSearch(query.market) } : {}),
+      ...(province ? { province: containsSearch(province) } : {}),
+      ...(market ? { market: containsSearch(market) } : {}),
       ...(contains
         ? {
             OR: [
@@ -264,12 +276,14 @@ export class SuppliersService {
     const categoryNames = supplierTypeCategoryNames(typedRoute);
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
+    const province = this.optionalLabel(query.province);
+    const market = this.optionalLabel(query.market);
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       category: { name: { in: categoryNames, mode: 'insensitive' } },
-      ...(query.province ? { province: { contains: query.province, mode: 'insensitive' } } : {}),
+      ...(province ? { province: { contains: province, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.market ? { market: { contains: query.market, mode: 'insensitive' } } : {}),
+      ...(market ? { market: { contains: market, mode: 'insensitive' } } : {}),
       ...(contains
         ? {
             OR: [
@@ -366,16 +380,18 @@ export class SuppliersService {
   }) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
+    const province = this.optionalLabel(query.province);
+    const market = this.optionalLabel(query.market);
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       hotelProfile: {
         is: {
           ...(query.hotelProject ? { hotelProject: { contains: query.hotelProject, mode: 'insensitive' } } : {}),
           ...(query.classHotel ? { classHotel: { contains: query.classHotel, mode: 'insensitive' } } : {}),
-          ...(query.market ? { market: { contains: query.market, mode: 'insensitive' } } : {}),
+          ...(market ? { market: { contains: market, mode: 'insensitive' } } : {}),
         },
       },
-      ...(query.province ? { province: { contains: query.province, mode: 'insensitive' } } : {}),
+      ...(province ? { province: { contains: province, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(contains
         ? {
@@ -824,13 +840,7 @@ export class SuppliersService {
   }
 
   private categoryNameKey(value: string) {
-    return value
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/đ/gi, 'd')
-      .toLocaleLowerCase('vi')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return supplierCategoryNameKey(value);
   }
 
   private async ensureSupplierCodeAvailable(value?: string | null, excludedId?: string) {
@@ -854,9 +864,8 @@ export class SuppliersService {
   }
 
   private async ensureCategoryByName(name: string) {
-    const existing = await this.prisma.supplierCategory.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } },
-    });
+    const categories = await this.prisma.supplierCategory.findMany();
+    const existing = categories.find((category) => this.categoryNameKey(category.name) === this.categoryNameKey(name));
     if (existing) return existing;
     try {
       return await this.prisma.supplierCategory.create({ data: { name } });
@@ -880,13 +889,13 @@ export class SuppliersService {
       ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson) } : {}),
       ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone) } : {}),
       ...(dto.email !== undefined ? { email: this.optionalText(dto.email) } : {}),
-      ...(dto.country !== undefined ? { country: this.optionalText(dto.country) } : {}),
-      ...(dto.province !== undefined ? { province: this.optionalText(dto.province) } : {}),
+      ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country) } : {}),
+      ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province) } : {}),
       ...(dto.address !== undefined ? { address: this.optionalText(dto.address) } : {}),
       ...(dto.website !== undefined ? { website: this.optionalText(dto.website) } : {}),
       ...(dto.link !== undefined ? { link: this.optionalText(dto.link) } : {}),
       ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalText(dto.market) } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market) } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
       ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber) } : {}),
       ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName) } : {}),
@@ -901,12 +910,12 @@ export class SuppliersService {
     return {
       ...(dto.builtYear !== undefined ? { builtYear: this.optionalNumber(dto.builtYear, 'Năm xây dựng') } : {}),
       ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
-      ...(dto.classHotel !== undefined ? { classHotel: dto.classHotel.trim() } : {}),
-      ...(dto.hotelProject !== undefined ? { hotelProject: dto.hotelProject.trim() } : {}),
+      ...(dto.classHotel !== undefined ? { classHotel: this.requiredLabel(dto.classHotel, 'Cần nhập hạng khách sạn') } : {}),
+      ...(dto.hotelProject !== undefined ? { hotelProject: this.requiredLabel(dto.hotelProject, 'Cần nhập dự án khách sạn') } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
       ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber) } : {}),
       ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName) } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalText(dto.market) } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market) } : {}),
       ...(dto.link !== undefined ? { link: this.optionalText(dto.link) } : {}),
     };
   }
@@ -1193,6 +1202,12 @@ export class SuppliersService {
     return text;
   }
 
+  private requiredLabel(value: string | undefined, message = 'Cần nhập trường bắt buộc') {
+    const text = this.optionalLabel(value);
+    if (!text) throw new BadRequestException(message);
+    return text;
+  }
+
   private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false) {
     if (!partial || dto.categoryId !== undefined) {
       if (!this.optionalText(dto.categoryId)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
@@ -1224,7 +1239,11 @@ export class SuppliersService {
   }
 
   private isSpecializedSupplier(supplier: { hotelProfile?: unknown; category?: { name: string } | null }) {
-    return Boolean(supplier.hotelProfile || (supplier.category && SPECIALIZED_SUPPLIER_CATEGORY_NAMES.has(supplier.category.name)));
+    return Boolean(supplier.hotelProfile || (supplier.category && this.isSpecializedCategoryName(supplier.category.name)));
+  }
+
+  private isSpecializedCategoryName(name: string) {
+    return SPECIALIZED_SUPPLIER_CATEGORY_KEYS.has(this.categoryNameKey(name));
   }
 
   private supplierListInclude() {
@@ -1360,6 +1379,10 @@ export class SuppliersService {
   private optionalText(value?: string | null) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
+  }
+
+  private optionalLabel(value?: string | null) {
+    return this.optionalText(value)?.replace(/\s+/g, ' ') ?? null;
   }
 
   private optionalNumber(value?: number, fieldName = 'Giá trị số') {

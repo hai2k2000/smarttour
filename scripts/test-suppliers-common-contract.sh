@@ -8,6 +8,12 @@ controller = Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read
 service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
 query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text()
 create_dto = Path('apps/api/src/modules/suppliers/dto/create-supplier.dto.ts').read_text()
+schema = Path('prisma/schema.prisma').read_text()
+
+supplier_model = schema.split('model Supplier {', 1)[1].split('\n}', 1)[0]
+assert 'branch' not in supplier_model and 'department' not in supplier_model, 'supplier catalog must remain global master data'
+assert 'Supplier records are global master data' in service
+assert 'list(@Query() query: SupplierListQueryDto)' in controller and 'listSuppliers(query)' in controller
 
 assert 'list(@Query() query: SupplierCategoryListQueryDto)' in controller
 assert 'list(@Query() query: SupplierListQueryDto)' in controller
@@ -31,9 +37,13 @@ assert "this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: 
 assert "this.prisma.supplierAllotment.count({ where: { supplierId: id } })" in service
 assert "this.prisma.supplierFile.count({ where: { supplierId: id } })" in service
 assert "this.prisma.supplierPaymentItem.count({ where: { supplierId: id } })" in service
+assert "this.prisma.operationService.count({ where: { supplierId: id } })" in service
 assert "['supplierServices', 'dịch vụ nhà cung cấp']" in service
 assert "['allotments', 'quỹ phòng']" in service
 assert "['files', 'file nhà cung cấp']" in service
+assert "['supplierPaymentItems', 'yêu cầu thanh toán']" in service
+assert "['operationServices', 'dịch vụ điều hành']" in service
+assert 'private optionalLabel' in service and ".replace(/\\s+/g, ' ')" in service
 
 print('TEST_SUPPLIERS_COMMON_CONTRACT_OK')
 PYTEST

@@ -31,6 +31,10 @@ USED_OPERATION_ITEM_ID="sup_used_op_item_${RUN_ID_SAFE}"
 USED_FINANCE_PAYMENT_ID="sup_used_fin_payment_${RUN_ID_SAFE}"
 USED_PAYMENT_REQUEST_ID="sup_used_pay_request_${RUN_ID_SAFE}"
 USED_PAYMENT_ITEM_ID="sup_used_pay_item_${RUN_ID_SAFE}"
+USED_TOUR_PROGRAM_ID="sup_used_program_${RUN_ID_SAFE}"
+USED_BOOKING_ID="sup_used_booking_${RUN_ID_SAFE}"
+USED_OPERATION_FORM_ID="sup_used_form_${RUN_ID_SAFE}"
+USED_OPERATION_SERVICE_ID="sup_used_service_${RUN_ID_SAFE}"
 
 psql_exec() {
   docker exec -i "$POSTGRES_CONTAINER" psql -U smarttour -d smarttour "$@"
@@ -44,6 +48,10 @@ cleanup() {
   psql_exec >/dev/null <<SQL || true
 DELETE FROM "SupplierPaymentItem" WHERE id = '${USED_PAYMENT_ITEM_ID}' OR "requestId" = '${USED_PAYMENT_REQUEST_ID}';
 DELETE FROM "SupplierPaymentRequest" WHERE id = '${USED_PAYMENT_REQUEST_ID}' OR code LIKE '${RUN_ID}%';
+DELETE FROM "OperationService" WHERE id = '${USED_OPERATION_SERVICE_ID}';
+DELETE FROM "OperationForm" WHERE id = '${USED_OPERATION_FORM_ID}';
+DELETE FROM "Booking" WHERE id = '${USED_BOOKING_ID}' OR code LIKE '${RUN_ID}-SUP-BOOKING%';
+DELETE FROM "TourProgram" WHERE id = '${USED_TOUR_PROGRAM_ID}' OR code LIKE '${RUN_ID}-SUP-PROGRAM%';
 DELETE FROM "FinancePayment" WHERE id = '${USED_FINANCE_PAYMENT_ID}' OR "voucherCode" LIKE '${RUN_ID}%';
 DELETE FROM "OrderOperationItem" WHERE id = '${USED_OPERATION_ITEM_ID}' OR "orderId" = '${USED_ORDER_ID}';
 DELETE FROM "Order" WHERE id = '${USED_ORDER_ID}' OR "systemCode" LIKE '${RUN_ID}%';
@@ -77,13 +85,12 @@ VALUES
   ('${MANAGE_ROLE_ID}_rp_supplier_manage', '${MANAGE_ROLE_ID}', 'supplier.manage', now()),
   ('${MANAGE_ROLE_ID}_rp_file_view', '${MANAGE_ROLE_ID}', 'file.view', now()),
   ('${MANAGE_ROLE_ID}_rp_scope_all', '${MANAGE_ROLE_ID}', 'data.scope.all', now()),
-  ('${VIEW_ROLE_ID}_rp_supplier_view', '${VIEW_ROLE_ID}', 'supplier.view', now()),
-  ('${VIEW_ROLE_ID}_rp_scope_all', '${VIEW_ROLE_ID}', 'data.scope.all', now());
+  ('${VIEW_ROLE_ID}_rp_supplier_view', '${VIEW_ROLE_ID}', 'supplier.view', now());
 
 INSERT INTO "User" (id, username, email, name, "passwordHash", status, branch, department, "createdAt", "updatedAt")
 VALUES
   ('${MANAGE_USER_ID}', 'sup-manage-${RUN_ID_LOWER}', 'sup-manage-${RUN_ID_LOWER}@smarttour.local', 'Supplier Smoke Manage', 'not-used-by-token-smoke', 'ACTIVE', 'SUP-BR', 'SUP-DEP', now(), now()),
-  ('${VIEW_USER_ID}', 'sup-view-${RUN_ID_LOWER}', 'sup-view-${RUN_ID_LOWER}@smarttour.local', 'Supplier Smoke View', 'not-used-by-token-smoke', 'ACTIVE', 'SUP-BR', 'SUP-DEP', now(), now());
+  ('${VIEW_USER_ID}', 'sup-view-${RUN_ID_LOWER}', 'sup-view-${RUN_ID_LOWER}@smarttour.local', 'Supplier Smoke View', 'not-used-by-token-smoke', 'ACTIVE', 'OUTSIDE-BR', 'OUTSIDE-DEP', now(), now());
 
 INSERT INTO "UserRole" (id, "userId", "roleId", "createdAt")
 VALUES
@@ -112,6 +119,18 @@ VALUES (
   now(),
   now()
 );
+
+INSERT INTO "TourProgram" (id, code, name, "durationDays", "createdAt", "updatedAt")
+VALUES ('${USED_TOUR_PROGRAM_ID}', '${RUN_ID}-SUP-PROGRAM', '${RUN_ID} supplier guard program', 1, now(), now());
+
+INSERT INTO "Booking" (id, code, "tourProgramId", "customerName", "paxCount", "startDate", "endDate", "createdAt", "updatedAt")
+VALUES ('${USED_BOOKING_ID}', '${RUN_ID}-SUP-BOOKING', '${USED_TOUR_PROGRAM_ID}', '${RUN_ID} supplier guard customer', 1, now(), now(), now(), now());
+
+INSERT INTO "OperationForm" (id, "bookingId", notes, "createdAt", "updatedAt")
+VALUES ('${USED_OPERATION_FORM_ID}', '${USED_BOOKING_ID}', '${RUN_ID} supplier guard form', now(), now());
+
+INSERT INTO "OperationService" (id, "operationFormId", "supplierId", "serviceType", "serviceName")
+VALUES ('${USED_OPERATION_SERVICE_ID}', '${USED_OPERATION_FORM_ID}', '${USED_SUPPLIER_ID}', 'HOTEL', '${RUN_ID} supplier guard operation service');
 
 INSERT INTO "SupplierCategory" (id, name, "createdAt", "updatedAt")
 VALUES ('legacy_flight_${RUN_ID_SAFE}', 'Flight Ticket', now(), now())
@@ -262,7 +281,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await request(manageToken, 'GET', '/suppliers?categoryId=not-a-uuid', undefined, [400]);
   await request(manageToken, 'GET', '/suppliers?status=UNKNOWN', undefined, [400]);
 
-  await request(viewToken, 'GET', '/suppliers');
+  const scopedViewSuppliers = await request(viewToken, 'GET', '/suppliers');
+  assert(scopedViewSuppliers.some((item) => item.id === usedSupplierId), 'supplier catalog should remain global for a viewer without data.scope.all');
   const supplierDetail = await request(viewToken, 'GET', `/suppliers/${usedSupplierId}`);
   assert(supplierDetail.id === usedSupplierId && supplierDetail.category?.id, 'single-segment supplier detail route should not be mistaken for a typed route');
   const unsupportedSingleSegment = await request(viewToken, 'GET', '/suppliers/not-a-supplier-type', undefined, [404]);
@@ -331,8 +351,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await request(viewToken, 'DELETE', `/suppliers/restaurants/${usedSupplierId}`, undefined, [403]);
 
   const categoryName = `${run} API Category`;
-  const category = await request(manageToken, 'POST', '/supplier-categories', { name: `  ${categoryName}  ` });
-  assert(category.id && category.name === categoryName, 'created category should be trimmed and returned');
+  const category = await request(manageToken, 'POST', '/supplier-categories', { name: `  ${run}   API Category  ` });
+  assert(category.id && category.name === categoryName, 'created category should normalize surrounding and repeated whitespace');
   assert(Number(category._count?.suppliers || 0) === 0, 'created category should expose zero active suppliers');
 
   const updatedCategoryName = `${run} API Category Updated`;
@@ -455,6 +475,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(usedDeleteMessage.includes('dịch vụ điều hành trong đơn'), 'delete guard should report order/operation usage');
   assert(usedDeleteMessage.includes('yêu cầu thanh toán'), 'delete guard should report supplier payment request usage');
   assert(usedDeleteMessage.includes('phiếu chi'), 'delete guard should report finance payment usage');
+  assert(/(?:\(|, )1 dịch vụ điều hành(?:,|\))/.test(usedDeleteMessage), 'delete guard should report operation service usage');
 
   const missingCategoryError = await request(manageToken, 'POST', '/suppliers', { name: `${run} Missing Category` }, [400]);
   assert(messageOf(missingCategoryError).includes('Mã loại nhà cung cấp'), 'missing category error should be clear and Vietnamese');
@@ -525,10 +546,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     supplierCode: `${run}-HOTEL-OWNED-DATA`,
     name: `${run} Hotel Owned Data`,
     phone: '0905555666',
-    province: `${run} Province`,
+    province: `  ${run}   Province  `,
     classHotel: '4 sao',
     hotelProject: `${run} Hotel Owned Data Project`,
-    market: `${run} Market`,
+    market: `  ${run}   Market  `,
     rating: 4,
     builtYear: 2020,
     services: [{ serviceName: 'Phong tieu chuan', note: 'Service note' }],
@@ -543,6 +564,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     }],
   });
   assert(ownedDataHotel.supplierCode === `${run}-HOTEL-OWNED-DATA`, 'hotel supplier code should be normalized');
+  assert(ownedDataHotel.province === `${run} Province`, 'province display label should normalize whitespace without changing case');
   assert(ownedDataHotel.hotelProfile?.market === `${run} Market`, 'hotel-specific market must be persisted');
   assert(ownedDataHotel.supplierServices?.length === 1 && ownedDataHotel.allotments?.length === 1, 'hotel detail must include editable child collections');
   const ownedAllotmentId = ownedDataHotel.allotments[0].id;
@@ -564,7 +586,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   }
 
   const partiallyUpdatedHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
-    market: `${run} Market Updated`,
+    market: `  ${run}   Market Updated  `,
   });
   assert(partiallyUpdatedHotel.hotelProfile?.market === `${run} Market Updated`, 'hotel partial update must update the requested profile field');
   assert(partiallyUpdatedHotel.hotelProfile?.hotelProject === `${run} Hotel Owned Data Project`, 'hotel partial update must preserve project');
