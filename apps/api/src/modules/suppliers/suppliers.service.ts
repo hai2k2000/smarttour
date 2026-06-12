@@ -390,12 +390,14 @@ export class SuppliersService {
     const contains = searchText ? containsSearch(searchText) : undefined;
     const province = this.optionalLabel(query.province);
     const market = this.optionalLabel(query.market);
+    const hotelProject = this.optionalLabel(query.hotelProject);
+    const classHotel = this.optionalLabel(query.classHotel);
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
       hotelProfile: {
         is: {
-          ...(query.hotelProject ? { hotelProject: { contains: query.hotelProject, mode: 'insensitive' } } : {}),
-          ...(query.classHotel ? { classHotel: { contains: query.classHotel, mode: 'insensitive' } } : {}),
+          ...(hotelProject ? { hotelProject: { contains: hotelProject, mode: 'insensitive' } } : {}),
+          ...(classHotel ? { classHotel: { contains: classHotel, mode: 'insensitive' } } : {}),
           ...(market ? { market: { contains: market, mode: 'insensitive' } } : {}),
         },
       },
@@ -407,12 +409,31 @@ export class SuppliersService {
               { supplierCode: contains },
               { name: contains },
               { taxCode: contains },
+              { contactPerson: contains },
               { phone: contains },
               { email: contains },
+              { address: contains },
+              { website: contains },
               { province: contains },
               { hotelProfile: { is: { hotelProject: contains } } },
               { hotelProfile: { is: { classHotel: contains } } },
               { hotelProfile: { is: { market: contains } } },
+              { hotelProfile: { is: { bankAccountName: contains } } },
+              { hotelProfile: { is: { bankAccountNumber: contains } } },
+              { hotelProfile: { is: { bankName: contains } } },
+              { hotelProfile: { is: { link: contains } } },
+              { contacts: { some: { fullName: contains } } },
+              { contacts: { some: { position: contains } } },
+              { contacts: { some: { phone: contains } } },
+              { contacts: { some: { email: contains } } },
+              { supplierServices: { some: { deletedAt: null, serviceName: contains } } },
+              { supplierServices: { some: { deletedAt: null, sku: contains } } },
+              { supplierServices: { some: { deletedAt: null, description: contains } } },
+              { supplierServices: { some: { deletedAt: null, note: contains } } },
+              { allotments: { some: { serviceName: contains } } },
+              { allotments: { some: { sku: contains } } },
+              { allotments: { some: { description: contains } } },
+              { allotments: { some: { note: contains } } },
             ],
           }
         : {}),
@@ -427,10 +448,10 @@ export class SuppliersService {
 
   async getHotelSupplier(id: string) {
     const supplier = await this.prisma.supplier.findFirst({
-      where: { id, hotelProfile: { isNot: null } },
+      where: { id, deletedAt: null, hotelProfile: { isNot: null } },
       include: this.hotelInclude(),
     });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
+    if (!supplier) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
     return supplier;
   }
 
@@ -473,13 +494,14 @@ export class SuppliersService {
   async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto) {
     await this.getHotelSupplier(id);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
+    const hotelProfileData = this.toHotelProfileData(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.supplier.update({
           where: { id },
           data: {
             ...this.toSupplierData(dto),
-            hotelProfile: { update: this.toHotelProfileData(dto) },
+            ...(Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}),
           } as Prisma.SupplierUncheckedUpdateInput,
         });
 
@@ -515,18 +537,16 @@ export class SuppliersService {
     });
     const totals = allotments.reduce(
       (acc, item) => {
-        const allotmentQty = item.allotmentQty || item.quantityLock || 0;
-        const lockedQty = item.lockedQty || item.quantityLock || 0;
-        const remainingQty = Math.max(0, allotmentQty - item.bookedQty - lockedQty);
+        const metrics = this.allotmentMetrics(item);
         const codLockUntil = new Date(today);
         codLockUntil.setUTCDate(codLockUntil.getUTCDate() + item.cutoffDays);
-        acc.allotmentQty += allotmentQty;
-        acc.bookedQty += item.bookedQty;
-        acc.lockedQty += lockedQty;
-        acc.remainingQty += remainingQty;
-        acc.revenue += item.bookedQty * Number(item.sellingPricePerDay || 0);
-        acc.activeAllotments += item.status === 'ACTIVE' && remainingQty > 0 ? 1 : 0;
-        acc.stopSellAllotments += item.status === 'STOP_SELL' || remainingQty <= 0 ? 1 : 0;
+        acc.allotmentQty += metrics.allotmentQty;
+        acc.bookedQty += metrics.bookedQty;
+        acc.lockedQty += metrics.lockedQty;
+        acc.remainingQty += metrics.remainingQty;
+        acc.revenue += metrics.bookedQty * Number(item.sellingPricePerDay || 0);
+        acc.activeAllotments += item.status === 'ACTIVE' && metrics.remainingQty > 0 ? 1 : 0;
+        acc.stopSellAllotments += item.status === 'STOP_SELL' || metrics.remainingQty <= 0 ? 1 : 0;
         acc.codLockedAllotments += item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil) ? 1 : 0;
         return acc;
       },
@@ -535,8 +555,8 @@ export class SuppliersService {
     return {
       ...totals,
       allotmentCount: allotments.length,
-      occupancyRate: totals.allotmentQty ? (totals.bookedQty / totals.allotmentQty) * 100 : 0,
-      sellThroughRate: totals.allotmentQty ? ((totals.bookedQty + totals.lockedQty) / totals.allotmentQty) * 100 : 0,
+      occupancyRate: this.percent(totals.bookedQty, totals.allotmentQty),
+      sellThroughRate: this.percent(totals.bookedQty + totals.lockedQty, totals.allotmentQty),
     };
   }
 
@@ -546,7 +566,7 @@ export class SuppliersService {
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('Ngày bắt đầu không được sau ngày kết thúc');
     }
-    const today = new Date();
+    const today = this.startOfUtcDay(new Date());
     const allotments = await this.prisma.supplierAllotment.findMany({
       where: {
         supplier: { is: { deletedAt: null } },
@@ -607,6 +627,10 @@ export class SuppliersService {
         lockedQty: dto.lockedQty ?? current.lockedQty,
         status: dto.status ?? current.status,
       };
+      const changes = this.allotmentChanges(current, next);
+      if (!changes.length) {
+        throw new BadRequestException('Không có giá trị quỹ phòng nào thay đổi');
+      }
       if (next.bookedQty + next.lockedQty > next.allotmentQty) {
         throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
       }
@@ -620,8 +644,8 @@ export class SuppliersService {
           allotmentId: id,
           supplierId: current.supplierId,
           action: 'OVERRIDE',
-          oldValue: { allotmentQty: current.allotmentQty, bookedQty: current.bookedQty, lockedQty: current.lockedQty, status: current.status },
-          newValue: next,
+          oldValue: { allotmentQty: current.allotmentQty, bookedQty: current.bookedQty, lockedQty: current.lockedQty, status: current.status, changes: changes.map((change) => ({ field: change.field, value: change.oldValue })) },
+          newValue: { ...next, changes: changes.map((change) => ({ field: change.field, value: change.newValue })) },
           note: reason,
           actor,
         },
@@ -632,6 +656,7 @@ export class SuppliersService {
 
   async lockAllotment(id: string, dto: LockAllotmentDto, user?: RequestUser) {
     const quantity = dto.quantity ?? 1;
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('Số phòng giữ chỗ phải lớn hơn 0');
     const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
     await this.ensureAllocationLinks(dto, user);
     return this.prisma.$transaction(async (tx) => {
@@ -640,6 +665,13 @@ export class SuppliersService {
       if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
       if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
         throw new BadRequestException('Dịch vụ không khớp với quỹ phòng');
+      }
+      if (dto.serviceId) {
+        const service = await tx.supplierService.findFirst({
+          where: { id: dto.serviceId, supplierId: current.supplierId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!service) throw new BadRequestException('Dịch vụ giữ chỗ không thuộc nhà cung cấp khách sạn hoặc đã bị xóa');
       }
       const reservedRows = await tx.$queryRaw<Array<{ supplierId: string; bookedQty: number; lockedQty: number }>>(Prisma.sql`
         UPDATE "SupplierAllotment"
@@ -795,7 +827,7 @@ export class SuppliersService {
   private async ensureExists(model: 'supplierService' | 'order' | 'booking' | 'tour', id: string, message: string, user?: RequestUser) {
     const row =
       model === 'supplierService'
-        ? await this.prisma.supplierService.findUnique({ where: { id }, select: { id: true } })
+        ? await this.prisma.supplierService.findFirst({ where: { id, deletedAt: null }, select: { id: true } })
         : model === 'order'
           ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id, deletedAt: null }, user), select: { id: true } })
         : model === 'booking'
@@ -1089,13 +1121,11 @@ export class SuppliersService {
     item: Prisma.SupplierAllotmentGetPayload<{ include: { supplier: true; logs: true; allocations: true } }>,
     today: Date,
   ) {
-    const allotmentQty = item.allotmentQty || item.quantityLock || 0;
-    const lockedQty = item.lockedQty || item.quantityLock || 0;
-    const remainingQty = Math.max(0, allotmentQty - item.bookedQty - lockedQty);
+    const metrics = this.allotmentMetrics(item);
     const codLockUntil = this.startOfUtcDay(today);
     codLockUntil.setUTCDate(codLockUntil.getUTCDate() + item.cutoffDays);
     const isCodLocked = item.startDate ? item.startDate <= codLockUntil : false;
-    const computedStatus = item.status === 'INACTIVE' ? 'INACTIVE' : item.status === 'STOP_SELL' ? 'STOP_SELL' : remainingQty <= 0 ? 'STOP_SELL' : isCodLocked ? 'COD_LOCKED' : item.status;
+    const computedStatus = item.status === 'INACTIVE' ? 'INACTIVE' : item.status === 'STOP_SELL' ? 'STOP_SELL' : metrics.remainingQty <= 0 ? 'STOP_SELL' : isCodLocked ? 'COD_LOCKED' : item.status;
     const allocationSummary = item.allocations.reduce(
       (summary, allocation) => {
         if (allocation.status === 'LOCKED') summary.locked += allocation.quantity;
@@ -1107,18 +1137,48 @@ export class SuppliersService {
     );
     return {
       ...item,
-      allotmentQty,
-      bookedQty: item.bookedQty,
-      lockedQty,
-      remainingQty,
-      occupancyRate: allotmentQty ? (item.bookedQty / allotmentQty) * 100 : 0,
-      sellThroughRate: allotmentQty ? ((item.bookedQty + lockedQty) / allotmentQty) * 100 : 0,
+      allotmentQty: metrics.allotmentQty,
+      bookedQty: metrics.bookedQty,
+      lockedQty: metrics.lockedQty,
+      remainingQty: metrics.remainingQty,
+      overbookedQty: metrics.overbookedQty,
+      occupancyRate: this.percent(metrics.bookedQty, metrics.allotmentQty),
+      sellThroughRate: this.percent(metrics.bookedQty + metrics.lockedQty, metrics.allotmentQty),
       isCodLocked,
       computedStatus,
-      revenue: item.bookedQty * Number(item.sellingPricePerDay || 0),
+      revenue: metrics.bookedQty * Number(item.sellingPricePerDay || 0),
       allocationSummary,
       activeAllocationCount: item.allocations.filter((allocation) => ['LOCKED', 'CONFIRMED'].includes(allocation.status)).length,
     };
+  }
+
+  private allotmentMetrics(item: { allotmentQty: number; quantityLock?: number | null; bookedQty: number; lockedQty: number }) {
+    const allotmentQty = item.allotmentQty || item.quantityLock || 0;
+    const bookedQty = item.bookedQty || 0;
+    const lockedQty = item.lockedQty || item.quantityLock || 0;
+    const usedQty = bookedQty + lockedQty;
+    return {
+      allotmentQty,
+      bookedQty,
+      lockedQty,
+      usedQty,
+      remainingQty: Math.max(0, allotmentQty - usedQty),
+      overbookedQty: Math.max(0, usedQty - allotmentQty),
+    };
+  }
+
+  private percent(part: number, total: number) {
+    if (!total || total <= 0) return 0;
+    return Math.min(100, Math.max(0, (part / total) * 100));
+  }
+
+  private allotmentChanges(
+    current: { allotmentQty: number; bookedQty: number; lockedQty: number; status: string },
+    next: { allotmentQty: number; bookedQty: number; lockedQty: number; status: string },
+  ) {
+    return (['allotmentQty', 'bookedQty', 'lockedQty', 'status'] as const)
+      .filter((field) => current[field] !== next[field])
+      .map((field) => ({ field, oldValue: current[field], newValue: next[field] }));
   }
 
   private async allotmentInventoryById(tx: Prisma.TransactionClient, id: string) {

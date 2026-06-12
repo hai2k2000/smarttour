@@ -670,19 +670,38 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     name: `${run} Hotel Owned Data`,
     phone: '0905555666',
     province: `  ${run}   Province  `,
+    address: `${run} Hotel Address`,
+    website: `https://hotel-${lowerRun}.example.com`,
     classHotel: '4 sao',
     hotelProject: `${run} Hotel Owned Data Project`,
     market: `  ${run}   Market  `,
+    bankAccountName: `${run} Hotel Bank Account`,
+    bankAccountNumber: `${run} Hotel Bank Number`,
+    bankName: `${run} Hotel Bank`,
+    link: `https://hotel-${lowerRun}.example.com/ref`,
     rating: 4,
     builtYear: 2020,
-    services: [{ serviceName: 'Phong tieu chuan', note: 'Service note' }],
+    contacts: [{
+      fullName: `${run} Hotel Contact`,
+      position: 'Hotel Sales',
+      phone: '0905555000',
+      email: `hotel-contact-${lowerRun}@smarttour.local`,
+    }],
+    services: [{
+      sku: `${run}-HOTEL-SERVICE-SKU`,
+      serviceName: 'Phong tieu chuan',
+      description: `${run} Hotel Service Description`,
+      note: 'Service note',
+    }],
     allotments: [{
+      sku: `${run}-HOTEL-ALLOTMENT-SKU`,
       serviceName: 'Quy phong tieu chuan',
       startDate: '2026-06-01',
       endDate: '2030-12-31',
       allotmentQty: 2,
       cutoffDays: 0,
       sellingPricePerDay: 500000,
+      description: `${run} Hotel Allotment Description`,
       note: 'Initial allotment',
     }],
   });
@@ -703,7 +722,20 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     const filteredHotels = await request(manageToken, 'GET', `/suppliers/hotels?${filter}=${encodeURIComponent(value)}`);
     assert(filteredHotels.some((item) => item.id === ownedDataHotel.id), `hotel ${filter} filter should include the matching supplier`);
   }
-  for (const keyword of [`${run} Province`, `${run} Hotel Owned Data Project`, '4 sao', `${run} Market`]) {
+  for (const keyword of [
+    `${run} Province`,
+    `${run} Hotel Owned Data Project`,
+    '4 sao',
+    `${run} Market`,
+    `${run} Hotel Address`,
+    `${run} Hotel Contact`,
+    'Hotel Sales',
+    `${run}-HOTEL-SERVICE-SKU`,
+    `${run} Hotel Service Description`,
+    `${run}-HOTEL-ALLOTMENT-SKU`,
+    `${run} Hotel Allotment Description`,
+    `${run} Hotel Bank`,
+  ]) {
     const searchedHotels = await request(manageToken, 'GET', `/suppliers/hotels?search=${encodeURIComponent(keyword)}`);
     assert(searchedHotels.some((item) => item.id === ownedDataHotel.id), `hotel search should include nested keyword ${keyword}`);
   }
@@ -742,6 +774,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(messageOf(missingOverrideReason).includes('L\u00fd do \u0111i\u1ec1u ch\u1ec9nh qu\u1ef9 ph\u00f2ng'), 'allotment override must require a Vietnamese reason');
   const emptyOverride = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { note: 'No change smoke' }, [400]);
   assert(messageOf(emptyOverride).includes('\u00edt nh\u1ea5t m\u1ed9t gi\u00e1 tr\u1ecb'), 'allotment override must change at least one value');
+  const noEffectiveOverride = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { allotmentQty: 2, status: 'ACTIVE', note: 'No effective change smoke' }, [400]);
+  assert(messageOf(noEffectiveOverride).includes('Không có giá trị quỹ phòng nào thay đổi'), 'allotment override must reject no-op changes');
   await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { status: 'UNKNOWN', note: 'Invalid status smoke' }, [400]);
 
   const overridden = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, {
@@ -753,6 +787,19 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(overridden.logs?.[0]?.action === 'OVERRIDE', 'override response must include the newly created audit log');
   assert(overridden.logs?.[0]?.actor === process.env.MANAGE_USER_ID, 'override audit must use the authenticated actor');
   assert(overridden.logs?.[0]?.note === 'Increase inventory smoke', 'override audit must preserve the reason');
+  assert(overridden.logs?.[0]?.newValue?.changes?.some((change) => change.field === 'allotmentQty' && change.value === 3), 'override audit must expose changed fields');
+
+  const invalidLockQuantity = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, {
+    quantity: 0,
+    note: 'Invalid quantity smoke',
+  }, [400]);
+  assert(messageOf(invalidLockQuantity).includes('Số phòng giữ chỗ phải lớn hơn 0'), 'lock must validate quantity in the service layer');
+  const wrongServiceLock = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, {
+    quantity: 1,
+    serviceId: flightServiceReplaced.supplierServices[0].id,
+    note: 'Wrong service smoke',
+  }, [400]);
+  assert(messageOf(wrongServiceLock).includes('không thuộc nhà cung cấp khách sạn'), 'lock must reject service ids from another supplier');
 
   const locked = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, {
     quantity: 1,

@@ -100,27 +100,28 @@ class SupplierServiceInputDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Giá kế toán dịch vụ phải là số hợp lệ' })
+  @Min(0, { message: 'Giá kế toán dịch vụ không được âm' })
   accountingPrice?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Giá thuần dịch vụ phải là số hợp lệ' })
+  @Min(0, { message: 'Giá thuần dịch vụ không được âm' })
   netPrice?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Giá bán dịch vụ phải là số hợp lệ' })
+  @Min(0, { message: 'Giá bán dịch vụ không được âm' })
   sellingPrice?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Mô tả dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Mô tả dịch vụ không được vượt quá 2.000 ký tự' })
   description?: string;
 
   @ApiPropertyOptional()
@@ -163,55 +164,56 @@ class SupplierAllotmentInputDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Tổng quỹ phòng phải là số nguyên' })
+  @Min(0, { message: 'Tổng quỹ phòng không được âm' })
   allotmentQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số phòng đã đặt phải là số nguyên' })
+  @Min(0, { message: 'Số phòng đã đặt không được âm' })
   bookedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số phòng đang giữ phải là số nguyên' })
+  @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số lượng khóa phòng phải là số nguyên' })
+  @Min(0, { message: 'Số lượng khóa phòng không được âm' })
   quantityLock?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số ngày chốt quỹ phòng phải là số nguyên' })
+  @Min(0, { message: 'Số ngày chốt quỹ phòng không được âm' })
   cutoffDays?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Giá thuần mỗi ngày phải là số hợp lệ' })
+  @Min(0, { message: 'Giá thuần mỗi ngày không được âm' })
   netCostPerDay?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Giá bán mỗi ngày phải là số hợp lệ' })
+  @Min(0, { message: 'Giá bán mỗi ngày không được âm' })
   sellingPricePerDay?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Mô tả quỹ phòng phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Mô tả quỹ phòng không được vượt quá 2.000 ký tự' })
   description?: string;
 
   @ApiPropertyOptional()
@@ -401,22 +403,22 @@ export class OverrideAllotmentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Tổng quỹ phòng phải là số nguyên' })
+  @Min(0, { message: 'Tổng quỹ phòng không được âm' })
   allotmentQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số phòng đã đặt phải là số nguyên' })
+  @Min(0, { message: 'Số phòng đã đặt không được âm' })
   bookedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Số phòng đang giữ phải là số nguyên' })
+  @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
 
   @ApiPropertyOptional()
@@ -463,8 +465,8 @@ export class LockAllotmentDto {
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'Số phòng giữ chỗ phải là số nguyên' })
+  @Min(1, { message: 'Số phòng giữ chỗ phải lớn hơn 0' })
   quantity?: number;
 
   @ApiPropertyOptional()
