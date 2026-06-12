@@ -572,18 +572,72 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const flightSupplier = await request(manageToken, 'POST', '/suppliers/flights', {
     supplierCode: `${run}-FLIGHT-METADATA`,
     name: `${run} Flight Metadata Supplier`,
+    taxCode: `TAX-${run}`,
     phone: '0907777888',
+    province: `  ${run}   Flight Province  `,
+    market: `  ${run}   Flight Market  `,
+    contacts: [{
+      fullName: `  ${run} Flight Contact  `,
+      position: '  Flight Booker  ',
+      phone: '0907777000',
+      email: `flight-contact-${lowerRun}@smarttour.local`,
+    }],
     services: [{
+      sku: `${run}-FLIGHT-OLD-SKU`,
       serviceName: 'Vé máy bay khứ hồi',
       netPrice: 1000000,
       sellingPrice: 1200000,
+      description: `${run} Flight Description`,
+      note: `${run} Flight Note`,
       metadata: { departureDate: '2026-06-12', departureTime: '08:30', taxPrice: '100000', route: 'HAN-SGN' },
     }],
   });
   assert(flightSupplier.category?.name === 'Flight', 'new typed supplier should use the canonical category');
+  assert(flightSupplier.province === `${run} Flight Province`, 'typed supplier create should normalize province');
+  assert(flightSupplier.market === `${run} Flight Market`, 'typed supplier create should normalize market');
+  assert(flightSupplier.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed supplier detail should include editable contacts');
   assert(flightSupplier.supplierServices?.[0]?.metadata?.taxPrice === 100000, 'typed numeric metadata should be normalized before persistence');
+  for (const [filter, value] of [
+    ['province', `${run} Flight Province`],
+    ['market', `${run} Flight Market`],
+    ['status', 'ACTIVE'],
+  ]) {
+    const filteredTypedSuppliers = await request(manageToken, 'GET', `/suppliers/flights?${filter}=${encodeURIComponent(value)}`);
+    assert(filteredTypedSuppliers.some((item) => item.id === flightSupplier.id), `typed supplier ${filter} filter should include matching supplier`);
+  }
+  for (const keyword of [
+    `TAX-${run}`,
+    `${run} Flight Province`,
+    `${run} Flight Market`,
+    `${run} Flight Contact`,
+    'Flight Booker',
+    `${run}-FLIGHT-OLD-SKU`,
+    `${run} Flight Description`,
+    `${run} Flight Note`,
+  ]) {
+    const searchedTypedSuppliers = await request(manageToken, 'GET', `/suppliers/flights?search=${encodeURIComponent(keyword)}`);
+    assert(searchedTypedSuppliers.some((item) => item.id === flightSupplier.id), `typed supplier search should include keyword ${keyword}`);
+  }
   const flightPartialUpdate = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, { name: `${run} Flight Metadata Updated` });
   assert(flightPartialUpdate.supplierServices?.length === 1, 'typed partial update must preserve services when services are omitted');
+  const oldFlightServiceId = flightPartialUpdate.supplierServices[0].id;
+  const flightServiceReplaced = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, {
+    services: [{
+      sku: `${run}-FLIGHT-NEW-SKU`,
+      serviceName: 'Vé máy bay nội địa',
+      netPrice: 900000,
+      sellingPrice: 1100000,
+      description: `${run} Flight Description Updated`,
+      metadata: { departureDate: '2026-06-13', departureTime: '09:30', taxPrice: '90000', route: 'HAN-DAD' },
+    }],
+  });
+  assert(flightServiceReplaced.supplierServices?.length === 1, 'typed service replacement should return one active service');
+  assert(flightServiceReplaced.supplierServices[0].id !== oldFlightServiceId, 'typed service replacement should create a fresh active service');
+  assert(flightServiceReplaced.supplierServices[0].metadata?.taxPrice === 90000, 'typed replacement metadata should be normalized');
+  const oldServiceSearch = await request(manageToken, 'GET', `/suppliers/flights?search=${encodeURIComponent(`${run}-FLIGHT-OLD-SKU`)}`);
+  assert(!oldServiceSearch.some((item) => item.id === flightSupplier.id), 'typed service replacement should hide soft-deleted old services from list search');
+  const newServiceSearch = await request(manageToken, 'GET', `/suppliers/flights?search=${encodeURIComponent(`${run}-FLIGHT-NEW-SKU`)}`);
+  assert(newServiceSearch.some((item) => item.id === flightSupplier.id), 'typed service replacement should expose the new active service in list search');
   const typedServiceDeleteError = await request(manageToken, 'DELETE', `/suppliers/flights/${flightSupplier.id}`, undefined, [409]);
   assert(messageOf(typedServiceDeleteError).includes('dịch vụ nhà cung cấp'), 'typed delete should use the shared relation safety guard');
 
@@ -594,6 +648,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   });
   const wrongTypedSupplierError = await request(manageToken, 'DELETE', `/suppliers/flights/${typedSupplier.id}`, undefined, [404]);
   assert(messageOf(wrongTypedSupplierError).includes('Không tìm thấy nhà cung cấp thuộc loại đã chọn'), 'typed supplier mismatch should return a clear Vietnamese message');
+  const wrongTypedStatusError = await request(manageToken, 'PATCH', `/suppliers/flights/${typedSupplier.id}/status`, { status: 'INACTIVE' }, [404]);
+  assert(messageOf(wrongTypedStatusError).includes('Không tìm thấy nhà cung cấp thuộc loại đã chọn'), 'typed supplier status mismatch should return a clear Vietnamese message');
   const typedSupplierAfterWrongDelete = await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`);
   assert(typedSupplierAfterWrongDelete.id === typedSupplier.id, 'wrong typed delete must not remove supplier from another type');
   const typedUpdated = await request(manageToken, 'PUT', `/suppliers/restaurants/${typedSupplier.id}`, { name: `${run} Restaurant Supplier Updated` });
@@ -825,3 +881,17 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   process.exit(1);
 });
 NODE
+
+soft_deleted_typed_service_count="$(psql_exec -tA <<SQL
+SELECT COUNT(*)
+FROM "SupplierService"
+WHERE sku = '${RUN_ID}-FLIGHT-OLD-SKU'
+  AND status = 'INACTIVE'
+  AND "deletedAt" IS NOT NULL;
+SQL
+)"
+if [[ "$soft_deleted_typed_service_count" != "1" ]]; then
+  echo "Expected replaced typed supplier service to be soft-deleted, got ${soft_deleted_typed_service_count}" >&2
+  exit 1
+fi
+echo "SMOKE_SUPPLIERS_SOFT_DELETE_OK"

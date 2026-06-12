@@ -10,7 +10,7 @@ import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generi
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
 import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
+import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
 const supplierCategoryNameKey = (value: string) => value
   .normalize('NFD')
@@ -290,8 +290,19 @@ export class SuppliersService {
               { supplierCode: contains },
               { name: contains },
               { taxCode: contains },
+              { contactPerson: contains },
               { phone: contains },
               { email: contains },
+              { province: contains },
+              { market: contains },
+              { contacts: { some: { fullName: contains } } },
+              { contacts: { some: { position: contains } } },
+              { contacts: { some: { phone: contains } } },
+              { contacts: { some: { email: contains } } },
+              { supplierServices: { some: { deletedAt: null, serviceName: contains } } },
+              { supplierServices: { some: { deletedAt: null, sku: contains } } },
+              { supplierServices: { some: { deletedAt: null, description: contains } } },
+              { supplierServices: { some: { deletedAt: null, note: contains } } },
             ],
           }
         : {}),
@@ -306,18 +317,13 @@ export class SuppliersService {
 
   async getTypedSupplier(type: string, id: string) {
     const typedRoute = this.getTypedRoute(type);
-    const supplier = await this.prisma.supplier.findFirst({
-      where: { id, category: { name: { in: supplierTypeCategoryNames(typedRoute), mode: 'insensitive' } } },
-      include: this.genericInclude(),
-    });
-    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.typedSupplierNotFound);
-    return supplier;
+    return this.ensureTypedSupplier(typedRoute, id);
   }
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
     this.validateTypedSupplierPayload(typedRoute, dto);
-    const category = await this.ensureCategoryByName(SUPPLIER_TYPE_LABELS[typedRoute]);
+    const category = await this.ensureCategoryByName(getTypeLabel(typedRoute));
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -340,7 +346,7 @@ export class SuppliersService {
 
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
-    await this.getTypedSupplier(typedRoute, id);
+    await this.ensureTypedSupplier(typedRoute, id);
     this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     try {
@@ -361,12 +367,14 @@ export class SuppliersService {
   }
 
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
-    await this.getTypedSupplier(type, id);
+    const typedRoute = this.getTypedRoute(type);
+    await this.ensureTypedSupplier(typedRoute, id);
     return this.prisma.supplier.update({ where: { id }, data: { status }, include: this.genericInclude() });
   }
 
   async deleteTypedSupplier(type: string, id: string) {
-    await this.getTypedSupplier(type, id);
+    const typedRoute = this.getTypedRoute(type);
+    await this.ensureTypedSupplier(typedRoute, id);
     return this.deleteSupplierRecord(id);
   }
 
@@ -943,7 +951,7 @@ export class SuppliersService {
     }
 
     if (dto.services) {
-      await tx.supplierService.deleteMany({ where: { supplierId } });
+      await tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
       const services = dto.services.filter((item) => item.serviceName?.trim());
       if (services.length) {
         await tx.supplierService.createMany({
@@ -1035,7 +1043,7 @@ export class SuppliersService {
     }
 
     if (dto.services) {
-      await tx.supplierService.deleteMany({ where: { supplierId } });
+      await tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
       const services = dto.services.filter((item) => item.serviceName?.trim());
       if (services.length) {
         await tx.supplierService.createMany({
@@ -1145,6 +1153,19 @@ export class SuppliersService {
   private getTypedRoute(type: string): TypedSupplierRoute {
     if (!isTypedSupplierRoute(type)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
     return type;
+  }
+
+  private async ensureTypedSupplier(type: TypedSupplierRoute, id: string) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        category: { name: { in: supplierTypeCategoryNames(type), mode: 'insensitive' } },
+      },
+      include: this.genericInclude(),
+    });
+    if (!supplier) throw new NotFoundException(SUPPLIER_ERRORS.typedSupplierNotFound);
+    return supplier;
   }
 
   private validateTypedSupplierPayload(type: TypedSupplierRoute, dto: Partial<CreateGenericSupplierDto>) {

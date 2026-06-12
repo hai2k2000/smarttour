@@ -35,6 +35,10 @@ for route, label in {
 
 for alias in ["flights: ['Flight Ticket']", "'landtour-suppliers': ['Landtour']", "transport: ['Vehicle']"]:
     assert alias in types_source, f'missing legacy category alias: {alias}'
+assert 'export function getTypeLabel(type: TypedSupplierRoute)' in types_source, 'typed category labels must be exposed through a helper'
+assert 'return [getTypeLabel(type), ...SUPPLIER_TYPE_CATEGORY_ALIASES[type]]' in types_source, 'typed category aliases must use the shared label helper'
+assert 'getTypeLabel, isTypedSupplierRoute' in service, 'service must use the shared typed label helper'
+assert 'ensureCategoryByName(getTypeLabel(typedRoute))' in service, 'typed create must resolve categories through the shared label helper'
 assert 'supplierTypeCategoryNames(typedRoute)' in service, 'typed list/detail must include canonical and legacy categories'
 assert 'SUPPLIER_TYPE_METADATA_FIELDS' in service and 'normalizeTypedMetadata' in service
 for key in ['taxPrice', 'departureDate', 'capacity', 'driverPhone', 'bedroomCount', 'dailyRate', 'fullPaymentDeadline']:
@@ -47,9 +51,26 @@ assert "throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType)" in service
 assert 'this.validateTypedSupplierPayload(typedRoute, dto)' in service
 assert 'class TypedSupplierListQueryDto' in query_dto and 'status?: SupplierStatus' in query_dto
 assert 'query.status ? { status: query.status } : {}' in service, 'typed supplier status filter must use the shared Supplier status'
+for search_fragment in [
+    '{ contactPerson: contains }',
+    '{ province: contains }',
+    '{ market: contains }',
+    '{ contacts: { some: { fullName: contains } } }',
+    '{ contacts: { some: { position: contains } } }',
+    '{ contacts: { some: { phone: contains } } }',
+    '{ contacts: { some: { email: contains } } }',
+    '{ supplierServices: { some: { deletedAt: null, serviceName: contains } } }',
+    '{ supplierServices: { some: { deletedAt: null, sku: contains } } }',
+]:
+    assert search_fragment in service, f'typed supplier search must include {search_fragment}'
 assert "params.set('status', nextFilters.status)" in frontend, 'frontend typed supplier list must send the same status filter contract'
+assert 'private async ensureTypedSupplier(type: TypedSupplierRoute, id: string)' in service
+assert 'deletedAt: null' in service and "category: { name: { in: supplierTypeCategoryNames(type), mode: 'insensitive' } }" in service
+assert service.count('await this.ensureTypedSupplier(typedRoute, id)') >= 3, 'typed update/status/delete must verify id belongs to the route type'
 assert 'return this.prisma.supplier.update({ where: { id }, data: { status }, include: this.genericInclude() })' in service
 assert 'return this.deleteSupplierRecord(id)' in service
+assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
+assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service, 'typed child replacement must not hard-delete supplier services'
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service
 assert 'item.metadata ? (this.normalizeTypedMetadata(type, item.metadata)' in service
 assert '@Max(5' in dto and 'Xếp hạng nhà cung cấp không được lớn hơn 5' in dto

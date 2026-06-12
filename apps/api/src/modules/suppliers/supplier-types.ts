@@ -73,6 +73,10 @@ export function isTypedSupplierRoute(value: string): value is TypedSupplierRoute
   return Object.prototype.hasOwnProperty.call(SUPPLIER_TYPE_LABELS, value);
 }
 
+export function getTypeLabel(type: TypedSupplierRoute) {
+  return SUPPLIER_TYPE_LABELS[type];
+}
+
 export function supplierTypeCategoryNames(type: TypedSupplierRoute) {
-  return [SUPPLIER_TYPE_LABELS[type], ...SUPPLIER_TYPE_CATEGORY_ALIASES[type]];
+  return [getTypeLabel(type), ...SUPPLIER_TYPE_CATEGORY_ALIASES[type]];
 }
