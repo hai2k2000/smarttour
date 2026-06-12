@@ -179,9 +179,16 @@ assert "Ngày bắt đầu ${subject} không được sau ngày kết thúc ${su
 for english in ['Hotel supplier not found', 'Allotment not found', 'Booked plus locked quantity cannot exceed allotment quantity']:
     assert english.lower() not in (service + hotel_dto).lower(), f'English hotel/allotment message remains: {english}'
 
-assert "Object.entries(nextFilters).forEach" in frontend
 for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel']:
     assert field in frontend, f'hotel frontend filter missing {field}'
+assert "const hotelListQueryKeys = ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel'] as const" in frontend, 'hotel list frontend must whitelist backend query keys'
+assert 'function validateHotelFilters(filters: Filters)' in frontend and 'Từ khóa tìm kiếm' in frontend and 'không được vượt quá ${maxLength.toLocaleString' in frontend, 'hotel list filters must validate backend query limits before request'
+assert 'function buildHotelListSearchParams(filters: Filters)' in frontend and 'hotelListQueryKeys.forEach' in frontend, 'hotel list must build query params from the backend contract keys'
+assert 'maxLength={hotelFilterMaxLengths.search}' in frontend and 'maxLength={hotelFilterMaxLengths.classHotel}' in frontend, 'hotel list filters must expose backend length limits in inputs'
+assert 'Tìm mã, tên, số điện thoại, email, dự án hoặc hạng khách sạn' in frontend, 'hotel list search placeholder must describe searchable fields clearly'
+assert 'Chưa tìm thấy nhà cung cấp khách sạn phù hợp.' in frontend and 'Hãy điều chỉnh từ khóa hoặc bộ lọc' in frontend, 'hotel list empty state must guide next action'
+assert 'Không tải được danh sách nhà cung cấp khách sạn.' in frontend and 'listError' in frontend, 'hotel list error state must show API detail inline'
+assert 'function HotelListLoadingRows()' in frontend and 'tableSkeletonLine' in frontend, 'hotel list loading state must use skeleton rows'
 assert 'function shouldSendCollection(' in frontend and "dirtyFields[name] !== undefined" in frontend, 'hotel edit should only send dirty child collection snapshots'
 assert "hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections)" in frontend, 'hotel frontend must centralize create/update payload shaping'
 assert "mode === 'create' ? { allotments:" in frontend, 'hotel edit payload must omit allotments because allotments are managed separately'

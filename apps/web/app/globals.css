@@ -1781,6 +1781,32 @@ label { min-width: 0; }
 .hotelSupplierPage .hotelListTable td {
   min-width: 0;
 }
+.hotelSupplierPage .tableEmptyStateContent {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 620px;
+  margin: 0 auto;
+  color: var(--dn-muted);
+  line-height: 1.45;
+}
+.hotelSupplierPage .tableEmptyStateContent strong {
+  color: var(--dn-text);
+  font-size: 14px;
+}
+.hotelSupplierPage .tableSkeletonLine {
+  display: block;
+  width: 100%;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #edf5e9 0%, #f8fbf6 45%, #edf5e9 90%);
+  background-size: 220% 100%;
+  animation: tableSkeletonPulse 1.2s ease-in-out infinite;
+}
+@keyframes tableSkeletonPulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
 .tourProgramRoute {
   display: inline-flex;
   align-items: center;

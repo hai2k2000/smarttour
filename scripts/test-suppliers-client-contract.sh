@@ -18,7 +18,7 @@ for source in [hotel, generic]:
     assert 'PermissionNotice' in source
     assert 'supplier.manage' in source and 'supplier.view' in source
     assert 'window.confirm' in source, 'destructive supplier actions must require confirmation'
-    assert 'Không tìm thấy' in source and 'Đang tải' in source
+    assert ('Không tìm thấy' in source or 'Chưa tìm thấy' in source) and 'Đang tải' in source
     assert 'supplierLifecycleStatusOptions' in source
     assert 'z.enum(supplierLifecycleStatuses)' in source
     assert 'Quản lý loại nhà cung cấp' in source

@@ -122,6 +122,15 @@ const allotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
 const currentYear = new Date().getFullYear();
 const maxSupplierMoney = 999_999_999_999;
 const maxSupplierAllotmentCutoffDays = 365;
+const hotelListQueryKeys = ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel'] as const;
+const hotelFilterMaxLengths = { search: 200, province: 120, market: 120, hotelProject: 180, classHotel: 80 } as const;
+const hotelFilterLabels = {
+  search: 'Từ khóa tìm kiếm',
+  province: 'Tỉnh/thành',
+  market: 'Thị trường',
+  hotelProject: 'Dự án khách sạn',
+  classHotel: 'Hạng khách sạn',
+} as const;
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const isOptionalHttpUrl = (value: string) => {
   if (!value) return true;
@@ -327,6 +336,27 @@ function createFieldArrayRow(row: Record<string, unknown>) {
   return { ...row };
 }
 
+function validateHotelFilters(filters: Filters) {
+  for (const key of Object.keys(hotelFilterMaxLengths) as Array<keyof typeof hotelFilterMaxLengths>) {
+    const value = filters[key].trim();
+    const maxLength = hotelFilterMaxLengths[key];
+    if (value.length > maxLength) return `${hotelFilterLabels[key]} không được vượt quá ${maxLength.toLocaleString('vi-VN')} ký tự.`;
+  }
+  if (filters.status.trim() && !supplierLifecycleStatuses.includes(filters.status.trim() as SupplierLifecycleStatus)) {
+    return 'Trạng thái nhà cung cấp không hợp lệ.';
+  }
+  return '';
+}
+
+function buildHotelListSearchParams(filters: Filters) {
+  const params = new URLSearchParams();
+  hotelListQueryKeys.forEach((key) => {
+    const value = filters[key].trim();
+    if (value) params.set(key, value);
+  });
+  return params;
+}
+
 function shouldSendCollection(mode: 'create' | 'update', dirtyFields: DirtyCollections, name: ArrayName) {
   return mode === 'create' || dirtyFields[name] !== undefined;
 }
@@ -476,6 +506,7 @@ export default function HotelSuppliersClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
   const [notice, setNotice] = useState<SupplierNotice | null>(initialError ? { type: 'error', text: initialError } : null);
+  const [listError, setListError] = useState(initialError);
   const [formOpen, setFormOpen] = useState(false);
   const [files, setFiles] = useState<SupplierFile[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -558,16 +589,24 @@ export default function HotelSuppliersClient({
   const table = useReactTable({ data: hotels, columns, getCoreRowModel: getCoreRowModel() });
 
   async function load(nextFilters = filters, emitSuccess = false) {
+    const validationError = validateHotelFilters(nextFilters);
+    if (validationError) {
+      setListError(validationError);
+      setNotice({ type: 'error', text: validationError });
+      return false;
+    }
     setIsLoading(true);
+    setListError('');
     try {
-      const params = new URLSearchParams();
-      Object.entries(nextFilters).forEach(([key, value]) => { if (value.trim()) params.set(key, value.trim()); });
+      const params = buildHotelListSearchParams(nextFilters);
       const rows = await supplierApi<HotelSupplier[]>(`/api/suppliers/hotels${params.size ? `?${params}` : ''}`, {}, 'Tải danh sách nhà cung cấp khách sạn');
       setHotels(rows);
       if (emitSuccess) setNotice({ type: 'success', text: 'Đã tải lại danh sách nhà cung cấp khách sạn.' });
       return true;
     } catch (error) {
-      setNotice({ type: 'error', text: errorText(error, 'Không tải được danh sách nhà cung cấp khách sạn.') });
+      const message = errorText(error, 'Không tải được danh sách nhà cung cấp khách sạn.');
+      setListError(message);
+      setNotice({ type: 'error', text: message });
       return false;
     } finally {
       setIsLoading(false);
@@ -920,12 +959,12 @@ export default function HotelSuppliersClient({
 
           <section className="panel supplierFilterPanel">
             <form className="supplierFilters supplierHotelFilters" onSubmit={submitFilters}>
-              <label className="searchBox"><Search size={16} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Tìm mã, tên, điện thoại, dự án hoặc hạng khách sạn..." /></label>
+              <label className="searchBox"><Search size={16} /><input value={filters.search} maxLength={hotelFilterMaxLengths.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Tìm mã, tên, số điện thoại, email, dự án hoặc hạng khách sạn..." /></label>
               <label>Trạng thái<select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Tất cả trạng thái</option>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-              <label>Tỉnh/thành<input value={filters.province} onChange={(event) => setFilters((current) => ({ ...current, province: event.target.value }))} /></label>
-              <label>Thị trường<input value={filters.market} onChange={(event) => setFilters((current) => ({ ...current, market: event.target.value }))} /></label>
-              <label>Dự án<input value={filters.hotelProject} onChange={(event) => setFilters((current) => ({ ...current, hotelProject: event.target.value }))} /></label>
-              <label>Hạng khách sạn<input value={filters.classHotel} onChange={(event) => setFilters((current) => ({ ...current, classHotel: event.target.value }))} /></label>
+              <label>Tỉnh/thành<input value={filters.province} maxLength={hotelFilterMaxLengths.province} placeholder="Ví dụ: Hà Nội" onChange={(event) => setFilters((current) => ({ ...current, province: event.target.value }))} /></label>
+              <label>Thị trường<input value={filters.market} maxLength={hotelFilterMaxLengths.market} placeholder="Ví dụ: Nội địa" onChange={(event) => setFilters((current) => ({ ...current, market: event.target.value }))} /></label>
+              <label>Dự án khách sạn<input value={filters.hotelProject} maxLength={hotelFilterMaxLengths.hotelProject} placeholder="Dòng sản phẩm hoặc dự án" onChange={(event) => setFilters((current) => ({ ...current, hotelProject: event.target.value }))} /></label>
+              <label>Hạng khách sạn<input value={filters.classHotel} maxLength={hotelFilterMaxLengths.classHotel} placeholder="Ví dụ: 4 sao" onChange={(event) => setFilters((current) => ({ ...current, classHotel: event.target.value }))} /></label>
               <button type="submit" disabled={isLoading}><Search size={16} /> Lọc danh sách</button>
               <button type="button" className="secondaryButton iconButton" onClick={resetFilters} disabled={isLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc"><RefreshCcw size={16} /></button>
             </form>
@@ -944,9 +983,14 @@ export default function HotelSuppliersClient({
               <table className="fitTable hotelListTable">
                 <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
                 <tbody>
-                  {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-                  {!isLoading && hotels.length === 0 ? <tr><td colSpan={6} className="tableEmptyState">Không tìm thấy nhà cung cấp khách sạn phù hợp với bộ lọc hiện tại.</td></tr> : null}
-                  {isLoading ? <tr><td colSpan={6} className="tableEmptyState">Đang tải danh sách nhà cung cấp khách sạn...</td></tr> : null}
+                  {isLoading ? <HotelListLoadingRows /> : null}
+                  {!isLoading && listError ? (
+                    <tr><td colSpan={6} className="tableEmptyState"><div className="tableEmptyStateContent"><strong>Không tải được danh sách nhà cung cấp khách sạn.</strong><span>{listError}</span><button type="button" className="secondaryButton iconTextButton" onClick={() => void load(filters, true)}><RefreshCcw size={16} /> Tải lại</button></div></td></tr>
+                  ) : null}
+                  {!isLoading && !listError ? table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>) : null}
+                  {!isLoading && !listError && hotels.length === 0 ? (
+                    <tr><td colSpan={6} className="tableEmptyState"><div className="tableEmptyStateContent"><strong>Chưa tìm thấy nhà cung cấp khách sạn phù hợp.</strong><span>Hãy điều chỉnh từ khóa hoặc bộ lọc. Nếu đây là khách sạn mới, dùng nút tạo nhà cung cấp khách sạn để thêm hồ sơ.</span>{canManage ? <button type="button" className="iconTextButton" onClick={openCreate}><Plus size={16} /> Tạo nhà cung cấp khách sạn</button> : null}</div></td></tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
@@ -1198,6 +1242,20 @@ function DynamicRows<T extends ArrayName>({
         </table>
       </div>
     </section>
+  );
+}
+
+function HotelListLoadingRows() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, rowIndex) => (
+        <tr key={`hotel-list-loading-${rowIndex}`}>
+          {Array.from({ length: 6 }).map((__, cellIndex) => (
+            <td key={`hotel-list-loading-${rowIndex}-${cellIndex}`}><span className="tableSkeletonLine" /></td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }
 
