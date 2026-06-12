@@ -3,9 +3,11 @@ set -euo pipefail
 
 python3 - <<'PYTEST'
 from pathlib import Path
+import re
 
-service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
-types_source = Path('apps/api/src/modules/suppliers/supplier-types.ts').read_text()
+service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(encoding='utf-8')
+types_source = Path('apps/api/src/modules/suppliers/supplier-types.ts').read_text(encoding='utf-8')
+frontend = Path('apps/web/app/suppliers/[type]/GenericSupplierClient.tsx').read_text(encoding='utf-8')
 
 vietnamese_labels = {
     'restaurants': 'Nhà hàng',
@@ -20,6 +22,15 @@ for route, label in vietnamese_labels.items():
 
 for alias in ["'Restaurant'", "'Flight'", "'Flight Ticket'", "'Other Cost'", "'Passport Visa'", "'Tour Guide'"]:
     assert alias in types_source, f'legacy category alias must remain supported: {alias}'
+
+for label in ['Nhà hàng', 'Vé máy bay', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên', 'Vé series']:
+    assert label in types_source and label in frontend, f'typed supplier category label must match backend/frontend: {label}'
+
+backend_metadata_keys = set(re.findall(r"\b([A-Za-z][A-Za-z0-9]*): '(?:text|number|date|time|datetime)'", types_source))
+frontend_form_keys = set(re.findall(r"\{ key: '([^']+)'", frontend))
+common_frontend_keys = {'accountingPrice', 'description', 'fullName', 'netPrice', 'note', 'position', 'quantity', 'sellingPrice', 'serviceName', 'sku'}
+assert backend_metadata_keys <= frontend_form_keys, f'frontend typed service fields missing backend metadata: {sorted(backend_metadata_keys - frontend_form_keys)}'
+assert (frontend_form_keys - common_frontend_keys) <= backend_metadata_keys, f'backend metadata missing frontend typed service fields: {sorted(frontend_form_keys - common_frontend_keys - backend_metadata_keys)}'
 
 assert 'findCategoryByName(categoryName)' in service, 'ensureCategoryByName must use normalized category lookup'
 assert 'throw new ConflictException(SUPPLIER_ERRORS.categoryExists)' in service, 'category create races must return a Vietnamese conflict'

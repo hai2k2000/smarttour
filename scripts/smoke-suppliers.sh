@@ -26,13 +26,13 @@ VIEW_SESSION_ID="session_sup_view_${RUN_ID_SAFE}"
 USED_CATEGORY_ID="sup_used_category_${RUN_ID_SAFE}"
 USED_SUPPLIER_ID="$(cat /proc/sys/kernel/random/uuid)"
 LEGACY_TYPED_SUPPLIER_ID="$(cat /proc/sys/kernel/random/uuid)"
-USED_ORDER_ID="sup_used_order_${RUN_ID_SAFE}"
+USED_ORDER_ID="$(cat /proc/sys/kernel/random/uuid)"
 USED_OPERATION_ITEM_ID="sup_used_op_item_${RUN_ID_SAFE}"
 USED_FINANCE_PAYMENT_ID="sup_used_fin_payment_${RUN_ID_SAFE}"
 USED_PAYMENT_REQUEST_ID="sup_used_pay_request_${RUN_ID_SAFE}"
 USED_PAYMENT_ITEM_ID="sup_used_pay_item_${RUN_ID_SAFE}"
 USED_TOUR_PROGRAM_ID="sup_used_program_${RUN_ID_SAFE}"
-USED_BOOKING_ID="sup_used_booking_${RUN_ID_SAFE}"
+USED_BOOKING_ID="$(cat /proc/sys/kernel/random/uuid)"
 USED_OPERATION_FORM_ID="sup_used_form_${RUN_ID_SAFE}"
 USED_OPERATION_SERVICE_ID="sup_used_service_${RUN_ID_SAFE}"
 
@@ -165,7 +165,7 @@ INSERT INTO "SupplierPaymentItem" (id, "requestId", "supplierId", amount, notes)
 VALUES ('${USED_PAYMENT_ITEM_ID}', '${USED_PAYMENT_REQUEST_ID}', '${USED_SUPPLIER_ID}', 100000, '${RUN_ID} supplier payment item');
 SQL
 
-export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN MANAGE_USER_ID USED_SUPPLIER_ID USED_CATEGORY_ID LEGACY_TYPED_SUPPLIER_ID
+export API_URL RUN_ID RUN_ID_LOWER MANAGE_TOKEN VIEW_TOKEN MANAGE_USER_ID USED_SUPPLIER_ID USED_CATEGORY_ID LEGACY_TYPED_SUPPLIER_ID USED_ORDER_ID USED_BOOKING_ID
 
 run_node() {
   if command -v node >/dev/null 2>&1; then
@@ -182,6 +182,8 @@ run_node() {
     -e USED_SUPPLIER_ID \
     -e USED_CATEGORY_ID \
     -e LEGACY_TYPED_SUPPLIER_ID \
+    -e USED_ORDER_ID \
+    -e USED_BOOKING_ID \
     node:22-alpine node
 }
 
@@ -600,6 +602,9 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(flightSupplier.market === `${run} Flight Market`, 'typed supplier create should normalize market');
   assert(flightSupplier.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed supplier detail should include editable contacts');
   assert(flightSupplier.supplierServices?.[0]?.metadata?.taxPrice === 100000, 'typed numeric metadata should be normalized before persistence');
+  const typedUploadedFile = await uploadRequest(manageToken, `/suppliers/${flightSupplier.id}/files`, 'typed-supplier-note.txt', 'text/plain', 'typed supplier file smoke');
+  const flightDetailWithFile = await request(manageToken, 'GET', `/suppliers/flights/${flightSupplier.id}`);
+  assert(flightDetailWithFile.files?.some((file) => file.id === typedUploadedFile.id), 'typed detail must include uploaded files for edit forms');
   for (const [filter, value] of [
     ['province', `${run} Flight Province`],
     ['market', `${run} Flight Market`],
@@ -623,6 +628,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   }
   const flightPartialUpdate = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, { name: `${run} Flight Metadata Updated` });
   assert(flightPartialUpdate.supplierServices?.length === 1, 'typed partial update must preserve services when services are omitted');
+  assert(flightPartialUpdate.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed partial update must preserve contacts when contacts are omitted');
+  assert(flightPartialUpdate.files?.some((file) => file.id === typedUploadedFile.id), 'typed partial update must preserve files when files are omitted');
   assert(flightPartialUpdate.category?.name === 'Vé máy bay', 'typed partial update must preserve the Vietnamese category mapping');
   const oldFlightServiceId = flightPartialUpdate.supplierServices[0].id;
   const flightServiceReplaced = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, {
@@ -638,6 +645,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(flightServiceReplaced.supplierServices?.length === 1, 'typed service replacement should return one active service');
   assert(flightServiceReplaced.supplierServices[0].id !== oldFlightServiceId, 'typed service replacement should create a fresh active service');
   assert(flightServiceReplaced.supplierServices[0].metadata?.taxPrice === 90000, 'typed replacement metadata should be normalized');
+  assert(flightServiceReplaced.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed service replacement must preserve contacts when contacts are omitted');
+  assert(flightServiceReplaced.files?.some((file) => file.id === typedUploadedFile.id), 'typed service replacement must preserve files when files are omitted');
+  await request(manageToken, 'DELETE', `/suppliers/${flightSupplier.id}/files/${typedUploadedFile.id}`);
+  const flightAfterFileDelete = await request(manageToken, 'GET', `/suppliers/flights/${flightSupplier.id}`);
+  assert(!flightAfterFileDelete.files?.some((file) => file.id === typedUploadedFile.id), 'typed file delete must remove only the file metadata');
+  assert(flightAfterFileDelete.contacts?.[0]?.fullName === `${run} Flight Contact` && flightAfterFileDelete.supplierServices?.length === 1, 'typed file delete must not affect contacts or services');
   const oldServiceSearch = await request(manageToken, 'GET', `/suppliers/flights?search=${encodeURIComponent(`${run}-FLIGHT-OLD-SKU`)}`);
   assert(!oldServiceSearch.some((item) => item.id === flightSupplier.id), 'typed service replacement should hide soft-deleted old services from list search');
   const newServiceSearch = await request(manageToken, 'GET', `/suppliers/flights?search=${encodeURIComponent(`${run}-FLIGHT-NEW-SKU`)}`);
@@ -669,6 +682,9 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(!typedActiveList.some((item) => item.id === typedSupplier.id), 'typed supplier inactive status must remove the row from the active filtered list');
   await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
   await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
+  await request(manageToken, 'GET', `/suppliers/${typedSupplier.id}`, undefined, [404]);
+  const typedDeletedList = await request(manageToken, 'GET', `/suppliers/restaurants?search=${encodeURIComponent(`${run} Restaurant Supplier Updated`)}`);
+  assert(!typedDeletedList.some((item) => item.id === typedSupplier.id), 'soft-deleted typed supplier must not appear in typed lists');
 
   const ownedDataHotel = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-OWNED-DATA`,
@@ -714,8 +730,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(ownedDataHotel.province === `${run} Province`, 'province display label should normalize whitespace without changing case');
   assert(ownedDataHotel.hotelProfile?.market === `${run} Market`, 'hotel-specific market must be persisted');
   assert(ownedDataHotel.supplierServices?.length === 1 && ownedDataHotel.allotments?.length === 1, 'hotel detail must include editable child collections');
+  assert(ownedDataHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel detail must include editable contacts');
   const ownedAllotmentId = ownedDataHotel.allotments[0].id;
   assert(ownedAllotmentId, 'created hotel allotment must expose its id');
+  const hotelUploadedFile = await uploadRequest(manageToken, `/suppliers/${ownedDataHotel.id}/files`, 'hotel-supplier-note.txt', 'text/plain', 'hotel supplier file smoke');
+  const hotelDetailWithFile = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  assert(hotelDetailWithFile.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel detail must include uploaded files for edit forms');
 
   for (const [filter, value] of [
     ['province', `${run} Province`],
@@ -750,8 +770,14 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   });
   assert(partiallyUpdatedHotel.hotelProfile?.market === `${run} Market Updated`, 'hotel partial update must update the requested profile field');
   assert(partiallyUpdatedHotel.hotelProfile?.hotelProject === `${run} Hotel Owned Data Project`, 'hotel partial update must preserve project');
+  assert(partiallyUpdatedHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel partial update must preserve contacts when omitted');
   assert(partiallyUpdatedHotel.supplierServices?.[0]?.id === ownedDataHotel.supplierServices[0].id, 'hotel partial update must preserve services when omitted');
   assert(partiallyUpdatedHotel.allotments?.[0]?.id === ownedAllotmentId, 'hotel partial update must preserve allotments when omitted');
+  assert(partiallyUpdatedHotel.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel partial update must preserve uploaded files when omitted');
+  await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}/files/${hotelUploadedFile.id}`);
+  const hotelAfterFileDelete = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  assert(!hotelAfterFileDelete.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel file delete must remove only the file metadata');
+  assert(hotelAfterFileDelete.contacts?.[0]?.fullName === `${run} Hotel Contact` && hotelAfterFileDelete.supplierServices?.length === 1 && hotelAfterFileDelete.allotments?.length === 1, 'hotel file delete must not affect contacts, services, or allotments');
 
   const profileValidationError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-PROFILE`,
@@ -809,10 +835,13 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const locked = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, {
     quantity: 1,
     note: 'Lock inventory smoke',
+    orderId: process.env.USED_ORDER_ID,
+    bookingId: process.env.USED_BOOKING_ID,
     actor: 'spoofed-actor',
   });
   assert(locked.allocation?.status === 'LOCKED' && locked.allocation.quantity === 1, 'locking inventory must create a locked allocation');
   assert(locked.allocation.createdBy === process.env.MANAGE_USER_ID, 'allocation must record the authenticated actor');
+  assert(locked.allocation.orderId === process.env.USED_ORDER_ID && locked.allocation.bookingId === process.env.USED_BOOKING_ID, 'locked allocation must keep order and booking linkage');
   assert(locked.inventory.lockedQty === 1 && locked.inventory.remainingQty === 2, 'locking inventory must atomically update quantities');
   assert(locked.inventory.activeAllocationCount === 1 && locked.inventory.allocationSummary?.locked === 1, 'lock response must expose active allocation summary');
   assert(locked.inventory.logs?.[0]?.action === 'LOCK' && locked.inventory.logs[0].actor === process.env.MANAGE_USER_ID, 'lock audit must record action and actor');
@@ -926,6 +955,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const hotelCategoryChangeError = await request(manageToken, 'PATCH', `/suppliers/${hotel.id}`, { categoryId: category.id }, [400]);
   assert(messageOf(hotelCategoryChangeError).includes('nhà cung cấp chuyên biệt'), 'general endpoint should not move hotel supplier to another category');
   await request(manageToken, 'DELETE', `/suppliers/${hotel.id}`);
+  await request(manageToken, 'GET', `/suppliers/hotels/${hotel.id}`, undefined, [404]);
+  await request(manageToken, 'GET', `/suppliers/${hotel.id}`, undefined, [404]);
+  const deletedHotelList = await request(manageToken, 'GET', `/suppliers/hotels?search=${encodeURIComponent(`${run} Hotel Supplier`)}`);
+  assert(!deletedHotelList.some((item) => item.id === hotel.id), 'soft-deleted hotel supplier must not appear in hotel lists');
 
   console.log('SMOKE_SUPPLIERS_OK');
 })().catch((error) => {
