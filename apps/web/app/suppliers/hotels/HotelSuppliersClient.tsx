@@ -101,8 +101,10 @@ type AllotmentAction =
   | null;
 
 const dayTypes = ['ALL_DAYS', 'WEEKDAY', 'WEEKEND', 'HOLIDAY', 'PEAK'] as const;
+const allotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
 const currentYear = new Date().getFullYear();
 const maxSupplierMoney = 999_999_999_999;
+const maxSupplierAllotmentCutoffDays = 365;
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const isOptionalHttpUrl = (value: string) => {
   if (!value) return true;
@@ -167,22 +169,45 @@ function hasServiceRowData(item: ServiceFormRow) {
   );
 }
 const allotmentSchema = z.object({
-  sku: z.string().default(''),
-  serviceName: z.string().default(''),
-  startDate: z.string().default(''),
-  endDate: z.string().default(''),
+  sku: z.string().trim().max(80, 'Mã quỹ phòng không được vượt quá 80 ký tự').default(''),
+  serviceName: z.string().trim().max(180, 'Tên quỹ phòng không được vượt quá 180 ký tự').default(''),
+  startDate: optionalDateOnly('Ngày bắt đầu quỹ phòng'),
+  endDate: optionalDateOnly('Ngày kết thúc quỹ phòng'),
   dayType: z.enum(dayTypes).default('ALL_DAYS'),
   allotmentQty: z.coerce.number().int().min(0, 'Tổng quỹ phòng không được âm').default(0),
-  bookedQty: z.coerce.number().int().min(0).default(0),
-  lockedQty: z.coerce.number().int().min(0).default(0),
-  quantityLock: z.coerce.number().int().min(0).default(0),
-  cutoffDays: z.coerce.number().int().min(0, 'Số ngày chốt không được âm').default(0),
+  bookedQty: z.coerce.number().int('Số phòng đã đặt phải là số nguyên').min(0, 'Số phòng đã đặt không được âm').default(0),
+  lockedQty: z.coerce.number().int('Số phòng đang giữ phải là số nguyên').min(0, 'Số phòng đang giữ không được âm').default(0),
+  quantityLock: z.coerce.number().int('Số lượng khóa phòng phải là số nguyên').min(0, 'Số lượng khóa phòng không được âm').default(0),
+  cutoffDays: z.coerce.number().int('Số ngày chốt quỹ phòng phải là số nguyên').min(0, 'Số ngày chốt quỹ phòng không được âm').max(maxSupplierAllotmentCutoffDays, 'Số ngày chốt quỹ phòng không được vượt quá 365 ngày').default(0),
   netCostPerDay: nonNegativeMoney,
   sellingPricePerDay: nonNegativeMoney,
-  status: z.enum(['ACTIVE', 'INACTIVE', 'STOP_SELL']).default('ACTIVE'),
-  description: z.string().default(''),
-  note: z.string().default(''),
+  status: z.enum(allotmentStatuses).default('ACTIVE'),
+  description: z.string().max(2000, 'Mô tả quỹ phòng không được vượt quá 2.000 ký tự').default(''),
+  note: z.string().max(2000, 'Ghi chú quỹ phòng không được vượt quá 2.000 ký tự').default(''),
 });
+type AllotmentFormRow = z.infer<typeof allotmentSchema>;
+function hasAllotmentRowData(item: AllotmentFormRow) {
+  return Boolean(
+    item.sku.trim()
+    || item.serviceName.trim()
+    || item.startDate.trim()
+    || item.endDate.trim()
+    || item.description.trim()
+    || item.note.trim()
+    || item.dayType !== 'ALL_DAYS'
+    || item.status !== 'ACTIVE'
+    || Number(item.allotmentQty || 0) > 0
+    || Number(item.bookedQty || 0) > 0
+    || Number(item.lockedQty || 0) > 0
+    || Number(item.quantityLock || 0) > 0
+    || Number(item.cutoffDays || 0) > 0
+    || Number(item.netCostPerDay || 0) > 0
+    || Number(item.sellingPricePerDay || 0) > 0,
+  );
+}
+function syncAllotmentRow(item: AllotmentFormRow) {
+  return { ...item, quantityLock: item.lockedQty };
+}
 const hotelSchema = z.object({
   supplierCode: z.string().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự'),
   name: z.string().min(2, 'Tên nhà cung cấp phải có ít nhất 2 ký tự'),
@@ -235,8 +260,18 @@ const hotelSchema = z.object({
     serviceSkuMap.set(sku, index);
   });
   value.allotments.forEach((item, index) => {
+    const hasData = hasAllotmentRowData(item);
+    if (hasData && item.serviceName.trim().length < 2) {
+      context.addIssue({ code: 'custom', path: ['allotments', index, 'serviceName'], message: 'Tên quỹ phòng phải có ít nhất 2 ký tự' });
+    }
     if (item.startDate && item.endDate && item.startDate > item.endDate) {
-      context.addIssue({ code: 'custom', path: ['allotments', index, 'endDate'], message: 'Ngày kết thúc không được trước ngày bắt đầu' });
+      context.addIssue({ code: 'custom', path: ['allotments', index, 'endDate'], message: 'Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng' });
+    }
+    if (item.bookedQty + item.lockedQty > item.allotmentQty) {
+      context.addIssue({ code: 'custom', path: ['allotments', index, 'allotmentQty'], message: 'Tổng quỹ phòng phải lớn hơn hoặc bằng số phòng đã đặt cộng số phòng đang giữ' });
+    }
+    if (item.quantityLock > 0 && item.lockedQty > 0 && item.quantityLock !== item.lockedQty) {
+      context.addIssue({ code: 'custom', path: ['allotments', index, 'lockedQty'], message: 'Số phòng đang giữ và số lượng khóa phòng phải trùng nhau' });
     }
   });
 });
@@ -320,23 +355,26 @@ function toForm(hotel: HotelSupplier): HotelForm {
       description: item.description || '',
       note: item.note || '',
     })) : [emptyService],
-    allotments: hotel.allotments?.length ? hotel.allotments.map((item) => ({
-      sku: item.sku || '',
-      serviceName: item.serviceName || '',
-      startDate: dateOnly(item.startDate),
-      endDate: dateOnly(item.endDate),
-      dayType: (item.dayType || 'ALL_DAYS') as HotelForm['allotments'][number]['dayType'],
-      allotmentQty: Number(item.allotmentQty || item.quantityLock || 0),
-      bookedQty: Number(item.bookedQty || 0),
-      lockedQty: Number(item.lockedQty || item.quantityLock || 0),
-      quantityLock: Number(item.quantityLock || 0),
-      cutoffDays: Number(item.cutoffDays || 0),
-      netCostPerDay: Number(item.netCostPerDay || 0),
-      sellingPricePerDay: Number(item.sellingPricePerDay || 0),
-      status: (item.status || 'ACTIVE') as HotelForm['allotments'][number]['status'],
-      description: item.description || '',
-      note: item.note || '',
-    })) : [emptyAllotment],
+    allotments: hotel.allotments?.length ? hotel.allotments.map((item) => {
+      const lockedQty = Number(item.lockedQty ?? item.quantityLock ?? 0);
+      return {
+        sku: item.sku || '',
+        serviceName: item.serviceName || '',
+        startDate: dateOnly(item.startDate),
+        endDate: dateOnly(item.endDate),
+        dayType: (item.dayType || 'ALL_DAYS') as HotelForm['allotments'][number]['dayType'],
+        allotmentQty: Number(item.allotmentQty || item.quantityLock || 0),
+        bookedQty: Number(item.bookedQty || 0),
+        lockedQty,
+        quantityLock: lockedQty,
+        cutoffDays: Number(item.cutoffDays || 0),
+        netCostPerDay: Number(item.netCostPerDay || 0),
+        sellingPricePerDay: Number(item.sellingPricePerDay || 0),
+        status: (item.status || 'ACTIVE') as HotelForm['allotments'][number]['status'],
+        description: item.description || '',
+        note: item.note || '',
+      };
+    }) : [emptyAllotment],
   };
 }
 
@@ -378,7 +416,7 @@ export default function HotelSuppliersClient({
   const allotmentSummary = useMemo(() => hotels.flatMap((hotel) => hotel.allotments || []).reduce((acc, item) => {
     const total = Number(item.allotmentQty || item.quantityLock || 0);
     const booked = Number(item.bookedQty || 0);
-    const locked = Number(item.lockedQty || item.quantityLock || 0);
+    const locked = Number(item.lockedQty ?? item.quantityLock ?? 0);
     acc.total += total;
     acc.booked += booked;
     acc.locked += locked;
@@ -392,17 +430,17 @@ export default function HotelSuppliersClient({
       helper.display({
         id: 'hotel',
         header: 'Khách sạn',
-        cell: ({ row }) => <div className="supplierPrimaryCell"><strong>{row.original.name}</strong><span>{row.original.supplierCode || 'Chưa có mã'}</span></div>,
+        cell: ({ row }) => <div className="supplierPrimaryCell"><strong title={row.original.name}>{row.original.name}</strong><span title={row.original.supplierCode || 'Chưa có mã'}>{row.original.supplierCode || 'Chưa có mã'}</span></div>,
       }),
       helper.display({
         id: 'project',
         header: 'Hạng và dự án',
-        cell: ({ row }) => <div className="supplierPrimaryCell"><span>{row.original.hotelProfile?.classHotel || '—'}</span><span>{row.original.hotelProfile?.hotelProject || '—'}</span></div>,
+        cell: ({ row }) => <div className="supplierPrimaryCell"><span title={row.original.hotelProfile?.classHotel || '—'}>{row.original.hotelProfile?.classHotel || '—'}</span><span title={row.original.hotelProfile?.hotelProject || '—'}>{row.original.hotelProfile?.hotelProject || '—'}</span></div>,
       }),
       helper.display({
         id: 'contact',
         header: 'Liên hệ',
-        cell: ({ row }) => <div className="supplierPrimaryCell"><span>{row.original.phone || 'Chưa có số điện thoại'}</span><span>{row.original.province || 'Chưa có tỉnh/thành'}</span></div>,
+        cell: ({ row }) => <div className="supplierPrimaryCell"><span title={row.original.phone || 'Chưa có số điện thoại'}>{row.original.phone || 'Chưa có số điện thoại'}</span><span title={row.original.province || 'Chưa có tỉnh/thành'}>{row.original.province || 'Chưa có tỉnh/thành'}</span></div>,
       }),
       helper.display({
         id: 'allotment',
@@ -466,7 +504,7 @@ export default function HotelSuppliersClient({
       rating: values.rating ?? undefined,
       contacts: values.contacts.filter((item) => item.fullName.trim()),
       services: values.services.filter(hasServiceRowData),
-      ...(editingId ? {} : { allotments: values.allotments.filter((item) => item.serviceName.trim()) }),
+      ...(editingId ? {} : { allotments: values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow) }),
     };
     let saved: HotelSupplier;
     try {
@@ -758,7 +796,7 @@ export default function HotelSuppliersClient({
 
                   {!editingId ? <DynamicRows title="Quỹ phòng ban đầu" name="allotments" register={register} fieldArray={allotments} columns={[
                     { key: 'sku', label: 'Mã quỹ phòng' },
-                    { key: 'serviceName', label: 'Tên hạng phòng' },
+                    { key: 'serviceName', label: 'Tên hạng phòng *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
                     { key: 'dayType', label: 'Loại ngày', type: 'select' },
@@ -815,7 +853,7 @@ export default function HotelSuppliersClient({
                   {(selectedHotel.allotments || []).map((allotment) => {
                     const total = Number(allotment.allotmentQty || allotment.quantityLock || 0);
                     const booked = Number(allotment.bookedQty || 0);
-                    const locked = Number(allotment.lockedQty || allotment.quantityLock || 0);
+                    const locked = Number(allotment.lockedQty ?? allotment.quantityLock ?? 0);
                     const remaining = allotment.remainingQty ?? Math.max(0, total - booked - locked);
                     return (
                       <article className="allotmentCard" key={allotment.id || allotment.serviceName}>

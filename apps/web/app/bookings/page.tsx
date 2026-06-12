@@ -452,17 +452,19 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
             <tbody>
               {bookings.map((booking) => (
                 <tr key={booking.id}>
-                  <td><strong>{booking.code}</strong></td>
-                  <td>{booking.customerName}</td>
+                  <td><strong className="cellClamp" title={booking.code}>{booking.code}</strong></td>
+                  <td><span className="cellClamp2" title={booking.customerName}>{booking.customerName}</span></td>
                   <td>
-                    <strong>{booking.tourProgram.code}</strong>
-                    <span>{booking.tourProgram.name}</span>
+                    <div className="orderCellStack">
+                      <strong className="cellClamp" title={booking.tourProgram.code}>{booking.tourProgram.code}</strong>
+                      <span className="cellClamp2" title={booking.tourProgram.name}>{booking.tourProgram.name}</span>
+                    </div>
                   </td>
                   <td><CalendarDays size={14} /> {formatDate(booking.startDate)}</td>
                   <td>{formatDate(booking.endDate)}</td>
                   <td>{booking.paxCount}</td>
-                  <td>{display(booking.saleOwner)}</td>
-                  <td>{display(booking.operatorOwner)}</td>
+                  <td><span className="cellClamp" title={display(booking.saleOwner)}>{display(booking.saleOwner)}</span></td>
+                  <td><span className="cellClamp" title={display(booking.operatorOwner)}>{display(booking.operatorOwner)}</span></td>
                   <td><CircleDollarSign size={14} /> {formatMoney(booking.totalSellPrice)}</td>
                   <td><span className={bookingStatusClass(booking.status)}>{viStatus(booking.status)}</span></td>
                   <td>{operationBadge(booking)}</td>

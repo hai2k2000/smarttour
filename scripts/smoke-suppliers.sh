@@ -749,6 +749,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(ownedDataHotel.hotelProfile?.market === `${run} Market`, 'hotel-specific market must be persisted');
   assert(ownedDataHotel.supplierServices?.length === 1 && ownedDataHotel.allotments?.length === 1, 'hotel detail must include editable child collections');
   assert(ownedDataHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel detail must include editable contacts');
+  assert(Number(ownedDataHotel.allotments[0].lockedQty || 0) === Number(ownedDataHotel.allotments[0].quantityLock || 0), 'created hotel allotment must sync lockedQty and quantityLock');
   const ownedAllotmentId = ownedDataHotel.allotments[0].id;
   assert(ownedAllotmentId, 'created hotel allotment must expose its id');
   const hotelUploadedFile = await uploadRequest(manageToken, `/suppliers/${ownedDataHotel.id}/files`, 'hotel-supplier-note.txt', 'text/plain', 'hotel supplier file smoke');
@@ -880,6 +881,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(locked.allocation.createdBy === process.env.MANAGE_USER_ID, 'allocation must record the authenticated actor');
   assert(locked.allocation.orderId === process.env.USED_ORDER_ID && locked.allocation.bookingId === process.env.USED_BOOKING_ID, 'locked allocation must keep order and booking linkage');
   assert(locked.inventory.lockedQty === 1 && locked.inventory.remainingQty === 2, 'locking inventory must atomically update quantities');
+  assert(locked.inventory.quantityLock === locked.inventory.lockedQty, 'locking inventory must keep quantityLock synced with lockedQty');
   assert(locked.inventory.activeAllocationCount === 1 && locked.inventory.allocationSummary?.locked === 1, 'lock response must expose active allocation summary');
   assert(locked.inventory.logs?.[0]?.action === 'LOCK' && locked.inventory.logs[0].actor === process.env.MANAGE_USER_ID, 'lock audit must record action and actor');
   const allocationId = locked.allocation.id;
@@ -896,6 +898,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const confirmed = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Confirm inventory smoke' });
   assert(confirmed.allocation.status === 'CONFIRMED' && confirmed.idempotent === false, 'confirm must transition a locked allocation');
   assert(confirmed.inventory.lockedQty === 0 && confirmed.inventory.bookedQty === 1, 'confirm must move quantity from locked to booked');
+  assert(confirmed.inventory.quantityLock === confirmed.inventory.lockedQty, 'confirm must keep quantityLock synced with lockedQty');
   assert(confirmed.inventory.logs?.[0]?.action === 'CONFIRMED', 'confirm must write an audit log');
   const confirmedAgain = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Repeat confirm smoke' });
   assert(confirmedAgain.idempotent === true && confirmedAgain.inventory.bookedQty === 1, 'repeat confirm must be idempotent');
@@ -905,6 +908,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const released = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/release`, { note: 'Release inventory smoke' });
   assert(released.allocation.status === 'RELEASED' && released.idempotent === false, 'release must transition a confirmed allocation');
   assert(released.inventory.bookedQty === 0 && released.inventory.lockedQty === 0 && released.inventory.remainingQty === 3, 'release must return inventory quantity');
+  assert(released.inventory.quantityLock === released.inventory.lockedQty, 'release must keep quantityLock synced with lockedQty');
   assert(released.inventory.logs?.[0]?.action === 'RELEASED' && released.inventory.logs[0].actor === process.env.MANAGE_USER_ID, 'release must write actor audit data');
   const releasedAgain = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/release`, { note: 'Repeat release smoke' });
   assert(releasedAgain.idempotent === true && releasedAgain.inventory.remainingQty === 3, 'repeat release must be idempotent');
@@ -1021,6 +1025,66 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', status: 'UNKNOWN' }],
   }, [400]);
   assert(messageOf(invalidAllotmentStatusError).includes('Trạng thái quỹ phòng không hợp lệ'), 'invalid allotment status should return a Vietnamese message');
+
+  const missingAllotmentNameError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-MISSING-ALLOTMENT-NAME`,
+    name: `${run} Hotel Missing Allotment Name`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Missing Allotment Project`,
+    allotments: [{ sku: 'ROOM-MISSING-ALLOTMENT-NAME', allotmentQty: 1 }],
+  }, [400]);
+  assert(messageOf(missingAllotmentNameError).includes('Cần nhập tên quỹ phòng'), 'hotel allotment name should be required with a Vietnamese message');
+
+  const longAllotmentNameError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-LONG-ALLOTMENT-NAME`,
+    name: `${run} Hotel Long Allotment Name`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Long Allotment Project`,
+    allotments: [{ serviceName: 'x'.repeat(181), allotmentQty: 1 }],
+  }, [400]);
+  assert(messageOf(longAllotmentNameError).includes('Tên quỹ phòng không được vượt quá 180 ký tự'), 'hotel allotment name must be length-limited');
+
+  const invalidAllotmentDateFormatError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-ALLOTMENT-DATE-FORMAT`,
+    name: `${run} Hotel Bad Allotment Date Format`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Allotment Date Format Project`,
+    allotments: [{ serviceName: 'Quỹ phòng sai định dạng ngày', startDate: '12/06/2026' }],
+  }, [400]);
+  assert(messageOf(invalidAllotmentDateFormatError).includes('Ngày bắt đầu quỹ phòng') && messageOf(invalidAllotmentDateFormatError).includes('YYYY-MM-DD'), 'hotel allotment dates must require YYYY-MM-DD format');
+
+  const invalidAllotmentCutoffError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-ALLOTMENT-CUTOFF`,
+    name: `${run} Hotel Bad Allotment Cutoff`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Allotment Cutoff Project`,
+    allotments: [{ serviceName: 'Quỹ phòng cutoff sai', allotmentQty: 1, cutoffDays: 366 }],
+  }, [400]);
+  assert(messageOf(invalidAllotmentCutoffError).includes('Số ngày chốt quỹ phòng không được vượt quá'), 'hotel allotment cutoff days must be bounded');
+
+  const invalidAllotmentMoneyError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-ALLOTMENT-MONEY`,
+    name: `${run} Hotel Bad Allotment Money`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Allotment Money Project`,
+    allotments: [{ serviceName: 'Quỹ phòng tiền sai', allotmentQty: 1, netCostPerDay: 1000000000000 }],
+  }, [400]);
+  assert(messageOf(invalidAllotmentMoneyError).includes('Giá thuần mỗi ngày không được vượt quá'), 'hotel allotment money must use the supplier money upper bound');
+
+  const mismatchedLockAliasError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-LOCK-ALIAS`,
+    name: `${run} Hotel Bad Lock Alias`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Lock Alias Project`,
+    allotments: [{ serviceName: 'Quỹ phòng lệch số giữ', allotmentQty: 4, lockedQty: 1, quantityLock: 2 }],
+  }, [400]);
+  assert(messageOf(mismatchedLockAliasError).includes('Số phòng đang giữ và số lượng khóa phòng phải trùng nhau'), 'hotel allotment lockedQty and quantityLock must not conflict');
 
   const hotel = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL`,

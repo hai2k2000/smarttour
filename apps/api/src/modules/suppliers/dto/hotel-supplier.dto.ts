@@ -37,6 +37,9 @@ const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
 const maxSupplierMoney = 999_999_999_999;
+const maxSupplierAllotmentCutoffDays = 365;
+const supplierAllotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
+type SupplierAllotmentStatus = (typeof supplierAllotmentStatuses)[number];
 
 class SupplierContactInputDto {
   @ApiProperty()
@@ -152,28 +155,32 @@ class SupplierServiceInputDto {
 }
 
 class SupplierAllotmentInputDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Mã nội bộ của hạng phòng hoặc gói quỹ phòng khách sạn' })
   @IsOptional()
   @Transform(trimOptional)
   @IsString({ message: 'Mã quỹ phòng phải là chuỗi ký tự' })
   @MaxLength(80, { message: 'Mã quỹ phòng không được vượt quá 80 ký tự' })
   sku?: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Tên hạng phòng hoặc gói quỹ phòng của khách sạn, ví dụ Deluxe Twin hoặc Superior Sea View' })
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập tên quỹ phòng' })
   @IsString({ message: 'Tên quỹ phòng phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên quỹ phòng phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên quỹ phòng không được vượt quá 180 ký tự' })
   serviceName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày bắt đầu quỹ phòng phải có định dạng YYYY-MM-DD' })
   @IsDateString({}, { message: 'Ngày bắt đầu quỹ phòng không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày kết thúc quỹ phòng phải có định dạng YYYY-MM-DD' })
   @IsDateString({}, { message: 'Ngày kết thúc quỹ phòng không hợp lệ' })
   endDate?: string;
 
@@ -215,6 +222,7 @@ class SupplierAllotmentInputDto {
   @Type(() => Number)
   @IsInt({ message: 'Số ngày chốt quỹ phòng phải là số nguyên' })
   @Min(0, { message: 'Số ngày chốt quỹ phòng không được âm' })
+  @Max(maxSupplierAllotmentCutoffDays, { message: 'Số ngày chốt quỹ phòng không được vượt quá 365 ngày' })
   cutoffDays?: number;
 
   @ApiPropertyOptional()
@@ -222,6 +230,7 @@ class SupplierAllotmentInputDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá thuần mỗi ngày phải là số hợp lệ' })
   @Min(0, { message: 'Giá thuần mỗi ngày không được âm' })
+  @Max(maxSupplierMoney, { message: 'Giá thuần mỗi ngày không được vượt quá 999.999.999.999' })
   netCostPerDay?: number;
 
   @ApiPropertyOptional()
@@ -229,6 +238,7 @@ class SupplierAllotmentInputDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá bán mỗi ngày phải là số hợp lệ' })
   @Min(0, { message: 'Giá bán mỗi ngày không được âm' })
+  @Max(maxSupplierMoney, { message: 'Giá bán mỗi ngày không được vượt quá 999.999.999.999' })
   sellingPricePerDay?: number;
 
   @ApiPropertyOptional()
@@ -245,10 +255,10 @@ class SupplierAllotmentInputDto {
   @MaxLength(2000, { message: 'Ghi chú quỹ phòng không được vượt quá 2.000 ký tự' })
   note?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: supplierAllotmentStatuses })
   @IsOptional()
-  @IsIn(['ACTIVE', 'INACTIVE', 'STOP_SELL'], { message: 'Trạng thái quỹ phòng không hợp lệ' })
-  status?: string;
+  @IsIn(supplierAllotmentStatuses, { message: 'Trạng thái quỹ phòng không hợp lệ' })
+  status?: SupplierAllotmentStatus;
 }
 
 export class CreateHotelSupplierDto {
@@ -443,10 +453,10 @@ export class OverrideAllotmentDto {
   @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: supplierAllotmentStatuses })
   @IsOptional()
-  @IsIn(['ACTIVE', 'INACTIVE', 'STOP_SELL'], { message: 'Trạng thái quỹ phòng không hợp lệ' })
-  status?: string;
+  @IsIn(supplierAllotmentStatuses, { message: 'Trạng thái quỹ phòng không hợp lệ' })
+  status?: SupplierAllotmentStatus;
 
   @ApiProperty()
   @Transform(trimRequired)

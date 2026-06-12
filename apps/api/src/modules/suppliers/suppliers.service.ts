@@ -31,6 +31,10 @@ const MAX_SUPPLIER_RATING = 5;
 const MAX_SUPPLIER_MONEY = 999_999_999_999;
 const MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180;
 const MAX_SUPPLIER_SERVICE_SKU_LENGTH = 80;
+const MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH = 180;
+const MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS = 365;
+const SUPPLIER_ALLOTMENT_STATUSES = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
+type SupplierAllotmentStatus = (typeof SUPPLIER_ALLOTMENT_STATUSES)[number];
 const SUPPLIER_ERRORS = {
   categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
   categoryExists: 'Loại nhà cung cấp đã tồn tại',
@@ -628,14 +632,15 @@ export class SuppliersService {
       if (activeAllocations > 0 && (dto.bookedQty !== undefined || dto.lockedQty !== undefined)) {
         throw new ConflictException('Không thể điều chỉnh trực tiếp số lượng đã bán hoặc đang khóa khi còn phân bổ quỹ phòng hoạt động');
       }
-      if (activeAllocations > 0 && dto.status === 'INACTIVE') {
+      const nextStatus = dto.status === undefined ? current.status : this.toAllotmentStatus(dto.status);
+      if (activeAllocations > 0 && nextStatus === 'INACTIVE') {
         throw new ConflictException('Không thể ngừng quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
       }
       const next = {
         allotmentQty: dto.allotmentQty ?? current.allotmentQty,
         bookedQty: dto.bookedQty ?? current.bookedQty,
         lockedQty: dto.lockedQty ?? current.lockedQty,
-        status: dto.status ?? current.status,
+        status: nextStatus,
       };
       const changes = this.allotmentChanges(current, next);
       if (!changes.length) {
@@ -646,7 +651,7 @@ export class SuppliersService {
       }
       const updated = await tx.supplierAllotment.update({
         where: { id },
-        data: next,
+        data: { ...next, quantityLock: next.lockedQty },
         select: { id: true },
       });
       await tx.supplierAllotmentLog.create({
@@ -685,7 +690,9 @@ export class SuppliersService {
       }
       const reservedRows = await tx.$queryRaw<Array<{ supplierId: string; bookedQty: number; lockedQty: number }>>(Prisma.sql`
         UPDATE "SupplierAllotment"
-        SET "lockedQty" = "lockedQty" + ${quantity}, "updatedAt" = NOW()
+        SET "lockedQty" = "lockedQty" + ${quantity},
+            "quantityLock" = "lockedQty" + ${quantity},
+            "updatedAt" = NOW()
         WHERE id = ${id}
           AND status = 'ACTIVE'
           AND "bookedQty" + "lockedQty" + ${quantity}
@@ -807,6 +814,11 @@ export class SuppliersService {
       if (inventoryUpdate.count !== 1) {
         throw new ConflictException('Số lượng quỹ phòng không nhất quán với trạng thái phân bổ');
       }
+      await tx.$executeRaw`
+        UPDATE "SupplierAllotment"
+        SET "quantityLock" = "lockedQty"
+        WHERE id = ${allocation.allotmentId}
+      `;
 
       await tx.supplierAllotmentLog.create({
         data: {
@@ -1129,7 +1141,7 @@ export class SuppliersService {
         serviceName: this.requiredServiceName(item.serviceName, row),
         startDate,
         endDate,
-        dayType: this.toDayType(item.dayType),
+        dayType: this.toDayType(item.dayType, 'dịch vụ'),
         quantity: 1,
         accountingPrice: this.optionalMoney(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
         netPrice: this.optionalMoney(item.netPrice, `Giá thuần ${row}`) ?? 0,
@@ -1164,29 +1176,34 @@ export class SuppliersService {
     return items.map((item, index) => {
       const row = `dòng quỹ phòng ${index + 1}`;
       const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
-      const quantityLock = this.optionalNonNegativeInt(item.quantityLock, `Số lượng khóa phòng ${row}`) ?? 0;
-      const allotmentQty = this.optionalNonNegativeInt(item.allotmentQty, `Tổng quỹ phòng ${row}`) ?? quantityLock;
+      const quantityLockInput = this.optionalNonNegativeInt(item.quantityLock, `Số lượng khóa phòng ${row}`);
+      const lockedQtyInput = this.optionalNonNegativeInt(item.lockedQty, `Số phòng đang giữ ${row}`);
+      if (quantityLockInput !== null && lockedQtyInput !== null && quantityLockInput !== lockedQtyInput) {
+        throw new BadRequestException('Số phòng đang giữ và số lượng khóa phòng phải trùng nhau khi gửi cùng lúc');
+      }
+      const lockedQty = lockedQtyInput ?? quantityLockInput ?? 0;
+      const quantityLock = lockedQty;
+      const allotmentQty = this.optionalNonNegativeInt(item.allotmentQty, `Tổng quỹ phòng ${row}`) ?? lockedQty;
       const bookedQty = this.optionalNonNegativeInt(item.bookedQty, `Số phòng đã đặt ${row}`) ?? 0;
-      const lockedQty = this.optionalNonNegativeInt(item.lockedQty, `Số phòng đang giữ ${row}`) ?? quantityLock;
       if (bookedQty + lockedQty > allotmentQty) {
         throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
       }
       return {
-        sku: this.optionalText(item.sku, `Mã quỹ phòng ${row}`),
-        serviceName: this.requiredText(item.serviceName, `Cần nhập tên quỹ phòng ${row}`),
+        sku: this.optionalSku(item.sku, `Mã quỹ phòng ${row}`),
+        serviceName: this.requiredAllotmentName(item.serviceName, row),
         startDate,
         endDate,
-        dayType: this.toDayType(item.dayType),
+        dayType: this.toDayType(item.dayType, 'quỹ phòng'),
         allotmentQty,
         bookedQty,
         lockedQty,
         quantityLock,
-        cutoffDays: this.optionalNonNegativeInt(item.cutoffDays, `Số ngày chốt quỹ phòng ${row}`) ?? 0,
-        netCostPerDay: this.optionalNonNegativeNumber(item.netCostPerDay, `Giá thuần mỗi ngày ${row}`) ?? 0,
-        sellingPricePerDay: this.optionalNonNegativeNumber(item.sellingPricePerDay, `Giá bán mỗi ngày ${row}`) ?? 0,
+        cutoffDays: this.optionalCutoffDays(item.cutoffDays, `Số ngày chốt quỹ phòng ${row}`) ?? 0,
+        netCostPerDay: this.optionalMoney(item.netCostPerDay, `Giá thuần mỗi ngày ${row}`) ?? 0,
+        sellingPricePerDay: this.optionalMoney(item.sellingPricePerDay, `Giá bán mỗi ngày ${row}`) ?? 0,
         status: this.toAllotmentStatus(item.status),
-        description: this.optionalText(item.description, `Mô tả ${row}`),
-        note: this.optionalText(item.note, `Ghi chú ${row}`),
+        description: this.optionalMaxText(item.description, `Mô tả ${row}`, 2000),
+        note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000),
       };
     });
   }
@@ -1247,10 +1264,10 @@ export class SuppliersService {
     };
   }
 
-  private allotmentMetrics(item: { allotmentQty: number; quantityLock?: number | null; bookedQty: number; lockedQty: number }) {
+  private allotmentMetrics(item: { allotmentQty: number; quantityLock?: number | null; bookedQty: number; lockedQty?: number | null }) {
     const allotmentQty = item.allotmentQty || item.quantityLock || 0;
     const bookedQty = item.bookedQty || 0;
-    const lockedQty = item.lockedQty || item.quantityLock || 0;
+    const lockedQty = item.lockedQty ?? 0;
     const usedQty = bookedQty + lockedQty;
     return {
       allotmentQty,
@@ -1390,6 +1407,15 @@ export class SuppliersService {
     if (serviceName.length < 2) throw new BadRequestException(`Tên dịch vụ ${row} phải có ít nhất 2 ký tự`);
     if (serviceName.length > MAX_SUPPLIER_SERVICE_NAME_LENGTH) {
       throw new BadRequestException(`Tên dịch vụ ${row} không được vượt quá ${MAX_SUPPLIER_SERVICE_NAME_LENGTH} ký tự`);
+    }
+    return serviceName;
+  }
+
+  private requiredAllotmentName(value: unknown, row: string) {
+    const serviceName = this.requiredText(value as string | undefined, `Cần nhập tên quỹ phòng ${row}`);
+    if (serviceName.length < 2) throw new BadRequestException(`Tên quỹ phòng ${row} phải có ít nhất 2 ký tự`);
+    if (serviceName.length > MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH) {
+      throw new BadRequestException(`Tên quỹ phòng ${row} không được vượt quá ${MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH} ký tự`);
     }
     return serviceName;
   }
@@ -1572,15 +1598,16 @@ export class SuppliersService {
     throw new BadRequestException('Trạng thái nhà cung cấp không hợp lệ');
   }
 
-  private toDayType(value?: unknown) {
+  private toDayType(value?: unknown, subject = 'dịch vụ') {
     if (value === undefined || value === null || value === '') return SupplierDayType.ALL_DAYS;
     if (Object.values(SupplierDayType).includes(value as SupplierDayType)) return value as SupplierDayType;
-    throw new BadRequestException('Loại ngày dịch vụ không hợp lệ');
+    if (subject === 'dịch vụ') throw new BadRequestException('Loại ngày dịch vụ không hợp lệ');
+    throw new BadRequestException(`Loại ngày ${subject} không hợp lệ`);
   }
 
-  private toAllotmentStatus(value?: unknown) {
+  private toAllotmentStatus(value?: unknown): SupplierAllotmentStatus {
     if (value === undefined || value === null || value === '') return 'ACTIVE';
-    if (['ACTIVE', 'INACTIVE', 'STOP_SELL'].includes(String(value))) return String(value);
+    if (SUPPLIER_ALLOTMENT_STATUSES.includes(value as SupplierAllotmentStatus)) return value as SupplierAllotmentStatus;
     throw new BadRequestException('Trạng thái quỹ phòng không hợp lệ');
   }
 
@@ -1700,18 +1727,31 @@ export class SuppliersService {
     return number;
   }
 
+  private optionalCutoffDays(value?: unknown, fieldName = 'Số ngày chốt quỹ phòng') {
+    const number = this.optionalNonNegativeInt(value, fieldName);
+    if (number !== null && number > MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS) {
+      throw new BadRequestException(`${fieldName} không được vượt quá ${MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS} ngày`);
+    }
+    return number;
+  }
+
   private startOfUtcDay(value: Date) {
     return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
   }
 
   private parseDateOnly(value: string, fieldName: string) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) throw new BadRequestException(`${fieldName} không hợp lệ`);
+    if (!match) throw new BadRequestException(`${fieldName} phải có định dạng YYYY-MM-DD`);
     const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
     if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) {
       throw new BadRequestException(`${fieldName} không hợp lệ`);
     }
     return date;
+  }
+
+  private optionalDateOnlyValue(value?: string | null, fieldName = 'Ngày') {
+    const text = this.optionalText(value, fieldName);
+    return text ? this.parseDateOnly(text, fieldName) : null;
   }
 
   private optionalDate(value?: string | null, fieldName = 'Ngày') {
@@ -1724,8 +1764,8 @@ export class SuppliersService {
   }
 
   private optionalDateRange(startValue: string | undefined, endValue: string | undefined, subject: string) {
-    const startDate = this.optionalDate(startValue, `Ngày bắt đầu ${subject}`);
-    const endDate = this.optionalDate(endValue, `Ngày kết thúc ${subject}`);
+    const startDate = this.optionalDateOnlyValue(startValue, `Ngày bắt đầu ${subject}`);
+    const endDate = this.optionalDateOnlyValue(endValue, `Ngày kết thúc ${subject}`);
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException(`Ngày bắt đầu ${subject} không được sau ngày kết thúc ${subject}`);
     }

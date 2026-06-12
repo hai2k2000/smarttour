@@ -1568,6 +1568,39 @@ label { min-width: 0; }
   min-width: 0;
 }
 
+.cellClamp {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellClamp2 {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.supplierPrimaryCell {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.supplierPrimaryCell strong,
+.supplierPrimaryCell span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .orderPage .hotelFormActions {
   width: 100%;
   justify-content: flex-end;
@@ -1695,6 +1728,11 @@ label { min-width: 0; }
   color: #053a3e;
   font-size: 15px;
   line-height: 1.25;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .tourProgramNameCell span {
   color: #4b6b3d;
@@ -1704,6 +1742,17 @@ label { min-width: 0; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.hotelSupplierPage .hotelListTable {
+  width: max(100%, 980px);
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.hotelSupplierPage .hotelListTable th,
+.hotelSupplierPage .hotelListTable td {
+  min-width: 0;
 }
 .tourProgramRoute {
   display: inline-flex;
