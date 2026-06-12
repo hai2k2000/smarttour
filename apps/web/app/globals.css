@@ -2247,3 +2247,151 @@ label { min-width: 0; }
   height: calc(var(--list-row-height) * var(--list-visible-rows));
   white-space: normal;
 }
+
+.fitTableWrap:has(> table.orderListTable) tbody tr,
+.fitTableWrap:has(> table.hotelListTable) tbody tr,
+.fitTableWrap:has(> table.tourProgramTable) tbody tr,
+.fitTableWrap:has(> table.fitTourListTable) tbody tr,
+.fitTableWrap:has(> table.quoteListTable) tbody tr,
+.fitTableWrap:has(> table.quoteComboListTable) tbody tr,
+.fitTableWrap:has(> table.quotationListTable) tbody tr,
+.fitTableWrap:has(> table.reportTable) tbody tr,
+.fitTableWrap:has(> table.customerTable) tbody tr,
+.fitTableWrap:has(> table.commissionTable) tbody tr,
+.fitTableWrap:has(> table.financeTable) tbody tr,
+.fitTableWrap:has(> table.operationsTable) tbody tr,
+.fitTableWrap:has(> table.securityTable) tbody tr,
+.fitTableWrap:has(> table.hotelInventoryTable) tbody tr,
+.supplierTableWrap tbody tr,
+.quoteListWrap tbody tr {
+  cursor: pointer;
+}
+
+.fitTableWrap:has(> table.orderListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.hotelListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.tourProgramTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.fitTourListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.quoteListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.quoteComboListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.quotationListTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.reportTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.customerTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.commissionTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.financeTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.operationsTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.securityTable) tbody tr:focus-within td,
+.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:focus-within td,
+.supplierTableWrap tbody tr:focus-within td,
+.quoteListWrap tbody tr:focus-within td {
+  background: var(--dn-hover-bg);
+}
+
+.rowDetailOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .42);
+}
+
+.rowDetailModal {
+  width: min(760px, calc(100vw - 28px));
+  max-height: min(78vh, 720px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: #fff;
+  border: 1px solid var(--dn-border);
+  border-radius: var(--dn-radius-lg);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .28);
+}
+
+.rowDetailModal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e3efd9;
+}
+
+.rowDetailModal header div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.rowDetailModal header span {
+  color: var(--dn-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.rowDetailModal h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.rowDetailClose {
+  flex: 0 0 auto;
+}
+
+.rowDetailGrid {
+  margin: 0;
+  padding: 12px 16px 16px;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.rowDetailGrid div {
+  display: grid;
+  grid-template-columns: minmax(130px, 210px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  border: 1px solid #e3efd9;
+  border-radius: 8px;
+  background: var(--dn-surface-soft);
+  padding: 10px 11px;
+}
+
+.rowDetailGrid dt {
+  color: var(--dn-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rowDetailGrid dd {
+  margin: 0;
+  color: var(--dn-text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .rowDetailOverlay {
+    padding: 12px;
+    place-items: end center;
+  }
+
+  .rowDetailModal {
+    width: 100%;
+    max-height: 86vh;
+  }
+
+  .rowDetailModal header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rowDetailGrid div {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}

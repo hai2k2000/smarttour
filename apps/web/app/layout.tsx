@@ -1,6 +1,7 @@
 import './globals.css';
 import type { ReactNode } from 'react';
 import AppShell from './AppShell';
+import TableRowDetailPopup from './TableRowDetailPopup';
 
 export const metadata = {
   title: 'AI Tour | Operations',
@@ -15,7 +16,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi">
-      <body><AppShell>{children}</AppShell></body>
+      <body>
+        <AppShell>{children}</AppShell>
+        <TableRowDetailPopup />
+      </body>
     </html>
   );
 }
