@@ -102,6 +102,7 @@ type AllotmentAction =
 
 const dayTypes = ['ALL_DAYS', 'WEEKDAY', 'WEEKEND', 'HOLIDAY', 'PEAK'] as const;
 const currentYear = new Date().getFullYear();
+const maxSupplierMoney = 999_999_999_999;
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const isOptionalHttpUrl = (value: string) => {
   if (!value) return true;
@@ -126,10 +127,11 @@ const optionalBuiltYear = z.preprocess(
   (value) => value === '' || value === undefined ? undefined : value,
   z.coerce.number().int('Năm xây dựng phải là số nguyên').min(1800, 'Năm xây dựng không được nhỏ hơn 1800').max(currentYear, `Năm xây dựng không được lớn hơn ${currentYear}`).optional(),
 );
-const nonNegative = z.coerce.number().min(0, 'Giá trị không được âm').default(0);
+const nonNegativeMoney = z.coerce.number().min(0, 'Giá trị không được âm').max(maxSupplierMoney, 'Giá trị không được vượt quá 999.999.999.999').default(0);
 const requiredPhone = z.string().trim().regex(supplierPhonePattern, 'Số điện thoại phải có từ 6 đến 15 chữ số và chỉ dùng số, khoảng trắng hoặc ký tự +().-');
 const optionalPhone = z.string().trim().refine((value) => !value || supplierPhonePattern.test(value), 'Số điện thoại không hợp lệ').default('');
 const optionalUrl = (label: string) => z.string().trim().refine(isOptionalHttpUrl, `${label} phải là URL hợp lệ bắt đầu bằng http:// hoặc https://`).default('');
+const optionalDateOnly = (label: string) => z.string().trim().refine(isOptionalDateOnly, `${label} không hợp lệ`).default('');
 const contactSchema = z.object({
   fullName: z.string().default(''),
   position: z.string().default(''),
@@ -138,17 +140,32 @@ const contactSchema = z.object({
   email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
-  sku: z.string().default(''),
-  serviceName: z.string().default(''),
-  startDate: z.string().default(''),
-  endDate: z.string().default(''),
+  sku: z.string().trim().max(80, 'Mã dịch vụ không được vượt quá 80 ký tự').default(''),
+  serviceName: z.string().trim().max(180, 'Tên dịch vụ không được vượt quá 180 ký tự').default(''),
+  startDate: optionalDateOnly('Ngày bắt đầu dịch vụ'),
+  endDate: optionalDateOnly('Ngày kết thúc dịch vụ'),
   dayType: z.enum(dayTypes).default('ALL_DAYS'),
-  accountingPrice: nonNegative,
-  netPrice: nonNegative,
-  sellingPrice: nonNegative,
-  description: z.string().default(''),
-  note: z.string().default(''),
+  accountingPrice: nonNegativeMoney,
+  netPrice: nonNegativeMoney,
+  sellingPrice: nonNegativeMoney,
+  description: z.string().max(2000, 'Mô tả dịch vụ không được vượt quá 2.000 ký tự').default(''),
+  note: z.string().max(2000, 'Ghi chú dịch vụ không được vượt quá 2.000 ký tự').default(''),
 });
+type ServiceFormRow = z.infer<typeof serviceSchema>;
+function hasServiceRowData(item: ServiceFormRow) {
+  return Boolean(
+    item.sku.trim()
+    || item.serviceName.trim()
+    || item.startDate.trim()
+    || item.endDate.trim()
+    || item.description.trim()
+    || item.note.trim()
+    || item.dayType !== 'ALL_DAYS'
+    || Number(item.accountingPrice || 0) > 0
+    || Number(item.netPrice || 0) > 0
+    || Number(item.sellingPrice || 0) > 0,
+  );
+}
 const allotmentSchema = z.object({
   sku: z.string().default(''),
   serviceName: z.string().default(''),
@@ -160,8 +177,8 @@ const allotmentSchema = z.object({
   lockedQty: z.coerce.number().int().min(0).default(0),
   quantityLock: z.coerce.number().int().min(0).default(0),
   cutoffDays: z.coerce.number().int().min(0, 'Số ngày chốt không được âm').default(0),
-  netCostPerDay: nonNegative,
-  sellingPricePerDay: nonNegative,
+  netCostPerDay: nonNegativeMoney,
+  sellingPricePerDay: nonNegativeMoney,
   status: z.enum(['ACTIVE', 'INACTIVE', 'STOP_SELL']).default('ACTIVE'),
   description: z.string().default(''),
   note: z.string().default(''),
@@ -198,9 +215,24 @@ const hotelSchema = z.object({
     }
   });
   value.services.forEach((item, index) => {
-    if (item.startDate && item.endDate && item.startDate > item.endDate) {
-      context.addIssue({ code: 'custom', path: ['services', index, 'endDate'], message: 'Ngày kết thúc không được trước ngày bắt đầu' });
+    const hasData = hasServiceRowData(item);
+    if (hasData && item.serviceName.trim().length < 2) {
+      context.addIssue({ code: 'custom', path: ['services', index, 'serviceName'], message: 'Tên dịch vụ phải có ít nhất 2 ký tự' });
     }
+    if (item.startDate && item.endDate && item.startDate > item.endDate) {
+      context.addIssue({ code: 'custom', path: ['services', index, 'endDate'], message: 'Ngày bắt đầu dịch vụ không được sau ngày kết thúc dịch vụ' });
+    }
+  });
+  const serviceSkuMap = new Map<string, number>();
+  value.services.forEach((item, index) => {
+    const sku = item.sku.trim().toUpperCase();
+    if (!sku) return;
+    const firstIndex = serviceSkuMap.get(sku);
+    if (firstIndex !== undefined) {
+      context.addIssue({ code: 'custom', path: ['services', index, 'sku'], message: 'Mã dịch vụ không được trùng trong cùng nhà cung cấp' });
+      return;
+    }
+    serviceSkuMap.set(sku, index);
   });
   value.allotments.forEach((item, index) => {
     if (item.startDate && item.endDate && item.startDate > item.endDate) {
@@ -433,7 +465,7 @@ export default function HotelSuppliersClient({
       builtYear: values.builtYear ?? undefined,
       rating: values.rating ?? undefined,
       contacts: values.contacts.filter((item) => item.fullName.trim()),
-      services: values.services.filter((item) => item.serviceName.trim()),
+      services: values.services.filter(hasServiceRowData),
       ...(editingId ? {} : { allotments: values.allotments.filter((item) => item.serviceName.trim()) }),
     };
     let saved: HotelSupplier;
@@ -713,7 +745,7 @@ export default function HotelSuppliersClient({
 
                   <DynamicRows title="Dịch vụ và sản phẩm" name="services" register={register} fieldArray={services} columns={[
                     { key: 'sku', label: 'Mã dịch vụ' },
-                    { key: 'serviceName', label: 'Tên dịch vụ' },
+                    { key: 'serviceName', label: 'Tên dịch vụ *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
                     { key: 'dayType', label: 'Loại ngày', type: 'select' },

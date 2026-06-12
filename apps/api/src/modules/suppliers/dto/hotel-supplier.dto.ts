@@ -36,6 +36,7 @@ const maxHotelBuiltYear = new Date().getFullYear();
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
+const maxSupplierMoney = 999_999_999_999;
 
 class SupplierContactInputDto {
   @ApiProperty()
@@ -86,19 +87,23 @@ class SupplierServiceInputDto {
 
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập tên dịch vụ' })
   @IsString({ message: 'Tên dịch vụ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên dịch vụ phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên dịch vụ không được vượt quá 180 ký tự' })
   serviceName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày bắt đầu dịch vụ phải có định dạng YYYY-MM-DD' })
   @IsDateString({}, { message: 'Ngày bắt đầu dịch vụ không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày kết thúc dịch vụ phải có định dạng YYYY-MM-DD' })
   @IsDateString({}, { message: 'Ngày kết thúc dịch vụ không hợp lệ' })
   endDate?: string;
 
@@ -112,6 +117,7 @@ class SupplierServiceInputDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá kế toán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá kế toán dịch vụ không được âm' })
+  @Max(maxSupplierMoney, { message: 'Giá kế toán dịch vụ không được vượt quá 999.999.999.999' })
   accountingPrice?: number;
 
   @ApiPropertyOptional()
@@ -119,6 +125,7 @@ class SupplierServiceInputDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá thuần dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá thuần dịch vụ không được âm' })
+  @Max(maxSupplierMoney, { message: 'Giá thuần dịch vụ không được vượt quá 999.999.999.999' })
   netPrice?: number;
 
   @ApiPropertyOptional()
@@ -126,6 +133,7 @@ class SupplierServiceInputDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Giá bán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá bán dịch vụ không được âm' })
+  @Max(maxSupplierMoney, { message: 'Giá bán dịch vụ không được vượt quá 999.999.999.999' })
   sellingPrice?: number;
 
   @ApiPropertyOptional()

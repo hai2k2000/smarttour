@@ -9,6 +9,7 @@ service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(
 query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text(encoding='utf-8')
 hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text(encoding='utf-8')
 frontend = Path('apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx').read_text(encoding='utf-8')
+supplier_ui = Path('apps/web/app/suppliers/SupplierClientUi.tsx').read_text(encoding='utf-8')
 
 assert "@Get('hotels')" in controller and 'listHotelSuppliers(query)' in controller
 assert "@Get('hotels/:id')" in controller and 'getHotelSupplier(id)' in controller
@@ -114,7 +115,21 @@ for dto_message in [
     'Liên kết tham khảo phải là URL hợp lệ bắt đầu bằng http:// hoặc https://',
 ]:
     assert dto_message in hotel_dto, f'hotel DTO numeric validation must be Vietnamese: {dto_message}'
+for service_message in [
+    'Mã dịch vụ không được vượt quá 80 ký tự',
+    'Cần nhập tên dịch vụ',
+    'Tên dịch vụ không được vượt quá 180 ký tự',
+    'Ngày bắt đầu dịch vụ phải có định dạng YYYY-MM-DD',
+    'Ngày kết thúc dịch vụ phải có định dạng YYYY-MM-DD',
+    'Giá kế toán dịch vụ không được vượt quá 999.999.999.999',
+    'Giá thuần dịch vụ không được vượt quá 999.999.999.999',
+    'Giá bán dịch vụ không được vượt quá 999.999.999.999',
+    'Mô tả dịch vụ không được vượt quá 2.000 ký tự',
+    'Ghi chú dịch vụ không được vượt quá 2.000 ký tự',
+]:
+    assert service_message in hotel_dto, f'hotel service DTO validation must be Vietnamese: {service_message}'
 assert 'const maxHotelBuiltYear = new Date().getFullYear();' in hotel_dto, 'hotel built year must not exceed the current year'
+assert 'const maxSupplierMoney = 999_999_999_999;' in hotel_dto, 'hotel service money must use a business upper bound'
 assert '@Max(5, { message: \'Xếp hạng khách sạn không được lớn hơn 5\' })' in hotel_dto, 'hotel rating must use a 0-5 scale'
 assert '@Transform(trimOptional)\n  @IsDateString' in hotel_dto, 'optional hotel child dates must accept blank values after trim'
 assert 'private optionalUrlText(' in service and 'http:// hoặc https://' in service, 'service must validate optional hotel URLs consistently'
@@ -124,6 +139,13 @@ assert 'private optionalPhoneText(' in service and 'SUPPLIER_PHONE_MAX_LENGTH = 
 assert 'private optionalEmailText(' in service and 'không được vượt quá 180 ký tự' in service, 'service must validate contact email format and length'
 assert 'Họ tên ${row} phải có ít nhất 2 ký tự' in service, 'service must validate contact fullName length outside the global pipe'
 assert 'position: this.optionalMaxText(item.position' in service, 'service must validate contact position length'
+assert 'private optionalSku(' in service and 'MAX_SUPPLIER_SERVICE_SKU_LENGTH = 80' in service, 'service must normalize and bound service sku'
+assert 'private requiredServiceName(' in service and 'MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180' in service, 'service must validate service name consistently'
+assert 'private optionalMoney(' in service and 'MAX_SUPPLIER_MONEY = 999_999_999_999' in service, 'service must bound supplier service prices'
+assert 'private ensureUniqueServiceSkus(' in service and 'Mã dịch vụ không được trùng trong cùng nhà cung cấp' in service, 'service must reject duplicate service sku values in one payload'
+assert "description: this.optionalMaxText(item.description, `Mô tả ${row}`, 2000)" in service, 'service must limit service description size'
+assert "note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000)" in service, 'service must limit service note size'
+assert "Ngày bắt đầu ${subject} không được sau ngày kết thúc ${subject}" in service, 'service must validate startDate <= endDate'
 for english in ['Hotel supplier not found', 'Allotment not found', 'Booked plus locked quantity cannot exceed allotment quantity']:
     assert english.lower() not in (service + hotel_dto).lower(), f'English hotel/allotment message remains: {english}'
 
@@ -140,6 +162,20 @@ assert 'max={currentYear}' in frontend and 'max(5' in frontend, 'hotel frontend 
 assert 'const isOptionalDateOnly = ' in frontend and 'Ngày sinh người liên hệ không hợp lệ' in frontend, 'hotel frontend must validate contact birthday'
 assert 'Họ tên người liên hệ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must validate filled contact rows'
 assert 'nestedErrorMessages(errors.contacts)' in frontend, 'hotel frontend must surface dynamic contact row errors'
+assert 'const optionalDateOnly = ' in frontend and 'Ngày bắt đầu dịch vụ' in frontend and 'Ngày kết thúc dịch vụ' in frontend, 'hotel frontend must validate service date fields'
+assert 'const nonNegativeMoney = ' in frontend and '999.999.999.999' in frontend, 'hotel frontend must bound service prices'
+assert 'function hasServiceRowData(' in frontend and 'values.services.filter(hasServiceRowData)' in frontend, 'hotel frontend must preserve partially filled service rows for validation'
+assert 'Mã dịch vụ không được trùng trong cùng nhà cung cấp' in frontend, 'hotel frontend must reject duplicate service sku values'
+assert 'Tên dịch vụ *' in frontend and 'Tên dịch vụ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must make serviceName required for filled rows'
+for day_type, label in [
+    ('ALL_DAYS', 'Tất cả các ngày'),
+    ('WEEKDAY', 'Ngày thường'),
+    ('WEEKEND', 'Cuối tuần'),
+    ('HOLIDAY', 'Ngày lễ'),
+    ('PEAK', 'Cao điểm'),
+]:
+    assert day_type in frontend and day_type in supplier_ui, f'dayType {day_type} must exist in hotel form and shared UI'
+    assert label in supplier_ui, f'dayType {day_type} must have a Vietnamese label'
 
 print('TEST_SUPPLIERS_HOTEL_CONTRACT_OK')
 PYTEST

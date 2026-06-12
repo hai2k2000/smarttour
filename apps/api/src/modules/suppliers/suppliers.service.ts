@@ -28,6 +28,9 @@ const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const SUPPLIER_PHONE_MAX_LENGTH = 30;
 const MIN_HOTEL_BUILT_YEAR = 1800;
 const MAX_SUPPLIER_RATING = 5;
+const MAX_SUPPLIER_MONEY = 999_999_999_999;
+const MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180;
+const MAX_SUPPLIER_SERVICE_SKU_LENGTH = 80;
 const SUPPLIER_ERRORS = {
   categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
   categoryExists: 'Loại nhà cung cấp đã tồn tại',
@@ -1086,20 +1089,22 @@ export class SuppliersService {
     }>,
     type: TypedSupplierRoute,
   ): Array<Omit<Prisma.SupplierServiceCreateManyInput, 'supplierId'>> {
-    return items.map((item, index) => {
+    const services = items.map((item, index) => {
       const row = `dòng dịch vụ ${index + 1}`;
       return {
-        sku: this.optionalText(item.sku, `Mã dịch vụ ${row}`),
-        serviceName: this.requiredText(item.serviceName, `Cần nhập tên dịch vụ ${row}`),
+        sku: this.optionalSku(item.sku, `Mã dịch vụ ${row}`),
+        serviceName: this.requiredServiceName(item.serviceName, row),
         quantity: this.optionalNonNegativeInt(item.quantity, `Số lượng ${row}`) ?? 1,
-        accountingPrice: this.optionalNonNegativeNumber(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
-        netPrice: this.optionalNonNegativeNumber(item.netPrice, `Giá thuần ${row}`) ?? 0,
-        sellingPrice: this.optionalNonNegativeNumber(item.sellingPrice, `Giá bán ${row}`) ?? 0,
-        description: this.optionalText(item.description, `Mô tả ${row}`),
-        note: this.optionalText(item.note, `Ghi chú ${row}`),
+        accountingPrice: this.optionalMoney(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
+        netPrice: this.optionalMoney(item.netPrice, `Giá thuần ${row}`) ?? 0,
+        sellingPrice: this.optionalMoney(item.sellingPrice, `Giá bán ${row}`) ?? 0,
+        description: this.optionalMaxText(item.description, `Mô tả ${row}`, 2000),
+        note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000),
         metadata: item.metadata ? (this.normalizeTypedMetadata(type, item.metadata) as Prisma.InputJsonValue) : Prisma.JsonNull,
       };
     });
+    this.ensureUniqueServiceSkus(services);
+    return services;
   }
 
   private normalizeHotelServices(
@@ -1116,23 +1121,25 @@ export class SuppliersService {
       note?: string;
     }>,
   ): Array<Omit<Prisma.SupplierServiceCreateManyInput, 'supplierId'>> {
-    return items.map((item, index) => {
+    const services = items.map((item, index) => {
       const row = `dòng dịch vụ ${index + 1}`;
       const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'dịch vụ');
       return {
-        sku: this.optionalText(item.sku, `Mã dịch vụ ${row}`),
-        serviceName: this.requiredText(item.serviceName, `Cần nhập tên dịch vụ ${row}`),
+        sku: this.optionalSku(item.sku, `Mã dịch vụ ${row}`),
+        serviceName: this.requiredServiceName(item.serviceName, row),
         startDate,
         endDate,
         dayType: this.toDayType(item.dayType),
         quantity: 1,
-        accountingPrice: this.optionalNonNegativeNumber(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
-        netPrice: this.optionalNonNegativeNumber(item.netPrice, `Giá thuần ${row}`) ?? 0,
-        sellingPrice: this.optionalNonNegativeNumber(item.sellingPrice, `Giá bán ${row}`) ?? 0,
-        description: this.optionalText(item.description, `Mô tả ${row}`),
-        note: this.optionalText(item.note, `Ghi chú ${row}`),
+        accountingPrice: this.optionalMoney(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
+        netPrice: this.optionalMoney(item.netPrice, `Giá thuần ${row}`) ?? 0,
+        sellingPrice: this.optionalMoney(item.sellingPrice, `Giá bán ${row}`) ?? 0,
+        description: this.optionalMaxText(item.description, `Mô tả ${row}`, 2000),
+        note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000),
       };
     });
+    this.ensureUniqueServiceSkus(services);
+    return services;
   }
 
   private normalizeHotelAllotments(
@@ -1378,6 +1385,25 @@ export class SuppliersService {
     return text;
   }
 
+  private requiredServiceName(value: unknown, row: string) {
+    const serviceName = this.requiredText(value as string | undefined, `Cần nhập tên dịch vụ ${row}`);
+    if (serviceName.length < 2) throw new BadRequestException(`Tên dịch vụ ${row} phải có ít nhất 2 ký tự`);
+    if (serviceName.length > MAX_SUPPLIER_SERVICE_NAME_LENGTH) {
+      throw new BadRequestException(`Tên dịch vụ ${row} không được vượt quá ${MAX_SUPPLIER_SERVICE_NAME_LENGTH} ký tự`);
+    }
+    return serviceName;
+  }
+
+  private ensureUniqueServiceSkus(items: Array<{ sku?: string | null }>) {
+    const seen = new Set<string>();
+    for (const item of items) {
+      if (!item.sku) continue;
+      const key = item.sku.toUpperCase();
+      if (seen.has(key)) throw new BadRequestException('Mã dịch vụ không được trùng trong cùng nhà cung cấp');
+      seen.add(key);
+    }
+  }
+
   private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false, requireCategory = true) {
     if (requireCategory && (!partial || dto.categoryId !== undefined)) {
       if (!this.optionalText(dto.categoryId, 'Mã loại nhà cung cấp')) throw new BadRequestException('Cần chọn loại nhà cung cấp');
@@ -1582,6 +1608,11 @@ export class SuppliersService {
     return text;
   }
 
+  private optionalSku(value: unknown, fieldName: string) {
+    const sku = this.optionalMaxText(value, fieldName, MAX_SUPPLIER_SERVICE_SKU_LENGTH);
+    return sku ? sku.toUpperCase() : null;
+  }
+
   private optionalPhoneText(value?: unknown, fieldName = 'Số điện thoại') {
     const phone = this.optionalText(value, fieldName);
     if (phone && phone.length > SUPPLIER_PHONE_MAX_LENGTH) {
@@ -1652,6 +1683,14 @@ export class SuppliersService {
   private optionalNonNegativeNumber(value?: unknown, fieldName = 'Giá trị số') {
     const number = this.optionalNumber(value, fieldName);
     if (number !== null && number < 0) throw new BadRequestException(`${fieldName} không được âm`);
+    return number;
+  }
+
+  private optionalMoney(value?: unknown, fieldName = 'Giá trị tiền') {
+    const number = this.optionalNonNegativeNumber(value, fieldName);
+    if (number !== null && number > MAX_SUPPLIER_MONEY) {
+      throw new BadRequestException(`${fieldName} không được vượt quá 999.999.999.999`);
+    }
     return number;
   }
 

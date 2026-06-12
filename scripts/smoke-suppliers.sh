@@ -573,6 +573,24 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     services: [{ serviceName: 'Vé máy bay', metadata: { departureDate: '2026-02-30' } }],
   }, [400]);
   assert(messageOf(invalidTypedDate).includes('departureDate phải là ngày hợp lệ'), 'typed metadata should validate real calendar dates');
+  const duplicateTypedServiceSkuError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-DUP-SERVICE-SKU`, name: `${run} Flight Duplicate Service SKU`, phone: '0907777888',
+    services: [
+      { sku: 'flight-basic', serviceName: 'Vé máy bay cơ bản' },
+      { sku: 'FLIGHT-BASIC', serviceName: 'Vé máy bay nâng hạng' },
+    ],
+  }, [400]);
+  assert(messageOf(duplicateTypedServiceSkuError).includes('Mã dịch vụ không được trùng'), 'typed service sku must be unique inside one supplier payload');
+  const invalidTypedServiceMoneyError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-SERVICE-MONEY`, name: `${run} Flight Bad Service Money`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', accountingPrice: 1000000000000 }],
+  }, [400]);
+  assert(messageOf(invalidTypedServiceMoneyError).includes('Giá kế toán dòng dịch vụ 1 không được vượt quá'), 'typed service price must use the supplier money upper bound');
+  const longTypedServiceNoteError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-LONG-SERVICE-NOTE`, name: `${run} Flight Long Service Note`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', note: 'x'.repeat(2001) }],
+  }, [400]);
+  assert(messageOf(longTypedServiceNoteError).includes('Ghi chú dịch vụ không được vượt quá 2.000 ký tự'), 'typed service note must be length-limited');
 
   const flightSupplier = await request(manageToken, 'POST', '/suppliers/flights', {
     supplierCode: `${run}-FLIGHT-METADATA`,
@@ -913,6 +931,45 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(ownedDataDeleteMessage.includes('d\u1ecbch v\u1ee5 nh\u00e0 cung c\u1ea5p'), 'supplier delete should report linked supplier services');
   assert(ownedDataDeleteMessage.includes('qu\u1ef9 ph\u00f2ng'), 'supplier delete should report linked allotments');
 
+  const duplicateHotelServiceSkuError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-DUP-SERVICE-SKU`,
+    name: `${run} Hotel Duplicate Service SKU`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Duplicate Service Project`,
+    services: [
+      { sku: 'room-std', serviceName: 'Phòng tiêu chuẩn A' },
+      { sku: 'ROOM-STD', serviceName: 'Phòng tiêu chuẩn B' },
+    ],
+  }, [400]);
+  assert(messageOf(duplicateHotelServiceSkuError).includes('Mã dịch vụ không được trùng'), 'hotel service sku must be unique inside one supplier payload');
+  const missingHotelServiceNameError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-MISSING-SERVICE-NAME`,
+    name: `${run} Hotel Missing Service Name`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Missing Service Project`,
+    services: [{ sku: 'ROOM-MISSING-NAME' }],
+  }, [400]);
+  assert(messageOf(missingHotelServiceNameError).includes('Cần nhập tên dịch vụ'), 'hotel service name should be required with a Vietnamese message');
+  const invalidHotelServiceMoneyError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-SERVICE-MONEY`,
+    name: `${run} Hotel Bad Service Money`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Service Money Project`,
+    services: [{ serviceName: 'Phòng tiêu chuẩn', accountingPrice: 1000000000000 }],
+  }, [400]);
+  assert(messageOf(invalidHotelServiceMoneyError).includes('Giá kế toán dịch vụ không được vượt quá'), 'hotel service price must use the supplier money upper bound');
+  const longHotelServiceDescriptionError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-LONG-SERVICE-DESC`,
+    name: `${run} Hotel Long Service Description`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Long Service Description Project`,
+    services: [{ serviceName: 'Phòng tiêu chuẩn', description: 'x'.repeat(2001) }],
+  }, [400]);
+  assert(messageOf(longHotelServiceDescriptionError).includes('Mô tả dịch vụ không được vượt quá 2.000 ký tự'), 'hotel service description must be length-limited');
   const invalidHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-DATE`,
     name: `${run} Hotel Invalid Date`,
@@ -921,7 +978,18 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     hotelProject: `${run} Hotel Invalid Date Project`,
     services: [{ serviceName: 'Phòng tiêu chuẩn', startDate: 'khong-phai-ngay' }],
   }, [400]);
-  assert(messageOf(invalidHotelDateError).includes('Ngày bắt đầu dịch vụ không hợp lệ'), 'invalid service date should return a Vietnamese message');
+  const invalidHotelDateMessage = messageOf(invalidHotelDateError);
+  assert(invalidHotelDateMessage.includes('Ngày bắt đầu dịch vụ') && (invalidHotelDateMessage.includes('không hợp lệ') || invalidHotelDateMessage.includes('định dạng YYYY-MM-DD')), 'invalid service date should return a Vietnamese message');
+
+  const reversedHotelServiceDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-REVERSED-SERVICE-DATE`,
+    name: `${run} Hotel Reversed Service Date`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Reversed Service Date Project`,
+    services: [{ serviceName: 'Phòng tiêu chuẩn', startDate: '2026-06-12', endDate: '2026-06-11' }],
+  }, [400]);
+  assert(messageOf(reversedHotelServiceDateError).includes('Ngày bắt đầu dịch vụ không được sau ngày kết thúc dịch vụ'), 'reversed service dates should return a Vietnamese message');
 
 
   const invalidHotelCalendarDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
