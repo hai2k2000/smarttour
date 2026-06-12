@@ -2026,3 +2026,224 @@ label { min-width: 0; }
     min-width: 0;
   }
 }
+
+/* Compact list-table viewport: show about 5 rows, keep each row on one visual line. */
+:root {
+  --list-row-height: 44px;
+  --list-head-height: 42px;
+  --list-visible-rows: 5;
+}
+
+.fitTableWrap:has(> table.orderListTable),
+.fitTableWrap:has(> table.hotelListTable),
+.fitTableWrap:has(> table.tourProgramTable),
+.fitTableWrap:has(> table.fitTourListTable),
+.fitTableWrap:has(> table.quoteListTable),
+.fitTableWrap:has(> table.quoteComboListTable),
+.fitTableWrap:has(> table.quotationListTable),
+.fitTableWrap:has(> table.reportTable),
+.fitTableWrap:has(> table.customerTable),
+.fitTableWrap:has(> table.commissionTable),
+.fitTableWrap:has(> table.financeTable),
+.fitTableWrap:has(> table.operationsTable),
+.fitTableWrap:has(> table.securityTable),
+.fitTableWrap:has(> table.hotelInventoryTable),
+.supplierTableWrap,
+.quoteListWrap {
+  max-height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 2px);
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+  border: 1px solid #e3efd9;
+  border-radius: 7px;
+}
+
+.fitTableWrap:has(> table.orderListTable) > table,
+.fitTableWrap:has(> table.hotelListTable) > table,
+.fitTableWrap:has(> table.tourProgramTable) > table,
+.fitTableWrap:has(> table.fitTourListTable) > table,
+.fitTableWrap:has(> table.quoteListTable) > table,
+.fitTableWrap:has(> table.quoteComboListTable) > table,
+.fitTableWrap:has(> table.quotationListTable) > table,
+.fitTableWrap:has(> table.reportTable) > table,
+.fitTableWrap:has(> table.customerTable) > table,
+.fitTableWrap:has(> table.commissionTable) > table,
+.fitTableWrap:has(> table.financeTable) > table,
+.fitTableWrap:has(> table.operationsTable) > table,
+.fitTableWrap:has(> table.securityTable) > table,
+.fitTableWrap:has(> table.hotelInventoryTable) > table,
+.supplierTableWrap > table,
+.quoteListWrap > table {
+  margin: 0;
+}
+
+.fitTableWrap:has(> table.orderListTable) th,
+.fitTableWrap:has(> table.hotelListTable) th,
+.fitTableWrap:has(> table.tourProgramTable) th,
+.fitTableWrap:has(> table.fitTourListTable) th,
+.fitTableWrap:has(> table.quoteListTable) th,
+.fitTableWrap:has(> table.quoteComboListTable) th,
+.fitTableWrap:has(> table.quotationListTable) th,
+.fitTableWrap:has(> table.reportTable) th,
+.fitTableWrap:has(> table.customerTable) th,
+.fitTableWrap:has(> table.commissionTable) th,
+.fitTableWrap:has(> table.financeTable) th,
+.fitTableWrap:has(> table.operationsTable) th,
+.fitTableWrap:has(> table.securityTable) th,
+.fitTableWrap:has(> table.hotelInventoryTable) th,
+.supplierTableWrap th,
+.quoteListWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: var(--list-head-height);
+  padding: 8px 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fitTableWrap:has(> table.orderListTable) td,
+.fitTableWrap:has(> table.hotelListTable) td,
+.fitTableWrap:has(> table.tourProgramTable) td,
+.fitTableWrap:has(> table.fitTourListTable) td,
+.fitTableWrap:has(> table.quoteListTable) td,
+.fitTableWrap:has(> table.quoteComboListTable) td,
+.fitTableWrap:has(> table.quotationListTable) td,
+.fitTableWrap:has(> table.reportTable) td,
+.fitTableWrap:has(> table.customerTable) td,
+.fitTableWrap:has(> table.commissionTable) td,
+.fitTableWrap:has(> table.financeTable) td,
+.fitTableWrap:has(> table.operationsTable) td,
+.fitTableWrap:has(> table.securityTable) td,
+.fitTableWrap:has(> table.hotelInventoryTable) td,
+.supplierTableWrap td,
+.quoteListWrap td {
+  height: var(--list-row-height);
+  max-height: var(--list-row-height);
+  padding: 7px 9px;
+  vertical-align: middle;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fitTableWrap:has(> table.orderListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.hotelListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.tourProgramTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.fitTourListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.quoteListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.quoteComboListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.quotationListTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.reportTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.customerTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.commissionTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.financeTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.operationsTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.securityTable) td > :where(strong, span, small, em, a),
+.fitTableWrap:has(> table.hotelInventoryTable) td > :where(strong, span, small, em, a),
+.supplierTableWrap td > :where(strong, span, small, em, a),
+.quoteListWrap td > :where(strong, span, small, em, a) {
+  display: inline;
+  max-width: 100%;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+}
+
+.fitTableWrap:has(> table.orderListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.hotelListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.tourProgramTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.fitTourListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.quoteListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.quoteComboListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.quotationListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.reportTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.customerTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.commissionTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.financeTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.operationsTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.securityTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.fitTableWrap:has(> table.hotelInventoryTable) td > :where(strong, a) + :where(span, small, em, a)::before,
+.supplierTableWrap td > :where(strong, a) + :where(span, small, em, a)::before,
+.quoteListWrap td > :where(strong, a) + :where(span, small, em, a)::before {
+  content: " · ";
+  color: var(--dn-muted);
+  font-weight: 700;
+}
+
+.fitTableWrap:has(> table.orderListTable) td > :where(div, p),
+.fitTableWrap:has(> table.hotelListTable) td > :where(div, p),
+.fitTableWrap:has(> table.tourProgramTable) td > :where(div, p),
+.fitTableWrap:has(> table.fitTourListTable) td > :where(div, p),
+.fitTableWrap:has(> table.quoteListTable) td > :where(div, p),
+.fitTableWrap:has(> table.quoteComboListTable) td > :where(div, p),
+.fitTableWrap:has(> table.quotationListTable) td > :where(div, p),
+.fitTableWrap:has(> table.reportTable) td > :where(div, p),
+.fitTableWrap:has(> table.customerTable) td > :where(div, p),
+.fitTableWrap:has(> table.commissionTable) td > :where(div, p),
+.fitTableWrap:has(> table.financeTable) td > :where(div, p),
+.fitTableWrap:has(> table.operationsTable) td > :where(div, p),
+.fitTableWrap:has(> table.securityTable) td > :where(div, p),
+.fitTableWrap:has(> table.hotelInventoryTable) td > :where(div, p),
+.supplierTableWrap td > :where(div, p),
+.quoteListWrap td > :where(div, p) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.fitTableWrap:has(> table.orderListTable) .rowActions,
+.fitTableWrap:has(> table.hotelListTable) .rowActions,
+.fitTableWrap:has(> table.tourProgramTable) .tourProgramRowActions,
+.fitTableWrap:has(> table.customerTable) .miniTags,
+.fitTableWrap:has(> table.financeTable) .financeInvoiceFiles,
+.fitTableWrap:has(> table.securityTable) .permissionChips,
+.supplierTableWrap .supplierDebtBlock {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.fitTableWrap:has(> table.orderListTable) .rowActions > *,
+.fitTableWrap:has(> table.hotelListTable) .rowActions > *,
+.fitTableWrap:has(> table.tourProgramTable) .tourProgramRowActions > *,
+.fitTableWrap:has(> table.customerTable) .miniTags > *,
+.fitTableWrap:has(> table.financeTable) .financeInvoiceFiles > *,
+.fitTableWrap:has(> table.securityTable) .permissionChips > *,
+.supplierTableWrap .supplierDebtBlock > * {
+  flex: 0 0 auto;
+}
+
+.fitTableWrap:has(> table.orderListTable) .tableEmptyState,
+.fitTableWrap:has(> table.hotelListTable) .tableEmptyState,
+.fitTableWrap:has(> table.tourProgramTable) .tableEmptyState,
+.fitTableWrap:has(> table.fitTourListTable) .tableEmptyState,
+.fitTableWrap:has(> table.quoteListTable) .tableEmptyState,
+.fitTableWrap:has(> table.quoteComboListTable) .tableEmptyState,
+.fitTableWrap:has(> table.quotationListTable) .tableEmptyState,
+.fitTableWrap:has(> table.reportTable) .tableEmptyState,
+.fitTableWrap:has(> table.customerTable) .tableEmptyState,
+.fitTableWrap:has(> table.commissionTable) .tableEmptyState,
+.fitTableWrap:has(> table.financeTable) .tableEmptyState,
+.fitTableWrap:has(> table.operationsTable) .tableEmptyState,
+.fitTableWrap:has(> table.securityTable) .tableEmptyState,
+.fitTableWrap:has(> table.hotelInventoryTable) .tableEmptyState,
+.supplierTableWrap .tableEmptyState,
+.quoteListWrap .tableEmptyState {
+  height: calc(var(--list-row-height) * var(--list-visible-rows));
+  white-space: normal;
+}

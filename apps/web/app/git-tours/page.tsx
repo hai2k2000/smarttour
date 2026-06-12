@@ -266,33 +266,35 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         {tours.length === 0 ? (
           <div className="tableEmptyState"><BriefcaseBusiness size={20} /> Chưa có tour GIT nào.</div>
         ) : (
-          <table>
-            <thead>
-              <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Hóa đơn</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
-            </thead>
-            <tbody>
-              {tours.map((tour) => (
-                <tr key={tour.id}>
-                    <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
-                    <td><strong>{tour.name || '—'}</strong></td>
-                    <td>{tour.customers[0]?.name || '—'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
-                    <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
-                    <td>{tour.operatorOwner || '—'}</td>
-                    <td>
-                      <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
-                      <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
-                    </td>
-                    <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
-                    <td>{tour.gitTour?.invoiceStatus ? viStatus(tour.gitTour.invoiceStatus) : '—'}</td>
-                    <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} doanh thu / {tour._count?.services ?? 0} dịch vụ</td>
-                    <td className="actionsCell"><div className="rowActions">
-                      <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a>
-                      <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao chép dịch vụ"><Copy size={14} /></a>
-                      <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="Xóa tour GIT"><Trash2 size={14} /></a>
-                    </div></td></tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="fitTableWrap">
+            <table className="fitTable orderListTable">
+              <thead>
+                <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Hóa đơn</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
+              </thead>
+              <tbody>
+                {tours.map((tour) => (
+                  <tr key={tour.id}>
+                      <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
+                      <td><strong>{tour.name || '—'}</strong></td>
+                      <td>{tour.customers[0]?.name || '—'}<br /><span className="mutedText">{tour.gitTour?.agentName || ''}</span></td>
+                      <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
+                      <td>{tour.operatorOwner || '—'}</td>
+                      <td>
+                        <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
+                        <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
+                      </td>
+                      <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
+                      <td>{tour.gitTour?.invoiceStatus ? viStatus(tour.gitTour.invoiceStatus) : '—'}</td>
+                      <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} doanh thu / {tour._count?.services ?? 0} dịch vụ</td>
+                      <td className="actionsCell"><div className="rowActions">
+                        <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a>
+                        <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao chép dịch vụ"><Copy size={14} /></a>
+                        <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="Xóa tour GIT"><Trash2 size={14} /></a>
+                      </div></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
       {tours.map((tour) => (

@@ -267,33 +267,35 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
         {tours.length === 0 ? (
           <div className="tableEmptyState"><Boxes size={20} /> Ch&#432;a c&#243; LandTour / Combo n&#224;o.</div>
         ) : (
-          <table>
-            <thead>
-              <tr><th>M&#227;</th><th>Tour</th><th>Kh&#225;ch h&#224;ng</th><th>Ng&#224;y tour</th><th>Lo&#7841;i combo</th><th>H&#432;&#7899;ng d&#7851;n vi&#234;n</th><th>Tr&#7841;ng th&#225;i</th><th>Thanh to&#225;n</th><th>D&#242;ng d&#7919; li&#7879;u</th><th>Thao t&#225;c</th></tr>
-            </thead>
-            <tbody>
-              {tours.map((tour) => (
-                <tr key={tour.id}>
-                    <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
-                    <td><strong>{tour.name || '-'}</strong>{tour.route ? <><br /><span className="mutedText"><Route size={12} /> {tour.route}</span></> : null}</td>
-                    <td>{tour.customers[0]?.name || '-'}</td>
-                    <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
-                    <td>{tour.landTour?.comboType || '-'}</td>
-                    <td>{tour.landTour?.guideName || '-'}</td>
-                    <td>
-                      <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
-                      <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
-                    </td>
-                    <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
-                    <td>{tour._count?.services ?? 0} d&#7883;ch v&#7909; / <FileText size={12} /> {tour._count?.terms ?? 0} &#273;i&#7873;u kho&#7843;n</td>
-                    <td className="actionsCell"><div className="rowActions">
-                      <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="C&#7853;p nh&#7853;t tr&#7841;ng th&#225;i"><Save size={14} /></a>
-                      <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao ch&#233;p d&#7883;ch v&#7909;"><Copy size={14} /></a>
-                      <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="X&#243;a LandTour"><Trash2 size={14} /></a>
-                    </div></td></tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="fitTableWrap">
+            <table className="fitTable orderListTable">
+              <thead>
+                <tr><th>M&#227;</th><th>Tour</th><th>Kh&#225;ch h&#224;ng</th><th>Ng&#224;y tour</th><th>Lo&#7841;i combo</th><th>H&#432;&#7899;ng d&#7851;n vi&#234;n</th><th>Tr&#7841;ng th&#225;i</th><th>Thanh to&#225;n</th><th>D&#242;ng d&#7919; li&#7879;u</th><th>Thao t&#225;c</th></tr>
+              </thead>
+              <tbody>
+                {tours.map((tour) => (
+                  <tr key={tour.id}>
+                      <td><span className="codeBadge">{tour.systemCode}</span><br /><span className="mutedText">{tour.tourCode}</span></td>
+                      <td><strong>{tour.name || '-'}</strong>{tour.route ? <><br /><span className="mutedText"><Route size={12} /> {tour.route}</span></> : null}</td>
+                      <td>{tour.customers[0]?.name || '-'}</td>
+                      <td>{formatDate(tour.startDate)} - {formatDate(tour.endDate)}</td>
+                      <td>{tour.landTour?.comboType || '-'}</td>
+                      <td>{tour.landTour?.guideName || '-'}</td>
+                      <td>
+                        <span className={`statusBadge ${statusClass(tour.status)}`}>{viStatus(tour.status)}</span>
+                        <br /><span className="mutedText"><GitBranch size={12} /> {viStatus(tour.workflowStep)}</span>
+                      </td>
+                      <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
+                      <td>{tour._count?.services ?? 0} d&#7883;ch v&#7909; / <FileText size={12} /> {tour._count?.terms ?? 0} &#273;i&#7873;u kho&#7843;n</td>
+                      <td className="actionsCell"><div className="rowActions">
+                        <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="C&#7853;p nh&#7853;t tr&#7841;ng th&#225;i"><Save size={14} /></a>
+                        <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao ch&#233;p d&#7883;ch v&#7909;"><Copy size={14} /></a>
+                        <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="X&#243;a LandTour"><Trash2 size={14} /></a>
+                      </div></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
       {tours.map((tour) => (
