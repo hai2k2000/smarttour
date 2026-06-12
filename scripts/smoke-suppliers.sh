@@ -758,6 +758,9 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
       sku: `${run}-HOTEL-SERVICE-SKU`,
       serviceName: 'Phòng tiêu chuẩn',
       dayType: 'WEEKDAY',
+      accountingPrice: '812345.67',
+      netPrice: 712345.5,
+      sellingPrice: '1012345.25',
       description: `${run} Hotel Service Description`,
       note: 'Service note',
     }],
@@ -769,7 +772,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
       dayType: 'WEEKEND',
       allotmentQty: 2,
       cutoffDays: 7,
-      sellingPricePerDay: 500000,
+      netCostPerDay: '512345.75',
+      sellingPricePerDay: 712345.5,
       description: `${run} Hotel Allotment Description`,
       note: 'Initial allotment',
     }],
@@ -781,6 +785,17 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(ownedDataHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel detail must include editable contacts');
   assert(ownedDataHotel.supplierServices[0].dayType === 'WEEKDAY', 'created hotel service must persist the shared dayType enum');
   assert(ownedDataHotel.allotments[0].dayType === 'WEEKEND' && ownedDataHotel.allotments[0].cutoffDays === 7, 'created hotel allotment must persist dayType and cutoffDays');
+  assert(
+    Number(ownedDataHotel.supplierServices[0].accountingPrice) === 812345.67
+      && Number(ownedDataHotel.supplierServices[0].netPrice) === 712345.5
+      && Number(ownedDataHotel.supplierServices[0].sellingPrice) === 1012345.25,
+    'hotel service prices must persist in the submitted currency unit without scaling',
+  );
+  assert(
+    Number(ownedDataHotel.allotments[0].netCostPerDay) === 512345.75
+      && Number(ownedDataHotel.allotments[0].sellingPricePerDay) === 712345.5,
+    'hotel allotment daily prices must persist in the submitted currency unit without scaling',
+  );
   assert(Number(ownedDataHotel.allotments[0].lockedQty || 0) === Number(ownedDataHotel.allotments[0].quantityLock || 0), 'created hotel allotment must sync lockedQty and quantityLock');
   const ownedAllotmentId = ownedDataHotel.allotments[0].id;
   assert(ownedAllotmentId, 'created hotel allotment must expose its id');
@@ -840,6 +855,14 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(partiallyUpdatedHotel.allotments?.[0]?.id === ownedAllotmentId, 'hotel partial update must preserve allotments when omitted');
   assert(partiallyUpdatedHotel.supplierServices[0].dayType === 'WEEKDAY', 'hotel partial update must preserve service dayType when services are omitted');
   assert(partiallyUpdatedHotel.allotments[0].dayType === 'WEEKEND' && partiallyUpdatedHotel.allotments[0].cutoffDays === 7, 'hotel partial update must preserve allotment dayType and cutoffDays when allotments are omitted');
+  assert(
+    Number(partiallyUpdatedHotel.supplierServices[0].accountingPrice) === 812345.67
+      && Number(partiallyUpdatedHotel.supplierServices[0].netPrice) === 712345.5
+      && Number(partiallyUpdatedHotel.supplierServices[0].sellingPrice) === 1012345.25
+      && Number(partiallyUpdatedHotel.allotments[0].netCostPerDay) === 512345.75
+      && Number(partiallyUpdatedHotel.allotments[0].sellingPricePerDay) === 712345.5,
+    'hotel partial update must preserve service and allotment prices exactly',
+  );
   const hotelFileAfterPartialUpdate = partiallyUpdatedHotel.files?.find((file) => file.id === hotelUploadedFile.id);
   assert(
     hotelFileAfterPartialUpdate?.fileName === hotelUploadedFile.fileName
@@ -998,6 +1021,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     status: 'INACTIVE',
   }, [409]);
   assert(messageOf(inactiveWithAllocationError).includes('Không thể ngừng nhà cung cấp khách sạn'), 'hotel supplier must remain active while an allocation is locked');
+  const genericInactiveWithAllocationError = await request(manageToken, 'PATCH', `/suppliers/${ownedDataHotel.id}/status`, {
+    status: 'INACTIVE',
+  }, [409]);
+  assert(messageOf(genericInactiveWithAllocationError).includes('Không thể ngừng nhà cung cấp khách sạn'), 'generic status endpoint must enforce hotel allocation rules');
 
   const confirmed = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Confirm inventory smoke' });
   assert(confirmed.allocation.status === 'CONFIRMED' && confirmed.idempotent === false, 'confirm must transition a locked allocation');
@@ -1054,7 +1081,13 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const cutoffLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
   assert(messageOf(cutoffLockError).includes('đã tới hạn chốt'), 'allotment lock must reject inventory after the cutoff date');
 
-  await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, { status: 'INACTIVE' });
+  await request(manageToken, 'PATCH', `/suppliers/${ownedDataHotel.id}/status`, { status: 'INACTIVE' });
+  const inactiveHotelList = await request(viewToken, 'GET', `/suppliers/hotels?status=INACTIVE&search=${encodeURIComponent(ownedDataHotel.supplierCode)}`);
+  assert(inactiveHotelList.some((item) => item.id === ownedDataHotel.id && item.status === 'INACTIVE'), 'hotel list must reflect status changed through the generic endpoint');
+  const inactiveGenericList = await request(viewToken, 'GET', `/suppliers?status=INACTIVE&search=${encodeURIComponent(ownedDataHotel.supplierCode)}`);
+  assert(inactiveGenericList.some((item) => item.id === ownedDataHotel.id && item.status === 'INACTIVE'), 'generic supplier list and hotel list must expose the same inactive status');
+  const activeHotelList = await request(viewToken, 'GET', `/suppliers/hotels?status=ACTIVE&search=${encodeURIComponent(ownedDataHotel.supplierCode)}`);
+  assert(!activeHotelList.some((item) => item.id === ownedDataHotel.id), 'inactive hotel supplier must not remain in the active hotel list');
   const inactiveInventory = await request(viewToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}`);
   assert(inactiveInventory.find((item) => item.id === cutoffAllotmentId)?.computedStatus === 'INACTIVE', 'inventory must reflect an inactive hotel supplier');
   const inactiveSupplierLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);

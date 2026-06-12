@@ -283,10 +283,15 @@ export class SuppliersService {
     const supplier = await this.getSupplier(id);
     const nextStatus = this.toSupplierStatus(status);
     this.ensureSupplierStatusTransition(supplier.status, nextStatus);
-    return this.prisma.supplier.update({
-      where: { id },
-      data: { status: nextStatus },
-      include: { ...this.supplierListInclude(), hotelProfile: true },
+    return this.prisma.$transaction(async (tx) => {
+      if (supplier.hotelProfile && nextStatus === SupplierStatus.INACTIVE) {
+        await this.ensureHotelSupplierCanDeactivate(tx, id);
+      }
+      return tx.supplier.update({
+        where: { id },
+        data: { status: nextStatus },
+        include: { ...this.supplierListInclude(), hotelProfile: true },
+      });
     });
   }
 
@@ -523,12 +528,7 @@ export class SuppliersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         if (dto.status === SupplierStatus.INACTIVE) {
-          const activeAllocations = await tx.supplierAllotmentAllocation.count({
-            where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } },
-          });
-          if (activeAllocations > 0) {
-            throw new ConflictException('Không thể ngừng nhà cung cấp khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
-          }
+          await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
         await tx.supplier.update({
           where: { id },
@@ -1075,6 +1075,15 @@ export class SuppliersService {
           data: allotments.map((item) => ({ supplierId, ...item })),
         });
       }
+    }
+  }
+
+  private async ensureHotelSupplierCanDeactivate(tx: Prisma.TransactionClient, supplierId: string) {
+    const activeAllocations = await tx.supplierAllotmentAllocation.count({
+      where: { supplierId, status: { in: ['LOCKED', 'CONFIRMED'] } },
+    });
+    if (activeAllocations > 0) {
+      throw new ConflictException('Không thể ngừng nhà cung cấp khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
     }
   }
 
