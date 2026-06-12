@@ -426,6 +426,8 @@ function typedMatrixPayload(type, suffix) {
   assert(messageOf(unsupportedSingleSegment).includes('Loại nhà cung cấp không được hỗ trợ'), 'unknown single-segment route should not be treated as a supplier id');
   const missingSupplierDetail = await request(viewToken, 'GET', '/suppliers/00000000-0000-4000-8000-000000000099', undefined, [404]);
   assert(messageOf(missingSupplierDetail).includes('Không tìm thấy nhà cung cấp'), 'valid UUID single-segment route should resolve as supplier detail');
+  const typedUuidRouteCollision = await request(viewToken, 'GET', `/suppliers/00000000-0000-4000-8000-000000000099/${usedSupplierId}`, undefined, [404]);
+  assert(messageOf(typedUuidRouteCollision).includes('Loại nhà cung cấp không được hỗ trợ'), 'UUID-looking type segment must not collide with typed supplier routes');
 
   const typedRoutes = [
     'restaurants',
@@ -679,6 +681,16 @@ function typedMatrixPayload(type, suffix) {
   assert(filteredByMarket.some((item) => item.id === supplier.id), 'common supplier market filter should return matching supplier');
   const searchedByTaxCode = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(`TAX-${run}`)}`);
   assert(searchedByTaxCode.some((item) => item.id === supplier.id), 'common supplier search should include tax code');
+  for (const keyword of [
+    supplier.supplierCode,
+    `${run} API Supplier`,
+    '0901111222',
+    `supplier-${lowerRun}@smarttour.local`,
+    `${run} Market`,
+  ]) {
+    const searchedCommonSuppliers = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(keyword)}`);
+    assert(searchedCommonSuppliers.some((item) => item.id === supplier.id), `common supplier search should include keyword ${keyword}`);
+  }
 
   const updated = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}`, {
     categoryId: category.id,
@@ -722,11 +734,17 @@ function typedMatrixPayload(type, suffix) {
   assert(messageOf(inactiveNoop).includes('đã ở trạng thái Ngừng hoạt động'), 'supplier status update should reject no-op transitions');
   const reactivatedSupplier = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}/status`, { status: 'ACTIVE' });
   assert(reactivatedSupplier.status === 'ACTIVE', 'supplier status update should allow reactivation');
+  const activeCommonList = await request(manageToken, 'GET', `/suppliers?status=ACTIVE&search=${encodeURIComponent(`${run} API Supplier Updated`)}`);
+  assert(activeCommonList.some((item) => item.id === supplier.id && item.status === 'ACTIVE'), 'common supplier active status filter should include reactivated supplier');
+  const inactiveCommonList = await request(manageToken, 'GET', `/suppliers?status=INACTIVE&search=${encodeURIComponent(`${run} API Supplier Updated`)}`);
+  assert(!inactiveCommonList.some((item) => item.id === supplier.id), 'common supplier inactive status filter should exclude active supplier');
 
   const suppliersAfterUpdate = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(run)}`);
   assert(suppliersAfterUpdate.some((item) => item.id === supplier.id), 'search should include updated supplier');
 
   await request(manageToken, 'DELETE', `/suppliers/${supplier.id}`);
+  await request(manageToken, 'GET', `/suppliers/${supplier.id}`, undefined, [404]);
+  await request(manageToken, 'DELETE', `/suppliers/${supplier.id}`, undefined, [404]);
   const suppliersAfterDelete = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(`${run} API Supplier Updated`)}`);
   assert(!suppliersAfterDelete.some((item) => item.id === supplier.id), 'deleted supplier should not be listed');
   const categoriesAfterDelete = await request(manageToken, 'GET', '/supplier-categories');
@@ -753,6 +771,10 @@ function typedMatrixPayload(type, suffix) {
   assert(messageOf(invalidSupplierStatusError).includes('Trạng thái nhà cung cấp không hợp lệ'), 'invalid supplier status should return Vietnamese validation message');
   const invalidSupplierRatingError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Supplier Rating`, rating: 6 }, [400]);
   assert(messageOf(invalidSupplierRatingError).includes('Xếp hạng nhà cung cấp không được lớn hơn 5'), 'invalid supplier rating should return Vietnamese validation message');
+  const invalidSupplierNegativeRatingError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Supplier Negative Rating`, rating: -1 }, [400]);
+  assert(messageOf(invalidSupplierNegativeRatingError).includes('Xếp hạng nhà cung cấp không được nhỏ hơn 0'), 'negative supplier rating should return Vietnamese validation message');
+  const invalidSupplierWebsiteError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Supplier Website`, website: 'smarttour.local' }, [400]);
+  assert(messageOf(invalidSupplierWebsiteError).includes('Website nhà cung cấp phải là URL hợp lệ'), 'invalid supplier website should return Vietnamese validation message');
   const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
   assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
 
@@ -1011,6 +1033,7 @@ function typedMatrixPayload(type, suffix) {
   await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
   await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
   await request(manageToken, 'GET', `/suppliers/${typedSupplier.id}`, undefined, [404]);
+  await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
   const typedDeletedList = await request(manageToken, 'GET', `/suppliers/restaurants?search=${encodeURIComponent(`${run} Restaurant Supplier Updated`)}`);
   assert(!typedDeletedList.some((item) => item.id === typedSupplier.id), 'soft-deleted typed supplier must not appear in typed lists');
 
