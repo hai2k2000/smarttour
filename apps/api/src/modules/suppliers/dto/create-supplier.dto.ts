@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { SupplierStatus } from '@prisma/client';
+import { Transform, Type } from 'class-transformer';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const trimOptional = ({ value }: { value: unknown }) => {
@@ -38,6 +39,13 @@ export class CreateSupplierDto {
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
+  @IsString({ message: 'Mã số thuế phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã số thuế không được vượt quá 80 ký tự' })
+  taxCode?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
   @IsString({ message: 'Người liên hệ phải là chuỗi ký tự' })
   @MaxLength(120, { message: 'Người liên hệ không được vượt quá 120 ký tự' })
   contactPerson?: string;
@@ -60,9 +68,73 @@ export class CreateSupplierDto {
   @ApiPropertyOptional()
   @Transform(trimOptional)
   @IsOptional()
+  @IsString({ message: 'Quốc gia phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Quốc gia không được vượt quá 120 ký tự' })
+  country?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Tỉnh/thành phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Tỉnh/thành không được vượt quá 120 ký tự' })
+  province?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
   @IsString({ message: 'Địa chỉ nhà cung cấp phải là chuỗi ký tự' })
   @MaxLength(500, { message: 'Địa chỉ nhà cung cấp không được vượt quá 500 ký tự' })
   address?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Website phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Website không được vượt quá 500 ký tự' })
+  website?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Liên kết phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Liên kết không được vượt quá 500 ký tự' })
+  link?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Xếp hạng nhà cung cấp phải là số nguyên' })
+  @Min(0, { message: 'Xếp hạng nhà cung cấp không được nhỏ hơn 0' })
+  @Max(5, { message: 'Xếp hạng nhà cung cấp không được lớn hơn 5' })
+  rating?: number;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
+  market?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Tên tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên tài khoản ngân hàng không được vượt quá 180 ký tự' })
+  bankAccountName?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Số tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Số tài khoản ngân hàng không được vượt quá 80 ký tự' })
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Tên ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên ngân hàng không được vượt quá 180 ký tự' })
+  bankName?: string;
 
   @ApiPropertyOptional()
   @Transform(trimOptional)
@@ -84,4 +156,10 @@ export class CreateSupplierDto {
   @IsString({ message: 'Ghi chú nhà cung cấp phải là chuỗi ký tự' })
   @MaxLength(2000, { message: 'Ghi chú nhà cung cấp không được vượt quá 2.000 ký tự' })
   notes?: string;
+
+  @ApiPropertyOptional({ enum: SupplierStatus })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không hợp lệ' })
+  status?: SupplierStatus;
 }

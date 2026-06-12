@@ -385,14 +385,36 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     contactPerson: '  Supplier Contact  ',
     phone: ' 0901111222 ',
     email: `supplier-${lowerRun}@smarttour.local`,
+    taxCode: `  TAX-${run}  `,
+    country: '  Việt Nam  ',
+    province: `  ${run}   Province  `,
     address: ' Hanoi ',
+    website: ` https://supplier-${lowerRun}.example.com `,
+    link: ` https://supplier-${lowerRun}.example.com/ref `,
+    rating: 4,
+    market: `  ${run}   Market  `,
+    bankAccountName: '  Supplier Bank Account  ',
+    bankAccountNumber: '  123456789  ',
+    bankName: '  Smart Bank  ',
     pricePolicy: 'Net price, seasonal surcharge',
     debtNote: 'Payable after reconciliation',
     notes: 'Smoke note',
+    status: 'ACTIVE',
   });
   assert(supplier.id, 'created supplier must have id');
   assert(supplier.supplierCode === `${run}-COMMON`, 'common supplier code should be trimmed and uppercased');
   assert(supplier.name === `${run} API Supplier`, 'created supplier should be trimmed');
+  assert(supplier.taxCode === `TAX-${run}`, 'created supplier should persist normalized tax code');
+  assert(supplier.country === 'Việt Nam', 'created supplier should persist normalized country');
+  assert(supplier.province === `${run} Province`, 'created supplier should persist normalized province');
+  assert(supplier.website === `https://supplier-${lowerRun}.example.com`, 'created supplier should persist normalized website');
+  assert(supplier.link === `https://supplier-${lowerRun}.example.com/ref`, 'created supplier should persist normalized link');
+  assert(supplier.rating === 4, 'created supplier should persist rating');
+  assert(supplier.market === `${run} Market`, 'created supplier should persist normalized market');
+  assert(supplier.bankAccountName === 'Supplier Bank Account', 'created supplier should persist normalized bank account name');
+  assert(supplier.bankAccountNumber === '123456789', 'created supplier should persist normalized bank account number');
+  assert(supplier.bankName === 'Smart Bank', 'created supplier should persist normalized bank name');
+  assert(supplier.status === 'ACTIVE', 'created supplier should persist validated status');
   assert(supplier.category?.id === category.id, 'created supplier must include category');
   assert(Array.isArray(supplier.supplierServices), 'created supplier must include supplierServices');
   const duplicateCodeError = await request(manageToken, 'POST', '/suppliers', {
@@ -406,6 +428,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(partialUpdate.name.endsWith('Partial'), 'partial supplier update should update the requested field');
   const partialDetail = await request(manageToken, 'GET', `/suppliers/${supplier.id}`);
   assert(partialDetail.address === 'Hanoi', 'partial supplier update must preserve address');
+  assert(partialDetail.taxCode === `TAX-${run}`, 'partial supplier update must preserve tax code');
+  assert(partialDetail.province === `${run} Province`, 'partial supplier update must preserve province');
+  assert(partialDetail.market === `${run} Market`, 'partial supplier update must preserve market');
+  assert(partialDetail.bankAccountName === 'Supplier Bank Account', 'partial supplier update must preserve bank account name');
+  assert(partialDetail.bankAccountNumber === '123456789', 'partial supplier update must preserve bank account number');
+  assert(partialDetail.bankName === 'Smart Bank', 'partial supplier update must preserve bank name');
   assert(partialDetail.debtNote === 'Payable after reconciliation', 'partial supplier update must preserve debt note');
   assert(partialDetail.categoryId === category.id, 'partial supplier update must preserve category linkage');
 
@@ -440,6 +468,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
 
   const filteredByCategory = await request(manageToken, 'GET', `/suppliers?categoryId=${encodeURIComponent(category.id)}`);
   assert(filteredByCategory.length === 1 && filteredByCategory[0].id === supplier.id, 'category filter should return matching supplier');
+  const filteredByProvince = await request(manageToken, 'GET', `/suppliers?province=${encodeURIComponent(`${run} Province`)}`);
+  assert(filteredByProvince.some((item) => item.id === supplier.id), 'common supplier province filter should return matching supplier');
+  const filteredByMarket = await request(manageToken, 'GET', `/suppliers?market=${encodeURIComponent(`${run} Market`)}`);
+  assert(filteredByMarket.some((item) => item.id === supplier.id), 'common supplier market filter should return matching supplier');
+  const searchedByTaxCode = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(`TAX-${run}`)}`);
+  assert(searchedByTaxCode.some((item) => item.id === supplier.id), 'common supplier search should include tax code');
 
   const updated = await request(manageToken, 'PATCH', `/suppliers/${supplier.id}`, {
     categoryId: category.id,
@@ -447,12 +481,33 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     contactPerson: 'Updated Contact',
     phone: '0903333444',
     email: `supplier-updated-${lowerRun}@smarttour.local`,
+    taxCode: `  TAX-${run}-UPDATED  `,
+    country: '  Thái Lan  ',
+    province: `  ${run}   Province Updated  `,
     address: 'Da Nang',
+    website: ` https://supplier-updated-${lowerRun}.example.com `,
+    link: ` https://supplier-updated-${lowerRun}.example.com/ref `,
+    rating: 5,
+    market: `  ${run}   Market Updated  `,
+    bankAccountName: '  Updated Bank Account  ',
+    bankAccountNumber: '  987654321  ',
+    bankName: '  Updated Smart Bank  ',
     pricePolicy: 'Updated policy',
     debtNote: 'Updated debt note',
     notes: 'Updated internal note',
+    status: 'ACTIVE',
   });
   assert(updated.name.endsWith('Updated'), 'supplier update should return updated name');
+  assert(updated.taxCode === `TAX-${run}-UPDATED`, 'supplier update should persist normalized tax code');
+  assert(updated.country === 'Thái Lan', 'supplier update should persist normalized country');
+  assert(updated.province === `${run} Province Updated`, 'supplier update should persist normalized province');
+  assert(updated.website === `https://supplier-updated-${lowerRun}.example.com`, 'supplier update should persist normalized website');
+  assert(updated.link === `https://supplier-updated-${lowerRun}.example.com/ref`, 'supplier update should persist normalized link');
+  assert(updated.rating === 5, 'supplier update should persist rating');
+  assert(updated.market === `${run} Market Updated`, 'supplier update should persist normalized market');
+  assert(updated.bankAccountName === 'Updated Bank Account', 'supplier update should persist normalized bank account name');
+  assert(updated.bankAccountNumber === '987654321', 'supplier update should persist normalized bank account number');
+  assert(updated.bankName === 'Updated Smart Bank', 'supplier update should persist normalized bank name');
   assert(updated.debtNote === 'Updated debt note', 'supplier update should persist debtNote');
   assert(updated.pricePolicy === 'Updated policy', 'supplier update should persist pricePolicy');
   assert(updated.category?.id === category.id && Array.isArray(updated.supplierServices), 'supplier update response shape should match list response');
@@ -486,6 +541,10 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const invalidContactError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Contact`, phone: 'abcxyz', email: 'bad-email' }, [400]);
   assert(messageOf(invalidContactError).includes('Số điện thoại nhà cung cấp không hợp lệ'), 'invalid phone should return Vietnamese validation message');
   assert(messageOf(invalidContactError).includes('Email nhà cung cấp không hợp lệ'), 'invalid email should return Vietnamese validation message');
+  const invalidSupplierStatusError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Supplier Status`, status: 'UNKNOWN' }, [400]);
+  assert(messageOf(invalidSupplierStatusError).includes('Trạng thái nhà cung cấp không hợp lệ'), 'invalid supplier status should return Vietnamese validation message');
+  const invalidSupplierRatingError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Invalid Supplier Rating`, rating: 6 }, [400]);
+  assert(messageOf(invalidSupplierRatingError).includes('Xếp hạng nhà cung cấp không được lớn hơn 5'), 'invalid supplier rating should return Vietnamese validation message');
   const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
   assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
 
