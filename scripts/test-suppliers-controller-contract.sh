@@ -41,6 +41,7 @@ assert 'deleteTypedSupplier(type, id)' in controller and 'async deleteTypedSuppl
 assert '@Query() query: HotelSupplierListQueryDto' in controller, 'hotel list query must be validated'
 assert '@Query() query: AllotmentInventoryQueryDto' in controller, 'allotment inventory query must be validated'
 assert "FileInterceptor('file', fileUploadInterceptorOptions())" in controller, 'supplier upload must use shared file limits and filtering'
+assert '@UseFilters(FileUploadSizeExceptionFilter)' in controller, 'supplier upload must translate oversized files to the shared Vietnamese error response'
 assert "this.requiredText(actorId, 'Không xác định được người tải file')" in service, 'supplier upload must require an authenticated actor id'
 
 print('TEST_SUPPLIERS_CONTROLLER_CONTRACT_OK')

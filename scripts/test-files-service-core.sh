@@ -90,6 +90,23 @@ async function main() {
   assert.equal(client.calls.putObject[0].metadata['Content-Type'], 'text/plain');
   assert.equal(client.calls.putObject[0].metadata['X-Amz-Meta-Original-Name'], encodeURIComponent(file.originalname));
   assert.equal(client.calls.putObject[0].metadata['X-Amz-Meta-Uploaded-By'], 'actor-1');
+  assert.equal(client.calls.putObject[0].metadata['X-Amz-Meta-Original-Mime-Type'], 'text/plain');
+  assert.equal(client.calls.putObject[0].metadata['X-Amz-Meta-File-Size'], '12');
+
+  const normalizedFile = {
+    originalname: ' C:\\fakepath\\báo cáo.txt ',
+    mimetype: ' Text/Plain; charset=UTF-8 ',
+    size: 12,
+    buffer: Buffer.from('file content'),
+  };
+  const normalizedUpload = await service.upload(normalizedFile, 'supplier files');
+  assert.equal(normalizedUpload.fileName, 'báo cáo.txt');
+  assert.equal(normalizedUpload.mimeType, 'text/plain');
+  assert.match(normalizedUpload.objectKey, /^supplier-files\/\d{4}\/\d{2}\/[0-9a-f-]+-bao-cao\.txt$/);
+
+  const extensionlessUpload = await service.upload({ ...file, originalname: '.env', mimetype: 'application/octet-stream' }, 'supplier files');
+  assert.match(extensionlessUpload.objectKey, /^supplier-files\/\d{4}\/\d{2}\/[0-9a-f-]+-env$/);
+  assert.deepEqual(await service.remove(extensionlessUpload.objectKey), { deleted: true, objectKey: extensionlessUpload.objectKey });
 
   await assert.rejects(
     () => service.upload({ ...file, originalname: 'unsafe.svg', mimetype: 'image/svg+xml' }, 'files'),
@@ -105,6 +122,26 @@ async function main() {
     () => service.upload({ ...file, buffer: undefined }, 'files'),
     BadRequestException,
     'missing buffer should be rejected',
+  );
+  await assert.rejects(
+    () => service.upload({ ...file, size: 0, buffer: Buffer.alloc(0) }, 'files'),
+    /File tải lên không được để trống/,
+    'empty upload should be rejected',
+  );
+  await assert.rejects(
+    () => service.upload({ ...file, size: 11 }, 'files'),
+    /Kích thước file không khớp/,
+    'declared size must match buffer length',
+  );
+  await assert.rejects(
+    () => service.upload({ ...file, mimetype: 'not a mime' }, 'files'),
+    /MIME type của file không hợp lệ/,
+    'invalid mime metadata should be rejected',
+  );
+  await assert.rejects(
+    () => service.upload({ ...file, originalname: `${'x'.repeat(256)}.txt` }, 'files'),
+    /Tên file không được vượt quá 255 ký tự/,
+    'overlong file names should be rejected',
   );
 
   const download = await service.download('finance/2026/06/source.txt');
@@ -129,7 +166,7 @@ async function main() {
 
   assert.deepEqual(await service.removeIfPresent(null), { deleted: false, objectKey: null });
   assert.deepEqual(await service.remove('finance/2026/06/source.txt'), { deleted: true, objectKey: 'finance/2026/06/source.txt' });
-  assert.equal(client.calls.removeObject[0].objectKey, 'finance/2026/06/source.txt');
+  assert(client.calls.removeObject.some((call) => call.objectKey === 'finance/2026/06/source.txt'));
 
   console.log('TEST_FILES_SERVICE_CORE_OK');
 }

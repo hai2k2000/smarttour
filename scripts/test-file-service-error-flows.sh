@@ -145,6 +145,40 @@ async function assertFinanceInvoiceDeleteRollback() {
   assert.equal(restored.length, 0);
 }
 
+async function assertSupplierUploadCleanup() {
+  const files = filesService();
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+    supplierFile: { create: async () => { throw new Error('supplier file create failed'); } },
+  }, files);
+
+  await assert.rejects(() => service.addSupplierFile('supplier-1', testFile, 'actor-1'), /supplier file create failed/);
+  assert.deepEqual(files.calls.remove, [upload.objectKey]);
+}
+
+async function assertSupplierUploadCleanupFailure() {
+  const files = filesService({ failRemove: true });
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+    supplierFile: { create: async () => { throw new Error('supplier file create failed'); } },
+  }, files);
+
+  await assert.rejects(
+    () => service.addSupplierFile('supplier-1', testFile, 'actor-1'),
+    /Không thể lưu metadata file và không thể hoàn tác object/,
+  );
+}
+
+async function assertSupplierUploadRequiresActor() {
+  const files = filesService();
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+  }, files);
+
+  await assert.rejects(() => service.addSupplierFile('supplier-1', testFile), /Không xác định được người tải file/);
+  assert.equal(files.calls.upload, 0);
+}
+
 async function assertSupplierDeleteRollback() {
   const files = filesService({ failRemove: true });
   const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
@@ -153,14 +187,87 @@ async function assertSupplierDeleteRollback() {
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => supplierFile,
-      delete: async () => supplierFile,
+      deleteMany: async () => ({ count: 1 }),
       create: async ({ data }) => { restored.push(data); return data; },
     },
   }, files);
 
   await assert.rejects(() => service.deleteSupplierFile('supplier-1', 'supplier-file-1'), /remove failed/);
-  assert.deepEqual(files.calls.remove, [oldKey]);
-  assert.equal(restored.length, 0);
+  assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
+  assert.equal(restored[0].id, supplierFile.id);
+  assert.equal(restored[0].supplierId, supplierFile.supplierId);
+  assert.equal(restored[0].fileUrl, supplierFile.fileUrl);
+}
+
+async function assertSupplierDeleteRestoreFailureIsExplicit() {
+  const files = filesService({ failRemove: true });
+  const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+    supplierFile: {
+      findFirst: async () => supplierFile,
+      deleteMany: async () => ({ count: 1 }),
+      create: async () => { throw new Error('restore failed'); },
+    },
+  }, files);
+
+  await assert.rejects(
+    () => service.deleteSupplierFile('supplier-1', 'supplier-file-1'),
+    /Xóa object storage thất bại và không thể khôi phục metadata file nhà cung cấp/,
+  );
+}
+
+async function assertSupplierDeleteRejectsInvalidStorageMetadata() {
+  const files = filesService();
+  let deleteCalled = false;
+  const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: 'invalid-file-url', fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+    supplierFile: {
+      findFirst: async () => supplierFile,
+      deleteMany: async () => { deleteCalled = true; return { count: 1 }; },
+    },
+  }, {
+    ...files,
+    objectKeyFromUrl: () => null,
+  });
+
+  await assert.rejects(
+    () => service.deleteSupplierFile('supplier-1', 'supplier-file-1'),
+    /Không xác định được object storage của file nhà cung cấp/,
+  );
+  assert.equal(deleteCalled, false);
+}
+
+async function assertSupplierDeleteKeepsStorageOnDatabaseFailure() {
+  const files = filesService();
+  const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
+    supplierFile: {
+      findFirst: async () => supplierFile,
+      deleteMany: async () => { throw new Error('db delete failed'); },
+    },
+  }, files);
+
+  await assert.rejects(() => service.deleteSupplierFile('supplier-1', 'supplier-file-1'), /db delete failed/);
+  assert.deepEqual(files.calls.removeIfPresent, []);
+}
+
+async function assertSupplierFileOwnership() {
+  const files = filesService();
+  let deleteCalled = false;
+  const service = new SuppliersService({
+    supplier: { findUnique: async () => ({ id: 'supplier-2', deletedAt: null }) },
+    supplierFile: {
+      findFirst: async () => null,
+      deleteMany: async () => { deleteCalled = true; return { count: 0 }; },
+    },
+  }, files);
+
+  await assert.rejects(() => service.deleteSupplierFile('supplier-2', 'supplier-file-1'), /Không tìm thấy file nhà cung cấp/);
+  assert.equal(deleteCalled, false);
+  assert.deepEqual(files.calls.removeIfPresent, []);
 }
 
 async function assertTourGuideDeleteRollback() {
@@ -190,7 +297,14 @@ async function assertTourGuideDeleteRollback() {
   await assertFinanceAttachmentDeleteRollback('payment');
   await assertFinanceInvoiceUploadCleanup();
   await assertFinanceInvoiceDeleteRollback();
+  await assertSupplierUploadCleanup();
+  await assertSupplierUploadCleanupFailure();
+  await assertSupplierUploadRequiresActor();
   await assertSupplierDeleteRollback();
+  await assertSupplierDeleteRestoreFailureIsExplicit();
+  await assertSupplierDeleteRejectsInvalidStorageMetadata();
+  await assertSupplierDeleteKeepsStorageOnDatabaseFailure();
+  await assertSupplierFileOwnership();
   await assertTourGuideDeleteRollback();
   console.log('TEST_FILE_SERVICE_ERROR_FLOWS_OK');
 })().catch((error) => {

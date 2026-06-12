@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { FileUploadSizeExceptionFilter } from '../files/file-upload-size-exception.filter';
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -148,6 +149,7 @@ export class SuppliersController {
   @Post(':id/files')
   @RequirePermissions('supplier.manage')
   @ApiConsumes('multipart/form-data')
+  @UseFilters(FileUploadSizeExceptionFilter)
   @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   addSupplierFile(
     @Param('id') id: string,

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { basename, extname } from 'node:path';
 import { Client } from 'minio';
 
-type UploadFile = {
+export type UploadFile = {
   originalname: string;
   mimetype: string;
   size: number;
@@ -29,11 +29,13 @@ export function fileUploadMaxBytes() {
 }
 
 export function assertAllowedUpload(file: Pick<UploadFile, 'originalname' | 'mimetype'>) {
-  const extension = extname(file.originalname).toLowerCase();
-  const mimeType = (file.mimetype || 'application/octet-stream').toLowerCase();
+  const fileName = normalizeFileName(file.originalname);
+  const mimeType = normalizeMimeType(file.mimetype);
+  const extension = extname(fileName).toLowerCase();
   if (deniedExtensions.has(extension) || deniedMimeTypes.has(mimeType)) {
     throw new BadRequestException('Loại file không được phép tải lên');
   }
+  return { fileName, mimeType };
 }
 
 export function fileUploadInterceptorOptions() {
@@ -49,6 +51,24 @@ export function fileUploadInterceptorOptions() {
       }
     },
   };
+}
+
+function normalizeFileName(value: unknown) {
+  if (typeof value !== 'string') throw new BadRequestException('Tên file không hợp lệ');
+  const normalizedPath = value.normalize('NFC').replace(/\\/g, '/').trim();
+  const fileName = basename(normalizedPath).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (!fileName || fileName === '.' || fileName === '..') throw new BadRequestException('Tên file không hợp lệ');
+  if (fileName.length > 255) throw new BadRequestException('Tên file không được vượt quá 255 ký tự');
+  return fileName;
+}
+
+function normalizeMimeType(value: unknown) {
+  if (value !== undefined && value !== null && typeof value !== 'string') throw new BadRequestException('MIME type của file không hợp lệ');
+  const mimeType = String(value || 'application/octet-stream').split(';', 1)[0].trim().toLowerCase() || 'application/octet-stream';
+  if (mimeType.length > 255 || !/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(mimeType)) {
+    throw new BadRequestException('MIME type của file không hợp lệ');
+  }
+  return mimeType;
 }
 
 @Injectable()
@@ -69,28 +89,42 @@ export class FilesService {
   }
 
   async upload(file: UploadFile | undefined, rawScope?: string, actorId?: string): Promise<StoredFileUpload> {
-    if (!file?.buffer || !Buffer.isBuffer(file.buffer)) throw new BadRequestException('Cần chọn file để tải lên');
-    if (!file.size || file.size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${this.maxBytes} bytes`);
-    assertAllowedUpload(file);
+    const normalized = this.normalizeUpload(file);
     await this.ensureBucket();
 
     const scope = this.safeScope(rawScope);
     const now = new Date();
-    const objectKey = `${scope}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}-${this.safeFileName(file.originalname)}`;
-    await this.client.putObject(this.bucket, objectKey, file.buffer, file.size, {
-      'Content-Type': file.mimetype || 'application/octet-stream',
-      'X-Amz-Meta-Original-Name': encodeURIComponent(file.originalname),
+    const objectKey = `${scope}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}-${this.safeFileName(normalized.originalname)}`;
+    await this.client.putObject(this.bucket, objectKey, normalized.buffer, normalized.size, {
+      'Content-Type': normalized.mimetype,
+      'X-Amz-Meta-Original-Name': encodeURIComponent(normalized.originalname),
+      'X-Amz-Meta-Original-Mime-Type': normalized.mimetype,
+      'X-Amz-Meta-File-Size': String(normalized.size),
       ...(actorId ? { 'X-Amz-Meta-Uploaded-By': actorId } : {}),
     });
 
     return {
       bucket: this.bucket,
       objectKey,
-      fileName: file.originalname,
-      mimeType: file.mimetype || 'application/octet-stream',
-      size: file.size,
+      fileName: normalized.originalname,
+      mimeType: normalized.mimetype,
+      size: normalized.size,
       url: `/api/files/download?key=${encodeURIComponent(objectKey)}`,
     };
+  }
+
+  normalizeUpload(file: UploadFile | undefined): UploadFile {
+    if (!file?.buffer || !Buffer.isBuffer(file.buffer)) throw new BadRequestException('Cần chọn file để tải lên');
+    const { fileName, mimeType } = assertAllowedUpload(file);
+    const size = Number(file.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || file.buffer.length <= 0) {
+      throw new BadRequestException('File tải lên không được để trống');
+    }
+    if (size !== file.buffer.length) {
+      throw new BadRequestException('Kích thước file không khớp với nội dung tải lên');
+    }
+    if (size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${this.maxBytes} bytes`);
+    return { originalname: fileName, mimetype: mimeType, size, buffer: file.buffer };
   }
 
   async download(objectKey?: string) {
@@ -152,14 +186,15 @@ export class FilesService {
   }
 
   private safeFileName(value: string) {
-    const extension = extname(value).toLowerCase();
+    const rawExtension = extname(value).toLowerCase();
+    const extension = /^\.[a-z0-9]{1,20}$/.test(rawExtension) ? rawExtension : '';
     const stem = basename(value, extname(value)).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
     return `${stem || 'file'}${extension}`;
   }
 
   private requiredObjectKey(value?: string) {
     const key = value?.trim();
-    if (!key || key.includes('..') || !/^[a-zA-Z0-9/_-]+\.[a-zA-Z0-9]+$/.test(key)) throw new BadRequestException('Object key không hợp lệ');
+    if (!key || key.includes('..') || !/^[a-zA-Z0-9/_-]+(?:\.[a-zA-Z0-9]{1,20})?$/.test(key)) throw new BadRequestException('Object key không hợp lệ');
     return key;
   }
 }

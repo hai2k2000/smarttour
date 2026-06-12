@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
@@ -210,7 +210,11 @@ export class SuppliersService {
         },
       });
     } catch (error) {
-      await this.filesService.removeQuietly(upload.objectKey);
+      try {
+        await this.filesService.remove(upload.objectKey);
+      } catch {
+        throw new InternalServerErrorException('Không thể lưu metadata file và không thể hoàn tác object trên storage');
+      }
       throw error;
     }
   }
@@ -220,8 +224,30 @@ export class SuppliersService {
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
     if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    if (objectKey) await this.filesService.remove(objectKey);
-    return this.prisma.supplierFile.delete({ where: { id: fileId } });
+    if (!objectKey) throw new InternalServerErrorException('Không xác định được object storage của file nhà cung cấp');
+    const deleted = await this.prisma.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
+    if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
+    try {
+      await this.filesService.removeIfPresent(objectKey);
+      return file;
+    } catch (error) {
+      try {
+        await this.prisma.supplierFile.create({
+          data: {
+            id: file.id,
+            supplierId: file.supplierId,
+            fileName: file.fileName,
+            fileUrl: file.fileUrl,
+            fileType: file.fileType,
+            uploadedBy: file.uploadedBy,
+            createdAt: file.createdAt,
+          },
+        });
+      } catch {
+        throw new InternalServerErrorException('Xóa object storage thất bại và không thể khôi phục metadata file nhà cung cấp');
+      }
+      throw error;
+    }
   }
 
   async updateSupplierStatus(id: string, status: SupplierStatus) {
