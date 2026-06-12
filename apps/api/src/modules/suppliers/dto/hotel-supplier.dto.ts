@@ -31,7 +31,12 @@ const uppercaseRequired = ({ value }: { value: unknown }) => {
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
-  return trimmed || undefined;
+  return trimmed || null;
+};
+const optionalNumber = ({ value }: { value: unknown }) => {
+  if (value === undefined) return undefined;
+  if (value === null || (typeof value === 'string' && !value.trim())) return null;
+  return typeof value === 'number' ? value : Number(value);
 };
 const maxHotelBuiltYear = new Date().getFullYear();
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
@@ -116,7 +121,7 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá kế toán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá kế toán dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá kế toán dịch vụ không được vượt quá 999.999.999.999' })
@@ -124,7 +129,7 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá thuần dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá thuần dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá thuần dịch vụ không được vượt quá 999.999.999.999' })
@@ -132,7 +137,7 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá bán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá bán dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá bán dịch vụ không được vượt quá 999.999.999.999' })
@@ -190,35 +195,35 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Tổng quỹ phòng phải là số nguyên' })
   @Min(0, { message: 'Tổng quỹ phòng không được âm' })
   allotmentQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số phòng đã đặt phải là số nguyên' })
   @Min(0, { message: 'Số phòng đã đặt không được âm' })
   bookedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số phòng đang giữ phải là số nguyên' })
   @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số lượng khóa phòng phải là số nguyên' })
   @Min(0, { message: 'Số lượng khóa phòng không được âm' })
   quantityLock?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số ngày chốt quỹ phòng phải là số nguyên' })
   @Min(0, { message: 'Số ngày chốt quỹ phòng không được âm' })
   @Max(maxSupplierAllotmentCutoffDays, { message: 'Số ngày chốt quỹ phòng không được vượt quá 365 ngày' })
@@ -226,7 +231,7 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá thuần mỗi ngày phải là số hợp lệ' })
   @Min(0, { message: 'Giá thuần mỗi ngày không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá thuần mỗi ngày không được vượt quá 999.999.999.999' })
@@ -234,7 +239,7 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá bán mỗi ngày phải là số hợp lệ' })
   @Min(0, { message: 'Giá bán mỗi ngày không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá bán mỗi ngày không được vượt quá 999.999.999.999' })
@@ -271,10 +276,10 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
-  @IsNotEmpty({ message: 'Cần nhập tên nhà cung cấp' })
-  @IsString({ message: 'Tên nhà cung cấp phải là chuỗi ký tự' })
-  @MinLength(2, { message: 'Tên nhà cung cấp phải có ít nhất 2 ký tự' })
-  @MaxLength(180, { message: 'Tên nhà cung cấp không được vượt quá 180 ký tự' })
+  @IsNotEmpty({ message: 'Cần nhập tên khách sạn' })
+  @IsString({ message: 'Tên khách sạn phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Tên khách sạn phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên khách sạn không được vượt quá 180 ký tự' })
   name!: string;
 
   @ApiPropertyOptional()
@@ -335,7 +340,7 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Năm xây dựng phải là số nguyên' })
   @Min(1800, { message: 'Năm xây dựng không được nhỏ hơn 1800' })
   @Max(maxHotelBuiltYear, { message: `Năm xây dựng không được lớn hơn ${maxHotelBuiltYear}` })
@@ -343,7 +348,7 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Xếp hạng khách sạn phải là số nguyên' })
   @Min(0, { message: 'Xếp hạng khách sạn không được nhỏ hơn 0' })
   @Max(5, { message: 'Xếp hạng khách sạn không được lớn hơn 5' })
@@ -351,7 +356,7 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
-  @IsNotEmpty({ message: 'Cần nhập hạng khách sạn' })
+  @IsNotEmpty({ message: 'Cần chọn hoặc nhập hạng khách sạn' })
   @IsString({ message: 'Hạng khách sạn phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Hạng khách sạn phải có ít nhất 2 ký tự' })
   @MaxLength(80, { message: 'Hạng khách sạn không được vượt quá 80 ký tự' })
@@ -359,10 +364,10 @@ export class CreateHotelSupplierDto {
 
   @ApiProperty()
   @Transform(trimRequired)
-  @IsNotEmpty({ message: 'Cần nhập dự án khách sạn' })
-  @IsString({ message: 'Dự án khách sạn phải là chuỗi ký tự' })
-  @MinLength(2, { message: 'Dự án khách sạn phải có ít nhất 2 ký tự' })
-  @MaxLength(180, { message: 'Dự án khách sạn không được vượt quá 180 ký tự' })
+  @IsNotEmpty({ message: 'Cần nhập dòng sản phẩm hoặc dự án khách sạn' })
+  @IsString({ message: 'Dòng sản phẩm hoặc dự án khách sạn phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Dòng sản phẩm hoặc dự án khách sạn phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Dòng sản phẩm hoặc dự án khách sạn không được vượt quá 180 ký tự' })
   hotelProject!: string;
 
   @ApiPropertyOptional()
@@ -468,21 +473,21 @@ export class UpdateSupplierStatusDto {
 export class OverrideAllotmentDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Tổng quỹ phòng phải là số nguyên' })
   @Min(0, { message: 'Tổng quỹ phòng không được âm' })
   allotmentQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số phòng đã đặt phải là số nguyên' })
   @Min(0, { message: 'Số phòng đã đặt không được âm' })
   bookedQty?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số phòng đang giữ phải là số nguyên' })
   @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
@@ -530,7 +535,7 @@ export class LockAllotmentDto {
 
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số phòng giữ chỗ phải là số nguyên' })
   @Min(1, { message: 'Số phòng giữ chỗ phải lớn hơn 0' })
   quantity?: number;

@@ -253,11 +253,11 @@ export class SuppliersService {
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
     if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    if (!objectKey) throw new InternalServerErrorException('Metadata file nhà cung cấp không có object key hợp lệ');
+    if (!objectKey) throw new InternalServerErrorException('Không xác định được object storage của file nhà cung cấp');
     const deleted = await this.prisma.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
     if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     try {
-      await this.filesService.remove(objectKey);
+      await this.filesService.removeIfPresent(objectKey);
       return file;
     } catch (error) {
       try {
@@ -522,6 +522,14 @@ export class SuppliersService {
     const hotelProfileData = this.toHotelProfileData(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
+        if (dto.status === SupplierStatus.INACTIVE) {
+          const activeAllocations = await tx.supplierAllotmentAllocation.count({
+            where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } },
+          });
+          if (activeAllocations > 0) {
+            throw new ConflictException('Không thể ngừng nhà cung cấp khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
+          }
+        }
         await tx.supplier.update({
           where: { id },
           data: {
@@ -570,9 +578,10 @@ export class SuppliersService {
         acc.lockedQty += metrics.lockedQty;
         acc.remainingQty += metrics.remainingQty;
         acc.revenue += metrics.bookedQty * Number(item.sellingPricePerDay || 0);
-        acc.activeAllotments += item.status === 'ACTIVE' && metrics.remainingQty > 0 ? 1 : 0;
+        const isCodLocked = item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil);
+        acc.activeAllotments += item.status === 'ACTIVE' && metrics.remainingQty > 0 && !isCodLocked ? 1 : 0;
         acc.stopSellAllotments += item.status === 'STOP_SELL' || metrics.remainingQty <= 0 ? 1 : 0;
-        acc.codLockedAllotments += item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil) ? 1 : 0;
+        acc.codLockedAllotments += isCodLocked ? 1 : 0;
         return acc;
       },
       { allotmentQty: 0, bookedQty: 0, lockedQty: 0, remainingQty: 0, revenue: 0, activeAllotments: 0, stopSellAllotments: 0, codLockedAllotments: 0 },
@@ -721,8 +730,7 @@ export class SuppliersService {
             "updatedAt" = NOW()
         WHERE id = ${id}
           AND status = 'ACTIVE'
-          AND "bookedQty" + "lockedQty" + ${quantity}
-            <= CASE WHEN "allotmentQty" > 0 THEN "allotmentQty" ELSE "quantityLock" END
+          AND "bookedQty" + "lockedQty" + ${quantity} <= "allotmentQty"
         RETURNING "supplierId", "bookedQty", "lockedQty"
       `);
       const reserved = reservedRows[0];
@@ -1039,6 +1047,13 @@ export class SuppliersService {
     }
 
     if (services !== undefined) {
+      const activeAllocations = await tx.supplierAllotmentAllocation.count({
+        where: { supplierId, status: { in: ['LOCKED', 'CONFIRMED'] } },
+      });
+      if (activeAllocations > 0) {
+        throw new ConflictException('Không thể thay toàn bộ dịch vụ khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
+      }
+      await tx.supplierAllotment.updateMany({ where: { supplierId, serviceId: { not: null } }, data: { serviceId: null } });
       await tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
       if (services.length) {
         await tx.supplierService.createMany({
@@ -1264,7 +1279,15 @@ export class SuppliersService {
     const codLockUntil = this.startOfUtcDay(today);
     codLockUntil.setUTCDate(codLockUntil.getUTCDate() + item.cutoffDays);
     const isCodLocked = item.startDate ? item.startDate <= codLockUntil : false;
-    const computedStatus = item.status === 'INACTIVE' ? 'INACTIVE' : item.status === 'STOP_SELL' ? 'STOP_SELL' : metrics.remainingQty <= 0 ? 'STOP_SELL' : isCodLocked ? 'COD_LOCKED' : item.status;
+    const computedStatus = item.supplier.status !== SupplierStatus.ACTIVE || item.supplier.deletedAt || item.status === 'INACTIVE'
+      ? 'INACTIVE'
+      : item.status === 'STOP_SELL'
+        ? 'STOP_SELL'
+        : metrics.remainingQty <= 0
+          ? 'STOP_SELL'
+          : isCodLocked
+            ? 'COD_LOCKED'
+            : item.status;
     const allocationSummary = item.allocations.reduce(
       (summary, allocation) => {
         if (allocation.status === 'LOCKED') summary.locked += allocation.quantity;

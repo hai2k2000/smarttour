@@ -60,10 +60,10 @@ async function main() {
 
   await expectInvalid(CreateHotelSupplierDto, {}, [
     'Cần nhập mã nhà cung cấp',
-    'Cần nhập tên nhà cung cấp',
+    'Cần nhập tên khách sạn',
     'Cần nhập số điện thoại nhà cung cấp',
-    'Cần nhập hạng khách sạn',
-    'Cần nhập dự án khách sạn',
+    'Cần chọn hoặc nhập hạng khách sạn',
+    'Cần nhập dòng sản phẩm hoặc dự án khách sạn',
   ], 'required hotel supplier fields');
 
   await expectInvalid(CreateHotelSupplierDto, {
@@ -74,10 +74,10 @@ async function main() {
     hotelProject: ' ',
   }, [
     'Cần nhập mã nhà cung cấp',
-    'Cần nhập tên nhà cung cấp',
+    'Cần nhập tên khách sạn',
     'Cần nhập số điện thoại nhà cung cấp',
-    'Cần nhập hạng khách sạn',
-    'Cần nhập dự án khách sạn',
+    'Cần chọn hoặc nhập hạng khách sạn',
+    'Cần nhập dòng sản phẩm hoặc dự án khách sạn',
   ], 'blank required hotel supplier fields');
 
   await expectInvalid(CreateHotelSupplierDto, {
@@ -134,6 +134,20 @@ async function main() {
   ], 'invalid nested hotel supplier collection types');
 
   await expectValid(UpdateHotelSupplierDto, { name: 'Khach san DTO da cap nhat' }, 'partial hotel supplier update');
+  const clearOptionalFields = plainToInstance(UpdateHotelSupplierDto, {
+    market: '   ',
+    link: '',
+    rating: null,
+    builtYear: '',
+  });
+  await expectValid(UpdateHotelSupplierDto, clearOptionalFields, 'partial hotel supplier update clearing optional profile fields');
+  assert(
+    clearOptionalFields.market === null
+      && clearOptionalFields.link === null
+      && clearOptionalFields.rating === null
+      && clearOptionalFields.builtYear === null,
+    'blank optional hotel profile fields should transform to null so updates can clear persisted values',
+  );
   await expectInvalid(UpdateHotelSupplierDto, { contacts: [{}] }, [
     'Cần nhập tên người liên hệ',
   ], 'partial hotel supplier update with invalid contact row');

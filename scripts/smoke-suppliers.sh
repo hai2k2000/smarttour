@@ -849,6 +849,19 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
       && hotelFileAfterPartialUpdate?.fileUrl === hotelUploadedFile.fileUrl,
     'hotel partial update must preserve uploaded file metadata when files are omitted',
   );
+  const clearedOptionalHotelFields = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    market: '   ',
+    link: '',
+    rating: null,
+    builtYear: '',
+  });
+  assert(
+    clearedOptionalHotelFields.hotelProfile?.market === null
+      && clearedOptionalHotelFields.hotelProfile?.link === null
+      && clearedOptionalHotelFields.hotelProfile?.rating === null
+      && clearedOptionalHotelFields.hotelProfile?.builtYear === null,
+    'hotel partial update must allow optional profile fields to be cleared',
+  );
 
   const hotelContactReplaced = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
     contacts: [{ fullName: `${run} Hotel Contact Replaced`, position: 'Reservation', phone: '0905555666' }],
@@ -894,7 +907,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const profileValidationMessage = messageOf(profileValidationError);
   assert(profileValidationMessage.includes('S\u1ed1 \u0111i\u1ec7n tho\u1ea1i'), 'hotel phone validation must be Vietnamese');
   assert(profileValidationMessage.includes('H\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel class validation must be Vietnamese');
-  assert(profileValidationMessage.includes('D\u1ef1 \u00e1n kh\u00e1ch s\u1ea1n'), 'hotel project validation must be Vietnamese');
+  assert(profileValidationMessage.includes('D\u00f2ng s\u1ea3n ph\u1ea9m ho\u1eb7c d\u1ef1 \u00e1n kh\u00e1ch s\u1ea1n'), 'hotel project validation must be Vietnamese');
   assert(profileValidationMessage.includes('Website nh\u00e0 cung c\u1ea5p'), 'hotel website validation must be Vietnamese');
   assert(profileValidationMessage.includes('Li\u00ean k\u1ebft tham kh\u1ea3o'), 'hotel link validation must be Vietnamese');
   assert(profileValidationMessage.includes('X\u1ebfp h\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel rating validation must be Vietnamese');
@@ -977,6 +990,14 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     allotments: [{ serviceName: 'Replacement inventory', allotmentQty: 3 }],
   }, [409]);
   assert(messageOf(activeReplacementError).includes('ph\u00e2n b\u1ed5 \u0111ang kh\u00f3a ho\u1eb7c \u0111\u00e3 x\u00e1c nh\u1eadn'), 'hotel update must not replace allotments with active allocations');
+  const activeServiceReplacementError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    services: [{ serviceName: 'Replacement service while allocated' }],
+  }, [409]);
+  assert(messageOf(activeServiceReplacementError).includes('dịch vụ khách sạn') && messageOf(activeServiceReplacementError).includes('phân bổ quỹ phòng'), 'hotel update must not replace services with active allocations');
+  const inactiveWithAllocationError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    status: 'INACTIVE',
+  }, [409]);
+  assert(messageOf(inactiveWithAllocationError).includes('Không thể ngừng nhà cung cấp khách sạn'), 'hotel supplier must remain active while an allocation is locked');
 
   const confirmed = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Confirm inventory smoke' });
   assert(confirmed.allocation.status === 'CONFIRMED' && confirmed.idempotent === false, 'confirm must transition a locked allocation');
@@ -1024,10 +1045,18 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   });
   const cutoffAllotmentId = cutoffHotel.allotments?.[0]?.id;
   assert(cutoffAllotmentId, 'cutoff validation fixture must expose an allotment id');
+  const dashboardAfterCutoff = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
+  assert(dashboardAfterCutoff.activeAllotments === dashboardAfterStopSell.activeAllotments, 'COD-locked inventory must not be counted as active inventory');
+  assert(dashboardAfterCutoff.stopSellAllotments === dashboardAfterStopSell.stopSellAllotments - 1, 'replacing stop-sell inventory must remove it from the stop-sell count');
+  assert(dashboardAfterCutoff.codLockedAllotments === dashboardAfterStopSell.codLockedAllotments + 1, 'dashboard must count COD-locked inventory exactly once');
+  const cutoffInventory = await request(viewToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}`);
+  assert(cutoffInventory.find((item) => item.id === cutoffAllotmentId)?.computedStatus === 'COD_LOCKED', 'inventory must expose the COD-locked computed status');
   const cutoffLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
   assert(messageOf(cutoffLockError).includes('đã tới hạn chốt'), 'allotment lock must reject inventory after the cutoff date');
 
   await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, { status: 'INACTIVE' });
+  const inactiveInventory = await request(viewToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}`);
+  assert(inactiveInventory.find((item) => item.id === cutoffAllotmentId)?.computedStatus === 'INACTIVE', 'inventory must reflect an inactive hotel supplier');
   const inactiveSupplierLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
   assert(messageOf(inactiveSupplierLockError).toLowerCase().includes('nhà cung cấp khách sạn đang ngừng hoạt động'), 'allotment lock must reject inactive hotel suppliers');
 
