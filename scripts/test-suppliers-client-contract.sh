@@ -46,6 +46,7 @@ assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== unde
 assert 'Mã dịch vụ' in hotel and 'Mã dịch vụ' in generic
 assert 'Giá thuần (NET)' in hotel and 'Giá thuần (NET)' in generic
 assert 'initialError' in hotel_page and 'initialError' in typed_page
+assert 'Nhà cung cấp / Hồ sơ khách sạn' in hotel_page and 'Hồ sơ khách sạn' in hotel_page
 assert 'supplierPageConfigs' in typed_page
 assert 'supplierConfigs' not in typed_page, 'server page must not import runtime values from a client module'
 assert 'const config = supplierConfigs[type]' in generic

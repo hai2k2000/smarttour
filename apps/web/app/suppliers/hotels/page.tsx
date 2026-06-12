@@ -39,10 +39,10 @@ export default async function HotelSuppliersPage() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Hồ sơ nhà cung cấp khách sạn</p>
+            <p className="eyebrow">Nhà cung cấp / Hồ sơ khách sạn</p>
             <h1>Nhà cung cấp khách sạn</h1>
           </div>
-          <div className="user"><Building2 size={18} /> Khách sạn <Users size={18} /> Nhân sự vận hành</div>
+          <div className="user"><Building2 size={18} /> Hồ sơ khách sạn <Users size={18} /> Nhân sự vận hành</div>
         </header>
 
         <HotelSuppliersClient initialHotels={hotels.data} initialError={hotels.error} />
