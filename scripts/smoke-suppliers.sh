@@ -595,7 +595,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
       metadata: { departureDate: '2026-06-12', departureTime: '08:30', taxPrice: '100000', route: 'HAN-SGN' },
     }],
   });
-  assert(flightSupplier.category?.name === 'Flight', 'new typed supplier should use the canonical category');
+  assert(flightSupplier.category?.name === 'Vé máy bay', 'new typed supplier should use the Vietnamese canonical category');
   assert(flightSupplier.province === `${run} Flight Province`, 'typed supplier create should normalize province');
   assert(flightSupplier.market === `${run} Flight Market`, 'typed supplier create should normalize market');
   assert(flightSupplier.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed supplier detail should include editable contacts');
@@ -623,6 +623,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   }
   const flightPartialUpdate = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, { name: `${run} Flight Metadata Updated` });
   assert(flightPartialUpdate.supplierServices?.length === 1, 'typed partial update must preserve services when services are omitted');
+  assert(flightPartialUpdate.category?.name === 'Vé máy bay', 'typed partial update must preserve the Vietnamese category mapping');
   const oldFlightServiceId = flightPartialUpdate.supplierServices[0].id;
   const flightServiceReplaced = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, {
     services: [{
@@ -649,6 +650,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     name: `${run} Restaurant Supplier`,
     phone: '0907777888',
   });
+  assert(typedSupplier.category?.name === 'Nhà hàng', 'restaurant supplier should use the Vietnamese category mapping');
   const wrongTypedSupplierError = await request(manageToken, 'DELETE', `/suppliers/flights/${typedSupplier.id}`, undefined, [404]);
   assert(messageOf(wrongTypedSupplierError).includes('Không tìm thấy nhà cung cấp thuộc loại đã chọn'), 'typed supplier mismatch should return a clear Vietnamese message');
   const wrongTypedStatusError = await request(manageToken, 'PATCH', `/suppliers/flights/${typedSupplier.id}/status`, { status: 'INACTIVE' }, [404]);

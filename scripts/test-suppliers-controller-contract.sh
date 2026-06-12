@@ -22,6 +22,10 @@ backend_types = {quoted or plain for quoted, plain in backend_types}
 frontend_types = set(re.findall(r"^\s*\|\s*'([^']+)'", frontend, re.M))
 assert backend_types == expected_types, f'backend typed supplier routes differ: {backend_types}'
 assert frontend_types == expected_types, f'frontend typed supplier routes differ: {frontend_types}'
+for label in ['Nhà hàng', 'Vé máy bay', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên']:
+    assert label in types_source, f'typed supplier label must be Vietnamese: {label}'
+for alias in ["'Restaurant'", "'Flight'", "'Other Cost'", "'Passport Visa'", "'Series Ticket'"]:
+    assert alias in types_source, f'legacy English category alias must remain supported: {alias}'
 
 assert controller.count("@RequirePermissions('supplier.view')") >= 2, 'category and supplier controllers must require supplier.view'
 assert controller.count("@RequirePermissions('supplier.manage')") == 19, 'every supplier mutation endpoint must explicitly require supplier.manage'

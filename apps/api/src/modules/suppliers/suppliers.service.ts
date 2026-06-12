@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Prisma, SupplierStatus } from '@prisma/client';
+import { Prisma, SupplierDayType, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
@@ -266,7 +266,7 @@ export class SuppliersService {
     await this.getSupplier(id);
     return this.prisma.supplier.update({
       where: { id },
-      data: { status },
+      data: { status: this.toSupplierStatus(status) },
       include: { ...this.supplierListInclude(), hotelProfile: true },
     });
   }
@@ -322,6 +322,7 @@ export class SuppliersService {
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
+    this.validateSupplierPayload(dto, false, false);
     this.validateTypedSupplierPayload(typedRoute, dto);
     const category = await this.ensureCategoryByName(getTypeLabel(typedRoute));
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
@@ -347,6 +348,7 @@ export class SuppliersService {
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
     await this.ensureTypedSupplier(typedRoute, id);
+    this.validateSupplierPayload(dto, true, false);
     this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     try {
@@ -369,7 +371,7 @@ export class SuppliersService {
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
     const typedRoute = this.getTypedRoute(type);
     await this.ensureTypedSupplier(typedRoute, id);
-    return this.prisma.supplier.update({ where: { id }, data: { status }, include: this.genericInclude() });
+    return this.prisma.supplier.update({ where: { id }, data: { status: this.toSupplierStatus(status) }, include: this.genericInclude() });
   }
 
   async deleteTypedSupplier(type: string, id: string) {
@@ -456,6 +458,7 @@ export class SuppliersService {
   }
 
   async createHotelSupplier(dto: CreateHotelSupplierDto) {
+    this.validateSupplierPayload(dto, false, false);
     const category = await this.ensureCategoryByName('Hotel');
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
@@ -493,6 +496,7 @@ export class SuppliersService {
 
   async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto) {
     await this.getHotelSupplier(id);
+    this.validateSupplierPayload(dto, true, false);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     const hotelProfileData = this.toHotelProfileData(dto);
     try {
@@ -897,52 +901,57 @@ export class SuppliersService {
   }
 
   private async ensureCategory(id: string) {
-    if (!this.optionalText(id)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
-    const category = await this.prisma.supplierCategory.findUnique({ where: { id } });
+    const categoryId = this.requiredText(id, 'Cần chọn loại nhà cung cấp');
+    const category = await this.prisma.supplierCategory.findUnique({ where: { id: categoryId } });
     if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
     return category;
   }
 
   private async ensureCategoryByName(name: string) {
-    const categories = await this.prisma.supplierCategory.findMany();
-    const existing = categories.find((category) => this.categoryNameKey(category.name) === this.categoryNameKey(name));
+    const categoryName = this.requiredLabel(name, 'Cần cấu hình loại nhà cung cấp');
+    const existing = await this.findCategoryByName(categoryName);
     if (existing) return existing;
     try {
-      return await this.prisma.supplierCategory.create({ data: { name } });
+      return await this.prisma.supplierCategory.create({ data: { name: categoryName } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const concurrent = await this.prisma.supplierCategory.findFirst({
-          where: { name: { equals: name, mode: 'insensitive' } },
-        });
+        const concurrent = await this.findCategoryByName(categoryName);
         if (concurrent) return concurrent;
+        throw new ConflictException(SUPPLIER_ERRORS.categoryExists);
       }
       throw error;
     }
   }
 
+  private async findCategoryByName(name: string) {
+    const key = this.categoryNameKey(name);
+    const categories = await this.prisma.supplierCategory.findMany();
+    return categories.find((category) => this.categoryNameKey(category.name) === key) || null;
+  }
+
   private toSupplierData(dto: UpdateSupplierDto & Partial<CreateHotelSupplierDto & CreateGenericSupplierDto>) {
     return {
       ...(dto.categoryId !== undefined ? { categoryId: this.requiredText(dto.categoryId, 'Cần chọn loại nhà cung cấp') } : {}),
-      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalCode(dto.supplierCode) } : {}),
+      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalCode(dto.supplierCode, 'Mã nhà cung cấp') } : {}),
       ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Tên nhà cung cấp phải có ít nhất 2 ký tự') } : {}),
-      ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode) } : {}),
-      ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson) } : {}),
-      ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone) } : {}),
-      ...(dto.email !== undefined ? { email: this.optionalText(dto.email) } : {}),
-      ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country) } : {}),
-      ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province) } : {}),
-      ...(dto.address !== undefined ? { address: this.optionalText(dto.address) } : {}),
-      ...(dto.website !== undefined ? { website: this.optionalText(dto.website) } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalText(dto.link) } : {}),
+      ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode, 'Mã số thuế') } : {}),
+      ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson, 'Người liên hệ') } : {}),
+      ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone, 'Số điện thoại nhà cung cấp') } : {}),
+      ...(dto.email !== undefined ? { email: this.optionalText(dto.email, 'Email nhà cung cấp') } : {}),
+      ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country, 'Quốc gia') } : {}),
+      ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province, 'Tỉnh/thành') } : {}),
+      ...(dto.address !== undefined ? { address: this.optionalText(dto.address, 'Địa chỉ nhà cung cấp') } : {}),
+      ...(dto.website !== undefined ? { website: this.optionalText(dto.website, 'Website') } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalText(dto.link, 'Liên kết') } : {}),
       ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market) } : {}),
-      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
-      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber) } : {}),
-      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName) } : {}),
-      ...(dto.pricePolicy !== undefined ? { pricePolicy: this.optionalText(dto.pricePolicy) } : {}),
-      ...(dto.debtNote !== undefined ? { debtNote: this.optionalText(dto.debtNote) } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes) } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
+      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
+      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
+      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName, 'Tên ngân hàng') } : {}),
+      ...(dto.pricePolicy !== undefined ? { pricePolicy: this.optionalText(dto.pricePolicy, 'Chính sách giá') } : {}),
+      ...(dto.debtNote !== undefined ? { debtNote: this.optionalText(dto.debtNote, 'Ghi chú công nợ') } : {}),
+      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes, 'Ghi chú nhà cung cấp') } : {}),
+      ...(dto.status !== undefined ? { status: this.toSupplierStatus(dto.status) } : {}),
     };
   }
 
@@ -952,11 +961,11 @@ export class SuppliersService {
       ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
       ...(dto.classHotel !== undefined ? { classHotel: this.requiredLabel(dto.classHotel, 'Cần nhập hạng khách sạn') } : {}),
       ...(dto.hotelProject !== undefined ? { hotelProject: this.requiredLabel(dto.hotelProject, 'Cần nhập dự án khách sạn') } : {}),
-      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName) } : {}),
-      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber) } : {}),
-      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName) } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market) } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalText(dto.link) } : {}),
+      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
+      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
+      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName, 'Tên ngân hàng') } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalText(dto.link, 'Liên kết') } : {}),
     };
   }
 
@@ -965,50 +974,35 @@ export class SuppliersService {
     supplierId: string,
     dto: Partial<CreateHotelSupplierDto>,
   ) {
-    if (dto.contacts) {
+    const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');
+    const servicesInput = this.optionalArray(dto.services, 'Danh sách dịch vụ khách sạn');
+    const allotmentsInput = this.optionalArray(dto.allotments, 'Danh sách quỹ phòng');
+    const contacts = contactsInput ? this.normalizeSupplierContacts(contactsInput) : undefined;
+    const services = servicesInput ? this.normalizeHotelServices(servicesInput) : undefined;
+    const allotments = allotmentsInput ? this.normalizeHotelAllotments(allotmentsInput) : undefined;
+
+    if (contacts !== undefined) {
       await tx.supplierContact.deleteMany({ where: { supplierId } });
-      const contacts = dto.contacts.filter((item) => item.fullName?.trim());
       if (contacts.length) {
         await tx.supplierContact.createMany({
           data: contacts.map((item) => ({
             supplierId,
-            fullName: item.fullName.trim(),
-            position: this.optionalText(item.position),
-            birthday: this.optionalDate(item.birthday, 'Ngày sinh người liên hệ'),
-            phone: this.optionalText(item.phone),
-            email: this.optionalText(item.email),
+            ...item,
           })),
         });
       }
     }
 
-    if (dto.services) {
+    if (services !== undefined) {
       await tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
-      const services = dto.services.filter((item) => item.serviceName?.trim());
       if (services.length) {
         await tx.supplierService.createMany({
-          data: services.map((item) => {
-            const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'dịch vụ');
-            return {
-              supplierId,
-              sku: this.optionalText(item.sku),
-              serviceName: item.serviceName.trim(),
-              startDate,
-              endDate,
-              dayType: item.dayType ?? 'ALL_DAYS',
-              quantity: 1,
-              accountingPrice: item.accountingPrice ?? 0,
-              netPrice: item.netPrice ?? 0,
-              sellingPrice: item.sellingPrice ?? 0,
-              description: this.optionalText(item.description),
-              note: this.optionalText(item.note),
-            };
-          }),
+          data: services.map((item) => ({ supplierId, ...item })),
         });
       }
     }
 
-    if (dto.allotments !== undefined) {
+    if (allotments !== undefined) {
       const activeAllocations = await tx.supplierAllotmentAllocation.count({
         where: { supplierId, status: { in: ['LOCKED', 'CONFIRMED'] } },
       });
@@ -1016,36 +1010,9 @@ export class SuppliersService {
         throw new ConflictException('Không thể thay toàn bộ quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
       }
       await tx.supplierAllotment.deleteMany({ where: { supplierId } });
-      const allotments = dto.allotments.filter((item) => item.serviceName?.trim());
       if (allotments.length) {
         await tx.supplierAllotment.createMany({
-          data: allotments.map((item) => {
-            const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
-            const allotmentQty = item.allotmentQty ?? item.quantityLock ?? 0;
-            const bookedQty = item.bookedQty ?? 0;
-            const lockedQty = item.lockedQty ?? item.quantityLock ?? 0;
-            if (bookedQty + lockedQty > allotmentQty) {
-              throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
-            }
-            return {
-              supplierId,
-              sku: this.optionalText(item.sku),
-              serviceName: item.serviceName.trim(),
-              startDate,
-              endDate,
-              dayType: item.dayType ?? 'ALL_DAYS',
-              allotmentQty,
-              bookedQty,
-              lockedQty,
-              quantityLock: item.quantityLock ?? 0,
-              cutoffDays: item.cutoffDays ?? 0,
-              netCostPerDay: item.netCostPerDay ?? 0,
-              sellingPricePerDay: item.sellingPricePerDay ?? 0,
-              status: item.status || 'ACTIVE',
-              description: this.optionalText(item.description),
-              note: this.optionalText(item.note),
-            };
-          }),
+          data: allotments.map((item) => ({ supplierId, ...item })),
         });
       }
     }
@@ -1057,43 +1024,158 @@ export class SuppliersService {
     dto: Partial<CreateGenericSupplierDto>,
     type: TypedSupplierRoute,
   ) {
-    if (dto.contacts) {
+    const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');
+    const servicesInput = this.optionalArray(dto.services, 'Danh sách dịch vụ');
+    const contacts = contactsInput ? this.normalizeSupplierContacts(contactsInput) : undefined;
+    const services = servicesInput ? this.normalizeGenericServices(servicesInput, type) : undefined;
+
+    if (contacts !== undefined) {
       await tx.supplierContact.deleteMany({ where: { supplierId } });
-      const contacts = dto.contacts.filter((item) => item.fullName?.trim());
       if (contacts.length) {
         await tx.supplierContact.createMany({
           data: contacts.map((item) => ({
             supplierId,
-            fullName: item.fullName.trim(),
-            position: this.optionalText(item.position),
-            birthday: this.optionalDate(item.birthday, 'Ngày sinh người liên hệ'),
-            phone: this.optionalText(item.phone),
-            email: this.optionalText(item.email),
+            ...item,
           })),
         });
       }
     }
 
-    if (dto.services) {
+    if (services !== undefined) {
       await tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
-      const services = dto.services.filter((item) => item.serviceName?.trim());
       if (services.length) {
         await tx.supplierService.createMany({
-          data: services.map((item) => ({
-            supplierId,
-            sku: this.optionalText(item.sku),
-            serviceName: item.serviceName.trim(),
-            quantity: item.quantity ?? 1,
-            accountingPrice: item.accountingPrice ?? 0,
-            netPrice: item.netPrice ?? 0,
-            sellingPrice: item.sellingPrice ?? 0,
-            description: this.optionalText(item.description),
-            note: this.optionalText(item.note),
-            metadata: item.metadata ? (this.normalizeTypedMetadata(type, item.metadata) as Prisma.InputJsonValue) : Prisma.JsonNull,
-          })),
+          data: services.map((item) => ({ supplierId, ...item })),
         });
       }
     }
+  }
+
+  private normalizeSupplierContacts(
+    items: Array<{ fullName?: string; position?: string; birthday?: string; phone?: string; email?: string }>,
+  ): Array<Omit<Prisma.SupplierContactCreateManyInput, 'supplierId'>> {
+    return items.map((item, index) => {
+      const row = `dòng liên hệ ${index + 1}`;
+      return {
+        fullName: this.requiredText(item.fullName, `Cần nhập họ tên ${row}`),
+        position: this.optionalText(item.position, `Chức vụ ${row}`),
+        birthday: this.optionalDate(item.birthday, `Ngày sinh ${row}`),
+        phone: this.optionalText(item.phone, `Số điện thoại ${row}`),
+        email: this.optionalText(item.email, `Email ${row}`),
+      };
+    });
+  }
+
+  private normalizeGenericServices(
+    items: Array<{
+      sku?: string;
+      serviceName?: string;
+      quantity?: number;
+      accountingPrice?: number;
+      netPrice?: number;
+      sellingPrice?: number;
+      description?: string;
+      note?: string;
+      metadata?: Record<string, unknown>;
+    }>,
+    type: TypedSupplierRoute,
+  ): Array<Omit<Prisma.SupplierServiceCreateManyInput, 'supplierId'>> {
+    return items.map((item, index) => {
+      const row = `dòng dịch vụ ${index + 1}`;
+      return {
+        sku: this.optionalText(item.sku, `Mã dịch vụ ${row}`),
+        serviceName: this.requiredText(item.serviceName, `Cần nhập tên dịch vụ ${row}`),
+        quantity: this.optionalNonNegativeInt(item.quantity, `Số lượng ${row}`) ?? 1,
+        accountingPrice: this.optionalNonNegativeNumber(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
+        netPrice: this.optionalNonNegativeNumber(item.netPrice, `Giá thuần ${row}`) ?? 0,
+        sellingPrice: this.optionalNonNegativeNumber(item.sellingPrice, `Giá bán ${row}`) ?? 0,
+        description: this.optionalText(item.description, `Mô tả ${row}`),
+        note: this.optionalText(item.note, `Ghi chú ${row}`),
+        metadata: item.metadata ? (this.normalizeTypedMetadata(type, item.metadata) as Prisma.InputJsonValue) : Prisma.JsonNull,
+      };
+    });
+  }
+
+  private normalizeHotelServices(
+    items: Array<{
+      sku?: string;
+      serviceName?: string;
+      startDate?: string;
+      endDate?: string;
+      dayType?: SupplierDayType;
+      accountingPrice?: number;
+      netPrice?: number;
+      sellingPrice?: number;
+      description?: string;
+      note?: string;
+    }>,
+  ): Array<Omit<Prisma.SupplierServiceCreateManyInput, 'supplierId'>> {
+    return items.map((item, index) => {
+      const row = `dòng dịch vụ ${index + 1}`;
+      const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'dịch vụ');
+      return {
+        sku: this.optionalText(item.sku, `Mã dịch vụ ${row}`),
+        serviceName: this.requiredText(item.serviceName, `Cần nhập tên dịch vụ ${row}`),
+        startDate,
+        endDate,
+        dayType: this.toDayType(item.dayType),
+        quantity: 1,
+        accountingPrice: this.optionalNonNegativeNumber(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
+        netPrice: this.optionalNonNegativeNumber(item.netPrice, `Giá thuần ${row}`) ?? 0,
+        sellingPrice: this.optionalNonNegativeNumber(item.sellingPrice, `Giá bán ${row}`) ?? 0,
+        description: this.optionalText(item.description, `Mô tả ${row}`),
+        note: this.optionalText(item.note, `Ghi chú ${row}`),
+      };
+    });
+  }
+
+  private normalizeHotelAllotments(
+    items: Array<{
+      sku?: string;
+      serviceName?: string;
+      startDate?: string;
+      endDate?: string;
+      dayType?: SupplierDayType;
+      allotmentQty?: number;
+      bookedQty?: number;
+      lockedQty?: number;
+      quantityLock?: number;
+      cutoffDays?: number;
+      netCostPerDay?: number;
+      sellingPricePerDay?: number;
+      status?: string;
+      description?: string;
+      note?: string;
+    }>,
+  ): Array<Omit<Prisma.SupplierAllotmentCreateManyInput, 'supplierId'>> {
+    return items.map((item, index) => {
+      const row = `dòng quỹ phòng ${index + 1}`;
+      const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
+      const quantityLock = this.optionalNonNegativeInt(item.quantityLock, `Số lượng khóa phòng ${row}`) ?? 0;
+      const allotmentQty = this.optionalNonNegativeInt(item.allotmentQty, `Tổng quỹ phòng ${row}`) ?? quantityLock;
+      const bookedQty = this.optionalNonNegativeInt(item.bookedQty, `Số phòng đã đặt ${row}`) ?? 0;
+      const lockedQty = this.optionalNonNegativeInt(item.lockedQty, `Số phòng đang giữ ${row}`) ?? quantityLock;
+      if (bookedQty + lockedQty > allotmentQty) {
+        throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
+      }
+      return {
+        sku: this.optionalText(item.sku, `Mã quỹ phòng ${row}`),
+        serviceName: this.requiredText(item.serviceName, `Cần nhập tên quỹ phòng ${row}`),
+        startDate,
+        endDate,
+        dayType: this.toDayType(item.dayType),
+        allotmentQty,
+        bookedQty,
+        lockedQty,
+        quantityLock,
+        cutoffDays: this.optionalNonNegativeInt(item.cutoffDays, `Số ngày chốt quỹ phòng ${row}`) ?? 0,
+        netCostPerDay: this.optionalNonNegativeNumber(item.netCostPerDay, `Giá thuần mỗi ngày ${row}`) ?? 0,
+        sellingPricePerDay: this.optionalNonNegativeNumber(item.sellingPricePerDay, `Giá bán mỗi ngày ${row}`) ?? 0,
+        status: this.toAllotmentStatus(item.status),
+        description: this.optionalText(item.description, `Mô tả ${row}`),
+        note: this.optionalText(item.note, `Ghi chú ${row}`),
+      };
+    });
   }
 
   private hotelInclude() {
@@ -1229,9 +1311,10 @@ export class SuppliersService {
   }
 
   private validateTypedSupplierPayload(type: TypedSupplierRoute, dto: Partial<CreateGenericSupplierDto>) {
-    for (const service of dto.services ?? []) {
-      if (service.metadata) this.normalizeTypedMetadata(type, service.metadata);
-    }
+    const contacts = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');
+    const services = this.optionalArray(dto.services, 'Danh sách dịch vụ');
+    if (contacts !== undefined) this.normalizeSupplierContacts(contacts);
+    if (services !== undefined) this.normalizeGenericServices(services, type);
   }
 
   private normalizeTypedMetadata(type: TypedSupplierRoute, metadata: Record<string, unknown>) {
@@ -1289,34 +1372,37 @@ export class SuppliersService {
     return text;
   }
 
-  private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false) {
-    if (!partial || dto.categoryId !== undefined) {
-      if (!this.optionalText(dto.categoryId)) throw new BadRequestException('Cần chọn loại nhà cung cấp');
+  private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false, requireCategory = true) {
+    if (requireCategory && (!partial || dto.categoryId !== undefined)) {
+      if (!this.optionalText(dto.categoryId, 'Mã loại nhà cung cấp')) throw new BadRequestException('Cần chọn loại nhà cung cấp');
     }
 
     if (!partial || dto.name !== undefined) {
-      const name = this.optionalText(dto.name);
+      const name = this.optionalText(dto.name, 'Tên nhà cung cấp');
       if (!name || name.length < 2) throw new BadRequestException('Tên nhà cung cấp phải có ít nhất 2 ký tự');
     }
 
-    const phone = this.optionalText(dto.phone);
+    const phone = this.optionalText(dto.phone, 'Số điện thoại nhà cung cấp');
     if (phone && !SUPPLIER_PHONE_PATTERN.test(phone)) {
       throw new BadRequestException('Số điện thoại nhà cung cấp không hợp lệ');
     }
 
-    if (dto.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email.trim())) {
+    const email = this.optionalText(dto.email, 'Email nhà cung cấp');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new BadRequestException('Email nhà cung cấp không hợp lệ');
     }
 
-    const pricePolicy = this.optionalText(dto.pricePolicy);
+    const pricePolicy = this.optionalText(dto.pricePolicy, 'Chính sách giá');
     if (pricePolicy && pricePolicy.length > 2000) {
       throw new BadRequestException('Chính sách giá không được vượt quá 2.000 ký tự');
     }
 
-    const debtNote = this.optionalText(dto.debtNote);
+    const debtNote = this.optionalText(dto.debtNote, 'Ghi chú công nợ');
     if (debtNote && debtNote.length > 2000) {
       throw new BadRequestException('Ghi chú công nợ không được vượt quá 2.000 ký tự');
     }
+
+    if (dto.status !== undefined) this.toSupplierStatus(dto.status);
   }
 
   private isSpecializedSupplier(supplier: { hotelProfile?: unknown; category?: { name: string } | null }) {
@@ -1452,24 +1538,62 @@ export class SuppliersService {
     throw error;
   }
 
-  private optionalCode(value?: string | null) {
-    const code = this.optionalText(value);
+  private toSupplierStatus(value: unknown) {
+    if (Object.values(SupplierStatus).includes(value as SupplierStatus)) return value as SupplierStatus;
+    throw new BadRequestException('Trạng thái nhà cung cấp không hợp lệ');
+  }
+
+  private toDayType(value?: unknown) {
+    if (value === undefined || value === null || value === '') return SupplierDayType.ALL_DAYS;
+    if (Object.values(SupplierDayType).includes(value as SupplierDayType)) return value as SupplierDayType;
+    throw new BadRequestException('Loại ngày dịch vụ không hợp lệ');
+  }
+
+  private toAllotmentStatus(value?: unknown) {
+    if (value === undefined || value === null || value === '') return 'ACTIVE';
+    if (['ACTIVE', 'INACTIVE', 'STOP_SELL'].includes(String(value))) return String(value);
+    throw new BadRequestException('Trạng thái quỹ phòng không hợp lệ');
+  }
+
+  private optionalArray<T>(value: T[] | undefined | null, fieldName: string) {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value)) throw new BadRequestException(`${fieldName} phải là danh sách hợp lệ`);
+    return value;
+  }
+
+  private optionalCode(value?: unknown, fieldName = 'Mã') {
+    const code = this.optionalText(value, fieldName);
     return code ? code.toUpperCase() : null;
   }
 
-  private optionalText(value?: string | null) {
-    const trimmed = value?.trim();
+  private optionalText(value?: unknown, fieldName = 'Giá trị văn bản') {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string') throw new BadRequestException(`${fieldName} phải là chuỗi ký tự`);
+    const trimmed = value.trim();
     return trimmed ? trimmed : null;
   }
 
-  private optionalLabel(value?: string | null) {
-    return this.optionalText(value)?.replace(/\s+/g, ' ') ?? null;
+  private optionalLabel(value?: unknown, fieldName = 'Nhãn') {
+    return this.optionalText(value, fieldName)?.replace(/\s+/g, ' ') ?? null;
   }
 
-  private optionalNumber(value?: number, fieldName = 'Giá trị số') {
-    if (value === undefined) return null;
-    if (!Number.isFinite(value)) throw new BadRequestException(`${fieldName} không hợp lệ`);
-    return value;
+  private optionalNumber(value?: unknown, fieldName = 'Giá trị số') {
+    if (value === undefined || value === null || value === '') return null;
+    const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : Number.NaN;
+    if (!Number.isFinite(number)) throw new BadRequestException(`${fieldName} không hợp lệ`);
+    return number;
+  }
+
+  private optionalNonNegativeNumber(value?: unknown, fieldName = 'Giá trị số') {
+    const number = this.optionalNumber(value, fieldName);
+    if (number !== null && number < 0) throw new BadRequestException(`${fieldName} không được âm`);
+    return number;
+  }
+
+  private optionalNonNegativeInt(value?: unknown, fieldName = 'Giá trị số') {
+    const number = this.optionalNonNegativeNumber(value, fieldName);
+    if (number !== null && !Number.isInteger(number)) throw new BadRequestException(`${fieldName} phải là số nguyên`);
+    return number;
   }
 
   private startOfUtcDay(value: Date) {
@@ -1486,10 +1610,11 @@ export class SuppliersService {
     return date;
   }
 
-  private optionalDate(value?: string, fieldName = 'Ngày') {
-    if (!value) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return this.parseDateOnly(value, fieldName);
-    const date = new Date(value);
+  private optionalDate(value?: string | null, fieldName = 'Ngày') {
+    const text = this.optionalText(value, fieldName);
+    if (!text) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return this.parseDateOnly(text, fieldName);
+    const date = new Date(text);
     if (Number.isNaN(date.getTime())) throw new BadRequestException(`${fieldName} không hợp lệ`);
     return date;
   }

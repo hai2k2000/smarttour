@@ -52,7 +52,12 @@ for message in required_messages:
     assert message in source, f'Missing standardized Vietnamese message: {message}'
 
 assert "message = 'Cần nhập trường bắt buộc'" in service, 'requiredText must provide a Vietnamese default message'
-assert 'Number.isFinite(value)' in service, 'optionalNumber must reject non-finite values'
+assert 'Number.isFinite(number)' in service, 'optionalNumber must reject non-finite values'
+assert 'optionalNonNegativeNumber' in service and 'optionalNonNegativeInt' in service, 'supplier child numeric rows must be validated before persistence'
+assert 'toSupplierStatus' in service and 'Trạng thái nhà cung cấp không hợp lệ' in service, 'supplier status must be validated in the service layer'
+assert 'toDayType' in service and 'Loại ngày dịch vụ không hợp lệ' in service, 'supplier day type must be validated in the service layer'
+assert 'toAllotmentStatus' in service and 'Trạng thái quỹ phòng không hợp lệ' in service, 'allotment status must be validated in the service layer'
+assert 'normalizeGenericServices' in service and 'normalizeHotelAllotments' in service, 'child rows must be normalized before delete/create replacement'
 assert 'Number.isNaN(date.getTime())' in service, 'optionalDate must reject invalid dates'
 assert 'optionalDateRange' in service, 'supplier child date ranges must be checked before persistence'
 assert 'Ngày bắt đầu ${subject} không được sau ngày kết thúc ${subject}' in service, 'date-range helper must return a Vietnamese message'

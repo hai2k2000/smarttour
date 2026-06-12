@@ -1,34 +1,34 @@
 export const SUPPLIER_TYPE_LABELS = {
-  restaurants: 'Restaurant',
-  flights: 'Flight',
-  'attraction-tickets': 'Attraction Ticket',
-  'landtour-suppliers': 'LandTour Supplier',
-  water: 'Water',
-  transport: 'Transport',
-  bus: 'Bus',
-  other: 'Other Cost',
-  villas: 'Villa',
-  passport: 'Passport Visa',
-  guides: 'Tour Guide',
-  'series-tickets': 'Series Ticket',
+  restaurants: 'Nhà hàng',
+  flights: 'Vé máy bay',
+  'attraction-tickets': 'Vé tham quan',
+  'landtour-suppliers': 'Land Tour',
+  water: 'Nước uống',
+  transport: 'Vận chuyển',
+  bus: 'Nhà xe',
+  other: 'Chi phí khác',
+  villas: 'Biệt thự',
+  passport: 'Visa và hộ chiếu',
+  guides: 'Hướng dẫn viên',
+  'series-tickets': 'Vé series',
 } as const;
 
 export type TypedSupplierRoute = keyof typeof SUPPLIER_TYPE_LABELS;
 export type SupplierMetadataFieldType = 'text' | 'number' | 'date' | 'time' | 'datetime';
 
 export const SUPPLIER_TYPE_CATEGORY_ALIASES: Record<TypedSupplierRoute, readonly string[]> = {
-  restaurants: [],
-  flights: ['Flight Ticket'],
-  'attraction-tickets': [],
-  'landtour-suppliers': ['Landtour'],
-  water: [],
-  transport: ['Vehicle'],
-  bus: [],
-  other: [],
-  villas: [],
-  passport: [],
-  guides: [],
-  'series-tickets': [],
+  restaurants: ['Restaurant'],
+  flights: ['Flight', 'Flight Ticket'],
+  'attraction-tickets': ['Attraction Ticket'],
+  'landtour-suppliers': ['LandTour Supplier', 'Landtour'],
+  water: ['Water'],
+  transport: ['Transport', 'Vehicle'],
+  bus: ['Bus'],
+  other: ['Other Cost'],
+  villas: ['Villa'],
+  passport: ['Passport Visa'],
+  guides: ['Tour Guide'],
+  'series-tickets': ['Series Ticket'],
 };
 
 export const SUPPLIER_TYPE_METADATA_FIELDS: Record<TypedSupplierRoute, Readonly<Record<string, SupplierMetadataFieldType>>> = {
