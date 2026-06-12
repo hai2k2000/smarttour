@@ -634,17 +634,36 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     services: [{
       sku: `${run}-FLIGHT-OLD-SKU`,
       serviceName: 'Vé máy bay khứ hồi',
+      quantity: '2',
+      accountingPrice: '950000.75',
       netPrice: 1000000,
-      sellingPrice: 1200000,
+      sellingPrice: '1200000.25',
       description: `${run} Flight Description`,
       note: `${run} Flight Note`,
-      metadata: { departureDate: '2026-06-12', departureTime: '08:30', taxPrice: '100000', route: 'HAN-SGN' },
+      metadata: {
+        departureDate: '2026-06-12',
+        departureTime: '08:30',
+        returnDate: '2026-06-15',
+        returnTime: '18:45',
+        depositDeadline: '2026-05-01T10:30:00+07:00',
+        taxPrice: '100000',
+        route: 'HAN-SGN',
+      },
     }],
   });
   assert(flightSupplier.category?.name === 'Vé máy bay', 'new typed supplier should use the Vietnamese canonical category');
   assert(flightSupplier.province === `${run} Flight Province`, 'typed supplier create should normalize province');
   assert(flightSupplier.market === `${run} Flight Market`, 'typed supplier create should normalize market');
   assert(flightSupplier.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed supplier detail should include editable contacts');
+  assert(flightSupplier.supplierServices?.[0]?.quantity === 2, 'typed service quantity should parse numeric strings on create');
+  assert(Number(flightSupplier.supplierServices?.[0]?.accountingPrice) === 950000.75, 'typed accounting price should parse decimal strings on create');
+  assert(Number(flightSupplier.supplierServices?.[0]?.netPrice) === 1000000, 'typed net price should persist numeric values on create');
+  assert(Number(flightSupplier.supplierServices?.[0]?.sellingPrice) === 1200000.25, 'typed selling price should parse decimal strings on create');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.departureDate === '2026-06-12', 'typed flight departure date metadata must stay date-only without timezone drift');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.departureTime === '08:30', 'typed flight departure time metadata must stay HH:mm');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.returnDate === '2026-06-15', 'typed flight return date metadata must stay date-only without timezone drift');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.returnTime === '18:45', 'typed flight return time metadata must stay HH:mm');
+  assert(flightSupplier.supplierServices?.[0]?.metadata?.depositDeadline === '2026-05-01T10:30:00+07:00', 'typed flight datetime metadata must preserve the submitted offset string');
   assert(flightSupplier.supplierServices?.[0]?.metadata?.taxPrice === 100000, 'typed numeric metadata should be normalized before persistence');
   const typedUploadedFile = await uploadRequest(manageToken, `/suppliers/${flightSupplier.id}/files`, 'typed-supplier-note.txt', 'text/plain', 'typed supplier file smoke');
   const flightDetailWithFile = await request(manageToken, 'GET', `/suppliers/flights/${flightSupplier.id}`);
@@ -694,15 +713,24 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     services: [{
       sku: `${run}-FLIGHT-NEW-SKU`,
       serviceName: 'Vé máy bay nội địa',
-      netPrice: 900000,
-      sellingPrice: 1100000,
+      quantity: '3',
+      accountingPrice: '850000.50',
+      netPrice: '900000.25',
+      sellingPrice: '1100000.75',
       description: `${run} Flight Description Updated`,
-      metadata: { departureDate: '2026-06-13', departureTime: '09:30', taxPrice: '90000', route: 'HAN-DAD' },
+      metadata: { departureDate: '2026-06-13', departureTime: '09:30', returnDate: '2026-06-16', returnTime: '20:15', taxPrice: '90000', route: 'HAN-DAD' },
     }],
   });
   assert(flightServiceReplaced.supplierServices?.length === 1, 'typed service replacement should return one active service');
   assert(flightServiceReplaced.supplierServices[0].id !== oldFlightServiceId, 'typed service replacement should create a fresh active service');
+  assert(flightServiceReplaced.supplierServices[0].quantity === 3, 'typed service replacement should parse quantity strings');
+  assert(Number(flightServiceReplaced.supplierServices[0].accountingPrice) === 850000.5, 'typed service replacement should parse accounting price strings');
+  assert(Number(flightServiceReplaced.supplierServices[0].netPrice) === 900000.25, 'typed service replacement should parse net price strings');
+  assert(Number(flightServiceReplaced.supplierServices[0].sellingPrice) === 1100000.75, 'typed service replacement should parse selling price strings');
   assert(flightServiceReplaced.supplierServices[0].metadata?.taxPrice === 90000, 'typed replacement metadata should be normalized');
+  assert(flightServiceReplaced.supplierServices[0].metadata?.departureDate === '2026-06-13', 'typed replacement flight departure date should remain date-only');
+  assert(flightServiceReplaced.supplierServices[0].metadata?.returnDate === '2026-06-16', 'typed replacement flight return date should remain date-only');
+  assert(flightServiceReplaced.supplierServices[0].metadata?.returnTime === '20:15', 'typed replacement flight return time should remain HH:mm');
   assert(flightServiceReplaced.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed service replacement must preserve contacts when contacts are omitted');
   assert(flightServiceReplaced.files?.some((file) => file.id === typedUploadedFile.id), 'typed service replacement must preserve files when files are omitted');
   await request(manageToken, 'DELETE', `/suppliers/${flightSupplier.id}/files/${typedUploadedFile.id}`);
@@ -715,6 +743,46 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(newServiceSearch.some((item) => item.id === flightSupplier.id), 'typed service replacement should expose the new active service in list search');
   const typedServiceDeleteError = await request(manageToken, 'DELETE', `/suppliers/flights/${flightSupplier.id}`, undefined, [409]);
   assert(messageOf(typedServiceDeleteError).includes('dịch vụ nhà cung cấp'), 'typed delete should use the shared relation safety guard');
+
+  const guideSupplier = await request(manageToken, 'POST', '/suppliers/guides', {
+    supplierCode: `${run}-GUIDE-METADATA`,
+    name: `${run} Guide Metadata Supplier`,
+    phone: '0907777888',
+    services: [{
+      serviceName: 'Hướng dẫn viên tiếng Anh',
+      sellingPrice: '1500000.50',
+      metadata: {
+        birthday: '1990-12-31',
+        phone: '0907777999',
+        email: `guide-${lowerRun}@smarttour.local`,
+        languages: 'Tiếng Anh',
+        regions: 'Miền Bắc',
+        dailyRate: '1450000.75',
+      },
+    }],
+  });
+  assert(guideSupplier.supplierServices?.[0]?.metadata?.birthday === '1990-12-31', 'guide birthday metadata must remain date-only');
+  assert(guideSupplier.supplierServices?.[0]?.metadata?.dailyRate === 1450000.75, 'guide dailyRate metadata should parse numeric strings');
+  assert(Number(guideSupplier.supplierServices?.[0]?.sellingPrice) === 1500000.5, 'guide selling price should parse decimal strings');
+
+  const seriesSupplier = await request(manageToken, 'POST', '/suppliers/series-tickets', {
+    supplierCode: `${run}-SERIES-METADATA`,
+    name: `${run} Series Metadata Supplier`,
+    phone: '0907777888',
+    services: [{
+      serviceName: 'Series vé giữ chỗ',
+      metadata: {
+        seriesCode: `${run}-SERIES`,
+        route: 'HAN-DAD',
+        depositDeadline: '2026-07-01',
+        nameDeadline: '2026-07-10',
+        fullPaymentDeadline: '2026-07-20',
+      },
+    }],
+  });
+  assert(seriesSupplier.supplierServices?.[0]?.metadata?.depositDeadline === '2026-07-01', 'series deposit deadline must stay date-only');
+  assert(seriesSupplier.supplierServices?.[0]?.metadata?.nameDeadline === '2026-07-10', 'series name deadline must stay date-only');
+  assert(seriesSupplier.supplierServices?.[0]?.metadata?.fullPaymentDeadline === '2026-07-20', 'series full payment deadline must stay date-only');
 
   const typedSupplier = await request(manageToken, 'POST', '/suppliers/restaurants', {
     supplierCode: `${run}-RESTAURANT`,
