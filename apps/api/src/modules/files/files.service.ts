@@ -19,8 +19,34 @@ export type StoredFileUpload = {
   url: string;
 };
 
-const deniedExtensions = new Set(['.bat', '.cmd', '.com', '.exe', '.htm', '.html', '.js', '.mjs', '.cjs', '.ps1', '.sh', '.svg']);
-const deniedMimeTypes = new Set(['image/svg+xml', 'text/html', 'text/javascript', 'application/javascript']);
+const allowedExtensions = new Set([
+  '.bmp', '.csv', '.doc', '.docx', '.gif', '.heic', '.heif', '.jpeg', '.jpg', '.ods', '.odt', '.pdf', '.png',
+  '.rar', '.rtf', '.tif', '.tiff', '.txt', '.webp', '.xls', '.xlsx', '.zip',
+]);
+const allowedMimeTypes = new Set([
+  'application/csv',
+  'application/msword',
+  'application/octet-stream',
+  'application/pdf',
+  'application/rtf',
+  'application/vnd.ms-excel',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/x-rar-compressed',
+  'application/zip',
+  'image/bmp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/jpeg',
+  'image/png',
+  'image/tiff',
+  'image/webp',
+  'text/csv',
+  'text/plain',
+]);
 const defaultMaxBytes = 10 * 1024 * 1024;
 
 export function fileUploadMaxBytes() {
@@ -37,8 +63,11 @@ export function assertAllowedUpload(file: Pick<UploadFile, 'originalname' | 'mim
   const fileName = normalizeFileName(file.originalname);
   const mimeType = normalizeMimeType(file.mimetype);
   const extension = extname(fileName).toLowerCase();
-  if (deniedExtensions.has(extension) || deniedMimeTypes.has(mimeType)) {
-    throw new BadRequestException('Loại file không được phép tải lên');
+  if (!allowedExtensions.has(extension)) {
+    throw new BadRequestException('Định dạng file không được phép tải lên. Chỉ hỗ trợ tài liệu, bảng tính, ảnh, file nén và file văn bản phổ biến.');
+  }
+  if (!allowedMimeTypes.has(mimeType)) {
+    throw new BadRequestException('MIME type của file không được phép tải lên. Vui lòng chọn tài liệu, bảng tính, ảnh, file nén hoặc file văn bản hợp lệ.');
   }
   return { fileName, mimeType };
 }

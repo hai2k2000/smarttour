@@ -639,9 +639,11 @@ function typedMatrixPayload(type, suffix) {
 
   await uploadRequest(viewToken, `/suppliers/${supplier.id}/files`, 'forbidden.txt', 'text/plain', 'forbidden', [403]);
   const blockedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.svg', 'image/svg+xml', '<svg />', [400]);
-  assert(messageOf(blockedUpload).includes('Loại file không được phép'), 'dangerous supplier file type should be rejected');
+  assert(messageOf(blockedUpload).includes('Định dạng file không được phép'), 'dangerous supplier file type should be rejected');
   const blockedExtensionUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.js', 'text/plain', 'console.log(1)', [400]);
-  assert(messageOf(blockedExtensionUpload).includes('Loại file không được phép'), 'dangerous supplier file extension should be rejected even with a safe mime type');
+  assert(messageOf(blockedExtensionUpload).includes('Định dạng file không được phép'), 'dangerous supplier file extension should be rejected even with a safe mime type');
+  const blockedMimeUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.txt', 'text/html', '<script></script>', [400]);
+  assert(messageOf(blockedMimeUpload).includes('MIME type của file không được phép'), 'dangerous supplier file MIME type should be rejected even with an allowed extension');
   const emptyUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'empty.txt', 'text/plain', '', [400]);
   assert(messageOf(emptyUpload).includes('File t\u1ea3i l\u00ean kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1ec3 tr\u1ed1ng'), 'empty supplier file should be rejected');
   const oversizedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'oversized.txt', 'text/plain', 'x'.repeat(10 * 1024 * 1024 + 1), [413]);

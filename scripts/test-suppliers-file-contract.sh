@@ -9,8 +9,14 @@ suppliers_service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').
 frontend_upload = Path('apps/web/app/suppliers/uploadSupplierFiles.ts').read_text()
 smoke = Path('scripts/smoke-suppliers.sh').read_text()
 
-for denied in ["'.svg'", "'.js'", "'.sh'", "'image/svg+xml'", "'text/html'", "'application/javascript'"]:
-    assert denied in files_service, f'{denied} must remain blocked for supplier uploads'
+assert 'const allowedExtensions = new Set' in files_service, 'supplier uploads must use an explicit extension allowlist'
+assert 'const allowedMimeTypes = new Set' in files_service, 'supplier uploads must use an explicit MIME type allowlist'
+for allowed in ["'.pdf'", "'.docx'", "'.xlsx'", "'.jpg'", "'.png'", "'.zip'", "'text/plain'", "'application/pdf'", "'image/jpeg'"]:
+    assert allowed in files_service, f'{allowed} must remain allowed for supplier uploads'
+for unsafe in ["'.svg'", "'.js'", "'.sh'", "'image/svg+xml'", "'text/html'", "'application/javascript'"]:
+    assert unsafe not in files_service, f'{unsafe} must not be present in the supplier upload allowlist'
+assert 'Định dạng file không được phép tải lên' in files_service, 'unsupported upload extensions must return a Vietnamese message'
+assert 'MIME type của file không được phép tải lên' in files_service, 'unsupported upload MIME types must return a Vietnamese message'
 assert 'const defaultMaxBytes = 10 * 1024 * 1024' in files_service, 'supplier upload default limit must remain 10 MB'
 assert 'export function fileUploadLimitLabel' in files_service, 'service-level upload errors must use the same human-readable limit label'
 assert files_service.count('assertAllowedUpload(file)') >= 2, 'mime/extension validation must run in both interceptor and service upload path'
@@ -34,6 +40,7 @@ for field in ['fileName', 'fileUrl', 'fileType', 'uploadedBy', 'createdAt']:
 assert 'return `${apiBase}${fileUrl}`' in frontend_upload, 'frontend must use the backend download URL directly'
 
 assert "'blocked.js'" in smoke and "'text/plain'" in smoke, 'smoke must prove dangerous extensions are blocked even with a safe mime type'
+assert "'blocked.txt'" in smoke and "'text/html'" in smoke, 'smoke must prove dangerous MIME types are blocked even with an allowed extension'
 assert 'uploadedFile.fileUrl.includes' in smoke, 'smoke must assert download URL metadata is returned'
 assert 'uploadedFile.createdAt' in smoke and 'uploadedFile.uploadedBy' in smoke, 'smoke must assert upload response metadata'
 assert 'wrong-supplier delete must not remove the storage object' in smoke, 'smoke must protect file ownership on delete'

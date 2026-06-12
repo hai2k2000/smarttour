@@ -40,16 +40,32 @@ for method in manage_methods:
     assert re.search(pattern, controller), f'{method} must require supplier.manage'
 
 assert "@Get(':id')" not in controller, 'duplicate single-segment detail route must not return'
-for static_route in ["@Get('hotels')", "@Get('hotel-allotments/dashboard')", "@Get('hotel-allotments/inventory')"]:
+for static_route in ["@Get('hotels')", "@Get('hotels/:id')", "@Get('hotel-allotments/dashboard')", "@Get('hotel-allotments/inventory')", "@Patch('hotel-allotments/:id/override')", "@Post('hotel-allotments/:id/lock')", "@Post('hotel-allotment-allocations/:id/confirm')", "@Post('hotel-allotment-allocations/:id/release')"]:
     assert controller.index(static_route) < controller.index("@Get(':routeKey')"), f'{static_route} must be declared before dynamic route dispatch'
+assert "@Controller('supplier-categories')" in controller, 'supplier category routes must stay outside the dynamic /suppliers/:routeKey namespace'
 assert 'isTypedSupplierRoute(routeKey)' in controller, 'single-segment dispatcher must distinguish typed routes from supplier ids'
-assert 'deleteTypedSupplier(type, id)' in controller and 'async deleteTypedSupplier' in service, 'typed delete must validate type before deleting'
+remove_typed_match = re.search(r"removeTyped\([\s\S]*?\n\s*}\n", controller)
+assert remove_typed_match, 'typed delete controller method must exist'
+remove_typed_body = remove_typed_match.group(0)
+assert 'deleteTypedSupplier(type, id)' in remove_typed_body, 'typed delete controller must delegate to the typed-safe service method'
+assert 'getTypedSupplier(type, id).then' not in remove_typed_body and 'deleteSupplier(id)' not in remove_typed_body, 'typed delete must not validate then delete a generic supplier id directly'
+delete_typed_match = re.search(r"async deleteTypedSupplier\([\s\S]*?\n\s*}\n", service)
+assert delete_typed_match, 'typed delete service method must exist'
+delete_typed_body = delete_typed_match.group(0)
+assert 'await this.ensureTypedSupplier(typedRoute, id)' in delete_typed_body and 'return this.deleteSupplierRecord(id)' in delete_typed_body, 'typed delete must validate the supplier category before soft-deleting the shared supplier record'
 assert '@Query() query: HotelSupplierListQueryDto' in controller, 'hotel list query must be validated'
 assert '@Query() query: AllotmentInventoryQueryDto' in controller, 'allotment inventory query must be validated'
 assert "FileInterceptor('file', fileUploadInterceptorOptions())" in controller, 'supplier upload must use shared file limits and filtering'
 assert '@UseFilters(FileUploadSizeExceptionFilter)' in controller, 'supplier upload must translate oversized files to the shared Vietnamese error response'
 assert 'const defaultMaxBytes = 10 * 1024 * 1024' in files_service, 'default supplier upload limit must remain 10 MB'
 assert 'limits: { fileSize: maxBytes }' in files_service, 'multer must enforce the configured upload limit before service persistence'
+assert 'const allowedExtensions = new Set' in files_service and 'const allowedMimeTypes = new Set' in files_service, 'uploads must use an explicit allowlist for file extension and MIME type'
+for token in ["'.pdf'", "'.docx'", "'.xlsx'", "'.jpg'", "'.png'", "'.zip'", "'text/plain'", "'application/pdf'", "'image/jpeg'"]:
+    assert token in files_service, f'allowed upload policy must include common supplier attachment token {token}'
+for token in ['.js', '.svg', 'text/html', 'application/javascript']:
+    assert token not in files_service, f'unsafe upload token must not be allowed: {token}'
+assert 'Định dạng file không được phép tải lên' in files_service, 'unsupported extensions must return a Vietnamese validation message'
+assert 'MIME type của file không được phép tải lên' in files_service, 'unsupported MIME types must return a Vietnamese validation message'
 assert 'File vượt quá giới hạn ${limitLabel} MB' in upload_filter, 'oversized uploads must return a Vietnamese 10 MB policy message'
 assert "this.requiredText(actorId, 'Không xác định được người tải file')" in service, 'supplier upload must require an authenticated actor id'
 
