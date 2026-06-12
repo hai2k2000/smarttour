@@ -5,11 +5,18 @@ python3 - <<'PYTEST'
 from pathlib import Path
 
 service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
+operations_service = Path('apps/api/src/modules/operations/operations.service.ts').read_text()
 hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text()
 generic_dto = Path('apps/api/src/modules/suppliers/dto/generic-supplier.dto.ts').read_text()
-source = '\n'.join((service, hotel_dto, generic_dto))
+source = '\n'.join((service, operations_service, hotel_dto, generic_dto))
 
 english_fragments = [
+    'Hotel supplier not found',
+    'Allotment not found',
+    'Booked plus locked quantity cannot exceed allotment quantity',
+    'At least one supplier payment item is required',
+    'Payment item amount must be greater than zero',
+    'Tour not found',
     'supplier not found',
     'supplier type not found',
     'typed supplier not found',
@@ -25,6 +32,7 @@ for fragment in english_fragments:
 
 required_messages = [
     'Không tìm thấy nhà cung cấp',
+    'Không tìm thấy nhà cung cấp khách sạn',
     'Không tìm thấy nhà cung cấp thuộc loại đã chọn',
     'Loại nhà cung cấp không được hỗ trợ',
     'Không tìm thấy file nhà cung cấp',
@@ -32,9 +40,13 @@ required_messages = [
     'Mã nhà cung cấp đã tồn tại',
     'Dịch vụ không khớp với quỹ phòng',
     'Số lượng quỹ phòng còn lại không đủ',
+    'Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng',
     'Không tìm thấy phân bổ quỹ phòng',
     'Trạng thái quỹ phòng không hợp lệ',
     'Ngày bắt đầu dịch vụ không hợp lệ',
+    'Cần ít nhất một dòng thanh toán nhà cung cấp',
+    'Số tiền thanh toán phải lớn hơn 0',
+    'Không tìm thấy tour',
 ]
 for message in required_messages:
     assert message in source, f'Missing standardized Vietnamese message: {message}'
