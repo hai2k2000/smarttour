@@ -440,6 +440,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await uploadRequest(viewToken, `/suppliers/${supplier.id}/files`, 'forbidden.txt', 'text/plain', 'forbidden', [403]);
   const blockedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.svg', 'image/svg+xml', '<svg />', [400]);
   assert(messageOf(blockedUpload).includes('Loại file không được phép'), 'dangerous supplier file type should be rejected');
+  const blockedExtensionUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'blocked.js', 'text/plain', 'console.log(1)', [400]);
+  assert(messageOf(blockedExtensionUpload).includes('Loại file không được phép'), 'dangerous supplier file extension should be rejected even with a safe mime type');
   const emptyUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'empty.txt', 'text/plain', '', [400]);
   assert(messageOf(emptyUpload).includes('File t\u1ea3i l\u00ean kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1ec3 tr\u1ed1ng'), 'empty supplier file should be rejected');
   const oversizedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'oversized.txt', 'text/plain', 'x'.repeat(10 * 1024 * 1024 + 1), [413]);
@@ -447,6 +449,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const uploadedFile = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'supplier-note.txt', 'text/plain', 'supplier file smoke');
   assert(uploadedFile.id && uploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'supplier upload should record the authenticated user id');
   assert(uploadedFile.fileName === 'supplier-note.txt' && uploadedFile.fileType === 'text/plain', 'supplier upload should persist normalized file metadata');
+  assert(uploadedFile.createdAt && uploadedFile.fileUrl.includes('/api/files/download?key='), 'supplier upload should expose createdAt and a download URL with an object key');
   let uploadedDownload = await fetch(new URL(uploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${manageToken}` } });
   assert(uploadedDownload.status === 200 && await uploadedDownload.text() === 'supplier file smoke', 'uploaded supplier object must be downloadable');
   const wrongSupplierFileError = await request(manageToken, 'DELETE', `/suppliers/${usedSupplierId}/files/${uploadedFile.id}`, undefined, [404]);

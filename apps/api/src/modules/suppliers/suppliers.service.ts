@@ -236,11 +236,11 @@ export class SuppliersService {
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
     if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    if (!objectKey) throw new InternalServerErrorException('Không xác định được object storage của file nhà cung cấp');
+    if (!objectKey) throw new InternalServerErrorException('Metadata file nhà cung cấp không có object key hợp lệ');
     const deleted = await this.prisma.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
     if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     try {
-      await this.filesService.removeIfPresent(objectKey);
+      await this.filesService.remove(objectKey);
       return file;
     } catch (error) {
       try {

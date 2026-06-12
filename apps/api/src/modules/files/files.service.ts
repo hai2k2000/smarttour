@@ -28,6 +28,11 @@ export function fileUploadMaxBytes() {
   return Number.isFinite(configured) && configured > 0 ? configured : defaultMaxBytes;
 }
 
+export function fileUploadLimitLabel(maxBytes = fileUploadMaxBytes()) {
+  const megabytes = maxBytes / (1024 * 1024);
+  return Number.isInteger(megabytes) ? `${megabytes} MB` : `${maxBytes} bytes`;
+}
+
 export function assertAllowedUpload(file: Pick<UploadFile, 'originalname' | 'mimetype'>) {
   const fileName = normalizeFileName(file.originalname);
   const mimeType = normalizeMimeType(file.mimetype);
@@ -123,7 +128,7 @@ export class FilesService {
     if (size !== file.buffer.length) {
       throw new BadRequestException('Kích thước file không khớp với nội dung tải lên');
     }
-    if (size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${this.maxBytes} bytes`);
+    if (size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${fileUploadLimitLabel(this.maxBytes)}`);
     return { originalname: fileName, mimetype: mimeType, size, buffer: file.buffer };
   }
 
@@ -165,7 +170,8 @@ export class FilesService {
   objectKeyFromUrl(fileUrl?: string | null) {
     if (!fileUrl) return null;
     try {
-      return new URL(fileUrl, 'http://smarttour.local').searchParams.get('key');
+      const key = new URL(fileUrl, 'http://smarttour.local').searchParams.get('key');
+      return key ? this.requiredObjectKey(key) : null;
     } catch {
       return null;
     }
