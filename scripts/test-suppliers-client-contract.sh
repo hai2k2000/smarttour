@@ -32,7 +32,7 @@ for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHo
 assert "authJsonHeaders()" in shared and "authHeaders()" in shared
 assert 'HTTP ${response.status}' in shared
 assert "supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const" in shared
-assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared and "INACTIVE: 'Tạm ngừng'" in shared
+assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared and "INACTIVE: 'Ngừng hoạt động'" in shared
 assert 'title={label}' in shared, 'supplier status badges should expose the Vietnamese label as a concise tooltip'
 assert 'uploadSupplierFiles' in shared
 assert '/files/${file.id}' in hotel and '/files/${file.id}' in generic
@@ -45,9 +45,9 @@ assert 'Quỹ phòng được quản lý riêng' in hotel
 assert "mode === 'create' ? { allotments:" in hotel, 'hotel edits must not replace allotments implicitly'
 assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== undefined" in hotel, 'hotel edits must only send dirty child collection snapshots'
 assert 'Mã dịch vụ' in hotel and 'Mã dịch vụ' in generic
-assert 'Giá thuần (NET)' in hotel and 'Giá thuần (NET)' in generic
+assert 'Giá NET' in hotel and 'Giá thuần (NET)' in generic
 assert 'initialError' in hotel_page and 'initialError' in typed_page
-assert 'Nhà cung cấp / Hồ sơ khách sạn' in hotel_page and 'Hồ sơ khách sạn' in hotel_page
+assert 'Phân hệ nhà cung cấp' in hotel_page and 'Hồ sơ khách sạn' in hotel_page
 assert 'supplierPageConfigs' in typed_page
 assert 'supplierConfigs' not in typed_page, 'server page must not import runtime values from a client module'
 assert 'const config = supplierConfigs[type]' in generic

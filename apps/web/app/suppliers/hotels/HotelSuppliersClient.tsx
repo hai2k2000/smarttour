@@ -83,17 +83,23 @@ type HotelSupplier = {
   address: string | null;
   website: string | null;
   notes?: string | null;
+  rating?: number | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankName?: string | null;
+  market?: string | null;
+  link?: string | null;
   status: SupplierLifecycleStatus;
   hotelProfile: {
-    builtYear: number | null;
-    rating: number | null;
-    classHotel: string;
-    hotelProject: string;
-    bankAccountName: string | null;
-    bankAccountNumber: string | null;
-    bankName: string | null;
-    market: string | null;
-    link: string | null;
+    builtYear?: number | null;
+    rating?: number | null;
+    classHotel?: string | null;
+    hotelProject?: string | null;
+    bankAccountName?: string | null;
+    bankAccountNumber?: string | null;
+    bankName?: string | null;
+    market?: string | null;
+    link?: string | null;
   } | null;
   contacts?: ContactLine[];
   supplierServices?: ServiceLine[];
@@ -298,7 +304,7 @@ const hotelSchema = z.object({
 
 type HotelForm = z.infer<typeof hotelSchema>;
 type ArrayName = 'contacts' | 'services' | 'allotments';
-type ColumnSpec = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'time' | 'email' | 'tel' | 'select' | 'textarea'; readOnly?: boolean };
+type ColumnSpec = { key: string; label: string; tooltip?: string; type?: 'text' | 'number' | 'date' | 'time' | 'email' | 'tel' | 'select' | 'textarea'; readOnly?: boolean };
 type DirtyCollections = Partial<Record<ArrayName, unknown>>;
 
 const emptyContact = { fullName: '', position: '', birthday: '', phone: '', email: '' };
@@ -405,12 +411,17 @@ function optionalNumberValue(value: unknown) {
 
 function dateOnly(value?: unknown) {
   if (value === undefined || value === null || value === '') return '';
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    return [
+      value.getUTCFullYear(),
+      String(value.getUTCMonth() + 1).padStart(2, '0'),
+      String(value.getUTCDate()).padStart(2, '0'),
+    ].join('-');
+  }
   const text = String(value).trim();
   const dateOnlyMatch = /^(\d{4}-\d{2}-\d{2})/.exec(text);
-  if (dateOnlyMatch) return dateOnlyMatch[1];
-  const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+  return dateOnlyMatch && isOptionalDateOnly(dateOnlyMatch[1]) ? dateOnlyMatch[1] : '';
 }
 
 function asDayType(value: unknown): HotelForm['services'][number]['dayType'] {
@@ -430,7 +441,7 @@ function asSupplierLifecycleStatus(value: unknown): SupplierLifecycleStatus {
 }
 
 function allotmentDisplayMetrics(allotment: AllotmentLine) {
-  const total = numberValue(allotment.allotmentQty ?? allotment.quantityLock);
+  const total = numberValue(allotment.allotmentQty);
   const booked = numberValue(allotment.bookedQty);
   const locked = numberValue(allotment.lockedQty ?? allotment.quantityLock);
   const remaining = numberValue(allotment.remainingQty, Math.max(0, total - booked - locked));
@@ -439,36 +450,36 @@ function allotmentDisplayMetrics(allotment: AllotmentLine) {
 }
 
 function toForm(hotel: HotelSupplier): HotelForm {
-  const hotelProfile = hotel.hotelProfile;
+  const hotelProfile = (hotel.hotelProfile || {}) as NonNullable<HotelSupplier['hotelProfile']>;
   return {
     supplierCode: textValue(hotel.supplierCode),
     name: textValue(hotel.name),
     taxCode: textValue(hotel.taxCode),
-    builtYear: optionalNumberValue(hotelProfile?.builtYear),
+    builtYear: optionalNumberValue(hotelProfile.builtYear),
     phone: textValue(hotel.phone),
     email: textValue(hotel.email),
     country: textValue(hotel.country, 'Việt Nam') || 'Việt Nam',
     province: textValue(hotel.province),
     address: textValue(hotel.address),
     notes: textValue(hotel.notes),
-    rating: numberValue(hotelProfile?.rating),
+    rating: numberValue(hotelProfile.rating ?? hotel.rating),
     website: textValue(hotel.website),
-    classHotel: textValue(hotelProfile?.classHotel),
-    hotelProject: textValue(hotelProfile?.hotelProject),
-    bankAccountName: textValue(hotelProfile?.bankAccountName),
-    bankAccountNumber: textValue(hotelProfile?.bankAccountNumber),
-    bankName: textValue(hotelProfile?.bankName),
-    market: textValue(hotelProfile?.market),
-    link: textValue(hotelProfile?.link),
+    classHotel: textValue(hotelProfile.classHotel),
+    hotelProject: textValue(hotelProfile.hotelProject),
+    bankAccountName: textValue(hotelProfile.bankAccountName ?? hotel.bankAccountName),
+    bankAccountNumber: textValue(hotelProfile.bankAccountNumber ?? hotel.bankAccountNumber),
+    bankName: textValue(hotelProfile.bankName ?? hotel.bankName),
+    market: textValue(hotelProfile.market ?? hotel.market),
+    link: textValue(hotelProfile.link ?? hotel.link),
     status: asSupplierLifecycleStatus(hotel.status),
-    contacts: hotel.contacts?.length ? hotel.contacts.map((item) => ({
+    contacts: Array.isArray(hotel.contacts) && hotel.contacts.length ? hotel.contacts.map((item) => ({
       fullName: textValue(item.fullName),
       position: textValue(item.position),
       birthday: dateOnly(item.birthday),
       phone: textValue(item.phone),
       email: textValue(item.email),
-    })) : [emptyContact],
-    services: hotel.supplierServices?.length ? hotel.supplierServices.map((item) => ({
+    })) : [createFieldArrayRow(emptyContact) as HotelForm['contacts'][number]],
+    services: Array.isArray(hotel.supplierServices) && hotel.supplierServices.length ? hotel.supplierServices.map((item) => ({
       sku: textValue(item.sku),
       serviceName: textValue(item.serviceName),
       startDate: dateOnly(item.startDate),
@@ -479,8 +490,8 @@ function toForm(hotel: HotelSupplier): HotelForm {
       sellingPrice: numberValue(item.sellingPrice),
       description: textValue(item.description),
       note: textValue(item.note),
-    })) : [emptyService],
-    allotments: hotel.allotments?.length ? hotel.allotments.map((item) => {
+    })) : [createFieldArrayRow(emptyService) as HotelForm['services'][number]],
+    allotments: Array.isArray(hotel.allotments) && hotel.allotments.length ? hotel.allotments.map((item) => {
       const lockedQty = numberValue(item.lockedQty ?? item.quantityLock);
       return {
         sku: textValue(item.sku),
@@ -488,7 +499,7 @@ function toForm(hotel: HotelSupplier): HotelForm {
         startDate: dateOnly(item.startDate),
         endDate: dateOnly(item.endDate),
         dayType: asDayType(item.dayType),
-        allotmentQty: numberValue(item.allotmentQty ?? item.quantityLock),
+        allotmentQty: numberValue(item.allotmentQty),
         bookedQty: numberValue(item.bookedQty),
         lockedQty,
         cutoffDays: numberValue(item.cutoffDays),
@@ -498,7 +509,7 @@ function toForm(hotel: HotelSupplier): HotelForm {
         description: textValue(item.description),
         note: textValue(item.note),
       };
-    }) : [emptyAllotment],
+    }) : [createFieldArrayRow(emptyAllotment) as HotelForm['allotments'][number]],
   };
 }
 
@@ -545,7 +556,7 @@ export default function HotelSuppliersClient({
   }, [canView]);
 
   const allotmentSummary = useMemo(() => hotels.flatMap((hotel) => hotel.allotments || []).reduce((acc, item) => {
-    const total = numberValue(item.allotmentQty ?? item.quantityLock);
+    const total = numberValue(item.allotmentQty);
     const booked = numberValue(item.bookedQty);
     const locked = numberValue(item.lockedQty ?? item.quantityLock);
     acc.total += total;
@@ -578,7 +589,7 @@ export default function HotelSuppliersClient({
         header: 'Quỹ phòng',
         cell: ({ row }) => {
           const rows = row.original.allotments || [];
-          const total = rows.reduce((sum, item) => sum + numberValue(item.allotmentQty ?? item.quantityLock), 0);
+          const total = rows.reduce((sum, item) => sum + numberValue(item.allotmentQty), 0);
           return `${rows.length} gói / ${total.toLocaleString('vi-VN')} phòng`;
         },
       }),
@@ -615,6 +626,7 @@ export default function HotelSuppliersClient({
       return true;
     } catch (error) {
       const message = errorText(error, 'Không tải được danh sách nhà cung cấp khách sạn.');
+      setHotels([]);
       setListError(message);
       setNotice({ type: 'error', text: message });
       return false;
@@ -707,6 +719,11 @@ export default function HotelSuppliersClient({
   async function startEdit(hotel: HotelSupplier) {
     setBusyAction(`edit:${hotel.id}`);
     setNotice(null);
+    setEditingId(null);
+    setFormOpen(false);
+    setFiles([]);
+    setPendingFiles([]);
+    reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     try {
       const detail = await supplierApi<HotelSupplier>(`/api/suppliers/hotels/${hotel.id}`, {}, 'Tải thông tin nhà cung cấp khách sạn');
       setEditingId(detail.id);
@@ -755,6 +772,8 @@ export default function HotelSuppliersClient({
   async function openAllotments(hotel: HotelSupplier) {
     setBusyAction(`allotments:${hotel.id}`);
     setNotice(null);
+    setSelectedHotel(null);
+    setBookings([]);
     try {
       const [detail, bookingRows] = await Promise.all([
         supplierApi<HotelSupplier>(`/api/suppliers/hotels/${hotel.id}`, {}, 'Tải quỹ phòng khách sạn'),
@@ -786,7 +805,7 @@ export default function HotelSuppliersClient({
     const path = allotmentAction.type === 'override'
       ? `/api/suppliers/hotel-allotments/${allotment.id}/override`
       : `/api/suppliers/hotel-allotments/${allotment.id}/lock`;
-    const currentTotal = numberValue(allotment.allotmentQty ?? allotment.quantityLock);
+    const currentTotal = numberValue(allotment.allotmentQty);
     const currentBooked = numberValue(allotment.bookedQty);
     const currentLocked = numberValue(allotment.lockedQty ?? allotment.quantityLock);
     const currentRemaining = numberValue(allotment.remainingQty, Math.max(0, currentTotal - currentBooked - currentLocked));
@@ -927,15 +946,15 @@ export default function HotelSuppliersClient({
                     <th>Khách sạn</th>
                     <th>Quỹ phòng</th>
                     <th>Giai đoạn</th>
-                    <th>Số lượng</th>
-                    <th>Giá và hạn chốt</th>
+                    <th title="Tổng quỹ, số phòng đã xác nhận, đang giữ và còn khả dụng">Tình trạng quỹ phòng</th>
+                    <th title="Giá NET, giá bán, số ngày chốt trước và tỷ lệ đã bán hoặc giữ">Giá bán và hạn chốt</th>
                     <th>Trạng thái</th>
                     <th>Cảnh báo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {inventoryRows.map((item) => {
-                    const total = numberValue(item.allotmentQty ?? item.quantityLock);
+                    const total = numberValue(item.allotmentQty);
                     const booked = numberValue(item.bookedQty);
                     const locked = numberValue(item.lockedQty ?? item.quantityLock);
                     const remaining = numberValue(item.remainingQty, Math.max(0, total - booked - locked));
@@ -954,7 +973,7 @@ export default function HotelSuppliersClient({
                         <td><div className="supplierPrimaryCell"><strong title={item.serviceName}>{item.serviceName}</strong><span>{item.sku || dayTypeLabel(item.dayType || 'ALL_DAYS')}</span></div></td>
                         <td><span>{dateOnly(item.startDate) || 'Không giới hạn'}</span><br /><span>{dateOnly(item.endDate) || 'Không giới hạn'}</span></td>
                         <td><div className="inventoryQuantities"><span>Tổng: <strong>{formatNumber(total)}</strong></span><span>Đã xác nhận: <strong>{formatNumber(booked)}</strong></span><span>Đang giữ: <strong>{formatNumber(locked)}</strong></span><span>Còn: <strong>{formatNumber(remaining)}</strong></span></div></td>
-                        <td><div className="inventoryQuantities"><span>NET: <strong>{formatNumber(item.netCostPerDay)}</strong></span><span>Bán: <strong>{formatNumber(item.sellingPricePerDay)}</strong></span><span>Chốt trước: <strong>{formatNumber(item.cutoffDays)} ngày</strong></span><span>Đã bán/giữ: <strong>{formatNumber(item.sellThroughRate)}%</strong></span></div></td>
+                        <td><div className="inventoryQuantities"><span title="Giá thuần mỗi phòng mỗi đêm">Giá NET/phòng/đêm: <strong>{formatNumber(item.netCostPerDay)}</strong></span><span title="Giá bán mỗi phòng mỗi đêm">Giá bán/phòng/đêm: <strong>{formatNumber(item.sellingPricePerDay)}</strong></span><span title="Số ngày phải chốt quỹ trước ngày bắt đầu">Chốt trước: <strong>{formatNumber(item.cutoffDays)} ngày</strong></span><span title="Tỷ lệ phòng đã xác nhận hoặc đang giữ trên tổng quỹ">Đã bán/giữ: <strong>{formatNumber(item.sellThroughRate)}%</strong></span></div></td>
                         <td><SupplierStatus status={status} /></td>
                         <td><div className={`inventoryWarnings ${warnings.length ? 'inventoryWarningsAttention' : ''}`}>{warnings.length ? warnings.map((warning) => <span key={warning}>{warning}</span>) : <span>Ổn định</span>}</div></td>
                       </tr>
@@ -1051,15 +1070,15 @@ export default function HotelSuppliersClient({
                     { key: 'email', label: 'Email', type: 'email' },
                   ]} emptyRow={emptyContact} />
 
-                  <DynamicRows title="Dịch vụ và sản phẩm" name="services" register={register} errors={errors} fieldArray={services} columns={[
+                  <DynamicRows title="Dịch vụ khách sạn" name="services" register={register} errors={errors} fieldArray={services} columns={[
                     { key: 'sku', label: 'Mã dịch vụ' },
                     { key: 'serviceName', label: 'Tên dịch vụ *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
-                    { key: 'dayType', label: 'Loại ngày', type: 'select' },
-                    { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
-                    { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
-                    { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
+                    { key: 'dayType', label: 'Ngày áp dụng', tooltip: 'Loại ngày áp dụng giá dịch vụ', type: 'select' },
+                    { key: 'accountingPrice', label: 'Giá hạch toán', tooltip: 'Mức giá dùng cho hạch toán nội bộ', type: 'number' },
+                    { key: 'netPrice', label: 'Giá NET', tooltip: 'Giá thuần nhà cung cấp, chưa gồm phần chênh lệch bán', type: 'number' },
+                    { key: 'sellingPrice', label: 'Giá bán đề xuất', tooltip: 'Mức giá bán đề xuất cho khách hàng', type: 'number' },
                     { key: 'description', label: 'Diễn giải', type: 'textarea' },
                     { key: 'note', label: 'Ghi chú', type: 'textarea' },
                   ]} emptyRow={emptyService} />
@@ -1069,11 +1088,11 @@ export default function HotelSuppliersClient({
                     { key: 'serviceName', label: 'Tên hạng phòng *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
-                    { key: 'dayType', label: 'Loại ngày', type: 'select' },
-                    { key: 'allotmentQty', label: 'Tổng quỹ phòng', type: 'number' },
-                    { key: 'cutoffDays', label: 'Số ngày chốt quỹ', type: 'number' },
-                    { key: 'netCostPerDay', label: 'Giá thuần mỗi ngày', type: 'number' },
-                    { key: 'sellingPricePerDay', label: 'Giá bán mỗi ngày', type: 'number' },
+                    { key: 'dayType', label: 'Ngày áp dụng', tooltip: 'Loại ngày áp dụng cho quỹ phòng', type: 'select' },
+                    { key: 'allotmentQty', label: 'Tổng số phòng', tooltip: 'Tổng số phòng khách sạn cấp trong quỹ', type: 'number' },
+                    { key: 'cutoffDays', label: 'Chốt trước (ngày)', tooltip: 'Số ngày phải chốt quỹ trước ngày bắt đầu', type: 'number' },
+                    { key: 'netCostPerDay', label: 'Giá NET/phòng/đêm', tooltip: 'Giá thuần cho một phòng trong một đêm', type: 'number' },
+                    { key: 'sellingPricePerDay', label: 'Giá bán/phòng/đêm', tooltip: 'Giá bán cho một phòng trong một đêm', type: 'number' },
                     { key: 'status', label: 'Trạng thái', type: 'select' },
                     { key: 'description', label: 'Diễn giải', type: 'textarea' },
                     { key: 'note', label: 'Ghi chú', type: 'textarea' },
@@ -1121,7 +1140,7 @@ export default function HotelSuppliersClient({
                 <header><div><h2>Quỹ phòng: {selectedHotel.name}</h2><span>{selectedHotel.allotments?.length || 0} gói quỹ phòng</span></div><button type="button" className="secondaryButton iconButton" onClick={() => setSelectedHotel(null)} title="Đóng" aria-label="Đóng"><X size={16} /></button></header>
                 <div className="allotmentCards">
                   {(selectedHotel.allotments || []).map((allotment) => {
-                    const total = numberValue(allotment.allotmentQty ?? allotment.quantityLock);
+                    const total = numberValue(allotment.allotmentQty);
                     const booked = numberValue(allotment.bookedQty);
                     const locked = numberValue(allotment.lockedQty ?? allotment.quantityLock);
                     const remaining = allotment.remainingQty ?? Math.max(0, total - booked - locked);
@@ -1189,7 +1208,7 @@ export default function HotelSuppliersClient({
                   <AllotmentActionSummary allotment={allotmentAction.allotment} />
                   {allotmentAction.type === 'override' ? (
                     <div className="modalFormGrid">
-                      <label>Tổng quỹ phòng<input name="allotmentQty" type="number" min="0" defaultValue={numberValue(allotmentAction.allotment.allotmentQty ?? allotmentAction.allotment.quantityLock)} required /></label>
+                      <label>Tổng quỹ phòng<input name="allotmentQty" type="number" min="0" defaultValue={numberValue(allotmentAction.allotment.allotmentQty)} required /></label>
                       <label>Trạng thái<select name="status" defaultValue={allotmentAction.allotment.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="STOP_SELL">Dừng bán</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
                       <label className="span2">Lý do điều chỉnh<textarea name="note" rows={3} required minLength={3} /></label>
                     </div>
@@ -1240,7 +1259,7 @@ function DynamicRows<T extends ArrayName>({
       const helper = createColumnHelper<FieldArrayWithId<HotelForm, T, 'id'>>();
       return [
         helper.display({ id: 'stt', header: 'Thứ tự', cell: ({ row }) => row.index + 1 }),
-        ...columns.map((column) => helper.display({ id: column.key, header: column.label, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} errors={errors} /> })),
+        ...columns.map((column) => helper.display({ id: column.key, header: () => <span title={column.tooltip}>{column.label}</span>, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} errors={errors} /> })),
         helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="dangerButton iconButton" onClick={() => confirmRemove(row.index)} aria-label={`Xóa dòng ${row.index + 1}`} title="Xóa dòng"><Trash2 size={15} /></button> }),
       ];
     }, [columns, errors, fieldArray, name, register]),

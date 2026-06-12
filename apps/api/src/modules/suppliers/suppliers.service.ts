@@ -686,9 +686,24 @@ export class SuppliersService {
     const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
     await this.ensureAllocationLinks(dto, user);
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.supplierAllotment.findUnique({ where: { id } });
+      const current = await tx.supplierAllotment.findUnique({
+        where: { id },
+        include: { supplier: { select: { status: true, deletedAt: true } } },
+      });
       if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+      if (current.supplier.deletedAt || current.supplier.status !== SupplierStatus.ACTIVE) {
+        throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động');
+      }
       if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
+      const today = this.startOfUtcDay(new Date());
+      if (current.endDate && current.endDate < today) {
+        throw new BadRequestException('Quỹ phòng đã hết thời gian áp dụng');
+      }
+      const codLockUntil = new Date(today);
+      codLockUntil.setUTCDate(codLockUntil.getUTCDate() + current.cutoffDays);
+      if (current.startDate && current.startDate <= codLockUntil) {
+        throw new BadRequestException('Quỹ phòng đã tới hạn chốt và không thể giữ chỗ');
+      }
       if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
         throw new BadRequestException('Dịch vụ không khớp với quỹ phòng');
       }
@@ -1277,7 +1292,7 @@ export class SuppliersService {
   }
 
   private allotmentMetrics(item: { allotmentQty: number; quantityLock?: number | null; bookedQty: number; lockedQty?: number | null }) {
-    const allotmentQty = item.allotmentQty || item.quantityLock || 0;
+    const allotmentQty = item.allotmentQty ?? 0;
     const bookedQty = item.bookedQty || 0;
     const lockedQty = item.lockedQty ?? 0;
     const usedQty = bookedQty + lockedQty;

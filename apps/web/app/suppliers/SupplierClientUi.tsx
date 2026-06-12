@@ -7,9 +7,9 @@ import { SupplierFile, supplierFileHref } from './uploadSupplierFiles';
 export type SupplierNotice = { type: 'success' | 'error' | 'info'; text: string };
 
 export function browserSupplierApiBase() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
   if (typeof window === 'undefined') return apiBase;
-  if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
+  if (!apiBase || apiBase.includes('smarttour-api-1')) return '';
   return apiBase;
 }
 
@@ -103,7 +103,7 @@ export type SupplierLifecycleStatus = (typeof supplierLifecycleStatuses)[number]
 
 const supplierStatusLabels: Record<string, string> = {
     ACTIVE: 'Đang hoạt động',
-    INACTIVE: 'Tạm ngừng',
+    INACTIVE: 'Ngừng hoạt động',
     STOP_SELL: 'Dừng bán',
     COD_LOCKED: 'Đã khóa theo hạn chốt',
     LOCKED: 'Đang giữ chỗ',

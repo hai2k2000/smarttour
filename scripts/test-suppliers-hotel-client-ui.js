@@ -73,7 +73,7 @@ function baseHotel() {
     contacts: [{
       fullName: 'Nguyễn Lan',
       position: 'Sales',
-      birthday: '1990-01-02',
+      birthday: '1990-01-02T23:00:00-05:00',
       phone: '0912345678',
       email: 'lan@hotel.example.com',
     }],
@@ -131,6 +131,31 @@ function baseHotel() {
       uploadedBy: 'seed-user',
       createdAt: '2026-06-10T00:00:00.000Z',
     }],
+  };
+}
+
+function hotelWithoutProfile() {
+  return {
+    id: 'hotel-2',
+    supplierCode: 'HOT-SAFE',
+    name: 'Khách sạn Không Có Hồ Sơ',
+    taxCode: null,
+    phone: '0902222222',
+    email: null,
+    country: null,
+    province: 'Huế',
+    address: null,
+    website: null,
+    notes: null,
+    status: 'INACTIVE',
+    hotelProfile: null,
+    rating: 3,
+    bankAccountName: 'Tài khoản dữ liệu cũ',
+    market: 'Dữ liệu cũ',
+    contacts: [],
+    supplierServices: [],
+    allotments: [],
+    files: [],
   };
 }
 
@@ -217,7 +242,7 @@ function haystack(hotel) {
 
 function makeState() {
   const state = {
-    hotels: [normalizeHotel(baseHotel())],
+    hotels: [normalizeHotel(baseHotel()), normalizeHotel(hotelWithoutProfile())],
     bookings: [{ id: 'booking-1', code: 'BKG-CLIENT-001', customerName: 'Đoàn test UI', startDate: '2026-07-01' }],
     calls: {
       listQueries: [],
@@ -561,7 +586,7 @@ async function loadMockedList(page) {
       assert(await dialog.getByLabel('Quốc gia').inputValue() === 'Việt Nam', 'create form should default country to Việt Nam');
       assert(await dialog.locator('fieldset').filter({ hasText: 'Thông tin khách sạn' }).getByLabel('Trạng thái').inputValue() === 'ACTIVE', 'create form should default status to ACTIVE');
       const contactSection = dynamicSection(dialog, 'Người liên hệ');
-      const serviceSection = dynamicSection(dialog, 'Dịch vụ và sản phẩm');
+      const serviceSection = dynamicSection(dialog, 'Dịch vụ khách sạn');
       const allotmentSection = dynamicSection(dialog, 'Quỹ phòng ban đầu');
       assert(await contactSection.locator('tbody tr').count() === 1, 'create form should start with one empty contact row');
       assert(await serviceSection.locator('tbody tr').count() === 1, 'create form should start with one empty service row');
@@ -624,7 +649,8 @@ async function loadMockedList(page) {
       assert(await dialog.getByLabel('Số điện thoại *').inputValue() === '0901234567', 'edit form must load old phone');
       assert(await dialog.getByLabel('Dòng sản phẩm / dự án *').inputValue() === 'Dự án Hồ Gươm', 'edit form must load old hotel profile');
       assert(await dynamicSection(dialog, 'Người liên hệ').locator('tbody tr').first().locator('input').nth(0).inputValue() === 'Nguyễn Lan', 'edit form must load old contact rows');
-      assert(await dynamicSection(dialog, 'Dịch vụ và sản phẩm').locator('tbody tr').first().locator('input').nth(1).inputValue() === 'Phòng tiêu chuẩn', 'edit form must load old service rows');
+      assert(await dynamicSection(dialog, 'Dịch vụ khách sạn').locator('tbody tr').first().locator('input').nth(1).inputValue() === 'Phòng tiêu chuẩn', 'edit form must load old service rows');
+      assert(await dynamicSection(dialog, 'Người liên hệ').locator('tbody tr').first().locator('input').nth(2).inputValue() === '1990-01-02', 'date-only mapping must preserve the source calendar date across timezones');
       await visibleText(dialog, 'Quỹ phòng được quản lý riêng');
       await visibleText(dialog, 'hop-dong-cu.pdf');
 
@@ -650,6 +676,17 @@ async function loadMockedList(page) {
       await visibleText(page, 'Đã xóa file "hotel-upload-test.txt"');
       assert(state.calls.deletes.some((item) => item.fileId === 'uploaded-file-1'), 'file delete must call supplier file endpoint');
       await editAgain.getByRole('button', { name: 'Đóng' }).click();
+
+      await page.locator('.supplierFilterPanel').getByRole('button', { name: 'Xóa bộ lọc' }).click();
+      await visibleText(page, 'Khách sạn Không Có Hồ Sơ');
+      const safeRow = page.locator('table.hotelListTable tbody tr', { hasText: 'Khách sạn Không Có Hồ Sơ' }).first();
+      await safeRow.getByRole('button', { name: 'Sửa khách sạn' }).click();
+      const safeDialog = await selectDialog(page, 'Cập nhật nhà cung cấp khách sạn');
+      assert(await safeDialog.getByLabel('Quốc gia').inputValue() === 'Việt Nam', 'missing country should use the localized create/edit fallback');
+      assert(await safeDialog.getByLabel('Thị trường').inputValue() === 'Dữ liệu cũ', 'missing hotel profile should preserve legacy root profile data');
+      assert(await dynamicSection(safeDialog, 'Người liên hệ').locator('tbody tr').count() === 1, 'empty contacts should map to one editable blank row');
+      assert(await dynamicSection(safeDialog, 'Dịch vụ khách sạn').locator('tbody tr').count() === 1, 'empty services should map to one editable blank row');
+      await safeDialog.getByRole('button', { name: 'Đóng' }).click();
     });
 
     await run('allotment actions', async () => {
@@ -694,6 +731,7 @@ async function loadMockedList(page) {
       await page.getByRole('button', { name: 'Tải lại', exact: true }).click();
       await visibleText(page, 'Không tải được danh sách nhà cung cấp khách sạn.');
       await visibleText(page, 'HTTP 500 - Lỗi mock danh sách khách sạn');
+      assert(await page.locator('table.hotelListTable tbody tr', { hasText: 'Khách sạn Hồ Gươm' }).count() === 0, 'list API errors must not leave stale hotel rows visible');
     });
 
     if (issues.length) {

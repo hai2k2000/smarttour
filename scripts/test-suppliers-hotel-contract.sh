@@ -71,6 +71,7 @@ assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, 
 assert "throw new ConflictException('Không thể thay toàn bộ quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận')" in service
 
 assert 'private allotmentMetrics(' in service
+assert 'const allotmentQty = item.allotmentQty ?? 0' in service, 'zero allotment quantity must not fall back to legacy locked quantity'
 assert 'overbookedQty' in service
 assert 'private percent(part: number, total: number)' in service
 assert 'occupancyRate: this.percent(metrics.bookedQty, metrics.allotmentQty)' in service
@@ -85,6 +86,9 @@ assert "changes: changes.map((change) => ({ field: change.field, value: change.o
 assert "changes: changes.map((change) => ({ field: change.field, value: change.newValue }))" in service
 assert "throw new BadRequestException('Số phòng giữ chỗ phải lớn hơn 0')" in service
 assert "where: { id: dto.serviceId, supplierId: current.supplierId, deletedAt: null }" in service
+assert "throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động')" in service
+assert "throw new BadRequestException('Quỹ phòng đã hết thời gian áp dụng')" in service
+assert "throw new BadRequestException('Quỹ phòng đã tới hạn chốt và không thể giữ chỗ')" in service
 assert "Dịch vụ giữ chỗ không thuộc nhà cung cấp khách sạn hoặc đã bị xóa" in service
 assert "if (nextStatus === 'CONFIRMED') throw new ConflictException('Chỉ phân bổ đang khóa mới được xác nhận')" in service
 assert "throw new ConflictException('Không thể giải phóng phân bổ ở trạng thái hiện tại')" in service
@@ -239,7 +243,13 @@ assert 'const optionalUrl = ' in frontend and 'type="url"' in frontend, 'hotel f
 assert 'const optionalText = ' in frontend and 'Ghi chú nội bộ không được vượt quá' in frontend, 'hotel frontend must trim and bound optional text fields'
 assert 'max={currentYear}' in frontend and 'max(5' in frontend, 'hotel frontend must show year/rating bounds'
 assert 'const isOptionalDateOnly = ' in frontend and 'Ngày sinh người liên hệ không hợp lệ' in frontend, 'hotel frontend must validate contact birthday'
-assert 'function dateOnly(value?: unknown)' in frontend and 'toISOString().slice(0, 10)' in frontend, 'hotel frontend must normalize date-only values without local timezone drift'
+assert 'function dateOnly(value?: unknown)' in frontend and 'getUTCFullYear()' in frontend, 'hotel frontend must normalize Date values without local timezone drift'
+assert "return dateOnlyMatch && isOptionalDateOnly(dateOnlyMatch[1]) ? dateOnlyMatch[1] : ''" in frontend, 'hotel frontend must reject ambiguous non-date-only strings'
+assert "const hotelProfile = (hotel.hotelProfile || {}) as NonNullable<HotelSupplier['hotelProfile']>" in frontend, 'hotel form mapping must tolerate missing hotel profiles'
+assert "Array.isArray(hotel.contacts) && hotel.contacts.length" in frontend, 'hotel form mapping must handle empty or missing contact collections'
+assert "Array.isArray(hotel.supplierServices) && hotel.supplierServices.length" in frontend, 'hotel form mapping must handle empty or missing service collections'
+assert "Array.isArray(hotel.allotments) && hotel.allotments.length" in frontend, 'hotel form mapping must handle empty or missing allotment collections'
+assert 'setHotels([])' in frontend, 'hotel list API failures must clear stale rows'
 assert 'function textValue(' in frontend and 'function numberValue(' in frontend and 'function asDayType(' in frontend and 'function asAllotmentStatus(' in frontend, 'hotel frontend must map legacy/null backend values safely'
 assert 'Họ tên người liên hệ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must validate filled contact rows'
 assert 'nestedErrorMessages(errors.contacts)' in frontend, 'hotel frontend must surface dynamic contact row errors'
@@ -270,6 +280,9 @@ assert 'Tên hạng phòng *' in frontend and 'Tên quỹ phòng phải có ít 
 assert 'Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng' in frontend, 'hotel frontend must validate allotment date ranges'
 assert 'quantityLock: z.coerce' not in frontend and 'syncAllotmentRow' not in frontend, 'hotel frontend must use lockedQty as the only editable lock quantity'
 assert 'Number(item.allotmentQty || item.quantityLock || 0)' not in frontend, 'hotel frontend must not lose valid zero values when mapping allotment quantities'
+assert 'numberValue(item.allotmentQty ?? item.quantityLock)' not in frontend, 'hotel frontend must not treat legacy lock quantity as total allotment'
+assert "if (!apiBase || apiBase.includes('smarttour-api-1')) return ''" in supplier_ui, 'internal API hosts must use the browser same-origin proxy'
+assert 'http://${window.location.hostname}:4000' not in supplier_ui, 'supplier API base must not hard-code an insecure browser port'
 assert 'Thứ tự' in frontend and 'Thêm nhà cung cấp khách sạn' in frontend and 'Tạo nhà cung cấp khách sạn' in frontend, 'hotel form labels and actions must be clear Vietnamese text'
 assert 'hotelInventoryTable' in globals_css and 'allotmentActionSummary' in globals_css and 'inventoryWarningsAttention' in globals_css, 'hotel inventory UI must have responsive table and warning styles'
 assert 'compactActionButton' in globals_css and '.hotelSupplierPage .hotelListTable th:nth-child(6)' in globals_css, 'hotel action buttons must fit the table consistently'

@@ -764,8 +764,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     allotments: [{
       sku: `${run}-HOTEL-ALLOTMENT-SKU`,
       serviceName: 'Quỹ phòng tiêu chuẩn',
-      startDate: '2026-06-01',
-      endDate: '2030-12-31',
+      startDate: '2099-01-01',
+      endDate: '2099-12-31',
       dayType: 'WEEKEND',
       allotmentQty: 2,
       cutoffDays: 7,
@@ -914,7 +914,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(contactValidationMessage.includes('S\u1ed1 \u0111i\u1ec7n tho\u1ea1i ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact phone validation must be Vietnamese');
   assert(contactValidationMessage.includes('Email ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact email validation must be Vietnamese');
 
-  const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2027-01-01&endDate=2027-01-31`);
+  const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2099-01-01&endDate=2099-01-31`);
   const initialInventory = filteredInventory.find((item) => item.id === ownedAllotmentId);
   assert(initialInventory?.allotmentQty === 2 && initialInventory.remainingQty === 2, 'inventory date and supplier filters must return correct quantities');
   assert(initialInventory.dayType === 'WEEKEND' && initialInventory.cutoffDays === 7, 'inventory must expose the persisted dayType and cutoffDays contract');
@@ -1012,6 +1012,24 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(dashboardAfterStopSell.activeAllotments === dashboardBeforeStopSell.activeAllotments - 1, 'dashboard active count must decrease on stop-sell');
   assert(dashboardAfterStopSell.stopSellAllotments === dashboardBeforeStopSell.stopSellAllotments + 1, 'dashboard stop-sell count must increase exactly once');
   assert(dashboardAfterStopSell.allotmentCount >= 1 && typeof dashboardAfterStopSell.sellThroughRate === 'number', 'dashboard must expose complete numeric metrics');
+
+  const cutoffHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    allotments: [{
+      serviceName: 'Quỹ phòng đã tới hạn chốt',
+      startDate: '2026-06-12',
+      endDate: '2099-12-31',
+      allotmentQty: 1,
+      cutoffDays: 7,
+    }],
+  });
+  const cutoffAllotmentId = cutoffHotel.allotments?.[0]?.id;
+  assert(cutoffAllotmentId, 'cutoff validation fixture must expose an allotment id');
+  const cutoffLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
+  assert(messageOf(cutoffLockError).includes('đã tới hạn chốt'), 'allotment lock must reject inventory after the cutoff date');
+
+  await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, { status: 'INACTIVE' });
+  const inactiveSupplierLockError = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${cutoffAllotmentId}/lock`, { quantity: 1 }, [400]);
+  assert(messageOf(inactiveSupplierLockError).toLowerCase().includes('nhà cung cấp khách sạn đang ngừng hoạt động'), 'allotment lock must reject inactive hotel suppliers');
 
   const ownedDataDeleteError = await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}`, undefined, [409]);
   const ownedDataDeleteMessage = messageOf(ownedDataDeleteError);

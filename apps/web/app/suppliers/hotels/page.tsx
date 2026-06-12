@@ -39,7 +39,7 @@ export default async function HotelSuppliersPage() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Nhà cung cấp / Hồ sơ khách sạn</p>
+            <p className="eyebrow">Phân hệ nhà cung cấp</p>
             <h1>Nhà cung cấp khách sạn</h1>
           </div>
           <div className="user"><Building2 size={18} /> Hồ sơ khách sạn <Users size={18} /> Nhân sự vận hành</div>
