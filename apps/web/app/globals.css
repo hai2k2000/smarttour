@@ -1781,6 +1781,18 @@ label { min-width: 0; }
 .hotelSupplierPage .hotelListTable td {
   min-width: 0;
 }
+.hotelSupplierPage .hotelListTable th:nth-child(6),
+.hotelSupplierPage .hotelListTable td:nth-child(6) {
+  width: 252px;
+}
+.hotelSupplierPage .compactActionButton {
+  min-width: 0;
+  padding-inline: 9px;
+  white-space: nowrap;
+}
+.hotelSupplierPage .rowActions {
+  flex-wrap: wrap;
+}
 .hotelSupplierPage .tableEmptyStateContent {
   display: grid;
   justify-items: center;

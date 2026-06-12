@@ -578,9 +578,9 @@ export default function HotelSuppliersClient({
         header: 'Thao tác',
         cell: ({ row }) => (
           <div className="rowActions">
-            <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa khách sạn" aria-label="Sửa khách sạn"><Pencil size={15} /></button>
-            <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void openAllotments(row.original)} title="Quản lý quỹ phòng" aria-label="Quản lý quỹ phòng"><BedDouble size={15} /></button>
-            <button type="button" className="dangerButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa nhà cung cấp" aria-label="Xóa nhà cung cấp"><Trash2 size={15} /></button>
+            <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa" aria-label="Sửa khách sạn"><Pencil size={15} /> Sửa</button>
+            <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void openAllotments(row.original)} title="Quỹ phòng" aria-label="Quản lý quỹ phòng"><BedDouble size={15} /> Quỹ phòng</button>
+            <button type="button" className="dangerButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa" aria-label="Xóa nhà cung cấp"><Trash2 size={15} /> Xóa</button>
           </div>
         ),
       }),
@@ -901,14 +901,14 @@ export default function HotelSuppliersClient({
           <section className="panel allotmentInventoryPanel">
             <div className="sectionHeader">
               <div><h2>Tồn quỹ phòng theo ngày</h2><span>{isInventoryLoading ? 'Đang tải tồn quỹ...' : `${inventoryRows.length} dòng quỹ phòng`}</span></div>
-              <button type="button" className="secondaryButton iconButton" onClick={() => void loadInventory(inventoryFilters, true)} disabled={isInventoryLoading} title="Tải lại tồn quỹ phòng" aria-label="Tải lại tồn quỹ phòng"><RefreshCcw size={16} /></button>
+              <button type="button" className="secondaryButton iconButton" onClick={() => void loadInventory(inventoryFilters, true)} disabled={isInventoryLoading} title="Tải lại" aria-label="Tải lại tồn quỹ phòng"><RefreshCcw size={16} /></button>
             </div>
             <form className="supplierFilters supplierHotelFilters" onSubmit={submitInventoryFilters}>
               <label>Khách sạn<select value={inventoryFilters.supplierId} onChange={(event) => setInventoryFilters((current) => ({ ...current, supplierId: event.target.value }))}><option value="">Tất cả khách sạn</option>{hotels.map((hotel) => <option key={hotel.id} value={hotel.id}>{hotel.name}</option>)}</select></label>
               <label>Từ ngày<input type="date" value={inventoryFilters.startDate} onChange={(event) => setInventoryFilters((current) => ({ ...current, startDate: event.target.value }))} /></label>
               <label>Đến ngày<input type="date" value={inventoryFilters.endDate} onChange={(event) => setInventoryFilters((current) => ({ ...current, endDate: event.target.value }))} /></label>
               <button type="submit" disabled={isInventoryLoading}><Search size={16} /> Lọc tồn quỹ</button>
-              <button type="button" className="secondaryButton iconButton" onClick={resetInventoryFilters} disabled={isInventoryLoading} title="Xóa bộ lọc tồn quỹ" aria-label="Xóa bộ lọc tồn quỹ"><RefreshCcw size={16} /></button>
+              <button type="button" className="secondaryButton iconButton" onClick={resetInventoryFilters} disabled={isInventoryLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc tồn quỹ"><RefreshCcw size={16} /></button>
             </form>
             <div className="fitTableWrap">
               <table className="fitTable hotelInventoryTable">
@@ -1000,7 +1000,7 @@ export default function HotelSuppliersClient({
             <div className="modalOverlay" role="dialog" aria-modal="true" aria-label={editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Tạo nhà cung cấp khách sạn'}>
               <div className="modalPanel modalPanelWide">
                 <form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm">
-                  <header><h2>{editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Thêm nhà cung cấp khách sạn'}</h2><button type="button" className="secondaryButton iconButton" onClick={() => closeForm()} aria-label="Đóng"><X size={16} /></button></header>
+                  <header><h2>{editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Thêm nhà cung cấp khách sạn'}</h2><button type="button" className="secondaryButton iconButton" onClick={() => closeForm()} title="Đóng" aria-label="Đóng"><X size={16} /></button></header>
                   <fieldset>
                     <legend>Thông tin khách sạn</legend>
                     <div className="hotelFormGrid">
@@ -1097,7 +1097,7 @@ export default function HotelSuppliersClient({
                     ...nestedErrorMessages(errors.allotments),
                   ]} />
                   <div className="modalActions">
-                    <button type="button" className="secondaryButton" onClick={() => closeForm()}>Hủy</button>
+                    <button type="button" className="secondaryButton iconTextButton" onClick={() => closeForm()}><X size={16} /> Hủy</button>
                     <button type="submit" disabled={!canManage || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp khách sạn'}</button>
                   </div>
                 </form>
@@ -1108,7 +1108,7 @@ export default function HotelSuppliersClient({
           {selectedHotel ? (
             <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Quản lý quỹ phòng">
               <div className="modalPanel modalPanelWide">
-                <header><div><h2>Quỹ phòng: {selectedHotel.name}</h2><span>{selectedHotel.allotments?.length || 0} gói quỹ phòng</span></div><button type="button" className="secondaryButton iconButton" onClick={() => setSelectedHotel(null)} aria-label="Đóng"><X size={16} /></button></header>
+                <header><div><h2>Quỹ phòng: {selectedHotel.name}</h2><span>{selectedHotel.allotments?.length || 0} gói quỹ phòng</span></div><button type="button" className="secondaryButton iconButton" onClick={() => setSelectedHotel(null)} title="Đóng" aria-label="Đóng"><X size={16} /></button></header>
                 <div className="allotmentCards">
                   {(selectedHotel.allotments || []).map((allotment) => {
                     const total = numberValue(allotment.allotmentQty ?? allotment.quantityLock);
@@ -1145,8 +1145,8 @@ export default function HotelSuppliersClient({
                         </div>
                         {cardWarnings.length ? <div className="inventoryWarnings inventoryWarningsAttention">{cardWarnings.map((warning) => <span key={warning}>{warning}</span>)}</div> : null}
                         <div className="rowActions">
-                          <button type="button" className="secondaryButton iconTextButton" disabled={!canManage || !allotment.id || Boolean(busyAction)} onClick={() => setAllotmentAction({ type: 'override', allotment })} title="Điều chỉnh tổng quỹ và trạng thái"><Settings2 size={15} /> Điều chỉnh</button>
-                          <button type="button" className="secondaryButton iconTextButton" disabled={!canLock} onClick={() => setAllotmentAction({ type: 'lock', allotment })} title={canLock ? 'Giữ chỗ từ tồn còn khả dụng' : 'Chỉ giữ chỗ khi quỹ phòng đang hoạt động và còn tồn'}><LockKeyhole size={15} /> Giữ chỗ</button>
+                          <button type="button" className="secondaryButton iconTextButton" disabled={!canManage || !allotment.id || Boolean(busyAction)} onClick={() => setAllotmentAction({ type: 'override', allotment })} title="Điều chỉnh"><Settings2 size={15} /> Điều chỉnh</button>
+                          <button type="button" className="secondaryButton iconTextButton" disabled={!canLock} onClick={() => setAllotmentAction({ type: 'lock', allotment })} title={canLock ? 'Giữ chỗ' : 'Không thể giữ chỗ'}><LockKeyhole size={15} /> Giữ chỗ</button>
                         </div>
                         <div className="allocationList">
                           {(allotment.allocations || []).map((allocation) => (
@@ -1154,8 +1154,8 @@ export default function HotelSuppliersClient({
                               <span><strong>{allocation.quantity} phòng</strong> · {allocation.bookingId ? 'Có liên kết booking' : 'Chưa liên kết booking'}</span>
                               <SupplierStatus status={allocation.status} />
                               <div className="rowActions">
-                                {allocation.status === 'LOCKED' ? <button type="button" className="secondaryButton iconButton" disabled={Boolean(busyAction)} onClick={() => void changeAllocation(allocation, 'confirm')} title="Xác nhận giữ chỗ"><CheckCircle2 size={15} /></button> : null}
-                                {['LOCKED', 'CONFIRMED'].includes(allocation.status) ? <button type="button" className="dangerButton iconButton" disabled={Boolean(busyAction)} onClick={() => void changeAllocation(allocation, 'release')} title="Giải phóng"><Undo2 size={15} /></button> : null}
+                                {allocation.status === 'LOCKED' ? <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={Boolean(busyAction)} onClick={() => void changeAllocation(allocation, 'confirm')} title="Xác nhận"><CheckCircle2 size={15} /> Xác nhận</button> : null}
+                                {['LOCKED', 'CONFIRMED'].includes(allocation.status) ? <button type="button" className="dangerButton iconTextButton compactActionButton" disabled={Boolean(busyAction)} onClick={() => void changeAllocation(allocation, 'release')} title="Giải phóng"><Undo2 size={15} /> Giải phóng</button> : null}
                               </div>
                             </div>
                           ))}
@@ -1174,7 +1174,7 @@ export default function HotelSuppliersClient({
             <div className="modalOverlay" role="dialog" aria-modal="true" aria-label={allotmentAction.type === 'override' ? 'Điều chỉnh quỹ phòng' : 'Giữ chỗ quỹ phòng'}>
               <div className="modalPanel">
                 <form onSubmit={submitAllotmentAction} className="modalFormStack">
-                  <header><h2>{allotmentAction.type === 'override' ? 'Điều chỉnh quỹ phòng' : 'Giữ chỗ quỹ phòng'}</h2><button type="button" className="secondaryButton iconButton" onClick={() => setAllotmentAction(null)} aria-label="Đóng"><X size={16} /></button></header>
+                  <header><h2>{allotmentAction.type === 'override' ? 'Điều chỉnh quỹ phòng' : 'Giữ chỗ quỹ phòng'}</h2><button type="button" className="secondaryButton iconButton" onClick={() => setAllotmentAction(null)} title="Đóng" aria-label="Đóng"><X size={16} /></button></header>
                   <p><strong>{allotmentAction.allotment.serviceName}</strong></p>
                   <AllotmentActionSummary allotment={allotmentAction.allotment} />
                   {allotmentAction.type === 'override' ? (
@@ -1190,7 +1190,7 @@ export default function HotelSuppliersClient({
                       <label className="span2">Ghi chú<textarea name="note" rows={3} /></label>
                     </div>
                   )}
-                  <div className="modalActions"><button type="button" className="secondaryButton" onClick={() => setAllotmentAction(null)}>Hủy</button><button type="submit" disabled={Boolean(busyAction)}>{allotmentAction.type === 'override' ? 'Xác nhận điều chỉnh' : 'Giữ chỗ'}</button></div>
+                  <div className="modalActions"><button type="button" className="secondaryButton iconTextButton" onClick={() => setAllotmentAction(null)}><X size={16} /> Hủy</button><button type="submit" className="iconTextButton" disabled={Boolean(busyAction)}>{allotmentAction.type === 'override' ? <><Settings2 size={16} /> Xác nhận điều chỉnh</> : <><LockKeyhole size={16} /> Giữ chỗ</>}</button></div>
                 </form>
               </div>
             </div>

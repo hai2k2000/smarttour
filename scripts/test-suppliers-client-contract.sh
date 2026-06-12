@@ -32,7 +32,8 @@ for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHo
 assert "authJsonHeaders()" in shared and "authHeaders()" in shared
 assert 'HTTP ${response.status}' in shared
 assert "supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const" in shared
-assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared
+assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared and "INACTIVE: 'Tạm ngừng'" in shared
+assert 'title={label}' in shared, 'supplier status badges should expose the Vietnamese label as a concise tooltip'
 assert 'uploadSupplierFiles' in shared
 assert '/files/${file.id}' in hotel and '/files/${file.id}' in generic
 assert "method: 'DELETE'" in hotel and "method: 'DELETE'" in generic

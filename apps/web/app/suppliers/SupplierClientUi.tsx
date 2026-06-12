@@ -58,7 +58,8 @@ export function SupplierNoticeBanner({ notice }: { notice: SupplierNotice | null
 export function SupplierStatus({ status }: { status: string }) {
   const inactive = status === 'INACTIVE' || status === 'STOP_SELL' || status === 'RELEASED';
   const warning = status === 'LOCKED' || status === 'COD_LOCKED';
-  return <span className={`statusPill ${inactive ? 'statusPillError' : warning ? 'statusPillWarning' : 'statusPillSuccess'}`}>{supplierStatusLabel(status)}</span>;
+  const label = supplierStatusLabel(status);
+  return <span className={`statusPill ${inactive ? 'statusPillError' : warning ? 'statusPillWarning' : 'statusPillSuccess'}`} title={label}>{label}</span>;
 }
 
 export function SupplierFiles({
@@ -102,7 +103,7 @@ export type SupplierLifecycleStatus = (typeof supplierLifecycleStatuses)[number]
 
 const supplierStatusLabels: Record<string, string> = {
     ACTIVE: 'Đang hoạt động',
-    INACTIVE: 'Ngừng hoạt động',
+    INACTIVE: 'Tạm ngừng',
     STOP_SELL: 'Dừng bán',
     COD_LOCKED: 'Đã khóa theo hạn chốt',
     LOCKED: 'Đang giữ chỗ',
