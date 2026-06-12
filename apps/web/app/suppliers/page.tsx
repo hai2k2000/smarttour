@@ -35,6 +35,7 @@ type SuppliersPageProps = {
 
 const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
 const createCategoryModalId = 'suppliers-create-category';
+const editCategoryModalId = (id: string) => `suppliers-edit-category-${id}`;
 const createSupplierModalId = 'suppliers-create-supplier';
 const editSupplierModalId = (id: string) => `suppliers-edit-${id}`;
 const deleteSupplierModalId = (id: string) => `suppliers-delete-${id}`;
@@ -120,6 +121,23 @@ async function createCategory(formData: FormData) {
     },
     'Đã tạo loại nhà cung cấp.',
     'Tạo loại nhà cung cấp thất bại',
+  );
+  redirectWithResult(result);
+}
+
+async function updateCategory(formData: FormData) {
+  'use server';
+  const id = field(formData, 'id');
+  if (!id) redirectWithResult({ ok: false, message: 'Cập nhật loại nhà cung cấp thất bại: thiếu ID loại nhà cung cấp.' });
+  const result = await apiMutation(
+    `/supplier-categories/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: await serverAuthJsonHeaders(),
+      body: JSON.stringify({ name: field(formData, 'name') }),
+    },
+    'Đã cập nhật loại nhà cung cấp.',
+    'Cập nhật loại nhà cung cấp thất bại',
   );
   redirectWithResult(result);
 }
@@ -226,8 +244,11 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           <div className="supplierCategoryList">
             {categories.map((category) => (
               <div className="supplierCategoryCard" key={category.id}>
-                <strong>{category.name}</strong>
-                <span>{category._count?.suppliers ?? 0} nhà cung cấp đang gắn</span>
+                <div>
+                  <strong>{category.name}</strong>
+                  <span>{category._count?.suppliers ?? 0} nhà cung cấp đang gắn</span>
+                </div>
+                <a className="secondaryButton iconOnlyButton" href={`#${editCategoryModalId(category.id)}`} title={`Sửa loại ${category.name}`} aria-label={`Sửa loại ${category.name}`}><Pencil size={14} /></a>
               </div>
             ))}
             {categories.length === 0 ? <div className="tableEmptyState">Chưa có loại nhà cung cấp.</div> : null}
@@ -304,7 +325,17 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
         </div>
       </section>
 
-      <CategoryModal id={createCategoryModalId} action={createCategory} />
+      <CategoryModal id={createCategoryModalId} title="Thêm loại nhà cung cấp" action={createCategory} submitLabel="Tạo loại" />
+      {categories.map((category) => (
+        <CategoryModal
+          key={`category-${category.id}`}
+          id={editCategoryModalId(category.id)}
+          title={`Sửa loại ${category.name}`}
+          category={category}
+          action={updateCategory}
+          submitLabel="Lưu thay đổi"
+        />
+      ))}
       <SupplierModal id={createSupplierModalId} title="Thêm nhà cung cấp" categories={categories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
       {suppliers.map((supplier) => (
         <SupplierModal
@@ -324,26 +355,39 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   );
 }
 
-function CategoryModal({ id, action }: { id: string; action: (formData: FormData) => Promise<void> }) {
+function CategoryModal({
+  id,
+  title,
+  category,
+  action,
+  submitLabel,
+}: {
+  id: string;
+  title: string;
+  category?: SupplierCategory;
+  action: (formData: FormData) => Promise<void>;
+  submitLabel: string;
+}) {
   return (
     <div id={id} className="hashModal">
       <a className="hashModalBackdrop" href="/suppliers" aria-label="Đóng modal" />
       <div className="hashModalPanel">
         <div className="hashModalHeader">
-          <h2><FolderPlus size={18} /> Thêm loại nhà cung cấp</h2>
+          <h2><FolderPlus size={18} /> {title}</h2>
           <a className="secondaryButton iconOnlyButton" href="/suppliers" aria-label="Đóng"><X size={14} /></a>
         </div>
         <form action={action} className="modalFormStack">
+          {category ? <input type="hidden" name="id" value={category.id} /> : null}
           <fieldset>
             <legend>Thông tin loại</legend>
             <label>
               Tên loại nhà cung cấp
-              <input name="name" placeholder="Khách sạn, Vận chuyển, Hướng dẫn viên..." required minLength={2} />
+              <input name="name" defaultValue={category?.name || ''} placeholder="Khách sạn, Vận chuyển, Hướng dẫn viên..." required minLength={2} />
             </label>
           </fieldset>
           <div className="modalActions">
             <a className="secondaryButton" href="/suppliers">Hủy</a>
-            <button type="submit"><Save size={14} /> Tạo loại</button>
+            <button type="submit"><Save size={14} /> {submitLabel}</button>
           </div>
         </form>
       </div>

@@ -7,18 +7,18 @@ export const dynamic = 'force-dynamic';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
-async function apiGet<T>(path: string, fallback: T): Promise<T> {
+async function apiGet<T>(path: string, fallback: T, label: string): Promise<{ data: T; error?: string }> {
   try {
     const response = await fetch(`${apiBase}/api${path}`, { cache: 'no-store', headers: await serverAuthHeaders() });
-    if (!response.ok) return fallback;
-    return response.json();
-  } catch {
-    return fallback;
+    if (!response.ok) return { data: fallback, error: `${label}: HTTP ${response.status} - ${response.statusText || 'Không tải được dữ liệu'}` };
+    return { data: await response.json() };
+  } catch (error) {
+    return { data: fallback, error: `${label}: ${error instanceof Error ? error.message : 'Không tải được dữ liệu'}` };
   }
 }
 
 export default async function HotelSuppliersPage() {
-  const hotels = await apiGet('/suppliers/hotels', []);
+  const hotels = await apiGet('/suppliers/hotels', [], 'Tải danh sách nhà cung cấp khách sạn');
 
   return (
     <main className="shell">
@@ -45,7 +45,7 @@ export default async function HotelSuppliersPage() {
           <div className="user"><Building2 size={18} /> Khách sạn <Users size={18} /> Nhân sự vận hành</div>
         </header>
 
-        <HotelSuppliersClient initialHotels={hotels} />
+        <HotelSuppliersClient initialHotels={hotels.data} initialError={hotels.error} />
       </section>
     </main>
   );
