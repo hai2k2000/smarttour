@@ -756,17 +756,19 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     }],
     services: [{
       sku: `${run}-HOTEL-SERVICE-SKU`,
-      serviceName: 'Phong tieu chuan',
+      serviceName: 'Phòng tiêu chuẩn',
+      dayType: 'WEEKDAY',
       description: `${run} Hotel Service Description`,
       note: 'Service note',
     }],
     allotments: [{
       sku: `${run}-HOTEL-ALLOTMENT-SKU`,
-      serviceName: 'Quy phong tieu chuan',
+      serviceName: 'Quỹ phòng tiêu chuẩn',
       startDate: '2026-06-01',
       endDate: '2030-12-31',
+      dayType: 'WEEKEND',
       allotmentQty: 2,
-      cutoffDays: 0,
+      cutoffDays: 7,
       sellingPricePerDay: 500000,
       description: `${run} Hotel Allotment Description`,
       note: 'Initial allotment',
@@ -777,12 +779,28 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(ownedDataHotel.hotelProfile?.market === `${run} Market`, 'hotel-specific market must be persisted');
   assert(ownedDataHotel.supplierServices?.length === 1 && ownedDataHotel.allotments?.length === 1, 'hotel detail must include editable child collections');
   assert(ownedDataHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel detail must include editable contacts');
+  assert(ownedDataHotel.supplierServices[0].dayType === 'WEEKDAY', 'created hotel service must persist the shared dayType enum');
+  assert(ownedDataHotel.allotments[0].dayType === 'WEEKEND' && ownedDataHotel.allotments[0].cutoffDays === 7, 'created hotel allotment must persist dayType and cutoffDays');
   assert(Number(ownedDataHotel.allotments[0].lockedQty || 0) === Number(ownedDataHotel.allotments[0].quantityLock || 0), 'created hotel allotment must sync lockedQty and quantityLock');
   const ownedAllotmentId = ownedDataHotel.allotments[0].id;
   assert(ownedAllotmentId, 'created hotel allotment must expose its id');
   const hotelUploadedFile = await uploadRequest(manageToken, `/suppliers/${ownedDataHotel.id}/files`, 'hotel-supplier-note.txt', 'text/plain', 'hotel supplier file smoke');
+  assert(hotelUploadedFile.id && hotelUploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'hotel upload should record the authenticated user id');
+  assert(hotelUploadedFile.fileName === 'hotel-supplier-note.txt' && hotelUploadedFile.fileType === 'text/plain', 'hotel upload should persist normalized file metadata');
+  assert(hotelUploadedFile.createdAt && hotelUploadedFile.fileUrl.includes('/api/files/download?key='), 'hotel upload should expose createdAt and a download URL with an object key');
+  const hotelUploadedDownload = await fetch(new URL(hotelUploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${manageToken}` } });
+  assert(hotelUploadedDownload.status === 200 && await hotelUploadedDownload.text() === 'hotel supplier file smoke', 'uploaded hotel supplier object must be downloadable');
   const hotelDetailWithFile = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
-  assert(hotelDetailWithFile.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel detail must include uploaded files for edit forms');
+  const hotelFileFromDetail = hotelDetailWithFile.files?.find((file) => file.id === hotelUploadedFile.id);
+  assert(hotelFileFromDetail, 'hotel detail must include uploaded files for edit forms');
+  assert(
+    hotelFileFromDetail.fileName === hotelUploadedFile.fileName
+      && hotelFileFromDetail.fileType === hotelUploadedFile.fileType
+      && hotelFileFromDetail.uploadedBy === hotelUploadedFile.uploadedBy
+      && hotelFileFromDetail.createdAt
+      && hotelFileFromDetail.fileUrl === hotelUploadedFile.fileUrl,
+    'hotel detail refresh must preserve uploaded file metadata',
+  );
 
   for (const [filter, value] of [
     ['province', `${run} Province`],
@@ -820,7 +838,17 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(partiallyUpdatedHotel.contacts?.[0]?.fullName === `${run} Hotel Contact`, 'hotel partial update must preserve contacts when omitted');
   assert(partiallyUpdatedHotel.supplierServices?.[0]?.id === ownedDataHotel.supplierServices[0].id, 'hotel partial update must preserve services when omitted');
   assert(partiallyUpdatedHotel.allotments?.[0]?.id === ownedAllotmentId, 'hotel partial update must preserve allotments when omitted');
-  assert(partiallyUpdatedHotel.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel partial update must preserve uploaded files when omitted');
+  assert(partiallyUpdatedHotel.supplierServices[0].dayType === 'WEEKDAY', 'hotel partial update must preserve service dayType when services are omitted');
+  assert(partiallyUpdatedHotel.allotments[0].dayType === 'WEEKEND' && partiallyUpdatedHotel.allotments[0].cutoffDays === 7, 'hotel partial update must preserve allotment dayType and cutoffDays when allotments are omitted');
+  const hotelFileAfterPartialUpdate = partiallyUpdatedHotel.files?.find((file) => file.id === hotelUploadedFile.id);
+  assert(
+    hotelFileAfterPartialUpdate?.fileName === hotelUploadedFile.fileName
+      && hotelFileAfterPartialUpdate?.fileType === hotelUploadedFile.fileType
+      && hotelFileAfterPartialUpdate?.uploadedBy === hotelUploadedFile.uploadedBy
+      && hotelFileAfterPartialUpdate?.createdAt
+      && hotelFileAfterPartialUpdate?.fileUrl === hotelUploadedFile.fileUrl,
+    'hotel partial update must preserve uploaded file metadata when files are omitted',
+  );
 
   const hotelContactReplaced = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
     contacts: [{ fullName: `${run} Hotel Contact Replaced`, position: 'Reservation', phone: '0905555666' }],
@@ -843,7 +871,9 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(hotelServiceReplaced.supplierServices[0].id !== oldHotelServiceId, 'hotel service replacement should create a fresh active service row');
   assert(hotelServiceReplaced.contacts?.[0]?.fullName === `${run} Hotel Contact Replaced`, 'hotel service replacement must preserve contacts when contacts are omitted');
   assert(hotelServiceReplaced.allotments?.[0]?.id === ownedAllotmentId, 'hotel service replacement must preserve allotments when allotments are omitted');
-  assert(hotelServiceReplaced.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel service replacement must preserve files');
+  assert(hotelServiceReplaced.allotments[0].dayType === 'WEEKEND' && hotelServiceReplaced.allotments[0].cutoffDays === 7, 'hotel service replacement must preserve allotment dayType and cutoffDays');
+  const hotelFileAfterServiceReplace = hotelServiceReplaced.files?.find((file) => file.id === hotelUploadedFile.id);
+  assert(hotelFileAfterServiceReplace?.fileName === hotelUploadedFile.fileName && hotelFileAfterServiceReplace?.fileType === hotelUploadedFile.fileType, 'hotel service replacement must preserve file metadata');
 
   await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}/files/${hotelUploadedFile.id}`);
   const hotelAfterFileDelete = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
@@ -887,6 +917,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2027-01-01&endDate=2027-01-31`);
   const initialInventory = filteredInventory.find((item) => item.id === ownedAllotmentId);
   assert(initialInventory?.allotmentQty === 2 && initialInventory.remainingQty === 2, 'inventory date and supplier filters must return correct quantities');
+  assert(initialInventory.dayType === 'WEEKEND' && initialInventory.cutoffDays === 7, 'inventory must expose the persisted dayType and cutoffDays contract');
   assert(initialInventory.allocationSummary?.locked === 0 && initialInventory.activeAllocationCount === 0, 'inventory must expose an empty allocation summary');
   const invalidCalendarDate = await request(manageToken, 'GET', '/suppliers/hotel-allotments/inventory?startDate=2026-02-30', undefined, [400]);
   assert(messageOf(invalidCalendarDate).includes('Ng\u00e0y b\u1eaft \u0111\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7'), 'inventory must reject impossible calendar dates');

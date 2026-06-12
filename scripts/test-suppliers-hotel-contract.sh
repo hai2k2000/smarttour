@@ -188,6 +188,36 @@ assert 'maxLength={hotelFilterMaxLengths.search}' in frontend and 'maxLength={ho
 assert 'Tìm mã, tên, số điện thoại, email, dự án hoặc hạng khách sạn' in frontend, 'hotel list search placeholder must describe searchable fields clearly'
 assert 'Chưa tìm thấy nhà cung cấp khách sạn phù hợp.' in frontend and 'Hãy điều chỉnh từ khóa hoặc bộ lọc' in frontend, 'hotel list empty state must guide next action'
 assert 'Không tải được danh sách nhà cung cấp khách sạn.' in frontend and 'listError' in frontend, 'hotel list error state must show API detail inline'
+for localized_text in [
+    'Tỉnh/thành',
+    'Thị trường',
+    'Dự án khách sạn',
+    'Hạng khách sạn',
+    'Ví dụ: Hà Nội',
+    'Ví dụ: Nội địa',
+    'Dòng sản phẩm hoặc dự án',
+    'Ví dụ: 4 sao',
+    'Ghi chú chính sách, công nợ hoặc lưu ý vận hành',
+    'Chưa có file đính kèm.',
+    'File sẽ được tải lên sau khi nhà cung cấp được tạo thành công.',
+    'Chọn file cần tải lên',
+    'Quỹ phòng được quản lý riêng',
+    'Số ngày chốt quỹ',
+    'Giữ chỗ quỹ phòng',
+]:
+    assert localized_text in (frontend + supplier_ui), f'hotel supplier UI text must be Vietnamese and fully accented: {localized_text}'
+for stale_text in [
+    'NCC',
+    'Tinh/thanh',
+    'Thi truong',
+    'Du an khach san',
+    'Hang khach san',
+    'Ghi chu chinh sach',
+    'Chon file can tai len',
+    'Quy phong',
+    'Giu cho',
+]:
+    assert stale_text not in (frontend + supplier_ui), f'hotel supplier UI still contains non-localized text: {stale_text}'
 assert 'function HotelListLoadingRows()' in frontend and 'tableSkeletonLine' in frontend, 'hotel list loading state must use skeleton rows'
 assert 'function shouldSendCollection(' in frontend and "dirtyFields[name] !== undefined" in frontend, 'hotel edit should only send dirty child collection snapshots'
 assert "hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections)" in frontend, 'hotel frontend must centralize create/update payload shaping'
