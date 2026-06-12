@@ -45,7 +45,7 @@ assert 'Quỹ phòng được quản lý riêng' in hotel
 assert "mode === 'create' ? { allotments:" in hotel, 'hotel edits must not replace allotments implicitly'
 assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== undefined" in hotel, 'hotel edits must only send dirty child collection snapshots'
 assert 'Mã dịch vụ' in hotel and 'Mã dịch vụ' in generic
-assert 'Giá NET' in hotel and 'Giá thuần (NET)' in generic
+assert 'Giá NET' in hotel and 'Giá NET' in generic
 assert 'initialError' in hotel_page and 'initialError' in typed_page
 assert 'Phân hệ nhà cung cấp' in hotel_page and 'Hồ sơ khách sạn' in hotel_page
 assert 'supplierPageConfigs' in typed_page

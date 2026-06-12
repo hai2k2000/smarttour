@@ -23,8 +23,9 @@ for route, label in vietnamese_labels.items():
 for alias in ["'Restaurant'", "'Flight'", "'Flight Ticket'", "'Other Cost'", "'Passport Visa'", "'Tour Guide'"]:
     assert alias in types_source, f'legacy category alias must remain supported: {alias}'
 
-for label in ['Nhà hàng', 'Vé máy bay', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên', 'Vé series']:
+for label in ['Nhà hàng', 'Vé máy bay', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên']:
     assert label in types_source and label in frontend, f'typed supplier category label must match backend/frontend: {label}'
+assert 'Vé series' in types_source and 'Series vé giữ chỗ' in frontend, 'series tickets must keep the backend category label while showing a clear frontend title'
 
 backend_metadata_keys = set(re.findall(r"\b([A-Za-z][A-Za-z0-9]*): '(?:text|number|date|time|datetime)'", types_source))
 frontend_form_keys = set(re.findall(r"\{ key: '([^']+)'", frontend))

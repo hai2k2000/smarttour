@@ -34,12 +34,12 @@ export type SupplierType =
   | 'guides'
   | 'series-tickets';
 
-type ServiceField = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'time' | 'datetime-local' | 'textarea' };
+type ServiceField = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'time' | 'datetime-local' | 'textarea' | 'email' | 'tel' | 'url' };
 export type SupplierConfig = { title: string; shortTitle: string; serviceTitle: string; serviceNameLabel: string; serviceFields: ServiceField[] };
 
 const priceFields: ServiceField[] = [
   { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
-  { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+  { key: 'netPrice', label: 'Giá NET', type: 'number' },
   { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
 ];
 
@@ -59,16 +59,16 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceFields: [
       { key: 'ticketType', label: 'Loại vé' },
       { key: 'route', label: 'Hành trình' },
-      { key: 'departureAirport', label: 'Chuyến bay đi' },
+      { key: 'departureAirport', label: 'Số hiệu chuyến bay đi' },
       { key: 'departureDate', label: 'Ngày đi', type: 'date' },
       { key: 'departureTime', label: 'Giờ đi', type: 'time' },
-      { key: 'arrivalAirport', label: 'Chuyến bay về' },
+      { key: 'arrivalAirport', label: 'Số hiệu chuyến bay về' },
       { key: 'returnDate', label: 'Ngày về', type: 'date' },
       { key: 'returnTime', label: 'Giờ về', type: 'time' },
       { key: 'depositDeadline', label: 'Hạn đặt cọc', type: 'datetime-local' },
       { key: 'nameDeadline', label: 'Hạn nhập tên', type: 'datetime-local' },
-      { key: 'fullpayDeadline', label: 'Hạn thanh toán đủ', type: 'datetime-local' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'fullpayDeadline', label: 'Hạn thanh toán đủ (FullPay)', type: 'datetime-local' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'taxPrice', label: 'Thuế', type: 'number' },
       { key: 'airportFee', label: 'Phí sân bay', type: 'number' },
       { key: 'issueFee', label: 'Phí xuất vé', type: 'number' },
@@ -84,9 +84,9 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceFields: [{ key: 'quantity', label: 'Số lượng', type: 'number' }, ...priceFields, { key: 'description', label: 'Mô tả', type: 'textarea' }],
   },
   'landtour-suppliers': {
-    title: 'Nhà cung cấp Land Tour',
-    shortTitle: 'Land Tour',
-    serviceTitle: 'Chương trình Land Tour',
+    title: 'Nhà cung cấp Landtour',
+    shortTitle: 'Landtour',
+    serviceTitle: 'Chương trình Landtour',
     serviceNameLabel: 'Tên tour',
     serviceFields: [
       { key: 'supplierTourCode', label: 'Mã tour nhà cung cấp' },
@@ -111,7 +111,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceFields: [
       { key: 'packageSize', label: 'Quy cách đóng gói' },
       { key: 'unit', label: 'Đơn vị tính' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
       { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
@@ -129,7 +129,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
       { key: 'dailyPrice', label: 'Giá theo ngày', type: 'number' },
       { key: 'kmPrice', label: 'Giá theo km', type: 'number' },
       { key: 'overtimePrice', label: 'Phí quá giờ', type: 'number' },
-      { key: 'fuelIncluded', label: 'Đã gồm nhiên liệu' },
+      { key: 'fuelIncluded', label: 'Bao gồm nhiên liệu' },
     ],
   },
   bus: {
@@ -144,7 +144,7 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
       { key: 'departureTime', label: 'Giờ đi', type: 'time' },
       { key: 'arrivalTime', label: 'Giờ đến', type: 'time' },
       { key: 'seatType', label: 'Loại ghế' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
@@ -155,25 +155,25 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceNameLabel: 'Tên dịch vụ',
     serviceFields: [
       { key: 'unit', label: 'Đơn vị tính' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
       { key: 'description', label: 'Mô tả', type: 'textarea' },
     ],
   },
   villas: {
-    title: 'Nhà cung cấp biệt thự',
-    shortTitle: 'Biệt thự',
-    serviceTitle: 'Biệt thự và giá',
-    serviceNameLabel: 'Tên biệt thự',
+    title: 'Nhà cung cấp villa / biệt thự',
+    shortTitle: 'Villa / biệt thự',
+    serviceTitle: 'Villa / biệt thự và giá',
+    serviceNameLabel: 'Tên villa / biệt thự',
     serviceFields: [
       { key: 'bedroomCount', label: 'Số phòng ngủ', type: 'number' },
       { key: 'capacity', label: 'Sức chứa', type: 'number' },
-      { key: 'hasPool', label: 'Hồ bơi' },
-      { key: 'hasBbq', label: 'Khu nướng BBQ' },
-      { key: 'hasKitchen', label: 'Bếp' },
+      { key: 'hasPool', label: 'Có hồ bơi' },
+      { key: 'hasBbq', label: 'Có khu BBQ' },
+      { key: 'hasKitchen', label: 'Có bếp' },
       { key: 'checkinTime', label: 'Giờ nhận phòng', type: 'time' },
       { key: 'checkoutTime', label: 'Giờ trả phòng', type: 'time' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
@@ -186,8 +186,8 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
       { key: 'country', label: 'Quốc gia' },
       { key: 'documentType', label: 'Loại dịch vụ' },
       { key: 'processingTime', label: 'Thời gian xử lý' },
-      { key: 'requiredDocuments', label: 'Hồ sơ cần chuẩn bị', type: 'textarea' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'requiredDocuments', label: 'Hồ sơ cần có', type: 'textarea' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'sellingPrice', label: 'Giá bán', type: 'number' },
     ],
   },
@@ -198,25 +198,25 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceNameLabel: 'Họ tên hướng dẫn viên',
     serviceFields: [
       { key: 'birthday', label: 'Ngày sinh', type: 'date' },
-      { key: 'phone', label: 'Điện thoại' },
-      { key: 'email', label: 'Email' },
-      { key: 'idNumber', label: 'Căn cước công dân' },
-      { key: 'guideCardNumber', label: 'Số thẻ hướng dẫn viên' },
+      { key: 'phone', label: 'Điện thoại', type: 'tel' },
+      { key: 'email', label: 'Email', type: 'email' },
+      { key: 'idNumber', label: 'CCCD' },
+      { key: 'guideCardNumber', label: 'Thẻ hướng dẫn viên' },
       { key: 'languages', label: 'Ngôn ngữ' },
       { key: 'regions', label: 'Khu vực hoạt động' },
       { key: 'dailyRate', label: 'Giá theo ngày', type: 'number' },
     ],
   },
   'series-tickets': {
-    title: 'Vé series giữ chỗ',
-    shortTitle: 'Vé series',
-    serviceTitle: 'Danh sách vé series',
+    title: 'Series vé giữ chỗ',
+    shortTitle: 'Series vé',
+    serviceTitle: 'Danh sách series vé giữ chỗ',
     serviceNameLabel: 'Loại vé',
     serviceFields: [
       { key: 'seriesCode', label: 'Mã series' },
       { key: 'route', label: 'Hành trình' },
       { key: 'quantity', label: 'Số lượng', type: 'number' },
-      { key: 'netPrice', label: 'Giá thuần (NET)', type: 'number' },
+      { key: 'netPrice', label: 'Giá NET', type: 'number' },
       { key: 'depositDeadline', label: 'Hạn đặt cọc', type: 'date' },
       { key: 'nameDeadline', label: 'Hạn nhập tên', type: 'date' },
       { key: 'fullPaymentDeadline', label: 'Hạn thanh toán', type: 'date' },
@@ -260,11 +260,14 @@ type Supplier = {
 };
 type Filters = { search: string; status: string; province: string; market: string };
 
+const phonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const optionalUrl = (label: string) => z.string().url(`${label} phải là URL hợp lệ`).or(z.literal('')).default('');
+
 const contactSchema = z.object({
   fullName: z.string().default(''),
   position: z.string().default(''),
   birthday: z.string().default(''),
-  phone: z.string().default(''),
+  phone: z.string().regex(phonePattern, 'Số điện thoại người liên hệ không hợp lệ').or(z.literal('')).default(''),
   email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
@@ -272,7 +275,7 @@ const serviceSchema = z.object({
   serviceName: z.string().default(''),
   quantity: z.coerce.number().min(0, 'Số lượng không được âm').default(1),
   accountingPrice: z.coerce.number().min(0, 'Giá kế toán không được âm').default(0),
-  netPrice: z.coerce.number().min(0, 'Giá thuần không được âm').default(0),
+  netPrice: z.coerce.number().min(0, 'Giá NET không được âm').default(0),
   sellingPrice: z.coerce.number().min(0, 'Giá bán không được âm').default(0),
   description: z.string().default(''),
   note: z.string().default(''),
@@ -282,13 +285,13 @@ const supplierSchema = z.object({
   supplierCode: z.string().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự'),
   name: z.string().min(2, 'Tên nhà cung cấp phải có ít nhất 2 ký tự'),
   taxCode: z.string().default(''),
-  phone: z.string().min(6, 'Số điện thoại phải có ít nhất 6 chữ số'),
+  phone: z.string().regex(phonePattern, 'Số điện thoại nhà cung cấp không hợp lệ'),
   email: z.string().email('Email nhà cung cấp không hợp lệ').or(z.literal('')).default(''),
   address: z.string().default(''),
   province: z.string().default(''),
-  website: z.string().default(''),
-  link: z.string().default(''),
-  rating: z.coerce.number().min(0).max(5).default(0),
+  website: optionalUrl('Website nhà cung cấp'),
+  link: optionalUrl('Liên kết tham khảo'),
+  rating: z.coerce.number().min(0, 'Xếp hạng không được âm').max(5, 'Xếp hạng không được lớn hơn 5').default(0),
   market: z.string().default(''),
   bankAccountName: z.string().default(''),
   bankAccountNumber: z.string().default(''),
@@ -320,13 +323,38 @@ const defaultValues: SupplierForm = {
   bankName: '',
   notes: '',
   status: 'ACTIVE',
-  contacts: [emptyContact],
-  services: [emptyService],
+  contacts: [freshContact()],
+  services: [freshService()],
 };
 const defaultFilters: Filters = { search: '', status: '', province: '', market: '' };
 
 function dateOnly(value?: string | null) {
-  return value ? value.slice(0, 10) : '';
+  if (!value) return '';
+  const text = String(value);
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+  if (match) return match[1];
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function freshContact(): Contact {
+  return { ...emptyContact };
+}
+
+function freshService(): Service {
+  return { ...emptyService, metadata: {} };
+}
+
+function metadataRecord(value: unknown): Record<string, string | number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter((entry): entry is [string, string | number] => typeof entry[1] === 'string' || typeof entry[1] === 'number'),
+  );
 }
 
 function toForm(supplier: Supplier): SupplierForm {
@@ -340,7 +368,7 @@ function toForm(supplier: Supplier): SupplierForm {
     province: supplier.province || '',
     website: supplier.website || '',
     link: supplier.link || '',
-    rating: supplier.rating || 0,
+    rating: supplier.rating ?? 0,
     market: supplier.market || '',
     bankAccountName: supplier.bankAccountName || '',
     bankAccountNumber: supplier.bankAccountNumber || '',
@@ -349,20 +377,20 @@ function toForm(supplier: Supplier): SupplierForm {
     status: supplier.status,
     contacts: supplier.contacts?.length
       ? supplier.contacts.map((item) => ({ fullName: item.fullName || '', position: item.position || '', birthday: dateOnly(item.birthday), phone: item.phone || '', email: item.email || '' }))
-      : [emptyContact],
+      : [freshContact()],
     services: supplier.supplierServices?.length
       ? supplier.supplierServices.map((item) => ({
           sku: item.sku || '',
           serviceName: item.serviceName || '',
-          quantity: Number(item.quantity || 1),
-          accountingPrice: Number(item.accountingPrice || 0),
-          netPrice: Number(item.netPrice || 0),
-          sellingPrice: Number(item.sellingPrice || 0),
+          quantity: Number(item.quantity ?? 1),
+          accountingPrice: Number(item.accountingPrice ?? 0),
+          netPrice: Number(item.netPrice ?? 0),
+          sellingPrice: Number(item.sellingPrice ?? 0),
           description: item.description || '',
           note: item.note || '',
-          metadata: item.metadata || {},
+          metadata: metadataRecord(item.metadata),
         }))
-      : [emptyService],
+      : [freshService()],
   };
 }
 
@@ -415,7 +443,9 @@ export default function GenericSupplierClient({
       }),
       helper.accessor('province', { header: 'Tỉnh/thành', cell: (info) => info.getValue() || '—' }),
       helper.display({ id: 'market', header: 'Thị trường', cell: ({ row }) => row.original.market || '—' }),
-      helper.display({ id: 'services', header: 'Dịch vụ', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
+      helper.display({ id: 'rating', header: 'Xếp hạng', cell: ({ row }) => row.original.rating ?? '—' }),
+      helper.display({ id: 'contacts', header: 'Số liên hệ', cell: ({ row }) => row.original.contacts?.length || 0 }),
+      helper.display({ id: 'services', header: 'Số dịch vụ', cell: ({ row }) => row.original.supplierServices?.length || 0 }),
       helper.accessor('status', { header: 'Trạng thái', cell: (info) => <SupplierStatus status={info.getValue()} /> }),
       helper.display({
         id: 'actions',
@@ -609,8 +639,8 @@ export default function GenericSupplierClient({
                 <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={7} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
-                  {isLoading ? <tr><td colSpan={7} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
+                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
+                  {isLoading ? <tr><td colSpan={9} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
                 </tbody>
               </table>
             </div>
@@ -627,14 +657,14 @@ export default function GenericSupplierClient({
                       <label>Mã nhà cung cấp<input {...register('supplierCode')} /></label>
                       <label>Tên nhà cung cấp<input {...register('name')} /></label>
                       <label>Mã số thuế<input {...register('taxCode')} /></label>
-                      <label>Số điện thoại<input {...register('phone')} /></label>
+                      <label>Số điện thoại<input type="tel" {...register('phone')} /></label>
                       <label>Email<input type="email" {...register('email')} /></label>
                       <label>Tỉnh/thành<input {...register('province')} /></label>
                       <label>Thị trường<input {...register('market')} /></label>
-                      <label>Xếp hạng<input type="number" min="0" max="5" {...register('rating')} /></label>
+                      <label>Xếp hạng<input type="number" min="0" max="5" step="1" {...register('rating')} /></label>
                       <label>Trạng thái<select {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                      <label>Website<input {...register('website')} /></label>
-                      <label>Liên kết tham khảo<input {...register('link')} /></label>
+                      <label>Website<input type="url" {...register('website')} /></label>
+                      <label>Liên kết tham khảo<input type="url" {...register('link')} /></label>
                       <label className="span2">Địa chỉ<input {...register('address')} /></label>
                     </div>
                   </fieldset>
@@ -659,7 +689,7 @@ export default function GenericSupplierClient({
                     {pendingFiles.length ? <p className="mutedText">Đã chọn {pendingFiles.length} file: {pendingFiles.map((file) => file.name).join(', ')}</p> : null}
                   </fieldset>
 
-                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.rating?.message]} />
+                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.website?.message, errors.link?.message, errors.rating?.message]} />
                   <div className="modalActions">
                     <button type="button" className="secondaryButton" onClick={() => closeForm()}>Hủy</button>
                     <button type="submit" disabled={!canManage || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp'}</button>
@@ -685,8 +715,8 @@ function ContactRows({ register, fieldArray }: { register: UseFormRegister<Suppl
         { key: 'fullName', label: 'Họ tên' },
         { key: 'position', label: 'Chức vụ' },
         { key: 'birthday', label: 'Ngày sinh', type: 'date' },
-        { key: 'phone', label: 'Điện thoại' },
-        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Điện thoại', type: 'tel' },
+        { key: 'email', label: 'Email', type: 'email' },
       ]}
       emptyRow={emptyContact}
     />
@@ -744,7 +774,7 @@ function DynamicRows<T extends ArrayName>({
   });
   return (
     <section className="fitTableBlock">
-      <div className="sectionHeader"><h2>{title}</h2><button type="button" className="secondaryButton iconTextButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm dòng</button></div>
+      <div className="sectionHeader"><h2>{title}</h2><button type="button" className="secondaryButton iconTextButton" onClick={() => fieldArray.append({ ...emptyRow, ...(name === 'services' ? { metadata: {} } : {}) } as any)}><Plus size={16} /> Thêm dòng</button></div>
       <div className="fitTableWrap">
         <table className="fitTable hotelDynamicTable">
           <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
@@ -763,6 +793,7 @@ function RowInput<T extends ArrayName>({ name, index, column, register }: { name
     ? `services.${index}.metadata.${column.key}`
     : `${name}.${index}.${column.key}`;
   if (column.type === 'textarea') return <textarea rows={2} {...register(base as any)} />;
+  if (column.type === 'number') return <input type="number" min="0" step={column.key === 'quantity' ? '1' : 'any'} {...register(base as any)} />;
   return <input type={column.type || 'text'} {...register(base as any)} />;
 }
 

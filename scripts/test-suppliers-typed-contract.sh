@@ -44,6 +44,46 @@ assert 'SUPPLIER_TYPE_METADATA_FIELDS' in service and 'normalizeTypedMetadata' i
 for key in ['taxPrice', 'departureDate', 'capacity', 'driverPhone', 'bedroomCount', 'dailyRate', 'fullPaymentDeadline']:
     assert key in types_source and key in frontend, f'typed metadata contract missing {key}'
 
+for label in [
+    "title: 'Nhà cung cấp nhà hàng'",
+    "title: 'Nhà cung cấp vé máy bay'",
+    "title: 'Nhà cung cấp vé tham quan'",
+    "title: 'Nhà cung cấp Landtour'",
+    "title: 'Nhà cung cấp vận chuyển'",
+    "title: 'Nhà xe tuyến cố định'",
+    "title: 'Nhà cung cấp chi phí khác'",
+    "title: 'Nhà cung cấp villa / biệt thự'",
+    "title: 'Nhà cung cấp visa và hộ chiếu'",
+    "title: 'Hướng dẫn viên'",
+    "title: 'Series vé giữ chỗ'",
+    "label: 'Số hiệu chuyến bay đi'",
+    "label: 'Số hiệu chuyến bay về'",
+    "label: 'Hạn thanh toán đủ (FullPay)'",
+    "label: 'Giá kế toán'",
+    "label: 'Giá NET'",
+    "label: 'Bao gồm nhiên liệu'",
+    "label: 'Có hồ bơi'",
+    "label: 'Có khu BBQ'",
+    "label: 'Có bếp'",
+    "label: 'CCCD'",
+    "label: 'Thẻ hướng dẫn viên'",
+    "label: 'Ngôn ngữ'",
+    "label: 'Khu vực hoạt động'",
+    "label: 'Bến đi'",
+    "label: 'Bến đến'",
+    "label: 'Loại ghế'",
+    "label: 'Quốc gia'",
+    "label: 'Hồ sơ cần có'",
+]:
+    assert label in frontend, f'frontend typed supplier label must be fully Vietnamese: {label}'
+for stale_label in ['Nha cung cap', 'Huong dan vien', 'Gia KT', 'Gia NET', 'SHCB di', 'SHCB ve', 'Han coc', 'Gom xang', 'Ho boi', 'The HDV', 'Ben di', 'Quoc gia', 'Giá thuần (NET)']:
+    assert stale_label not in frontend, f'frontend typed supplier stale label remains: {stale_label}'
+for table_header in ["header: 'Tỉnh/thành'", "header: 'Thị trường'", "header: 'Xếp hạng'", "header: 'Số liên hệ'", "header: 'Số dịch vụ'", "header: 'Trạng thái'"]:
+    assert table_header in frontend, f'typed supplier list must expose {table_header}'
+assert "return `${year}-${month}-${day}`" in frontend, 'typed supplier contact dates must normalize through UTC date parts instead of slicing unsafe values only'
+assert 'metadata: metadataRecord(item.metadata)' in frontend, 'typed supplier edit form must preserve service metadata safely'
+assert "step={column.key === 'quantity' ? '1' : 'any'}" in frontend, 'typed supplier numeric inputs must use integer step only for quantity'
+
 assert 'getSupplierFromRouteKey(routeKey)' in controller
 assert 'SUPPLIER_ID_PATTERN.test(routeKey)' in service
 assert 'getSupplier(routeKey)' not in controller, 'controller must not ambiguously treat every route key as an id'
