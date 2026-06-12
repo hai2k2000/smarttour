@@ -371,13 +371,14 @@ function shouldSendCollection(mode: 'create' | 'update', dirtyFields: DirtyColle
 }
 
 function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirtyFields: DirtyCollections) {
+  const { contacts, services, allotments, ...baseValues } = values;
   return {
-    ...values,
+    ...baseValues,
     builtYear: values.builtYear ?? undefined,
     rating: values.rating ?? undefined,
-    ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: values.contacts.filter((item) => item.fullName.trim()) } : {}),
-    ...(shouldSendCollection(mode, dirtyFields, 'services') ? { services: values.services.filter(hasServiceRowData) } : {}),
-    ...(mode === 'create' ? { allotments: values.allotments.filter(hasAllotmentRowData) } : {}),
+    ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: contacts.filter((item) => item.fullName.trim()) } : {}),
+    ...(shouldSendCollection(mode, dirtyFields, 'services') ? { services: services.filter(hasServiceRowData) } : {}),
+    ...(mode === 'create' ? { allotments: allotments.filter(hasAllotmentRowData) } : {}),
   };
 }
 
