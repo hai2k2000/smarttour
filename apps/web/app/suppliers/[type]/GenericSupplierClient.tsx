@@ -37,6 +37,20 @@ export type SupplierType =
 type ServiceField = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'time' | 'datetime-local' | 'textarea' | 'email' | 'tel' | 'url' };
 export type SupplierConfig = { title: string; shortTitle: string; serviceTitle: string; serviceNameLabel: string; serviceFields: ServiceField[] };
 
+const maxUploadSize = 10 * 1024 * 1024;
+const allowedUploadExtensions = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'webp', 'txt']);
+const allowedUploadMimeTypes = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'text/plain',
+]);
+
 const priceFields: ServiceField[] = [
   { key: 'accountingPrice', label: 'Giá kế toán', type: 'number' },
   { key: 'netPrice', label: 'Giá NET', type: 'number' },
@@ -59,10 +73,10 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     serviceFields: [
       { key: 'ticketType', label: 'Loại vé' },
       { key: 'route', label: 'Hành trình' },
-      { key: 'departureAirport', label: 'Số hiệu chuyến bay đi' },
+      { key: 'departureAirport', label: 'Sân bay khởi hành' },
       { key: 'departureDate', label: 'Ngày đi', type: 'date' },
       { key: 'departureTime', label: 'Giờ đi', type: 'time' },
-      { key: 'arrivalAirport', label: 'Số hiệu chuyến bay về' },
+      { key: 'arrivalAirport', label: 'Sân bay đến' },
       { key: 'returnDate', label: 'Ngày về', type: 'date' },
       { key: 'returnTime', label: 'Giờ về', type: 'time' },
       { key: 'depositDeadline', label: 'Hạn đặt cọc', type: 'datetime-local' },
@@ -161,10 +175,10 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   villas: {
-    title: 'Nhà cung cấp villa / biệt thự',
-    shortTitle: 'Villa / biệt thự',
-    serviceTitle: 'Villa / biệt thự và giá',
-    serviceNameLabel: 'Tên villa / biệt thự',
+    title: 'Nhà cung cấp villa, biệt thự',
+    shortTitle: 'Villa, biệt thự',
+    serviceTitle: 'Villa, biệt thự và bảng giá',
+    serviceNameLabel: 'Tên villa, biệt thự',
     serviceFields: [
       { key: 'bedroomCount', label: 'Số phòng ngủ', type: 'number' },
       { key: 'capacity', label: 'Sức chứa', type: 'number' },
@@ -261,42 +275,43 @@ type Supplier = {
 type Filters = { search: string; status: string; province: string; market: string };
 
 const phonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
-const optionalUrl = (label: string) => z.string().url(`${label} phải là URL hợp lệ`).or(z.literal('')).default('');
+const optionalUrl = (label: string) => z.string().trim().url(`${label} phải là URL hợp lệ`).or(z.literal('')).default('');
+const optionalText = () => z.string().trim().default('');
 
 const contactSchema = z.object({
-  fullName: z.string().default(''),
-  position: z.string().default(''),
-  birthday: z.string().default(''),
-  phone: z.string().regex(phonePattern, 'Số điện thoại người liên hệ không hợp lệ').or(z.literal('')).default(''),
-  email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
+  fullName: optionalText(),
+  position: optionalText(),
+  birthday: optionalText(),
+  phone: z.string().trim().regex(phonePattern, 'Số điện thoại người liên hệ không hợp lệ').or(z.literal('')).default(''),
+  email: z.string().trim().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
-  sku: z.string().default(''),
-  serviceName: z.string().default(''),
+  sku: optionalText(),
+  serviceName: optionalText(),
   quantity: z.coerce.number().min(0, 'Số lượng không được âm').default(1),
   accountingPrice: z.coerce.number().min(0, 'Giá kế toán không được âm').default(0),
   netPrice: z.coerce.number().min(0, 'Giá NET không được âm').default(0),
   sellingPrice: z.coerce.number().min(0, 'Giá bán không được âm').default(0),
-  description: z.string().default(''),
-  note: z.string().default(''),
-  metadata: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+  description: optionalText(),
+  note: optionalText(),
+  metadata: z.record(z.string(), z.union([z.string().trim(), z.number()])).default({}),
 });
 const supplierSchema = z.object({
-  supplierCode: z.string().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự'),
-  name: z.string().min(2, 'Tên nhà cung cấp phải có ít nhất 2 ký tự'),
-  taxCode: z.string().default(''),
-  phone: z.string().regex(phonePattern, 'Số điện thoại nhà cung cấp không hợp lệ'),
-  email: z.string().email('Email nhà cung cấp không hợp lệ').or(z.literal('')).default(''),
-  address: z.string().default(''),
-  province: z.string().default(''),
+  supplierCode: z.string().trim().min(2, 'Cần nhập mã nhà cung cấp, tối thiểu 2 ký tự'),
+  name: z.string().trim().min(2, 'Cần nhập tên nhà cung cấp, tối thiểu 2 ký tự'),
+  taxCode: optionalText(),
+  phone: z.string().trim().regex(phonePattern, 'Cần nhập số điện thoại nhà cung cấp hợp lệ'),
+  email: z.string().trim().email('Email nhà cung cấp không hợp lệ').or(z.literal('')).default(''),
+  address: optionalText(),
+  province: optionalText(),
   website: optionalUrl('Website nhà cung cấp'),
   link: optionalUrl('Liên kết tham khảo'),
   rating: z.coerce.number().min(0, 'Xếp hạng không được âm').max(5, 'Xếp hạng không được lớn hơn 5').default(0),
-  market: z.string().default(''),
-  bankAccountName: z.string().default(''),
-  bankAccountNumber: z.string().default(''),
-  bankName: z.string().default(''),
-  notes: z.string().default(''),
+  market: optionalText(),
+  bankAccountName: optionalText(),
+  bankAccountNumber: optionalText(),
+  bankName: optionalText(),
+  notes: optionalText(),
   status: z.enum(supplierLifecycleStatuses).default('ACTIVE'),
   contacts: z.array(contactSchema).default([]),
   services: z.array(serviceSchema).default([]),
@@ -355,6 +370,55 @@ function metadataRecord(value: unknown): Record<string, string | number> {
     Object.entries(value as Record<string, unknown>)
       .filter((entry): entry is [string, string | number] => typeof entry[1] === 'string' || typeof entry[1] === 'number'),
   );
+}
+
+function metadataPayload(value: Record<string, string | number>) {
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, raw]) => [key, typeof raw === 'string' ? raw.trim() : raw] as const)
+      .filter(([, raw]) => raw !== '' && raw !== null && raw !== undefined),
+  );
+}
+
+function supplierPayload(values: SupplierForm) {
+  return {
+    ...values,
+    rating: Number.isFinite(values.rating) ? values.rating : undefined,
+    contacts: values.contacts
+      .map((item) => ({
+        fullName: item.fullName.trim(),
+        position: item.position.trim(),
+        birthday: item.birthday.trim(),
+        phone: item.phone.trim(),
+        email: item.email.trim(),
+      }))
+      .filter((item) => item.fullName),
+    services: values.services
+      .map((item) => ({
+        ...item,
+        sku: item.sku.trim(),
+        serviceName: item.serviceName.trim(),
+        description: item.description.trim(),
+        note: item.note.trim(),
+        metadata: metadataPayload(item.metadata),
+      }))
+      .filter((item) => item.serviceName),
+  };
+}
+
+function validatePendingFiles(files: File[]) {
+  for (const file of files) {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!extension || !allowedUploadExtensions.has(extension)) {
+      return `File "${file.name}" không đúng định dạng hỗ trợ. Chỉ nhận PDF, Word, Excel, ảnh PNG/JPG/WebP hoặc TXT.`;
+    }
+    if (file.type && !allowedUploadMimeTypes.has(file.type)) {
+      return `File "${file.name}" có MIME type không được hỗ trợ (${file.type}).`;
+    }
+    if (file.size <= 0) return `File "${file.name}" đang rỗng, vui lòng chọn file khác.`;
+    if (file.size > maxUploadSize) return `File "${file.name}" vượt quá 10MB.`;
+  }
+  return '';
 }
 
 function toForm(supplier: Supplier): SupplierForm {
@@ -421,8 +485,8 @@ export default function GenericSupplierClient({
     control,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
-  } = useForm<SupplierForm>({ resolver: zodResolver(supplierSchema) as any, defaultValues });
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<SupplierForm>({ resolver: zodResolver(supplierSchema) as any, defaultValues, mode: 'onChange' });
   const contacts = useFieldArray({ control, name: 'contacts' });
   const services = useFieldArray({ control, name: 'services' });
 
@@ -432,14 +496,24 @@ export default function GenericSupplierClient({
     const helper = createColumnHelper<Supplier>();
     return [
       helper.display({
-        id: 'supplier',
-        header: 'Nhà cung cấp',
-        cell: ({ row }) => <div className="supplierPrimaryCell"><strong>{row.original.name}</strong><span>{row.original.supplierCode || 'Chưa có mã'}</span></div>,
+        id: 'supplierCode',
+        header: 'Mã nhà cung cấp',
+        cell: ({ row }) => <span className="cellClamp" title={row.original.supplierCode || 'Chưa có mã'}>{row.original.supplierCode || 'Chưa có mã'}</span>,
       }),
       helper.display({
-        id: 'contact',
-        header: 'Liên hệ',
-        cell: ({ row }) => <div className="supplierPrimaryCell"><span>{row.original.phone || 'Chưa có số điện thoại'}</span><span>{row.original.email || 'Chưa có email'}</span></div>,
+        id: 'name',
+        header: 'Tên nhà cung cấp',
+        cell: ({ row }) => <strong className="cellClamp2" title={row.original.name}>{row.original.name}</strong>,
+      }),
+      helper.display({
+        id: 'phone',
+        header: 'Điện thoại',
+        cell: ({ row }) => <span className="cellClamp" title={row.original.phone || 'Chưa có số điện thoại'}>{row.original.phone || 'Chưa có số điện thoại'}</span>,
+      }),
+      helper.display({
+        id: 'email',
+        header: 'Email',
+        cell: ({ row }) => <span className="cellClamp" title={row.original.email || 'Chưa có email'}>{row.original.email || 'Chưa có email'}</span>,
       }),
       helper.accessor('province', { header: 'Tỉnh/thành', cell: (info) => info.getValue() || '—' }),
       helper.display({ id: 'market', header: 'Thị trường', cell: ({ row }) => row.original.market || '—' }),
@@ -499,12 +573,7 @@ export default function GenericSupplierClient({
 
   async function onSubmit(values: SupplierForm) {
     setNotice(null);
-    const payload = {
-      ...values,
-      rating: values.rating || undefined,
-      contacts: values.contacts.filter((item) => item.fullName.trim()),
-      services: values.services.filter((item) => item.serviceName.trim()),
-    };
+    const payload = supplierPayload(values);
     let saved: Supplier;
     try {
       saved = await supplierApi<Supplier>(
@@ -599,6 +668,17 @@ export default function GenericSupplierClient({
     setFormOpen(true);
   }
 
+  function selectFiles(nextFiles: File[]) {
+    const validationError = validatePendingFiles(nextFiles);
+    if (validationError) {
+      setPendingFiles([]);
+      setNotice({ type: 'error', text: validationError });
+      return;
+    }
+    setPendingFiles(nextFiles);
+    if (nextFiles.length) setNotice({ type: 'info', text: `Đã chọn ${nextFiles.length} file hợp lệ, file sẽ được tải lên khi lưu nhà cung cấp.` });
+  }
+
   return (
     <div className="hotelSupplierPage">
       <PermissionNotice allowed={canView} label="xem nhà cung cấp" missingPermissions={['supplier.view']} />
@@ -639,8 +719,8 @@ export default function GenericSupplierClient({
                 <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={9} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
-                  {isLoading ? <tr><td colSpan={9} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
+                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={11} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
+                  {isLoading ? <tr><td colSpan={11} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
                 </tbody>
               </table>
             </div>
@@ -685,14 +765,14 @@ export default function GenericSupplierClient({
                   <fieldset>
                     <legend>File đính kèm</legend>
                     {editingId ? <SupplierFiles files={files} busy={Boolean(busyAction)} canManage={canManage} onDelete={(file) => void deleteFile(file)} /> : <p className="mutedText">File sẽ được tải lên sau khi nhà cung cấp được tạo thành công.</p>}
-                    <label className="fileDrop"><FileUp size={18} /> Chọn file cần tải lên<input type="file" multiple onChange={(event) => setPendingFiles(Array.from(event.target.files || []))} /></label>
+                    <label className="fileDrop"><FileUp size={18} /> Chọn file cần tải lên<input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,text/plain" onChange={(event) => selectFiles(Array.from(event.target.files || []))} /></label>
                     {pendingFiles.length ? <p className="mutedText">Đã chọn {pendingFiles.length} file: {pendingFiles.map((file) => file.name).join(', ')}</p> : null}
                   </fieldset>
 
-                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.website?.message, errors.link?.message, errors.rating?.message]} />
+                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.website?.message, errors.link?.message, errors.rating?.message, errors.contacts?.message, errors.services?.message]} />
                   <div className="modalActions">
                     <button type="button" className="secondaryButton" onClick={() => closeForm()}>Hủy</button>
-                    <button type="submit" disabled={!canManage || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp'}</button>
+                    <button type="submit" disabled={!canManage || !isValid || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp'}</button>
                   </div>
                 </form>
               </div>

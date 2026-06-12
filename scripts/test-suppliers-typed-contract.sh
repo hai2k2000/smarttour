@@ -52,12 +52,12 @@ for label in [
     "title: 'Nhà cung cấp vận chuyển'",
     "title: 'Nhà xe tuyến cố định'",
     "title: 'Nhà cung cấp chi phí khác'",
-    "title: 'Nhà cung cấp villa / biệt thự'",
+    "title: 'Nhà cung cấp villa, biệt thự'",
     "title: 'Nhà cung cấp visa và hộ chiếu'",
     "title: 'Hướng dẫn viên'",
     "title: 'Series vé giữ chỗ'",
-    "label: 'Số hiệu chuyến bay đi'",
-    "label: 'Số hiệu chuyến bay về'",
+    "label: 'Sân bay khởi hành'",
+    "label: 'Sân bay đến'",
     "label: 'Hạn thanh toán đủ (FullPay)'",
     "label: 'Giá kế toán'",
     "label: 'Giá NET'",
@@ -76,12 +76,15 @@ for label in [
     "label: 'Hồ sơ cần có'",
 ]:
     assert label in frontend, f'frontend typed supplier label must be fully Vietnamese: {label}'
-for stale_label in ['Nha cung cap', 'Huong dan vien', 'Gia KT', 'Gia NET', 'SHCB di', 'SHCB ve', 'Han coc', 'Gom xang', 'Ho boi', 'The HDV', 'Ben di', 'Quoc gia', 'Giá thuần (NET)']:
+for stale_label in ['Nha cung cap', 'Huong dan vien', 'Gia KT', 'Gia NET', 'SHCB di', 'SHCB ve', 'Han coc', 'Gom xang', 'Ho boi', 'The HDV', 'Ben di', 'Quoc gia', 'Giá thuần (NET)', 'Số hiệu chuyến bay đi', 'Số hiệu chuyến bay về']:
     assert stale_label not in frontend, f'frontend typed supplier stale label remains: {stale_label}'
-for table_header in ["header: 'Tỉnh/thành'", "header: 'Thị trường'", "header: 'Xếp hạng'", "header: 'Số liên hệ'", "header: 'Số dịch vụ'", "header: 'Trạng thái'"]:
+for table_header in ["header: 'Mã nhà cung cấp'", "header: 'Tên nhà cung cấp'", "header: 'Điện thoại'", "header: 'Email'", "header: 'Tỉnh/thành'", "header: 'Thị trường'", "header: 'Xếp hạng'", "header: 'Số liên hệ'", "header: 'Số dịch vụ'", "header: 'Trạng thái'"]:
     assert table_header in frontend, f'typed supplier list must expose {table_header}'
 assert "return `${year}-${month}-${day}`" in frontend, 'typed supplier contact dates must normalize through UTC date parts instead of slicing unsafe values only'
 assert 'metadata: metadataRecord(item.metadata)' in frontend, 'typed supplier edit form must preserve service metadata safely'
+assert 'function supplierPayload(values: SupplierForm)' in frontend and 'metadataPayload(item.metadata)' in frontend, 'typed supplier form must serialize contacts/services/metadata through a stable payload helper'
+assert 'function validatePendingFiles(files: File[])' in frontend and 'allowedUploadMimeTypes' in frontend and 'maxUploadSize' in frontend, 'typed supplier upload picker must validate file type and size before submit'
+assert "mode: 'onChange'" in frontend and '!isValid || isSubmitting' in frontend, 'typed supplier submit must be disabled while the form is invalid'
 assert "step={column.key === 'quantity' ? '1' : 'any'}" in frontend, 'typed supplier numeric inputs must use integer step only for quantity'
 
 assert 'getSupplierFromRouteKey(routeKey)' in controller
