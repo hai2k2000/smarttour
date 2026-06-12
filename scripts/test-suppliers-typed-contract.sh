@@ -10,6 +10,7 @@ service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(
 types_source = Path('apps/api/src/modules/suppliers/supplier-types.ts').read_text()
 dto = Path('apps/api/src/modules/suppliers/dto/generic-supplier.dto.ts').read_text()
 frontend = Path('apps/web/app/suppliers/[type]/GenericSupplierClient.tsx').read_text()
+query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text()
 schema = Path('prisma/schema.prisma').read_text()
 
 expected_routes = {
@@ -44,6 +45,9 @@ assert 'SUPPLIER_ID_PATTERN.test(routeKey)' in service
 assert 'getSupplier(routeKey)' not in controller, 'controller must not ambiguously treat every route key as an id'
 assert "throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType)" in service
 assert 'this.validateTypedSupplierPayload(typedRoute, dto)' in service
+assert 'class TypedSupplierListQueryDto' in query_dto and 'status?: SupplierStatus' in query_dto
+assert 'query.status ? { status: query.status } : {}' in service, 'typed supplier status filter must use the shared Supplier status'
+assert "params.set('status', nextFilters.status)" in frontend, 'frontend typed supplier list must send the same status filter contract'
 assert 'return this.prisma.supplier.update({ where: { id }, data: { status }, include: this.genericInclude() })' in service
 assert 'return this.deleteSupplierRecord(id)' in service
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service

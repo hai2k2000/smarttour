@@ -414,6 +414,8 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(messageOf(blockedUpload).includes('Loại file không được phép'), 'dangerous supplier file type should be rejected');
   const emptyUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'empty.txt', 'text/plain', '', [400]);
   assert(messageOf(emptyUpload).includes('File t\u1ea3i l\u00ean kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1ec3 tr\u1ed1ng'), 'empty supplier file should be rejected');
+  const oversizedUpload = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'oversized.txt', 'text/plain', 'x'.repeat(10 * 1024 * 1024 + 1), [413]);
+  assert(messageOf(oversizedUpload).includes('File vượt quá giới hạn 10 MB'), 'supplier upload must enforce the 10 MB business limit');
   const uploadedFile = await uploadRequest(manageToken, `/suppliers/${supplier.id}/files`, 'supplier-note.txt', 'text/plain', 'supplier file smoke');
   assert(uploadedFile.id && uploadedFile.uploadedBy === process.env.MANAGE_USER_ID, 'supplier upload should record the authenticated user id');
   assert(uploadedFile.fileName === 'supplier-note.txt' && uploadedFile.fileType === 'text/plain', 'supplier upload should persist normalized file metadata');
@@ -539,6 +541,12 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(typedUpdated.name.endsWith('Updated'), 'typed supplier manage permission should allow update');
   const typedInactive = await request(manageToken, 'PATCH', `/suppliers/restaurants/${typedSupplier.id}/status`, { status: 'INACTIVE' });
   assert(typedInactive.status === 'INACTIVE', 'typed supplier manage permission should allow status update');
+  const typedInactiveDetail = await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`);
+  assert(typedInactiveDetail.status === 'INACTIVE', 'typed supplier detail must reflect the latest status');
+  const typedInactiveList = await request(manageToken, 'GET', `/suppliers/restaurants?status=INACTIVE&search=${encodeURIComponent(`${run} Restaurant Supplier Updated`)}`);
+  assert(typedInactiveList.some((item) => item.id === typedSupplier.id && item.status === 'INACTIVE'), 'typed supplier inactive status must be visible in the filtered list used by the frontend');
+  const typedActiveList = await request(manageToken, 'GET', `/suppliers/restaurants?status=ACTIVE&search=${encodeURIComponent(`${run} Restaurant Supplier Updated`)}`);
+  assert(!typedActiveList.some((item) => item.id === typedSupplier.id), 'typed supplier inactive status must remove the row from the active filtered list');
   await request(manageToken, 'DELETE', `/suppliers/restaurants/${typedSupplier.id}`);
   await request(manageToken, 'GET', `/suppliers/restaurants/${typedSupplier.id}`, undefined, [404]);
 

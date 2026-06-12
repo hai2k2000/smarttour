@@ -9,6 +9,8 @@ controller = Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read
 service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
 types_source = Path('apps/api/src/modules/suppliers/supplier-types.ts').read_text()
 frontend = Path('apps/web/app/suppliers/[type]/GenericSupplierClient.tsx').read_text()
+files_service = Path('apps/api/src/modules/files/files.service.ts').read_text()
+upload_filter = Path('apps/api/src/modules/files/file-upload-size-exception.filter.ts').read_text()
 
 expected_types = {
     'restaurants', 'flights', 'attraction-tickets', 'landtour-suppliers',
@@ -42,6 +44,9 @@ assert '@Query() query: HotelSupplierListQueryDto' in controller, 'hotel list qu
 assert '@Query() query: AllotmentInventoryQueryDto' in controller, 'allotment inventory query must be validated'
 assert "FileInterceptor('file', fileUploadInterceptorOptions())" in controller, 'supplier upload must use shared file limits and filtering'
 assert '@UseFilters(FileUploadSizeExceptionFilter)' in controller, 'supplier upload must translate oversized files to the shared Vietnamese error response'
+assert 'const defaultMaxBytes = 10 * 1024 * 1024' in files_service, 'default supplier upload limit must remain 10 MB'
+assert 'limits: { fileSize: maxBytes }' in files_service, 'multer must enforce the configured upload limit before service persistence'
+assert 'File vượt quá giới hạn ${limitLabel} MB' in upload_filter, 'oversized uploads must return a Vietnamese 10 MB policy message'
 assert "this.requiredText(actorId, 'Không xác định được người tải file')" in service, 'supplier upload must require an authenticated actor id'
 
 print('TEST_SUPPLIERS_CONTROLLER_CONTRACT_OK')
