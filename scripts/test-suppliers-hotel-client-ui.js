@@ -594,13 +594,17 @@ async function loadMockedList(page) {
       assert(await serviceSection.locator('tbody tr').first().locator('select').first().inputValue() === 'ALL_DAYS', 'service dayType should default to ALL_DAYS');
       assert(await allotmentSection.locator('tbody tr').first().locator('select').first().inputValue() === 'ALL_DAYS', 'allotment dayType should default to ALL_DAYS');
       assert(await allotmentSection.locator('tbody tr').first().locator('select').nth(1).inputValue() === 'ACTIVE', 'allotment status should default to ACTIVE');
+      assert(await allotmentSection.locator('tbody tr').first().locator('select').nth(1).locator('option[value="INACTIVE"]').textContent() === 'Ngừng hoạt động', 'inactive allotment status must use the shared Vietnamese label');
+      assert(await serviceSection.locator('input[type="number"]').first().getAttribute('step') === 'any', 'service money inputs must allow decimal values');
+      assert(await allotmentSection.locator('input[type="number"]').first().getAttribute('step') === '1', 'allotment quantity inputs must remain integers');
+      assert(await allotmentSection.locator('input[type="number"]').nth(2).getAttribute('step') === 'any', 'allotment money inputs must allow decimal values');
 
       await dialog.getByRole('button', { name: 'Tạo nhà cung cấp khách sạn' }).click();
-      await visibleText(dialog, 'Mã nhà cung cấp phải có ít nhất 2 ký tự');
-      await visibleText(dialog, 'Tên nhà cung cấp phải có ít nhất 2 ký tự');
-      await visibleText(dialog, 'Cần nhập số điện thoại');
-      await visibleText(dialog, 'Hạng khách sạn phải có ít nhất 2 ký tự');
-      await visibleText(dialog, 'Dự án khách sạn phải có ít nhất 2 ký tự');
+      await visibleText(dialog, 'Cần nhập mã nhà cung cấp');
+      await visibleText(dialog, 'Cần nhập tên khách sạn');
+      await visibleText(dialog, 'Cần nhập số điện thoại nhà cung cấp');
+      await visibleText(dialog, 'Cần chọn hoặc nhập hạng khách sạn');
+      await visibleText(dialog, 'Cần nhập dòng sản phẩm hoặc dự án khách sạn');
       assert(state.calls.createPayloads.length === 0, 'invalid create form must not call API');
 
       await addAndRemoveRow(page, contactSection, 'contacts');
@@ -654,7 +658,16 @@ async function loadMockedList(page) {
       await visibleText(dialog, 'Quỹ phòng được quản lý riêng');
       await visibleText(dialog, 'hop-dong-cu.pdf');
 
-      await dialog.locator('input[type="file"]').setInputFiles({
+      const fileInput = dialog.locator('input[type="file"]');
+      await fileInput.setInputFiles({
+        name: 'blocked-script.js',
+        mimeType: 'application/javascript',
+        buffer: Buffer.from('alert(1)'),
+      });
+      await visibleText(page, 'Loại file "blocked-script.js" không được phép tải lên.');
+      assert(await fileInput.evaluate((input) => input.files.length) === 0, 'invalid pending files must be cleared before upload');
+
+      await fileInput.setInputFiles({
         name: 'hotel-upload-test.txt',
         mimeType: 'text/plain',
         buffer: Buffer.from('hotel upload client test'),

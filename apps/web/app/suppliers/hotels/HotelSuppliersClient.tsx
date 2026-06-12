@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { BedDouble, CheckCircle2, FileUp, LockKeyhole, Pencil, Plus, RefreshCcw, Save, Search, Settings2, Trash2, Undo2, X } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, FieldErrors, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
@@ -128,6 +128,9 @@ const allotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
 const currentYear = new Date().getFullYear();
 const maxSupplierMoney = 999_999_999_999;
 const maxSupplierAllotmentCutoffDays = 365;
+const maxSupplierFileBytes = 10 * 1024 * 1024;
+const deniedSupplierFileExtensions = new Set(['bat', 'cmd', 'com', 'exe', 'htm', 'html', 'js', 'mjs', 'cjs', 'ps1', 'sh', 'svg']);
+const deniedSupplierFileTypes = new Set(['image/svg+xml', 'text/html', 'text/javascript', 'application/javascript']);
 const hotelListQueryKeys = ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel'] as const;
 const hotelFilterMaxLengths = { search: 200, province: 120, market: 120, hotelProject: 180, classHotel: 80 } as const;
 const hotelFilterLabels = {
@@ -162,7 +165,7 @@ const optionalBuiltYear = z.preprocess(
   z.coerce.number().int('Năm xây dựng phải là số nguyên').min(1800, 'Năm xây dựng không được nhỏ hơn 1800').max(currentYear, `Năm xây dựng không được lớn hơn ${currentYear}`).optional(),
 );
 const nonNegativeMoney = z.coerce.number().min(0, 'Giá trị không được âm').max(maxSupplierMoney, 'Giá trị không được vượt quá 999.999.999.999').default(0);
-const requiredPhone = z.string().trim().min(1, 'Cần nhập số điện thoại').regex(supplierPhonePattern, 'Số điện thoại phải có từ 6 đến 15 chữ số và chỉ dùng số, khoảng trắng hoặc ký tự +().-');
+const requiredPhone = z.string().trim().min(1, 'Cần nhập số điện thoại nhà cung cấp').regex(supplierPhonePattern, 'Số điện thoại phải có từ 6 đến 15 chữ số và chỉ dùng số, khoảng trắng hoặc ký tự +().-');
 const optionalPhone = z.string().trim().refine((value) => !value || supplierPhonePattern.test(value), 'Số điện thoại không hợp lệ').default('');
 const optionalUrl = (label: string) => z.string().trim().refine(isOptionalHttpUrl, `${label} phải là URL hợp lệ bắt đầu bằng http:// hoặc https://`).default('');
 const optionalDateOnly = (label: string) => z.string().trim().refine(isOptionalDateOnly, `${label} không hợp lệ`).default('');
@@ -238,8 +241,8 @@ function hasAllotmentRowData(item: AllotmentFormRow) {
   );
 }
 const hotelSchema = z.object({
-  supplierCode: z.string().trim().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự').max(80, 'Mã nhà cung cấp không được vượt quá 80 ký tự'),
-  name: z.string().trim().min(2, 'Tên nhà cung cấp phải có ít nhất 2 ký tự').max(180, 'Tên nhà cung cấp không được vượt quá 180 ký tự'),
+  supplierCode: z.string().trim().min(1, 'Cần nhập mã nhà cung cấp').min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự').max(80, 'Mã nhà cung cấp không được vượt quá 80 ký tự'),
+  name: z.string().trim().min(1, 'Cần nhập tên khách sạn').min(2, 'Tên khách sạn phải có ít nhất 2 ký tự').max(180, 'Tên khách sạn không được vượt quá 180 ký tự'),
   taxCode: optionalText(80, 'Mã số thuế'),
   builtYear: optionalBuiltYear,
   phone: requiredPhone,
@@ -250,8 +253,8 @@ const hotelSchema = z.object({
   notes: optionalInternalNotes,
   rating: z.coerce.number().int('Xếp hạng khách sạn phải là số nguyên').min(0, 'Xếp hạng khách sạn không được nhỏ hơn 0').max(5, 'Xếp hạng khách sạn không được lớn hơn 5').default(0),
   website: optionalUrl('Website nhà cung cấp'),
-  classHotel: z.string().trim().min(2, 'Hạng khách sạn phải có ít nhất 2 ký tự').max(80, 'Hạng khách sạn không được vượt quá 80 ký tự'),
-  hotelProject: z.string().trim().min(2, 'Dự án khách sạn phải có ít nhất 2 ký tự').max(180, 'Dự án khách sạn không được vượt quá 180 ký tự'),
+  classHotel: z.string().trim().min(1, 'Cần chọn hoặc nhập hạng khách sạn').min(2, 'Hạng khách sạn phải có ít nhất 2 ký tự').max(80, 'Hạng khách sạn không được vượt quá 80 ký tự'),
+  hotelProject: z.string().trim().min(1, 'Cần nhập dòng sản phẩm hoặc dự án khách sạn').min(2, 'Dòng sản phẩm hoặc dự án khách sạn phải có ít nhất 2 ký tự').max(180, 'Dòng sản phẩm hoặc dự án khách sạn không được vượt quá 180 ký tự'),
   bankAccountName: optionalText(180, 'Tên tài khoản ngân hàng'),
   bankAccountNumber: optionalText(80, 'Số tài khoản ngân hàng'),
   bankName: optionalText(180, 'Tên ngân hàng'),
@@ -304,7 +307,7 @@ const hotelSchema = z.object({
 
 type HotelForm = z.infer<typeof hotelSchema>;
 type ArrayName = 'contacts' | 'services' | 'allotments';
-type ColumnSpec = { key: string; label: string; tooltip?: string; type?: 'text' | 'number' | 'date' | 'time' | 'email' | 'tel' | 'select' | 'textarea'; readOnly?: boolean };
+type ColumnSpec = { key: string; label: string; tooltip?: string; type?: 'text' | 'number' | 'date' | 'time' | 'email' | 'tel' | 'select' | 'textarea'; numberStep?: '1' | 'any'; readOnly?: boolean };
 type DirtyCollections = Partial<Record<ArrayName, unknown>>;
 
 const emptyContact = { fullName: '', position: '', birthday: '', phone: '', email: '' };
@@ -349,6 +352,19 @@ function freshDefaultValues(): HotelForm {
     services: [createFieldArrayRow(emptyService) as HotelForm['services'][number]],
     allotments: [createFieldArrayRow(emptyAllotment) as HotelForm['allotments'][number]],
   };
+}
+
+function validatePendingFiles(files: File[]) {
+  for (const file of files) {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const fileType = file.type.toLowerCase();
+    if (!file.size) return `File "${file.name}" không được để trống.`;
+    if (file.size > maxSupplierFileBytes) return `File "${file.name}" vượt quá giới hạn 10 MB.`;
+    if (deniedSupplierFileExtensions.has(extension) || deniedSupplierFileTypes.has(fileType)) {
+      return `Loại file "${file.name}" không được phép tải lên.`;
+    }
+  }
+  return '';
 }
 
 function validateHotelFilters(filters: Filters) {
@@ -913,6 +929,19 @@ export default function HotelSuppliersClient({
     setFormOpen(true);
   }
 
+  function selectPendingFiles(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files || []);
+    const validationError = validatePendingFiles(selectedFiles);
+    if (validationError) {
+      event.target.value = '';
+      setPendingFiles([]);
+      setNotice({ type: 'error', text: validationError });
+      return;
+    }
+    setNotice(null);
+    setPendingFiles(selectedFiles);
+  }
+
   return (
     <div className="hotelSupplierPage">
       <PermissionNotice allowed={canView} label="xem nhà cung cấp khách sạn" missingPermissions={['supplier.view']} />
@@ -972,7 +1001,7 @@ export default function HotelSuppliersClient({
                         <td><div className="supplierPrimaryCell"><strong title={item.supplier?.name || 'Chưa rõ khách sạn'}>{item.supplier?.name || 'Chưa rõ khách sạn'}</strong><span>{item.supplier?.supplierCode || 'Chưa có mã'}</span></div></td>
                         <td><div className="supplierPrimaryCell"><strong title={item.serviceName}>{item.serviceName}</strong><span>{item.sku || dayTypeLabel(item.dayType || 'ALL_DAYS')}</span></div></td>
                         <td><span>{dateOnly(item.startDate) || 'Không giới hạn'}</span><br /><span>{dateOnly(item.endDate) || 'Không giới hạn'}</span></td>
-                        <td><div className="inventoryQuantities"><span>Tổng: <strong>{formatNumber(total)}</strong></span><span>Đã xác nhận: <strong>{formatNumber(booked)}</strong></span><span>Đang giữ: <strong>{formatNumber(locked)}</strong></span><span>Còn: <strong>{formatNumber(remaining)}</strong></span></div></td>
+                        <td><div className="inventoryQuantities"><span title="Tổng số phòng được cấp trong quỹ">Tổng quỹ: <strong>{formatNumber(total)}</strong></span><span title="Số phòng đã xác nhận bán">Đã xác nhận: <strong>{formatNumber(booked)}</strong></span><span title="Số phòng đang được giữ chỗ; dữ liệu cũ quantityLock được quy đổi sang chỉ số này">Đang giữ chỗ: <strong>{formatNumber(locked)}</strong></span><span title="Số phòng còn có thể giữ hoặc bán">Còn khả dụng: <strong>{formatNumber(remaining)}</strong></span></div></td>
                         <td><div className="inventoryQuantities"><span title="Giá thuần mỗi phòng mỗi đêm">Giá NET/phòng/đêm: <strong>{formatNumber(item.netCostPerDay)}</strong></span><span title="Giá bán mỗi phòng mỗi đêm">Giá bán/phòng/đêm: <strong>{formatNumber(item.sellingPricePerDay)}</strong></span><span title="Số ngày phải chốt quỹ trước ngày bắt đầu">Chốt trước: <strong>{formatNumber(item.cutoffDays)} ngày</strong></span><span title="Tỷ lệ phòng đã xác nhận hoặc đang giữ trên tổng quỹ">Đã bán/giữ: <strong>{formatNumber(item.sellThroughRate)}%</strong></span></div></td>
                         <td><SupplierStatus status={status} /></td>
                         <td><div className={`inventoryWarnings ${warnings.length ? 'inventoryWarningsAttention' : ''}`}>{warnings.length ? warnings.map((warning) => <span key={warning}>{warning}</span>) : <span>Ổn định</span>}</div></td>
@@ -1076,9 +1105,9 @@ export default function HotelSuppliersClient({
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
                     { key: 'dayType', label: 'Ngày áp dụng', tooltip: 'Loại ngày áp dụng giá dịch vụ', type: 'select' },
-                    { key: 'accountingPrice', label: 'Giá hạch toán', tooltip: 'Mức giá dùng cho hạch toán nội bộ', type: 'number' },
-                    { key: 'netPrice', label: 'Giá NET', tooltip: 'Giá thuần nhà cung cấp, chưa gồm phần chênh lệch bán', type: 'number' },
-                    { key: 'sellingPrice', label: 'Giá bán đề xuất', tooltip: 'Mức giá bán đề xuất cho khách hàng', type: 'number' },
+                    { key: 'accountingPrice', label: 'Giá hạch toán', tooltip: 'Mức giá dùng cho hạch toán nội bộ', type: 'number', numberStep: 'any' },
+                    { key: 'netPrice', label: 'Giá NET', tooltip: 'Giá thuần nhà cung cấp, chưa gồm phần chênh lệch bán', type: 'number', numberStep: 'any' },
+                    { key: 'sellingPrice', label: 'Giá bán đề xuất', tooltip: 'Mức giá bán đề xuất cho khách hàng', type: 'number', numberStep: 'any' },
                     { key: 'description', label: 'Diễn giải', type: 'textarea' },
                     { key: 'note', label: 'Ghi chú', type: 'textarea' },
                   ]} emptyRow={emptyService} />
@@ -1089,10 +1118,10 @@ export default function HotelSuppliersClient({
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
                     { key: 'endDate', label: 'Đến ngày', type: 'date' },
                     { key: 'dayType', label: 'Ngày áp dụng', tooltip: 'Loại ngày áp dụng cho quỹ phòng', type: 'select' },
-                    { key: 'allotmentQty', label: 'Tổng số phòng', tooltip: 'Tổng số phòng khách sạn cấp trong quỹ', type: 'number' },
-                    { key: 'cutoffDays', label: 'Chốt trước (ngày)', tooltip: 'Số ngày phải chốt quỹ trước ngày bắt đầu', type: 'number' },
-                    { key: 'netCostPerDay', label: 'Giá NET/phòng/đêm', tooltip: 'Giá thuần cho một phòng trong một đêm', type: 'number' },
-                    { key: 'sellingPricePerDay', label: 'Giá bán/phòng/đêm', tooltip: 'Giá bán cho một phòng trong một đêm', type: 'number' },
+                    { key: 'allotmentQty', label: 'Tổng số phòng', tooltip: 'Tổng số phòng khách sạn cấp trong quỹ', type: 'number', numberStep: '1' },
+                    { key: 'cutoffDays', label: 'Chốt trước (ngày)', tooltip: 'Số ngày phải chốt quỹ trước ngày bắt đầu', type: 'number', numberStep: '1' },
+                    { key: 'netCostPerDay', label: 'Giá NET/phòng/đêm', tooltip: 'Giá thuần cho một phòng trong một đêm', type: 'number', numberStep: 'any' },
+                    { key: 'sellingPricePerDay', label: 'Giá bán/phòng/đêm', tooltip: 'Giá bán cho một phòng trong một đêm', type: 'number', numberStep: 'any' },
                     { key: 'status', label: 'Trạng thái', type: 'select' },
                     { key: 'description', label: 'Diễn giải', type: 'textarea' },
                     { key: 'note', label: 'Ghi chú', type: 'textarea' },
@@ -1106,7 +1135,8 @@ export default function HotelSuppliersClient({
                   <fieldset>
                     <legend>File đính kèm</legend>
                     {editingId ? <SupplierFiles files={files} busy={Boolean(busyAction)} canManage={canManage} onDelete={(file) => void deleteFile(file)} /> : <p className="mutedText">File sẽ được tải lên sau khi nhà cung cấp được tạo thành công.</p>}
-                    <label className="fileDrop"><FileUp size={18} /> Chọn file cần tải lên<input type="file" multiple onChange={(event) => setPendingFiles(Array.from(event.target.files || []))} /></label>
+                    <label className="fileDrop"><FileUp size={18} /> Chọn file đính kèm<input type="file" multiple onChange={selectPendingFiles} /></label>
+                    <p className="mutedText">Mỗi file tối đa 10 MB. Không hỗ trợ file thực thi, script, HTML hoặc SVG.</p>
                     {pendingFiles.length ? <p className="mutedText">Đã chọn {pendingFiles.length} file: {pendingFiles.map((file) => file.name).join(', ')}</p> : null}
                   </fieldset>
 
@@ -1302,10 +1332,10 @@ function RowInput<T extends ArrayName>({ name, index, column, register, errors }
     return <><select aria-invalid={Boolean(message)} {...register(fieldName as any)}>{dayTypes.map((item) => <option key={item} value={item}>{dayTypeLabel(item)}</option>)}</select><FieldError message={message} /></>;
   }
   if (column.key === 'status') {
-    return <><select aria-invalid={Boolean(message)} {...register(fieldName as any)}><option value="ACTIVE">Đang hoạt động</option><option value="STOP_SELL">Dừng bán</option><option value="INACTIVE">Tạm ngừng</option></select><FieldError message={message} /></>;
+    return <><select aria-invalid={Boolean(message)} {...register(fieldName as any)}><option value="ACTIVE">Đang hoạt động</option><option value="STOP_SELL">Dừng bán</option><option value="INACTIVE">Ngừng hoạt động</option></select><FieldError message={message} /></>;
   }
   if (column.type === 'textarea') return <><textarea rows={2} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
-  if (column.type === 'number') return <><input type="number" min="0" step="1" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+  if (column.type === 'number') return <><input type="number" min="0" step={column.numberStep || '1'} readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
   if (column.type === 'email') return <><input type="email" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
   if (column.type === 'tel') return <><input type="tel" inputMode="tel" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
   return <><input type={column.type || 'text'} readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;

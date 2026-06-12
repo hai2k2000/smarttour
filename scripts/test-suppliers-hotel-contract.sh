@@ -204,7 +204,8 @@ for localized_text in [
     'Ghi chú chính sách, công nợ hoặc lưu ý vận hành',
     'Chưa có file đính kèm.',
     'File sẽ được tải lên sau khi nhà cung cấp được tạo thành công.',
-    'Chọn file cần tải lên',
+    'Chọn file đính kèm',
+    'Mỗi file tối đa 10 MB',
     'Quỹ phòng được quản lý riêng',
     'Số ngày chốt quỹ',
     'Giữ chỗ quỹ phòng',
@@ -238,7 +239,11 @@ assert 'Quỹ phòng được quản lý riêng' in frontend
 for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm / dự án *']:
     assert required_label in frontend, f'hotel frontend must mark required field: {required_label}'
 assert 'const supplierPhonePattern = ' in frontend and 'requiredPhone' in frontend, 'hotel frontend must validate phone by business pattern'
-assert "min(1, 'Cần nhập số điện thoại')" in frontend, 'hotel frontend must show a clear required phone message'
+assert "min(1, 'Cần nhập mã nhà cung cấp')" in frontend, 'hotel frontend must show a clear required supplier code message'
+assert "min(1, 'Cần nhập tên khách sạn')" in frontend, 'hotel frontend must show a clear required hotel name message'
+assert "min(1, 'Cần nhập số điện thoại nhà cung cấp')" in frontend, 'hotel frontend must show a clear required phone message'
+assert "min(1, 'Cần chọn hoặc nhập hạng khách sạn')" in frontend, 'hotel frontend must show a clear required hotel class message'
+assert "min(1, 'Cần nhập dòng sản phẩm hoặc dự án khách sạn')" in frontend, 'hotel frontend must show a clear required hotel project message'
 assert 'const optionalUrl = ' in frontend and 'type="url"' in frontend, 'hotel frontend must validate optional website/link URLs'
 assert 'const optionalText = ' in frontend and 'Ghi chú nội bộ không được vượt quá' in frontend, 'hotel frontend must trim and bound optional text fields'
 assert 'max={currentYear}' in frontend and 'max(5' in frontend, 'hotel frontend must show year/rating bounds'
@@ -281,6 +286,12 @@ assert 'Ngày bắt đầu quỹ phòng không được sau ngày kết thúc qu
 assert 'quantityLock: z.coerce' not in frontend and 'syncAllotmentRow' not in frontend, 'hotel frontend must use lockedQty as the only editable lock quantity'
 assert 'Number(item.allotmentQty || item.quantityLock || 0)' not in frontend, 'hotel frontend must not lose valid zero values when mapping allotment quantities'
 assert 'numberValue(item.allotmentQty ?? item.quantityLock)' not in frontend, 'hotel frontend must not treat legacy lock quantity as total allotment'
+assert "numberStep: 'any'" in frontend and "numberStep: '1'" in frontend, 'hotel dynamic rows must distinguish decimal money from integer quantities'
+assert 'step={column.numberStep' in frontend, 'hotel dynamic row number inputs must use their declared numeric step'
+assert 'quantityLock được quy đổi' in frontend, 'hotel inventory must explain the legacy quantityLock compatibility mapping'
+assert 'function validatePendingFiles(files: File[])' in frontend, 'hotel file picker must validate files before upload'
+assert 'deniedSupplierFileExtensions' in frontend and 'maxSupplierFileBytes' in frontend, 'hotel file picker must reject dangerous or oversized files'
+assert '<option value="INACTIVE">Tạm ngừng</option>' not in frontend, 'hotel statuses must use one clear inactive label'
 assert "if (!apiBase || apiBase.includes('smarttour-api-1')) return ''" in supplier_ui, 'internal API hosts must use the browser same-origin proxy'
 assert 'http://${window.location.hostname}:4000' not in supplier_ui, 'supplier API base must not hard-code an insecure browser port'
 assert 'Thứ tự' in frontend and 'Thêm nhà cung cấp khách sạn' in frontend and 'Tạo nhà cung cấp khách sạn' in frontend, 'hotel form labels and actions must be clear Vietnamese text'
