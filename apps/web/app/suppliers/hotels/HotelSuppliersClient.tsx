@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { BedDouble, CheckCircle2, FileUp, LockKeyhole, Pencil, Plus, RefreshCcw, Save, Search, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister } from 'react-hook-form';
+import { FieldArrayWithId, FieldErrors, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
 import {
@@ -336,6 +336,15 @@ function createFieldArrayRow(row: Record<string, unknown>) {
   return { ...row };
 }
 
+function freshDefaultValues(): HotelForm {
+  return {
+    ...defaultValues,
+    contacts: [createFieldArrayRow(emptyContact) as HotelForm['contacts'][number]],
+    services: [createFieldArrayRow(emptyService) as HotelForm['services'][number]],
+    allotments: [createFieldArrayRow(emptyAllotment) as HotelForm['allotments'][number]],
+  };
+}
+
 function validateHotelFilters(filters: Filters) {
   for (const key of Object.keys(hotelFilterMaxLengths) as Array<keyof typeof hotelFilterMaxLengths>) {
     const value = filters[key].trim();
@@ -524,7 +533,7 @@ export default function HotelSuppliersClient({
     handleSubmit,
     reset,
     formState: { errors, isSubmitting, dirtyFields },
-  } = useForm<HotelForm>({ resolver: zodResolver(hotelSchema) as any, defaultValues });
+  } = useForm<HotelForm>({ resolver: zodResolver(hotelSchema) as any, defaultValues: freshDefaultValues() });
   const contacts = useFieldArray({ control, name: 'contacts' });
   const services = useFieldArray({ control, name: 'services' });
   const allotments = useFieldArray({ control, name: 'allotments' });
@@ -702,7 +711,7 @@ export default function HotelSuppliersClient({
       setEditingId(detail.id);
       setFiles(detail.files || []);
       setPendingFiles([]);
-      reset(toForm(detail));
+      reset(toForm(detail), { keepDirty: false, keepTouched: false });
       setFormOpen(true);
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không tải được thông tin nhà cung cấp khách sạn.') });
@@ -871,7 +880,7 @@ export default function HotelSuppliersClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
-    reset(defaultValues);
+    reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     if (clearNotice) setNotice(null);
   }
 
@@ -880,7 +889,7 @@ export default function HotelSuppliersClient({
     setFiles([]);
     setPendingFiles([]);
     setNotice(null);
-    reset(defaultValues);
+    reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     setFormOpen(true);
   }
 
@@ -999,41 +1008,41 @@ export default function HotelSuppliersClient({
           {formOpen ? (
             <div className="modalOverlay" role="dialog" aria-modal="true" aria-label={editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Tạo nhà cung cấp khách sạn'}>
               <div className="modalPanel modalPanelWide">
-                <form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm">
+                <form onSubmit={handleSubmit(onSubmit)} className="hotelSupplierForm" noValidate>
                   <header><h2>{editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Thêm nhà cung cấp khách sạn'}</h2><button type="button" className="secondaryButton iconButton" onClick={() => closeForm()} title="Đóng" aria-label="Đóng"><X size={16} /></button></header>
                   <fieldset>
                     <legend>Thông tin khách sạn</legend>
                     <div className="hotelFormGrid">
-                      <label>Mã nhà cung cấp *<input required {...register('supplierCode')} /></label>
-                      <label>Tên khách sạn *<input required {...register('name')} /></label>
-                      <label>Mã số thuế<input {...register('taxCode')} /></label>
-                      <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" {...register('builtYear')} /></label>
-                      <label>Số điện thoại *<input required inputMode="tel" placeholder="0901234567" {...register('phone')} /></label>
-                      <label>Email<input type="email" placeholder="Có thể bỏ trống" {...register('email')} /></label>
-                      <label>Quốc gia<input placeholder="Việt Nam" {...register('country')} /></label>
-                      <label>Tỉnh/thành<input placeholder="Ví dụ: Hà Nội, Quảng Ninh" {...register('province')} /></label>
-                      <label>Hạng khách sạn *<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." {...register('classHotel')} /></label>
-                      <label>Dòng sản phẩm / dự án *<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" {...register('hotelProject')} /></label>
-                      <label>Thị trường<input placeholder="Ví dụ: Nội địa, inbound" {...register('market')} /></label>
-                      <label>Xếp hạng<input type="number" min="0" max="5" step="1" {...register('rating')} /></label>
-                      <label>Trạng thái<select {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                      <label>Website<input type="url" placeholder="https://example.com" {...register('website')} /></label>
-                      <label>Liên kết tham khảo<input type="url" placeholder="https://example.com/tham-khao" {...register('link')} /></label>
-                      <label className="span2">Địa chỉ<input placeholder="Nhập địa chỉ khách sạn" {...register('address')} /></label>
+                      <label>Mã nhà cung cấp *<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
+                      <label>Tên khách sạn *<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
+                      <label>Mã số thuế<input aria-invalid={Boolean(errors.taxCode)} {...register('taxCode')} /><FieldError message={errors.taxCode?.message} /></label>
+                      <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.builtYear)} {...register('builtYear')} /><FieldError message={errors.builtYear?.message} /></label>
+                      <label>Số điện thoại *<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
+                      <label>Email<input type="email" placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.email)} {...register('email')} /><FieldError message={errors.email?.message} /></label>
+                      <label>Quốc gia<input placeholder="Việt Nam" aria-invalid={Boolean(errors.country)} {...register('country')} /><FieldError message={errors.country?.message} /></label>
+                      <label>Tỉnh/thành<input placeholder="Ví dụ: Hà Nội, Quảng Ninh" aria-invalid={Boolean(errors.province)} {...register('province')} /><FieldError message={errors.province?.message} /></label>
+                      <label>Hạng khách sạn *<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." aria-invalid={Boolean(errors.classHotel)} {...register('classHotel')} /><FieldError message={errors.classHotel?.message} /></label>
+                      <label>Dòng sản phẩm / dự án *<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" aria-invalid={Boolean(errors.hotelProject)} {...register('hotelProject')} /><FieldError message={errors.hotelProject?.message} /></label>
+                      <label>Thị trường<input placeholder="Ví dụ: Nội địa, inbound" aria-invalid={Boolean(errors.market)} {...register('market')} /><FieldError message={errors.market?.message} /></label>
+                      <label>Xếp hạng<input type="number" min="0" max="5" step="1" aria-invalid={Boolean(errors.rating)} {...register('rating')} /><FieldError message={errors.rating?.message} /></label>
+                      <label>Trạng thái<select aria-invalid={Boolean(errors.status)} {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><FieldError message={errors.status?.message} /></label>
+                      <label>Website<input type="url" placeholder="https://example.com" aria-invalid={Boolean(errors.website)} {...register('website')} /><FieldError message={errors.website?.message} /></label>
+                      <label>Liên kết tham khảo<input type="url" placeholder="https://example.com/tham-khao" aria-invalid={Boolean(errors.link)} {...register('link')} /><FieldError message={errors.link?.message} /></label>
+                      <label className="span2">Địa chỉ<input placeholder="Nhập địa chỉ khách sạn" aria-invalid={Boolean(errors.address)} {...register('address')} /><FieldError message={errors.address?.message} /></label>
                     </div>
                   </fieldset>
 
                   <fieldset>
                     <legend>Thanh toán và ghi chú</legend>
                     <div className="hotelFormGrid">
-                      <label>Tên tài khoản ngân hàng<input {...register('bankAccountName')} /></label>
-                      <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
-                      <label>Tên ngân hàng<input {...register('bankName')} /></label>
-                      <label className="span2">Ghi chú nội bộ<textarea rows={3} placeholder="Ghi chú chính sách, công nợ hoặc lưu ý vận hành" {...register('notes')} /></label>
+                      <label>Tên tài khoản ngân hàng<input aria-invalid={Boolean(errors.bankAccountName)} {...register('bankAccountName')} /><FieldError message={errors.bankAccountName?.message} /></label>
+                      <label>Số tài khoản<input aria-invalid={Boolean(errors.bankAccountNumber)} {...register('bankAccountNumber')} /><FieldError message={errors.bankAccountNumber?.message} /></label>
+                      <label>Tên ngân hàng<input aria-invalid={Boolean(errors.bankName)} {...register('bankName')} /><FieldError message={errors.bankName?.message} /></label>
+                      <label className="span2">Ghi chú nội bộ<textarea rows={3} placeholder="Ghi chú chính sách, công nợ hoặc lưu ý vận hành" aria-invalid={Boolean(errors.notes)} {...register('notes')} /><FieldError message={errors.notes?.message} /></label>
                     </div>
                   </fieldset>
 
-                  <DynamicRows title="Người liên hệ" name="contacts" register={register} fieldArray={contacts} columns={[
+                  <DynamicRows title="Người liên hệ" name="contacts" register={register} errors={errors} fieldArray={contacts} columns={[
                     { key: 'fullName', label: 'Họ tên' },
                     { key: 'position', label: 'Chức vụ' },
                     { key: 'birthday', label: 'Ngày sinh', type: 'date' },
@@ -1041,7 +1050,7 @@ export default function HotelSuppliersClient({
                     { key: 'email', label: 'Email', type: 'email' },
                   ]} emptyRow={emptyContact} />
 
-                  <DynamicRows title="Dịch vụ và sản phẩm" name="services" register={register} fieldArray={services} columns={[
+                  <DynamicRows title="Dịch vụ và sản phẩm" name="services" register={register} errors={errors} fieldArray={services} columns={[
                     { key: 'sku', label: 'Mã dịch vụ' },
                     { key: 'serviceName', label: 'Tên dịch vụ *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
@@ -1054,7 +1063,7 @@ export default function HotelSuppliersClient({
                     { key: 'note', label: 'Ghi chú', type: 'textarea' },
                   ]} emptyRow={emptyService} />
 
-                  {!editingId ? <DynamicRows title="Quỹ phòng ban đầu" name="allotments" register={register} fieldArray={allotments} columns={[
+                  {!editingId ? <DynamicRows title="Quỹ phòng ban đầu" name="allotments" register={register} errors={errors} fieldArray={allotments} columns={[
                     { key: 'sku', label: 'Mã quỹ phòng' },
                     { key: 'serviceName', label: 'Tên hạng phòng *' },
                     { key: 'startDate', label: 'Từ ngày', type: 'date' },
@@ -1205,6 +1214,7 @@ function DynamicRows<T extends ArrayName>({
   title,
   name,
   register,
+  errors,
   fieldArray,
   columns,
   emptyRow,
@@ -1212,10 +1222,16 @@ function DynamicRows<T extends ArrayName>({
   title: string;
   name: T;
   register: UseFormRegister<HotelForm>;
+  errors: FieldErrors<HotelForm>;
   fieldArray: UseFieldArrayReturn<HotelForm, T, 'id'>;
   columns: ColumnSpec[];
   emptyRow: Record<string, unknown>;
 }) {
+  function confirmRemove(index: number) {
+    if (!window.confirm(`Xóa dòng ${index + 1} khỏi ${title.toLowerCase()}? Dữ liệu trong dòng này sẽ bị bỏ khỏi form.`)) return;
+    fieldArray.remove(index);
+  }
+
   const table = useReactTable({
     data: fieldArray.fields,
     getRowId: (row) => row.id,
@@ -1223,10 +1239,10 @@ function DynamicRows<T extends ArrayName>({
       const helper = createColumnHelper<FieldArrayWithId<HotelForm, T, 'id'>>();
       return [
         helper.display({ id: 'stt', header: 'Thứ tự', cell: ({ row }) => row.index + 1 }),
-        ...columns.map((column) => helper.display({ id: column.key, header: column.label, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} /> })),
-        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)} aria-label="Xóa dòng" title="Xóa dòng"><Trash2 size={15} /></button> }),
+        ...columns.map((column) => helper.display({ id: column.key, header: column.label, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} errors={errors} /> })),
+        helper.display({ id: 'actions', header: '', cell: ({ row }) => <button type="button" className="dangerButton iconButton" onClick={() => confirmRemove(row.index)} aria-label={`Xóa dòng ${row.index + 1}`} title="Xóa dòng"><Trash2 size={15} /></button> }),
       ];
-    }, [columns, fieldArray, name, register]),
+    }, [columns, errors, fieldArray, name, register]),
     getCoreRowModel: getCoreRowModel(),
   });
   return (
@@ -1259,19 +1275,30 @@ function HotelListLoadingRows() {
   );
 }
 
-function RowInput<T extends ArrayName>({ name, index, column, register }: { name: T; index: number; column: ColumnSpec; register: UseFormRegister<HotelForm> }) {
+function RowInput<T extends ArrayName>({ name, index, column, register, errors }: { name: T; index: number; column: ColumnSpec; register: UseFormRegister<HotelForm>; errors: FieldErrors<HotelForm> }) {
   const fieldName = `${name}.${index}.${column.key}` as const;
+  const message = rowFieldErrorMessage(errors, name, index, column.key);
   if (column.key === 'dayType') {
-    return <select {...register(fieldName as any)}>{dayTypes.map((item) => <option key={item} value={item}>{dayTypeLabel(item)}</option>)}</select>;
+    return <><select aria-invalid={Boolean(message)} {...register(fieldName as any)}>{dayTypes.map((item) => <option key={item} value={item}>{dayTypeLabel(item)}</option>)}</select><FieldError message={message} /></>;
   }
   if (column.key === 'status') {
-    return <select {...register(fieldName as any)}><option value="ACTIVE">Đang hoạt động</option><option value="STOP_SELL">Dừng bán</option><option value="INACTIVE">Ngừng hoạt động</option></select>;
+    return <><select aria-invalid={Boolean(message)} {...register(fieldName as any)}><option value="ACTIVE">Đang hoạt động</option><option value="STOP_SELL">Dừng bán</option><option value="INACTIVE">Tạm ngừng</option></select><FieldError message={message} /></>;
   }
-  if (column.type === 'textarea') return <textarea rows={2} {...register(fieldName as any)} />;
-  if (column.type === 'number') return <input type="number" min="0" step="1" readOnly={column.readOnly} {...register(fieldName as any)} />;
-  if (column.type === 'email') return <input type="email" readOnly={column.readOnly} {...register(fieldName as any)} />;
-  if (column.type === 'tel') return <input type="tel" inputMode="tel" readOnly={column.readOnly} {...register(fieldName as any)} />;
-  return <input type={column.type || 'text'} readOnly={column.readOnly} {...register(fieldName as any)} />;
+  if (column.type === 'textarea') return <><textarea rows={2} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+  if (column.type === 'number') return <><input type="number" min="0" step="1" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+  if (column.type === 'email') return <><input type="email" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+  if (column.type === 'tel') return <><input type="tel" inputMode="tel" readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+  return <><input type={column.type || 'text'} readOnly={column.readOnly} aria-invalid={Boolean(message)} {...register(fieldName as any)} /><FieldError message={message} /></>;
+}
+
+function rowFieldErrorMessage(errors: FieldErrors<HotelForm>, name: ArrayName, index: number, key: string) {
+  const row = (errors[name] as Array<Record<string, { message?: unknown }>> | undefined)?.[index];
+  const message = row?.[key]?.message;
+  return typeof message === 'string' ? message : undefined;
+}
+
+function FieldError({ message }: { message?: unknown }) {
+  return typeof message === 'string' ? <span className="fieldError" role="alert">{message}</span> : null;
 }
 
 function AllotmentActionSummary({ allotment }: { allotment: AllotmentLine }) {
