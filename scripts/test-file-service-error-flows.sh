@@ -165,7 +165,7 @@ async function assertSupplierUploadCleanupFailure() {
 
   await assert.rejects(
     () => service.addSupplierFile('supplier-1', testFile, 'actor-1'),
-    /Không thể lưu metadata file và không thể hoàn tác object/,
+    /Không thể lưu thông tin file và không thể hoàn tác file trên kho lưu trữ/,
   );
 }
 
@@ -213,7 +213,7 @@ async function assertSupplierDeleteRestoreFailureIsExplicit() {
 
   await assert.rejects(
     () => service.deleteSupplierFile('supplier-1', 'supplier-file-1'),
-    /Xóa object storage thất bại và không thể khôi phục metadata file nhà cung cấp/,
+    /Xóa file trên kho lưu trữ thất bại và không thể khôi phục thông tin file nhà cung cấp/,
   );
 }
 
@@ -234,7 +234,7 @@ async function assertSupplierDeleteRejectsInvalidStorageMetadata() {
 
   await assert.rejects(
     () => service.deleteSupplierFile('supplier-1', 'supplier-file-1'),
-    /Không xác định được object storage của file nhà cung cấp/,
+    /Không xác định được khóa lưu trữ của file nhà cung cấp/,
   );
   assert.equal(deleteCalled, false);
 }

@@ -50,6 +50,8 @@ assert "@IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không
 assert 'ensureSupplierCodeAvailable(dto.supplierCode)' in service
 assert 'return code ? code.toUpperCase() : null' in service, 'supplier codes must be normalized before persistence'
 assert "dto.categoryId !== undefined" in service and "dto.name !== undefined" in service, 'partial updates must only write supplied fields'
+assert 'const statusChange = this.requestedSupplierStatusChange(current.status, dto.status)' in service, 'common supplier updates must validate inline status changes'
+assert 'statusChange === SupplierStatus.INACTIVE && current.hotelProfile' in service, 'generic updates must not bypass hotel allocation deactivation guards'
 assert "dto.pricePolicy !== undefined" in service and "dto.debtNote !== undefined" in service
 for field in [
     "dto.taxCode !== undefined",
@@ -80,6 +82,18 @@ assert "['files', 'file nhà cung cấp']" in service
 assert "['supplierPaymentItems', 'yêu cầu thanh toán']" in service
 assert "['operationServices', 'dịch vụ điều hành']" in service
 assert 'private optionalLabel' in service and ".replace(/\\s+/g, ' ')" in service
+assert 'private requiredBoundedText' in service and 'private optionalMaxLabel' in service, 'service-layer supplier fields must enforce DTO length bounds'
+for constant in [
+    'MAX_SUPPLIER_CODE_LENGTH',
+    'MAX_SUPPLIER_NAME_LENGTH',
+    'MAX_SUPPLIER_TAX_CODE_LENGTH',
+    'MAX_SUPPLIER_ADDRESS_LENGTH',
+    'MAX_SUPPLIER_URL_LENGTH',
+    'MAX_SUPPLIER_BANK_ACCOUNT_NUMBER_LENGTH',
+    'MAX_SUPPLIER_NOTES_LENGTH',
+]:
+    assert constant in service, f'service-layer supplier validation is missing {constant}'
+assert "this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp', 40)" in service, 'supplier phone service validation must match the DTO limit'
 
 print('TEST_SUPPLIERS_COMMON_CONTRACT_OK')
 PYTEST

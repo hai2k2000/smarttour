@@ -29,11 +29,11 @@ assert "BadRequestException('Object key không hợp lệ')" in files_service, '
 
 assert "this.requiredText(actorId, 'Không xác định được người tải file')" in suppliers_service, 'supplier file upload must require an authenticated actor'
 assert 'await this.filesService.remove(upload.objectKey)' in suppliers_service, 'DB metadata failure must rollback the uploaded storage object'
-assert 'Không thể lưu metadata file và không thể hoàn tác object trên storage' in suppliers_service, 'rollback failure must return a clear Vietnamese message'
-assert 'Không xác định được object storage của file nhà cung cấp' in suppliers_service, 'delete must reject corrupted file metadata before deleting DB rows'
+assert 'Không thể lưu thông tin file và không thể hoàn tác file trên kho lưu trữ' in suppliers_service, 'rollback failure must return a clear Vietnamese message'
+assert 'Không xác định được khóa lưu trữ của file nhà cung cấp' in suppliers_service, 'delete must reject corrupted file metadata before deleting DB rows'
 assert 'await this.filesService.removeIfPresent(objectKey)' in suppliers_service, 'delete must safely remove the validated storage object'
 assert 'createdAt: file.createdAt' in suppliers_service, 'failed storage delete must restore original file metadata'
-assert 'Xóa object storage thất bại và không thể khôi phục metadata file nhà cung cấp' in suppliers_service, 'unrecoverable delete failure must be explicit'
+assert 'Xóa file trên kho lưu trữ thất bại và không thể khôi phục thông tin file nhà cung cấp' in suppliers_service, 'unrecoverable delete failure must be explicit'
 
 for field in ['fileName', 'fileUrl', 'fileType', 'uploadedBy', 'createdAt']:
     assert field in frontend_upload, f'frontend SupplierFile contract must expose {field}'

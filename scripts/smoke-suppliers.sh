@@ -1299,10 +1299,19 @@ function typedMatrixPayload(type, suffix) {
     services: [{ serviceName: 'Replacement service while allocated' }],
   }, [409]);
   assert(messageOf(activeServiceReplacementError).includes('dịch vụ khách sạn') && messageOf(activeServiceReplacementError).includes('phân bổ quỹ phòng'), 'hotel update must not replace services with active allocations');
+  const activeStatusNoop = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    status: 'ACTIVE',
+    notes: 'Status no-op must remain compatible with edit forms',
+  });
+  assert(activeStatusNoop.status === 'ACTIVE' && activeStatusNoop.allotments?.[0]?.id === ownedAllotmentId, 'hotel edit may resend the current status without replacing child data');
   const inactiveWithAllocationError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
     status: 'INACTIVE',
   }, [409]);
   assert(messageOf(inactiveWithAllocationError).includes('Không thể ngừng nhà cung cấp khách sạn'), 'hotel supplier must remain active while an allocation is locked');
+  const genericBasicInactiveWithAllocationError = await request(manageToken, 'PATCH', `/suppliers/${ownedDataHotel.id}`, {
+    status: 'INACTIVE',
+  }, [409]);
+  assert(messageOf(genericBasicInactiveWithAllocationError).includes('Không thể ngừng nhà cung cấp khách sạn'), 'generic basic update must not bypass hotel allocation status guards');
   const genericInactiveWithAllocationError = await request(manageToken, 'PATCH', `/suppliers/${ownedDataHotel.id}/status`, {
     status: 'INACTIVE',
   }, [409]);
@@ -1460,6 +1469,19 @@ function typedMatrixPayload(type, suffix) {
     allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', startDate: '2026-06-12', endDate: '2026-06-11' }],
   }, [400]);
   assert(messageOf(reversedHotelDateError).includes('Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng'), 'reversed allotment dates should return a Vietnamese message');
+
+  const overlappingAllotmentError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-OVERLAPPING-ALLOTMENT`,
+    name: `${run} Hotel Overlapping Allotment`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Overlapping Allotment Project`,
+    allotments: [
+      { sku: 'ROOM-DLX', serviceName: 'Deluxe Room', dayType: 'ALL_DAYS', startDate: '2026-01-01', endDate: '2026-01-31', allotmentQty: 2 },
+      { sku: 'room-dlx', serviceName: 'Deluxe Room Weekend', dayType: 'WEEKEND', startDate: '2026-01-15', endDate: '2026-02-15', allotmentQty: 2 },
+    ],
+  }, [400]);
+  assert(messageOf(overlappingAllotmentError).includes('Khoảng ngày quỹ phòng bị chồng nhau'), 'allotment rows for the same room and overlapping day types must not overlap dates');
 
   const invalidAllotmentStatusError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-STATUS`,

@@ -30,6 +30,19 @@ const SUPPLIER_PHONE_MAX_LENGTH = 30;
 const MIN_HOTEL_BUILT_YEAR = 1800;
 const MAX_SUPPLIER_RATING = 5;
 const MAX_SUPPLIER_MONEY = 999_999_999_999;
+const MAX_SUPPLIER_CODE_LENGTH = 80;
+const MAX_SUPPLIER_NAME_LENGTH = 180;
+const MAX_SUPPLIER_TAX_CODE_LENGTH = 80;
+const MAX_SUPPLIER_CONTACT_PERSON_LENGTH = 120;
+const MAX_SUPPLIER_COUNTRY_LENGTH = 120;
+const MAX_SUPPLIER_PROVINCE_LENGTH = 120;
+const MAX_SUPPLIER_ADDRESS_LENGTH = 500;
+const MAX_SUPPLIER_URL_LENGTH = 500;
+const MAX_SUPPLIER_MARKET_LENGTH = 120;
+const MAX_SUPPLIER_BANK_ACCOUNT_NAME_LENGTH = 180;
+const MAX_SUPPLIER_BANK_ACCOUNT_NUMBER_LENGTH = 80;
+const MAX_SUPPLIER_BANK_NAME_LENGTH = 180;
+const MAX_SUPPLIER_NOTES_LENGTH = 2000;
 const MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180;
 const MAX_SUPPLIER_SERVICE_SKU_LENGTH = 80;
 const MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH = 180;
@@ -208,11 +221,17 @@ export class SuppliersService {
       }
     }
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
+    const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
-      return await this.prisma.supplier.update({
-        where: { id },
-        data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
-        include: this.supplierListInclude(),
+      return await this.prisma.$transaction(async (tx) => {
+        if (statusChange === SupplierStatus.INACTIVE && current.hotelProfile) {
+          await this.ensureHotelSupplierCanDeactivate(tx, id);
+        }
+        return tx.supplier.update({
+          where: { id },
+          data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
+          include: this.supplierListInclude(),
+        });
       });
     } catch (error) {
       this.rethrowSupplierUniqueConflict(error);
@@ -242,7 +261,7 @@ export class SuppliersService {
       try {
         await this.filesService.remove(upload.objectKey);
       } catch {
-        throw new InternalServerErrorException('Không thể lưu metadata file và không thể hoàn tác object trên storage');
+        throw new InternalServerErrorException('Không thể lưu thông tin file và không thể hoàn tác file trên kho lưu trữ');
       }
       throw error;
     }
@@ -253,7 +272,7 @@ export class SuppliersService {
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
     if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    if (!objectKey) throw new InternalServerErrorException('Không xác định được object storage của file nhà cung cấp');
+    if (!objectKey) throw new InternalServerErrorException('Không xác định được khóa lưu trữ của file nhà cung cấp');
     const deleted = await this.prisma.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
     if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     try {
@@ -273,7 +292,7 @@ export class SuppliersService {
           },
         });
       } catch {
-        throw new InternalServerErrorException('Xóa object storage thất bại và không thể khôi phục metadata file nhà cung cấp');
+        throw new InternalServerErrorException('Xóa file trên kho lưu trữ thất bại và không thể khôi phục thông tin file nhà cung cấp');
       }
       throw error;
     }
@@ -347,6 +366,7 @@ export class SuppliersService {
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
     this.validateSupplierPayload(dto, false, false);
+    this.validateSpecializedSupplierIdentity(dto);
     this.validateTypedSupplierPayload(typedRoute, dto);
     const category = await this.ensureCategoryByName(getTypeLabel(typedRoute));
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
@@ -371,10 +391,12 @@ export class SuppliersService {
 
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
     const typedRoute = this.getTypedRoute(type);
-    await this.ensureTypedSupplier(typedRoute, id);
+    const current = await this.ensureTypedSupplier(typedRoute, id);
     this.validateSupplierPayload(dto, true, false);
+    this.validateSpecializedSupplierIdentity(dto, true);
     this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
+    this.requestedSupplierStatusChange(current.status, dto.status);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.supplier.update({
@@ -485,6 +507,8 @@ export class SuppliersService {
 
   async createHotelSupplier(dto: CreateHotelSupplierDto) {
     this.validateSupplierPayload(dto, false, false);
+    this.validateSpecializedSupplierIdentity(dto);
+    this.validateHotelProfilePayload(dto);
     const category = await this.ensureCategoryByName('Hotel');
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
@@ -521,13 +545,16 @@ export class SuppliersService {
   }
 
   async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto) {
-    await this.getHotelSupplier(id);
+    const current = await this.getHotelSupplier(id);
     this.validateSupplierPayload(dto, true, false);
+    this.validateSpecializedSupplierIdentity(dto, true);
+    this.validateHotelProfilePayload(dto, true);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     const hotelProfileData = this.toHotelProfileData(dto);
+    const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (dto.status === SupplierStatus.INACTIVE) {
+        if (statusChange === SupplierStatus.INACTIVE) {
           await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
         await tx.supplier.update({
@@ -984,25 +1011,25 @@ export class SuppliersService {
   private toSupplierData(dto: UpdateSupplierDto & Partial<CreateHotelSupplierDto & CreateGenericSupplierDto>) {
     return {
       ...(dto.categoryId !== undefined ? { categoryId: this.requiredText(dto.categoryId, 'Cần chọn loại nhà cung cấp') } : {}),
-      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalCode(dto.supplierCode, 'Mã nhà cung cấp') } : {}),
-      ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Tên nhà cung cấp phải có ít nhất 2 ký tự') } : {}),
-      ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode, 'Mã số thuế') } : {}),
-      ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson, 'Người liên hệ') } : {}),
-      ...(dto.phone !== undefined ? { phone: this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp') } : {}),
+      ...(dto.supplierCode !== undefined ? { supplierCode: this.optionalCode(dto.supplierCode, 'Mã nhà cung cấp', MAX_SUPPLIER_CODE_LENGTH) } : {}),
+      ...(dto.name !== undefined ? { name: this.requiredBoundedText(dto.name, 'Tên nhà cung cấp', 2, MAX_SUPPLIER_NAME_LENGTH) } : {}),
+      ...(dto.taxCode !== undefined ? { taxCode: this.optionalMaxText(dto.taxCode, 'Mã số thuế', MAX_SUPPLIER_TAX_CODE_LENGTH) } : {}),
+      ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalMaxText(dto.contactPerson, 'Người liên hệ', MAX_SUPPLIER_CONTACT_PERSON_LENGTH) } : {}),
+      ...(dto.phone !== undefined ? { phone: this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp', 40) } : {}),
       ...(dto.email !== undefined ? { email: this.optionalEmailText(dto.email, 'Email nhà cung cấp') } : {}),
-      ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country, 'Quốc gia') } : {}),
-      ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province, 'Tỉnh/thành') } : {}),
-      ...(dto.address !== undefined ? { address: this.optionalText(dto.address, 'Địa chỉ nhà cung cấp') } : {}),
-      ...(dto.website !== undefined ? { website: this.optionalUrlText(dto.website, 'Website nhà cung cấp') } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo') } : {}),
+      ...(dto.country !== undefined ? { country: this.optionalMaxLabel(dto.country, 'Quốc gia', MAX_SUPPLIER_COUNTRY_LENGTH) } : {}),
+      ...(dto.province !== undefined ? { province: this.optionalMaxLabel(dto.province, 'Tỉnh/thành', MAX_SUPPLIER_PROVINCE_LENGTH) } : {}),
+      ...(dto.address !== undefined ? { address: this.optionalMaxText(dto.address, 'Địa chỉ nhà cung cấp', MAX_SUPPLIER_ADDRESS_LENGTH) } : {}),
+      ...(dto.website !== undefined ? { website: this.optionalUrlText(dto.website, 'Website nhà cung cấp', MAX_SUPPLIER_URL_LENGTH) } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo', MAX_SUPPLIER_URL_LENGTH) } : {}),
       ...(dto.rating !== undefined ? { rating: this.optionalRating(dto.rating, 'Xếp hạng nhà cung cấp') } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
-      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
-      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
-      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName, 'Tên ngân hàng') } : {}),
-      ...(dto.pricePolicy !== undefined ? { pricePolicy: this.optionalText(dto.pricePolicy, 'Chính sách giá') } : {}),
-      ...(dto.debtNote !== undefined ? { debtNote: this.optionalText(dto.debtNote, 'Ghi chú công nợ') } : {}),
-      ...(dto.notes !== undefined ? { notes: this.optionalText(dto.notes, 'Ghi chú nhà cung cấp') } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalMaxLabel(dto.market, 'Thị trường', MAX_SUPPLIER_MARKET_LENGTH) } : {}),
+      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalMaxText(dto.bankAccountName, 'Tên tài khoản ngân hàng', MAX_SUPPLIER_BANK_ACCOUNT_NAME_LENGTH) } : {}),
+      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalMaxText(dto.bankAccountNumber, 'Số tài khoản ngân hàng', MAX_SUPPLIER_BANK_ACCOUNT_NUMBER_LENGTH) } : {}),
+      ...(dto.bankName !== undefined ? { bankName: this.optionalMaxText(dto.bankName, 'Tên ngân hàng', MAX_SUPPLIER_BANK_NAME_LENGTH) } : {}),
+      ...(dto.pricePolicy !== undefined ? { pricePolicy: this.optionalMaxText(dto.pricePolicy, 'Chính sách giá', MAX_SUPPLIER_NOTES_LENGTH) } : {}),
+      ...(dto.debtNote !== undefined ? { debtNote: this.optionalMaxText(dto.debtNote, 'Ghi chú công nợ', MAX_SUPPLIER_NOTES_LENGTH) } : {}),
+      ...(dto.notes !== undefined ? { notes: this.optionalMaxText(dto.notes, 'Ghi chú nhà cung cấp', MAX_SUPPLIER_NOTES_LENGTH) } : {}),
       ...(dto.status !== undefined ? { status: this.toSupplierStatus(dto.status) } : {}),
     };
   }
@@ -1011,13 +1038,13 @@ export class SuppliersService {
     return {
       ...(dto.builtYear !== undefined ? { builtYear: this.optionalHotelBuiltYear(dto.builtYear) } : {}),
       ...(dto.rating !== undefined ? { rating: this.optionalRating(dto.rating, 'Xếp hạng khách sạn') } : {}),
-      ...(dto.classHotel !== undefined ? { classHotel: this.requiredLabel(dto.classHotel, 'Cần nhập hạng khách sạn') } : {}),
-      ...(dto.hotelProject !== undefined ? { hotelProject: this.requiredLabel(dto.hotelProject, 'Cần nhập dự án khách sạn') } : {}),
-      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
-      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
-      ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName, 'Tên ngân hàng') } : {}),
-      ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo') } : {}),
+      ...(dto.classHotel !== undefined ? { classHotel: this.requiredBoundedLabel(dto.classHotel, 'Hạng khách sạn', 2, 80) } : {}),
+      ...(dto.hotelProject !== undefined ? { hotelProject: this.requiredBoundedLabel(dto.hotelProject, 'Dòng sản phẩm hoặc dự án khách sạn', 2, 180) } : {}),
+      ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalMaxText(dto.bankAccountName, 'Tên tài khoản ngân hàng', MAX_SUPPLIER_BANK_ACCOUNT_NAME_LENGTH) } : {}),
+      ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalMaxText(dto.bankAccountNumber, 'Số tài khoản ngân hàng', MAX_SUPPLIER_BANK_ACCOUNT_NUMBER_LENGTH) } : {}),
+      ...(dto.bankName !== undefined ? { bankName: this.optionalMaxText(dto.bankName, 'Tên ngân hàng', MAX_SUPPLIER_BANK_NAME_LENGTH) } : {}),
+      ...(dto.market !== undefined ? { market: this.optionalMaxLabel(dto.market, 'Thị trường', MAX_SUPPLIER_MARKET_LENGTH) } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo', MAX_SUPPLIER_URL_LENGTH) } : {}),
     };
   }
 
@@ -1224,7 +1251,7 @@ export class SuppliersService {
       note?: string;
     }>,
   ): Array<Omit<Prisma.SupplierAllotmentCreateManyInput, 'supplierId'>> {
-    return items.map((item, index) => {
+    const allotments = items.map((item, index) => {
       const row = `dòng quỹ phòng ${index + 1}`;
       const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
       const quantityLockInput = this.optionalNonNegativeInt(item.quantityLock, `Số lượng khóa phòng ${row}`);
@@ -1257,6 +1284,8 @@ export class SuppliersService {
         note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000),
       };
     });
+    this.ensureNoOverlappingAllotments(allotments);
+    return allotments;
   }
 
   private hotelInclude() {
@@ -1406,6 +1435,28 @@ export class SuppliersService {
     if (services !== undefined) this.normalizeGenericServices(services, type);
   }
 
+  private validateSpecializedSupplierIdentity(
+    dto: { supplierCode?: unknown; phone?: unknown },
+    partial = false,
+  ) {
+    if (!partial || dto.supplierCode !== undefined) {
+      this.requiredBoundedText(dto.supplierCode, 'Mã nhà cung cấp', 2, MAX_SUPPLIER_CODE_LENGTH);
+    }
+    if (!partial || dto.phone !== undefined) {
+      const phone = this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp', 40);
+      if (!phone) throw new BadRequestException('Cần nhập số điện thoại nhà cung cấp');
+    }
+  }
+
+  private validateHotelProfilePayload(dto: Partial<CreateHotelSupplierDto>, partial = false) {
+    if (!partial || dto.classHotel !== undefined) {
+      this.requiredBoundedLabel(dto.classHotel, 'Hạng khách sạn', 2, 80);
+    }
+    if (!partial || dto.hotelProject !== undefined) {
+      this.requiredBoundedLabel(dto.hotelProject, 'Dòng sản phẩm hoặc dự án khách sạn', 2, 180);
+    }
+  }
+
   private normalizeTypedMetadata(type: TypedSupplierRoute, metadata: Record<string, unknown>) {
     const fields = SUPPLIER_TYPE_METADATA_FIELDS[type];
     return Object.fromEntries(Object.entries(metadata).map(([key, rawValue]) => {
@@ -1461,6 +1512,21 @@ export class SuppliersService {
     return text;
   }
 
+  private requiredBoundedText(value: unknown, fieldName: string, minLength: number, maxLength: number) {
+    const text = this.requiredText(value as string | undefined, `Cần nhập ${fieldName.toLocaleLowerCase('vi')}`);
+    if (text.length < minLength) throw new BadRequestException(`${fieldName} phải có ít nhất ${minLength} ký tự`);
+    if (text.length > maxLength) throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
+    return text;
+  }
+
+  private requiredBoundedLabel(value: unknown, fieldName: string, minLength: number, maxLength: number) {
+    const label = this.optionalLabel(value, fieldName);
+    if (!label) throw new BadRequestException(`Cần nhập ${fieldName.toLocaleLowerCase('vi')}`);
+    if (label.length < minLength) throw new BadRequestException(`${fieldName} phải có ít nhất ${minLength} ký tự`);
+    if (label.length > maxLength) throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
+    return label;
+  }
+
   private requiredServiceName(value: unknown, row: string) {
     const serviceName = this.requiredText(value as string | undefined, `Cần nhập tên dịch vụ ${row}`);
     if (serviceName.length < 2) throw new BadRequestException(`Tên dịch vụ ${row} phải có ít nhất 2 ký tự`);
@@ -1487,6 +1553,35 @@ export class SuppliersService {
       if (seen.has(key)) throw new BadRequestException('Mã dịch vụ không được trùng trong cùng nhà cung cấp');
       seen.add(key);
     }
+  }
+
+  private ensureNoOverlappingAllotments(
+    items: Array<{
+      sku?: string | null;
+      serviceName: string;
+      startDate?: Date | null;
+      endDate?: Date | null;
+      dayType: SupplierDayType;
+    }>,
+  ) {
+    for (let leftIndex = 0; leftIndex < items.length; leftIndex += 1) {
+      const left = items[leftIndex];
+      const leftKey = left.sku ? `sku:${left.sku.toUpperCase()}` : `name:${this.categoryNameKey(left.serviceName)}`;
+      for (let rightIndex = leftIndex + 1; rightIndex < items.length; rightIndex += 1) {
+        const right = items[rightIndex];
+        const rightKey = right.sku ? `sku:${right.sku.toUpperCase()}` : `name:${this.categoryNameKey(right.serviceName)}`;
+        if (leftKey !== rightKey || !this.dayTypesOverlap(left.dayType, right.dayType)) continue;
+        const datesOverlap = (!left.endDate || !right.startDate || left.endDate >= right.startDate)
+          && (!right.endDate || !left.startDate || right.endDate >= left.startDate);
+        if (datesOverlap) {
+          throw new BadRequestException(`Khoảng ngày quỹ phòng bị chồng nhau giữa dòng ${leftIndex + 1} và dòng ${rightIndex + 1}`);
+        }
+      }
+    }
+  }
+
+  private dayTypesOverlap(left: SupplierDayType, right: SupplierDayType) {
+    return left === right || left === SupplierDayType.ALL_DAYS || right === SupplierDayType.ALL_DAYS;
   }
 
   private validateSupplierPayload(dto: Partial<CreateSupplierDto>, partial = false, requireCategory = true) {
@@ -1657,6 +1752,14 @@ export class SuppliersService {
     throw new BadRequestException('Trạng thái nhà cung cấp không hợp lệ');
   }
 
+  private requestedSupplierStatusChange(current: SupplierStatus, requested: unknown) {
+    if (requested === undefined) return null;
+    const next = this.toSupplierStatus(requested);
+    if (current === next) return null;
+    this.ensureSupplierStatusTransition(current, next);
+    return next;
+  }
+
   private ensureSupplierStatusTransition(current: SupplierStatus, next: SupplierStatus) {
     if (current === next) {
       throw new BadRequestException(`Nhà cung cấp đã ở trạng thái ${SUPPLIER_STATUS_LABELS[next]}`);
@@ -1685,8 +1788,8 @@ export class SuppliersService {
     return value;
   }
 
-  private optionalCode(value?: unknown, fieldName = 'Mã') {
-    const code = this.optionalText(value, fieldName);
+  private optionalCode(value?: unknown, fieldName = 'Mã', maxLength = MAX_SUPPLIER_CODE_LENGTH) {
+    const code = this.optionalMaxText(value, fieldName, maxLength);
     return code ? code.toUpperCase() : null;
   }
 
@@ -1703,15 +1806,21 @@ export class SuppliersService {
     return text;
   }
 
+  private optionalMaxLabel(value: unknown, fieldName: string, maxLength: number) {
+    const label = this.optionalLabel(value, fieldName);
+    if (label && label.length > maxLength) throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
+    return label;
+  }
+
   private optionalSku(value: unknown, fieldName: string) {
     const sku = this.optionalMaxText(value, fieldName, MAX_SUPPLIER_SERVICE_SKU_LENGTH);
     return sku ? sku.toUpperCase() : null;
   }
 
-  private optionalPhoneText(value?: unknown, fieldName = 'Số điện thoại') {
+  private optionalPhoneText(value?: unknown, fieldName = 'Số điện thoại', maxLength = SUPPLIER_PHONE_MAX_LENGTH) {
     const phone = this.optionalText(value, fieldName);
-    if (phone && phone.length > SUPPLIER_PHONE_MAX_LENGTH) {
-      throw new BadRequestException(`${fieldName} không được vượt quá ${SUPPLIER_PHONE_MAX_LENGTH} ký tự`);
+    if (phone && phone.length > maxLength) {
+      throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
     }
     if (phone && !SUPPLIER_PHONE_PATTERN.test(phone)) {
       throw new BadRequestException(`${fieldName} không hợp lệ`);
@@ -1733,9 +1842,10 @@ export class SuppliersService {
     return this.optionalText(value, fieldName)?.replace(/\s+/g, ' ') ?? null;
   }
 
-  private optionalUrlText(value?: unknown, fieldName = 'Liên kết') {
+  private optionalUrlText(value?: unknown, fieldName = 'Liên kết', maxLength = MAX_SUPPLIER_URL_LENGTH) {
     const text = this.optionalText(value, fieldName);
     if (!text) return null;
+    if (text.length > maxLength) throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
     let url: URL;
     try {
       url = new URL(text);

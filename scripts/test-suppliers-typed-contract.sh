@@ -92,6 +92,7 @@ assert 'SUPPLIER_ID_PATTERN.test(routeKey)' in service
 assert 'getSupplier(routeKey)' not in controller, 'controller must not ambiguously treat every route key as an id'
 assert "throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType)" in service
 assert 'this.validateTypedSupplierPayload(typedRoute, dto)' in service
+assert service.count('this.validateSpecializedSupplierIdentity(dto') >= 4, 'typed and hotel create/update must enforce required code and phone in the service layer'
 assert 'class TypedSupplierListQueryDto' in query_dto and 'status?: SupplierStatus' in query_dto
 assert 'query.status ? { status: query.status } : {}' in service, 'typed supplier status filter must use the shared Supplier status'
 for search_fragment in [
@@ -111,6 +112,7 @@ assert 'private async ensureTypedSupplier(type: TypedSupplierRoute, id: string)'
 assert 'deletedAt: null' in service and "category: { name: { in: supplierTypeCategoryNames(type), mode: 'insensitive' } }" in service
 assert service.count('await this.ensureTypedSupplier(typedRoute, id)') >= 3, 'typed update/status/delete must verify id belongs to the route type'
 assert 'return this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() })' in service
+assert 'this.requestedSupplierStatusChange(current.status, dto.status)' in service, 'typed PUT updates must not bypass supplier status transitions'
 assert 'return this.deleteSupplierRecord(id)' in service
 assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
 assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service, 'typed child replacement must not hard-delete supplier services'

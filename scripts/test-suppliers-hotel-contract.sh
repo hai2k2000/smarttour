@@ -61,6 +61,9 @@ for include_fragment in [
     assert include_fragment in service, f'hotel detail include is missing {include_fragment}'
 
 assert 'const hotelProfileData = this.toHotelProfileData(dto)' in service
+assert 'this.validateHotelProfilePayload(dto)' in service and 'this.validateHotelProfilePayload(dto, true)' in service, 'hotel create/update must validate required profile fields in the service layer'
+assert 'const statusChange = this.requestedSupplierStatusChange(current.status, dto.status)' in service
+assert 'if (statusChange === SupplierStatus.INACTIVE)' in service, 'hotel update status must use the shared transition guard'
 assert "Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}" in service
 assert 'Hotel update contract: omitted child arrays preserve existing rows; provided arrays are full snapshots.' in service
 assert "const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');" in service
@@ -173,6 +176,8 @@ assert 'MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS = 365' in service and 'private option
 assert 'SUPPLIER_ALLOTMENT_STATUSES' in service and 'private toAllotmentStatus(value?: unknown): SupplierAllotmentStatus' in service, 'service must use the shared fixed allotment status contract'
 assert "this.toDayType(item.dayType, 'quỹ phòng')" in service, 'hotel allotments must use the shared dayType enum with allotment-specific errors'
 assert 'Số phòng đang giữ và số lượng khóa phòng phải trùng nhau khi gửi cùng lúc' in service, 'service must reject conflicting lockedQty and quantityLock values'
+assert 'private ensureNoOverlappingAllotments(' in service and 'Khoảng ngày quỹ phòng bị chồng nhau giữa dòng' in service, 'hotel allotment snapshots must reject overlapping date ranges'
+assert 'private dayTypesOverlap(' in service and 'SupplierDayType.ALL_DAYS' in service, 'allotment overlap validation must account for all-days versus weekday/weekend rows'
 assert 'data: { ...next, quantityLock: next.lockedQty }' in service, 'override must keep quantityLock synchronized with lockedQty'
 assert 'SET "quantityLock" = "lockedQty"' in service, 'allocation transitions must resync quantityLock from lockedQty'
 assert 'private optionalMoney(' in service and 'MAX_SUPPLIER_MONEY = 999_999_999_999' in service, 'service must bound supplier service prices'
