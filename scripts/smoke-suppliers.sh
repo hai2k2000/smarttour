@@ -782,15 +782,20 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const profileValidationError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-PROFILE`,
     name: `${run} Hotel Bad Profile`,
-    phone: '0905555666',
+    phone: 'abc',
     classHotel: 'x',
     hotelProject: 'y',
+    website: 'hotel.example.com',
+    link: 'ftp://hotel.example.com/ref',
     rating: 6,
-    builtYear: 1700,
+    builtYear: new Date().getFullYear() + 1,
   }, [400]);
   const profileValidationMessage = messageOf(profileValidationError);
+  assert(profileValidationMessage.includes('S\u1ed1 \u0111i\u1ec7n tho\u1ea1i'), 'hotel phone validation must be Vietnamese');
   assert(profileValidationMessage.includes('H\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel class validation must be Vietnamese');
   assert(profileValidationMessage.includes('D\u1ef1 \u00e1n kh\u00e1ch s\u1ea1n'), 'hotel project validation must be Vietnamese');
+  assert(profileValidationMessage.includes('Website nh\u00e0 cung c\u1ea5p'), 'hotel website validation must be Vietnamese');
+  assert(profileValidationMessage.includes('Li\u00ean k\u1ebft tham kh\u1ea3o'), 'hotel link validation must be Vietnamese');
   assert(profileValidationMessage.includes('X\u1ebfp h\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel rating validation must be Vietnamese');
   assert(profileValidationMessage.includes('N\u0103m x\u00e2y d\u1ef1ng'), 'hotel built year validation must be Vietnamese');
 

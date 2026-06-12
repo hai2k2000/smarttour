@@ -25,6 +25,8 @@ const SPECIALIZED_SUPPLIER_CATEGORY_KEYS = new Set(
 const SUPPLIER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPLIER_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const MIN_HOTEL_BUILT_YEAR = 1800;
+const MAX_SUPPLIER_RATING = 5;
 const SUPPLIER_ERRORS = {
   categoryNotFound: 'Không tìm thấy loại nhà cung cấp',
   categoryExists: 'Loại nhà cung cấp đã tồn tại',
@@ -941,9 +943,9 @@ export class SuppliersService {
       ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country, 'Quốc gia') } : {}),
       ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province, 'Tỉnh/thành') } : {}),
       ...(dto.address !== undefined ? { address: this.optionalText(dto.address, 'Địa chỉ nhà cung cấp') } : {}),
-      ...(dto.website !== undefined ? { website: this.optionalText(dto.website, 'Website') } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalText(dto.link, 'Liên kết') } : {}),
-      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
+      ...(dto.website !== undefined ? { website: this.optionalUrlText(dto.website, 'Website nhà cung cấp') } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo') } : {}),
+      ...(dto.rating !== undefined ? { rating: this.optionalRating(dto.rating, 'Xếp hạng nhà cung cấp') } : {}),
       ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
       ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
@@ -957,15 +959,15 @@ export class SuppliersService {
 
   private toHotelProfileData(dto: Partial<CreateHotelSupplierDto>) {
     return {
-      ...(dto.builtYear !== undefined ? { builtYear: this.optionalNumber(dto.builtYear, 'Năm xây dựng') } : {}),
-      ...(dto.rating !== undefined ? { rating: this.optionalNumber(dto.rating, 'Xếp hạng') } : {}),
+      ...(dto.builtYear !== undefined ? { builtYear: this.optionalHotelBuiltYear(dto.builtYear) } : {}),
+      ...(dto.rating !== undefined ? { rating: this.optionalRating(dto.rating, 'Xếp hạng khách sạn') } : {}),
       ...(dto.classHotel !== undefined ? { classHotel: this.requiredLabel(dto.classHotel, 'Cần nhập hạng khách sạn') } : {}),
       ...(dto.hotelProject !== undefined ? { hotelProject: this.requiredLabel(dto.hotelProject, 'Cần nhập dự án khách sạn') } : {}),
       ...(dto.bankAccountName !== undefined ? { bankAccountName: this.optionalText(dto.bankAccountName, 'Tên tài khoản ngân hàng') } : {}),
       ...(dto.bankAccountNumber !== undefined ? { bankAccountNumber: this.optionalText(dto.bankAccountNumber, 'Số tài khoản ngân hàng') } : {}),
       ...(dto.bankName !== undefined ? { bankName: this.optionalText(dto.bankName, 'Tên ngân hàng') } : {}),
       ...(dto.market !== undefined ? { market: this.optionalLabel(dto.market, 'Thị trường') } : {}),
-      ...(dto.link !== undefined ? { link: this.optionalText(dto.link, 'Liên kết') } : {}),
+      ...(dto.link !== undefined ? { link: this.optionalUrlText(dto.link, 'Liên kết tham khảo') } : {}),
     };
   }
 
@@ -1392,6 +1394,10 @@ export class SuppliersService {
       throw new BadRequestException('Email nhà cung cấp không hợp lệ');
     }
 
+    if (dto.website !== undefined) this.optionalUrlText(dto.website, 'Website nhà cung cấp');
+    if (dto.link !== undefined) this.optionalUrlText(dto.link, 'Liên kết tham khảo');
+    if (dto.rating !== undefined) this.optionalRating(dto.rating, 'Xếp hạng nhà cung cấp');
+
     const pricePolicy = this.optionalText(dto.pricePolicy, 'Chính sách giá');
     if (pricePolicy && pricePolicy.length > 2000) {
       throw new BadRequestException('Chính sách giá không được vượt quá 2.000 ký tự');
@@ -1577,11 +1583,46 @@ export class SuppliersService {
     return this.optionalText(value, fieldName)?.replace(/\s+/g, ' ') ?? null;
   }
 
+  private optionalUrlText(value?: unknown, fieldName = 'Liên kết') {
+    const text = this.optionalText(value, fieldName);
+    if (!text) return null;
+    let url: URL;
+    try {
+      url = new URL(text);
+    } catch {
+      throw new BadRequestException(`${fieldName} phải là URL hợp lệ bắt đầu bằng http:// hoặc https://`);
+    }
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+      throw new BadRequestException(`${fieldName} phải là URL hợp lệ bắt đầu bằng http:// hoặc https://`);
+    }
+    return text;
+  }
+
   private optionalNumber(value?: unknown, fieldName = 'Giá trị số') {
     if (value === undefined || value === null || value === '') return null;
     const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : Number.NaN;
     if (!Number.isFinite(number)) throw new BadRequestException(`${fieldName} không hợp lệ`);
     return number;
+  }
+
+  private optionalRating(value?: unknown, fieldName = 'Xếp hạng') {
+    const rating = this.optionalNumber(value, fieldName);
+    if (rating === null) return null;
+    if (!Number.isInteger(rating)) throw new BadRequestException(`${fieldName} phải là số nguyên`);
+    if (rating < 0 || rating > MAX_SUPPLIER_RATING) {
+      throw new BadRequestException(`${fieldName} phải nằm trong khoảng 0-${MAX_SUPPLIER_RATING}`);
+    }
+    return rating;
+  }
+
+  private optionalHotelBuiltYear(value?: unknown) {
+    const year = this.optionalNonNegativeInt(value, 'Năm xây dựng');
+    if (year === null) return null;
+    const maxYear = new Date().getFullYear();
+    if (year < MIN_HOTEL_BUILT_YEAR || year > maxYear) {
+      throw new BadRequestException(`Năm xây dựng phải nằm trong khoảng ${MIN_HOTEL_BUILT_YEAR}-${maxYear}`);
+    }
+    return year;
   }
 
   private optionalNonNegativeNumber(value?: unknown, fieldName = 'Giá trị số') {

@@ -4,11 +4,11 @@ set -euo pipefail
 python3 - <<'PYTEST'
 from pathlib import Path
 
-controller = Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read_text()
-service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
-query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text()
-hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text()
-frontend = Path('apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx').read_text()
+controller = Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read_text(encoding='utf-8')
+service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(encoding='utf-8')
+query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text(encoding='utf-8')
+hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text(encoding='utf-8')
+frontend = Path('apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx').read_text(encoding='utf-8')
 
 assert "@Get('hotels')" in controller and 'listHotelSuppliers(query)' in controller
 assert "@Get('hotels/:id')" in controller and 'getHotelSupplier(id)' in controller
@@ -58,7 +58,10 @@ for include_fragment in [
 
 assert 'const hotelProfileData = this.toHotelProfileData(dto)' in service
 assert "Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}" in service
-assert 'if (dto.contacts)' in service and 'if (dto.services)' in service and 'if (dto.allotments !== undefined)' in service
+assert "const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');" in service
+assert "const servicesInput = this.optionalArray(dto.services, 'Danh sách dịch vụ khách sạn');" in service
+assert "const allotmentsInput = this.optionalArray(dto.allotments, 'Danh sách quỹ phòng');" in service
+assert 'if (contacts !== undefined)' in service and 'if (services !== undefined)' in service and 'if (allotments !== undefined)' in service
 assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
 assert "throw new ConflictException('Không thể thay toàn bộ quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận')" in service
 
@@ -98,8 +101,19 @@ for dto_message in [
     'Giá bán mỗi ngày phải là số hợp lệ',
     'Mô tả quỹ phòng không được vượt quá 2.000 ký tự',
     'Số phòng giữ chỗ phải là số nguyên',
+    'Danh sách người liên hệ phải là danh sách hợp lệ',
+    'Danh sách dịch vụ khách sạn phải là danh sách hợp lệ',
+    'Danh sách quỹ phòng phải là danh sách hợp lệ',
+    'Website nhà cung cấp phải là URL hợp lệ bắt đầu bằng http:// hoặc https://',
+    'Liên kết tham khảo phải là URL hợp lệ bắt đầu bằng http:// hoặc https://',
 ]:
     assert dto_message in hotel_dto, f'hotel DTO numeric validation must be Vietnamese: {dto_message}'
+assert 'const maxHotelBuiltYear = new Date().getFullYear();' in hotel_dto, 'hotel built year must not exceed the current year'
+assert '@Max(5, { message: \'Xếp hạng khách sạn không được lớn hơn 5\' })' in hotel_dto, 'hotel rating must use a 0-5 scale'
+assert '@Transform(trimOptional)\n  @IsDateString' in hotel_dto, 'optional hotel child dates must accept blank values after trim'
+assert 'private optionalUrlText(' in service and 'http:// hoặc https://' in service, 'service must validate optional hotel URLs consistently'
+assert 'private optionalHotelBuiltYear(' in service and 'MIN_HOTEL_BUILT_YEAR' in service, 'service must validate hotel built year range'
+assert 'private optionalRating(' in service and 'MAX_SUPPLIER_RATING = 5' in service, 'service must validate supplier rating range'
 for english in ['Hotel supplier not found', 'Allotment not found', 'Booked plus locked quantity cannot exceed allotment quantity']:
     assert english.lower() not in (service + hotel_dto).lower(), f'English hotel/allotment message remains: {english}'
 
@@ -108,6 +122,11 @@ for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHo
     assert field in frontend, f'hotel frontend filter missing {field}'
 assert "editingId ? {} : { allotments:" in frontend, 'hotel edit must not send allotments unless creating'
 assert 'Quỹ phòng được quản lý riêng' in frontend
+for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm/Dự án *']:
+    assert required_label in frontend, f'hotel frontend must mark required field: {required_label}'
+assert 'const supplierPhonePattern = ' in frontend and 'requiredPhone' in frontend, 'hotel frontend must validate phone by business pattern'
+assert 'const optionalUrl = ' in frontend and 'type="url"' in frontend, 'hotel frontend must validate optional website/link URLs'
+assert 'max={currentYear}' in frontend and 'max(5' in frontend, 'hotel frontend must show year/rating bounds'
 
 print('TEST_SUPPLIERS_HOTEL_CONTRACT_OK')
 PYTEST

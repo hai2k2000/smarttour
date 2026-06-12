@@ -11,6 +11,7 @@ import {
   IsUUID,
   IsNumber,
   IsOptional,
+  IsUrl,
   Matches,
   Max,
   MaxLength,
@@ -30,8 +31,9 @@ const trimOptional = ({ value }: { value: unknown }) => {
   const trimmed = value.trim();
   return trimmed || undefined;
 };
-const maxHotelBuiltYear = new Date().getFullYear() + 1;
+const maxHotelBuiltYear = new Date().getFullYear();
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
 
 class SupplierContactInputDto {
   @ApiProperty()
@@ -50,6 +52,7 @@ class SupplierContactInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsDateString({}, { message: 'Ngày sinh người liên hệ không hợp lệ' })
   birthday?: string;
 
@@ -84,11 +87,13 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsDateString({}, { message: 'Ngày bắt đầu dịch vụ không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsDateString({}, { message: 'Ngày kết thúc dịch vụ không hợp lệ' })
   endDate?: string;
 
@@ -120,6 +125,7 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsString({ message: 'Mô tả dịch vụ phải là chuỗi ký tự' })
   @MaxLength(2000, { message: 'Mô tả dịch vụ không được vượt quá 2.000 ký tự' })
   description?: string;
@@ -148,11 +154,13 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsDateString({}, { message: 'Ngày bắt đầu quỹ phòng không hợp lệ' })
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsDateString({}, { message: 'Ngày kết thúc quỹ phòng không hợp lệ' })
   endDate?: string;
 
@@ -212,6 +220,7 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(trimOptional)
   @IsString({ message: 'Mô tả quỹ phòng phải là chuỗi ký tự' })
   @MaxLength(2000, { message: 'Mô tả quỹ phòng không được vượt quá 2.000 ký tự' })
   description?: string;
@@ -288,7 +297,7 @@ export class CreateHotelSupplierDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
-  @IsString({ message: 'Website phải là chuỗi ký tự' })
+  @IsUrl(supplierUrlOptions, { message: 'Website nhà cung cấp phải là URL hợp lệ bắt đầu bằng http:// hoặc https://' })
   @MaxLength(500, { message: 'Website không được vượt quá 500 ký tự' })
   website?: string;
 
@@ -360,7 +369,7 @@ export class CreateHotelSupplierDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
-  @IsString({ message: 'Liên kết phải là chuỗi ký tự' })
+  @IsUrl(supplierUrlOptions, { message: 'Liên kết tham khảo phải là URL hợp lệ bắt đầu bằng http:// hoặc https://' })
   @MaxLength(500, { message: 'Liên kết không được vượt quá 500 ký tự' })
   link?: string;
 
@@ -371,21 +380,21 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional({ type: [SupplierContactInputDto] })
   @IsOptional()
-  @IsArray()
+  @IsArray({ message: 'Danh sách người liên hệ phải là danh sách hợp lệ' })
   @ValidateNested({ each: true })
   @Type(() => SupplierContactInputDto)
   contacts?: SupplierContactInputDto[];
 
   @ApiPropertyOptional({ type: [SupplierServiceInputDto] })
   @IsOptional()
-  @IsArray()
+  @IsArray({ message: 'Danh sách dịch vụ khách sạn phải là danh sách hợp lệ' })
   @ValidateNested({ each: true })
   @Type(() => SupplierServiceInputDto)
   services?: SupplierServiceInputDto[];
 
   @ApiPropertyOptional({ type: [SupplierAllotmentInputDto] })
   @IsOptional()
-  @IsArray()
+  @IsArray({ message: 'Danh sách quỹ phòng phải là danh sách hợp lệ' })
   @ValidateNested({ each: true })
   @Type(() => SupplierAllotmentInputDto)
   allotments?: SupplierAllotmentInputDto[];

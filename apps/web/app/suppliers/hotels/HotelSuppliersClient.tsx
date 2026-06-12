@@ -101,13 +101,30 @@ type AllotmentAction =
   | null;
 
 const dayTypes = ['ALL_DAYS', 'WEEKDAY', 'WEEKEND', 'HOLIDAY', 'PEAK'] as const;
-const optionalNumber = z.preprocess((value) => value === '' || value === undefined ? undefined : value, z.coerce.number().optional());
+const currentYear = new Date().getFullYear();
+const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const isOptionalHttpUrl = (value: string) => {
+  if (!value) return true;
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+};
+const optionalBuiltYear = z.preprocess(
+  (value) => value === '' || value === undefined ? undefined : value,
+  z.coerce.number().int('Năm xây dựng phải là số nguyên').min(1800, 'Năm xây dựng không được nhỏ hơn 1800').max(currentYear, `Năm xây dựng không được lớn hơn ${currentYear}`).optional(),
+);
 const nonNegative = z.coerce.number().min(0, 'Giá trị không được âm').default(0);
+const requiredPhone = z.string().trim().regex(supplierPhonePattern, 'Số điện thoại phải có từ 6 đến 15 chữ số và chỉ dùng số, khoảng trắng hoặc ký tự +().-');
+const optionalPhone = z.string().trim().refine((value) => !value || supplierPhonePattern.test(value), 'Số điện thoại không hợp lệ').default('');
+const optionalUrl = (label: string) => z.string().trim().refine(isOptionalHttpUrl, `${label} phải là URL hợp lệ bắt đầu bằng http:// hoặc https://`).default('');
 const contactSchema = z.object({
   fullName: z.string().default(''),
   position: z.string().default(''),
   birthday: z.string().default(''),
-  phone: z.string().default(''),
+  phone: optionalPhone,
   email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
@@ -143,30 +160,35 @@ const hotelSchema = z.object({
   supplierCode: z.string().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự'),
   name: z.string().min(2, 'Tên nhà cung cấp phải có ít nhất 2 ký tự'),
   taxCode: z.string().default(''),
-  builtYear: optionalNumber,
-  phone: z.string().min(6, 'Số điện thoại phải có ít nhất 6 chữ số'),
+  builtYear: optionalBuiltYear,
+  phone: requiredPhone,
   email: z.string().email('Email nhà cung cấp không hợp lệ').or(z.literal('')).default(''),
   country: z.string().default('Việt Nam'),
   province: z.string().default(''),
   address: z.string().default(''),
   notes: z.string().default(''),
-  rating: z.coerce.number().min(0).max(5).default(0),
-  website: z.string().default(''),
+  rating: z.coerce.number().int('Xếp hạng khách sạn phải là số nguyên').min(0, 'Xếp hạng khách sạn không được nhỏ hơn 0').max(5, 'Xếp hạng khách sạn không được lớn hơn 5').default(0),
+  website: optionalUrl('Website nhà cung cấp'),
   classHotel: z.string().min(2, 'Hạng khách sạn phải có ít nhất 2 ký tự'),
   hotelProject: z.string().min(2, 'Dự án khách sạn phải có ít nhất 2 ký tự'),
   bankAccountName: z.string().default(''),
   bankAccountNumber: z.string().default(''),
   bankName: z.string().default(''),
   market: z.string().default(''),
-  link: z.string().default(''),
+  link: optionalUrl('Liên kết tham khảo'),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   contacts: z.array(contactSchema).default([]),
   services: z.array(serviceSchema).default([]),
   allotments: z.array(allotmentSchema).default([]),
 }).superRefine((value, context) => {
-  [...value.services, ...value.allotments].forEach((item, index) => {
+  value.services.forEach((item, index) => {
     if (item.startDate && item.endDate && item.startDate > item.endDate) {
       context.addIssue({ code: 'custom', path: ['services', index, 'endDate'], message: 'Ngày kết thúc không được trước ngày bắt đầu' });
+    }
+  });
+  value.allotments.forEach((item, index) => {
+    if (item.startDate && item.endDate && item.startDate > item.endDate) {
+      context.addIssue({ code: 'custom', path: ['allotments', index, 'endDate'], message: 'Ngày kết thúc không được trước ngày bắt đầu' });
     }
   });
 });
@@ -392,8 +414,8 @@ export default function HotelSuppliersClient({
     setNotice(null);
     const payload = {
       ...values,
-      builtYear: values.builtYear || undefined,
-      rating: values.rating || undefined,
+      builtYear: values.builtYear ?? undefined,
+      rating: values.rating ?? undefined,
       contacts: values.contacts.filter((item) => item.fullName.trim()),
       services: values.services.filter((item) => item.serviceName.trim()),
       ...(editingId ? {} : { allotments: values.allotments.filter((item) => item.serviceName.trim()) }),
@@ -636,21 +658,21 @@ export default function HotelSuppliersClient({
                   <fieldset>
                     <legend>Thông tin khách sạn</legend>
                     <div className="hotelFormGrid">
-                      <label>Mã nhà cung cấp<input {...register('supplierCode')} /></label>
-                      <label>Tên khách sạn<input {...register('name')} /></label>
+                      <label>Mã nhà cung cấp *<input required {...register('supplierCode')} /></label>
+                      <label>Tên khách sạn *<input required {...register('name')} /></label>
                       <label>Mã số thuế<input {...register('taxCode')} /></label>
-                      <label>Năm xây dựng<input type="number" {...register('builtYear')} /></label>
-                      <label>Số điện thoại<input {...register('phone')} /></label>
-                      <label>Email<input type="email" {...register('email')} /></label>
+                      <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" {...register('builtYear')} /></label>
+                      <label>Số điện thoại *<input required inputMode="tel" placeholder="0901234567" {...register('phone')} /></label>
+                      <label>Email<input type="email" placeholder="Có thể bỏ trống" {...register('email')} /></label>
                       <label>Quốc gia<input {...register('country')} /></label>
                       <label>Tỉnh/thành<input {...register('province')} /></label>
-                      <label>Hạng khách sạn<input placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." {...register('classHotel')} /></label>
-                      <label>Dòng sản phẩm/Dự án<input {...register('hotelProject')} /></label>
+                      <label>Hạng khách sạn *<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." {...register('classHotel')} /></label>
+                      <label>Dòng sản phẩm/Dự án *<input required {...register('hotelProject')} /></label>
                       <label>Thị trường<input {...register('market')} /></label>
-                      <label>Xếp hạng<input type="number" min="0" max="5" {...register('rating')} /></label>
+                      <label>Xếp hạng<input type="number" min="0" max="5" step="1" {...register('rating')} /></label>
                       <label>Trạng thái<select {...register('status')}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label>
-                      <label>Website<input {...register('website')} /></label>
-                      <label>Liên kết tham khảo<input {...register('link')} /></label>
+                      <label>Website<input type="url" placeholder="https://example.com" {...register('website')} /></label>
+                      <label>Liên kết tham khảo<input type="url" placeholder="https://example.com/tham-khao" {...register('link')} /></label>
                       <label className="span2">Địa chỉ<input {...register('address')} /></label>
                     </div>
                   </fieldset>
@@ -713,7 +735,7 @@ export default function HotelSuppliersClient({
                     {pendingFiles.length ? <p className="mutedText">Đã chọn {pendingFiles.length} file: {pendingFiles.map((file) => file.name).join(', ')}</p> : null}
                   </fieldset>
 
-                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.classHotel?.message, errors.hotelProject?.message, errors.rating?.message]} />
+                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.builtYear?.message, errors.classHotel?.message, errors.hotelProject?.message, errors.rating?.message, errors.website?.message, errors.link?.message]} />
                   <div className="modalActions">
                     <button type="button" className="secondaryButton" onClick={() => closeForm()}>Hủy</button>
                     <button type="submit" disabled={!canManage || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp'}</button>
