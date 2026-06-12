@@ -508,11 +508,15 @@ function dynamicSection(dialog, title) {
 }
 
 async function addAndRemoveRow(page, section, title) {
+  const firstRow = section.locator('tbody tr').first();
+  const valuesBefore = await firstRow.locator('input, select, textarea').evaluateAll((fields) => fields.map((field) => field.value));
   await section.getByRole('button', { name: 'Thêm dòng' }).click();
   assert(await section.locator('tbody tr').count() === 2, `${title} should add a row`);
   await confirmNext(page, /Xóa dòng 2/);
   await section.getByRole('button', { name: 'Xóa dòng 2' }).click();
   assert(await section.locator('tbody tr').count() === 1, `${title} should remove the extra row`);
+  const valuesAfter = await firstRow.locator('input, select, textarea').evaluateAll((fields) => fields.map((field) => field.value));
+  assert(JSON.stringify(valuesAfter) === JSON.stringify(valuesBefore), `${title} should preserve the first row values after adding and removing another row`);
 }
 
 async function loadMockedList(page) {
@@ -607,10 +611,6 @@ async function loadMockedList(page) {
       await visibleText(dialog, 'Cần nhập dòng sản phẩm hoặc dự án khách sạn');
       assert(state.calls.createPayloads.length === 0, 'invalid create form must not call API');
 
-      await addAndRemoveRow(page, contactSection, 'contacts');
-      await addAndRemoveRow(page, serviceSection, 'services');
-      await addAndRemoveRow(page, allotmentSection, 'allotments');
-
       await dialog.getByLabel('Mã nhà cung cấp *').fill('HOT-NEW');
       await dialog.getByLabel('Tên khách sạn *').fill('Khách sạn Test Mới');
       await dialog.getByLabel('Số điện thoại *').fill('0900000000');
@@ -635,6 +635,10 @@ async function loadMockedList(page) {
       await allotmentRow.locator('select').first().selectOption('WEEKEND');
       await allotmentRow.locator('input').nth(4).fill('12');
       await allotmentRow.locator('input').nth(5).fill('7');
+
+      await addAndRemoveRow(page, contactSection, 'contacts');
+      await addAndRemoveRow(page, serviceSection, 'services');
+      await addAndRemoveRow(page, allotmentSection, 'allotments');
 
       await dialog.getByRole('button', { name: 'Tạo nhà cung cấp khách sạn' }).click();
       await visibleText(page, 'Đã tạo nhà cung cấp khách sạn');

@@ -27,6 +27,7 @@
     "smoke:ui:browser": "node scripts/smoke-ui-browser.js",
     "smoke:ui:interactions": "node scripts/smoke-ui-interactions.js",
     "test:suppliers:hotel-client": "scripts/test-suppliers-hotel-client-ui.sh",
+    "test:suppliers:hotel": "scripts/test-suppliers-hotel.sh",
     "smoke:data-scope": "scripts/verify-data-scope.sh",
     "smoke:all": "npm run smoke:rbac && npm run smoke:business && npm run smoke:operations && npm run smoke:suppliers && npm run smoke:finance && npm run smoke:reports && npm run smoke:exports && npm run smoke:ui && npm run smoke:ui:browser && npm run smoke:ui:interactions",
     "ops:health": "scripts/healthcheck.sh",
