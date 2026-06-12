@@ -10,6 +10,7 @@ import {
   IsIn,
   IsUUID,
   IsNumber,
+  IsNotEmpty,
   IsOptional,
   IsUrl,
   Matches,
@@ -33,11 +34,13 @@ const trimOptional = ({ value }: { value: unknown }) => {
 };
 const maxHotelBuiltYear = new Date().getFullYear();
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
 
 class SupplierContactInputDto {
   @ApiProperty()
   @Transform(trimRequired)
+  @IsNotEmpty({ message: 'Cần nhập tên người liên hệ' })
   @IsString({ message: 'Tên người liên hệ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên người liên hệ phải có ít nhất 2 ký tự' })
   @MaxLength(180, { message: 'Tên người liên hệ không được vượt quá 180 ký tự' })
@@ -53,6 +56,7 @@ class SupplierContactInputDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày sinh người liên hệ phải có định dạng YYYY-MM-DD' })
   @IsDateString({}, { message: 'Ngày sinh người liên hệ không hợp lệ' })
   birthday?: string;
 
@@ -60,6 +64,7 @@ class SupplierContactInputDto {
   @IsOptional()
   @Transform(trimOptional)
   @IsString({ message: 'Số điện thoại người liên hệ phải là chuỗi ký tự' })
+  @MaxLength(30, { message: 'Số điện thoại người liên hệ không được vượt quá 30 ký tự' })
   @Matches(supplierPhonePattern, { message: 'Số điện thoại người liên hệ không hợp lệ' })
   phone?: string;
 

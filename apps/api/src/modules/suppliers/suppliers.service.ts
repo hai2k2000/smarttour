@@ -25,6 +25,7 @@ const SPECIALIZED_SUPPLIER_CATEGORY_KEYS = new Set(
 const SUPPLIER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPLIER_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SUPPLIER_PHONE_PATTERN = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
+const SUPPLIER_PHONE_MAX_LENGTH = 30;
 const MIN_HOTEL_BUILT_YEAR = 1800;
 const MAX_SUPPLIER_RATING = 5;
 const SUPPLIER_ERRORS = {
@@ -938,8 +939,8 @@ export class SuppliersService {
       ...(dto.name !== undefined ? { name: this.requiredText(dto.name, 'Tên nhà cung cấp phải có ít nhất 2 ký tự') } : {}),
       ...(dto.taxCode !== undefined ? { taxCode: this.optionalText(dto.taxCode, 'Mã số thuế') } : {}),
       ...(dto.contactPerson !== undefined ? { contactPerson: this.optionalText(dto.contactPerson, 'Người liên hệ') } : {}),
-      ...(dto.phone !== undefined ? { phone: this.optionalText(dto.phone, 'Số điện thoại nhà cung cấp') } : {}),
-      ...(dto.email !== undefined ? { email: this.optionalText(dto.email, 'Email nhà cung cấp') } : {}),
+      ...(dto.phone !== undefined ? { phone: this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp') } : {}),
+      ...(dto.email !== undefined ? { email: this.optionalEmailText(dto.email, 'Email nhà cung cấp') } : {}),
       ...(dto.country !== undefined ? { country: this.optionalLabel(dto.country, 'Quốc gia') } : {}),
       ...(dto.province !== undefined ? { province: this.optionalLabel(dto.province, 'Tỉnh/thành') } : {}),
       ...(dto.address !== undefined ? { address: this.optionalText(dto.address, 'Địa chỉ nhà cung cấp') } : {}),
@@ -1058,12 +1059,15 @@ export class SuppliersService {
   ): Array<Omit<Prisma.SupplierContactCreateManyInput, 'supplierId'>> {
     return items.map((item, index) => {
       const row = `dòng liên hệ ${index + 1}`;
+      const fullName = this.requiredText(item.fullName, `Cần nhập họ tên ${row}`);
+      if (fullName.length < 2) throw new BadRequestException(`Họ tên ${row} phải có ít nhất 2 ký tự`);
+      if (fullName.length > 180) throw new BadRequestException(`Họ tên ${row} không được vượt quá 180 ký tự`);
       return {
-        fullName: this.requiredText(item.fullName, `Cần nhập họ tên ${row}`),
-        position: this.optionalText(item.position, `Chức vụ ${row}`),
+        fullName,
+        position: this.optionalMaxText(item.position, `Chức vụ ${row}`, 120),
         birthday: this.optionalDate(item.birthday, `Ngày sinh ${row}`),
-        phone: this.optionalText(item.phone, `Số điện thoại ${row}`),
-        email: this.optionalText(item.email, `Email ${row}`),
+        phone: this.optionalPhoneText(item.phone, `Số điện thoại ${row}`),
+        email: this.optionalEmailText(item.email, `Email ${row}`),
       };
     });
   }
@@ -1384,15 +1388,8 @@ export class SuppliersService {
       if (!name || name.length < 2) throw new BadRequestException('Tên nhà cung cấp phải có ít nhất 2 ký tự');
     }
 
-    const phone = this.optionalText(dto.phone, 'Số điện thoại nhà cung cấp');
-    if (phone && !SUPPLIER_PHONE_PATTERN.test(phone)) {
-      throw new BadRequestException('Số điện thoại nhà cung cấp không hợp lệ');
-    }
-
-    const email = this.optionalText(dto.email, 'Email nhà cung cấp');
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new BadRequestException('Email nhà cung cấp không hợp lệ');
-    }
+    if (dto.phone !== undefined) this.optionalPhoneText(dto.phone, 'Số điện thoại nhà cung cấp');
+    if (dto.email !== undefined) this.optionalEmailText(dto.email, 'Email nhà cung cấp');
 
     if (dto.website !== undefined) this.optionalUrlText(dto.website, 'Website nhà cung cấp');
     if (dto.link !== undefined) this.optionalUrlText(dto.link, 'Liên kết tham khảo');
@@ -1577,6 +1574,33 @@ export class SuppliersService {
     if (typeof value !== 'string') throw new BadRequestException(`${fieldName} phải là chuỗi ký tự`);
     const trimmed = value.trim();
     return trimmed ? trimmed : null;
+  }
+
+  private optionalMaxText(value: unknown, fieldName: string, maxLength: number) {
+    const text = this.optionalText(value, fieldName);
+    if (text && text.length > maxLength) throw new BadRequestException(`${fieldName} không được vượt quá ${maxLength} ký tự`);
+    return text;
+  }
+
+  private optionalPhoneText(value?: unknown, fieldName = 'Số điện thoại') {
+    const phone = this.optionalText(value, fieldName);
+    if (phone && phone.length > SUPPLIER_PHONE_MAX_LENGTH) {
+      throw new BadRequestException(`${fieldName} không được vượt quá ${SUPPLIER_PHONE_MAX_LENGTH} ký tự`);
+    }
+    if (phone && !SUPPLIER_PHONE_PATTERN.test(phone)) {
+      throw new BadRequestException(`${fieldName} không hợp lệ`);
+    }
+    return phone;
+  }
+
+  private optionalEmailText(value?: unknown, fieldName = 'Email') {
+    const email = this.optionalText(value, fieldName);
+    if (!email) return null;
+    if (email.length > 180) throw new BadRequestException(`${fieldName} không được vượt quá 180 ký tự`);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException(`${fieldName} không hợp lệ`);
+    }
+    return email;
   }
 
   private optionalLabel(value?: unknown, fieldName = 'Nhãn') {

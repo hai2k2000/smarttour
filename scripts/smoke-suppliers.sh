@@ -799,6 +799,20 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(profileValidationMessage.includes('X\u1ebfp h\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel rating validation must be Vietnamese');
   assert(profileValidationMessage.includes('N\u0103m x\u00e2y d\u1ef1ng'), 'hotel built year validation must be Vietnamese');
 
+  const contactValidationError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-CONTACT`,
+    name: `${run} Hotel Bad Contact`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Contact Project`,
+    contacts: [{ fullName: 'A', birthday: 'khong-phai-ngay', phone: 'abc', email: 'bad-email' }],
+  }, [400]);
+  const contactValidationMessage = messageOf(contactValidationError);
+  assert(contactValidationMessage.includes('T\u00ean ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact fullName validation must be Vietnamese');
+  assert(contactValidationMessage.includes('Ng\u00e0y sinh ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact birthday validation must be Vietnamese');
+  assert(contactValidationMessage.includes('S\u1ed1 \u0111i\u1ec7n tho\u1ea1i ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact phone validation must be Vietnamese');
+  assert(contactValidationMessage.includes('Email ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact email validation must be Vietnamese');
+
   const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2027-01-01&endDate=2027-01-31`);
   const initialInventory = filteredInventory.find((item) => item.id === ownedAllotmentId);
   assert(initialInventory?.allotmentQty === 2 && initialInventory.remainingQty === 2, 'inventory date and supplier filters must return correct quantities');

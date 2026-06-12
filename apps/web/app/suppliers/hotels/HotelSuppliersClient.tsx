@@ -112,6 +112,16 @@ const isOptionalHttpUrl = (value: string) => {
     return false;
   }
 };
+const isOptionalDateOnly = (value: string) => {
+  if (!value) return true;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
 const optionalBuiltYear = z.preprocess(
   (value) => value === '' || value === undefined ? undefined : value,
   z.coerce.number().int('Năm xây dựng phải là số nguyên').min(1800, 'Năm xây dựng không được nhỏ hơn 1800').max(currentYear, `Năm xây dựng không được lớn hơn ${currentYear}`).optional(),
@@ -123,7 +133,7 @@ const optionalUrl = (label: string) => z.string().trim().refine(isOptionalHttpUr
 const contactSchema = z.object({
   fullName: z.string().default(''),
   position: z.string().default(''),
-  birthday: z.string().default(''),
+  birthday: z.string().trim().refine(isOptionalDateOnly, 'Ngày sinh người liên hệ không hợp lệ').default(''),
   phone: optionalPhone,
   email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
@@ -181,6 +191,12 @@ const hotelSchema = z.object({
   services: z.array(serviceSchema).default([]),
   allotments: z.array(allotmentSchema).default([]),
 }).superRefine((value, context) => {
+  value.contacts.forEach((item, index) => {
+    const hasContactData = [item.fullName, item.position, item.birthday, item.phone, item.email].some((field) => field.trim());
+    if (hasContactData && item.fullName.trim().length < 2) {
+      context.addIssue({ code: 'custom', path: ['contacts', index, 'fullName'], message: 'Họ tên người liên hệ phải có ít nhất 2 ký tự' });
+    }
+  });
   value.services.forEach((item, index) => {
     if (item.startDate && item.endDate && item.startDate > item.endDate) {
       context.addIssue({ code: 'custom', path: ['services', index, 'endDate'], message: 'Ngày kết thúc không được trước ngày bắt đầu' });
@@ -735,7 +751,21 @@ export default function HotelSuppliersClient({
                     {pendingFiles.length ? <p className="mutedText">Đã chọn {pendingFiles.length} file: {pendingFiles.map((file) => file.name).join(', ')}</p> : null}
                   </fieldset>
 
-                  <ErrorLine errors={[errors.supplierCode?.message, errors.name?.message, errors.phone?.message, errors.email?.message, errors.builtYear?.message, errors.classHotel?.message, errors.hotelProject?.message, errors.rating?.message, errors.website?.message, errors.link?.message]} />
+                  <ErrorLine errors={[
+                    errors.supplierCode?.message,
+                    errors.name?.message,
+                    errors.phone?.message,
+                    errors.email?.message,
+                    errors.builtYear?.message,
+                    errors.classHotel?.message,
+                    errors.hotelProject?.message,
+                    errors.rating?.message,
+                    errors.website?.message,
+                    errors.link?.message,
+                    ...nestedErrorMessages(errors.contacts),
+                    ...nestedErrorMessages(errors.services),
+                    ...nestedErrorMessages(errors.allotments),
+                  ]} />
                   <div className="modalActions">
                     <button type="button" className="secondaryButton" onClick={() => closeForm()}>Hủy</button>
                     <button type="submit" disabled={!canManage || isSubmitting || Boolean(busyAction)}><Save size={17} /> {isSubmitting ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo nhà cung cấp'}</button>
@@ -881,6 +911,18 @@ function RowInput<T extends ArrayName>({ name, index, column, register }: { name
 function ErrorLine({ errors }: { errors: Array<string | undefined> }) {
   const messages = errors.filter(Boolean);
   return messages.length ? <p className="formErrors">{messages.join(' | ')}</p> : null;
+}
+
+function nestedErrorMessages(value: unknown) {
+  const messages: string[] = [];
+  const visit = (node: unknown) => {
+    if (!node || typeof node !== 'object') return;
+    const message = (node as { message?: unknown }).message;
+    if (typeof message === 'string' && !messages.includes(message)) messages.push(message);
+    Object.values(node as Record<string, unknown>).forEach(visit);
+  };
+  visit(value);
+  return messages;
 }
 
 function errorText(error: unknown, fallback: string) {

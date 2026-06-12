@@ -94,6 +94,12 @@ for message in [
 ]:
     assert message in (service + hotel_dto), f'missing Vietnamese hotel/allotment message: {message}'
 for dto_message in [
+    'Cần nhập tên người liên hệ',
+    'Ngày sinh người liên hệ phải có định dạng YYYY-MM-DD',
+    'Ngày sinh người liên hệ không hợp lệ',
+    'Số điện thoại người liên hệ không được vượt quá 30 ký tự',
+    'Số điện thoại người liên hệ không hợp lệ',
+    'Email người liên hệ không hợp lệ',
     'Giá kế toán dịch vụ phải là số hợp lệ',
     'Giá thuần dịch vụ không được âm',
     'Tổng quỹ phòng phải là số nguyên',
@@ -114,6 +120,10 @@ assert '@Transform(trimOptional)\n  @IsDateString' in hotel_dto, 'optional hotel
 assert 'private optionalUrlText(' in service and 'http:// hoặc https://' in service, 'service must validate optional hotel URLs consistently'
 assert 'private optionalHotelBuiltYear(' in service and 'MIN_HOTEL_BUILT_YEAR' in service, 'service must validate hotel built year range'
 assert 'private optionalRating(' in service and 'MAX_SUPPLIER_RATING = 5' in service, 'service must validate supplier rating range'
+assert 'private optionalPhoneText(' in service and 'SUPPLIER_PHONE_MAX_LENGTH = 30' in service, 'service must validate contact phone format and length'
+assert 'private optionalEmailText(' in service and 'không được vượt quá 180 ký tự' in service, 'service must validate contact email format and length'
+assert 'Họ tên ${row} phải có ít nhất 2 ký tự' in service, 'service must validate contact fullName length outside the global pipe'
+assert 'position: this.optionalMaxText(item.position' in service, 'service must validate contact position length'
 for english in ['Hotel supplier not found', 'Allotment not found', 'Booked plus locked quantity cannot exceed allotment quantity']:
     assert english.lower() not in (service + hotel_dto).lower(), f'English hotel/allotment message remains: {english}'
 
@@ -127,6 +137,9 @@ for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số đi
 assert 'const supplierPhonePattern = ' in frontend and 'requiredPhone' in frontend, 'hotel frontend must validate phone by business pattern'
 assert 'const optionalUrl = ' in frontend and 'type="url"' in frontend, 'hotel frontend must validate optional website/link URLs'
 assert 'max={currentYear}' in frontend and 'max(5' in frontend, 'hotel frontend must show year/rating bounds'
+assert 'const isOptionalDateOnly = ' in frontend and 'Ngày sinh người liên hệ không hợp lệ' in frontend, 'hotel frontend must validate contact birthday'
+assert 'Họ tên người liên hệ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must validate filled contact rows'
+assert 'nestedErrorMessages(errors.contacts)' in frontend, 'hotel frontend must surface dynamic contact row errors'
 
 print('TEST_SUPPLIERS_HOTEL_CONTRACT_OK')
 PYTEST
