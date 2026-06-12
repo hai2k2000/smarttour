@@ -675,6 +675,20 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(flightPartialUpdate.contacts?.[0]?.fullName === `${run} Flight Contact`, 'typed partial update must preserve contacts when contacts are omitted');
   assert(flightPartialUpdate.files?.some((file) => file.id === typedUploadedFile.id), 'typed partial update must preserve files when files are omitted');
   assert(flightPartialUpdate.category?.name === 'Vé máy bay', 'typed partial update must preserve the Vietnamese category mapping');
+  assert(flightPartialUpdate.supplierServices?.[0]?.metadata?.route === 'HAN-SGN', 'typed partial update must preserve service metadata when services are omitted');
+  const flightOptionalCleared = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, {
+    taxCode: '',
+    email: '',
+    province: '',
+    market: '',
+    website: '',
+    link: '',
+    rating: '',
+  });
+  for (const field of ['taxCode', 'email', 'province', 'market', 'website', 'link', 'rating']) {
+    assert(flightOptionalCleared[field] === null, `typed optional field ${field} should clear to null on blank update`);
+  }
+  assert(flightOptionalCleared.supplierServices?.[0]?.metadata?.route === 'HAN-SGN', 'typed optional clear update must not drop existing services or metadata');
   const oldFlightServiceId = flightPartialUpdate.supplierServices[0].id;
   const flightServiceReplaced = await request(manageToken, 'PUT', `/suppliers/flights/${flightSupplier.id}`, {
     services: [{

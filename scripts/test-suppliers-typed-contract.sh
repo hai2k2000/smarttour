@@ -114,8 +114,22 @@ assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service
 assert 'item.metadata ? (this.normalizeTypedMetadata(type, item.metadata)' in service
 assert '@Max(5' in dto and 'Xếp hạng nhà cung cấp không được lớn hơn 5' in dto
+assert 'return trimmed || null' in dto, 'generic supplier optional text fields must clear to null instead of disappearing on partial update'
+assert 'const optionalNumber = ({ value }: { value: unknown })' in dto, 'generic supplier optional numbers must keep blank/null distinct from zero'
+for numeric_field in ['quantity?: number', 'accountingPrice?: number', 'netPrice?: number', 'sellingPrice?: number', 'rating?: number']:
+    before_field = dto.split(numeric_field, 1)[0].rsplit('@ApiPropertyOptional', 1)[-1]
+    assert '@Transform(optionalNumber)' in before_field, f'{numeric_field} must use the safe optional number transformer'
+assert 'await this.ensureSupplierCodeAvailable(dto.supplierCode)' in service, 'typed create must enforce supplierCode uniqueness'
+assert 'await this.ensureSupplierCodeAvailable(dto.supplierCode, id)' in service, 'typed update must enforce supplierCode uniqueness excluding the current row'
+for field in ['taxCode', 'phone', 'email']:
+    assert f'ensureSupplierCodeAvailable(dto.{field}' not in service, f'{field} must not accidentally reuse supplierCode uniqueness checks'
 
 supplier_service_model = schema.split('model SupplierService {', 1)[1].split('\n}', 1)[0]
+supplier_model = schema.split('model Supplier {', 1)[1].split('\n}', 1)[0]
+assert 'supplierCode         String?                @unique' in supplier_model, 'Supplier.supplierCode must remain the unique typed supplier identity'
+for field in ['taxCode', 'phone', 'email']:
+    field_line = next(line for line in supplier_model.splitlines() if line.strip().startswith(field))
+    assert '@unique' not in field_line, f'Supplier.{field} must not be treated as globally unique unless product policy changes'
 assert 'metadata' in supplier_service_model and 'Json?' in supplier_service_model, 'typed fields must use shared supplier-service metadata'
 for model in ['RestaurantSupplier', 'FlightSupplier', 'TransportSupplier', 'GuideSupplier', 'VillaSupplier']:
     assert f'model {model} ' not in schema, f'{model} must not split typed suppliers into duplicate lifecycle tables'

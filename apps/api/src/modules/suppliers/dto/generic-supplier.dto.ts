@@ -29,7 +29,16 @@ const uppercaseRequired = ({ value }: { value: unknown }) => {
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
-  return trimmed || undefined;
+  return trimmed || null;
+};
+const optionalNumber = ({ value }: { value: unknown }) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : Number(trimmed);
+  }
+  return Number(value);
 };
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -93,14 +102,14 @@ class GenericSupplierServiceDto {
 
   @ApiPropertyOptional({ description: 'Số lượng mặc định của dòng dịch vụ nếu nghiệp vụ cần theo dõi' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Số lượng dịch vụ phải là số nguyên' })
   @Min(0, { message: 'Số lượng dịch vụ không được âm' })
   quantity?: number;
 
   @ApiPropertyOptional({ description: 'Giá kế toán của dịch vụ' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá kế toán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá kế toán dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá kế toán dịch vụ không được vượt quá 999.999.999.999' })
@@ -108,7 +117,7 @@ class GenericSupplierServiceDto {
 
   @ApiPropertyOptional({ description: 'Giá thuần NET của dịch vụ' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá thuần dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá thuần dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá thuần dịch vụ không được vượt quá 999.999.999.999' })
@@ -116,7 +125,7 @@ class GenericSupplierServiceDto {
 
   @ApiPropertyOptional({ description: 'Giá bán của dịch vụ' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsNumber({}, { message: 'Giá bán dịch vụ phải là số hợp lệ' })
   @Min(0, { message: 'Giá bán dịch vụ không được âm' })
   @Max(maxSupplierMoney, { message: 'Giá bán dịch vụ không được vượt quá 999.999.999.999' })
@@ -211,7 +220,7 @@ export class CreateGenericSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(optionalNumber)
   @IsInt({ message: 'Xếp hạng nhà cung cấp phải là số nguyên' })
   @Min(0, { message: 'Xếp hạng nhà cung cấp không được nhỏ hơn 0' })
   @Max(5, { message: 'Xếp hạng nhà cung cấp không được lớn hơn 5' })
