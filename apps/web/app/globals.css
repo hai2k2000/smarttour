@@ -2031,7 +2031,7 @@ label { min-width: 0; }
 :root {
   --list-row-height: 44px;
   --list-head-height: 42px;
-  --list-visible-rows: 5;
+  --list-visible-rows: 10;
 }
 
 .fitTableWrap:has(> table.orderListTable),
