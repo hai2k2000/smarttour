@@ -359,6 +359,10 @@ export class SuppliersService {
               { taxCode: contains },
               { phone: contains },
               { email: contains },
+              { province: contains },
+              { hotelProfile: { is: { hotelProject: contains } } },
+              { hotelProfile: { is: { classHotel: contains } } },
+              { hotelProfile: { is: { market: contains } } },
             ],
           }
         : {}),
@@ -441,42 +445,63 @@ export class SuppliersService {
   }
 
   async allotmentDashboard() {
+    const today = this.startOfUtcDay(new Date());
     const allotments = await this.prisma.supplierAllotment.findMany({
-      where: { status: 'ACTIVE' },
-      include: { supplier: true, allocations: true },
+      where: {
+        status: { in: ['ACTIVE', 'STOP_SELL'] },
+        supplier: { is: { deletedAt: null, status: 'ACTIVE' } },
+        OR: [{ endDate: null }, { endDate: { gte: today } }],
+      },
+      select: {
+        allotmentQty: true,
+        bookedQty: true,
+        lockedQty: true,
+        quantityLock: true,
+        cutoffDays: true,
+        startDate: true,
+        sellingPricePerDay: true,
+        status: true,
+      },
     });
     const totals = allotments.reduce(
       (acc, item) => {
         const allotmentQty = item.allotmentQty || item.quantityLock || 0;
         const lockedQty = item.lockedQty || item.quantityLock || 0;
         const remainingQty = Math.max(0, allotmentQty - item.bookedQty - lockedQty);
+        const codLockUntil = new Date(today);
+        codLockUntil.setUTCDate(codLockUntil.getUTCDate() + item.cutoffDays);
         acc.allotmentQty += allotmentQty;
         acc.bookedQty += item.bookedQty;
         acc.lockedQty += lockedQty;
         acc.remainingQty += remainingQty;
         acc.revenue += item.bookedQty * Number(item.sellingPricePerDay || 0);
+        acc.activeAllotments += item.status === 'ACTIVE' && remainingQty > 0 ? 1 : 0;
+        acc.stopSellAllotments += item.status === 'STOP_SELL' || remainingQty <= 0 ? 1 : 0;
+        acc.codLockedAllotments += item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil) ? 1 : 0;
         return acc;
       },
-      { allotmentQty: 0, bookedQty: 0, lockedQty: 0, remainingQty: 0, revenue: 0 },
+      { allotmentQty: 0, bookedQty: 0, lockedQty: 0, remainingQty: 0, revenue: 0, activeAllotments: 0, stopSellAllotments: 0, codLockedAllotments: 0 },
     );
     return {
       ...totals,
+      allotmentCount: allotments.length,
       occupancyRate: totals.allotmentQty ? (totals.bookedQty / totals.allotmentQty) * 100 : 0,
       sellThroughRate: totals.allotmentQty ? ((totals.bookedQty + totals.lockedQty) / totals.allotmentQty) * 100 : 0,
     };
   }
 
   async listAllotmentInventory(query: { supplierId?: string; startDate?: string; endDate?: string }) {
-    const startDate = query.startDate ? new Date(query.startDate) : null;
-    const endDate = query.endDate ? new Date(query.endDate) : null;
+    const startDate = query.startDate ? this.parseDateOnly(query.startDate, 'Ngày bắt đầu') : null;
+    const endDate = query.endDate ? this.parseDateOnly(query.endDate, 'Ngày kết thúc') : null;
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('Ngày bắt đầu không được sau ngày kết thúc');
     }
     const today = new Date();
     const allotments = await this.prisma.supplierAllotment.findMany({
       where: {
+        supplier: { is: { deletedAt: null } },
         ...(query.supplierId ? { supplierId: query.supplierId } : {}),
-        ...(query.startDate || query.endDate
+        ...(startDate || endDate
           ? {
               AND: [
                 endDate ? { OR: [{ startDate: null }, { startDate: { lte: endDate } }] } : {},
@@ -485,69 +510,107 @@ export class SuppliersService {
             }
           : {}),
       },
-      include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
+      include: {
+        supplier: true,
+        logs: { orderBy: { createdAt: 'desc' }, take: 5 },
+        allocations: { orderBy: { createdAt: 'desc' } },
+      },
       orderBy: [{ startDate: 'asc' }, { updatedAt: 'desc' }],
     });
     return allotments.map((item) => this.toAllotmentInventory(item, today));
   }
 
-  async overrideAllotment(id: string, dto: OverrideAllotmentDto) {
-    const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
-    const next = {
-      allotmentQty: dto.allotmentQty ?? current.allotmentQty,
-      bookedQty: dto.bookedQty ?? current.bookedQty,
-      lockedQty: dto.lockedQty ?? current.lockedQty,
-      status: dto.status ?? current.status,
-    };
-    if (next.bookedQty + next.lockedQty > next.allotmentQty && next.status !== 'STOP_SELL') {
-      throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
+  async overrideAllotment(id: string, dto: OverrideAllotmentDto, user?: RequestUser) {
+    const reason = this.requiredText(dto.note, 'Cần nhập lý do điều chỉnh quỹ phòng');
+    const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
+    if (dto.allotmentQty === undefined && dto.bookedQty === undefined && dto.lockedQty === undefined && dto.status === undefined) {
+      throw new BadRequestException('Cần chọn ít nhất một giá trị quỹ phòng để điều chỉnh');
     }
     return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{
+        id: string;
+        supplierId: string;
+        allotmentQty: number;
+        bookedQty: number;
+        lockedQty: number;
+        status: string;
+      }>>(Prisma.sql`
+        SELECT id, "supplierId", "allotmentQty", "bookedQty", "lockedQty", status
+        FROM "SupplierAllotment"
+        WHERE id = ${id}
+        FOR UPDATE
+      `);
+      const current = rows[0];
+      if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+      const activeAllocations = await tx.supplierAllotmentAllocation.count({
+        where: { allotmentId: id, status: { in: ['LOCKED', 'CONFIRMED'] } },
+      });
+      if (activeAllocations > 0 && (dto.bookedQty !== undefined || dto.lockedQty !== undefined)) {
+        throw new ConflictException('Không thể điều chỉnh trực tiếp số lượng đã bán hoặc đang khóa khi còn phân bổ quỹ phòng hoạt động');
+      }
+      if (activeAllocations > 0 && dto.status === 'INACTIVE') {
+        throw new ConflictException('Không thể ngừng quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
+      }
+      const next = {
+        allotmentQty: dto.allotmentQty ?? current.allotmentQty,
+        bookedQty: dto.bookedQty ?? current.bookedQty,
+        lockedQty: dto.lockedQty ?? current.lockedQty,
+        status: dto.status ?? current.status,
+      };
+      if (next.bookedQty + next.lockedQty > next.allotmentQty) {
+        throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
+      }
       const updated = await tx.supplierAllotment.update({
         where: { id },
         data: next,
-        include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
+        select: { id: true },
       });
       await tx.supplierAllotmentLog.create({
         data: {
           allotmentId: id,
           supplierId: current.supplierId,
           action: 'OVERRIDE',
-          oldValue: {
-            allotmentQty: current.allotmentQty,
-            bookedQty: current.bookedQty,
-            lockedQty: current.lockedQty,
-            status: current.status,
-          },
+          oldValue: { allotmentQty: current.allotmentQty, bookedQty: current.bookedQty, lockedQty: current.lockedQty, status: current.status },
           newValue: next,
-          note: this.optionalText(dto.note),
-          actor: this.optionalText(dto.actor),
+          note: reason,
+          actor,
         },
       });
-      return this.toAllotmentInventory(updated, new Date());
+      return this.allotmentInventoryById(tx, updated.id);
     });
   }
 
   async lockAllotment(id: string, dto: LockAllotmentDto, user?: RequestUser) {
     const quantity = dto.quantity ?? 1;
-    const current = await this.prisma.supplierAllotment.findUnique({ where: { id } });
-    if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
-    if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
+    const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
     await this.ensureAllocationLinks(dto, user);
-    if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
-      throw new BadRequestException('Dịch vụ không khớp với quỹ phòng');
-    }
-    const allotmentQty = current.allotmentQty || current.quantityLock || 0;
-    if (current.bookedQty + current.lockedQty + quantity > allotmentQty) {
-      throw new BadRequestException('Số lượng quỹ phòng còn lại không đủ');
-    }
-    const actor = this.actorFrom(dto.actor, user);
     return this.prisma.$transaction(async (tx) => {
+      const current = await tx.supplierAllotment.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+      if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
+      if (dto.serviceId && current.serviceId && dto.serviceId !== current.serviceId) {
+        throw new BadRequestException('Dịch vụ không khớp với quỹ phòng');
+      }
+      const reservedRows = await tx.$queryRaw<Array<{ supplierId: string; bookedQty: number; lockedQty: number }>>(Prisma.sql`
+        UPDATE "SupplierAllotment"
+        SET "lockedQty" = "lockedQty" + ${quantity}, "updatedAt" = NOW()
+        WHERE id = ${id}
+          AND status = 'ACTIVE'
+          AND "bookedQty" + "lockedQty" + ${quantity}
+            <= CASE WHEN "allotmentQty" > 0 THEN "allotmentQty" ELSE "quantityLock" END
+        RETURNING "supplierId", "bookedQty", "lockedQty"
+      `);
+      const reserved = reservedRows[0];
+      if (!reserved) {
+        const latest = await tx.supplierAllotment.findUnique({ where: { id }, select: { status: true } });
+        if (!latest) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+        if (latest.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
+        throw new ConflictException('Số lượng quỹ phòng còn lại không đủ');
+      }
       const allocation = await tx.supplierAllotmentAllocation.create({
         data: {
           allotmentId: id,
-          supplierId: current.supplierId,
+          supplierId: reserved.supplierId,
           serviceId: this.optionalText(dto.serviceId) ?? current.serviceId,
           orderId: this.optionalText(dto.orderId),
           bookingId: this.optionalText(dto.bookingId),
@@ -559,15 +622,26 @@ export class SuppliersService {
           createdBy: actor,
         },
       });
-      const updated = await tx.supplierAllotment.update({
-        where: { id },
-        data: { lockedQty: { increment: quantity } },
-        include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
-      });
       await tx.supplierAllotmentLog.create({
-        data: { allotmentId: id, supplierId: current.supplierId, action: 'LOCK', oldValue: { lockedQty: current.lockedQty }, newValue: { allocationId: allocation.id, quantity }, note: this.optionalText(dto.note), actor },
+        data: {
+          allotmentId: id,
+          supplierId: reserved.supplierId,
+          action: 'LOCK',
+          oldValue: { lockedQty: reserved.lockedQty - quantity },
+          newValue: {
+            allocationId: allocation.id,
+            quantity,
+            lockedQty: reserved.lockedQty,
+            orderId: allocation.orderId,
+            bookingId: allocation.bookingId,
+            tourId: allocation.tourId,
+          },
+          note: this.optionalText(dto.note),
+          actor,
+        },
       });
-      return { allocation, inventory: this.toAllotmentInventory(updated, new Date()) };
+      const inventory = await this.allotmentInventoryById(tx, id);
+      return { allocation, inventory };
     });
   }
 
@@ -580,48 +654,81 @@ export class SuppliersService {
   }
 
   private async changeAllotmentAllocation(id: string, nextStatus: 'CONFIRMED' | 'RELEASED', dto: ReleaseAllotmentDto, user?: RequestUser) {
-    const allocation = await this.prisma.supplierAllotmentAllocation.findFirst({ where: this.allotmentAllocationScopeWhere({ id }, user), include: { allotment: true } });
-    if (!allocation) throw new NotFoundException(SUPPLIER_ERRORS.allocationNotFound);
-    if (allocation.status === nextStatus) return allocation;
-    if (!['LOCKED', 'CONFIRMED'].includes(allocation.status)) {
-      throw new BadRequestException('Không thể thay đổi phân bổ ở trạng thái hiện tại');
-    }
-    if (nextStatus === 'CONFIRMED' && allocation.status !== 'LOCKED') {
-      throw new BadRequestException('Chỉ các phân bổ đã khóa mới được xác nhận');
-    }
-    const actor = this.actorFrom(dto.actor, user);
+    const scopedAllocation = await this.prisma.supplierAllotmentAllocation.findFirst({
+      where: this.allotmentAllocationScopeWhere({ id }, user),
+      select: { id: true },
+    });
+    if (!scopedAllocation) throw new NotFoundException(SUPPLIER_ERRORS.allocationNotFound);
+    const reason = nextStatus === 'RELEASED'
+      ? this.requiredText(dto.note, 'Cần nhập lý do giải phóng phân bổ quỹ phòng')
+      : this.optionalText(dto.note);
+    const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
+
     return this.prisma.$transaction(async (tx) => {
-      const allotmentUpdate =
-        nextStatus === 'CONFIRMED'
-          ? { lockedQty: { decrement: allocation.quantity }, bookedQty: { increment: allocation.quantity } }
-          : allocation.status === 'CONFIRMED'
-            ? { bookedQty: { decrement: allocation.quantity } }
-            : { lockedQty: { decrement: allocation.quantity } };
-      const updatedAllocation = await tx.supplierAllotmentAllocation.update({
-        where: { id },
-        data: {
-          status: nextStatus,
-          ...(nextStatus === 'CONFIRMED' ? { confirmedAt: new Date() } : { releasedAt: new Date() }),
-          note: this.optionalText(dto.note) ?? allocation.note,
-        },
-      });
-      const updated = await tx.supplierAllotment.update({
-        where: { id: allocation.allotmentId },
-        data: allotmentUpdate,
-        include: { supplier: true, logs: { orderBy: { createdAt: 'desc' }, take: 5 }, allocations: true },
-      });
+      let previousStatus: 'LOCKED' | 'CONFIRMED' | null = null;
+      if (nextStatus === 'CONFIRMED') {
+        const transition = await tx.supplierAllotmentAllocation.updateMany({
+          where: { id, status: 'LOCKED' },
+          data: { status: 'CONFIRMED', confirmedAt: new Date(), note: reason ?? undefined },
+        });
+        if (transition.count === 1) previousStatus = 'LOCKED';
+      } else {
+        const lockedTransition = await tx.supplierAllotmentAllocation.updateMany({
+          where: { id, status: 'LOCKED' },
+          data: { status: 'RELEASED', releasedAt: new Date(), note: reason },
+        });
+        if (lockedTransition.count === 1) previousStatus = 'LOCKED';
+        if (!previousStatus) {
+          const confirmedTransition = await tx.supplierAllotmentAllocation.updateMany({
+            where: { id, status: 'CONFIRMED' },
+            data: { status: 'RELEASED', releasedAt: new Date(), note: reason },
+          });
+          if (confirmedTransition.count === 1) previousStatus = 'CONFIRMED';
+        }
+      }
+
+      const allocation = await tx.supplierAllotmentAllocation.findUnique({ where: { id } });
+      if (!allocation) throw new NotFoundException(SUPPLIER_ERRORS.allocationNotFound);
+      if (!previousStatus) {
+        if (allocation.status === nextStatus) {
+          const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId);
+          return { allocation, inventory, idempotent: true };
+        }
+        if (nextStatus === 'CONFIRMED') throw new ConflictException('Chỉ phân bổ đang khóa mới được xác nhận');
+        throw new ConflictException('Không thể giải phóng phân bổ ở trạng thái hiện tại');
+      }
+
+      const inventoryUpdate = previousStatus === 'LOCKED' && nextStatus === 'CONFIRMED'
+        ? await tx.supplierAllotment.updateMany({
+            where: { id: allocation.allotmentId, lockedQty: { gte: allocation.quantity } },
+            data: { lockedQty: { decrement: allocation.quantity }, bookedQty: { increment: allocation.quantity } },
+          })
+        : previousStatus === 'LOCKED'
+          ? await tx.supplierAllotment.updateMany({
+              where: { id: allocation.allotmentId, lockedQty: { gte: allocation.quantity } },
+              data: { lockedQty: { decrement: allocation.quantity } },
+            })
+          : await tx.supplierAllotment.updateMany({
+              where: { id: allocation.allotmentId, bookedQty: { gte: allocation.quantity } },
+              data: { bookedQty: { decrement: allocation.quantity } },
+            });
+      if (inventoryUpdate.count !== 1) {
+        throw new ConflictException('Số lượng quỹ phòng không nhất quán với trạng thái phân bổ');
+      }
+
       await tx.supplierAllotmentLog.create({
         data: {
           allotmentId: allocation.allotmentId,
           supplierId: allocation.supplierId,
           action: nextStatus,
-          oldValue: { allocationId: id, status: allocation.status },
+          oldValue: { allocationId: id, status: previousStatus },
           newValue: { allocationId: id, status: nextStatus, quantity: allocation.quantity },
-          note: this.optionalText(dto.note),
+          note: reason,
           actor,
         },
       });
-      return { allocation: updatedAllocation, inventory: this.toAllotmentInventory(updated, new Date()) };
+      const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId);
+      return { allocation, inventory, idempotent: false };
     });
   }
 
@@ -826,13 +933,25 @@ export class SuppliersService {
       }
     }
 
-    if (dto.allotments) {
+    if (dto.allotments !== undefined) {
+      const activeAllocations = await tx.supplierAllotmentAllocation.count({
+        where: { supplierId, status: { in: ['LOCKED', 'CONFIRMED'] } },
+      });
+      if (activeAllocations > 0) {
+        throw new ConflictException('Không thể thay toàn bộ quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
+      }
       await tx.supplierAllotment.deleteMany({ where: { supplierId } });
       const allotments = dto.allotments.filter((item) => item.serviceName?.trim());
       if (allotments.length) {
         await tx.supplierAllotment.createMany({
           data: allotments.map((item) => {
             const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
+            const allotmentQty = item.allotmentQty ?? item.quantityLock ?? 0;
+            const bookedQty = item.bookedQty ?? 0;
+            const lockedQty = item.lockedQty ?? item.quantityLock ?? 0;
+            if (bookedQty + lockedQty > allotmentQty) {
+              throw new BadRequestException('Số lượng đã đặt cộng số lượng đã khóa không được vượt quá tổng quỹ phòng');
+            }
             return {
               supplierId,
               sku: this.optionalText(item.sku),
@@ -840,9 +959,9 @@ export class SuppliersService {
               startDate,
               endDate,
               dayType: item.dayType ?? 'ALL_DAYS',
-              allotmentQty: item.allotmentQty ?? item.quantityLock ?? 0,
-              bookedQty: item.bookedQty ?? 0,
-              lockedQty: item.lockedQty ?? item.quantityLock ?? 0,
+              allotmentQty,
+              bookedQty,
+              lockedQty,
               quantityLock: item.quantityLock ?? 0,
               cutoffDays: item.cutoffDays ?? 0,
               netCostPerDay: item.netCostPerDay ?? 0,
@@ -930,10 +1049,19 @@ export class SuppliersService {
     const allotmentQty = item.allotmentQty || item.quantityLock || 0;
     const lockedQty = item.lockedQty || item.quantityLock || 0;
     const remainingQty = Math.max(0, allotmentQty - item.bookedQty - lockedQty);
-    const codLockUntil = new Date(today);
-    codLockUntil.setDate(codLockUntil.getDate() + item.cutoffDays);
+    const codLockUntil = this.startOfUtcDay(today);
+    codLockUntil.setUTCDate(codLockUntil.getUTCDate() + item.cutoffDays);
     const isCodLocked = item.startDate ? item.startDate <= codLockUntil : false;
-    const computedStatus = item.status === 'INACTIVE' ? 'INACTIVE' : remainingQty <= 0 ? 'STOP_SELL' : isCodLocked ? 'COD_LOCKED' : item.status;
+    const computedStatus = item.status === 'INACTIVE' ? 'INACTIVE' : item.status === 'STOP_SELL' ? 'STOP_SELL' : remainingQty <= 0 ? 'STOP_SELL' : isCodLocked ? 'COD_LOCKED' : item.status;
+    const allocationSummary = item.allocations.reduce(
+      (summary, allocation) => {
+        if (allocation.status === 'LOCKED') summary.locked += allocation.quantity;
+        if (allocation.status === 'CONFIRMED') summary.confirmed += allocation.quantity;
+        if (allocation.status === 'RELEASED') summary.released += allocation.quantity;
+        return summary;
+      },
+      { locked: 0, confirmed: 0, released: 0 },
+    );
     return {
       ...item,
       allotmentQty,
@@ -945,7 +1073,21 @@ export class SuppliersService {
       isCodLocked,
       computedStatus,
       revenue: item.bookedQty * Number(item.sellingPricePerDay || 0),
+      allocationSummary,
+      activeAllocationCount: item.allocations.filter((allocation) => ['LOCKED', 'CONFIRMED'].includes(allocation.status)).length,
     };
+  }
+
+  private async allotmentInventoryById(tx: Prisma.TransactionClient, id: string) {
+    const item = await tx.supplierAllotment.findUniqueOrThrow({
+      where: { id },
+      include: {
+        supplier: true,
+        logs: { orderBy: { createdAt: 'desc' }, take: 5 },
+        allocations: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+    return this.toAllotmentInventory(item, new Date());
   }
 
   private genericInclude() {
@@ -1174,7 +1316,7 @@ export class SuppliersService {
   }
 
   private actorFrom(dtoActor?: string | null, user?: RequestUser) {
-    return this.optionalText(dtoActor) || this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || null;
+    return this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || this.optionalText(dtoActor) || null;
   }
 
   private rethrowSupplierUniqueConflict(error: unknown): never {
@@ -1200,8 +1342,23 @@ export class SuppliersService {
     return value;
   }
 
+  private startOfUtcDay(value: Date) {
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  }
+
+  private parseDateOnly(value: string, fieldName: string) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) throw new BadRequestException(`${fieldName} không hợp lệ`);
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) {
+      throw new BadRequestException(`${fieldName} không hợp lệ`);
+    }
+    return date;
+  }
+
   private optionalDate(value?: string, fieldName = 'Ngày') {
     if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return this.parseDateOnly(value, fieldName);
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) throw new BadRequestException(`${fieldName} không hợp lệ`);
     return date;

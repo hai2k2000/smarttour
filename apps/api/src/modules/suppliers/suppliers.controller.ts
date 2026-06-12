@@ -88,8 +88,8 @@ export class SuppliersController {
 
   @Patch('hotel-allotments/:id/override')
   @RequirePermissions('supplier.manage')
-  overrideAllotment(@Param('id') id: string, @Body() dto: OverrideAllotmentDto) {
-    return this.suppliersService.overrideAllotment(id, dto);
+  overrideAllotment(@Param('id') id: string, @Body() dto: OverrideAllotmentDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.overrideAllotment(id, dto, request.user);
   }
 
   @Post('hotel-allotments/:id/lock')

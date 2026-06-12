@@ -8,9 +8,11 @@ import {
   IsEnum,
   IsInt,
   IsIn,
+  IsUUID,
   IsNumber,
   IsOptional,
   Matches,
+  Max,
   MaxLength,
   IsString,
   Min,
@@ -19,22 +21,31 @@ import {
 } from 'class-validator';
 
 const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const uppercaseRequired = ({ value }: { value: unknown }) => {
+  const trimmed = trimRequired({ value });
+  return typeof trimmed === 'string' ? trimmed.toUpperCase() : trimmed;
+};
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   return trimmed || undefined;
 };
+const maxHotelBuiltYear = new Date().getFullYear() + 1;
 const supplierPhonePattern = /^(?=(?:\D*\d){6,15}\D*$)[+\d\s().-]+$/;
 
 class SupplierContactInputDto {
   @ApiProperty()
+  @Transform(trimRequired)
   @IsString({ message: 'Tên người liên hệ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên người liên hệ phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Tên người liên hệ không được vượt quá 180 ký tự' })
   fullName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Chức vụ người liên hệ phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Chức vụ người liên hệ không được vượt quá 120 ký tự' })
   position?: string;
 
   @ApiPropertyOptional()
@@ -44,22 +55,29 @@ class SupplierContactInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Số điện thoại người liên hệ phải là chuỗi ký tự' })
+  @Matches(supplierPhonePattern, { message: 'Số điện thoại người liên hệ không hợp lệ' })
   phone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsEmail()
+  @Transform(trimOptional)
+  @IsEmail({}, { message: 'Email người liên hệ không hợp lệ' })
+  @MaxLength(180, { message: 'Email người liên hệ không được vượt quá 180 ký tự' })
   email?: string;
 }
 
 class SupplierServiceInputDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã dịch vụ không được vượt quá 80 ký tự' })
   sku?: string;
 
   @ApiProperty()
+  @Transform(trimRequired)
   @IsString({ message: 'Tên dịch vụ phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên dịch vụ phải có ít nhất 2 ký tự' })
   serviceName!: string;
@@ -76,7 +94,7 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional({ enum: SupplierDayType })
   @IsOptional()
-  @IsEnum(SupplierDayType)
+  @IsEnum(SupplierDayType, { message: 'Loại ngày dịch vụ không hợp lệ' })
   dayType?: SupplierDayType;
 
   @ApiPropertyOptional()
@@ -107,17 +125,22 @@ class SupplierServiceInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú dịch vụ phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú dịch vụ không được vượt quá 2.000 ký tự' })
   note?: string;
 }
 
 class SupplierAllotmentInputDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã quỹ phòng phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã quỹ phòng không được vượt quá 80 ký tự' })
   sku?: string;
 
   @ApiProperty()
+  @Transform(trimRequired)
   @IsString({ message: 'Tên quỹ phòng phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Tên quỹ phòng phải có ít nhất 2 ký tự' })
   serviceName!: string;
@@ -134,7 +157,7 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional({ enum: SupplierDayType })
   @IsOptional()
-  @IsEnum(SupplierDayType)
+  @IsEnum(SupplierDayType, { message: 'Loại ngày quỹ phòng không hợp lệ' })
   dayType?: SupplierDayType;
 
   @ApiPropertyOptional()
@@ -193,7 +216,9 @@ class SupplierAllotmentInputDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú quỹ phòng phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú quỹ phòng không được vượt quá 2.000 ký tự' })
   note?: string;
 
   @ApiPropertyOptional()
@@ -204,7 +229,7 @@ class SupplierAllotmentInputDto {
 
 export class CreateHotelSupplierDto {
   @ApiProperty()
-  @Transform(trimRequired)
+  @Transform(uppercaseRequired)
   @IsString({ message: 'Mã nhà cung cấp phải là chuỗi ký tự' })
   @MinLength(2, { message: 'Mã nhà cung cấp phải có ít nhất 2 ký tự' })
   @MaxLength(80, { message: 'Mã nhà cung cấp không được vượt quá 80 ký tự' })
@@ -219,7 +244,9 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Mã số thuế phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Mã số thuế không được vượt quá 80 ký tự' })
   taxCode?: string;
 
   @ApiProperty()
@@ -237,77 +264,102 @@ export class CreateHotelSupplierDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Quốc gia phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Quốc gia không được vượt quá 120 ký tự' })
   country?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tỉnh/thành phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Tỉnh/thành không được vượt quá 120 ký tự' })
   province?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Địa chỉ phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Địa chỉ không được vượt quá 500 ký tự' })
   address?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Website phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Website không được vượt quá 500 ký tự' })
   website?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú nhà cung cấp phải là chuỗi ký tự' })
+  @MaxLength(2000, { message: 'Ghi chú nhà cung cấp không được vượt quá 2.000 ký tự' })
   notes?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsInt({ message: 'Năm xây dựng phải là số nguyên' })
+  @Min(1800, { message: 'Năm xây dựng không được nhỏ hơn 1800' })
+  @Max(maxHotelBuiltYear, { message: `Năm xây dựng không được lớn hơn ${maxHotelBuiltYear}` })
   builtYear?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Xếp hạng khách sạn phải là số nguyên' })
+  @Min(0, { message: 'Xếp hạng khách sạn không được nhỏ hơn 0' })
+  @Max(5, { message: 'Xếp hạng khách sạn không được lớn hơn 5' })
   rating?: number;
 
   @ApiProperty()
   @Transform(trimRequired)
   @IsString({ message: 'Hạng khách sạn phải là chuỗi ký tự' })
-  @MinLength(1, { message: 'Cần nhập hạng khách sạn' })
+  @MinLength(2, { message: 'Hạng khách sạn phải có ít nhất 2 ký tự' })
+  @MaxLength(80, { message: 'Hạng khách sạn không được vượt quá 80 ký tự' })
   classHotel!: string;
 
   @ApiProperty()
   @Transform(trimRequired)
   @IsString({ message: 'Dự án khách sạn phải là chuỗi ký tự' })
-  @MinLength(1, { message: 'Cần nhập dự án khách sạn' })
+  @MinLength(2, { message: 'Dự án khách sạn phải có ít nhất 2 ký tự' })
+  @MaxLength(180, { message: 'Dự án khách sạn không được vượt quá 180 ký tự' })
   hotelProject!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tên tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên tài khoản ngân hàng không được vượt quá 180 ký tự' })
   bankAccountName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Số tài khoản ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(80, { message: 'Số tài khoản ngân hàng không được vượt quá 80 ký tự' })
   bankAccountNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Tên ngân hàng phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Tên ngân hàng không được vượt quá 180 ký tự' })
   bankName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
+  @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
   market?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Liên kết phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Liên kết không được vượt quá 500 ký tự' })
   link?: string;
 
   @ApiPropertyOptional({ enum: SupplierStatus })
@@ -372,36 +424,40 @@ export class OverrideAllotmentDto {
   @IsIn(['ACTIVE', 'INACTIVE', 'STOP_SELL'], { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  note?: string;
+  @ApiProperty()
+  @Transform(trimRequired)
+  @IsString({ message: 'Lý do điều chỉnh quỹ phòng phải là chuỗi ký tự' })
+  @MinLength(3, { message: 'Lý do điều chỉnh quỹ phòng phải có ít nhất 3 ký tự' })
+  @MaxLength(500, { message: 'Lý do điều chỉnh quỹ phòng không được vượt quá 500 ký tự' })
+  note!: string;
 
   @ApiPropertyOptional()
+  @Transform(trimOptional)
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Người thực hiện phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Người thực hiện không được vượt quá 180 ký tự' })
   actor?: string;
 }
 
 export class LockAllotmentDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID('4', { message: 'Mã dịch vụ nhà cung cấp không hợp lệ' })
   serviceId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID('4', { message: 'Mã đơn hàng không hợp lệ' })
   orderId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID('4', { message: 'Mã booking không hợp lệ' })
   bookingId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID('4', { message: 'Mã tour không hợp lệ' })
   tourId?: string;
 
   @ApiPropertyOptional({ example: 1 })
@@ -413,23 +469,31 @@ export class LockAllotmentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú giữ chỗ phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Ghi chú giữ chỗ không được vượt quá 500 ký tự' })
   note?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Người thực hiện phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Người thực hiện không được vượt quá 180 ký tự' })
   actor?: string;
 }
 
 export class ReleaseAllotmentDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Ghi chú thao tác phân bổ phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'Ghi chú thao tác phân bổ không được vượt quá 500 ký tự' })
   note?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(trimOptional)
+  @IsString({ message: 'Người thực hiện phải là chuỗi ký tự' })
+  @MaxLength(180, { message: 'Người thực hiện không được vượt quá 180 ký tự' })
   actor?: string;
 }

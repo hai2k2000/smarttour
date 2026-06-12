@@ -307,7 +307,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   await request(viewToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [403]);
   await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/confirm', {}, [403]);
   await request(viewToken, 'POST', '/suppliers/hotel-allotment-allocations/00000000-0000-4000-8000-000000000001/release', {}, [403]);
-  const missingAllotmentError = await request(manageToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', {}, [404]);
+  const missingAllotmentError = await request(manageToken, 'PATCH', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/override', { allotmentQty: 1, note: 'Missing allotment smoke' }, [404]);
   assert(messageOf(missingAllotmentError).includes('Không tìm thấy quỹ phòng'), 'missing allotment should return a Vietnamese message');
   const missingLockAllotmentError = await request(manageToken, 'POST', '/suppliers/hotel-allotments/00000000-0000-4000-8000-000000000001/lock', {}, [404]);
   assert(messageOf(missingLockAllotmentError).includes('Không tìm thấy quỹ phòng'), 'locking a missing allotment should return a Vietnamese message');
@@ -513,15 +513,148 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     supplierCode: `${run}-HOTEL-OWNED-DATA`,
     name: `${run} Hotel Owned Data`,
     phone: '0905555666',
+    province: `${run} Province`,
     classHotel: '4 sao',
     hotelProject: `${run} Hotel Owned Data Project`,
-    services: [{ serviceName: 'Phòng tiêu chuẩn' }],
-    allotments: [{ serviceName: 'Quỹ phòng tiêu chuẩn', allotmentQty: 2 }],
+    market: `${run} Market`,
+    rating: 4,
+    builtYear: 2020,
+    services: [{ serviceName: 'Phong tieu chuan', note: 'Service note' }],
+    allotments: [{
+      serviceName: 'Quy phong tieu chuan',
+      startDate: '2026-06-01',
+      endDate: '2030-12-31',
+      allotmentQty: 2,
+      cutoffDays: 0,
+      sellingPricePerDay: 500000,
+      note: 'Initial allotment',
+    }],
   });
+  assert(ownedDataHotel.supplierCode === `${run}-HOTEL-OWNED-DATA`, 'hotel supplier code should be normalized');
+  assert(ownedDataHotel.hotelProfile?.market === `${run} Market`, 'hotel-specific market must be persisted');
+  assert(ownedDataHotel.supplierServices?.length === 1 && ownedDataHotel.allotments?.length === 1, 'hotel detail must include editable child collections');
+  const ownedAllotmentId = ownedDataHotel.allotments[0].id;
+  assert(ownedAllotmentId, 'created hotel allotment must expose its id');
+
+  for (const [filter, value] of [
+    ['province', `${run} Province`],
+    ['hotelProject', `${run} Hotel Owned Data Project`],
+    ['classHotel', '4 sao'],
+    ['market', `${run} Market`],
+    ['status', 'ACTIVE'],
+  ]) {
+    const filteredHotels = await request(manageToken, 'GET', `/suppliers/hotels?${filter}=${encodeURIComponent(value)}`);
+    assert(filteredHotels.some((item) => item.id === ownedDataHotel.id), `hotel ${filter} filter should include the matching supplier`);
+  }
+  for (const keyword of [`${run} Province`, `${run} Hotel Owned Data Project`, '4 sao', `${run} Market`]) {
+    const searchedHotels = await request(manageToken, 'GET', `/suppliers/hotels?search=${encodeURIComponent(keyword)}`);
+    assert(searchedHotels.some((item) => item.id === ownedDataHotel.id), `hotel search should include nested keyword ${keyword}`);
+  }
+
+  const partiallyUpdatedHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    market: `${run} Market Updated`,
+  });
+  assert(partiallyUpdatedHotel.hotelProfile?.market === `${run} Market Updated`, 'hotel partial update must update the requested profile field');
+  assert(partiallyUpdatedHotel.hotelProfile?.hotelProject === `${run} Hotel Owned Data Project`, 'hotel partial update must preserve project');
+  assert(partiallyUpdatedHotel.supplierServices?.[0]?.id === ownedDataHotel.supplierServices[0].id, 'hotel partial update must preserve services when omitted');
+  assert(partiallyUpdatedHotel.allotments?.[0]?.id === ownedAllotmentId, 'hotel partial update must preserve allotments when omitted');
+
+  const profileValidationError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-PROFILE`,
+    name: `${run} Hotel Bad Profile`,
+    phone: '0905555666',
+    classHotel: 'x',
+    hotelProject: 'y',
+    rating: 6,
+    builtYear: 1700,
+  }, [400]);
+  const profileValidationMessage = messageOf(profileValidationError);
+  assert(profileValidationMessage.includes('H\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel class validation must be Vietnamese');
+  assert(profileValidationMessage.includes('D\u1ef1 \u00e1n kh\u00e1ch s\u1ea1n'), 'hotel project validation must be Vietnamese');
+  assert(profileValidationMessage.includes('X\u1ebfp h\u1ea1ng kh\u00e1ch s\u1ea1n'), 'hotel rating validation must be Vietnamese');
+  assert(profileValidationMessage.includes('N\u0103m x\u00e2y d\u1ef1ng'), 'hotel built year validation must be Vietnamese');
+
+  const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2027-01-01&endDate=2027-01-31`);
+  const initialInventory = filteredInventory.find((item) => item.id === ownedAllotmentId);
+  assert(initialInventory?.allotmentQty === 2 && initialInventory.remainingQty === 2, 'inventory date and supplier filters must return correct quantities');
+  assert(initialInventory.allocationSummary?.locked === 0 && initialInventory.activeAllocationCount === 0, 'inventory must expose an empty allocation summary');
+  const invalidCalendarDate = await request(manageToken, 'GET', '/suppliers/hotel-allotments/inventory?startDate=2026-02-30', undefined, [400]);
+  assert(messageOf(invalidCalendarDate).includes('Ng\u00e0y b\u1eaft \u0111\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7'), 'inventory must reject impossible calendar dates');
+
+  const missingOverrideReason = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { allotmentQty: 3 }, [400]);
+  assert(messageOf(missingOverrideReason).includes('L\u00fd do \u0111i\u1ec1u ch\u1ec9nh qu\u1ef9 ph\u00f2ng'), 'allotment override must require a Vietnamese reason');
+  const emptyOverride = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { note: 'No change smoke' }, [400]);
+  assert(messageOf(emptyOverride).includes('\u00edt nh\u1ea5t m\u1ed9t gi\u00e1 tr\u1ecb'), 'allotment override must change at least one value');
+  await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { status: 'UNKNOWN', note: 'Invalid status smoke' }, [400]);
+
+  const overridden = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, {
+    allotmentQty: 3,
+    note: 'Increase inventory smoke',
+    actor: 'spoofed-actor',
+  });
+  assert(overridden.allotmentQty === 3 && overridden.remainingQty === 3, 'allotment override must update total and remaining quantities');
+  assert(overridden.logs?.[0]?.action === 'OVERRIDE', 'override response must include the newly created audit log');
+  assert(overridden.logs?.[0]?.actor === process.env.MANAGE_USER_ID, 'override audit must use the authenticated actor');
+  assert(overridden.logs?.[0]?.note === 'Increase inventory smoke', 'override audit must preserve the reason');
+
+  const locked = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, {
+    quantity: 1,
+    note: 'Lock inventory smoke',
+    actor: 'spoofed-actor',
+  });
+  assert(locked.allocation?.status === 'LOCKED' && locked.allocation.quantity === 1, 'locking inventory must create a locked allocation');
+  assert(locked.allocation.createdBy === process.env.MANAGE_USER_ID, 'allocation must record the authenticated actor');
+  assert(locked.inventory.lockedQty === 1 && locked.inventory.remainingQty === 2, 'locking inventory must atomically update quantities');
+  assert(locked.inventory.activeAllocationCount === 1 && locked.inventory.allocationSummary?.locked === 1, 'lock response must expose active allocation summary');
+  assert(locked.inventory.logs?.[0]?.action === 'LOCK' && locked.inventory.logs[0].actor === process.env.MANAGE_USER_ID, 'lock audit must record action and actor');
+  const allocationId = locked.allocation.id;
+
+  const overCapacityLock = await request(manageToken, 'POST', `/suppliers/hotel-allotments/${ownedAllotmentId}/lock`, { quantity: 3 }, [409]);
+  assert(messageOf(overCapacityLock).includes('kh\u00f4ng \u0111\u1ee7'), 'locking beyond remaining inventory must fail');
+  const activeOverrideError = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { bookedQty: 1, note: 'Unsafe direct update' }, [409]);
+  assert(messageOf(activeOverrideError).includes('ph\u00e2n b\u1ed5 qu\u1ef9 ph\u00f2ng ho\u1ea1t \u0111\u1ed9ng'), 'direct booked or locked override must be blocked while allocations are active');
+  const activeReplacementError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    allotments: [{ serviceName: 'Replacement inventory', allotmentQty: 3 }],
+  }, [409]);
+  assert(messageOf(activeReplacementError).includes('ph\u00e2n b\u1ed5 \u0111ang kh\u00f3a ho\u1eb7c \u0111\u00e3 x\u00e1c nh\u1eadn'), 'hotel update must not replace allotments with active allocations');
+
+  const confirmed = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Confirm inventory smoke' });
+  assert(confirmed.allocation.status === 'CONFIRMED' && confirmed.idempotent === false, 'confirm must transition a locked allocation');
+  assert(confirmed.inventory.lockedQty === 0 && confirmed.inventory.bookedQty === 1, 'confirm must move quantity from locked to booked');
+  assert(confirmed.inventory.logs?.[0]?.action === 'CONFIRMED', 'confirm must write an audit log');
+  const confirmedAgain = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Repeat confirm smoke' });
+  assert(confirmedAgain.idempotent === true && confirmedAgain.inventory.bookedQty === 1, 'repeat confirm must be idempotent');
+
+  const releaseWithoutReason = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/release`, {}, [400]);
+  assert(messageOf(releaseWithoutReason).includes('l\u00fd do gi\u1ea3i ph\u00f3ng'), 'release must require a Vietnamese reason');
+  const released = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/release`, { note: 'Release inventory smoke' });
+  assert(released.allocation.status === 'RELEASED' && released.idempotent === false, 'release must transition a confirmed allocation');
+  assert(released.inventory.bookedQty === 0 && released.inventory.lockedQty === 0 && released.inventory.remainingQty === 3, 'release must return inventory quantity');
+  assert(released.inventory.logs?.[0]?.action === 'RELEASED' && released.inventory.logs[0].actor === process.env.MANAGE_USER_ID, 'release must write actor audit data');
+  const releasedAgain = await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/release`, { note: 'Repeat release smoke' });
+  assert(releasedAgain.idempotent === true && releasedAgain.inventory.remainingQty === 3, 'repeat release must be idempotent');
+  await request(manageToken, 'POST', `/suppliers/hotel-allotment-allocations/${allocationId}/confirm`, { note: 'Invalid confirm after release' }, [409]);
+
+  const inventoryAfterRelease = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}`);
+  const releasedInventory = inventoryAfterRelease.find((item) => item.id === ownedAllotmentId);
+  assert(releasedInventory?.allocationSummary?.released === 1 && releasedInventory.activeAllocationCount === 0, 'inventory must summarize released allocations without treating them as active');
+  const auditActions = new Set((releasedInventory.logs || []).map((log) => log.action));
+  for (const action of ['OVERRIDE', 'LOCK', 'CONFIRMED', 'RELEASED']) {
+    assert(auditActions.has(action), `allotment audit log must include ${action}`);
+  }
+
+  const dashboardBeforeStopSell = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
+  const stopped = await request(manageToken, 'PATCH', `/suppliers/hotel-allotments/${ownedAllotmentId}/override`, { status: 'STOP_SELL', note: 'Stop sell smoke' });
+  assert(stopped.computedStatus === 'STOP_SELL', 'stop-sell override must be reflected in inventory status');
+  const dashboardAfterStopSell = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
+  assert(dashboardAfterStopSell.activeAllotments === dashboardBeforeStopSell.activeAllotments - 1, 'dashboard active count must decrease on stop-sell');
+  assert(dashboardAfterStopSell.stopSellAllotments === dashboardBeforeStopSell.stopSellAllotments + 1, 'dashboard stop-sell count must increase exactly once');
+  assert(dashboardAfterStopSell.allotmentCount >= 1 && typeof dashboardAfterStopSell.sellThroughRate === 'number', 'dashboard must expose complete numeric metrics');
+
   const ownedDataDeleteError = await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}`, undefined, [409]);
   const ownedDataDeleteMessage = messageOf(ownedDataDeleteError);
-  assert(ownedDataDeleteMessage.includes('dịch vụ nhà cung cấp'), 'supplier delete should report linked supplier services');
-  assert(ownedDataDeleteMessage.includes('quỹ phòng'), 'supplier delete should report linked allotments');
+  assert(ownedDataDeleteMessage.includes('d\u1ecbch v\u1ee5 nh\u00e0 cung c\u1ea5p'), 'supplier delete should report linked supplier services');
+  assert(ownedDataDeleteMessage.includes('qu\u1ef9 ph\u00f2ng'), 'supplier delete should report linked allotments');
 
   const invalidHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-DATE`,
@@ -532,6 +665,17 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     services: [{ serviceName: 'Phòng tiêu chuẩn', startDate: 'khong-phai-ngay' }],
   }, [400]);
   assert(messageOf(invalidHotelDateError).includes('Ngày bắt đầu dịch vụ không hợp lệ'), 'invalid service date should return a Vietnamese message');
+
+
+  const invalidHotelCalendarDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-CALENDAR-DATE`,
+    name: `${run} Hotel Invalid Calendar Date`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Invalid Calendar Date Project`,
+    allotments: [{ serviceName: 'Quy phong calendar', startDate: '2026-02-30' }],
+  }, [400]);
+  assert(messageOf(invalidHotelCalendarDateError).includes('Ng\u00e0y b\u1eaft \u0111\u1ea7u qu\u1ef9 ph\u00f2ng kh\u00f4ng h\u1ee3p l\u1ec7'), 'impossible hotel calendar date should be rejected');
 
   const reversedHotelDateError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-REVERSED-DATE`,

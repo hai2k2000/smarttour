@@ -1,6 +1,6 @@
 import { SupplierStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
@@ -128,11 +128,11 @@ export class AllotmentInventoryQueryDto {
 
   @Transform(trimOptional)
   @IsOptional()
-  @IsDateString({}, { message: 'Ngày bắt đầu không hợp lệ' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày bắt đầu phải có định dạng YYYY-MM-DD' })
   startDate?: string;
 
   @Transform(trimOptional)
   @IsOptional()
-  @IsDateString({}, { message: 'Ngày kết thúc không hợp lệ' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày kết thúc phải có định dạng YYYY-MM-DD' })
   endDate?: string;
 }
