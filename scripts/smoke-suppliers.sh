@@ -257,6 +257,141 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   return data;
 }
 
+const typedMetadataSamples = {
+  restaurants: {},
+  flights: {
+    ticketType: 'Khứ hồi',
+    route: 'HAN-SGN',
+    departureAirport: 'HAN',
+    departureDate: '2026-08-01',
+    departureTime: '07:15',
+    arrivalAirport: 'SGN',
+    returnDate: '2026-08-05',
+    returnTime: '19:40',
+    depositDeadline: '2026-07-01T09:00:00+07:00',
+    nameDeadline: '2026-07-10T17:00:00+07:00',
+    fullpayDeadline: '2026-07-20T17:00:00+07:00',
+    taxPrice: '100000',
+    airportFee: '50000',
+    issueFee: '30000',
+    commission: '25000',
+  },
+  'attraction-tickets': {},
+  'landtour-suppliers': {
+    supplierTourCode: 'LT-MATRIX',
+    duration: '3N2Đ',
+    departurePlace: 'Hà Nội',
+    destinationPlace: 'Đà Nẵng',
+    tourType: 'Ghép đoàn',
+    departureSchedule: 'Thứ 6 hằng tuần',
+    capacity: '35',
+    childPolicy: 'Trẻ em theo chính sách nhà cung cấp',
+    cancelPolicy: 'Huỷ trước 7 ngày',
+    paymentPolicy: 'Thanh toán trước khởi hành',
+  },
+  water: { packageSize: '24 chai', unit: 'thùng' },
+  transport: {
+    licensePlate: '30A-12345',
+    seatCapacity: '29',
+    driverName: 'Tài xế Matrix',
+    driverPhone: '0907777111',
+    dailyPrice: '2500000',
+    kmPrice: '15000',
+    overtimePrice: '200000',
+    fuelIncluded: 'Có',
+  },
+  bus: {
+    routeCode: 'BUS-HAN-SAPA',
+    departureStation: 'Mỹ Đình',
+    arrivalStation: 'Sa Pa',
+    departureTime: '21:30',
+    arrivalTime: '05:45',
+    seatType: 'Giường nằm',
+  },
+  other: { unit: 'lần' },
+  villas: {
+    bedroomCount: '4',
+    capacity: '10',
+    hasPool: 'Có',
+    hasBbq: 'Có',
+    hasKitchen: 'Có',
+    checkinTime: '14:00',
+    checkoutTime: '11:30',
+  },
+  passport: {
+    country: 'Nhật Bản',
+    documentType: 'Visa du lịch',
+    processingTime: '7 ngày làm việc',
+    requiredDocuments: 'Hộ chiếu, ảnh, hồ sơ công việc',
+  },
+  guides: {
+    birthday: '1992-03-04',
+    phone: '0907777222',
+    email: 'guide-matrix@smarttour.local',
+    idNumber: '001092000001',
+    guideCardNumber: 'HDV-MATRIX',
+    languages: 'Tiếng Anh, tiếng Nhật',
+    regions: 'Miền Bắc',
+    dailyRate: '1250000.75',
+  },
+  'series-tickets': {
+    seriesCode: 'SERIES-MATRIX',
+    route: 'HAN-PQC',
+    depositDeadline: '2026-09-01',
+    nameDeadline: '2026-09-10',
+    fullPaymentDeadline: '2026-09-20',
+  },
+};
+
+function expectedMetadataValue(value) {
+  if (typeof value !== 'string') return value;
+  return value !== '' && !/^0\d/.test(value) && Number.isFinite(Number(value)) ? Number(value) : value;
+}
+
+function assertMetadataMatches(actual, expected, label) {
+  for (const [key, value] of Object.entries(expected)) {
+    assert(actual?.[key] === expectedMetadataValue(value), `${label} metadata ${key} should map and normalize correctly`);
+  }
+}
+
+function typedMatrixPayload(type, suffix) {
+  return {
+    supplierCode: `${run}-${type.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-${suffix}`,
+    name: `${run} ${type} Supplier ${suffix}`,
+    taxCode: `TAX-SHARED-${run}`,
+    phone: '0907777888',
+    email: `typed-shared-${lowerRun}@smarttour.local`,
+    province: `${run} ${type} Province`,
+    market: `${run} ${type} Market`,
+    contacts: [
+      { fullName: `${run} ${type} Contact A`, position: 'Điều phối', phone: '0907777001', email: `${type.replace(/[^a-z0-9]+/g, '-')}-a-${lowerRun}@smarttour.local` },
+      { fullName: `${run} ${type} Contact B`, position: 'Kế toán', phone: '0907777002', email: `${type.replace(/[^a-z0-9]+/g, '-')}-b-${lowerRun}@smarttour.local` },
+    ],
+    services: [
+      {
+        sku: `${run}-${type.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-SVC-A`,
+        serviceName: `${run} ${type} Service A`,
+        quantity: '2',
+        accountingPrice: '100000.50',
+        netPrice: '90000.25',
+        sellingPrice: '120000.75',
+        description: `${run} ${type} service description A`,
+        note: `${run} ${type} service note A`,
+        metadata: typedMetadataSamples[type],
+      },
+      {
+        sku: `${run}-${type.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-SVC-B`,
+        serviceName: `${run} ${type} Service B`,
+        quantity: 1,
+        accountingPrice: 200000,
+        netPrice: 180000,
+        sellingPrice: 240000,
+        metadata: typedMetadataSamples[type],
+      },
+    ],
+  };
+}
+
 (async () => {
   const initialCategories = await request(manageToken, 'GET', '/supplier-categories');
   assert(Array.isArray(initialCategories), 'supplier categories response must be an array');
@@ -316,6 +451,69 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(legacyFlightDetail.id === process.env.LEGACY_TYPED_SUPPLIER_ID, 'typed detail should accept legacy category aliases');
   const unsupportedTypeError = await request(viewToken, 'GET', `/suppliers/not-a-supplier-type/${usedSupplierId}`, undefined, [404]);
   assert(messageOf(unsupportedTypeError).includes('Loại nhà cung cấp không được hỗ trợ'), 'unsupported supplier type should return a clear Vietnamese message');
+
+  const typedMatrixSuppliers = [];
+  for (const type of typedRoutes) {
+    const created = await request(manageToken, 'POST', `/suppliers/${type}`, typedMatrixPayload(type, 'MATRIX'));
+    typedMatrixSuppliers.push({ type, supplier: created });
+    assert(created.category?.name, `typed ${type} create should return category`);
+    assert(created.contacts?.length === 2, `typed ${type} create should persist contact rows`);
+    assert(created.supplierServices?.length === 2, `typed ${type} create should persist service rows`);
+    assert(created.contacts[0].fullName === `${run} ${type} Contact A`, `typed ${type} contact rows should retain order and values`);
+    assert(created.supplierServices[0].quantity === 2, `typed ${type} service quantity should parse string values`);
+    assert(Number(created.supplierServices[0].accountingPrice) === 100000.5, `typed ${type} accountingPrice should parse string values`);
+    assert(Number(created.supplierServices[0].netPrice) === 90000.25, `typed ${type} netPrice should parse string values`);
+    assert(Number(created.supplierServices[0].sellingPrice) === 120000.75, `typed ${type} sellingPrice should parse string values`);
+    assertMetadataMatches(created.supplierServices[0].metadata || {}, typedMetadataSamples[type], `typed ${type}`);
+
+    const detail = await request(manageToken, 'GET', `/suppliers/${type}/${created.id}`);
+    assert(detail.contacts?.length === 2 && detail.supplierServices?.length === 2, `typed ${type} detail should include contacts and services`);
+    assertMetadataMatches(detail.supplierServices[0].metadata || {}, typedMetadataSamples[type], `typed ${type} detail`);
+
+    const listBySearch = await request(manageToken, 'GET', `/suppliers/${type}?search=${encodeURIComponent(created.supplierCode)}`);
+    assert(listBySearch.some((item) => item.id === created.id), `typed ${type} search should find supplier code`);
+    const listByProvince = await request(manageToken, 'GET', `/suppliers/${type}?province=${encodeURIComponent(created.province)}`);
+    assert(listByProvince.some((item) => item.id === created.id), `typed ${type} province filter should find created supplier`);
+    const listByMarket = await request(manageToken, 'GET', `/suppliers/${type}?market=${encodeURIComponent(created.market)}`);
+    assert(listByMarket.some((item) => item.id === created.id), `typed ${type} market filter should find created supplier`);
+    const listByStatus = await request(manageToken, 'GET', `/suppliers/${type}?status=ACTIVE&search=${encodeURIComponent(created.supplierCode)}`);
+    assert(listByStatus.some((item) => item.id === created.id && item.status === 'ACTIVE'), `typed ${type} active status filter should find created supplier`);
+
+    const partialUpdated = await request(manageToken, 'PUT', `/suppliers/${type}/${created.id}`, { name: `${created.name} Updated` });
+    assert(partialUpdated.contacts?.length === 2, `typed ${type} partial update should preserve contacts`);
+    assert(partialUpdated.supplierServices?.length === 2, `typed ${type} partial update should preserve services`);
+    assertMetadataMatches(partialUpdated.supplierServices[0].metadata || {}, typedMetadataSamples[type], `typed ${type} partial update`);
+
+    const replaced = await request(manageToken, 'PUT', `/suppliers/${type}/${created.id}`, {
+      contacts: [{ fullName: `${run} ${type} Contact Replaced`, phone: '0907777333', email: `${type.replace(/[^a-z0-9]+/g, '-')}-replaced-${lowerRun}@smarttour.local` }],
+      services: [{
+        sku: `${run}-${type.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-SVC-REPLACED`,
+        serviceName: `${run} ${type} Service Replaced`,
+        quantity: '4',
+        accountingPrice: '300000.50',
+        netPrice: '280000.25',
+        sellingPrice: '340000.75',
+        metadata: typedMetadataSamples[type],
+      }],
+    });
+    assert(replaced.contacts?.length === 1 && replaced.contacts[0].fullName.endsWith('Contact Replaced'), `typed ${type} contact replacement should use provided array snapshot`);
+    assert(replaced.supplierServices?.length === 1, `typed ${type} service replacement should use provided array snapshot`);
+    assert(Number(replaced.supplierServices[0].sellingPrice) === 340000.75, `typed ${type} replacement sellingPrice should parse string values`);
+    assertMetadataMatches(replaced.supplierServices[0].metadata || {}, typedMetadataSamples[type], `typed ${type} replacement`);
+  }
+
+  const duplicateTypedCodeError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: typedMatrixSuppliers.find((item) => item.type === 'flights').supplier.supplierCode,
+    name: `${run} Duplicate Typed Supplier Code`,
+    phone: '0907777888',
+  }, [409]);
+  assert(messageOf(duplicateTypedCodeError).includes('Mã nhà cung cấp đã tồn tại'), 'typed supplier duplicate supplierCode should return Vietnamese conflict');
+  const duplicateUpdateTarget = typedMatrixSuppliers.find((item) => item.type === 'water').supplier;
+  const duplicateUpdateSource = typedMatrixSuppliers.find((item) => item.type === 'transport').supplier;
+  const duplicateTypedUpdateError = await request(manageToken, 'PUT', `/suppliers/water/${duplicateUpdateTarget.id}`, {
+    supplierCode: duplicateUpdateSource.supplierCode,
+  }, [409]);
+  assert(messageOf(duplicateTypedUpdateError).includes('Mã nhà cung cấp đã tồn tại'), 'typed supplier update should reject duplicate supplierCode with Vietnamese conflict');
 
   const dashboard = await request(viewToken, 'GET', '/suppliers/hotel-allotments/dashboard');
   assert(typeof dashboard.allotmentQty === 'number', 'allotment dashboard static route should not be matched as supplier detail');
