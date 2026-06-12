@@ -556,6 +556,29 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   const longPolicyError = await request(manageToken, 'POST', '/suppliers', { categoryId: category.id, name: `${run} Long Policy`, pricePolicy: 'x'.repeat(2001) }, [400]);
   assert(messageOf(longPolicyError).includes('Chính sách giá không được vượt quá 2.000 ký tự'), 'long price policy should be rejected');
 
+  const invalidTypedContactsError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-EMPTY-CONTACT`, name: `${run} Flight Empty Contact`, phone: '0907777888',
+    contacts: [{}],
+  }, [400]);
+  assert(messageOf(invalidTypedContactsError).includes('Cần nhập tên người liên hệ'), 'typed contact row validation should be Vietnamese');
+  const invalidTypedServiceShapeError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-SERVICES`, name: `${run} Flight Bad Services`, phone: '0907777888',
+    services: {},
+  }, [400]);
+  assert(messageOf(invalidTypedServiceShapeError).includes('Danh sách dịch vụ phải là danh sách hợp lệ'), 'typed services array validation should be Vietnamese');
+  const invalidTypedServiceDtoError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-SERVICE-DTO`, name: `${run} Flight Bad Service DTO`, phone: '0907777888',
+    services: [{ serviceName: 'Vé máy bay', quantity: -1, accountingPrice: 'abc', metadata: 'bad-metadata' }],
+  }, [400]);
+  assert(messageOf(invalidTypedServiceDtoError).includes('Số lượng dịch vụ không được âm'), 'typed service quantity validation should be Vietnamese');
+  assert(messageOf(invalidTypedServiceDtoError).includes('Giá kế toán dịch vụ phải là số hợp lệ'), 'typed service price validation should be Vietnamese');
+  assert(messageOf(invalidTypedServiceDtoError).includes('Metadata dịch vụ phải là object hợp lệ'), 'typed service metadata validation should be Vietnamese');
+  const invalidTypedUrlError = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-URL`, name: `${run} Flight Bad Url`, phone: '0907777888',
+    website: 'www.example.com',
+  }, [400]);
+  assert(messageOf(invalidTypedUrlError).includes('Website nhà cung cấp phải là URL hợp lệ'), 'typed supplier URL validation should be Vietnamese');
+
   const unsupportedTypedCreate = await request(manageToken, 'POST', '/suppliers/not-a-supplier-type', {
     supplierCode: `${run}-UNKNOWN-TYPE`, name: `${run} Unknown Type`, phone: '0907777888',
   }, [404]);
@@ -588,7 +611,7 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
     supplierCode: `${run}-FLIGHT-BAD-SERVICE-MONEY`, name: `${run} Flight Bad Service Money`, phone: '0907777888',
     services: [{ serviceName: 'Vé máy bay', accountingPrice: 1000000000000 }],
   }, [400]);
-  assert(messageOf(invalidTypedServiceMoneyError).includes('Giá kế toán dòng dịch vụ 1 không được vượt quá'), 'typed service price must use the supplier money upper bound');
+  assert(messageOf(invalidTypedServiceMoneyError).includes('Giá kế toán dịch vụ không được vượt quá'), 'typed service price must use the supplier money upper bound');
   const longTypedServiceNoteError = await request(manageToken, 'POST', '/suppliers/flights', {
     supplierCode: `${run}-FLIGHT-LONG-SERVICE-NOTE`, name: `${run} Flight Long Service Note`, phone: '0907777888',
     services: [{ serviceName: 'Vé máy bay', note: 'x'.repeat(2001) }],

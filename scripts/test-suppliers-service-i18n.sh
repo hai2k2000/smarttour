@@ -2,13 +2,19 @@
 set -euo pipefail
 
 python3 - <<'PYTEST'
+import re
 from pathlib import Path
 
 service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text()
 operations_service = Path('apps/api/src/modules/operations/operations.service.ts').read_text()
 hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text()
 generic_dto = Path('apps/api/src/modules/suppliers/dto/generic-supplier.dto.ts').read_text()
+validation_factory = Path('apps/api/src/validation-exception.factory.ts').read_text()
 source = '\n'.join((service, operations_service, hotel_dto, generic_dto))
+dto_sources = {
+    path.name: path.read_text()
+    for path in Path('apps/api/src/modules/suppliers/dto').glob('*.ts')
+}
 
 english_fragments = [
     'Hotel supplier not found',
@@ -30,6 +36,11 @@ english_fragments = [
 for fragment in english_fragments:
     assert fragment.lower() not in source.lower(), f'English supplier error returned: {fragment}'
 
+bare_class_validator = re.compile(r'@(Is(?:Array|Object|Number|Int|Enum|String|UUID|DateString|Url|Email|Boolean|In|NotEmpty))\(\)')
+for name, dto_source in dto_sources.items():
+    matches = bare_class_validator.findall(dto_source)
+    assert not matches, f'{name} has class-validator decorators without Vietnamese messages: {matches}'
+
 required_messages = [
     'Không tìm thấy nhà cung cấp',
     'Không tìm thấy nhà cung cấp khách sạn',
@@ -47,9 +58,28 @@ required_messages = [
     'Cần ít nhất một dòng thanh toán nhà cung cấp',
     'Số tiền thanh toán phải lớn hơn 0',
     'Không tìm thấy tour',
+    'Cần nhập tên người liên hệ',
+    'Cần nhập tên dịch vụ',
+    'Số lượng dịch vụ phải là số nguyên',
+    'Giá kế toán dịch vụ phải là số hợp lệ',
+    'Giá thuần dịch vụ không được vượt quá 999.999.999.999',
+    'Metadata dịch vụ phải là object hợp lệ',
+    'Danh sách dịch vụ phải là danh sách hợp lệ',
+    'Website nhà cung cấp phải là URL hợp lệ bắt đầu bằng http:// hoặc https://',
+    'Liên kết tham khảo phải là URL hợp lệ bắt đầu bằng http:// hoặc https://',
 ]
 for message in required_messages:
     assert message in source, f'Missing standardized Vietnamese message: {message}'
+
+for fallback in [
+    'FIELD_LABELS',
+    "case 'isUrl':",
+    "case 'isObject':",
+    "case 'matches':",
+    "case 'nestedValidation':",
+    'không đúng định dạng',
+]:
+    assert fallback in validation_factory, f'validation exception factory must localize fallback: {fallback}'
 
 assert "message = 'Cần nhập trường bắt buộc'" in service, 'requiredText must provide a Vietnamese default message'
 assert 'Number.isFinite(number)' in service, 'optionalNumber must reject non-finite values'

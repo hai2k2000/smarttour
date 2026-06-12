@@ -6,6 +6,7 @@ const DEFAULT_ERROR_PATTERNS = [
   'should ',
   'each value in ',
   'property ',
+  'an unknown value ',
 ];
 
 function isDefaultClassValidatorMessage(message: string) {
@@ -13,8 +14,52 @@ function isDefaultClassValidatorMessage(message: string) {
   return DEFAULT_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  actor: 'Người thực hiện',
+  address: 'Địa chỉ',
+  allotments: 'Danh sách quỹ phòng',
+  bankAccountName: 'Tên tài khoản ngân hàng',
+  bankAccountNumber: 'Số tài khoản ngân hàng',
+  bankName: 'Tên ngân hàng',
+  birthday: 'Ngày sinh',
+  bookedQty: 'Số phòng đã đặt',
+  categoryId: 'Mã loại nhà cung cấp',
+  classHotel: 'Hạng khách sạn',
+  contacts: 'Danh sách người liên hệ',
+  cutoffDays: 'Số ngày chốt quỹ phòng',
+  email: 'Email',
+  endDate: 'Ngày kết thúc',
+  file: 'File',
+  fullName: 'Tên người liên hệ',
+  hotelProject: 'Dự án khách sạn',
+  link: 'Liên kết',
+  lockedQty: 'Số phòng đang giữ',
+  market: 'Thị trường',
+  metadata: 'Metadata',
+  name: 'Tên nhà cung cấp',
+  note: 'Ghi chú',
+  notes: 'Ghi chú',
+  phone: 'Số điện thoại',
+  position: 'Chức vụ',
+  province: 'Tỉnh/thành',
+  quantity: 'Số lượng',
+  rating: 'Xếp hạng',
+  serviceName: 'Tên dịch vụ',
+  services: 'Danh sách dịch vụ',
+  sku: 'Mã dịch vụ',
+  startDate: 'Ngày bắt đầu',
+  status: 'Trạng thái',
+  supplierCode: 'Mã nhà cung cấp',
+  supplierId: 'Mã nhà cung cấp',
+  taxCode: 'Mã số thuế',
+  website: 'Website',
+};
+
 function label(property: string) {
-  return property || 'Trường dữ liệu';
+  if (!property) return 'Trường dữ liệu';
+  const parts = property.split('.');
+  const lastNamedPart = [...parts].reverse().find((part) => Number.isNaN(Number(part)));
+  return FIELD_LABELS[lastNamedPart ?? property] ?? property;
 }
 
 function messageForConstraint(property: string, constraint: string, message: string) {
@@ -45,6 +90,15 @@ function messageForConstraint(property: string, constraint: string, message: str
       return `${field} phải là ngày hợp lệ`;
     case 'isUUID':
       return `${field} phải là UUID hợp lệ`;
+    case 'isUrl':
+      return `${field} phải là URL hợp lệ`;
+    case 'isObject':
+      return `${field} phải là object hợp lệ`;
+    case 'matches':
+      return `${field} không đúng định dạng`;
+    case 'nestedValidation':
+    case 'unknownValue':
+      return `${field} không hợp lệ`;
     case 'min':
       return `${field} nhỏ hơn giá trị tối thiểu cho phép`;
     case 'max':
