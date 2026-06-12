@@ -279,6 +279,7 @@ const hotelSchema = z.object({
 type HotelForm = z.infer<typeof hotelSchema>;
 type ArrayName = 'contacts' | 'services' | 'allotments';
 type ColumnSpec = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'select' | 'textarea'; readOnly?: boolean };
+type DirtyCollections = Partial<Record<ArrayName, unknown>>;
 
 const emptyContact = { fullName: '', position: '', birthday: '', phone: '', email: '' };
 const emptyService = { sku: '', serviceName: '', startDate: '', endDate: '', dayType: 'ALL_DAYS' as const, accountingPrice: 0, netPrice: 0, sellingPrice: 0, description: '', note: '' };
@@ -309,6 +310,21 @@ const defaultValues: HotelForm = {
   allotments: [emptyAllotment],
 };
 const defaultFilters: Filters = { search: '', status: '', province: '', market: '', hotelProject: '', classHotel: '' };
+
+function shouldSendCollection(mode: 'create' | 'update', dirtyFields: DirtyCollections, name: ArrayName) {
+  return mode === 'create' || dirtyFields[name] !== undefined;
+}
+
+function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirtyFields: DirtyCollections) {
+  return {
+    ...values,
+    builtYear: values.builtYear ?? undefined,
+    rating: values.rating ?? undefined,
+    ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: values.contacts.filter((item) => item.fullName.trim()) } : {}),
+    ...(shouldSendCollection(mode, dirtyFields, 'services') ? { services: values.services.filter(hasServiceRowData) } : {}),
+    ...(mode === 'create' ? { allotments: values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow) } : {}),
+  };
+}
 
 function dateOnly(value?: string | null) {
   return value ? value.slice(0, 10) : '';
@@ -405,7 +421,7 @@ export default function HotelSuppliersClient({
     control,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<HotelForm>({ resolver: zodResolver(hotelSchema) as any, defaultValues });
   const contacts = useFieldArray({ control, name: 'contacts' });
   const services = useFieldArray({ control, name: 'services' });
@@ -498,14 +514,7 @@ export default function HotelSuppliersClient({
 
   async function onSubmit(values: HotelForm) {
     setNotice(null);
-    const payload = {
-      ...values,
-      builtYear: values.builtYear ?? undefined,
-      rating: values.rating ?? undefined,
-      contacts: values.contacts.filter((item) => item.fullName.trim()),
-      services: values.services.filter(hasServiceRowData),
-      ...(editingId ? {} : { allotments: values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow) }),
-    };
+    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections);
     let saved: HotelSupplier;
     try {
       saved = await supplierApi<HotelSupplier>(

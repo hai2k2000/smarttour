@@ -423,7 +423,37 @@ export class CreateHotelSupplierDto {
   allotments?: SupplierAllotmentInputDto[];
 }
 
-export class UpdateHotelSupplierDto extends PartialType(CreateHotelSupplierDto) {}
+export class UpdateHotelSupplierDto extends PartialType(CreateHotelSupplierDto) {
+  @ApiPropertyOptional({
+    type: [SupplierContactInputDto],
+    description: 'Không gửi contacts thì giữ nguyên danh sách liên hệ; gửi contacts thì thay toàn bộ danh sách liên hệ.',
+  })
+  @IsOptional()
+  @IsArray({ message: 'Danh sách người liên hệ phải là danh sách hợp lệ' })
+  @ValidateNested({ each: true })
+  @Type(() => SupplierContactInputDto)
+  contacts?: SupplierContactInputDto[];
+
+  @ApiPropertyOptional({
+    type: [SupplierServiceInputDto],
+    description: 'Không gửi services thì giữ nguyên danh sách dịch vụ; gửi services thì thay toàn bộ danh sách dịch vụ khách sạn.',
+  })
+  @IsOptional()
+  @IsArray({ message: 'Danh sách dịch vụ khách sạn phải là danh sách hợp lệ' })
+  @ValidateNested({ each: true })
+  @Type(() => SupplierServiceInputDto)
+  services?: SupplierServiceInputDto[];
+
+  @ApiPropertyOptional({
+    type: [SupplierAllotmentInputDto],
+    description: 'Không gửi allotments thì giữ nguyên quỹ phòng; gửi allotments thì thay toàn bộ quỹ phòng và bị chặn nếu còn phân bổ đang khóa hoặc đã xác nhận.',
+  })
+  @IsOptional()
+  @IsArray({ message: 'Danh sách quỹ phòng phải là danh sách hợp lệ' })
+  @ValidateNested({ each: true })
+  @Type(() => SupplierAllotmentInputDto)
+  allotments?: SupplierAllotmentInputDto[];
+}
 
 export class UpdateSupplierStatusDto {
   @ApiProperty({ enum: SupplierStatus })

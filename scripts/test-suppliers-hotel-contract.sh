@@ -61,6 +61,7 @@ for include_fragment in [
 
 assert 'const hotelProfileData = this.toHotelProfileData(dto)' in service
 assert "Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}" in service
+assert 'Hotel update contract: omitted child arrays preserve existing rows; provided arrays are full snapshots.' in service
 assert "const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');" in service
 assert "const servicesInput = this.optionalArray(dto.services, 'Danh sách dịch vụ khách sạn');" in service
 assert "const allotmentsInput = this.optionalArray(dto.allotments, 'Danh sách quỹ phòng');" in service
@@ -134,6 +135,12 @@ assert 'const maxHotelBuiltYear = new Date().getFullYear();' in hotel_dto, 'hote
 assert 'const maxSupplierMoney = 999_999_999_999;' in hotel_dto, 'hotel service money must use a business upper bound'
 assert 'const maxSupplierAllotmentCutoffDays = 365;' in hotel_dto, 'hotel allotment cutoff days must use a business upper bound'
 assert "const supplierAllotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;" in hotel_dto, 'hotel allotment statuses must be a fixed DTO contract'
+for update_description in [
+    'Không gửi contacts thì giữ nguyên danh sách liên hệ; gửi contacts thì thay toàn bộ danh sách liên hệ.',
+    'Không gửi services thì giữ nguyên danh sách dịch vụ; gửi services thì thay toàn bộ danh sách dịch vụ khách sạn.',
+    'Không gửi allotments thì giữ nguyên quỹ phòng; gửi allotments thì thay toàn bộ quỹ phòng và bị chặn nếu còn phân bổ đang khóa hoặc đã xác nhận.',
+]:
+    assert update_description in hotel_dto, f'UpdateHotelSupplierDto must document nested array snapshot contract: {update_description}'
 for dto_message in [
     'Cần nhập tên quỹ phòng',
     'Tên quỹ phòng không được vượt quá 180 ký tự',
@@ -173,7 +180,9 @@ for english in ['Hotel supplier not found', 'Allotment not found', 'Booked plus 
 assert "Object.entries(nextFilters).forEach" in frontend
 for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel']:
     assert field in frontend, f'hotel frontend filter missing {field}'
-assert "editingId ? {} : { allotments:" in frontend, 'hotel edit must not send allotments unless creating'
+assert 'function shouldSendCollection(' in frontend and "dirtyFields[name] !== undefined" in frontend, 'hotel edit should only send dirty child collection snapshots'
+assert "hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections)" in frontend, 'hotel frontend must centralize create/update payload shaping'
+assert "mode === 'create' ? { allotments:" in frontend, 'hotel edit payload must omit allotments because allotments are managed separately'
 assert 'Quỹ phòng được quản lý riêng' in frontend
 for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm/Dự án *']:
     assert required_label in frontend, f'hotel frontend must mark required field: {required_label}'

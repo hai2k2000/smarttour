@@ -992,6 +992,7 @@ export class SuppliersService {
     supplierId: string,
     dto: Partial<CreateHotelSupplierDto>,
   ) {
+    // Hotel update contract: omitted child arrays preserve existing rows; provided arrays are full snapshots.
     const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');
     const servicesInput = this.optionalArray(dto.services, 'Danh sách dịch vụ khách sạn');
     const allotmentsInput = this.optionalArray(dto.allotments, 'Danh sách quỹ phòng');

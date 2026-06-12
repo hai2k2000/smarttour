@@ -793,10 +793,34 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   assert(partiallyUpdatedHotel.supplierServices?.[0]?.id === ownedDataHotel.supplierServices[0].id, 'hotel partial update must preserve services when omitted');
   assert(partiallyUpdatedHotel.allotments?.[0]?.id === ownedAllotmentId, 'hotel partial update must preserve allotments when omitted');
   assert(partiallyUpdatedHotel.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel partial update must preserve uploaded files when omitted');
+
+  const hotelContactReplaced = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    contacts: [{ fullName: `${run} Hotel Contact Replaced`, position: 'Reservation', phone: '0905555666' }],
+  });
+  assert(hotelContactReplaced.contacts?.length === 1 && hotelContactReplaced.contacts[0].fullName === `${run} Hotel Contact Replaced`, 'hotel update with contacts must replace the full contact snapshot');
+  assert(hotelContactReplaced.supplierServices?.[0]?.id === ownedDataHotel.supplierServices[0].id, 'hotel contact replacement must preserve services when services are omitted');
+  assert(hotelContactReplaced.allotments?.[0]?.id === ownedAllotmentId, 'hotel contact replacement must preserve allotments when allotments are omitted');
+  assert(hotelContactReplaced.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel contact replacement must preserve files');
+
+  const oldHotelServiceId = hotelContactReplaced.supplierServices[0].id;
+  const hotelServiceReplaced = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
+    services: [{
+      sku: `${run}-HOTEL-SERVICE-REPLACED`,
+      serviceName: 'Phong deluxe',
+      netPrice: 350000,
+      sellingPrice: 550000,
+    }],
+  });
+  assert(hotelServiceReplaced.supplierServices?.length === 1, 'hotel update with services must return one active service snapshot');
+  assert(hotelServiceReplaced.supplierServices[0].id !== oldHotelServiceId, 'hotel service replacement should create a fresh active service row');
+  assert(hotelServiceReplaced.contacts?.[0]?.fullName === `${run} Hotel Contact Replaced`, 'hotel service replacement must preserve contacts when contacts are omitted');
+  assert(hotelServiceReplaced.allotments?.[0]?.id === ownedAllotmentId, 'hotel service replacement must preserve allotments when allotments are omitted');
+  assert(hotelServiceReplaced.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel service replacement must preserve files');
+
   await request(manageToken, 'DELETE', `/suppliers/${ownedDataHotel.id}/files/${hotelUploadedFile.id}`);
   const hotelAfterFileDelete = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
   assert(!hotelAfterFileDelete.files?.some((file) => file.id === hotelUploadedFile.id), 'hotel file delete must remove only the file metadata');
-  assert(hotelAfterFileDelete.contacts?.[0]?.fullName === `${run} Hotel Contact` && hotelAfterFileDelete.supplierServices?.length === 1 && hotelAfterFileDelete.allotments?.length === 1, 'hotel file delete must not affect contacts, services, or allotments');
+  assert(hotelAfterFileDelete.contacts?.[0]?.fullName === `${run} Hotel Contact Replaced` && hotelAfterFileDelete.supplierServices?.length === 1 && hotelAfterFileDelete.allotments?.length === 1, 'hotel file delete must not affect contacts, services, or allotments');
 
   const profileValidationError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-BAD-PROFILE`,
