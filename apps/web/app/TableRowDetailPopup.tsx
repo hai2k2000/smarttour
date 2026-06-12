@@ -7,24 +7,27 @@ type RowDetail = {
   fields: Array<{ label: string; value: string }>;
 };
 
-const rowSelector = [
-  '.fitTableWrap table.orderListTable tbody tr',
-  '.fitTableWrap table.hotelListTable tbody tr',
-  '.fitTableWrap table.tourProgramTable tbody tr',
-  '.fitTableWrap table.fitTourListTable tbody tr',
-  '.fitTableWrap table.quoteListTable tbody tr',
-  '.fitTableWrap table.quoteComboListTable tbody tr',
-  '.fitTableWrap table.quotationListTable tbody tr',
-  '.fitTableWrap table.reportTable tbody tr',
-  '.fitTableWrap table.customerTable tbody tr',
-  '.fitTableWrap table.commissionTable tbody tr',
-  '.fitTableWrap table.financeTable tbody tr',
-  '.fitTableWrap table.operationsTable tbody tr',
-  '.fitTableWrap table.securityTable tbody tr',
-  '.fitTableWrap table.hotelInventoryTable tbody tr',
-  '.supplierTableWrap table tbody tr',
-  '.quoteListWrap table tbody tr',
-].join(',');
+const tableSelectors = [
+  '.fitTableWrap table.orderListTable',
+  '.fitTableWrap table.hotelListTable',
+  '.fitTableWrap table.tourProgramTable',
+  '.fitTableWrap table.fitTourListTable',
+  '.fitTableWrap table.quoteListTable',
+  '.fitTableWrap table.quoteComboListTable',
+  '.fitTableWrap table.quotationListTable',
+  '.fitTableWrap table.reportTable',
+  '.fitTableWrap table.customerTable',
+  '.fitTableWrap table.commissionTable',
+  '.fitTableWrap table.financeTable',
+  '.fitTableWrap table.operationsTable',
+  '.fitTableWrap table.securityTable',
+  '.fitTableWrap table.hotelInventoryTable',
+  '.supplierTableWrap table',
+  '.quoteListWrap table',
+];
+
+const tableSelector = tableSelectors.join(',');
+const rowSelector = tableSelectors.map((selector) => `${selector} tbody tr`).join(',');
 
 const interactiveSelector = [
   'a',
@@ -39,6 +42,18 @@ const interactiveSelector = [
 
 function cleanText(text: string) {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function bindTableCellTitles(root: ParentNode = document) {
+  root.querySelectorAll(`${tableSelector} th, ${tableSelector} td`).forEach((cell) => {
+    if (!(cell instanceof HTMLElement)) return;
+    if (cell.querySelector('.tableEmptyState')) return;
+
+    const text = cleanText(cell.textContent || '');
+    if (!text || text === cell.getAttribute('title')) return;
+
+    cell.setAttribute('title', text);
+  });
 }
 
 function detailFromRow(row: HTMLTableRowElement): RowDetail | null {
@@ -69,6 +84,18 @@ export default function TableRowDetailPopup() {
   const [detail, setDetail] = useState<RowDetail | null>(null);
 
   useEffect(() => {
+    bindTableCellTitles();
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof Element) bindTableCellTitles(node);
+        });
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -89,6 +116,7 @@ export default function TableRowDetailPopup() {
     document.addEventListener('click', onClick);
     document.addEventListener('keydown', onKeyDown);
     return () => {
+      observer.disconnect();
       document.removeEventListener('click', onClick);
       document.removeEventListener('keydown', onKeyDown);
     };

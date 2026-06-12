@@ -2027,7 +2027,7 @@ label { min-width: 0; }
   }
 }
 
-/* Compact list-table viewport: show about 5 rows, keep each row on one visual line. */
+/* Compact list-table viewport: show about 10 rows, keep each row on one visual line. */
 :root {
   --list-row-height: 44px;
   --list-head-height: 42px;
@@ -2102,6 +2102,27 @@ label { min-width: 0; }
   text-overflow: ellipsis;
 }
 
+.fitTableWrap:has(> table.orderListTable) th:first-child,
+.fitTableWrap:has(> table.hotelListTable) th:first-child,
+.fitTableWrap:has(> table.tourProgramTable) th:first-child,
+.fitTableWrap:has(> table.fitTourListTable) th:first-child,
+.fitTableWrap:has(> table.quoteListTable) th:first-child,
+.fitTableWrap:has(> table.quoteComboListTable) th:first-child,
+.fitTableWrap:has(> table.quotationListTable) th:first-child,
+.fitTableWrap:has(> table.reportTable) th:first-child,
+.fitTableWrap:has(> table.customerTable) th:first-child,
+.fitTableWrap:has(> table.commissionTable) th:first-child,
+.fitTableWrap:has(> table.financeTable) th:first-child,
+.fitTableWrap:has(> table.operationsTable) th:first-child,
+.fitTableWrap:has(> table.securityTable) th:first-child,
+.fitTableWrap:has(> table.hotelInventoryTable) th:first-child,
+.supplierTableWrap th:first-child,
+.quoteListWrap th:first-child {
+  left: 0;
+  z-index: 5;
+  box-shadow: 1px 0 0 #e3efd9;
+}
+
 .fitTableWrap:has(> table.orderListTable) td,
 .fitTableWrap:has(> table.hotelListTable) td,
 .fitTableWrap:has(> table.tourProgramTable) td,
@@ -2126,6 +2147,64 @@ label { min-width: 0; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.fitTableWrap:has(> table.orderListTable) td:first-child,
+.fitTableWrap:has(> table.hotelListTable) td:first-child,
+.fitTableWrap:has(> table.tourProgramTable) td:first-child,
+.fitTableWrap:has(> table.fitTourListTable) td:first-child,
+.fitTableWrap:has(> table.quoteListTable) td:first-child,
+.fitTableWrap:has(> table.quoteComboListTable) td:first-child,
+.fitTableWrap:has(> table.quotationListTable) td:first-child,
+.fitTableWrap:has(> table.reportTable) td:first-child,
+.fitTableWrap:has(> table.customerTable) td:first-child,
+.fitTableWrap:has(> table.commissionTable) td:first-child,
+.fitTableWrap:has(> table.financeTable) td:first-child,
+.fitTableWrap:has(> table.operationsTable) td:first-child,
+.fitTableWrap:has(> table.securityTable) td:first-child,
+.fitTableWrap:has(> table.hotelInventoryTable) td:first-child,
+.supplierTableWrap td:first-child,
+.quoteListWrap td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;
+  box-shadow: 1px 0 0 #e3efd9;
+}
+
+.fitTableWrap:has(> table.orderListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.hotelListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.tourProgramTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.fitTourListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.quoteListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.quoteComboListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.quotationListTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.reportTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.customerTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.commissionTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.financeTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.operationsTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.securityTable) tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:hover td:first-child,
+.supplierTableWrap tbody tr:hover td:first-child,
+.quoteListWrap tbody tr:hover td:first-child,
+.fitTableWrap:has(> table.orderListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.hotelListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.tourProgramTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.fitTourListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.quoteListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.quoteComboListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.quotationListTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.reportTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.customerTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.commissionTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.financeTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.operationsTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.securityTable) tbody tr:focus-within td:first-child,
+.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:focus-within td:first-child,
+.supplierTableWrap tbody tr:focus-within td:first-child,
+.quoteListWrap tbody tr:focus-within td:first-child {
+  background: var(--dn-hover-bg);
 }
 
 .fitTableWrap:has(> table.orderListTable) td > :where(strong, span, small, em, a),
