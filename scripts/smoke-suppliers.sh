@@ -1055,6 +1055,56 @@ async function uploadRequest(token, path, fileName, mimeType, content, ok = [200
   }, [400]);
   assert(messageOf(invalidAllotmentStatusError).includes('Trạng thái quỹ phòng không hợp lệ'), 'invalid allotment status should return a Vietnamese message');
 
+  const invalidServiceDayTypeError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-SERVICE-DAYTYPE`,
+    name: `${run} Hotel Bad Service DayType`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Service DayType Project`,
+    services: [{ serviceName: 'Dịch vụ sai loại ngày', dayType: 'BAD_DAY' }],
+  }, [400]);
+  assert(messageOf(invalidServiceDayTypeError).includes('Loại ngày dịch vụ không hợp lệ'), 'hotel service dayType must use the shared SupplierDayType enum');
+
+  const invalidAllotmentDayTypeError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-ALLOTMENT-DAYTYPE`,
+    name: `${run} Hotel Bad Allotment DayType`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Allotment DayType Project`,
+    allotments: [{ serviceName: 'Quỹ phòng sai loại ngày', dayType: 'BAD_DAY' }],
+  }, [400]);
+  assert(messageOf(invalidAllotmentDayTypeError).includes('Loại ngày quỹ phòng không hợp lệ'), 'hotel allotment dayType must use the shared SupplierDayType enum');
+
+  const emptyContactRowError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-EMPTY-CONTACT-ROW`,
+    name: `${run} Hotel Empty Contact Row`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Empty Contact Row Project`,
+    contacts: [{}],
+  }, [400]);
+  assert(messageOf(emptyContactRowError).includes('Cần nhập tên người liên hệ'), 'empty contact rows must not be accepted by the API');
+
+  const emptyServiceRowError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-EMPTY-SERVICE-ROW`,
+    name: `${run} Hotel Empty Service Row`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Empty Service Row Project`,
+    services: [{}],
+  }, [400]);
+  assert(messageOf(emptyServiceRowError).includes('Cần nhập tên dịch vụ'), 'empty service rows must not be accepted by the API');
+
+  const emptyAllotmentRowError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-EMPTY-ALLOTMENT-ROW`,
+    name: `${run} Hotel Empty Allotment Row`,
+    phone: '0905555666',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Empty Allotment Row Project`,
+    allotments: [{}],
+  }, [400]);
+  assert(messageOf(emptyAllotmentRowError).includes('Cần nhập tên quỹ phòng'), 'empty allotment rows must not be accepted by the API');
+
   const missingAllotmentNameError = await request(manageToken, 'POST', '/suppliers/hotels', {
     supplierCode: `${run}-HOTEL-MISSING-ALLOTMENT-NAME`,
     name: `${run} Hotel Missing Allotment Name`,

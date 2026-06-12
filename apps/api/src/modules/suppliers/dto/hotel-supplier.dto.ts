@@ -21,6 +21,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from '../supplier-allotment-status';
 
 const trimRequired = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const uppercaseRequired = ({ value }: { value: unknown }) => {
@@ -38,8 +39,6 @@ const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
 const maxSupplierMoney = 999_999_999_999;
 const maxSupplierAllotmentCutoffDays = 365;
-const supplierAllotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
-type SupplierAllotmentStatus = (typeof supplierAllotmentStatuses)[number];
 
 class SupplierContactInputDto {
   @ApiProperty()
@@ -255,9 +254,9 @@ class SupplierAllotmentInputDto {
   @MaxLength(2000, { message: 'Ghi chú quỹ phòng không được vượt quá 2.000 ký tự' })
   note?: string;
 
-  @ApiPropertyOptional({ enum: supplierAllotmentStatuses })
+  @ApiPropertyOptional({ enum: SUPPLIER_ALLOTMENT_STATUSES })
   @IsOptional()
-  @IsIn(supplierAllotmentStatuses, { message: 'Trạng thái quỹ phòng không hợp lệ' })
+  @IsIn(SUPPLIER_ALLOTMENT_STATUSES, { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: SupplierAllotmentStatus;
 }
 
@@ -483,9 +482,9 @@ export class OverrideAllotmentDto {
   @Min(0, { message: 'Số phòng đang giữ không được âm' })
   lockedQty?: number;
 
-  @ApiPropertyOptional({ enum: supplierAllotmentStatuses })
+  @ApiPropertyOptional({ enum: SUPPLIER_ALLOTMENT_STATUSES })
   @IsOptional()
-  @IsIn(supplierAllotmentStatuses, { message: 'Trạng thái quỹ phòng không hợp lệ' })
+  @IsIn(SUPPLIER_ALLOTMENT_STATUSES, { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: SupplierAllotmentStatus;
 
   @ApiProperty()

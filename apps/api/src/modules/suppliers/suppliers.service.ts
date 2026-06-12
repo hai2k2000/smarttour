@@ -10,6 +10,7 @@ import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generi
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
 import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
 const supplierCategoryNameKey = (value: string) => value
@@ -33,8 +34,6 @@ const MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180;
 const MAX_SUPPLIER_SERVICE_SKU_LENGTH = 80;
 const MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH = 180;
 const MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS = 365;
-const SUPPLIER_ALLOTMENT_STATUSES = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;
-type SupplierAllotmentStatus = (typeof SUPPLIER_ALLOTMENT_STATUSES)[number];
 const SUPPLIER_STATUS_LABELS: Record<SupplierStatus, string> = {
   [SupplierStatus.ACTIVE]: 'Đang hoạt động',
   [SupplierStatus.INACTIVE]: 'Ngừng hoạt động',

@@ -64,7 +64,7 @@ assert 'Number.isNaN(date.getTime())' in service, 'optionalDate must reject inva
 assert 'optionalDateRange' in service, 'supplier child date ranges must be checked before persistence'
 assert 'Ngày bắt đầu ${subject} không được sau ngày kết thúc ${subject}' in service, 'date-range helper must return a Vietnamese message'
 assert "@IsDateString({}, { message: 'Ngày bắt đầu dịch vụ không hợp lệ' })" in hotel_dto
-assert 'supplierAllotmentStatuses' in hotel_dto and "@IsIn(supplierAllotmentStatuses, { message: 'Trạng thái quỹ phòng không hợp lệ' })" in hotel_dto
+assert 'SUPPLIER_ALLOTMENT_STATUSES' in hotel_dto and "@IsIn(SUPPLIER_ALLOTMENT_STATUSES, { message: 'Trạng thái quỹ phòng không hợp lệ' })" in hotel_dto
 assert "@IsDateString({}, { message: 'Ngày sinh người liên hệ không hợp lệ' })" in generic_dto
 
 print('TEST_SUPPLIERS_SERVICE_I18N_OK')

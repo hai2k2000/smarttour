@@ -8,6 +8,7 @@ controller = Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read
 service = Path('apps/api/src/modules/suppliers/suppliers.service.ts').read_text(encoding='utf-8')
 query_dto = Path('apps/api/src/modules/suppliers/dto/supplier-query.dto.ts').read_text(encoding='utf-8')
 hotel_dto = Path('apps/api/src/modules/suppliers/dto/hotel-supplier.dto.ts').read_text(encoding='utf-8')
+allotment_status = Path('apps/api/src/modules/suppliers/supplier-allotment-status.ts').read_text(encoding='utf-8')
 frontend = Path('apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx').read_text(encoding='utf-8')
 supplier_ui = Path('apps/web/app/suppliers/SupplierClientUi.tsx').read_text(encoding='utf-8')
 globals_css = Path('apps/web/app/globals.css').read_text(encoding='utf-8')
@@ -134,7 +135,8 @@ for service_message in [
 assert 'const maxHotelBuiltYear = new Date().getFullYear();' in hotel_dto, 'hotel built year must not exceed the current year'
 assert 'const maxSupplierMoney = 999_999_999_999;' in hotel_dto, 'hotel service money must use a business upper bound'
 assert 'const maxSupplierAllotmentCutoffDays = 365;' in hotel_dto, 'hotel allotment cutoff days must use a business upper bound'
-assert "const supplierAllotmentStatuses = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const;" in hotel_dto, 'hotel allotment statuses must be a fixed DTO contract'
+assert "SUPPLIER_ALLOTMENT_STATUSES = ['ACTIVE', 'INACTIVE', 'STOP_SELL'] as const" in allotment_status, 'hotel allotment statuses must be a shared fixed contract'
+assert 'SUPPLIER_ALLOTMENT_STATUSES' in hotel_dto and '@IsIn(SUPPLIER_ALLOTMENT_STATUSES' in hotel_dto, 'hotel allotment DTO must use the shared status contract'
 for update_description in [
     'Không gửi contacts thì giữ nguyên danh sách liên hệ; gửi contacts thì thay toàn bộ danh sách liên hệ.',
     'Không gửi services thì giữ nguyên danh sách dịch vụ; gửi services thì thay toàn bộ danh sách dịch vụ khách sạn.',
@@ -164,7 +166,7 @@ assert 'private optionalSku(' in service and 'MAX_SUPPLIER_SERVICE_SKU_LENGTH = 
 assert 'private requiredServiceName(' in service and 'MAX_SUPPLIER_SERVICE_NAME_LENGTH = 180' in service, 'service must validate service name consistently'
 assert 'MAX_SUPPLIER_ALLOTMENT_NAME_LENGTH = 180' in service and 'private requiredAllotmentName(' in service, 'service must validate hotel allotment names consistently'
 assert 'MAX_SUPPLIER_ALLOTMENT_CUTOFF_DAYS = 365' in service and 'private optionalCutoffDays(' in service, 'service must bound hotel allotment cutoff days'
-assert 'SUPPLIER_ALLOTMENT_STATUSES' in service and 'private toAllotmentStatus(value?: unknown): SupplierAllotmentStatus' in service, 'service must use a fixed allotment status contract'
+assert 'SUPPLIER_ALLOTMENT_STATUSES' in service and 'private toAllotmentStatus(value?: unknown): SupplierAllotmentStatus' in service, 'service must use the shared fixed allotment status contract'
 assert "this.toDayType(item.dayType, 'quỹ phòng')" in service, 'hotel allotments must use the shared dayType enum with allotment-specific errors'
 assert 'Số phòng đang giữ và số lượng khóa phòng phải trùng nhau khi gửi cùng lúc' in service, 'service must reject conflicting lockedQty and quantityLock values'
 assert 'data: { ...next, quantityLock: next.lockedQty }' in service, 'override must keep quantityLock synchronized with lockedQty'
@@ -183,6 +185,7 @@ for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHo
 assert 'function shouldSendCollection(' in frontend and "dirtyFields[name] !== undefined" in frontend, 'hotel edit should only send dirty child collection snapshots'
 assert "hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections)" in frontend, 'hotel frontend must centralize create/update payload shaping'
 assert "mode === 'create' ? { allotments:" in frontend, 'hotel edit payload must omit allotments because allotments are managed separately'
+assert 'values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow)' not in frontend, 'hotel frontend must not send legacy quantityLock in create payload'
 assert 'Quỹ phòng được quản lý riêng' in frontend
 for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm/Dự án *']:
     assert required_label in frontend, f'hotel frontend must mark required field: {required_label}'
@@ -195,11 +198,11 @@ assert 'nestedErrorMessages(errors.contacts)' in frontend, 'hotel frontend must 
 assert 'const optionalDateOnly = ' in frontend and 'Ngày bắt đầu dịch vụ' in frontend and 'Ngày kết thúc dịch vụ' in frontend, 'hotel frontend must validate service date fields'
 assert 'const nonNegativeMoney = ' in frontend and '999.999.999.999' in frontend, 'hotel frontend must bound service prices'
 assert 'function hasServiceRowData(' in frontend and 'values.services.filter(hasServiceRowData)' in frontend, 'hotel frontend must preserve partially filled service rows for validation'
-assert 'function hasAllotmentRowData(' in frontend and 'values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow)' in frontend, 'hotel frontend must preserve partially filled allotment rows for validation'
+assert 'function hasAllotmentRowData(' in frontend and 'values.allotments.filter(hasAllotmentRowData)' in frontend, 'hotel frontend must preserve partially filled allotment rows for validation'
 assert 'maxSupplierAllotmentCutoffDays = 365' in frontend, 'hotel frontend must mirror the allotment cutoff upper bound'
 assert 'Tên hạng phòng *' in frontend and 'Tên quỹ phòng phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must require an allotment name for filled rows'
 assert 'Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng' in frontend, 'hotel frontend must validate allotment date ranges'
-assert 'Số phòng đang giữ và số lượng khóa phòng phải trùng nhau' in frontend, 'hotel frontend must reject conflicting allotment lock aliases'
+assert 'quantityLock: z.coerce' not in frontend and 'syncAllotmentRow' not in frontend, 'hotel frontend must use lockedQty as the only editable lock quantity'
 assert 'cellClamp' in globals_css and 'cellClamp2' in globals_css and 'booking.tourProgram.name' in bookings_page, 'booking/tour list cells must clamp long display text'
 assert 'Mã dịch vụ không được trùng trong cùng nhà cung cấp' in frontend, 'hotel frontend must reject duplicate service sku values'
 assert 'Tên dịch vụ *' in frontend and 'Tên dịch vụ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must make serviceName required for filled rows'

@@ -180,7 +180,6 @@ const allotmentSchema = z.object({
   allotmentQty: z.coerce.number().int().min(0, 'Tổng quỹ phòng không được âm').default(0),
   bookedQty: z.coerce.number().int('Số phòng đã đặt phải là số nguyên').min(0, 'Số phòng đã đặt không được âm').default(0),
   lockedQty: z.coerce.number().int('Số phòng đang giữ phải là số nguyên').min(0, 'Số phòng đang giữ không được âm').default(0),
-  quantityLock: z.coerce.number().int('Số lượng khóa phòng phải là số nguyên').min(0, 'Số lượng khóa phòng không được âm').default(0),
   cutoffDays: z.coerce.number().int('Số ngày chốt quỹ phòng phải là số nguyên').min(0, 'Số ngày chốt quỹ phòng không được âm').max(maxSupplierAllotmentCutoffDays, 'Số ngày chốt quỹ phòng không được vượt quá 365 ngày').default(0),
   netCostPerDay: nonNegativeMoney,
   sellingPricePerDay: nonNegativeMoney,
@@ -202,14 +201,10 @@ function hasAllotmentRowData(item: AllotmentFormRow) {
     || Number(item.allotmentQty || 0) > 0
     || Number(item.bookedQty || 0) > 0
     || Number(item.lockedQty || 0) > 0
-    || Number(item.quantityLock || 0) > 0
     || Number(item.cutoffDays || 0) > 0
     || Number(item.netCostPerDay || 0) > 0
     || Number(item.sellingPricePerDay || 0) > 0,
   );
-}
-function syncAllotmentRow(item: AllotmentFormRow) {
-  return { ...item, quantityLock: item.lockedQty };
 }
 const hotelSchema = z.object({
   supplierCode: z.string().min(2, 'Mã nhà cung cấp phải có ít nhất 2 ký tự'),
@@ -273,9 +268,6 @@ const hotelSchema = z.object({
     if (item.bookedQty + item.lockedQty > item.allotmentQty) {
       context.addIssue({ code: 'custom', path: ['allotments', index, 'allotmentQty'], message: 'Tổng quỹ phòng phải lớn hơn hoặc bằng số phòng đã đặt cộng số phòng đang giữ' });
     }
-    if (item.quantityLock > 0 && item.lockedQty > 0 && item.quantityLock !== item.lockedQty) {
-      context.addIssue({ code: 'custom', path: ['allotments', index, 'lockedQty'], message: 'Số phòng đang giữ và số lượng khóa phòng phải trùng nhau' });
-    }
   });
 });
 
@@ -286,7 +278,7 @@ type DirtyCollections = Partial<Record<ArrayName, unknown>>;
 
 const emptyContact = { fullName: '', position: '', birthday: '', phone: '', email: '' };
 const emptyService = { sku: '', serviceName: '', startDate: '', endDate: '', dayType: 'ALL_DAYS' as const, accountingPrice: 0, netPrice: 0, sellingPrice: 0, description: '', note: '' };
-const emptyAllotment = { sku: '', serviceName: '', startDate: '', endDate: '', dayType: 'ALL_DAYS' as const, allotmentQty: 0, bookedQty: 0, lockedQty: 0, quantityLock: 0, cutoffDays: 0, netCostPerDay: 0, sellingPricePerDay: 0, status: 'ACTIVE' as const, description: '', note: '' };
+const emptyAllotment = { sku: '', serviceName: '', startDate: '', endDate: '', dayType: 'ALL_DAYS' as const, allotmentQty: 0, bookedQty: 0, lockedQty: 0, cutoffDays: 0, netCostPerDay: 0, sellingPricePerDay: 0, status: 'ACTIVE' as const, description: '', note: '' };
 const defaultValues: HotelForm = {
   supplierCode: '',
   name: '',
@@ -325,7 +317,7 @@ function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirt
     rating: values.rating ?? undefined,
     ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: values.contacts.filter((item) => item.fullName.trim()) } : {}),
     ...(shouldSendCollection(mode, dirtyFields, 'services') ? { services: values.services.filter(hasServiceRowData) } : {}),
-    ...(mode === 'create' ? { allotments: values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow) } : {}),
+    ...(mode === 'create' ? { allotments: values.allotments.filter(hasAllotmentRowData) } : {}),
   };
 }
 
@@ -385,7 +377,6 @@ function toForm(hotel: HotelSupplier): HotelForm {
         allotmentQty: Number(item.allotmentQty || item.quantityLock || 0),
         bookedQty: Number(item.bookedQty || 0),
         lockedQty,
-        quantityLock: lockedQty,
         cutoffDays: Number(item.cutoffDays || 0),
         netCostPerDay: Number(item.netCostPerDay || 0),
         sellingPricePerDay: Number(item.sellingPricePerDay || 0),
