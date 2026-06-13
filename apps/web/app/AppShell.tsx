@@ -39,6 +39,8 @@ import { ReactNode, Suspense, useEffect, useMemo, useState } from 'react';
 import { clearAuthSession } from './authFetch';
 import { orderNavigation } from './orders/order-config';
 
+const LOGOUT_REQUEST_TIMEOUT_MS = 3000;
+
 const orderIcons = {
   'fit-tours': Route,
   'git-combos': BriefcaseBusiness,
@@ -299,13 +301,18 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), LOGOUT_REQUEST_TIMEOUT_MS);
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
+        signal: controller.signal,
       });
     } catch {
       // Keep local logout deterministic even if the network request fails.
+    } finally {
+      window.clearTimeout(timeoutId);
     }
     clearAuthSession();
     setAuthUser(null);

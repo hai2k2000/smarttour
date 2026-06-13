@@ -82,6 +82,9 @@ if grep -q "keepalive: true" apps/web/app/AppShell.tsx; then
 fi
 assert_contains apps/web/app/AppShell.tsx "async function logout" "logout should await backend logout before redirect"
 assert_contains apps/web/app/AppShell.tsx "await fetch" "logout should await backend logout request"
+assert_contains apps/web/app/AppShell.tsx "new AbortController" "logout should bound the backend request with an abort controller"
+assert_contains apps/web/app/AppShell.tsx "signal: controller\.signal" "logout fetch should use the timeout abort signal"
+assert_contains apps/web/app/AppShell.tsx "clearTimeout" "logout should clear its timeout after the request settles"
 assert_contains apps/web/app/security/SecurityClient.tsx "credentials: ['\\\"]include['\\\"]" "security client should include credentials"
 assert_contains apps/web/app/finance/FinanceClient.tsx "credentials: ['\\\"]include['\\\"]" "finance client should include credentials"
 

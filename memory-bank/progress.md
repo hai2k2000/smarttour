@@ -1453,3 +1453,7 @@
   - Added regression coverage for missing production/staging origins and valid configured origin startup.
   - No schema/frontend/deploy changes.
   - Verification passed: TEST_AUTH_GUARD_BEHAVIOR_OK, TEST_AUTH_COOKIE_SESSION_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.
+
+- 2026-06-13 Completed logout timeout follow-up:
+  - Added a 3-second AbortController timeout around the awaited logout request and regression checks for signal/timer cleanup.
+  - Confirmed legacy absolute file metadata URLs are already authorized by normalized object key matching and covered by TEST_HIGH_A_DATA_ACCESS_OK.

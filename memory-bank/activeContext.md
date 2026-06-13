@@ -1776,3 +1776,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Existing SMARTTOUR_CORS_ORIGINS, CORS_ORIGINS, NEXT_PUBLIC_API_URL, SMARTTOUR_WEB_URL, and WEB_ORIGIN compatibility is preserved.
   - No database schema, frontend, or deployment change was made.
   - Verified on VPS: TEST_AUTH_GUARD_BEHAVIOR_OK, TEST_AUTH_COOKIE_SESSION_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.
+
+- 2026-06-13 Logout timeout follow-up:
+  - AppShell logout now awaits the backend revoke/clear-cookie response for up to 3 seconds using AbortController, then deterministically clears local UI state and redirects.
+  - File metadata authorization already normalizes relative, absolute, and legacy download URLs to object keys; no additional file-service change was required.
+  - No database schema change.
