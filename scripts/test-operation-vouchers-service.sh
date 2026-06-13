@@ -301,16 +301,76 @@ async function main() {
       approvalStatus: 'APPROVED',
     },
   });
+  await rejectsMessage(
+    () => service.addPayment(standalone.id, {
+      paymentVoucherId: unlinkedFinancePayment.id,
+      paymentAmount: 60,
+      paymentDate: '2026-12-12',
+    }),
+    'Số tiền ghi nhận phải khớp với phiếu chi tài chính đã duyệt',
+    'addPayment should reject partial use of an approved finance payment',
+  );
   const firstUnlinkedUse = await service.addPayment(standalone.id, {
     paymentVoucherId: unlinkedFinancePayment.id,
-    paymentAmount: 60,
+    paymentAmount: 100,
     paymentDate: '2026-12-12',
   });
-  assert(firstUnlinkedUse.payments.some((payment) => payment.paymentVoucherId === unlinkedFinancePayment.id), 'addPayment should allow first use of an unlinked approved finance payment');
+  assert(firstUnlinkedUse.payments.some((payment) => payment.paymentVoucherId === unlinkedFinancePayment.id && amount(payment.paidAmount) === 100), 'addPayment should use the approved finance payment amount when recording payment');
   await rejects(
-    () => service.addPayment(reuseTarget.id, { paymentVoucherId: unlinkedFinancePayment.id, paymentAmount: 40, paymentDate: '2026-12-13' }),
+    () => service.addPayment(reuseTarget.id, { paymentVoucherId: unlinkedFinancePayment.id, paymentAmount: 100, paymentDate: '2026-12-13' }),
     'addPayment should reject reusing one approved finance payment across operation vouchers',
   );
+
+  const serverAmountVoucher = await service.create({
+    voucherCode: run + '-SERVER-AMOUNT',
+    supplierName: 'Manual Supplier Name',
+    serviceType: 'Transport',
+    serviceName: 'Manual transport server amount',
+    serviceDate: '2026-12-10',
+    details: [{ serviceName: 'Transport NET', quantity: 1, netPrice: 100, vat: 0 }],
+  });
+  const serverAmountPayment = await prisma.financePayment.create({
+    data: {
+      voucherCode: run + '-PAY-SERVER-AMOUNT',
+      paymentAmount: 100,
+      totalAmount: 100,
+      approvalStatus: 'APPROVED',
+    },
+  });
+  const serverAmountResult = await service.addPayment(serverAmountVoucher.id, {
+    paymentVoucherId: serverAmountPayment.id,
+    paymentDate: '2026-12-14',
+  });
+  assert(amount(serverAmountResult.paidAmount) === 100, 'addPayment should derive paidAmount from approved finance payment when client omits amount');
+
+  const smallVoucher = await service.create({
+    voucherCode: run + '-SMALL-VOUCHER',
+    supplierName: 'Manual Supplier Name',
+    serviceType: 'Transport',
+    serviceName: 'Manual transport small voucher',
+    serviceDate: '2026-12-10',
+    details: [{ serviceName: 'Transport NET', quantity: 1, netPrice: 60, vat: 0 }],
+  });
+  const largePayment = await prisma.financePayment.create({
+    data: {
+      voucherCode: run + '-PAY-LARGE',
+      paymentAmount: 100,
+      totalAmount: 100,
+      approvalStatus: 'APPROVED',
+    },
+  });
+  await rejectsMessage(
+    () => service.addPayment(smallVoucher.id, { paymentVoucherId: largePayment.id, paymentAmount: 60, paymentDate: '2026-12-15' }),
+    'Số tiền ghi nhận phải khớp với phiếu chi tài chính đã duyệt',
+    'addPayment should reject client amount that does not match the approved finance payment amount',
+  );
+  await rejectsMessage(
+    () => service.addPayment(smallVoucher.id, { paymentVoucherId: largePayment.id, paymentAmount: 100, paymentDate: '2026-12-15' }),
+    'Số tiền thanh toán không được vượt quá công nợ còn lại',
+    'addPayment should reject approved finance payment amount that exceeds operation voucher debt',
+  );
+  const largePaymentAfterReject = await prisma.financePayment.findUniqueOrThrow({ where: { id: largePayment.id }, select: { operationVoucherId: true } });
+  assert(!largePaymentAfterReject.operationVoucherId, 'addPayment should not lock a finance payment when reconciliation is rejected');
 
   const financeSource = await service.create({
     voucherCode: run + '-FINANCE',

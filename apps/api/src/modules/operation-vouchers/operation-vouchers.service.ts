@@ -220,13 +220,15 @@ export class OperationVouchersService {
   }
 
   async addPayment(id: string, dto: AddOperationVoucherPaymentDto, user?: RequestUser) {
-    const paymentAmount = this.paymentAmount(dto);
+    const requestedPaymentAmount = this.optionalPaymentAmount(dto);
+    const paymentVoucherId = this.text(dto.paymentVoucherId);
     const paymentDate = this.optionalDate(dto.paymentDate, 'ngày thanh toán') ?? new Date();
     return this.prisma.$transaction(async (tx) => {
       const voucher = await this.lockVoucherForPayment(tx, id, user);
-      this.assertPayable(voucher, paymentAmount);
-      const paymentVoucherId = this.text(dto.paymentVoucherId);
-      if (!paymentVoucherId) throw new BadRequestException('Cần chọn phiếu chi tài chính đã duyệt để ghi nhận thanh toán');
+      if (!paymentVoucherId) {
+        if (requestedPaymentAmount !== undefined) this.assertPayable(voucher, requestedPaymentAmount);
+        throw new BadRequestException('Cần chọn phiếu chi tài chính đã duyệt để ghi nhận thanh toán');
+      }
       await tx.$queryRawUnsafe('SELECT id FROM "FinancePayment" WHERE id = $1 FOR UPDATE', paymentVoucherId);
       const payment = await tx.financePayment.findFirst({
         where: branchDepartmentScopeWhere({ id: paymentVoucherId }, user),
@@ -235,7 +237,9 @@ export class OperationVouchersService {
       if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi tài chính');
       if (payment.approvalStatus !== 'APPROVED') throw new BadRequestException('Chỉ phiếu chi tài chính đã duyệt mới được ghi nhận thanh toán');
       if (payment.operationVoucherId && payment.operationVoucherId !== id) throw new BadRequestException('Phiếu chi tài chính đã liên kết với phiếu điều hành khác');
-      if (paymentAmount > Number(payment.paymentAmount) + 0.000001) throw new BadRequestException('Số tiền ghi nhận không được vượt quá phiếu chi tài chính đã duyệt');
+      const paymentAmount = this.positiveNumber(payment.paymentAmount, 'Số tiền phiếu chi tài chính phải lớn hơn 0');
+      if (requestedPaymentAmount !== undefined && Math.abs(requestedPaymentAmount - paymentAmount) > 0.000001) throw new BadRequestException('Số tiền ghi nhận phải khớp với phiếu chi tài chính đã duyệt');
+      this.assertPayable(voucher, paymentAmount);
       const existing = await tx.operationVoucherPayment.findFirst({ where: { paymentVoucherId: payment.id }, select: { id: true, voucherId: true } });
       if (existing) throw new BadRequestException('Phiếu chi tài chính đã được ghi nhận thanh toán');
       if (!payment.operationVoucherId) await tx.financePayment.update({ where: { id: payment.id }, data: { operationVoucherId: id } });
@@ -596,8 +600,9 @@ export class OperationVouchersService {
     return numberValue;
   }
 
-  private paymentAmount(dto: AddOperationVoucherPaymentDto) {
-    const amount = dto.paidAmount ?? dto.paymentAmount;
+  private optionalPaymentAmount(dto: AddOperationVoucherPaymentDto) {
+    const amount = (dto.paidAmount ?? dto.paymentAmount) as unknown;
+    if (amount === undefined || amount === null || amount === '') return undefined;
     return this.positiveNumber(amount, 'Số tiền thanh toán phải lớn hơn 0');
   }
 

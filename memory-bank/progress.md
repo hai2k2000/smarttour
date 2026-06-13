@@ -1476,3 +1476,10 @@
   - Backfill produces a resend report with old/new public URLs; operators must resend new URLs for rotated quotations.
   - No schema/API/frontend behavior change.
   - Verification passed: `TEST_SMARTLINK_LEGACY_AUDIT_OK`, production DB SmartLink audit/guard with zero active legacy rows, Docker toolchain verification, Prisma validate, API/web build, `docker compose config --quiet`, and `git diff --check`.
+
+- 2026-06-13 Completed operation voucher payment reconciliation follow-up:
+  - addPayment now treats approved FinancePayment.paymentAmount as authoritative, rejects mismatched client amounts, and can derive paidAmount when the client omits amount.
+  - Payment reconciliation still requires an approved finance payment, checks remaining voucher debt using the authoritative amount, and leaves FinancePayment unlinked if reconciliation is rejected.
+  - Added regression coverage for partial use of a 100 payment as 60, server-derived amount, oversized approved payment versus voucher debt, and reuse rejection.
+  - No schema/frontend change.
+  - Verification passed: `TEST_OPERATION_VOUCHERS_SERVICE_OK`.

@@ -1799,3 +1799,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Production deploy and `verify:deploy` now run `--mode=guard` before build/deploy, blocking release when any active SmartLink token is not the 43-character secure format.
   - Backfill rotates only active legacy/missing tokens, keeps already-secure tokens and inactive legacy tokens unchanged by default, and writes old/new public URLs for customer resend planning.
   - Operational notes live in `docs/smartlink-legacy-migration.md`; current VPS audit reports zero active legacy SmartLinks.
+
+- 2026-06-13 Operation voucher payment reconciliation follow-up:
+  - OperationVoucher addPayment keeps the existing one FinancePayment to one OperationVoucher model; no allocation model or schema migration was introduced.
+  - Approved FinancePayment.paymentAmount is now the server-authoritative settlement amount. Client paidAmount/paymentAmount is optional and, if supplied, must match the approved finance payment amount.
+  - The transaction still locks the OperationVoucher and FinancePayment rows before checking reuse and writing settlement rows, preventing double-use while avoiding partial payment allocation semantics.
