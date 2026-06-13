@@ -1793,3 +1793,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Tour finance explicitly rejects the Order-only `costStatus` filter; debt reports only accept `documentDate`; supplier history rejects unsupported report filters. No database schema change.
   - ReportsClient sends `documentDate` for debt reports, filters Order/Tour query keys and enum values by tab, and no longer presents Order-only date/type/cost filters on Tour finance.
   - Added `TEST_REPORT_QUERY_VALIDATION_OK`; Docker toolchain verification, Prisma validate, route permission audit, and High-A data access regression all pass.
+
+- 2026-06-13 SmartLink legacy migration guard:
+  - Added `scripts/smartlink-legacy-audit.js` plus Docker-friendly wrapper `scripts/smartlink-legacy-audit.sh` with audit, guard, and backfill modes for active legacy/missing SmartLink tokens.
+  - Production deploy and `verify:deploy` now run `--mode=guard` before build/deploy, blocking release when any active SmartLink token is not the 43-character secure format.
+  - Backfill rotates only active legacy/missing tokens, keeps already-secure tokens and inactive legacy tokens unchanged by default, and writes old/new public URLs for customer resend planning.
+  - Operational notes live in `docs/smartlink-legacy-migration.md`; current VPS audit reports zero active legacy SmartLinks.

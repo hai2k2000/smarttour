@@ -28,6 +28,8 @@ if [[ "$RUN_GIT_PULL" == "true" ]]; then
   git pull --ff-only origin "$BRANCH"
 fi
 
+"$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard
+
 docker compose build api web
 docker compose up -d api web nginx
 

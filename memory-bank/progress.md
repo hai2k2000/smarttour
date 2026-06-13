@@ -1469,3 +1469,10 @@
   - Updated ReportsClient query construction and controls so finance uses Tour-compatible filters and debt uses `documentDate`.
   - No schema change.
   - Verification passed: `TEST_REPORT_QUERY_VALIDATION_OK`, `TEST_HIGH_A_DATA_ACCESS_OK`, `TEST_ROUTE_PERMISSIONS_OK`, `scripts/verify-toolchain-docker.sh`, Prisma validate, `docker compose config --quiet`, and `git diff --check`.
+
+- 2026-06-13 Completed SmartLink legacy migration guard:
+  - Added audit/backfill/guard tooling for active SmartLink tokens that predate the secure 43-character token format.
+  - `scripts/deploy-production.sh` and `verify:deploy` now block before deploy if any active SmartLink still has a legacy or missing token.
+  - Backfill produces a resend report with old/new public URLs; operators must resend new URLs for rotated quotations.
+  - No schema/API/frontend behavior change.
+  - Verification passed: `TEST_SMARTLINK_LEGACY_AUDIT_OK`, production DB SmartLink audit/guard with zero active legacy rows, Docker toolchain verification, Prisma validate, API/web build, `docker compose config --quiet`, and `git diff --check`.
