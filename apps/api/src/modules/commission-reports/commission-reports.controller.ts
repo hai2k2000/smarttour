@@ -27,6 +27,7 @@ export class CommissionReportsController {
   }
 
   @Get('export')
+  @RequirePermissions('commission.view', 'commission.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-commission-report.csv"')
   export(@Query() query: CommissionReportsQueryDto, @Req() request?: { user?: RequestUser }) {

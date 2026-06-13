@@ -6,12 +6,12 @@ const root = process.argv[2] || path.join(process.cwd(), 'apps/api/src');
 const httpDecorator = /^@(Get|Post|Put|Patch|Delete)\b/;
 const methodLine = /^\s*(?:async\s+)?([A-Za-z0-9_]+)\s*\(/;
 const allowedPrivateRoutes = new Set([
-  'apps/api/src/modules/auth/auth.controller.ts:logout',
   'apps/api/src/modules/auth/auth.controller.ts:me',
   'apps/api/src/modules/auth/auth.controller.ts:changePassword',
 ]);
 const allowedPublicRoutes = new Set([
   'apps/api/src/modules/auth/auth.controller.ts:bootstrap',
+  'apps/api/src/modules/auth/auth.controller.ts:logout',
   'apps/api/src/modules/auth/auth.controller.ts:login',
   'apps/api/src/modules/quotations/quotations.controller.ts:publicDetail',
 ]);
