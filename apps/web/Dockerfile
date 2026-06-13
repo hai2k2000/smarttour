@@ -5,7 +5,8 @@ COPY apps/web/package*.json apps/web/
 RUN npm install
 
 FROM deps AS build
-ARG NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com
+ARG NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "NEXT_PUBLIC_API_URL build arg is required" >&2; exit 1)
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY . .
 RUN npm run build -w @smarttour/web
@@ -13,7 +14,7 @@ RUN npm run build -w @smarttour/web
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ARG NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com
+ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
