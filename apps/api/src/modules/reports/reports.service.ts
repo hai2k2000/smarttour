@@ -219,6 +219,22 @@ export class ReportsService {
     const dateField = this.normalizeDateField(query.dateField);
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
+    const employeeOr: Prisma.OrderWhereInput[] = query.employee
+      ? [{ operatorOwner: { contains: query.employee, mode: 'insensitive' } }, { createdBy: { contains: query.employee, mode: 'insensitive' } }]
+      : [];
+    const searchOr: Prisma.OrderWhereInput[] = contains
+      ? [
+          { systemCode: contains },
+          { tourCode: contains },
+          { name: contains },
+          { customerName: contains },
+          { customerPhone: contains },
+          { customerEmail: contains },
+        ]
+      : [];
+    const and: Prisma.OrderWhereInput[] = [];
+    if (employeeOr.length) and.push({ OR: employeeOr });
+    if (searchOr.length) and.push({ OR: searchOr });
     return {
       deletedAt: null,
       ...(query.type ? { type: query.type as OrderType } : {}),
@@ -228,25 +244,11 @@ export class ReportsService {
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
-      ...(query.employee
-        ? { OR: [{ operatorOwner: { contains: query.employee, mode: 'insensitive' } }, { createdBy: { contains: query.employee, mode: 'insensitive' } }] }
-        : {}),
       ...(query.agency ? { agencyName: { contains: query.agency, mode: 'insensitive' } } : {}),
       ...(query.customerType ? { customerType: { contains: query.customerType, mode: 'insensitive' } } : {}),
       ...(query.settled === 'true' ? { settledAt: { not: null } } : {}),
       ...(query.settled === 'false' ? { settledAt: null } : {}),
-      ...(contains
-        ? {
-            OR: [
-              { systemCode: contains },
-              { tourCode: contains },
-              { name: contains },
-              { customerName: contains },
-              { customerPhone: contains },
-              { customerEmail: contains },
-            ],
-          }
-        : {}),
+      ...(and.length ? { AND: and } : {}),
       ...this.dateRange(dateField, query.dateFrom || query.createdFrom, query.dateTo || query.createdTo),
     };
   }
@@ -255,6 +257,20 @@ export class ReportsService {
     const dateField = this.normalizeTourDateField(query.dateField);
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
+    const employeeOr: Prisma.TourWhereInput[] = query.employee
+      ? [{ operatorOwner: { contains: query.employee, mode: 'insensitive' } }, { createdBy: { contains: query.employee, mode: 'insensitive' } }]
+      : [];
+    const searchOr: Prisma.TourWhereInput[] = contains
+      ? [
+          { systemCode: contains },
+          { tourCode: contains },
+          { name: contains },
+          { customers: { some: { name: contains } } },
+        ]
+      : [];
+    const and: Prisma.TourWhereInput[] = [];
+    if (employeeOr.length) and.push({ OR: employeeOr });
+    if (searchOr.length) and.push({ OR: searchOr });
     return {
       deletedAt: null,
       ...(query.tourId ? { id: query.tourId } : {}),
@@ -264,19 +280,7 @@ export class ReportsService {
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
-      ...(query.employee
-        ? { OR: [{ operatorOwner: { contains: query.employee, mode: 'insensitive' } }, { createdBy: { contains: query.employee, mode: 'insensitive' } }] }
-        : {}),
-      ...(contains
-        ? {
-            OR: [
-              { systemCode: contains },
-              { tourCode: contains },
-              { name: contains },
-              { customers: { some: { name: contains } } },
-            ],
-          }
-        : {}),
+      ...(and.length ? { AND: and } : {}),
       ...this.dateRange(dateField, query.dateFrom || query.createdFrom, query.dateTo || query.createdTo),
     };
   }
