@@ -88,8 +88,13 @@ function isBadConsole(message) {
       page.getByRole('button', { name: new RegExp('\\u0111\\u0103ng nh\\u1eadp|dang nhap|login', 'i') }).click(),
     ]);
 
-    const token = await page.evaluate(() => window.localStorage.getItem('smarttour.auth.token'));
-    if (!token) throw new Error('Login did not persist smarttour.auth.token');
+    const cookies = await context.cookies(site);
+    const authCookie = cookies.find((cookie) => cookie.name === 'smarttour.auth.token');
+    if (!authCookie) throw new Error('Login did not set smarttour.auth.token cookie');
+    if (!authCookie.httpOnly) throw new Error('Login auth cookie is not HttpOnly');
+    if (authCookie.sameSite && authCookie.sameSite !== 'Lax') throw new Error(`Login auth cookie expected SameSite=Lax, got ${authCookie.sameSite}`);
+    await page.reload({ waitUntil: 'networkidle', timeout: 45000 });
+    if (page.url().includes('/login')) throw new Error('Refresh after login lost the cookie session');
     console.log('LOGIN_BROWSER_OK');
 
     for (const route of routes) {

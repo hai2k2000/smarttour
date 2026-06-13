@@ -299,13 +299,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    const token = window.localStorage.getItem('smarttour.auth.token');
+    void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => undefined);
     clearAuthSession();
     setAuthUser(null);
     setAccountOpen(false);
-    if (token) {
-      void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true }).catch(() => undefined);
-    }
     window.location.assign('/login');
   }
 

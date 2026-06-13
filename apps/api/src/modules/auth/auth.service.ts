@@ -181,12 +181,13 @@ export class AuthService {
   }
 
   async logout(token?: string, actorId?: string) {
-    if (!token || !actorId) throw new UnauthorizedException('Thiếu thông tin phiên đăng nhập');
+    if (!token) throw new UnauthorizedException('Thiếu thông tin phiên đăng nhập');
     const session = await this.validateToken(token);
-    if (session.user.id !== actorId) throw new UnauthorizedException('Phiên đăng nhập không thuộc người dùng hiện tại');
+    if (actorId && session.user.id !== actorId) throw new UnauthorizedException('Phiên đăng nhập không thuộc người dùng hiện tại');
+    const resolvedActorId = actorId || session.user.id;
     await this.prisma.$transaction(async (tx) => {
       await this.sessions.revokeToken(token, tx);
-      await this.audit(tx, actorId, 'LOGOUT', 'User', actorId, {
+      await this.audit(tx, resolvedActorId, 'LOGOUT', 'User', resolvedActorId, {
         tokenRevoked: true,
       });
     });

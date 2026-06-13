@@ -34,32 +34,32 @@ export class CommissionReportsController {
 
   @Post('sync')
   @RequirePermissions('commission.manage')
-  sync() {
-    return this.service.syncFromOrders();
+  sync(@Req() request?: { user?: RequestUser }) {
+    return this.service.syncFromOrders(request?.user);
   }
 
   @Post('approve')
   @RequirePermissions('commission.manage')
-  approve(@Body() dto: Record<string, unknown>) {
-    return this.service.approve(dto);
+  approve(@Body() dto: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+    return this.service.approve(dto, request?.user);
   }
 
   @Post('reject')
   @RequirePermissions('commission.manage')
-  reject(@Body() dto: Record<string, unknown>) {
-    return this.service.reject(dto);
+  reject(@Body() dto: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+    return this.service.reject(dto, request?.user);
   }
 
   @Post('revoke')
   @RequirePermissions('commission.manage')
-  revoke(@Body() dto: Record<string, unknown>) {
-    return this.service.revoke(dto);
+  revoke(@Body() dto: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+    return this.service.revoke(dto, request?.user);
   }
 
   @Post('pay')
   @RequirePermissions('commission.manage')
-  pay(@Body() dto: Record<string, unknown>) {
-    return this.service.pay(dto);
+  pay(@Body() dto: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+    return this.service.pay(dto, request?.user);
   }
 
   @Get(':id')

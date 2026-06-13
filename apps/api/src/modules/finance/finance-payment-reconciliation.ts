@@ -8,14 +8,16 @@ export async function reconcileApprovedPayment(
   await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'APPROVED' }, data: { status: 'PAID' } });
   if (!payment.operationVoucherId) return;
 
+  await tx.$queryRawUnsafe('SELECT id FROM "OperationVoucher" WHERE id = $1 AND "deletedAt" IS NULL FOR UPDATE', payment.operationVoucherId);
   const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null } });
   if (!voucher) throw new BadRequestException('Không tìm thấy phiếu điều hành liên kết với phiếu chi');
 
   const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: voucher.id, paymentVoucherId: payment.id } });
   if (existing) return;
 
-  const amount = Math.min(Number(payment.paymentAmount), Number(voucher.remainAmount));
-  if (amount <= 0) return;
+  const amount = Number(payment.paymentAmount);
+  if (amount <= 0) throw new BadRequestException('Payment amount must be greater than 0');
+  if (amount > Number(voucher.remainAmount) + 0.000001) throw new BadRequestException('Payment amount cannot exceed the operation voucher remaining amount');
 
   await tx.operationVoucherPayment.create({
     data: {
@@ -46,6 +48,7 @@ export async function reconcileCancelledPayment(
   await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: payment.id, status: 'PAID' }, data: { status: 'APPROVED', financePaymentId: null } });
   if (!payment.operationVoucherId) return;
 
+  await tx.$queryRawUnsafe('SELECT id FROM "OperationVoucher" WHERE id = $1 AND "deletedAt" IS NULL FOR UPDATE', payment.operationVoucherId);
   const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null } });
   if (!voucher) throw new BadRequestException('Không tìm thấy phiếu điều hành để hoàn tác phiếu chi');
 

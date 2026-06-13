@@ -12,7 +12,7 @@ const moduleSource = fs.readFileSync('apps/api/src/modules/auth/auth.module.ts',
 const expected = {
   bootstrap: { http: 'POST', public: true, permissions: [] },
   login: { http: 'POST', public: true, permissions: [] },
-  logout: { http: 'POST', public: false, permissions: [] },
+  logout: { http: 'POST', public: true, permissions: [] },
   me: { http: 'GET', public: false, permissions: [] },
   changePassword: { http: 'POST', public: false, permissions: [] },
   users: { http: 'GET', public: false, permissions: ['auth.user.manage'] },

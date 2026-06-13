@@ -20,6 +20,79 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- High C auth/session Phase 2 cleanup:
+  - Next proxy now validates browser sessions by forwarding
+    `smarttour.auth.token` as a Cookie header to `/api/auth/me`, not by
+    converting it back to Authorization Bearer.
+  - Browser smoke scripts no longer inject or assert
+    `localStorage.smarttour.auth.token` or JS-created auth cookies. They use
+    Playwright HttpOnly cookie setup for seeded sessions, and the login browser
+    smoke checks the backend-set HttpOnly cookie plus refresh persistence.
+  - Frontend auth cleanup now leaves cookie clearing to backend/proxy
+    Set-Cookie responses; browser code no longer uses `document.cookie` for the
+    auth token.
+  - Auth/session regression now distinguishes browser cookie flow from CLI/API
+    Bearer compatibility. Bearer extraction and token JSON remain because many
+    smoke/API scripts still login via JSON token and call APIs with Bearer.
+  - No schema migration, business module change, production deploy, or broad UI
+    refactor was performed.
+  - VPS verification passed on 2026-06-13:
+    `TEST_AUTH_COOKIE_SESSION_OK`; `TEST_OPERATIONS_CONTROLLER_CONTRACT`
+    reached only the existing supplierServices failure after the auth contract
+    update.
+
+- High C auth/session Phase 1 hardening:
+  - Backend login, bootstrap, and change-password now set
+    `smarttour.auth.token` as an HttpOnly, SameSite=Lax, path=/ session cookie
+    with expiry aligned to the issued session. Logout is public so expired or
+    invalid browser sessions can still receive a clear-cookie response; valid
+    cookie/header sessions are revoked with the actor derived from the token.
+  - Token extraction remains Bearer-compatible for CLI/scripts but now prefers
+    the cookie so stale browser Bearer values cannot override the current
+    HttpOnly session.
+  - Frontend login/authFetch/logout/security/finance flows no longer read,
+    store, or send `smarttour.auth.token` through localStorage, JS-created
+    cookies, or Authorization Bearer headers. Legacy token cleanup remains
+    best-effort only.
+  - CORS now enables credentials and uses configured origin allowlists when
+    present instead of wildcard origin behavior.
+  - No schema migration, business module change, frontend deploy, or API deploy
+    was performed.
+  - VPS verification passed on 2026-06-13:
+    `TEST_AUTH_COOKIE_SESSION_OK`, `TEST_AUTH_TOKEN_EXTRACTION_OK`,
+    `TEST_AUTH_GUARD_BEHAVIOR_OK`, `TEST_AUTH_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_AUTH_SESSION_FLOWS_OK`, and `docker compose build web`.
+
+- Hardened Commission Reports scoped mutations and payment integrity:
+  - Approve, reject, revoke, and pay now receive the authenticated request user,
+    derive audit actors server-side, lock each commission row, and re-read it
+    through branch/department scope before updates.
+  - List, summary, grouping, export, and explicit sync now keep the underlying
+    order-to-commission sync inside the current user's branch/department scope.
+  - Commission state transitions now reject invalid current states; paid
+    commissions cannot be revoked.
+  - Commission payments now reject invalid, zero/negative, and over-remaining
+    amounts. Row locks plus in-transaction remaining checks prevent concurrent
+    double payment.
+  - VPS verification passed on 2026-06-13:
+    `TEST_COMMISSION_REPORTS_SECURITY_OK`, `DATA_SCOPE_AUDIT_OK`,
+    `TEST_LIST_VIEW_PERFORMANCE_OK`, `git diff --check`,
+    `docker compose config --quiet`, and `docker compose build api`.
+
+- Hardened Finance approval/status write boundary:
+  - Receipt, payment, and invoice create/import flows now force safe `DRAFT`
+    states and derive `createdBy` from the authenticated request user.
+  - Ordinary create/update payloads strip approval, lifecycle, audit,
+    deletion/lock, reversal, and client actor fields before mapping or audit
+    logging; only approve/reject/cancel flows can change final-state fields.
+  - Finance approval, rejection, cancellation, and manual-adjustment actors now
+    come from the authenticated request user instead of request-body `actor`.
+  - VPS verification passed on 2026-06-13:
+    `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_FINANCE_HELPER_CONTRACTS_OK`, `TEST_FINANCE_RULES_OK`,
+    `git diff --check`, and `docker compose build api`.
+
 
 - Hardened OperationsClient copy/source/UX contract:
   - Operations now loads the generic supplier endpoint instead of hotel-only
@@ -1645,3 +1718,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - lowMarginTours now ignores cancelled/settled/deleted orders and focuses on upcoming/running/completed orders with revenue and negative profit.
   - getModules() now returns structured module-card metadata with key, Vietnamese label, route, permission, metrics, order, and enabled flag; child tables operation-services/operation-costs are no longer exposed as standalone modules.
   - Verified on VPS: TEST_OPERATIONS_CONTROLLER_CONTRACT_OK, docker compose build api, API deploy, and SMOKE_OPERATIONS_BACKEND_OK.
+
+- 2026-06-13 High A data-leak and authorization hardening:
+  - Quotation SmartLink tokens now use 32 cryptographically random bytes, rotate whenever enabled, and reject legacy predictable token shapes.
+  - Public quotation lookup uses an explicit public projection that excludes cost, margin, supplier, internal ownership/scope, audit, and unnecessary customer fields.
+  - Finance/debt report routes and sensitive report exports now require `finance.cashflow.view` or `finance.debt.view` in addition to report permissions.
+  - Generic file download/delete now verifies the parent-module permission, exact stored metadata URL, and parent entity data scope before accessing MinIO.
+  - TourQuote list/detail/actions/writes now receive `request.user`, scope through the linked CRM customer, and require scoped creates to match a customer in the actor's branch/department. Customer-related quote reads apply the same TourQuote scope.
+  - No schema migration, frontend change, auth token/localStorage change, operation-voucher change, commission-sync change, or deployment was performed.
+  - Verified on VPS: `TEST_HIGH_A_DATA_ACCESS_OK`, `docker compose build api`, `TEST_ROUTE_PERMISSIONS_OK`, and `TEST_FILE_SERVICE_ERROR_FLOWS_OK`.
+
+- 2026-06-13 High B finance workflow and audit actor hardening:
+  - Commission report GET/list/summary/grouping/export paths are read-only; order synchronization remains available only through the explicit permission-protected sync endpoint/job path.
+  - Creating an operation-voucher finance payment now leaves the voucher debt/status unchanged while the FinancePayment is `PENDING`, blocks duplicate active finance payments, and derives `createdBy` from `request.user`.
+  - Operation-voucher settlement now requires a linked `APPROVED` FinancePayment. Finance approval/cancel transactions lock the voucher row, reject overpayment, create settlement once, and reverse it on cancel; rejected pending payments do not change debt.
+  - Operations/customer/finance audit actors, `createdBy`, `requestedBy`, and `approvedBy` are derived from `request.user`; operation audit payloads strip client-supplied actor fields and AuditLog rows record `actorId`.
+  - No database schema, frontend, or deployment change was made.
+  - Verified on VPS: `TEST_HIGH_B_FINANCE_AUDIT_OK`, `TEST_COMMISSION_REPORTS_SECURITY_OK`, `TEST_OPERATION_VOUCHERS_SERVICE_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, `docker compose build api`, and `git diff --check`.
+  - Existing unrelated checks still fail before reaching this work: `test-operations-controller-contract.sh` on generic supplier `supplierServices`, and `test-customers-service.sh` on an outdated dangerous-MIME error-message expectation.

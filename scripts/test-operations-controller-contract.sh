@@ -122,11 +122,11 @@ if (!service.includes('nextAvailablePaymentRequestCode') || !service.includes('K
 if (!service.includes('operationConfirmationStatus(value: unknown)') || !service.includes('OPERATION_CONFIRMATION_STATUSES.has(text)')) failures.push('form service confirmation status must be normalized and validated');
 if (!service.includes('financePaymentMethod(value: unknown)') || !service.includes('FinancePaymentMethod.BANK_TRANSFER')) failures.push('finance payment method must be normalized and validated');
 if (!service.includes('Number.isNaN(date.getTime())')) failures.push('date helper must reject invalid provided dates');
-if (!service.includes("await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto })")) failures.push('cancelForm audit must include actor and reason');
+if (!service.includes("await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: this.auditPayload(dto) }, user)")) failures.push('cancelForm audit must include request user actor and reason');
 if (service.includes("await this.audit(tx, status, 'SupplierPaymentRequest'")) failures.push('payment request status changes must use verb audit actions');
 if (!service.includes("status === SupplierPaymentStatus.REQUESTED ? 'SUBMIT' : 'REJECT'")) failures.push('payment request submit/reject audit actions must be SUBMIT/REJECT');
 if (!service.includes('private auditMetadata(metadata: unknown)') || !service.includes('private toAuditJson(value: unknown)')) failures.push('operations audit metadata must be normalized before storing JSON');
-if (!suppliersService.includes("include: { category: true, supplierServices")) failures.push('generic supplier list must include supplierServices for OperationsClient');
+if (!suppliersService.includes('private supplierListInclude()') || !suppliersService.includes("supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }")) failures.push('generic supplier list must include supplierServices for OperationsClient');
 if (!client.includes("fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp')") || client.includes('/api/suppliers/hotels')) failures.push('OperationsClient must load the generic supplier source, not hotel-only suppliers');
 for (const copy of ['Vận hành tour và thanh toán nhà cung cấp', 'Công việc quá hạn', 'Nhà cung cấp chờ xác nhận', 'Yêu cầu thanh toán nhà cung cấp', 'Tour lỗ hoặc âm lợi nhuận']) {
   if (!client.includes(copy)) failures.push('OperationsClient missing normalized Vietnamese copy: ' + copy);
@@ -165,8 +165,8 @@ if (!client.includes("permissionDeniedTitle('operation.payment-request.approve')
 if (!client.includes("permissionDeniedTitle('finance.payment.approve')")) failures.push('OperationsClient finance approve buttons must explain missing finance.payment.approve');
 if (!client.includes('authJsonHeaders') || !client.includes('return authJsonHeaders()')) failures.push('OperationsClient must use shared auth JSON headers instead of reading token directly');
 if (!usePermissions.includes('missingPermissions') || !usePermissions.includes('viPermission(permission)') || !usePermissions.includes('Quyền cần bổ sung')) failures.push('PermissionNotice must show exact missing permissions in Vietnamese');
-if (!authFetch.includes('authCookieToken') || !authFetch.includes('clearAuthSession') || !authFetch.includes("Accept: 'application/json'") || !authFetch.includes('window.localStorage.getItem')) failures.push('authFetch must share token lookup, JSON headers, and logout cleanup across modules');
-if (!appShell.includes('clearAuthSession()') || !appShell.includes('/api/auth/logout')) failures.push('AppShell logout must clear local/cookie token and revoke server session');
+if (!authFetch.includes('export function authFetch') || !authFetch.includes("credentials: 'include'") || !authFetch.includes("Accept: 'application/json'") || authFetch.includes('authCookieToken') || authFetch.includes('window.localStorage.getItem')) failures.push('authFetch must use cookie credentials and must not read browser session tokens');
+if (!appShell.includes('clearAuthSession()') || !appShell.includes('/api/auth/logout') || !appShell.includes("credentials: 'include'") || appShell.includes('Authorization:')) failures.push('AppShell logout must clear local UI cache and revoke cookie session without Bearer headers');
 if (failures.length) {
   console.error('FAIL_OPERATIONS_CONTROLLER_CONTRACT');
   failures.forEach((failure) => console.error(failure));

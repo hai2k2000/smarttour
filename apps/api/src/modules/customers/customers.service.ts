@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CustomerStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 
@@ -186,7 +186,7 @@ export class CustomersService {
     if (!Object.keys(data).length && !tagIds.length) throw new BadRequestException('No bulk update fields provided');
     const scopedCustomerIds = await this.scopedCustomerIds(customerIds, user);
     if (tagIds.length) await this.assertTagsExist(tagIds);
-    const actor = this.text(dto.actor) || this.actorName(user);
+    const actor = this.actorName(user);
     const note = this.text(dto.note);
     await this.prisma.$transaction(async (tx) => {
       if (Object.keys(data).length) await tx.customer.updateMany({ where: { id: { in: scopedCustomerIds } }, data });
@@ -260,6 +260,7 @@ export class CustomersService {
 
   async create(dto: AnyRecord, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
+    const actor = this.actorName(user);
     const phone = this.required(dto.phone, 'phone');
     await this.assertPhoneUnique(phone);
     await this.assertCustomerReferences(dto);
@@ -267,15 +268,16 @@ export class CustomersService {
       const customer = await tx.customer.create({
         data: {
           ...this.customerData(dto),
+          createdBy: actor,
           code: this.text(dto.code) || (await this.nextCode(tx)),
           phone,
           contacts: { create: this.contacts(dto.contacts) },
           careTasks: { create: this.careTasks(dto.careTasks) },
-          comments: { create: this.comments(dto.comments) },
+          comments: { create: this.comments(dto.comments, actor) },
           callLogs: { create: this.callLogs(dto.callLogs) },
           opportunities: { create: this.opportunitiesInput(dto.opportunities) },
           tags: { create: this.stringArray(dto.tagIds).map((tagId) => ({ tagId })) },
-          timeline: { create: [{ eventType: 'CREATE', title: 'Tao khach hang', actor: this.text(dto.createdBy) || this.text(dto.owner) }] },
+          timeline: { create: [{ eventType: 'CREATE', title: 'Tao khach hang', actor }] },
         } as Prisma.CustomerUncheckedCreateInput,
         include: customerInclude,
       });
@@ -285,6 +287,7 @@ export class CustomersService {
   }
 
   async update(id: string, dto: AnyRecord, user?: RequestUser) {
+    const actor = this.actorName(user);
     const existing = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
     if (!existing) throw new NotFoundException('Customer not found');
     dto = applyWriteDataScope(dto, user);
@@ -306,7 +309,7 @@ export class CustomersService {
       }
       if (dto.comments !== undefined) {
         await tx.customerComment.deleteMany({ where: { customerId: id } });
-        await tx.customerComment.createMany({ data: this.comments(dto.comments).map((row) => ({ ...row, customerId: id })) });
+        await tx.customerComment.createMany({ data: this.comments(dto.comments, actor).map((row) => ({ ...row, customerId: id })) });
       }
       if (dto.callLogs !== undefined) {
         await tx.customerCallLog.deleteMany({ where: { customerId: id } });
@@ -316,7 +319,7 @@ export class CustomersService {
         await tx.customerOpportunity.deleteMany({ where: { customerId: id } });
         await tx.customerOpportunity.createMany({ data: this.opportunitiesInput(dto.opportunities).map((row) => ({ ...row, customerId: id })) });
       }
-      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'UPDATE', title: 'Cap nhat khach hang', actor: this.text(dto.actor) || this.actorName(user) || this.text(dto.owner), content: this.text(dto.note) } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'UPDATE', title: 'Cap nhat khach hang', actor, content: this.text(dto.note) } });
       const customer = await tx.customer.update({ where: { id }, data: { ...this.customerUpdateData(dto), phone: nextPhone } as Prisma.CustomerUncheckedUpdateInput, include: customerInclude });
       await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName);
       return customer;
@@ -351,7 +354,7 @@ export class CustomersService {
       this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: sourceId }, user) }),
     ]);
     if (!target || !source) throw new NotFoundException('Customer not found');
-    const actor = this.text(dto.actor) || this.actorName(user);
+    const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
       await tx.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerCareTask.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
@@ -381,7 +384,7 @@ export class CustomersService {
   async transferOwner(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const owner = this.required(dto.owner, 'owner');
-    const actor = this.text(dto.actor) || this.actorName(user);
+    const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
       await tx.customer.update({ where: { id }, data: { owner } });
       await tx.customerTimeline.create({ data: { customerId: id, eventType: 'TRANSFER_OWNER', title: 'Chuyen nhan vien phu trach', content: this.text(dto.reason) || this.text(dto.note), actor, metadata: { owner } } });
@@ -391,30 +394,31 @@ export class CustomersService {
 
   async addComment(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
-    const comment = await this.prisma.customerComment.create({ data: { ...this.comments([dto])[0], customerId: id } });
+    const actor = this.actorName(user);
+    const comment = await this.prisma.customerComment.create({ data: { ...this.comments([dto], actor)[0], customerId: id } });
     await this.prisma.customer.update({ where: { id }, data: { latestComment: comment.content } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'COMMENT', title: 'Them binh luan', content: comment.content, actor: comment.createdBy } });
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'COMMENT', title: 'Them binh luan', content: comment.content, actor } });
     return this.detail(id, user);
   }
 
   async addCareTask(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const task = await this.prisma.customerCareTask.create({ data: { ...this.careTasks([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor: task.owner } });
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
   async addCallLog(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const call = await this.prisma.customerCallLog.create({ data: { ...this.callLogs([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor: call.caller } });
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
   async addOpportunity(id: string, dto: AnyRecord, user?: RequestUser) {
     await this.getCustomer(id, user);
     const opportunity = await this.prisma.customerOpportunity.create({ data: { ...this.opportunitiesInput([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor: opportunity.owner } });
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
@@ -431,7 +435,7 @@ export class CustomersService {
         ...(dto.note !== undefined ? { note: this.text(dto.note) } : {}),
       },
     });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor: this.text(dto.actor) || this.actorName(user) || task.owner } });
+    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
@@ -449,7 +453,7 @@ export class CustomersService {
     const customer = await this.getCustomer(id, user);
     const [quotations, tourQuotes] = await Promise.all([
       this.prisma.quotation.findMany({ where: branchDepartmentScopeWhere({ OR: this.customerQuotationOr(customer) }, user), orderBy: { createdAt: 'desc' }, take: 100 }),
-      this.prisma.tourQuote.findMany({ where: { OR: this.customerTourQuoteOr(customer) }, orderBy: { createdAt: 'desc' }, take: 100 }),
+      this.prisma.tourQuote.findMany({ where: this.tourQuoteScopeWhere({ OR: this.customerTourQuoteOr(customer) }, user), orderBy: { createdAt: 'desc' }, take: 100 }),
     ]);
     return { rows: [...quotations.map((row) => ({ ...row, source: 'quotation' })), ...tourQuotes.map((row) => ({ ...row, source: 'tour-quote' }))] };
   }
@@ -595,7 +599,7 @@ export class CustomersService {
       market: this.text(dto.market),
       groupName: this.text(dto.groupName),
       campaignId: this.text(dto.campaignId),
-      createdBy: this.text(dto.createdBy),
+      createdBy: null,
       owner: this.text(dto.owner),
       branch: this.text(dto.branch),
       department: this.text(dto.department),
@@ -629,7 +633,6 @@ export class CustomersService {
       market: () => this.text(dto.market),
       groupName: () => this.text(dto.groupName),
       campaignId: () => this.text(dto.campaignId),
-      createdBy: () => this.text(dto.createdBy),
       owner: () => this.text(dto.owner),
       branch: () => this.text(dto.branch),
       department: () => this.text(dto.department),
@@ -728,6 +731,16 @@ export class CustomersService {
     ];
   }
 
+  private tourQuoteScopeWhere(where: Prisma.TourQuoteWhereInput, user?: RequestUser): Prisma.TourQuoteWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
+      ],
+    };
+  }
+
   private customerBookingOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.BookingWhereInput[] {
     return [
       { customerId: customer.id },
@@ -810,8 +823,8 @@ export class CustomersService {
     return this.array(value).map((row) => ({ channel: this.text(row.channel) || 'PHONE', status: this.text(row.status) || 'PENDING', result: this.text(row.result), scheduledAt: this.date(row.scheduledAt), completedAt: this.date(row.completedAt), owner: this.text(row.owner), note: this.text(row.note) }));
   }
 
-  private comments(value: unknown): Prisma.CustomerCommentCreateWithoutCustomerInput[] {
-    return this.array(value).map((row) => ({ content: this.required(row.content, 'comment.content'), fileName: this.text(row.fileName), fileUrl: this.text(row.fileUrl), mentions: this.stringArray(row.mentions), createdBy: this.text(row.createdBy) }));
+  private comments(value: unknown, actor?: string): Prisma.CustomerCommentCreateWithoutCustomerInput[] {
+    return this.array(value).map((row) => ({ content: this.required(row.content, 'comment.content'), fileName: this.text(row.fileName), fileUrl: this.text(row.fileUrl), mentions: this.stringArray(row.mentions), createdBy: actor }));
   }
 
   private callLogs(value: unknown): Prisma.CustomerCallLogCreateWithoutCustomerInput[] {
@@ -863,7 +876,7 @@ export class CustomersService {
   }
 
   private actorName(user?: RequestUser) {
-    return user?.name || user?.username || user?.email;
+    return user?.name || user?.username || user?.email || user?.id;
   }
 
   private array(value: unknown): AnyRecord[] {

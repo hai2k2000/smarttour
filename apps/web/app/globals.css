@@ -268,16 +268,19 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .formGrid label:nth-of-type(7), .formGrid label:nth-of-type(8), .formGrid button { grid-column: 1 / -1; }
 .panel h2 { display: inline-flex; align-items: center; gap: 8px; }
-.suppliersGrid { grid-template-columns: 360px 1fr; align-items: start; }
+.suppliersGrid { grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); align-items: start; }
 .listPanel, .categoryPanel { margin-top: 14px; overflow-x: auto; }
 .suppliersPage { display: grid; gap: 14px; }
 .supplierNotice { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #bfe3b8; border-radius: var(--dn-radius-md); background: var(--dn-green-soft); color: var(--dn-primary); padding: 10px 12px; font-weight: 800; }
 .supplierNotice svg { flex: 0 0 auto; margin-top: 1px; }
 .supplierNoticeError { border-color: #fecaca; background: #fff1f0; color: #b20000; }
 .supplierNoticeInfo { border-color: #bae6fd; background: #f0f9ff; color: #075985; }
+.supplierCategoryList { display: grid; gap: 8px; }
+.supplierCategoryPanel { max-height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 134px); overflow: auto; }
 .supplierIntroPanel { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .supplierIntroPanel p { margin: 4px 0 0; max-width: 680px; }
-.supplierCategoryList { display: grid; gap: 8px; }
+.supplierListColumn { min-width: 0; display: grid; gap: 14px; align-content: start; }
+.supplierListPanel { margin-top: 0; }
 .supplierCategoryCard { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--dn-border); border-radius: var(--dn-radius-md); background: var(--dn-surface-soft); padding: 10px 11px; }
 .supplierCategoryCard > div { min-width: 0; display: grid; gap: 4px; }
 .supplierCategoryCard strong { min-width: 0; overflow-wrap: anywhere; }
@@ -305,7 +308,7 @@ th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; borde
 .sectionHeader span { color: var(--dn-primary); font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips span { border: 1px solid var(--dn-border); border-radius: 999px; padding: 7px 10px; background: var(--dn-surface-soft); color: #276c72; font-size: 13px; }
-@media (max-width: 1100px) { .suppliersGrid, .formGrid, .supplierFieldGrid { grid-template-columns: 1fr; } .formGrid label:nth-of-type(7), .formGrid label:nth-of-type(8), .formGrid button { grid-column: auto; } .supplierIntroPanel { align-items: stretch; flex-direction: column; } }
+@media (max-width: 1100px) { .suppliersGrid, .formGrid, .supplierFieldGrid { grid-template-columns: 1fr; } .formGrid label:nth-of-type(7), .formGrid label:nth-of-type(8), .formGrid button { grid-column: auto; } .supplierCategoryPanel { max-height: none; } .supplierIntroPanel { align-items: stretch; flex-direction: column; } }
 
 .tourProgramGrid { grid-template-columns: 420px 1fr; align-items: start; }
 .tourCards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
@@ -2469,8 +2472,31 @@ label { min-width: 0; }
     flex-direction: column;
   }
 
-  .rowDetailGrid div {
+.rowDetailGrid div {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+}
+
+.suppliersPage .suppliersGrid {
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+}
+
+.suppliersPage .supplierCategoryPanel {
+  max-height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 134px);
+  overflow: auto;
+}
+
+.suppliersPage .supplierListColumn {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .suppliersPage .suppliersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .suppliersPage .supplierCategoryPanel {
+    max-height: none;
   }
 }

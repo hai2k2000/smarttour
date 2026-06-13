@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Headers, Ip, Param, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Ip, Param, Post, Put, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AuthCookieResponse, clearAuthCookie, setAuthCookie } from './auth-cookie';
 import { AuthService } from './auth.service';
 import { AuthTokenHeaders, tokenFromHeaders } from './auth-token';
 import { Public, RequirePermissions } from './permissions.decorator';
@@ -14,6 +15,11 @@ type AuthRequest = {
   };
 };
 
+type SessionPayload = {
+  token?: string;
+  expiresAt?: Date | string;
+};
+
 @ApiTags('auth')
 @ApiBearerAuth()
 @Controller('auth')
@@ -22,19 +28,38 @@ export class AuthController {
 
   @Post('bootstrap')
   @Public()
-  bootstrap(@Body() dto: Record<string, unknown>, @Headers() headers: Record<string, string | string[] | undefined>, @Ip() ip: string) {
-    return this.service.bootstrap(dto, { headers, ip });
+  async bootstrap(
+    @Body() dto: Record<string, unknown>,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) response: AuthCookieResponse,
+  ) {
+    const result = await this.service.bootstrap(dto, { headers, ip });
+    this.setSessionCookie(response, result);
+    return result;
   }
 
   @Post('login')
   @Public()
-  login(@Body() dto: Record<string, unknown>, @Headers() headers: Record<string, string | string[] | undefined>, @Ip() ip: string) {
-    return this.service.login(dto, { headers, ip });
+  async login(
+    @Body() dto: Record<string, unknown>,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) response: AuthCookieResponse,
+  ) {
+    const result = await this.service.login(dto, { headers, ip });
+    this.setSessionCookie(response, result);
+    return result;
   }
 
   @Post('logout')
-  logout(@Req() request: AuthRequest) {
-    return this.service.logout(tokenFromHeaders(request.headers), request.user?.id);
+  @Public()
+  async logout(@Req() request: AuthRequest, @Res({ passthrough: true }) response: AuthCookieResponse) {
+    try {
+      return await this.service.logout(tokenFromHeaders(request.headers), request.user?.id);
+    } finally {
+      clearAuthCookie(response);
+    }
   }
 
   @Get('me')
@@ -43,8 +68,15 @@ export class AuthController {
   }
 
   @Post('change-password')
-  changePassword(@Req() request: AuthRequest, @Body() dto: Record<string, unknown>, @Ip() ip: string) {
-    return this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers), { headers: request.headers, ip });
+  async changePassword(
+    @Req() request: AuthRequest,
+    @Body() dto: Record<string, unknown>,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) response: AuthCookieResponse,
+  ) {
+    const result = await this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers), { headers: request.headers, ip });
+    this.setSessionCookie(response, result);
+    return result;
   }
 
   @Get('users')
@@ -81,5 +113,9 @@ export class AuthController {
   @RequirePermissions('auth.role.manage')
   updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
     return this.service.updateRole(id, dto, request.user);
+  }
+
+  private setSessionCookie(response: AuthCookieResponse, result: SessionPayload | undefined) {
+    if (result?.token && result.expiresAt) setAuthCookie(response, result.token, result.expiresAt);
   }
 }

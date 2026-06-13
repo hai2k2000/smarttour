@@ -15,6 +15,7 @@ export default function LoginClient() {
     setMessage('');
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: text(formData.get('username')), password: text(formData.get('password')) }),
     });
@@ -23,9 +24,8 @@ export default function LoginClient() {
       setMessage(data.message || 'Đăng nhập không thành công');
       return;
     }
-    window.localStorage.setItem('smarttour.auth.token', data.token);
-    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(data.user));
-    document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${60 * 60 * 24 * 14}; SameSite=Lax`;
+    window.localStorage.removeItem('smarttour.auth.token');
+    if (data.user) window.localStorage.setItem('smarttour.auth.user', JSON.stringify(data.user));
     const nextPath = safeNextPath(searchParams.get('next'));
     window.location.assign(nextPath);
   }

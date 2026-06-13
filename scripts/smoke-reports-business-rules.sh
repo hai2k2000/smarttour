@@ -67,6 +67,7 @@ VALUES
   ('${ROLE_ID}_rp_report_view', '${ROLE_ID}', 'report.view', now()),
   ('${ROLE_ID}_rp_report_export', '${ROLE_ID}', 'report.export', now()),
   ('${ROLE_ID}_rp_finance_cashflow_view', '${ROLE_ID}', 'finance.cashflow.view', now()),
+  ('${ROLE_ID}_rp_finance_debt_view', '${ROLE_ID}', 'finance.debt.view', now()),
   ('${ROLE_ID}_rp_scope_all', '${ROLE_ID}', 'data.scope.all', now());
 
 INSERT INTO "User" (id, username, email, name, "passwordHash", status, branch, department, "createdAt", "updatedAt")

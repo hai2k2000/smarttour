@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { basename, extname } from 'node:path';
 import { Client } from 'minio';
+import { PrismaService } from '../../database/prisma.service';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 
 export type UploadFile = {
   originalname: string;
@@ -18,6 +21,8 @@ export type StoredFileUpload = {
   size: number;
   url: string;
 };
+
+type FileAccessAction = 'view' | 'manage';
 
 const allowedExtensions = new Set([
   '.bmp', '.csv', '.doc', '.docx', '.gif', '.heic', '.heif', '.jpeg', '.jpg', '.ods', '.odt', '.pdf', '.png',
@@ -111,7 +116,7 @@ export class FilesService {
   private readonly maxBytes = fileUploadMaxBytes();
   private readonly client: Client;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     const endpoint = new URL(process.env.MINIO_ENDPOINT || 'http://localhost:9000');
     this.client = new Client({
       endPoint: endpoint.hostname,
@@ -180,10 +185,35 @@ export class FilesService {
     }
   }
 
+  async downloadAuthorized(objectKey: string | undefined, user?: RequestUser) {
+    await this.assertObjectAccess(objectKey, user, 'view');
+    return this.download(objectKey);
+  }
+
   async remove(objectKey?: string) {
     const key = this.requiredObjectKey(objectKey);
     await this.client.removeObject(this.bucket, key);
     return { deleted: true, objectKey: key };
+  }
+
+  async removeAuthorized(objectKey: string | undefined, user?: RequestUser) {
+    await this.assertObjectAccess(objectKey, user, 'manage');
+    return this.remove(objectKey);
+  }
+
+  async assertObjectAccess(objectKey: string | undefined, user: RequestUser | undefined, action: FileAccessAction) {
+    const key = this.requiredObjectKey(objectKey);
+    const parts = key.split('/');
+    const root = parts[0];
+    const entityId = parts[1];
+    if (!entityId) throw this.fileAccessNotFound();
+
+    if (root === 'customers') return this.assertCustomerFile(key, entityId, user, action);
+    if (root === 'suppliers') return this.assertSupplierFile(key, entityId, user, action);
+    if (root === 'tour-guides') return this.assertGuideFile(key, entityId, user, action);
+    if (root === 'fit-tours') return this.assertFitTourFile(key, entityId, user, action);
+    if (root === 'finance') return this.assertFinanceFile(key, parts[1], parts[2], user, action);
+    throw this.fileAccessNotFound();
   }
 
   async removeIfPresent(objectKey?: string | null) {
@@ -204,6 +234,136 @@ export class FilesService {
     } catch {
       return null;
     }
+  }
+
+  private async assertCustomerFile(key: string, customerId: string, user: RequestUser | undefined, action: FileAccessAction) {
+    this.assertPermission(user, action === 'view' ? 'customer.view' : 'customer.manage');
+    const [parent, metadata] = await Promise.all([
+      this.prisma.customer.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id: customerId, mergedIntoId: null }, user),
+        select: { id: true },
+      }),
+      this.prisma.customerFile.findFirst({ where: { customerId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+    ]);
+    this.assertParentAndMetadata(parent, metadata);
+  }
+
+  private async assertSupplierFile(key: string, supplierId: string, user: RequestUser | undefined, action: FileAccessAction) {
+    this.assertPermission(user, action === 'view' ? 'supplier.view' : 'supplier.manage');
+    const [parent, metadata] = await Promise.all([
+      this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } }),
+      this.prisma.supplierFile.findFirst({ where: { supplierId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+    ]);
+    this.assertParentAndMetadata(parent, metadata);
+  }
+
+  private async assertGuideFile(key: string, guideId: string, user: RequestUser | undefined, action: FileAccessAction) {
+    this.assertPermission(user, action === 'view' ? 'guide.view' : 'guide.manage');
+    const [parent, metadata] = await Promise.all([
+      this.prisma.guideProfile.findFirst({ where: { id: guideId, deletedAt: null }, select: { id: true } }),
+      this.prisma.guideFile.findFirst({ where: { guideId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+    ]);
+    this.assertParentAndMetadata(parent, metadata);
+  }
+
+  private async assertFitTourFile(key: string, fitTourId: string, user: RequestUser | undefined, action: FileAccessAction) {
+    this.assertPermission(user, action === 'view' ? 'tour.view' : 'tour.manage');
+    const parent = await this.prisma.fitTour.findFirst({
+      where: this.fitTourScopeWhere({ id: fitTourId }, user),
+      select: { id: true, tourId: true },
+    });
+    if (!parent) throw this.fileAccessNotFound();
+    const fileUrl = this.fileUrl(key);
+    const [legacyMetadata, rootMetadata] = await Promise.all([
+      this.prisma.fitAttachment.findFirst({ where: { fitTourId, fileUrl }, select: { id: true } }),
+      parent.tourId
+        ? this.prisma.tourAttachment.findFirst({ where: { tourId: parent.tourId, fileUrl }, select: { id: true } })
+        : Promise.resolve(null),
+    ]);
+    if (!legacyMetadata && !rootMetadata) throw this.fileAccessNotFound();
+  }
+
+  private async assertFinanceFile(
+    key: string,
+    type: string | undefined,
+    entityId: string | undefined,
+    user: RequestUser | undefined,
+    action: FileAccessAction,
+  ) {
+    if (!entityId) throw this.fileAccessNotFound();
+    const fileUrl = this.fileUrl(key);
+    if (type === 'receipts') {
+      this.assertPermission(user, action === 'view' ? 'finance.receipt.view' : 'finance.receipt.update');
+      const parent = await this.prisma.financeReceipt.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ id: entityId, deletedAt: null, attachmentUrl: fileUrl }, user),
+        select: { id: true },
+      });
+      if (!parent) throw this.fileAccessNotFound();
+      return;
+    }
+    if (type === 'payments') {
+      this.assertPermission(user, action === 'view' ? 'finance.payment.view' : 'finance.payment.update');
+      const parent = await this.prisma.financePayment.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ id: entityId, deletedAt: null, attachmentUrl: fileUrl }, user),
+        select: { id: true },
+      });
+      if (!parent) throw this.fileAccessNotFound();
+      return;
+    }
+    if (type === 'invoices') {
+      this.assertPermission(user, action === 'view' ? 'finance.invoice.view' : 'finance.invoice.update');
+      const [parent, metadata] = await Promise.all([
+        this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id: entityId, deletedAt: null }, user), select: { id: true } }),
+        this.prisma.financeInvoiceFile.findFirst({ where: { invoiceId: entityId, fileUrl }, select: { id: true } }),
+      ]);
+      this.assertParentAndMetadata(parent, metadata);
+      return;
+    }
+    throw this.fileAccessNotFound();
+  }
+
+  private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return { AND: [where, { tour: { is: { deletedAt: null } } }] };
+    return {
+      AND: [
+        where,
+        { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+      ],
+    };
+  }
+
+  private invoiceScopeWhere(where: Prisma.FinanceInvoiceWhereInput, user?: RequestUser): Prisma.FinanceInvoiceWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+            { receipt: { is: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ deletedAt: null }, user) } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private assertPermission(user: RequestUser | undefined, permission: string) {
+    const permissions = userPermissions(user);
+    if (!user || (!permissions.has('*') && !permissions.has(permission))) throw new ForbiddenException('Thiếu quyền truy cập entity chứa file');
+  }
+
+  private assertParentAndMetadata(parent: unknown, metadata: unknown) {
+    if (!parent || !metadata) throw this.fileAccessNotFound();
+  }
+
+  private fileUrl(key: string) {
+    return `/api/files/download?key=${encodeURIComponent(key)}`;
+  }
+
+  private fileAccessNotFound() {
+    return new NotFoundException('Không tìm thấy file hoặc không có quyền truy cập');
   }
 
   private async ensureBucket() {

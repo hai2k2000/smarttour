@@ -140,23 +140,10 @@ export default function SecurityClient() {
   const isBusy = loading || busyAction !== null;
 
   useEffect(() => {
-    if (!authToken()) {
-      setAuthState('missing');
-      setMessage({ kind: 'error', text: 'Chưa có phiên đăng nhập. Vui lòng đăng nhập để quản trị người dùng và vai trò.' });
-      return;
-    }
     void load(false);
   }, []);
 
   async function load(announce = true) {
-    if (!authToken()) {
-      setAuthState('missing');
-      setCanManageUsers(false);
-      setCanManageRoles(false);
-      setMessage({ kind: 'error', text: 'Chưa có phiên đăng nhập. Vui lòng đăng nhập lại.' });
-      return ['Chưa có phiên đăng nhập.'];
-    }
-
     setLoading(true);
     if (announce) setMessage({ kind: 'info', text: 'Đang tải dữ liệu bảo mật...' });
     const [userResult, roleResult] = await Promise.allSettled([
@@ -250,7 +237,7 @@ export default function SecurityClient() {
     setBusyAction(action);
     setMessage({ kind: 'info', text: `Đang ${actionLabels[action].present}...` });
     try {
-      const response = await fetch(`${browserApiBase()}${path}`, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+      const response = await fetch(`${browserApiBase()}${path}`, { method, credentials: 'include', headers: authHeaders(), body: JSON.stringify(payload) });
       const data = await readResponse(response);
       if (!response.ok) throw new ApiError(response.status, apiMessage(data, response.statusText));
       if (action === 'changePassword') {
@@ -609,7 +596,7 @@ function permissionsText(role?: Role) {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${browserApiBase()}${path}`, { cache: 'no-store', headers: authHeaders() });
+  const response = await fetch(`${browserApiBase()}${path}`, { cache: 'no-store', credentials: 'include', headers: authHeaders() });
   const data = await readResponse(response);
   if (!response.ok) throw new ApiError(response.status, apiMessage(data, response.statusText));
   return data as T;
@@ -622,13 +609,8 @@ function browserApiBase() {
   return apiBase;
 }
 
-function authToken() {
-  return typeof window !== 'undefined' ? window.localStorage.getItem('smarttour.auth.token') : null;
-}
-
 function authHeaders() {
-  const token = authToken();
-  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  return { Accept: 'application/json', 'Content-Type': 'application/json' };
 }
 
 async function readResponse(response: Response) {
@@ -636,13 +618,11 @@ async function readResponse(response: Response) {
 }
 
 function updateAuthSession(data: unknown) {
-  if (!data || typeof data !== 'object' || !('token' in data) || typeof data.token !== 'string' || !data.token) {
-    throw new Error('API không trả về phiên đăng nhập mới sau khi đổi mật khẩu');
+  if (!data || typeof data !== 'object') return;
+  const user = 'user' in data ? data.user : null;
+  if (user && typeof user === 'object') {
+    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(user));
   }
-  window.localStorage.setItem('smarttour.auth.token', data.token);
-  const expiresAt = 'expiresAt' in data && typeof data.expiresAt === 'string' ? new Date(data.expiresAt).getTime() : 0;
-  const maxAge = expiresAt > Date.now() ? Math.floor((expiresAt - Date.now()) / 1000) : 60 * 60 * 24 * 14;
-  document.cookie = `smarttour.auth.token=${encodeURIComponent(data.token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 function apiMessage(data: unknown, fallback: string) {

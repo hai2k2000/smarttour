@@ -244,7 +244,7 @@ export class OperationsService {
   }
 
   async createForm(dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.operationActor(dto);
+    const actor = this.userActor(user);
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
     const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
@@ -261,7 +261,7 @@ export class OperationsService {
           },
         });
         await this.replaceFormChildren(tx, form.id, dto);
-        await this.audit(tx, 'CREATE', 'OperationForm', form.id, { actor, bookingId, orderId: links.orderId, tourId: links.tourId, status: form.status, payload: dto });
+        await this.audit(tx, 'CREATE', 'OperationForm', form.id, { actor, bookingId, orderId: links.orderId, tourId: links.tourId, status: form.status, payload: this.auditPayload(dto) }, user);
         return tx.operationForm.findUniqueOrThrow({ where: { id: form.id }, include: this.formDetailInclude() });
       });
     } catch (error) {
@@ -271,7 +271,7 @@ export class OperationsService {
   }
 
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.operationActor(dto);
+    const actor = this.userActor(user);
     const current = await this.formDetail(id, user);
     const bookingId = this.text(dto.bookingId) ?? current.bookingId;
     const links = await this.resolveBookingOrderTour({
@@ -295,13 +295,13 @@ export class OperationsService {
         },
       });
       if (dto.services !== undefined || dto.tasks !== undefined || dto.costs !== undefined) await this.replaceFormChildren(tx, id, dto);
-      await this.audit(tx, 'UPDATE', 'OperationForm', id, { actor, changedFields: Object.keys(dto), payload: dto });
+      await this.audit(tx, 'UPDATE', 'OperationForm', id, { actor, changedFields: Object.keys(dto), payload: this.auditPayload(dto) }, user);
       return tx.operationForm.findUniqueOrThrow({ where: { id }, include: this.formDetailInclude() });
     });
   }
 
   async cancelForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.operationActor(dto);
+    const actor = this.userActor(user);
     const reason = this.text(dto.reason) ?? this.text(dto.notes);
     const current = await this.formDetail(id, user);
     if (current.status === OperationStatus.CANCELLED) return current;
@@ -314,7 +314,7 @@ export class OperationsService {
         data: { status: OperationStatus.CANCELLED, ...(reason !== null ? { notes: reason } : {}) },
         include: this.formDetailInclude(),
       });
-      await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: dto });
+      await this.audit(tx, 'CANCEL', 'OperationForm', id, { actor, reason, payload: this.auditPayload(dto) }, user);
       return form;
     });
   }
@@ -364,7 +364,7 @@ export class OperationsService {
   }
 
   async createPaymentRequest(dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.operationActor(dto);
+    const actor = this.userActor(user);
     const status = this.supplierPaymentStatus(dto.status, SupplierPaymentStatus.DRAFT);
     if (status !== SupplierPaymentStatus.DRAFT) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp phải được tạo ở trạng thái nháp');
     const items = this.paymentItems(dto);
@@ -378,18 +378,18 @@ export class OperationsService {
         data: {
           code,
           status,
-          requestedBy: this.text(dto.requestedBy) || actor,
+          requestedBy: actor,
           items: { create: items },
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, { actor, requestedBy: request.requestedBy, code, codeBranch, itemCount: items.length, payload: dto });
+      await this.audit(tx, 'CREATE', 'SupplierPaymentRequest', request.id, { actor, requestedBy: request.requestedBy, code, codeBranch, itemCount: items.length, payload: this.auditPayload(dto) }, user);
       return request;
     });
   }
 
   async updatePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.operationActor(dto);
+    const actor = this.userActor(user);
     const current = await this.paymentRequestDetail(id, user);
     if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được chỉnh sửa');
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
@@ -407,12 +407,11 @@ export class OperationsService {
         where: { id },
         data: {
           ...(dto.code !== undefined ? { code: this.requiredText(dto.code, 'Cần nhập mã yêu cầu thanh toán') } : {}),
-          ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: this.text(dto.requestedBy) || actor } : {}),
           ...(items ? { items: { create: items } } : {}),
         },
         include: this.paymentRequestDetailInclude(),
       });
-      await this.audit(tx, 'UPDATE', 'SupplierPaymentRequest', id, { actor, changedFields: Object.keys(dto), payload: dto });
+      await this.audit(tx, 'UPDATE', 'SupplierPaymentRequest', id, { actor, changedFields: Object.keys(dto), payload: this.auditPayload(dto) }, user);
       return request;
     });
   }
@@ -423,7 +422,7 @@ export class OperationsService {
 
   async approvePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.text(dto.actor) || this.text(dto.approvedBy) || 'operation';
+    const actor = this.userActor(user);
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: true } });
       if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
@@ -454,7 +453,7 @@ export class OperationsService {
           },
         });
       }
-      await this.audit(tx, 'APPROVE', 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, 'APPROVE', 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) }, user);
       return approved;
     });
   }
@@ -465,7 +464,7 @@ export class OperationsService {
 
   async createFinancePaymentForRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.text(dto.actor) || 'operation';
+    const actor = this.userActor(user);
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({
         where: { id },
@@ -525,7 +524,7 @@ export class OperationsService {
         throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
       }
       const updated = await tx.supplierPaymentRequest.findUniqueOrThrow({ where: { id }, include: this.paymentRequestDetailInclude() });
-      await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id, total, supplierIds });
+      await this.audit(tx, 'CREATE_FINANCE_PAYMENT', 'SupplierPaymentRequest', id, { actor, financePaymentId: payment.id, total, supplierIds }, user);
       return updated;
     });
   }
@@ -601,14 +600,14 @@ export class OperationsService {
     return this.prisma.$transaction(async (tx) => {
       await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
       const deleted = await tx.supplierPaymentRequest.delete({ where: { id } });
-      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { actor, status: current.status, code: current.code });
+      await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { actor, status: current.status, code: current.code }, user);
       return deleted;
     });
   }
 
   private async changePaymentRequestStatus(id: string, status: SupplierPaymentStatus, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.text(dto.actor) || this.text(dto.approvedBy) || 'operation';
+    const actor = this.userActor(user);
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.supplierPaymentRequest.findUnique({
         where: { id },
@@ -626,12 +625,12 @@ export class OperationsService {
         data: {
           status,
           ...(status === SupplierPaymentStatus.REQUESTED ? { requestedBy: actor, requestedAt: new Date() } : {}),
-          ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: actor } : {}),
+          ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: null } : {}),
         },
         include: this.paymentRequestDetailInclude(),
       });
       const auditAction = status === SupplierPaymentStatus.REQUESTED ? 'SUBMIT' : 'REJECT';
-      await this.audit(tx, auditAction, 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, auditAction, 'SupplierPaymentRequest', id, { actor, note: this.text(dto.note) }, user);
       return request;
     });
   }
@@ -1199,13 +1198,14 @@ export class OperationsService {
     return `${prefix}-${year}${String(month).padStart(2, '0')}-${String(seq.currentNo).padStart(seq.padding, '0')}`;
   }
 
-  private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata?: unknown) {
+  private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata?: unknown, user?: RequestUser) {
     const safeMetadata = this.auditMetadata(metadata);
     await tx.auditLog.create({
       data: {
         action,
         entity,
         entityId,
+        actorId: user?.id,
         ...(safeMetadata === undefined ? {} : { metadata: safeMetadata }),
       },
     });
@@ -1214,6 +1214,11 @@ export class OperationsService {
   private auditMetadata(metadata: unknown): Prisma.InputJsonValue | undefined {
     if (metadata === undefined) return undefined;
     return this.toAuditJson(metadata) as Prisma.InputJsonValue;
+  }
+
+  private auditPayload(payload: AnyRecord) {
+    const protectedFields = new Set(['actor', 'requestedBy', 'approvedBy', 'createdBy', 'updatedBy']);
+    return Object.fromEntries(Object.entries(payload).filter(([key]) => !protectedFields.has(key)));
   }
 
   private toAuditJson(value: unknown): unknown {
@@ -1256,10 +1261,6 @@ export class OperationsService {
     if (options.positive && number <= 0) throw new BadRequestException(message);
     if (options.min !== undefined && number < options.min) throw new BadRequestException(message);
     return number;
-  }
-
-  private operationActor(dto: AnyRecord) {
-    return this.text(dto.actor) || this.text(dto.requestedBy) || this.text(dto.approvedBy) || 'operation';
   }
 
   private operationConfirmationStatus(value: unknown) {

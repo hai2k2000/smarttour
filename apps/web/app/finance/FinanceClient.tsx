@@ -141,7 +141,7 @@ export default function FinanceClient() {
     setBusyAction(actionKey);
     setNotice(null);
     try {
-      const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+      const response = await fetch(`${API_URL}${path}`, { method: 'POST', credentials: 'include', headers: authHeaders(), body: JSON.stringify(payload) });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         setNotice({ kind: 'error', text: `Không thể ${actionLabels[actionType]}: ${apiMessage(data, response)}` });
@@ -167,7 +167,7 @@ export default function FinanceClient() {
     if (!(entry instanceof File) || !entry.size) return true;
     const body = new FormData();
     body.append('file', entry);
-    const response = await fetch(`${API_URL}/api/finance/${kind}/${id}/file`, { method: 'POST', headers: authHeaders(false), body });
+    const response = await fetch(`${API_URL}/api/finance/${kind}/${id}/file`, { method: 'POST', credentials: 'include', headers: authHeaders(false), body });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       setNotice({ kind: 'error', text: `Đã lưu chứng từ nhưng tải file "${entry.name}" thất bại: ${apiMessage(data, response)}` });
@@ -185,7 +185,7 @@ export default function FinanceClient() {
     for (const file of files) {
       const body = new FormData();
       body.append('file', file);
-      const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files`, { method: 'POST', headers: authHeaders(false), body });
+      const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files`, { method: 'POST', credentials: 'include', headers: authHeaders(false), body });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         failed.push(`${file.name} (${apiMessage(data, response)})`);
@@ -203,7 +203,7 @@ export default function FinanceClient() {
   }
 
   async function deleteInvoiceFile(id: string, fileId: string) {
-    const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files/${fileId}`, { method: 'DELETE', headers: authHeaders(false) });
+    const response = await fetch(`${API_URL}/api/finance/invoices/${id}/files/${fileId}`, { method: 'DELETE', credentials: 'include', headers: authHeaders(false) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       setNotice({ kind: 'error', text: `Không thể xóa tệp hóa đơn: ${apiMessage(data, response)}` });
@@ -226,7 +226,7 @@ export default function FinanceClient() {
     }
     const body = new FormData();
     body.append('file', file);
-    const response = await fetch(`${API_URL}/api/finance/${kind}/import`, { method: 'POST', headers: authHeaders(false), body });
+    const response = await fetch(`${API_URL}/api/finance/${kind}/import`, { method: 'POST', credentials: 'include', headers: authHeaders(false), body });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       setNotice({ kind: 'error', text: `Không thể nhập CSV ${kind === 'receipts' ? 'phiếu thu' : 'phiếu chi'}: ${apiMessage(data, response)}` });
@@ -411,8 +411,8 @@ function FinanceTable({ title, count, action, children }: { title: string; count
   return <section className="panel financeList"><div className="sectionHeader"><h2>{title}</h2><div className="sectionActions"><span>{count} dòng</span>{action}</div></div><div className="fitTableWrap"><table className="financeTable">{children}</table></div></section>;
 }
 function Metric({ label, value }: { label: string; value: string | number }) { return <article className="metric"><span>{label}</span><strong>{value}</strong></article>; }
-function authHeaders(json = true) { const token = typeof window !== 'undefined' ? window.localStorage.getItem('smarttour.auth.token') : null; return { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }; }
-async function getJson(path: string) { const response = await fetch(`${API_URL}${path}`, { cache: 'no-store', headers: authHeaders() }); if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || response.statusText || `HTTP ${response.status}`); } return response.json(); }
+function authHeaders(json = true) { return { Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) }; }
+async function getJson(path: string) { const response = await fetch(`${API_URL}${path}`, { cache: 'no-store', credentials: 'include', headers: authHeaders() }); if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || response.statusText || `HTTP ${response.status}`); } return response.json(); }
 function money(value: number) { return new Intl.NumberFormat('vi-VN').format(value || 0); }
 function date(value?: string) { return value ? new Date(value).toLocaleDateString('vi-VN') : '-'; }
 function text(value: FormDataEntryValue | null) { return typeof value === 'string' ? value.trim() : ''; }

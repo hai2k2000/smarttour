@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
@@ -12,50 +13,50 @@ export class QuotesController {
 
   @Get('tours')
   @RequirePermissions('quote.view')
-  listTours(@Query('search') search?: string) {
-    return this.quotesService.listTourQuotes(search);
+  listTours(@Query('search') search?: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.listTourQuotes(search, request?.user);
   }
 
   @Get('tours/:id')
   @RequirePermissions('quote.view')
-  tourDetail(@Param('id') id: string) {
-    return this.quotesService.getTourQuote(id);
+  tourDetail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.getTourQuote(id, request?.user);
   }
 
   @Post('tours')
   @RequirePermissions('quote.manage')
-  createTour(@Body() dto: CreateQuoteTourDto) {
-    return this.quotesService.createTourQuote(dto);
+  createTour(@Body() dto: CreateQuoteTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.createTourQuote(dto, request?.user);
   }
 
   @Put('tours/:id')
   @RequirePermissions('quote.manage')
-  updateTour(@Param('id') id: string, @Body() dto: UpdateQuoteTourDto) {
-    return this.quotesService.updateTourQuote(id, dto);
+  updateTour(@Param('id') id: string, @Body() dto: UpdateQuoteTourDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.updateTourQuote(id, dto, request?.user);
   }
 
   @Delete('tours/:id')
   @RequirePermissions('quote.manage')
-  deleteTour(@Param('id') id: string) {
-    return this.quotesService.deleteTourQuote(id);
+  deleteTour(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.deleteTourQuote(id, request?.user);
   }
 
   @Post('tours/:id/approve')
   @RequirePermissions('quote.manage')
-  approveTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto) {
-    return this.quotesService.approveTourQuote(id, dto);
+  approveTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.approveTourQuote(id, dto, request?.user);
   }
 
   @Post('tours/:id/reject')
   @RequirePermissions('quote.manage')
-  rejectTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto) {
-    return this.quotesService.rejectTourQuote(id, dto);
+  rejectTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.rejectTourQuote(id, dto, request?.user);
   }
 
   @Post('tours/:id/convert')
   @RequirePermissions('quote.manage')
-  convertTour(@Param('id') id: string) {
-    return this.quotesService.convertTourQuote(id);
+  convertTour(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.convertTourQuote(id, request?.user);
   }
 
   @Get('combos')

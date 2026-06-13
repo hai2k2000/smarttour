@@ -2,6 +2,77 @@
 
 ## Done
 
+- Completed High C auth/session Phase 2 cleanup:
+  - Next proxy no longer turns the browser cookie into an Authorization Bearer
+    header for `/auth/me`; it forwards the `smarttour.auth.token` cookie
+    directly.
+  - Browser smoke scripts now use backend-style HttpOnly cookie setup and no
+    longer write/read session tokens through localStorage or document.cookie.
+  - Frontend auth cleanup now relies on backend/proxy Set-Cookie clearing;
+    browser app code no longer touches `document.cookie` for the auth token.
+  - Browser login smoke checks that login sets an HttpOnly auth cookie and that
+    a page refresh keeps the authenticated session.
+  - Auth regression now explicitly separates browser cookie flow from CLI/API
+    Bearer compatibility.
+  - Token JSON is intentionally retained for now because CLI and API smoke
+    scripts still consume it to run Bearer-authenticated requests.
+  - No database schema change, business module change, production deploy, or
+    broad UI refactor.
+
+- Completed High C auth/session Phase 1:
+  - Auth login/bootstrap/change-password issue the existing session token into a
+    backend-set HttpOnly `smarttour.auth.token` cookie with SameSite=Lax,
+    path=/, environment-aware Secure, and session-aligned expiry.
+  - Logout is public so stale/expired browser sessions can still receive a
+    clear-cookie response; valid cookie/header sessions are revoked with the
+    audit actor derived from the token.
+  - Auth token extraction still supports Bearer for scripts but prefers the
+    cookie when both are present.
+  - Frontend login/authFetch/logout/security/change-password/finance flows no
+    longer read, store, or send `smarttour.auth.token` via localStorage,
+    document.cookie token creation, or Authorization Bearer. Only best-effort
+    legacy cleanup remains.
+  - Added `scripts/test-auth-cookie-session.sh` and expanded auth
+    token/guard regressions for cookie precedence and controller Set-Cookie /
+    clear-cookie behavior.
+  - No database schema change, business module change, frontend deploy, or API
+    deploy.
+  - Verified on VPS: `TEST_AUTH_COOKIE_SESSION_OK`,
+    `TEST_AUTH_TOKEN_EXTRACTION_OK`, `TEST_AUTH_GUARD_BEHAVIOR_OK`,
+    `TEST_AUTH_CONTROLLER_PERMISSIONS_OK`, `TEST_AUTH_SESSION_FLOWS_OK`, and
+    `docker compose build web`.
+
+- Hardened Commission Reports scope and payment integrity:
+  - Approve/reject/revoke/pay controller actions now pass `request.user`; the
+    service applies branch/department scope before every mutation and derives
+    actors from the authenticated user.
+  - Report reads and explicit sync pass the current user into order-to-commission
+    synchronization so scoped users cannot create/update out-of-scope reports.
+  - Mutations run in transactions with deterministic id ordering and
+    `CommissionEntry` row locks. Pay validates resolved amount is positive and
+    no greater than the locked row's `remainingAmount`.
+  - Regression covers scoped list/summary/grouping/detail, out-of-scope
+    mutations, invalid transitions, actor spoofing, overpayment, and concurrent
+    double-payment prevention.
+  - Verified on VPS with `TEST_COMMISSION_REPORTS_SECURITY_OK`,
+    `DATA_SCOPE_AUDIT_OK`, `TEST_LIST_VIEW_PERFORMANCE_OK`,
+    `git diff --check`, `docker compose config --quiet`, and
+    `docker compose build api`.
+
+- Hardened Finance approval/status write boundary:
+  - Receipt, payment, and invoice create/import now force `DRAFT`, derive
+    `createdBy` from the request user, and ignore client approval/status/audit
+    fields.
+  - Ordinary updates cannot change approval/lifecycle status; approve, reject,
+    and cancel remain the only transition paths and derive their actors from
+    the request user.
+  - Finance service regression now covers spoofed create/update audit fields
+    and server-derived approve/cancel actors for all three document types.
+  - Verified on VPS with `TEST_FINANCE_SERVICE_FLOWS_OK`,
+    `TEST_FINANCE_CONTROLLER_PERMISSIONS_OK`,
+    `TEST_FINANCE_HELPER_CONTRACTS_OK`, `TEST_FINANCE_RULES_OK`,
+    `git diff --check`, and `docker compose build api`.
+
 
 - Hardened Operations frontend contract:
   - OperationsClient now uses generic supplier data with supplierServices,
@@ -1329,3 +1400,22 @@
   - lowMarginTours now ignores cancelled/settled/deleted orders and focuses on upcoming/running/completed orders with revenue and negative profit.
   - getModules() now returns structured module-card metadata with key, Vietnamese label, route, permission, metrics, order, and enabled flag; child tables operation-services/operation-costs are no longer exposed as standalone modules.
   - Verified on VPS: TEST_OPERATIONS_CONTROLLER_CONTRACT_OK, docker compose build api, API deploy, and SMOKE_OPERATIONS_BACKEND_OK.
+
+- 2026-06-13 Completed High A data-leak and authorization hardening:
+  - Replaced predictable quotation SmartLink values with rotating 32-byte random base64url tokens and made the public endpoint return only a cost-safe public projection.
+  - Added dedicated cashflow/debt permissions to finance/debt reports and their sensitive CSV exports.
+  - Added metadata, parent permission, and branch/department checks to generic file download/delete.
+  - Added customer-backed branch/department scope to TourQuote list/detail/create/update/delete/approve/reject/convert and to customer-related TourQuote reads.
+  - Added `scripts/test-high-a-data-access.sh` and updated affected quote/report/file smoke expectations.
+  - No database schema change and no deployment.
+  - Verified: `TEST_HIGH_A_DATA_ACCESS_OK`, API Docker build, `TEST_ROUTE_PERMISSIONS_OK`, and `TEST_FILE_SERVICE_ERROR_FLOWS_OK`.
+
+- 2026-06-13 Completed High B finance workflow and audit actor hardening:
+  - Removed commission synchronization writes from all GET/report/export paths while keeping explicit protected sync.
+  - Moved operation-voucher paid amount/status updates to approved FinancePayment reconciliation; pending/rejected payments leave debt unchanged and cancel reverses approved settlement.
+  - Required approved linked FinancePayments for operation-voucher settlement, added row locking/overpayment guards, and blocked duplicate active payment vouchers.
+  - Derived finance/operations/customer audit actors and audit fields from `request.user`, recorded AuditLog `actorId`, and stripped spoofable actor fields from operation audit payloads.
+  - Added `scripts/test-high-b-finance-audit.sh` and expanded finance/commission/operation-voucher/customer regression coverage.
+  - No schema/frontend/deploy changes.
+  - Verified: `TEST_HIGH_B_FINANCE_AUDIT_OK`, `TEST_COMMISSION_REPORTS_SECURITY_OK`, `TEST_OPERATION_VOUCHERS_SERVICE_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build, and `git diff --check`.
+  - Unrelated pre-existing failures remain in operations controller contract supplier-service expectation and customer file MIME-message expectation.

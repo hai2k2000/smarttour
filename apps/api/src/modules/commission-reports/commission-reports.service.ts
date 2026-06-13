@@ -19,7 +19,6 @@ export class CommissionReportsService {
   }
 
   async list(query: Record<string, string>, user?: RequestUser) {
-    await this.syncFromOrders();
     const where = branchDepartmentScopeWhere(this.where(query), user);
     const [rows, summaryRows] = await Promise.all([
       this.prisma.commissionEntry.findMany({
@@ -34,7 +33,6 @@ export class CommissionReportsService {
   }
 
   async summary(query: Record<string, string>, user?: RequestUser) {
-    await this.syncFromOrders();
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     return this.summaryFromRows(rows);
   }
@@ -61,7 +59,6 @@ export class CommissionReportsService {
   }
 
   async grouping(groupBy: string, query: Record<string, string>, user?: RequestUser) {
-    await this.syncFromOrders();
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     return this.groupingFromRows(rows, groupBy);
   }
@@ -98,43 +95,52 @@ export class CommissionReportsService {
     return row;
   }
 
-  async approve(dto: AnyRecord) {
+  async approve(dto: AnyRecord, user?: RequestUser) {
     const ids = this.ids(dto);
-    const actor = this.text(dto.actor) || 'accounting';
-    await this.prisma.$transaction(ids.map((id) => this.prisma.commissionEntry.update({
-      where: { id },
-      data: {
-        status: CommissionStatus.APPROVED,
-        approvedBy: actor,
-        approvedAt: new Date(),
-        logs: { create: { action: 'APPROVE', actor, note: this.text(dto.note), newStatus: CommissionStatus.APPROVED } },
-      },
-    })));
+    const actor = this.actor(user);
+    await this.prisma.$transaction(async (tx) => {
+      for (const id of ids) {
+        const row = await this.scopedEntryForUpdate(tx, id, user);
+        if (row.status !== CommissionStatus.PENDING) throw new BadRequestException('Only pending commission can be approved');
+        await tx.commissionEntry.update({
+          where: { id },
+          data: {
+            status: CommissionStatus.APPROVED,
+            approvedBy: actor,
+            approvedAt: new Date(),
+            logs: { create: { action: 'APPROVE', actor, note: this.text(dto.note), oldStatus: row.status, newStatus: CommissionStatus.APPROVED } },
+          },
+        });
+      }
+    });
     return { approved: ids.length };
   }
 
-  async reject(dto: AnyRecord) {
-    return this.changeStatus(dto, CommissionStatus.REJECTED, 'REJECT');
+  async reject(dto: AnyRecord, user?: RequestUser) {
+    return this.changeStatus(dto, CommissionStatus.REJECTED, 'REJECT', user);
   }
 
-  async revoke(dto: AnyRecord) {
-    return this.changeStatus(dto, CommissionStatus.REVOKED, 'REVOKE');
+  async revoke(dto: AnyRecord, user?: RequestUser) {
+    return this.changeStatus(dto, CommissionStatus.REVOKED, 'REVOKE', user);
   }
 
-  async pay(dto: AnyRecord) {
+  async pay(dto: AnyRecord, user?: RequestUser) {
     const ids = this.ids(dto);
-    const totalAmount = this.decimal(dto.amount);
-    const actor = this.text(dto.actor) || 'accounting';
+    const requestedAmount = this.paymentAmount(dto.amount);
+    if (ids.length > 1 && requestedAmount !== undefined) throw new BadRequestException('amount can only be used with one commission report');
+    const actor = this.actor(user);
     const voucherNo = this.text(dto.voucherNo);
     const receiver = this.text(dto.receiver);
     await this.prisma.$transaction(async (tx) => {
       for (const id of ids) {
-        const row = await tx.commissionEntry.findUnique({ where: { id } });
-        if (!row) throw new NotFoundException('Commission entry not found');
+        const row = await this.scopedEntryForUpdate(tx, id, user);
         if (row.status !== CommissionStatus.APPROVED) throw new BadRequestException('Only approved commission can be paid');
-        const amount = ids.length === 1 && totalAmount > 0 ? totalAmount : Number(row.remainingAmount);
+        const remaining = Number(row.remainingAmount);
+        const amount = requestedAmount ?? remaining;
+        if (amount <= 0) throw new BadRequestException('Payment amount must be greater than 0');
+        if (amount > remaining) throw new BadRequestException('Payment amount cannot exceed remaining commission');
         const paidAmount = Number(row.paidAmount) + amount;
-        const remainingAmount = Math.max(Number(row.commissionAmount) - paidAmount, 0);
+        const remainingAmount = remaining - amount;
         const paymentStatus = remainingAmount <= 0 ? CommissionPaymentStatus.PAID : CommissionPaymentStatus.PARTIAL;
         await tx.commissionEntry.update({
           where: { id },
@@ -174,9 +180,9 @@ export class CommissionReportsService {
     })));
   }
 
-  async syncFromOrders() {
+  async syncFromOrders(user?: RequestUser) {
     const [orders, rules] = await Promise.all([
-      this.prisma.order.findMany({ where: { deletedAt: null, status: { not: OrderStatus.CANCELLED } } }),
+      this.prisma.order.findMany({ where: branchDepartmentScopeWhere({ deletedAt: null, status: { not: OrderStatus.CANCELLED } }, user) }),
       this.prisma.commissionRule.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } }),
     ]);
     let created = 0;
@@ -220,18 +226,32 @@ export class CommissionReportsService {
     return { created, updated, scanned: orders.length };
   }
 
-  private async changeStatus(dto: AnyRecord, status: CommissionStatus, action: string) {
+  private async changeStatus(dto: AnyRecord, status: CommissionStatus, action: string, user?: RequestUser) {
     const ids = this.ids(dto);
-    const actor = this.text(dto.actor) || 'accounting';
-    await this.prisma.$transaction(ids.map((id) => this.prisma.commissionEntry.update({
-      where: { id },
-      data: {
-        status,
-        rejectedBy: status === CommissionStatus.REJECTED ? actor : undefined,
-        rejectedAt: status === CommissionStatus.REJECTED ? new Date() : undefined,
-        logs: { create: { action, actor, note: this.text(dto.note), newStatus: status } },
-      },
-    })));
+    const actor = this.actor(user);
+    await this.prisma.$transaction(async (tx) => {
+      for (const id of ids) {
+        const row = await this.scopedEntryForUpdate(tx, id, user);
+        if (status === CommissionStatus.REJECTED && row.status !== CommissionStatus.PENDING) {
+          throw new BadRequestException('Only pending commission can be rejected');
+        }
+        if (status === CommissionStatus.REVOKED && row.status !== CommissionStatus.APPROVED) {
+          throw new BadRequestException('Only approved commission can be revoked');
+        }
+        if (status === CommissionStatus.REVOKED && Number(row.paidAmount) > 0) {
+          throw new BadRequestException('Paid commission cannot be revoked');
+        }
+        await tx.commissionEntry.update({
+          where: { id },
+          data: {
+            status,
+            rejectedBy: status === CommissionStatus.REJECTED ? actor : undefined,
+            rejectedAt: status === CommissionStatus.REJECTED ? new Date() : undefined,
+            logs: { create: { action, actor, note: this.text(dto.note), oldStatus: row.status, newStatus: status } },
+          },
+        });
+      }
+    });
     return { changed: ids.length, status };
   }
 
@@ -283,7 +303,7 @@ export class CommissionReportsService {
   private ids(dto: AnyRecord) {
     const ids = Array.isArray(dto.ids) ? dto.ids.map((id) => this.text(id)).filter((id): id is string => !!id) : [];
     const single = this.text(dto.id);
-    const result = single ? [single] : ids;
+    const result = [...new Set(single ? [single] : ids)].sort();
     if (!result.length) throw new BadRequestException('id or ids is required');
     return result;
   }
@@ -307,9 +327,22 @@ export class CommissionReportsService {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
-  private decimal(value: unknown) {
-    const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0;
-    return Number.isFinite(number) ? number : 0;
+  private paymentAmount(value: unknown) {
+    if (value === undefined || value === null || value === '') return undefined;
+    const amount = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Payment amount must be greater than 0');
+    return amount;
+  }
+
+  private async scopedEntryForUpdate(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    await tx.$queryRaw`SELECT "id" FROM "CommissionEntry" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.commissionEntry.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
+    if (!row) throw new NotFoundException('Commission entry not found');
+    return row;
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
   }
 
   private toCsv(rows: AnyRecord[]) {

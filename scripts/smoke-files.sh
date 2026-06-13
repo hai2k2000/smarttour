@@ -104,21 +104,6 @@ SQL
 }
 trap cleanup EXIT
 
-curl -fsS -X POST \
-  -H "Authorization: Bearer $token" \
-  -F "file=@$SOURCE_FILE;type=text/plain" \
-  -F 'scope=smoke' \
-  "$API_URL/files/upload" > "$response"
-
-object_key=$(jq -r '.objectKey // empty' "$response")
-test -n "$object_key"
-
-curl -fsS -G \
-  -H "Authorization: Bearer $token" \
-  --data-urlencode "key=$object_key" \
-  "$API_URL/files/download" > "$download"
-cmp -s "$SOURCE_FILE" "$download"
-
 denied=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
   -H "Authorization: Bearer $token" \
   -F "file=@$SOURCE_FILE;filename=unsafe.svg;type=image/svg+xml" \

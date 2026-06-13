@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions, FilesService } from './files.service';
 
@@ -24,8 +25,8 @@ export class FilesController {
 
   @Get('download')
   @RequirePermissions('file.view')
-  async download(@Query('key') key: string | undefined, @Res() response: any) {
-    const file = await this.filesService.download(key);
+  async download(@Query('key') key: string | undefined, @Req() request: { user?: RequestUser }, @Res() response: any) {
+    const file = await this.filesService.downloadAuthorized(key, request.user);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.size));
     response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
@@ -34,7 +35,7 @@ export class FilesController {
 
   @Delete()
   @RequirePermissions('file.manage')
-  remove(@Query('key') key: string | undefined) {
-    return this.filesService.remove(key);
+  remove(@Query('key') key: string | undefined, @Req() request: { user?: RequestUser }) {
+    return this.filesService.removeAuthorized(key, request.user);
   }
 }

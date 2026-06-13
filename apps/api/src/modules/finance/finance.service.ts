@@ -15,6 +15,25 @@ import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from '
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
+const PROTECTED_FINANCE_WRITE_FIELDS = new Set([
+  'actor',
+  'approvalStatus',
+  'status',
+  'approvedBy',
+  'approvedAt',
+  'rejectedBy',
+  'rejectedAt',
+  'cancelledBy',
+  'cancelledAt',
+  'cancelReason',
+  'createdBy',
+  'updatedBy',
+  'createdAt',
+  'updatedAt',
+  'deletedAt',
+  'lockedAt',
+  'reversalOfId',
+]);
 
 @Injectable()
 export class FinanceService {
@@ -65,21 +84,22 @@ export class FinanceService {
   }
 
   async createReceipt(dto: AnyRecord, user?: RequestUser) {
-    dto = applyWriteDataScope(dto, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto), user);
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
       const orders = this.receiptOrders(dto);
       await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orders }, user), 'Phiếu thu');
-      const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode, tourId }), orders: { create: orders } }, include: { orders: true } });
-      await this.audit(tx, 'CREATE', 'FinanceReceipt', receipt.id, dto);
+      const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
+      await this.audit(tx, 'CREATE', 'FinanceReceipt', receipt.id, dto, user);
       return receipt;
     });
   }
 
   async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
-    dto = applyWriteDataScope(dto, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto), user);
     if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu thu');
     return this.prisma.$transaction(async (tx) => {
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
@@ -92,7 +112,7 @@ export class FinanceService {
         data.orders = { create: orders };
       }
       const receipt = await tx.financeReceipt.update({ where: { id }, data, include: { orders: true } });
-      await this.audit(tx, 'UPDATE', 'FinanceReceipt', id, dto);
+      await this.audit(tx, 'UPDATE', 'FinanceReceipt', id, dto, user);
       return receipt;
     });
   }
@@ -104,7 +124,7 @@ export class FinanceService {
   }
 
   async approveReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
@@ -125,7 +145,7 @@ export class FinanceService {
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, Number(line.amount));
       }
-      await this.audit(tx, 'APPROVE', 'FinanceReceipt', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, 'APPROVE', 'FinanceReceipt', id, { actor, note: this.text(dto.note) }, user);
       return receipt;
     });
   }
@@ -135,7 +155,7 @@ export class FinanceService {
   }
 
   async cancelReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu thu đã duyệt';
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
@@ -192,7 +212,7 @@ export class FinanceService {
       for (const line of receipt.orders) {
         if (line.orderId) await applyOrderReceipt(tx, line.orderId, -Number(line.amount));
       }
-      await this.audit(tx, 'CANCEL', 'FinanceReceipt', id, { actor, reason, reversalId: reversal.id });
+      await this.audit(tx, 'CANCEL', 'FinanceReceipt', id, { actor, reason, reversalId: reversal.id }, user);
       return tx.financeReceipt.findUnique({ where: { id }, include: { reversals: true } });
     });
   }
@@ -252,26 +272,27 @@ export class FinanceService {
   }
 
   async createPayment(dto: AnyRecord, user?: RequestUser) {
-    dto = applyWriteDataScope(dto, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto), user);
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), 'Phiếu chi');
-      const payment = await tx.financePayment.create({ data: this.paymentData({ ...dto, voucherCode, tourId }) });
-      await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto);
+      const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...dto, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
+      await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto, user);
       return payment;
     });
   }
 
   async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
-    dto = applyWriteDataScope(dto, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto), user);
     if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, 'Phiếu chi');
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode, tourId }) });
-      await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto);
+      await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto, user);
       return payment;
     });
   }
@@ -286,7 +307,7 @@ export class FinanceService {
   }
 
   async approvePayment(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
@@ -305,7 +326,7 @@ export class FinanceService {
       await upsertPaymentSupplierLedger(tx, postedPayment, supplierId, actor);
       if (payment.orderId) await applyOrderPayment(tx, payment.orderId, Number(payment.paymentAmount));
       await reconcileApprovedPayment(tx, payment);
-      await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, 'APPROVE', 'FinancePayment', id, { actor, note: this.text(dto.note) }, user);
       return payment;
     });
   }
@@ -315,7 +336,7 @@ export class FinanceService {
   }
 
   async cancelPayment(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu chi đã duyệt';
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
@@ -335,7 +356,7 @@ export class FinanceService {
       await createPaymentReversalSupplierLedger(tx, postedPayment, reversal.id, supplierId, reversalCode, reason, actor);
       if (payment.orderId) await applyOrderPayment(tx, payment.orderId, -Number(payment.paymentAmount));
       await reconcileCancelledPayment(tx, payment);
-      await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id });
+      await this.audit(tx, 'CANCEL', 'FinancePayment', id, { actor, reason, reversalId: reversal.id }, user);
       return tx.financePayment.findUnique({ where: { id }, include: { reversals: true } });
     });
   }
@@ -381,22 +402,23 @@ export class FinanceService {
   }
 
   async createInvoice(dto: AnyRecord, user?: RequestUser) {
-    dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto) as AnyRecord & { branch?: string | null; department?: string | null }, user);
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user);
       await this.assertInvoiceWriteScope(tx, dto, user);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user), 'Hóa đơn');
       const calculated = this.invoiceData({ ...dto, tourId });
-      const invoice = await tx.financeInvoice.create({ data: { ...calculated, invoiceCode, items: { create: this.invoiceItems(dto) } }, include: { items: true } });
-      await this.audit(tx, 'CREATE', 'FinanceInvoice', invoice.id, dto);
+      const invoice = await tx.financeInvoice.create({ data: { ...calculated, invoiceCode, status: 'DRAFT', approvalStatus: 'DRAFT', createdBy: actor, items: { create: this.invoiceItems(dto) } }, include: { items: true } });
+      await this.audit(tx, 'CREATE', 'FinanceInvoice', invoice.id, dto, user);
       return invoice;
     });
   }
 
   async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.invoiceDetail(id, user);
-    dto = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
+    dto = applyWriteDataScope(this.financeWriteInput(dto) as AnyRecord & { branch?: string | null; department?: string | null }, user);
     if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Hóa đơn');
     return this.prisma.$transaction(async (tx) => {
       const hasItems = Object.prototype.hasOwnProperty.call(dto, 'items');
@@ -414,7 +436,7 @@ export class FinanceService {
         data.items = { create: this.invoiceItems(dto) };
       }
       const invoice = await tx.financeInvoice.update({ where: { id }, data, include: { items: true } });
-      await this.audit(tx, 'UPDATE', 'FinanceInvoice', id, dto);
+      await this.audit(tx, 'UPDATE', 'FinanceInvoice', id, dto, user);
       return invoice;
     });
   }
@@ -426,7 +448,7 @@ export class FinanceService {
   }
 
   async approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceInvoice(tx, id);
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
@@ -438,26 +460,26 @@ export class FinanceService {
       if (tourId && invoice.tourId !== tourId) await tx.financeInvoice.update({ where: { id }, data: { tourId } });
       const invoiceCustomerScope = await resolveInvoiceCustomerScope(tx, invoice, user);
       await upsertInvoiceCustomerLedger(tx, { ...invoice, tourId, branch: invoiceCustomerScope.branch, department: invoiceCustomerScope.department }, invoiceCustomerScope.customerId, actor);
-      await this.audit(tx, 'APPROVE', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, 'APPROVE', 'FinanceInvoice', id, { actor, note: this.text(dto.note) }, user);
       return invoice;
     });
   }
 
   async rejectInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceInvoice(tx, id);
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
       assertCanRejectFinanceEntity(current, 'Hóa đơn');
       const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', approvedBy: actor, approvedAt: new Date() } });
-      await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) });
+      await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) }, user);
       return invoice;
     });
   }
 
   async cancelInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy hóa đơn đã duyệt';
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceInvoice(tx, id);
@@ -473,7 +495,7 @@ export class FinanceService {
       await tx.financeInvoice.update({ where: { id }, data: { status: 'CANCELLED', approvalStatus: 'CANCELLED', cancelledBy: actor, cancelledAt: new Date(), cancelReason: reason } });
       const invoiceCustomerScope = await resolveInvoiceCustomerScope(tx, invoice, user);
       await createInvoiceReversalCustomerLedger(tx, { ...invoice, tourId, branch: invoiceCustomerScope.branch, department: invoiceCustomerScope.department }, reversal.id, invoiceCustomerScope.customerId, reversalCode, reason, actor);
-      await this.audit(tx, 'CANCEL', 'FinanceInvoice', id, { actor, reason, reversalId: reversal.id });
+      await this.audit(tx, 'CANCEL', 'FinanceInvoice', id, { actor, reason, reversalId: reversal.id }, user);
       return tx.financeInvoice.findUnique({ where: { id }, include: { reversals: true } });
     });
   }
@@ -539,7 +561,7 @@ export class FinanceService {
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     const direction = this.adjustmentDirection(dto);
     const amount = this.adjustmentAmount(dto);
-    const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
       const entry = await tx.customerLedgerEntry.create({
@@ -562,7 +584,7 @@ export class FinanceService {
           createdBy: actor,
         },
       });
-      await this.audit(tx, 'ADJUST', 'CustomerLedgerEntry', entry.id, { customerId, direction, amount, actor });
+      await this.audit(tx, 'ADJUST', 'CustomerLedgerEntry', entry.id, { customerId, direction, amount, actor }, user);
       return entry;
     });
   }
@@ -573,7 +595,7 @@ export class FinanceService {
     const scoped = applyWriteDataScope(dto as AnyRecord & { branch?: string | null; department?: string | null }, user);
     const direction = this.adjustmentDirection(dto);
     const amount = this.adjustmentAmount(dto);
-    const actor = this.text(dto.actor) || user?.username || user?.email || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
       const entry = await tx.supplierLedgerEntry.create({
@@ -596,24 +618,25 @@ export class FinanceService {
           createdBy: actor,
         },
       });
-      await this.audit(tx, 'ADJUST', 'SupplierLedgerEntry', entry.id, { supplierId, direction, amount, actor });
+      await this.audit(tx, 'ADJUST', 'SupplierLedgerEntry', entry.id, { supplierId, direction, amount, actor }, user);
       return entry;
     });
   }
 
   async importReceipts(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     const rows = financeImportRows(dto, file).map((row, index) => validateReceiptImportRow(row, index + 2));
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await this.assertImportCodesAvailable('receipts', rows, 'receiptCode', tx);
       const imported = [];
       for (const rawRow of rows) {
-        const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
+        const row = applyWriteDataScope(this.financeWriteInput(rawRow as AnyRecord) as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const receiptCode = this.text(row.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(row.paymentDate), this.text(row.branch));
         const orders = this.receiptOrders(row);
         await assertReceiptOrderLinks(tx, { customerId: this.text(row.customerId), orders }, user);
         const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orders }, user), 'Phiếu thu');
-        const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode, tourId }), orders: { create: orders } }, include: { orders: true } });
-        await this.audit(tx, 'IMPORT', 'FinanceReceipt', receipt.id, { source: file?.originalname || 'rows' });
+        const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
+        await this.audit(tx, 'IMPORT', 'FinanceReceipt', receipt.id, { source: file?.originalname || 'rows' }, user);
         imported.push(receipt);
       }
       return { type: 'receipts', imported: imported.length, rows: imported };
@@ -622,16 +645,17 @@ export class FinanceService {
 
   async importPayments(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     const rows = financeImportRows(dto, file).map((row, index) => validatePaymentImportRow(row, index + 2));
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await this.assertImportCodesAvailable('payments', rows, 'voucherCode', tx);
       const imported = [];
       for (const rawRow of rows) {
-        const row = applyWriteDataScope(rawRow as AnyRecord & { branch?: string | null; department?: string | null }, user);
+        const row = applyWriteDataScope(this.financeWriteInput(rawRow as AnyRecord) as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const voucherCode = this.text(row.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(row.paymentDate), this.text(row.branch));
         await assertPaymentLinks(tx, { supplierId: this.text(row.supplierId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user);
         const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), 'Phiếu chi');
-        const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode, tourId }) } });
-        await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' });
+        const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
+        await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' }, user);
         imported.push(payment);
       }
       return { type: 'payments', imported: imported.length, rows: imported };
@@ -678,17 +702,14 @@ export class FinanceService {
       paidBefore,
       receiptAmount,
       remainingAmount: Math.max(total - paidBefore - receiptAmount, 0),
-      approvalStatus: (this.text(dto.approvalStatus) || 'DRAFT') as never,
       branch: this.text(dto.branch),
       department: this.text(dto.department),
       assignedStaff: this.text(dto.assignedStaff),
-      approvedBy: this.text(dto.approvedBy),
       collectorSupplier: this.text(dto.collectorSupplier),
       follower: this.text(dto.follower),
       tourCreator: this.text(dto.tourCreator),
       attachmentName: this.text(dto.attachmentName),
       attachmentUrl: this.text(dto.attachmentUrl),
-      createdBy: this.text(dto.createdBy),
     };
   }
 
@@ -732,15 +753,12 @@ export class FinanceService {
       bankAccountNumber: this.text(dto.bankAccountNumber),
       bankName: this.text(dto.bankName),
       isSupplierDeposit: Boolean(dto.isSupplierDeposit),
-      approvalStatus: (this.text(dto.approvalStatus) || 'DRAFT') as never,
       branch: this.text(dto.branch),
       department: this.text(dto.department),
       assignedStaff: this.text(dto.assignedStaff),
-      approvedBy: this.text(dto.approvedBy),
       follower: this.text(dto.follower),
       attachmentName: this.text(dto.attachmentName),
       attachmentUrl: this.text(dto.attachmentUrl),
-      createdBy: this.text(dto.createdBy),
     };
   }
 
@@ -788,10 +806,7 @@ export class FinanceService {
       vat8Total: byRate(8, 'taxAmount'),
       vat10Total: byRate(10, 'taxAmount'),
       amountInWords: this.text(dto.amountInWords) || `${Math.round(totalAfterTax).toLocaleString('vi-VN')} VND`,
-      status: (this.text(dto.status) || 'DRAFT') as never,
-      approvalStatus: (this.text(dto.approvalStatus) || 'DRAFT') as never,
       note: this.text(dto.note),
-      createdBy: this.text(dto.createdBy),
     };
   }
 
@@ -817,20 +832,20 @@ export class FinanceService {
     });
   }
   private async changeReceiptStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu thu');
       const receipt = await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
-      await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinanceReceipt', id, { actor, status, note: this.text(dto.note) });
+      await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinanceReceipt', id, { actor, status, note: this.text(dto.note) }, user);
       return receipt;
     });
   }
 
   private async changePaymentStatus(id: string, status: FinanceApprovalStatus, dto: AnyRecord, user?: RequestUser) {
-    const actor = this.text(dto.actor) || 'accounting';
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
@@ -840,7 +855,7 @@ export class FinanceService {
       if (status === FinanceApprovalStatus.REJECTED) {
         await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: id }, data: { financePaymentId: null, status: 'APPROVED' } });
       }
-      await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinancePayment', id, { actor, status, note: this.text(dto.note) });
+      await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinancePayment', id, { actor, status, note: this.text(dto.note) }, user);
       return payment;
     });
   }
@@ -949,8 +964,8 @@ export class FinanceService {
     };
   }
 
-  private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata: unknown) {
-    await tx.auditLog.create({ data: { action, entity, entityId, metadata: metadata as Prisma.InputJsonValue } });
+  private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata: unknown, user?: RequestUser) {
+    await tx.auditLog.create({ data: { action, entity, entityId, actorId: user?.id, metadata: metadata as Prisma.InputJsonValue } });
   }
 
   private dateRange(field: 'paymentDate' | 'issuedDate', from?: string, to?: string) {
@@ -990,6 +1005,15 @@ export class FinanceService {
     if (amount <= 0) throw new BadRequestException('amount phải lớn hơn 0');
     return amount;
   }
+
+  private financeWriteInput(dto: AnyRecord) {
+    return Object.fromEntries(Object.entries(dto).filter(([key]) => !PROTECTED_FINANCE_WRITE_FIELDS.has(key)));
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
+  }
+
   private text(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }

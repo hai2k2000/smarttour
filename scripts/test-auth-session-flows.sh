@@ -81,7 +81,7 @@ async function main() {
 
   const logoutSession = await auth.login({ email, password }, request);
   await auth.validateToken(logoutSession.token);
-  await auth.logout(logoutSession.token, logoutSession.user.id);
+  await auth.logout(logoutSession.token);
   await rejects(() => auth.validateToken(logoutSession.token), 'logout should revoke token');
   assert(await prisma.auditLog.count({ where: { actorId: logoutSession.user.id, action: 'LOGOUT' } }) === 1, 'logout should write audit log in the revoke transaction');
   const logoutAudit = await prisma.auditLog.findFirst({ where: { actorId: logoutSession.user.id, action: 'LOGOUT' } });

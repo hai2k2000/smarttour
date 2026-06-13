@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderType, Prisma, QuotationStatus } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
@@ -64,7 +65,47 @@ export class QuotationsService {
   }
 
   async publicDetail(token: string) {
-    const quote = await this.prisma.quotation.findFirst({ where: { smartLinkToken: token, smartLinkEnabled: true }, include: { items: { orderBy: { sortOrder: 'asc' } } } });
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new NotFoundException('Quotation smartlink not found');
+    const quote = await this.prisma.quotation.findFirst({
+      where: { smartLinkToken: token, smartLinkEnabled: true },
+      select: {
+        quoteCode: true,
+        productType: true,
+        customerName: true,
+        productCategory: true,
+        route: true,
+        paxAdult: true,
+        paxChild: true,
+        paxInfant: true,
+        paxTotal: true,
+        currency: true,
+        createdDate: true,
+        expiredDate: true,
+        departureDate: true,
+        returnDate: true,
+        totalSelling: true,
+        sellingPerPax: true,
+        adultPrice: true,
+        childPrice: true,
+        infantPrice: true,
+        language: true,
+        terms: true,
+        items: {
+          select: {
+            serviceType: true,
+            serviceName: true,
+            unit: true,
+            quantity: true,
+            paxCount: true,
+            nightCount: true,
+            sellingPrice: true,
+            amount: true,
+            sortOrder: true,
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
     if (!quote) throw new NotFoundException('Quotation smartlink not found');
     return quote;
   }
@@ -76,7 +117,7 @@ export class QuotationsService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const totals = this.calculate(dto);
-        const quote = await tx.quotation.create({ data: { ...this.toData(dto), ...totals, smartLinkToken: this.token(dto.quoteCode) } as Prisma.QuotationCreateInput });
+        const quote = await tx.quotation.create({ data: { ...this.toData(dto), ...totals, smartLinkToken: this.token() } as Prisma.QuotationCreateInput });
         await this.replaceItems(tx, quote.id, dto.items ?? [], dto.exchangeRate);
         await tx.quotationApprovalLog.create({ data: { quotationId: quote.id, action: 'CREATE', newStatus: quote.status } });
         return tx.quotation.findUniqueOrThrow({ where: { id: quote.id }, include: this.includeAll() });
@@ -159,7 +200,11 @@ export class QuotationsService {
   async smartLink(id: string, enabled = true, user?: RequestUser) {
     const current = await this.detail(id, user);
     this.assertStatus(current.status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'toggle smartlink');
-    return this.prisma.quotation.update({ where: { id }, data: { smartLinkEnabled: enabled }, include: this.includeAll() });
+    return this.prisma.quotation.update({
+      where: { id },
+      data: enabled ? { smartLinkEnabled: true, smartLinkToken: this.token() } : { smartLinkEnabled: false },
+      include: this.includeAll(),
+    });
   }
 
   async convert(id: string, dto: QuotationActionDto, user?: RequestUser) {
@@ -385,8 +430,8 @@ export class QuotationsService {
     if (start && end && end < start) throw new BadRequestException(message);
   }
 
-  private token(code: string) {
-    return `${code.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
+  private token() {
+    return randomBytes(32).toString('base64url');
   }
 
   private text(value?: string | null) {

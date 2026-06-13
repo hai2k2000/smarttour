@@ -140,7 +140,7 @@ export class OperationVouchersService {
             remainAmount: totals.totalAmount,
             status: totals.status,
             note: payload.note,
-            createdBy: payload.createdBy,
+            createdBy: this.actor(user),
           },
         });
         await this.replaceDetails(tx, voucher.id, payload.details);
@@ -225,12 +225,20 @@ export class OperationVouchersService {
     return this.prisma.$transaction(async (tx) => {
       const voucher = await this.lockVoucherForPayment(tx, id, user);
       this.assertPayable(voucher, paymentAmount);
-      if (dto.paymentVoucherId) {
-        const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id: dto.paymentVoucherId }, user), select: { id: true } });
-        if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi tài chính');
-      }
+      const paymentVoucherId = this.text(dto.paymentVoucherId);
+      if (!paymentVoucherId) throw new BadRequestException('Cần chọn phiếu chi tài chính đã duyệt để ghi nhận thanh toán');
+      const payment = await tx.financePayment.findFirst({
+        where: branchDepartmentScopeWhere({ id: paymentVoucherId }, user),
+        select: { id: true, approvalStatus: true, operationVoucherId: true, paymentAmount: true },
+      });
+      if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi tài chính');
+      if (payment.approvalStatus !== 'APPROVED') throw new BadRequestException('Chỉ phiếu chi tài chính đã duyệt mới được ghi nhận thanh toán');
+      if (payment.operationVoucherId && payment.operationVoucherId !== id) throw new BadRequestException('Phiếu chi tài chính đã liên kết với phiếu điều hành khác');
+      if (paymentAmount > Number(payment.paymentAmount) + 0.000001) throw new BadRequestException('Số tiền ghi nhận không được vượt quá phiếu chi tài chính đã duyệt');
+      const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: id, paymentVoucherId: payment.id }, select: { id: true } });
+      if (existing) throw new BadRequestException('Phiếu chi tài chính đã được ghi nhận thanh toán');
       await tx.operationVoucherPayment.create({
-        data: { voucherId: id, paymentVoucherId: this.text(dto.paymentVoucherId), paidAmount: paymentAmount, paymentDate, note: this.text(dto.note) },
+        data: { voucherId: id, paymentVoucherId, paidAmount: paymentAmount, paymentDate, note: this.text(dto.note) },
       });
       const paidAmount = Number(voucher.paidAmount) + paymentAmount;
       const totals = this.calculate(voucher.details.map((item) => ({ quantity: Number(item.quantity), netPrice: Number(item.netPrice), vat: Number(item.vat), serviceName: item.serviceName })), paidAmount);
@@ -241,11 +249,17 @@ export class OperationVouchersService {
 
   async createPaymentVoucher(id: string, user?: RequestUser) {
     const scopedPayment = applyWriteDataScope({ branch: undefined, department: undefined }, user);
+    const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const voucher = await this.lockVoucherForPayment(tx, id, user);
       const amount = Number(voucher.remainAmount);
       this.assertPayable(voucher, amount);
-      const financePayment = await tx.financePayment.create({
+      const existingPayment = await tx.financePayment.findFirst({
+        where: { operationVoucherId: id, deletedAt: null, approvalStatus: { in: ['DRAFT', 'PENDING', 'APPROVED'] } },
+        select: { id: true },
+      });
+      if (existingPayment) throw new BadRequestException('Operation voucher already has an active finance payment');
+      await tx.financePayment.create({
         data: {
           ...scopedPayment,
           voucherCode: await this.nextAvailableFinancePaymentCode(tx),
@@ -261,20 +275,9 @@ export class OperationVouchersService {
           paymentAmount: amount,
           remainingAmount: 0,
           approvalStatus: 'PENDING',
-          createdBy: voucher.createdBy,
+          createdBy: actor,
         },
       });
-      await tx.operationVoucherPayment.create({
-        data: {
-          voucherId: id,
-          paymentVoucherId: financePayment.id,
-          paidAmount: amount,
-          paymentDate: new Date(),
-          note: 'Tạo phiếu chi từ phiếu điều hành',
-        },
-      });
-      const totals = this.calculate(voucher.details.map((item) => ({ quantity: Number(item.quantity), netPrice: Number(item.netPrice), vat: Number(item.vat) })), Number(voucher.paidAmount) + amount);
-      await tx.operationVoucher.update({ where: { id }, data: { paidAmount: Number(voucher.paidAmount) + amount, remainAmount: totals.remainAmount, status: totals.status } });
       return tx.operationVoucher.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
     });
   }
@@ -544,6 +547,10 @@ export class OperationVouchersService {
   private text(value?: unknown) {
     const trimmed = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
     return trimmed ? trimmed : null;
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.name || user?.id || 'operation';
   }
 
   private requiredText(value: unknown, message: string) {

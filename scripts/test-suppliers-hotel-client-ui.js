@@ -530,16 +530,23 @@ async function loadMockedList(page) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, ignoreHTTPSErrors: true });
   const siteUrl = new URL(site);
-  await context.addCookies([{ name: 'smarttour.auth.token', value: token, url: site }]);
-  await context.addInitScript(({ authToken }) => {
-    window.localStorage.setItem('smarttour.auth.token', authToken);
+  await context.addCookies([{
+    name: 'smarttour.auth.token',
+    value: token,
+    url: siteUrl.origin,
+    path: '/',
+    httpOnly: true,
+    secure: siteUrl.protocol === 'https:',
+    sameSite: 'Lax',
+  }]);
+  await context.addInitScript(() => {
+    window.localStorage.removeItem('smarttour.auth.token');
     window.localStorage.setItem('smarttour.auth.user', JSON.stringify({
       id: 'hotel-ui-user',
       name: 'Hotel UI Tester',
       permissions: ['supplier.view', 'supplier.manage'],
     }));
-    document.cookie = `smarttour.auth.token=${encodeURIComponent(authToken)}; path=/; max-age=3600; SameSite=Lax`;
-  }, { authToken: token });
+  });
 
   const page = await context.newPage();
   const issues = [];

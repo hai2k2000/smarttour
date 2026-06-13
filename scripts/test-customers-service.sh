@@ -160,6 +160,7 @@ async function main() {
     opportunities: [{ title: 'Opportunity A', value: 1000, probability: 50 }],
   }, branchUser);
   assert(customer.branch === 'BR-A', 'create should inject branch scope');
+  assert(customer.createdBy === branchUser.name && customer.comments[0].createdBy === branchUser.name, 'create should derive customer and comment createdBy from request.user');
   assert(customer.contacts.length === 1 && customer.tags.length === 1, 'create should persist contacts and tags');
 
   await rejectsMessage(() => realFiles.upload(undefined), 'Cần chọn file', 'file upload should require a selected file');
@@ -202,7 +203,7 @@ async function main() {
   await rejects(() => service.bulkUpdate({ customerIds: [customer.id], branch: 'BR-B' }, branchUser), 'bulkUpdate should reject branch changes outside scope');
   await service.bulkUpdate({ customerIds: [customer.id], owner: 'owner-bulk', tagIds: [tagA.id], actor: 'bulk-actor', note: 'bulk note' }, branchUser);
   assert((await prisma.customer.findUnique({ where: { id: customer.id } })).owner === 'owner-bulk', 'bulkUpdate should update scoped customer');
-  assert(await prisma.customerTimeline.count({ where: { customerId: customer.id, eventType: 'BULK_UPDATE', actor: 'bulk-actor', content: 'bulk note' } }) === 1, 'bulkUpdate should write actor and note');
+  assert(await prisma.customerTimeline.count({ where: { customerId: customer.id, eventType: 'BULK_UPDATE', actor: branchUser.name, content: 'bulk note' } }) === 1, 'bulkUpdate should derive actor from request.user and write note');
 
   await rejects(() => service.importRows({ rows: 'not-array' }, branchUser), 'importRows should reject non-array rows');
   const importedPhone = '094' + String(Date.now()).slice(-7);

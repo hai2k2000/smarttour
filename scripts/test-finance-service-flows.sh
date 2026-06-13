@@ -34,6 +34,7 @@ const { FinanceLedgerService } = require('./apps/api/dist/modules/finance/financ
 const { FinancePaymentService } = require('./apps/api/dist/modules/finance/finance-payment.service');
 const { FinanceReceiptService } = require('./apps/api/dist/modules/finance/finance-receipt.service');
 const { FinanceService } = require('./apps/api/dist/modules/finance/finance.service');
+const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -99,6 +100,7 @@ async function main() {
     },
   };
   const finance = new FinanceService(prisma, filesService);
+  const operationVouchers = new OperationVouchersService(prisma);
   const run = 'FIN-SVC-' + Date.now();
 
   const customer = await prisma.customer.create({
@@ -193,6 +195,123 @@ async function main() {
 
   const branchUser = scopedUser('FIN-BR', 'FIN-DEP', 'data.scope.branch');
   const outOfScopeUser = scopedUser('OTHER-BR', 'OTHER-DEP', 'data.scope.branch');
+  await prisma.user.create({
+    data: {
+      id: branchUser.id,
+      username: branchUser.username,
+      email: 'finance-scope-user@smarttour.local',
+      name: 'Finance Scope User',
+      passwordHash: 'test-only',
+      branch: branchUser.branch,
+      department: branchUser.department,
+    },
+  });
+
+  const pendingVoucher = await prisma.operationVoucher.create({
+    data: {
+      voucherCode: run + '-OV-PENDING',
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      serviceType: 'HOTEL',
+      serviceName: 'Approval boundary voucher',
+      serviceDate: new Date('2026-11-01'),
+      totalAmount: 300,
+      remainAmount: 300,
+      status: 'PENDING',
+      orderId: order.id,
+      tourId: tour.id,
+    },
+  });
+  let pendingVoucherView = await operationVouchers.createPaymentVoucher(pendingVoucher.id, branchUser);
+  let pendingFinancePayment = pendingVoucherView.financePayments[0];
+  assert(pendingVoucherView.status === 'PENDING' && amount(pendingVoucherView.paidAmount) === 0 && amount(pendingVoucherView.remainAmount) === 300 && pendingVoucherView.payments.length === 0, 'pending finance payment must not settle operation voucher');
+  assert(pendingFinancePayment.approvalStatus === 'PENDING' && pendingFinancePayment.createdBy === branchUser.username, 'operation voucher finance payment should start pending with server actor');
+  await rejects(() => operationVouchers.addPayment(pendingVoucher.id, { paymentVoucherId: pendingFinancePayment.id, paymentAmount: 300 }, branchUser), 'pending finance payment must not be applied manually');
+  await finance.rejectPayment(pendingFinancePayment.id, { actor: 'client-spoof' }, branchUser);
+  pendingVoucherView = await operationVouchers.detail(pendingVoucher.id, branchUser);
+  assert(pendingVoucherView.status === 'PENDING' && amount(pendingVoucherView.paidAmount) === 0 && amount(pendingVoucherView.remainAmount) === 300 && pendingVoucherView.payments.length === 0, 'rejected finance payment must not change operation voucher debt');
+  pendingVoucherView = await operationVouchers.createPaymentVoucher(pendingVoucher.id, branchUser);
+  pendingFinancePayment = pendingVoucherView.financePayments.find((row) => row.approvalStatus === 'PENDING');
+  await finance.approvePayment(pendingFinancePayment.id, { actor: 'client-spoof' }, branchUser);
+  pendingVoucherView = await operationVouchers.detail(pendingVoucher.id, branchUser);
+  assert(pendingVoucherView.status === 'PAID' && amount(pendingVoucherView.paidAmount) === 300 && amount(pendingVoucherView.remainAmount) === 0 && pendingVoucherView.payments.length === 1, 'approved finance payment should settle operation voucher once');
+  await finance.cancelPayment(pendingFinancePayment.id, { actor: 'client-spoof', reason: 'cancel approval boundary test' }, branchUser);
+  pendingVoucherView = await operationVouchers.detail(pendingVoucher.id, branchUser);
+  assert(pendingVoucherView.status === 'PENDING' && amount(pendingVoucherView.paidAmount) === 0 && amount(pendingVoucherView.remainAmount) === 300 && pendingVoucherView.payments.length === 0, 'cancelled approved finance payment should restore operation voucher debt');
+
+  const spoofedAudit = {
+    approvalStatus: 'APPROVED',
+    approvedBy: 'client-spoof',
+    approvedAt: '2026-01-01',
+    cancelledBy: 'client-spoof',
+    cancelledAt: '2026-01-01',
+    createdBy: 'client-spoof',
+    lockedAt: '2026-01-01',
+  };
+  const protectedReceipt = await finance.createReceipt({
+    ...spoofedAudit,
+    receiptCode: run + '-PROTECTED-RCPT',
+    receiptName: 'Protected Receipt',
+    receiptType: 'TOUR_PAYMENT',
+    paymentMethod: 'CASH',
+    customerId: customer.id,
+    totalAmount: 50,
+    receiptAmount: 50,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  }, branchUser);
+  assert(protectedReceipt.approvalStatus === 'DRAFT' && !protectedReceipt.approvedBy && !protectedReceipt.approvedAt && !protectedReceipt.cancelledBy && !protectedReceipt.cancelledAt, 'receipt create should ignore client approval and audit fields');
+  assert(protectedReceipt.createdBy === branchUser.username, 'receipt create should derive createdBy from request user');
+  const protectedReceiptUpdated = await finance.updateReceipt(protectedReceipt.id, spoofedAudit, branchUser);
+  assert(protectedReceiptUpdated.approvalStatus === 'DRAFT' && !protectedReceiptUpdated.approvedBy && !protectedReceiptUpdated.approvedAt && !protectedReceiptUpdated.cancelledBy && !protectedReceiptUpdated.cancelledAt, 'receipt update should not change approval or audit fields');
+  const protectedReceiptApproved = await finance.approveReceipt(protectedReceipt.id, { actor: 'client-spoof' }, branchUser);
+  assert(protectedReceiptApproved.approvalStatus === 'APPROVED' && protectedReceiptApproved.approvedBy === branchUser.username, 'receipt approve should derive approvedBy from request user');
+  const protectedReceiptCancelled = await finance.cancelReceipt(protectedReceipt.id, { actor: 'client-spoof', reason: 'Protected receipt cancel' }, branchUser);
+  assert(protectedReceiptCancelled.approvalStatus === 'CANCELLED' && protectedReceiptCancelled.cancelledBy === branchUser.username, 'receipt cancel should derive cancelledBy from request user');
+
+  const protectedPayment = await finance.createPayment({
+    ...spoofedAudit,
+    voucherCode: run + '-PROTECTED-PAY',
+    voucherName: 'Protected Payment',
+    voucherType: 'SUPPLIER_PAYMENT',
+    paymentMethod: 'CASH',
+    supplierId: supplier.id,
+    totalAmount: 50,
+    paymentAmount: 50,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  }, branchUser);
+  assert(protectedPayment.approvalStatus === 'DRAFT' && !protectedPayment.approvedBy && !protectedPayment.approvedAt && !protectedPayment.cancelledBy && !protectedPayment.cancelledAt, 'payment create should ignore client approval and audit fields');
+  assert(protectedPayment.createdBy === branchUser.username, 'payment create should derive createdBy from request user');
+  const protectedPaymentUpdated = await finance.updatePayment(protectedPayment.id, spoofedAudit, branchUser);
+  assert(protectedPaymentUpdated.approvalStatus === 'DRAFT' && !protectedPaymentUpdated.approvedBy && !protectedPaymentUpdated.approvedAt && !protectedPaymentUpdated.cancelledBy && !protectedPaymentUpdated.cancelledAt, 'payment update should not change approval or audit fields');
+  const protectedPaymentApproved = await finance.approvePayment(protectedPayment.id, { actor: 'client-spoof' }, branchUser);
+  assert(protectedPaymentApproved.approvalStatus === 'APPROVED' && protectedPaymentApproved.approvedBy === branchUser.username, 'payment approve should derive approvedBy from request user');
+  const protectedPaymentCancelled = await finance.cancelPayment(protectedPayment.id, { actor: 'client-spoof', reason: 'Protected payment cancel' }, branchUser);
+  assert(protectedPaymentCancelled.approvalStatus === 'CANCELLED' && protectedPaymentCancelled.cancelledBy === branchUser.username, 'payment cancel should derive cancelledBy from request user');
+
+  const protectedInvoice = await finance.createInvoice({
+    ...spoofedAudit,
+    status: 'APPROVED',
+    invoiceCode: run + '-PROTECTED-INV',
+    customerId: customer.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+    items: [{ itemName: 'Protected Invoice', quantity: 1, unitPrice: 50, taxRate: 0 }],
+  }, branchUser);
+  assert(protectedInvoice.status === 'DRAFT' && protectedInvoice.approvalStatus === 'DRAFT' && !protectedInvoice.approvedBy && !protectedInvoice.approvedAt && !protectedInvoice.cancelledBy && !protectedInvoice.cancelledAt, 'invoice create should ignore client status, approval, and audit fields');
+  assert(protectedInvoice.createdBy === branchUser.username, 'invoice create should derive createdBy from request user');
+  const protectedInvoiceUpdated = await finance.updateInvoice(protectedInvoice.id, { ...spoofedAudit, status: 'APPROVED' }, branchUser);
+  assert(protectedInvoiceUpdated.status === 'DRAFT' && protectedInvoiceUpdated.approvalStatus === 'DRAFT' && !protectedInvoiceUpdated.approvedBy && !protectedInvoiceUpdated.approvedAt && !protectedInvoiceUpdated.cancelledBy && !protectedInvoiceUpdated.cancelledAt, 'invoice update should not change status, approval, or audit fields');
+  const protectedInvoiceApproved = await finance.approveInvoice(protectedInvoice.id, { actor: 'client-spoof' }, branchUser);
+  assert(protectedInvoiceApproved.status === 'APPROVED' && protectedInvoiceApproved.approvalStatus === 'APPROVED' && protectedInvoiceApproved.approvedBy === branchUser.username, 'invoice approve should derive approvedBy from request user');
+  const protectedInvoiceCancelled = await finance.cancelInvoice(protectedInvoice.id, { actor: 'client-spoof', reason: 'Protected invoice cancel' }, branchUser);
+  assert(protectedInvoiceCancelled.status === 'CANCELLED' && protectedInvoiceCancelled.approvalStatus === 'CANCELLED' && protectedInvoiceCancelled.cancelledBy === branchUser.username, 'invoice cancel should derive cancelledBy from request user');
 
   const draftReceipt = await finance.createReceipt({
     receiptCode: run + '-CRUD-RCPT',

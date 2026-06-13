@@ -225,12 +225,21 @@ async function installClientApiProxy(page) {
 }
 
 async function setStoredSession(page, token, user) {
-  await page.goto(site + '/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.evaluate(({ authToken, authUser }) => {
-    window.localStorage.setItem('smarttour.auth.token', authToken);
+  const siteUrl = new URL(site);
+  await page.context().addCookies([{
+    name: 'smarttour.auth.token',
+    value: token,
+    url: siteUrl.origin,
+    path: '/',
+    httpOnly: true,
+    secure: siteUrl.protocol === 'https:',
+    sameSite: 'Lax',
+  }]);
+  await page.addInitScript((authUser) => {
+    window.localStorage.removeItem('smarttour.auth.token');
     window.localStorage.setItem('smarttour.auth.user', JSON.stringify(authUser));
-    document.cookie = `smarttour.auth.token=${encodeURIComponent(authToken)}; path=/; max-age=${60 * 60}; samesite=lax`;
-  }, { authToken: token, authUser: user });
+  }, user);
+  await page.goto(site + '/', { waitUntil: 'domcontentloaded', timeout: 45000 });
 }
 
 async function waitForNotice(page, text) {

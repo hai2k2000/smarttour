@@ -429,12 +429,18 @@ function assertLoadableQuotation(row) {
 
   const smartOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
   assert(smartOn.smartLinkEnabled === true, 'smartlink did not enable');
+  assert(/^[A-Za-z0-9_-]{43}$/.test(smartOn.smartLinkToken), 'smartlink token is not cryptographically random');
   const publicDetail = await request(null, 'GET', `/quotations/public/${smartOn.smartLinkToken}`);
-  assert(publicDetail.id === quotation.id, 'public smartlink did not load quotation');
+  assert(publicDetail.quoteCode === quotation.quoteCode, 'public smartlink did not load quotation');
+  for (const field of ['id', 'customerCode', 'customerPhone', 'customerEmail', 'salesOwner', 'operatorOwner', 'branch', 'department', 'totalCost', 'totalMarkup', 'costPerPax', 'profitPerPax', 'marginRate', 'smartLinkToken', 'note', 'logs']) {
+    assert(!(field in publicDetail), `public smartlink leaked ${field}`);
+  }
+  assert(publicDetail.items.every((item) => !('netPrice' in item) && !('supplierName' in item) && !('markupAmount' in item)), 'public smartlink leaked internal item pricing');
   const smartOff = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false });
   assert(smartOff.smartLinkEnabled === false, 'smartlink did not disable');
   const smartBackOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
   assert(smartBackOn.smartLinkEnabled === true, 'smartlink did not re-enable');
+  assert(smartBackOn.smartLinkToken !== smartOn.smartLinkToken, 'smartlink token should rotate when enabled');
 
   const submitted = await request(admin, 'POST', `/quotations/${quotation.id}/submit`, { actor: 'quote-smoke' });
   assert(submitted.status === 'PENDING_APPROVAL', 'quotation submit did not set PENDING_APPROVAL');

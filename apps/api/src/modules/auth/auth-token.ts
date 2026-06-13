@@ -6,7 +6,7 @@ export type AuthTokenHeaders = {
 };
 
 export function tokenFromHeaders(headers?: AuthTokenHeaders | null) {
-  return bearerToken(headers?.authorization) || cookieToken(headers?.cookie);
+  return cookieToken(headers?.cookie) || bearerToken(headers?.authorization);
 }
 
 export function bearerToken(value?: string | string[]) {

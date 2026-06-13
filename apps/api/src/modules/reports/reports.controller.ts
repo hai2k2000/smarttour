@@ -1,6 +1,6 @@
-import { Controller, Get, Header, Param, Query, Req } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Header, Param, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { RequestUser } from '../auth/data-scope';
+import { RequestUser, userPermissions } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { ReportsService } from './reports.service';
 
@@ -31,26 +31,31 @@ export class ReportsController {
   }
 
   @Get('finance')
+  @RequirePermissions('report.view', 'finance.cashflow.view')
   finance(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
     return this.service.finance(query, request?.user);
   }
 
   @Get('finance/order-history/:orderId')
+  @RequirePermissions('report.view', 'finance.cashflow.view')
   orderHistory(@Param('orderId') orderId: string, @Req() request?: { user?: RequestUser }) {
     return this.service.orderHistory(orderId, request?.user);
   }
 
   @Get('debt/customers')
+  @RequirePermissions('report.view', 'finance.debt.view')
   customerDebt(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
     return this.service.customerDebt(query, request?.user);
   }
 
   @Get('debt/suppliers')
+  @RequirePermissions('report.view', 'finance.debt.view')
   supplierDebt(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
     return this.service.supplierDebt(query, request?.user);
   }
 
   @Get('debt/suppliers/:supplierId/history')
+  @RequirePermissions('report.view', 'finance.debt.view')
   supplierHistory(@Param('supplierId') supplierId: string, @Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
     return this.service.supplierHistory(supplierId, query, request?.user);
   }
@@ -70,6 +75,18 @@ export class ReportsController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-report.csv"')
   export(@Param('report') report: string, @Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
+    this.assertSensitiveExportPermission(report, request?.user);
     return this.service.exportCsv(report, query, request?.user);
+  }
+
+  private assertSensitiveExportPermission(report: string, user?: RequestUser) {
+    const required = report === 'finance'
+      ? 'finance.cashflow.view'
+      : report === 'customer-debt' || report === 'supplier-debt'
+        ? 'finance.debt.view'
+        : undefined;
+    if (!required) return;
+    const permissions = userPermissions(user);
+    if (!permissions.has('*') && !permissions.has(required)) throw new ForbiddenException('Thiếu quyền xem báo cáo tài chính');
   }
 }

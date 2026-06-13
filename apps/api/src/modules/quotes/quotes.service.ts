@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, QuoteComboStatus, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
@@ -13,11 +14,11 @@ type ComboItemInput = NonNullable<CreateQuoteComboDto['items']>[number];
 export class QuotesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listTourQuotes(search?: string) {
+  listTourQuotes(search?: string, user?: RequestUser) {
     const searchText = normalizeListSearch(search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.tourQuote.findMany({
-      where: contains
+      where: this.tourQuoteScopeWhere(contains
         ? {
             OR: [
               { quoteCode: contains },
@@ -27,15 +28,15 @@ export class QuotesService {
               { customerPhone: contains },
             ],
           }
-        : {},
+        : {}, user),
       include: { _count: { select: { costItems: true, itineraries: true } } },
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
     });
   }
 
-  async getTourQuote(id: string) {
-    const quote = await this.prisma.tourQuote.findUnique({
-      where: { id },
+  async getTourQuote(id: string, user?: RequestUser) {
+    const quote = await this.prisma.tourQuote.findFirst({
+      where: this.tourQuoteScopeWhere({ id }, user),
       include: {
         costItems: { orderBy: [{ costType: 'asc' }, { sortOrder: 'asc' }] },
         itineraries: { orderBy: [{ sortOrder: 'asc' }, { dayNo: 'asc' }] },
@@ -45,9 +46,10 @@ export class QuotesService {
     return quote;
   }
 
-  async createTourQuote(dto: CreateQuoteTourDto) {
+  async createTourQuote(dto: CreateQuoteTourDto, user?: RequestUser) {
     const input = this.prepareTourQuoteDto(dto, true);
     this.validateTourDates(input);
+    const customerId = await this.scopedTourQuoteCustomerId(input, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const totals = this.calculateTourQuote(input);
@@ -55,6 +57,7 @@ export class QuotesService {
           data: {
             ...this.toTourQuoteData(input),
             ...totals,
+            ...(customerId ? { customer: { connect: { id: customerId } } } : {}),
           } as Prisma.TourQuoteCreateInput,
         });
         await this.replaceTourQuoteChildren(tx, quote.id, input);
@@ -71,8 +74,8 @@ export class QuotesService {
     }
   }
 
-  async updateTourQuote(id: string, dto: UpdateQuoteTourDto) {
-    const currentQuote = await this.getTourQuote(id);
+  async updateTourQuote(id: string, dto: UpdateQuoteTourDto, user?: RequestUser) {
+    const currentQuote = await this.getTourQuote(id, user);
     this.assertTourQuoteEditable(currentQuote.status);
     const input = this.prepareTourQuoteDto(dto, false);
     try {
@@ -111,14 +114,14 @@ export class QuotesService {
     }
   }
 
-  async deleteTourQuote(id: string) {
-    const quote = await this.getTourQuote(id);
+  async deleteTourQuote(id: string, user?: RequestUser) {
+    const quote = await this.getTourQuote(id, user);
     this.assertTourQuoteEditable(quote.status);
     return this.prisma.tourQuote.delete({ where: { id } });
   }
 
-  async approveTourQuote(id: string, dto: QuoteApprovalDto) {
-    const quote = await this.getTourQuote(id);
+  async approveTourQuote(id: string, dto: QuoteApprovalDto, user?: RequestUser) {
+    const quote = await this.getTourQuote(id, user);
     if (quote.status === 'APPROVED') return quote;
     this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING', 'REJECTED'], 'approve');
     return this.prisma.tourQuote.update({
@@ -127,8 +130,8 @@ export class QuotesService {
     });
   }
 
-  async rejectTourQuote(id: string, dto: QuoteApprovalDto) {
-    const quote = await this.getTourQuote(id);
+  async rejectTourQuote(id: string, dto: QuoteApprovalDto, user?: RequestUser) {
+    const quote = await this.getTourQuote(id, user);
     if (quote.status === 'REJECTED') return quote;
     this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING'], 'reject');
     return this.prisma.tourQuote.update({
@@ -137,8 +140,8 @@ export class QuotesService {
     });
   }
 
-  async convertTourQuote(id: string) {
-    const quote = await this.getTourQuote(id);
+  async convertTourQuote(id: string, user?: RequestUser) {
+    const quote = await this.getTourQuote(id, user);
     if (quote.status === 'CONVERTED') return quote;
     this.assertTourQuoteStatus(quote.status, ['APPROVED'], 'convert');
     return this.prisma.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' } });
@@ -506,6 +509,38 @@ export class QuotesService {
       ...(dto.childQty !== undefined ? { childQty: dto.childQty } : {}),
       ...(dto.infantQty !== undefined ? { infantQty: dto.infantQty } : {}),
     };
+  }
+
+  private tourQuoteScopeWhere(where: Prisma.TourQuoteWhereInput, user?: RequestUser): Prisma.TourQuoteWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
+      ],
+    };
+  }
+
+  private async scopedTourQuoteCustomerId(dto: Partial<CreateQuoteTourDto>, user?: RequestUser) {
+    const identity: Prisma.CustomerWhereInput[] = [];
+    const phone = this.optionalText(dto.customerPhone);
+    const email = this.optionalText(dto.customerEmail);
+    const fullName = this.optionalText(dto.customerName);
+    if (phone) identity.push({ phone });
+    if (email) identity.push({ email });
+    if (fullName) identity.push({ fullName });
+    const unrestricted = !user || hasUnrestrictedDataScope(user);
+    if (!identity.length) {
+      if (unrestricted) return undefined;
+      throw new BadRequestException('Scoped tour quotes require a customer in your data scope');
+    }
+    const where: Prisma.CustomerWhereInput = { mergedIntoId: null, AND: identity };
+    const customer = await this.prisma.customer.findFirst({
+      where: unrestricted ? where : branchDepartmentScopeWhere(where, user),
+      select: { id: true },
+    });
+    if (!customer && !unrestricted) throw new BadRequestException('Cannot create tour quote for a customer outside your data scope');
+    return customer?.id;
   }
 
   private toComboData(dto: Partial<CreateQuoteComboDto>) {

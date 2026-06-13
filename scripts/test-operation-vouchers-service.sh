@@ -67,6 +67,7 @@ async function main() {
   await prisma.$connect();
   const service = new OperationVouchersService(prisma);
   const run = 'OV-SVC-' + Date.now();
+  const actorUser = { id: 'operation-voucher-user', username: 'operation-voucher-server-actor', roles: [{ role: { permissions: [{ permission: 'data.scope.all' }] } }] };
 
   const customer = await prisma.customer.create({
     data: {
@@ -195,6 +196,7 @@ async function main() {
     ],
   });
   assert(created.voucherCode === run + '-001', 'create should persist normalized voucher code');
+  assert(created.createdBy === 'operation', 'create should ignore client createdBy when request.user is absent');
   assert(created.bookingId === booking.id && created.tourId === tour.id && created.orderId === order.id, 'create should resolve booking to tour/order links');
   assert(created.supplierId === supplier.id && created.supplierName === supplier.name, 'create should link supplier and fill supplierName');
   assert(dateOnly(created.serviceDate) === '2026-11-01' && dateOnly(created.paymentDeadline) === '2026-11-06', 'create should parse serviceDate/paymentDeadline');
@@ -245,8 +247,13 @@ async function main() {
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: -1, paymentDate: '2026-12-02' }), 'Số tiền thanh toán phải lớn hơn 0', 'add payment should reject negative paymentAmount with Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 631, paymentDate: '2026-12-02' }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'add payment should reject amount above remaining amount with Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1, paymentDate: '2026-02-31' }), 'ngày thanh toán không hợp lệ', 'add payment should reject invalid paymentDate with Vietnamese message');
+  await rejects(() => service.addPayment(created.id, { paymentAmount: 200, paymentDate: '2026-12-02' }), 'add payment should require an approved finance payment');
 
+  const partialFinancePayment = await prisma.financePayment.create({
+    data: { voucherCode: run + '-PAY-PARTIAL', operationVoucherId: created.id, paymentAmount: 200, totalAmount: 200, approvalStatus: 'APPROVED' },
+  });
   const partiallyPaid = await service.addPayment(created.id, {
+    paymentVoucherId: partialFinancePayment.id,
     paymentAmount: 200,
     paymentDate: '2026-12-02',
     note: 'Partial payment from test',
@@ -260,7 +267,10 @@ async function main() {
   await rejectsMessage(() => service.remove(created.id), 'Chỉ phiếu chưa thanh toán mới được xóa', 'delete should reject voucher with payment history using Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 431 }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'partial voucher should reject payment above remaining amount with Vietnamese message');
 
-  const fullyPaid = await service.addPayment(created.id, { paidAmount: 430, paymentDate: '2026-12-03' });
+  const finalFinancePayment = await prisma.financePayment.create({
+    data: { voucherCode: run + '-PAY-FINAL', operationVoucherId: created.id, paymentAmount: 430, totalAmount: 430, approvalStatus: 'APPROVED' },
+  });
+  const fullyPaid = await service.addPayment(created.id, { paymentVoucherId: finalFinancePayment.id, paidAmount: 430, paymentDate: '2026-12-03' });
   assert(amount(fullyPaid.paidAmount) === amount(fullyPaid.totalAmount) && amount(fullyPaid.remainAmount) === 0 && fullyPaid.status === 'PAID', 'second payment should settle voucher totals');
   assert(fullyPaid.payments.length === 2 && fullyPaid.payments.reduce((sum, item) => sum + amount(item.paidAmount), 0) === amount(fullyPaid.totalAmount), 'second payment should append another payment row and match total paid amount');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1 }), 'Phiếu điều hành đã thanh toán đủ', 'paid voucher should reject more payments with Vietnamese message');
@@ -282,16 +292,19 @@ async function main() {
     serviceType: 'Meal',
     serviceName: 'Finance linked meal',
     serviceDate: '2026-12-11',
-    createdBy: 'finance-link-test',
+    createdBy: 'client-spoof',
     details: [{ serviceName: 'Meal NET', quantity: 1, netPrice: 300, vat: 0 }],
-  });
-  const financeLinked = await service.createPaymentVoucher(financeSource.id);
-  assert(financeLinked.status === 'PAID' && amount(financeLinked.paidAmount) === 300 && amount(financeLinked.remainAmount) === 0, 'createPaymentVoucher should settle operation voucher totals');
+  }, actorUser);
+  assert(financeSource.createdBy === actorUser.username, 'create should derive createdBy from request.user');
+  const financeLinked = await service.createPaymentVoucher(financeSource.id, actorUser);
+  assert(financeLinked.status === 'PENDING' && amount(financeLinked.paidAmount) === 0 && amount(financeLinked.remainAmount) === 300, 'createPaymentVoucher should not settle operation voucher before finance approval');
   assert(financeLinked.financePayments.length === 1 && financeLinked.financePayments[0].operationVoucherId === financeSource.id, 'createPaymentVoucher should link finance payment back to operation voucher');
-  assert(financeLinked.financePayments[0].voucherCode.startsWith('PC-') && amount(financeLinked.financePayments[0].paymentAmount) === 300, 'createPaymentVoucher should create a finance payment for the remaining amount');
+  assert(financeLinked.financePayments[0].voucherCode.startsWith('PC-') && amount(financeLinked.financePayments[0].paymentAmount) === 300 && financeLinked.financePayments[0].approvalStatus === 'PENDING', 'createPaymentVoucher should create a pending finance payment for the remaining amount');
+  assert(financeLinked.financePayments[0].createdBy === actorUser.username, 'createPaymentVoucher should derive finance payment createdBy from request.user');
   assert(financeLinked.financePayments[0].reason === `Thanh toán phiếu điều hành ${financeSource.voucherCode}`, 'createPaymentVoucher should use Vietnamese finance payment reason');
-  assert(financeLinked.payments[0].paymentVoucherId === financeLinked.financePayments[0].id && financeLinked.payments[0].note === 'Tạo phiếu chi từ phiếu điều hành', 'createPaymentVoucher should create operation voucher payment history linked to finance payment');
-  await rejectsMessage(() => service.createPaymentVoucher(financeSource.id), 'Phiếu điều hành đã thanh toán đủ', 'createPaymentVoucher should reject paid vouchers after finance payment link');
+  assert(financeLinked.payments.length === 0, 'createPaymentVoucher should not create operation voucher payment history before finance approval');
+  await rejects(() => service.addPayment(financeSource.id, { paymentVoucherId: financeLinked.financePayments[0].id, paymentAmount: 300 }, actorUser), 'addPayment should reject pending finance payment');
+  await rejects(() => service.createPaymentVoucher(financeSource.id, actorUser), 'createPaymentVoucher should reject another active pending finance payment');
   await rejectsMessage(() => service.createPaymentVoucher(created.id), 'Phiếu điều hành đã thanh toán đủ', 'createPaymentVoucher should reject paid vouchers before creating finance payment');
 
   await prisma.$disconnect();

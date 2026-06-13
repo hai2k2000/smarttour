@@ -236,7 +236,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
       ) : null}
 
       <section className="contentGrid suppliersGrid">
-        <div className="panel">
+        <div className="panel supplierCategoryPanel">
           <div className="sectionHeader">
             <h2><FolderPlus size={18} /> Loại nhà cung cấp</h2>
             <a className="iconTextButton secondaryButton" href={`#${createCategoryModalId}`}><Plus size={14} /> Thêm loại nhà cung cấp</a>
@@ -255,16 +255,16 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           </div>
         </div>
 
-        <div className="panel supplierIntroPanel">
-          <div>
-            <h2><Building2 size={18} /> Danh sách nhà cung cấp</h2>
-            <p className="mutedText">Quản lý thông tin liên hệ, chính sách giá và ghi chú công nợ của từng nhà cung cấp.</p>
+        <div className="supplierListColumn">
+          <div className="panel supplierIntroPanel">
+            <div>
+              <h2><Building2 size={18} /> Danh sách nhà cung cấp</h2>
+              <p className="mutedText">Quản lý thông tin liên hệ, chính sách giá và ghi chú công nợ của từng nhà cung cấp.</p>
+            </div>
+            <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a>
           </div>
-          <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a>
-        </div>
-      </section>
 
-      <section className="panel listPanel">
+      <section className="panel listPanel supplierListPanel">
         <div className="sectionHeader">
           <h2>Danh sách nhà cung cấp</h2>
           <span>{suppliers.length} nhà cung cấp</span>
@@ -322,6 +322,8 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
             ) : null}
           </tbody>
           </table>
+        </div>
+      </section>
         </div>
       </section>
 

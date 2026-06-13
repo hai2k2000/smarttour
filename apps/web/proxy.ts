@@ -24,7 +24,7 @@ async function isValidSession(request: NextRequest, token: string) {
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || request.nextUrl.origin;
   try {
     const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Cookie: `smarttour.auth.token=${encodeURIComponent(token)}` },
       cache: 'no-store',
     });
     return response.ok;

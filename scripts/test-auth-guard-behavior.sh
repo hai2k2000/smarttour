@@ -98,7 +98,7 @@ async function run() {
 
   const seenTokens = [];
   await new AuthGuard(reflector(), authService([], seenTokens)).canActivate(context({ authorization: 'Bearer header.token', cookie: 'smarttour.auth.token=cookie.token' }));
-  assert(seenTokens[0] === 'header.token', 'guard should use shared token extraction with bearer precedence over cookie');
+  assert(seenTokens[0] === 'cookie.token', 'guard should use shared token extraction with cookie precedence over stale bearer');
 
   rejected = false;
   try {
