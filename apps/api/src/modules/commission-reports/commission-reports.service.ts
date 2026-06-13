@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, Prisma } from '@prisma/client';
+import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
+import type { CommissionReportActionDto, CommissionReportsQueryDto, PayCommissionReportDto } from './dto/commission-report.dto';
 
 type AnyRecord = Record<string, unknown>;
+type CommissionReportsQueryInput = Omit<CommissionReportsQueryDto, 'take'> & { take?: number | string };
+type CommissionReportActionInput = Pick<CommissionReportActionDto, 'id' | 'ids' | 'note'>;
+type PayCommissionReportInput = CommissionReportActionInput & Pick<PayCommissionReportDto, 'amount' | 'voucherNo' | 'receiver'>;
 
 @Injectable()
 export class CommissionReportsService {
@@ -18,7 +22,7 @@ export class CommissionReportsService {
     } satisfies Prisma.CommissionEntryInclude;
   }
 
-  async list(query: Record<string, string>, user?: RequestUser) {
+  async list(query: CommissionReportsQueryInput, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.where(query), user);
     const [rows, summaryRows] = await Promise.all([
       this.prisma.commissionEntry.findMany({
@@ -32,7 +36,7 @@ export class CommissionReportsService {
     return { rows, summary: this.summaryFromRows(summaryRows), grouping: this.groupingFromRows(summaryRows, query.groupBy || 'salesOwner') };
   }
 
-  async summary(query: Record<string, string>, user?: RequestUser) {
+  async summary(query: CommissionReportsQueryInput, user?: RequestUser) {
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     return this.summaryFromRows(rows);
   }
@@ -58,7 +62,7 @@ export class CommissionReportsService {
     };
   }
 
-  async grouping(groupBy: string, query: Record<string, string>, user?: RequestUser) {
+  async grouping(groupBy: string, query: CommissionReportsQueryInput, user?: RequestUser) {
     const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
     return this.groupingFromRows(rows, groupBy);
   }
@@ -95,7 +99,7 @@ export class CommissionReportsService {
     return row;
   }
 
-  async approve(dto: AnyRecord, user?: RequestUser) {
+  async approve(dto: CommissionReportActionInput, user?: RequestUser) {
     const ids = this.ids(dto);
     const actor = this.actor(user);
     await this.prisma.$transaction(async (tx) => {
@@ -116,15 +120,15 @@ export class CommissionReportsService {
     return { approved: ids.length };
   }
 
-  async reject(dto: AnyRecord, user?: RequestUser) {
+  async reject(dto: CommissionReportActionInput, user?: RequestUser) {
     return this.changeStatus(dto, CommissionStatus.REJECTED, 'REJECT', user);
   }
 
-  async revoke(dto: AnyRecord, user?: RequestUser) {
+  async revoke(dto: CommissionReportActionInput, user?: RequestUser) {
     return this.changeStatus(dto, CommissionStatus.REVOKED, 'REVOKE', user);
   }
 
-  async pay(dto: AnyRecord, user?: RequestUser) {
+  async pay(dto: PayCommissionReportInput, user?: RequestUser) {
     const ids = this.ids(dto);
     const requestedAmount = this.paymentAmount(dto.amount);
     if (ids.length > 1 && requestedAmount !== undefined) throw new BadRequestException('amount can only be used with one commission report');
@@ -160,7 +164,7 @@ export class CommissionReportsService {
     return { paid: ids.length };
   }
 
-  async exportCsv(query: Record<string, string>, user?: RequestUser) {
+  async exportCsv(query: CommissionReportsQueryInput, user?: RequestUser) {
     const { rows } = await this.list({ ...query, take: '1000' }, user);
     return this.toCsv(rows.map((row) => ({
       orderCode: row.orderCode,
@@ -226,7 +230,7 @@ export class CommissionReportsService {
     return { created, updated, scanned: orders.length };
   }
 
-  private async changeStatus(dto: AnyRecord, status: CommissionStatus, action: string, user?: RequestUser) {
+  private async changeStatus(dto: CommissionReportActionInput, status: CommissionStatus, action: string, user?: RequestUser) {
     const ids = this.ids(dto);
     const actor = this.actor(user);
     await this.prisma.$transaction(async (tx) => {
@@ -255,18 +259,18 @@ export class CommissionReportsService {
     return { changed: ids.length, status };
   }
 
-  private where(query: Record<string, string>): Prisma.CommissionEntryWhereInput {
+  private where(query: CommissionReportsQueryInput): Prisma.CommissionEntryWhereInput {
     const where: Prisma.CommissionEntryWhereInput = {};
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
-    if (query.status) where.status = query.status as CommissionStatus;
-    if (query.paymentStatus) where.paymentStatus = query.paymentStatus as CommissionPaymentStatus;
+    if (query.status) where.status = query.status;
+    if (query.paymentStatus) where.paymentStatus = query.paymentStatus;
     if (query.employee) where.salesOwner = { contains: query.employee, mode: 'insensitive' };
     if (query.salesOwner) where.salesOwner = { contains: query.salesOwner, mode: 'insensitive' };
     if (query.department) where.department = { contains: query.department, mode: 'insensitive' };
     if (query.branch) where.branch = { contains: query.branch, mode: 'insensitive' };
     if (query.market) where.marketGroup = { contains: query.market, mode: 'insensitive' };
-    if (query.productType) where.orderType = query.productType as never;
+    if (query.productType) where.orderType = query.productType as OrderType;
     if (query.from || query.to) where.milestoneDate = { gte: this.date(query.from), lte: this.date(query.to) };
     if (contains) {
       where.OR = [
@@ -300,7 +304,7 @@ export class CommissionReportsService {
     return { milestoneDate: 'desc' };
   }
 
-  private ids(dto: AnyRecord) {
+  private ids(dto: CommissionReportActionInput) {
     const ids = Array.isArray(dto.ids) ? dto.ids.map((id) => this.text(id)).filter((id): id is string => !!id) : [];
     const single = this.text(dto.id);
     const result = [...new Set(single ? [single] : ids)].sort();
@@ -313,7 +317,7 @@ export class CommissionReportsService {
   }
 
   private take(value: unknown) {
-    const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : 100;
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : 100;
     return Math.min(Math.max(Number.isFinite(parsed) ? parsed : 100, 1), 1000);
   }
 
