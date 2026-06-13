@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Order, OrderType, Prisma } from '@prisma/client';
+import { Order, OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, PaymentStatus, Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
+import { ReportQueryDto } from './dto/report-query.dto';
 
-type ReportQuery = Record<string, string | undefined>;
+type ReportQuery = ReportQueryDto;
 type TourFinanceRow = Prisma.TourGetPayload<{
   include: {
     customers: true;
@@ -56,6 +57,18 @@ const REPORT_GROUPS = new Set<ReportGroupKey>([
   'by-type',
 ]);
 const EXPORT_REPORTS = new Set<ExportReportKey>(['revenue', 'profit', 'finance', 'customer-debt', 'supplier-debt', 'employees']);
+const ORDER_TYPES = new Set<string>(Object.values(OrderType));
+const TOUR_TYPES = new Set<string>(Object.values(TourType));
+const ORDER_STATUSES = new Set<string>(Object.values(OrderStatus));
+const TOUR_STATUSES = new Set<string>(Object.values(TourStatus));
+const ORDER_PAYMENT_STATUSES = new Set<string>(Object.values(OrderPaymentStatus));
+const TOUR_PAYMENT_STATUSES = new Set<string>(Object.values(PaymentStatus));
+const ORDER_COST_STATUSES = new Set<string>(Object.values(OrderCostStatus));
+const ORDER_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'] as const;
+const TOUR_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
+type OrderDateField = typeof ORDER_DATE_FIELDS[number];
+type TourDateField = typeof TOUR_DATE_FIELDS[number];
+
 
 @Injectable()
 export class ReportsService {
@@ -237,10 +250,10 @@ export class ReportsService {
     if (searchOr.length) and.push({ OR: searchOr });
     return {
       deletedAt: null,
-      ...(query.type ? { type: query.type as OrderType } : {}),
-      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus as any } : {}),
-      ...(query.costStatus ? { costStatus: query.costStatus as any } : {}),
-      ...(query.status ? { status: query.status as any } : {}),
+      ...(this.orderType(query.type) ? { type: this.orderType(query.type) } : {}),
+      ...(this.orderPaymentStatus(query.paymentStatus) ? { paymentStatus: this.orderPaymentStatus(query.paymentStatus) } : {}),
+      ...(this.orderCostStatus(query.costStatus) ? { costStatus: this.orderCostStatus(query.costStatus) } : {}),
+      ...(this.orderStatus(query.status) ? { status: this.orderStatus(query.status) } : {}),
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
@@ -274,9 +287,9 @@ export class ReportsService {
     return {
       deletedAt: null,
       ...(query.tourId ? { id: query.tourId } : {}),
-      ...(query.type ? { type: query.type as any } : {}),
-      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus as any } : {}),
-      ...(query.status ? { status: query.status as any } : {}),
+      ...(this.tourType(query.type) ? { type: this.tourType(query.type) } : {}),
+      ...(this.tourPaymentStatus(query.paymentStatus) ? { paymentStatus: this.tourPaymentStatus(query.paymentStatus) } : {}),
+      ...(this.tourStatus(query.status) ? { status: this.tourStatus(query.status) } : {}),
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
@@ -348,10 +361,10 @@ export class ReportsService {
 
   private orderRelationWhere(query: ReportQuery): Prisma.OrderWhereInput {
     return {
-      ...(query.type ? { type: query.type as OrderType } : {}),
-      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus as any } : {}),
-      ...(query.costStatus ? { costStatus: query.costStatus as any } : {}),
-      ...(query.status ? { status: query.status as any } : {}),
+      ...(this.orderType(query.type) ? { type: this.orderType(query.type) } : {}),
+      ...(this.orderPaymentStatus(query.paymentStatus) ? { paymentStatus: this.orderPaymentStatus(query.paymentStatus) } : {}),
+      ...(this.orderCostStatus(query.costStatus) ? { costStatus: this.orderCostStatus(query.costStatus) } : {}),
+      ...(this.orderStatus(query.status) ? { status: this.orderStatus(query.status) } : {}),
       ...(query.marketGroup ? { marketGroup: { contains: query.marketGroup, mode: 'insensitive' } } : {}),
       ...(query.agency ? { agencyName: { contains: query.agency, mode: 'insensitive' } } : {}),
       ...(query.customerType ? { customerType: { contains: query.customerType, mode: 'insensitive' } } : {}),
@@ -599,6 +612,34 @@ export class ReportsService {
     return this.dateKey(tour.createdAt, dateMode);
   }
 
+  private orderType(value?: string): OrderType | undefined {
+    return ORDER_TYPES.has(value || '') ? value as OrderType : undefined;
+  }
+
+  private tourType(value?: string): TourType | undefined {
+    return TOUR_TYPES.has(value || '') ? value as TourType : undefined;
+  }
+
+  private orderStatus(value?: string): OrderStatus | undefined {
+    return ORDER_STATUSES.has(value || '') ? value as OrderStatus : undefined;
+  }
+
+  private tourStatus(value?: string): TourStatus | undefined {
+    return TOUR_STATUSES.has(value || '') ? value as TourStatus : undefined;
+  }
+
+  private orderPaymentStatus(value?: string): OrderPaymentStatus | undefined {
+    return ORDER_PAYMENT_STATUSES.has(value || '') ? value as OrderPaymentStatus : undefined;
+  }
+
+  private tourPaymentStatus(value?: string): PaymentStatus | undefined {
+    return TOUR_PAYMENT_STATUSES.has(value || '') ? value as PaymentStatus : undefined;
+  }
+
+  private orderCostStatus(value?: string): OrderCostStatus | undefined {
+    return ORDER_COST_STATUSES.has(value || '') ? value as OrderCostStatus : undefined;
+  }
+
   private dateFieldFromGroup(groupBy: string, fallback?: string) {
     if (groupBy === 'by-checkin-date') return 'startDate';
     if (groupBy === 'by-checkout-date') return 'endDate';
@@ -606,14 +647,12 @@ export class ReportsService {
     return fallback || 'createdAt';
   }
 
-  private normalizeDateField(field?: string): 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'paymentDate' | 'settledAt' {
-    const allowed = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'];
-    return (allowed.includes(field || '') ? field : 'createdAt') as any;
+  private normalizeDateField(field?: string): OrderDateField {
+    return field && ORDER_DATE_FIELDS.includes(field as OrderDateField) ? field as OrderDateField : 'createdAt';
   }
 
-  private normalizeTourDateField(field?: string): 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'closedAt' {
-    const allowed = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'];
-    return (allowed.includes(field || '') ? field : 'createdAt') as any;
+  private normalizeTourDateField(field?: string): TourDateField {
+    return field && TOUR_DATE_FIELDS.includes(field as TourDateField) ? field as TourDateField : 'createdAt';
   }
 
   private dateRange(field: string, from?: string, to?: string) {
@@ -728,14 +767,20 @@ export class ReportsService {
   }
 
   private startOfDay(value: string) {
-    const date = new Date(value);
+    const date = this.reportDate(value);
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) date.setHours(0, 0, 0, 0);
     return date;
   }
 
   private endOfDay(value: string) {
-    const date = new Date(value);
+    const date = this.reportDate(value);
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) date.setHours(23, 59, 59, 999);
+    return date;
+  }
+
+  private reportDate(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid report date');
     return date;
   }
 

@@ -81,6 +81,31 @@ async function run() {
   assert(rejected, 'production guard should fail closed when enforce=false');
 
   process.env.SMARTTOUR_AUTH_ENFORCE = 'true';
+  for (const name of ['SMARTTOUR_CORS_ORIGINS', 'CORS_ORIGINS', 'NEXT_PUBLIC_API_URL', 'SMARTTOUR_WEB_URL', 'WEB_ORIGIN']) {
+    delete process.env[name];
+  }
+  rejected = false;
+  try {
+    assertSecureRuntimeConfig();
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, 'production without a configured CORS origin should fail config validation');
+
+  process.env.SMARTTOUR_ENV = 'staging';
+  rejected = false;
+  try {
+    assertSecureRuntimeConfig();
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, 'staging without a configured CORS origin should fail config validation');
+
+  process.env.WEB_ORIGIN = 'https://smarttour.example';
+  assertSecureRuntimeConfig();
+  process.env.SMARTTOUR_ENV = 'production';
+  assertSecureRuntimeConfig();
+
   let permissionError;
   try {
     await new AuthGuard(reflector({ [PERMISSIONS_KEY]: ['finance.receipt.approve'] }), authService(['finance.receipt.view'])).canActivate(context({ authorization: 'Bearer token' }));

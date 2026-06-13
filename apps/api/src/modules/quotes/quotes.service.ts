@@ -126,7 +126,7 @@ export class QuotesService {
     this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING', 'REJECTED'], 'approve');
     return this.prisma.tourQuote.update({
       where: { id },
-      data: { status: 'APPROVED', approvedBy: this.optionalText(dto.approvedBy), approvalNote: this.optionalText(dto.approvalNote) },
+      data: { status: 'APPROVED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
     });
   }
 
@@ -136,7 +136,7 @@ export class QuotesService {
     this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING'], 'reject');
     return this.prisma.tourQuote.update({
       where: { id },
-      data: { status: 'REJECTED', approvedBy: this.optionalText(dto.approvedBy), approvalNote: this.optionalText(dto.approvalNote) },
+      data: { status: 'REJECTED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
     });
   }
 
@@ -645,6 +645,10 @@ export class QuotesService {
     const start = this.dateValue(startValue);
     const end = this.dateValue(endValue);
     if (start && end && end < start) throw new BadRequestException(message);
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
   }
 
   private optionalText(value?: string | null) {

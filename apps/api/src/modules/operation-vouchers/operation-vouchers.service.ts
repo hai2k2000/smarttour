@@ -227,6 +227,7 @@ export class OperationVouchersService {
       this.assertPayable(voucher, paymentAmount);
       const paymentVoucherId = this.text(dto.paymentVoucherId);
       if (!paymentVoucherId) throw new BadRequestException('Cần chọn phiếu chi tài chính đã duyệt để ghi nhận thanh toán');
+      await tx.$queryRawUnsafe('SELECT id FROM "FinancePayment" WHERE id = $1 FOR UPDATE', paymentVoucherId);
       const payment = await tx.financePayment.findFirst({
         where: branchDepartmentScopeWhere({ id: paymentVoucherId }, user),
         select: { id: true, approvalStatus: true, operationVoucherId: true, paymentAmount: true },
@@ -235,8 +236,9 @@ export class OperationVouchersService {
       if (payment.approvalStatus !== 'APPROVED') throw new BadRequestException('Chỉ phiếu chi tài chính đã duyệt mới được ghi nhận thanh toán');
       if (payment.operationVoucherId && payment.operationVoucherId !== id) throw new BadRequestException('Phiếu chi tài chính đã liên kết với phiếu điều hành khác');
       if (paymentAmount > Number(payment.paymentAmount) + 0.000001) throw new BadRequestException('Số tiền ghi nhận không được vượt quá phiếu chi tài chính đã duyệt');
-      const existing = await tx.operationVoucherPayment.findFirst({ where: { voucherId: id, paymentVoucherId: payment.id }, select: { id: true } });
+      const existing = await tx.operationVoucherPayment.findFirst({ where: { paymentVoucherId: payment.id }, select: { id: true, voucherId: true } });
       if (existing) throw new BadRequestException('Phiếu chi tài chính đã được ghi nhận thanh toán');
+      if (!payment.operationVoucherId) await tx.financePayment.update({ where: { id: payment.id }, data: { operationVoucherId: id } });
       await tx.operationVoucherPayment.create({
         data: { voucherId: id, paymentVoucherId, paidAmount: paymentAmount, paymentDate, note: this.text(dto.note) },
       });

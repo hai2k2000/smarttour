@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { assertSecureRuntimeConfig } from './config/runtime-env';
+import { assertSecureRuntimeConfig, configuredCorsOrigins, smartTourEnvironment } from './config/runtime-env';
 import { validationExceptionFactory } from './validation-exception.factory';
 
 async function bootstrap() {
@@ -13,7 +13,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableCors({
     credentials: true,
-    origin: corsOrigins.length ? corsOrigins : true,
+    origin: corsOrigins.length ? corsOrigins : smartTourEnvironment() === 'development',
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
 
@@ -32,31 +32,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
-function configuredCorsOrigins() {
-  return Array.from(
-    new Set(
-      [
-        process.env.SMARTTOUR_CORS_ORIGINS,
-        process.env.CORS_ORIGINS,
-        process.env.NEXT_PUBLIC_API_URL,
-        process.env.SMARTTOUR_WEB_URL,
-        process.env.WEB_ORIGIN,
-      ]
-        .filter((value): value is string => Boolean(value))
-        .flatMap((value) => value.split(','))
-        .map((value) => normalizeOrigin(value))
-        .filter(Boolean),
-    ),
-  );
-}
-
-function normalizeOrigin(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, '');
-  if (!trimmed) return '';
-  try {
-    return new URL(trimmed).origin;
-  } catch {
-    return trimmed;
-  }
-}

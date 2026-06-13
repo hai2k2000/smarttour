@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Header, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, ParseEnumPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { CommissionReportActionDto, CommissionReportsQueryDto, PayCommissionReportDto } from './dto/commission-report.dto';
+import { CommissionReportActionDto, CommissionReportGroupBy, CommissionReportsQueryDto, PayCommissionReportDto } from './dto/commission-report.dto';
 import { CommissionReportsService } from './commission-reports.service';
 
 @ApiTags('commission-reports')
@@ -22,7 +22,11 @@ export class CommissionReportsController {
   }
 
   @Get('grouping/:groupBy')
-  grouping(@Param('groupBy') groupBy: string, @Query() query: CommissionReportsQueryDto, @Req() request?: { user?: RequestUser }) {
+  grouping(
+    @Param('groupBy', new ParseEnumPipe(CommissionReportGroupBy)) groupBy: CommissionReportGroupBy,
+    @Query() query: CommissionReportsQueryDto,
+    @Req() request?: { user?: RequestUser },
+  ) {
     return this.service.grouping(groupBy, query, request?.user);
   }
 

@@ -298,12 +298,15 @@ function AppShellContent({ children }: { children: ReactNode }) {
     });
   }
 
-  function logout() {
-    void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-      keepalive: true,
-    }).catch(() => undefined);
+  async function logout() {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Keep local logout deterministic even if the network request fails.
+    }
     clearAuthSession();
     setAuthUser(null);
     setAccountOpen(false);

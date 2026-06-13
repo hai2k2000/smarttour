@@ -20,6 +20,24 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Pre-deploy review fixes for remaining High/Medium/Low items:
+  - Operation voucher payment recording now locks the selected approved
+    FinancePayment, rejects any existing OperationVoucherPayment usage for the
+    same finance payment, and links an unlinked approved finance payment to the
+    voucher before recording payment history.
+  - Tour quote approve/reject now derives `approvedBy` from `request.user`; the
+    client `approvedBy` field was removed from the approval DTO.
+  - Reports endpoints now bind query params through `ReportQueryDto`, validating
+    date strings and report enum-like filters before Prisma queries.
+  - Credentialed CORS fallback is development-only, AppShell logout waits for
+    backend logout before redirect, file authorization normalizes metadata URLs
+    by object key, SmartLink repeated enable preserves secure tokens, and npm
+    audit was cleaned through the lockfile.
+  - VPS verification passed on 2026-06-13: `TEST_OPERATION_VOUCHERS_SERVICE_OK`,
+    `TEST_HIGH_A_DATA_ACCESS_OK`, `TEST_AUTH_COOKIE_SESSION_OK`,
+    `git diff --check`, `docker compose config --quiet`, `npm audit`, and
+    `npm run verify:toolchain`.
+
 - High C auth/session Phase 2 cleanup:
   - Next proxy now validates browser sessions by forwarding
     `smarttour.auth.token` as a Cookie header to `/api/auth/me`, not by
@@ -1745,3 +1763,16 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Commission/order CSV exports now require dedicated commission.export/order.export permissions, with RBAC role grants and security permission labels/catalog updated.
   - Supplier CSS cleanup removed duplicate scoped rules and fixed row detail indentation only; no UI redesign was performed.
   - Verified repeatedly on VPS with git diff --check, docker compose config --quiet, Docker api/web builds, scripts/verify-toolchain-docker.sh, TEST_ROUTE_PERMISSIONS_OK, and direct report filter contract check. npm audit still reports one high severity dependency advisory for follow-up.
+
+- 2026-06-13 Reports query validation follow-up:
+  - Reports controller query inputs use ReportQueryDto validation for enum/date/boolean/string filters; invalid dates are rejected with 400 before Prisma and report enum filters no longer use loose any casts.
+  - Commission report groupBy/sortBy now use explicit enums, and grouping/:groupBy uses ParseEnumPipe so unsupported values return 400 instead of falling through to a default grouping.
+  - No database schema, frontend, or deployment change was made.
+  - Verified on VPS: TEST_COMMISSION_REPORTS_SECURITY_OK, TEST_HIGH_A_DATA_ACCESS_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.
+
+- 2026-06-13 Credentialed CORS runtime hardening:
+  - CORS origin discovery/normalization now lives in runtime-env.ts and is shared by startup validation and Nest CORS setup.
+  - Production and staging fail startup when no explicit CORS origin environment value is configured; permissive origin fallback remains development-only.
+  - Existing SMARTTOUR_CORS_ORIGINS, CORS_ORIGINS, NEXT_PUBLIC_API_URL, SMARTTOUR_WEB_URL, and WEB_ORIGIN compatibility is preserved.
+  - No database schema, frontend, or deployment change was made.
+  - Verified on VPS: TEST_AUTH_GUARD_BEHAVIOR_OK, TEST_AUTH_COOKIE_SESSION_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.

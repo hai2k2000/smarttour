@@ -77,6 +77,11 @@ assert_contains apps/web/app/authFetch.ts "credentials: ['\\\"]include['\\\"]" "
 assert_contains apps/web/app/login/LoginClient.tsx "credentials: ['\\\"]include['\\\"]" "login page should include credentials"
 assert_contains apps/web/app/LoginClient.tsx "credentials: ['\\\"]include['\\\"]" "root login client should include credentials"
 assert_contains apps/web/app/AppShell.tsx "credentials: ['\\\"]include['\\\"]" "logout should include credentials"
+if grep -q "keepalive: true" apps/web/app/AppShell.tsx; then
+  fail "logout must wait for backend Set-Cookie/revoke response instead of fire-and-forget keepalive"
+fi
+assert_contains apps/web/app/AppShell.tsx "async function logout" "logout should await backend logout before redirect"
+assert_contains apps/web/app/AppShell.tsx "await fetch" "logout should await backend logout request"
 assert_contains apps/web/app/security/SecurityClient.tsx "credentials: ['\\\"]include['\\\"]" "security client should include credentials"
 assert_contains apps/web/app/finance/FinanceClient.tsx "credentials: ['\\\"]include['\\\"]" "finance client should include credentials"
 
@@ -88,6 +93,10 @@ assert_contains apps/api/src/modules/auth/auth.controller.ts "setAuthCookie" "au
 assert_contains apps/api/src/modules/auth/auth.controller.ts "clearAuthCookie" "auth controller should clear cookies on logout"
 assert_contains apps/api/src/modules/auth/auth-token.ts "cookieToken\\(headers\\?\\.cookie\\).*\\|\\|.*bearerToken\\(headers\\?\\.authorization\\)" "token extraction should prefer cookie over bearer"
 assert_contains apps/api/src/main.ts "credentials: true" "CORS config should allow credentials"
+if grep -q "origin: corsOrigins.length ? corsOrigins : true" apps/api/src/main.ts; then
+  fail "credentialed CORS must not allow every origin outside explicit dev handling"
+fi
+assert_contains apps/api/src/main.ts "smartTourEnvironment\(\) === ['\"]development['\"]" "CORS permissive fallback should be development-only"
 assert_contains apps/web/proxy.ts "Cookie: .*smarttour\\.auth\\.token" "Next proxy should forward auth cookie to /auth/me"
 assert_contains scripts/smoke-ui-browser.js "httpOnly" "browser login smoke should assert HttpOnly auth cookie"
 assert_contains scripts/smoke-ui-browser.js "context\\.cookies" "browser login smoke should inspect browser cookies"

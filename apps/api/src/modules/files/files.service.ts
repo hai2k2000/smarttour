@@ -243,27 +243,27 @@ export class FilesService {
         where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id: customerId, mergedIntoId: null }, user),
         select: { id: true },
       }),
-      this.prisma.customerFile.findFirst({ where: { customerId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+      this.prisma.customerFile.findMany({ where: { customerId }, select: { id: true, fileUrl: true } }),
     ]);
-    this.assertParentAndMetadata(parent, metadata);
+    this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));
   }
 
   private async assertSupplierFile(key: string, supplierId: string, user: RequestUser | undefined, action: FileAccessAction) {
     this.assertPermission(user, action === 'view' ? 'supplier.view' : 'supplier.manage');
     const [parent, metadata] = await Promise.all([
       this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } }),
-      this.prisma.supplierFile.findFirst({ where: { supplierId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+      this.prisma.supplierFile.findMany({ where: { supplierId }, select: { id: true, fileUrl: true } }),
     ]);
-    this.assertParentAndMetadata(parent, metadata);
+    this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));
   }
 
   private async assertGuideFile(key: string, guideId: string, user: RequestUser | undefined, action: FileAccessAction) {
     this.assertPermission(user, action === 'view' ? 'guide.view' : 'guide.manage');
     const [parent, metadata] = await Promise.all([
       this.prisma.guideProfile.findFirst({ where: { id: guideId, deletedAt: null }, select: { id: true } }),
-      this.prisma.guideFile.findFirst({ where: { guideId, fileUrl: this.fileUrl(key) }, select: { id: true } }),
+      this.prisma.guideFile.findMany({ where: { guideId }, select: { id: true, fileUrl: true } }),
     ]);
-    this.assertParentAndMetadata(parent, metadata);
+    this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));
   }
 
   private async assertFitTourFile(key: string, fitTourId: string, user: RequestUser | undefined, action: FileAccessAction) {
@@ -273,14 +273,13 @@ export class FilesService {
       select: { id: true, tourId: true },
     });
     if (!parent) throw this.fileAccessNotFound();
-    const fileUrl = this.fileUrl(key);
     const [legacyMetadata, rootMetadata] = await Promise.all([
-      this.prisma.fitAttachment.findFirst({ where: { fitTourId, fileUrl }, select: { id: true } }),
+      this.prisma.fitAttachment.findMany({ where: { fitTourId }, select: { id: true, fileUrl: true } }),
       parent.tourId
-        ? this.prisma.tourAttachment.findFirst({ where: { tourId: parent.tourId, fileUrl }, select: { id: true } })
-        : Promise.resolve(null),
+        ? this.prisma.tourAttachment.findMany({ where: { tourId: parent.tourId }, select: { id: true, fileUrl: true } })
+        : Promise.resolve([]),
     ]);
-    if (!legacyMetadata && !rootMetadata) throw this.fileAccessNotFound();
+    if (!this.metadataForKey([...legacyMetadata, ...rootMetadata], key)) throw this.fileAccessNotFound();
   }
 
   private async assertFinanceFile(
@@ -291,32 +290,31 @@ export class FilesService {
     action: FileAccessAction,
   ) {
     if (!entityId) throw this.fileAccessNotFound();
-    const fileUrl = this.fileUrl(key);
     if (type === 'receipts') {
       this.assertPermission(user, action === 'view' ? 'finance.receipt.view' : 'finance.receipt.update');
       const parent = await this.prisma.financeReceipt.findFirst({
-        where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ id: entityId, deletedAt: null, attachmentUrl: fileUrl }, user),
-        select: { id: true },
+        where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ id: entityId, deletedAt: null }, user),
+        select: { id: true, attachmentUrl: true },
       });
-      if (!parent) throw this.fileAccessNotFound();
+      if (!parent || !this.fileUrlMatchesKey(parent.attachmentUrl, key)) throw this.fileAccessNotFound();
       return;
     }
     if (type === 'payments') {
       this.assertPermission(user, action === 'view' ? 'finance.payment.view' : 'finance.payment.update');
       const parent = await this.prisma.financePayment.findFirst({
-        where: branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ id: entityId, deletedAt: null, attachmentUrl: fileUrl }, user),
-        select: { id: true },
+        where: branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ id: entityId, deletedAt: null }, user),
+        select: { id: true, attachmentUrl: true },
       });
-      if (!parent) throw this.fileAccessNotFound();
+      if (!parent || !this.fileUrlMatchesKey(parent.attachmentUrl, key)) throw this.fileAccessNotFound();
       return;
     }
     if (type === 'invoices') {
       this.assertPermission(user, action === 'view' ? 'finance.invoice.view' : 'finance.invoice.update');
       const [parent, metadata] = await Promise.all([
         this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id: entityId, deletedAt: null }, user), select: { id: true } }),
-        this.prisma.financeInvoiceFile.findFirst({ where: { invoiceId: entityId, fileUrl }, select: { id: true } }),
+        this.prisma.financeInvoiceFile.findMany({ where: { invoiceId: entityId }, select: { id: true, fileUrl: true } }),
       ]);
-      this.assertParentAndMetadata(parent, metadata);
+      this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));
       return;
     }
     throw this.fileAccessNotFound();
@@ -356,6 +354,14 @@ export class FilesService {
 
   private assertParentAndMetadata(parent: unknown, metadata: unknown) {
     if (!parent || !metadata) throw this.fileAccessNotFound();
+  }
+
+  private metadataForKey<T extends { fileUrl: string | null }>(rows: T[], key: string) {
+    return rows.find((row) => this.fileUrlMatchesKey(row.fileUrl, key));
+  }
+
+  private fileUrlMatchesKey(fileUrl: string | null | undefined, key: string) {
+    return fileUrl === this.fileUrl(key) || this.objectKeyFromUrl(fileUrl) === key;
   }
 
   private fileUrl(key: string) {

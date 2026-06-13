@@ -6,6 +6,21 @@ import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
 
 const MAX_COMMISSION_ACTION_IDS = 100;
 
+export enum CommissionReportGroupBy {
+  SalesOwner = 'salesOwner',
+  Department = 'department',
+  Branch = 'branch',
+  Market = 'market',
+  Team = 'team',
+}
+
+export enum CommissionReportSortBy {
+  MilestoneDate = 'milestoneDate',
+  Revenue = 'revenue',
+  Commission = 'commission',
+  Employee = 'employee',
+}
+
 const trimOptional = ({ value }: { value: unknown }) => {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== 'string') return value;
@@ -111,19 +126,17 @@ export class CommissionReportsQueryDto {
   @MaxLength(120, { message: 'market must not exceed 120 characters' })
   market?: string;
 
-  @ApiPropertyOptional({ enum: ['salesOwner', 'department', 'branch', 'market', 'team'] })
+  @ApiPropertyOptional({ enum: CommissionReportGroupBy })
   @Transform(trimOptional)
   @IsOptional()
-  @IsString({ message: 'groupBy must be a string' })
-  @MaxLength(40, { message: 'groupBy must not exceed 40 characters' })
-  groupBy?: string;
+  @IsEnum(CommissionReportGroupBy, { message: 'groupBy is not valid' })
+  groupBy?: CommissionReportGroupBy;
 
-  @ApiPropertyOptional({ enum: ['milestoneDate', 'revenue', 'commission', 'employee'] })
+  @ApiPropertyOptional({ enum: CommissionReportSortBy })
   @Transform(trimOptional)
   @IsOptional()
-  @IsString({ message: 'sortBy must be a string' })
-  @MaxLength(40, { message: 'sortBy must not exceed 40 characters' })
-  sortBy?: string;
+  @IsEnum(CommissionReportSortBy, { message: 'sortBy is not valid' })
+  sortBy?: CommissionReportSortBy;
 }
 
 export class CommissionReportActionDto {

@@ -103,8 +103,17 @@ function assertPublicQuotation(row) {
 
 async function main() {
   const reportsController = fs.readFileSync('/workspace/apps/api/src/modules/reports/reports.controller.ts', 'utf8');
+  const reportQueryDto = fs.readFileSync('/workspace/apps/api/src/modules/reports/dto/report-query.dto.ts', 'utf8');
   const filesController = fs.readFileSync('/workspace/apps/api/src/modules/files/files.controller.ts', 'utf8');
   const quotesController = fs.readFileSync('/workspace/apps/api/src/modules/quotes/quotes.controller.ts', 'utf8');
+  assert(reportsController.includes('ReportQueryDto'), 'reports controller must bind query through ReportQueryDto');
+  assert(!reportsController.includes('Record<string, string>'), 'reports controller must not accept raw Record<string, string> query objects');
+  assert(reportQueryDto.includes('IsDateString'), 'reports query DTO must validate date strings');
+  assert(reportQueryDto.includes('OrderType') && reportQueryDto.includes('TourType') && reportQueryDto.includes('IsIn'), 'reports query DTO must validate report type values');
+  assert(reportQueryDto.includes('OrderStatus') && reportQueryDto.includes('TourStatus') && reportQueryDto.includes('IsIn'), 'reports query DTO must validate report status values');
+  assert(reportQueryDto.includes('OrderPaymentStatus') && reportQueryDto.includes('PaymentStatus') && reportQueryDto.includes('IsIn'), 'reports query DTO must validate payment status values');
+  assert(reportQueryDto.includes('IsEnum(OrderCostStatus'), 'reports query DTO must validate order cost status enum');
+
   assert(reportsController.includes("@RequirePermissions('report.view', 'finance.cashflow.view')"), 'finance reports need finance.cashflow.view');
   assert(reportsController.includes("@RequirePermissions('report.view', 'finance.debt.view')"), 'debt reports need finance.debt.view');
   assert(reportsController.includes('this.assertSensitiveExportPermission(report, request?.user)'), 'sensitive report exports need specialized permissions');
@@ -147,7 +156,7 @@ async function main() {
   assert(!smart.smartLinkToken.toLowerCase().includes(quotationA.quoteCode.toLowerCase()), 'SmartLink token must not expose quote code');
   assertPublicQuotation(await quotations.publicDetail(smart.smartLinkToken));
   const rotatedSmart = await quotations.smartLink(quotationA.id, true, allUser);
-  assert.notEqual(rotatedSmart.smartLinkToken, smart.smartLinkToken, 'SmartLink token must rotate when enabled');
+  assert.equal(rotatedSmart.smartLinkToken, smart.smartLinkToken, 'SmartLink token should stay stable when already enabled');
   await prisma.quotation.update({ where: { id: quotationA.id }, data: { smartLinkToken: `${quotationA.quoteCode.toLowerCase()}-legacy`, smartLinkEnabled: true } });
   await rejects(() => quotations.publicDetail(`${quotationA.quoteCode.toLowerCase()}-legacy`), 'predictable legacy SmartLink tokens must be rejected');
 
@@ -161,6 +170,12 @@ async function main() {
   await rejects(() => quotes.updateTourQuote(tourB.id, { route: 'blocked' }, branchUser), 'tour quote update must reject rows outside scope');
   await rejects(() => quotes.deleteTourQuote(tourB.id, branchUser), 'tour quote delete must reject rows outside scope');
   await rejects(() => quotes.approveTourQuote(tourB.id, {}, branchUser), 'tour quote actions must reject rows outside scope');
+
+  const approvedTourA = await quotes.approveTourQuote(tourA.id, { approvedBy: 'client-spoof', approvalNote: 'approve note' }, branchUser);
+  assert.equal(approvedTourA.approvedBy, branchUser.id, 'tour quote approve must derive approvedBy from request.user');
+  const rejectCandidate = await quotes.createTourQuote(tourPayload(`${run}-TR`, customerA), branchUser);
+  const rejectedTour = await quotes.rejectTourQuote(rejectCandidate.id, { approvedBy: 'client-reject-spoof', approvalNote: 'reject note' }, branchUser);
+  assert.equal(rejectedTour.approvedBy, branchUser.id, 'tour quote reject must derive approvedBy from request.user');
 
   const related = await customersService.quotes(customerA.id, branchUser);
   assert(related.rows.some((row) => row.id === tourA.id), 'customer quotes must include scoped tour quote');
@@ -177,6 +192,9 @@ async function main() {
   });
   await files.assertObjectAccess(keyA, branchUser, 'view');
   await files.assertObjectAccess(keyA, branchUser, 'manage');
+  const absoluteKeyA = `customers/${customerA.id}/2026/06/file-absolute.pdf`;
+  await prisma.customerFile.create({ data: { customerId: customerA.id, fileName: 'absolute.pdf', fileUrl: `https://aitour.io.vn/api/files/download?key=${encodeURIComponent(absoluteKeyA)}` } });
+  await files.assertObjectAccess(absoluteKeyA, branchUser, 'view');
   await rejects(() => files.assertObjectAccess(keyA, scopeOnlyUser, 'view'), 'file access must require parent module permission');
   await rejects(() => files.assertObjectAccess(keyB, branchUser, 'view'), 'file access must reject parent outside scope');
   await rejects(() => files.assertObjectAccess(`customers/${customerA.id}/2026/06/orphan.pdf`, branchUser, 'view'), 'file access must reject missing metadata');

@@ -26,8 +26,15 @@ docker compose run --rm \
   -v "$PWD:/workspace:ro" \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
+const { ParseEnumPipe } = require('@nestjs/common');
+const { plainToInstance } = require('class-transformer');
+const { validateSync } = require('class-validator');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { CommissionReportsController } = require('./apps/api/dist/modules/commission-reports/commission-reports.controller');
+const {
+  CommissionReportGroupBy,
+  CommissionReportsQueryDto,
+} = require('./apps/api/dist/modules/commission-reports/dto/commission-report.dto');
 const { CommissionReportsService } = require('./apps/api/dist/modules/commission-reports/commission-reports.service');
 
 function assert(condition, label) {
@@ -80,6 +87,21 @@ async function createEntry(prisma, run, suffix, branch, department, status = 'PE
 }
 
 async function main() {
+  const invalidGroupByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { groupBy: 'not-a-group' }));
+  assert(invalidGroupByErrors.some((error) => error.property === 'groupBy'), 'query DTO should reject invalid groupBy');
+  const invalidSortByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { sortBy: 'not-a-sort' }));
+  assert(invalidSortByErrors.some((error) => error.property === 'sortBy'), 'query DTO should reject invalid sortBy');
+
+  const groupingPipe = new ParseEnumPipe(CommissionReportGroupBy);
+  await rejects(
+    () => groupingPipe.transform('not-a-group', { type: 'param', metatype: String, data: 'groupBy' }),
+    'grouping path should reject invalid groupBy',
+  );
+  assert(
+    (await groupingPipe.transform('branch', { type: 'param', metatype: String, data: 'groupBy' })) === 'branch',
+    'grouping path should accept supported groupBy',
+  );
+
   const prisma = new PrismaService();
   await prisma.$connect();
   const service = new CommissionReportsService(prisma);

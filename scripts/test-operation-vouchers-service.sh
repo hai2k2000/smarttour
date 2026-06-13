@@ -285,6 +285,33 @@ async function main() {
   });
   assert(!standalone.bookingId && !standalone.tourId && !standalone.orderId && standalone.supplierName === 'Manual Supplier Name', 'create should allow manual supplierName without booking/tour/order links for unrestricted users');
 
+  const reuseTarget = await service.create({
+    voucherCode: run + '-REUSE-TARGET',
+    supplierName: 'Manual Supplier Name',
+    serviceType: 'Transport',
+    serviceName: 'Manual transport reuse target',
+    serviceDate: '2026-12-10',
+    details: [{ serviceName: 'Transport NET', quantity: 1, netPrice: 100, vat: 0 }],
+  });
+  const unlinkedFinancePayment = await prisma.financePayment.create({
+    data: {
+      voucherCode: run + '-PAY-UNLINKED',
+      paymentAmount: 100,
+      totalAmount: 100,
+      approvalStatus: 'APPROVED',
+    },
+  });
+  const firstUnlinkedUse = await service.addPayment(standalone.id, {
+    paymentVoucherId: unlinkedFinancePayment.id,
+    paymentAmount: 60,
+    paymentDate: '2026-12-12',
+  });
+  assert(firstUnlinkedUse.payments.some((payment) => payment.paymentVoucherId === unlinkedFinancePayment.id), 'addPayment should allow first use of an unlinked approved finance payment');
+  await rejects(
+    () => service.addPayment(reuseTarget.id, { paymentVoucherId: unlinkedFinancePayment.id, paymentAmount: 40, paymentDate: '2026-12-13' }),
+    'addPayment should reject reusing one approved finance payment across operation vouchers',
+  );
+
   const financeSource = await service.create({
     voucherCode: run + '-FINANCE',
     orderId: order.id,

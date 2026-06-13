@@ -263,11 +263,6 @@ export class QuoteApprovalDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  approvedBy?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
   approvalNote?: string;
 }
 

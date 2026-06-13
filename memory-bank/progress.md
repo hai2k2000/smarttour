@@ -2,6 +2,16 @@
 
 ## Done
 
+- Closed remaining pre-deploy review findings:
+  - Blocked reuse of one approved FinancePayment across operation voucher
+    payment histories without row locking and global usage checks.
+  - Removed client-controlled tour quote approval actors.
+  - Added reports query DTO validation, development-only permissive CORS
+    fallback, awaited browser logout, normalized file metadata URL matching,
+    stable SmartLink enable behavior, and lockfile audit cleanup.
+  - Verified on VPS with targeted regression scripts plus Docker toolchain
+    validation and npm audit.
+
 - Completed High C auth/session Phase 2 cleanup:
   - Next proxy no longer turns the browser cookie into an Authorization Bearer
     header for `/auth/me`; it forwards the `smarttour.auth.token` cookie
@@ -1429,3 +1439,17 @@
   - Cleaned duplicate Supplier CSS at the end of globals.css and fixed a row-detail indentation-only diff.
   - Verification passed: `docker compose build api web`, `docker compose build api`, `docker compose build web`, `scripts/verify-toolchain-docker.sh`, `scripts/test-route-permissions.sh`, direct compiled ReportsService employee/search contract check, `docker compose config --quiet`, and `git diff --check`.
   - Remaining risk: npm audit during Docker verification still reports one high severity advisory; broader raw Record/as any DTO cleanup remains outside this narrow pass.
+
+- 2026-06-13 Completed reports query validation follow-up:
+  - Added focused ReportQueryDto validation across report queries/exports and guarded direct date parsing with BadRequestException before Prisma.
+  - Replaced commission groupBy/sortBy free-form strings with explicit enums and validated grouping path params with ParseEnumPipe.
+  - Expanded commission security regression coverage for invalid query/path grouping and sorting values.
+  - No schema/frontend/deploy changes.
+  - Verification passed: TEST_COMMISSION_REPORTS_SECURITY_OK, TEST_HIGH_A_DATA_ACCESS_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.
+
+- 2026-06-13 Completed credentialed CORS runtime hardening:
+  - Centralized configured CORS origins in runtime-env.ts.
+  - Production/staging now fail fast without an explicit origin while development keeps the local permissive fallback.
+  - Added regression coverage for missing production/staging origins and valid configured origin startup.
+  - No schema/frontend/deploy changes.
+  - Verification passed: TEST_AUTH_GUARD_BEHAVIOR_OK, TEST_AUTH_COOKIE_SESSION_OK, npm run verify:toolchain, docker compose config --quiet, and git diff --check.
