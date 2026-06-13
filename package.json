@@ -40,7 +40,8 @@
     "ops:install-schedule": "scripts/install-ops-schedule.sh",
     "deploy:preview": "scripts/deploy-preview.sh",
     "verify:deploy": "npx prisma migrate status && npm audit --omit=dev && npm run smoke:all && npm run ops:health && npm run ops:security",
-    "test:fit-wizard": "scripts/test-fit-wizard-ui-contract.sh"
+    "test:fit-wizard": "scripts/test-fit-wizard-ui-contract.sh",
+    "verify:toolchain": "scripts/verify-toolchain-docker.sh"
   },
   "devDependencies": {
     "playwright": "^1.60.0",
