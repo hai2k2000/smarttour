@@ -1483,3 +1483,10 @@
   - Added regression coverage for partial use of a 100 payment as 60, server-derived amount, oversized approved payment versus voucher debt, and reuse rejection.
   - No schema/frontend change.
   - Verification passed: `TEST_OPERATION_VOUCHERS_SERVICE_OK`.
+
+- 2026-06-13 Completed runtime CORS origin validation follow-up:
+  - Removed NEXT_PUBLIC_API_URL from backend CORS origin discovery and required explicit frontend-origin env vars for production/staging.
+  - CORS origin validation now rejects invalid syntax, wildcard, non-http(s), credentials, path, query string, and fragment values before startup.
+  - Expanded auth guard/runtime config regression coverage for invalid origins, wildcard rejection, valid origin normalization, and NEXT_PUBLIC_API_URL-only production rejection.
+  - No schema/frontend change.
+  - Verification passed: `TEST_AUTH_GUARD_BEHAVIOR_OK`, `npm run verify:toolchain`, `docker compose config --quiet`, `git diff --check`, and reviewer check.

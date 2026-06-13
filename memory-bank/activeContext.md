@@ -1804,3 +1804,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationVoucher addPayment keeps the existing one FinancePayment to one OperationVoucher model; no allocation model or schema migration was introduced.
   - Approved FinancePayment.paymentAmount is now the server-authoritative settlement amount. Client paidAmount/paymentAmount is optional and, if supplied, must match the approved finance payment amount.
   - The transaction still locks the OperationVoucher and FinancePayment rows before checking reuse and writing settlement rows, preventing double-use while avoiding partial payment allocation semantics.
+
+- 2026-06-13 Runtime CORS origin validation follow-up:
+  - Browser CORS origins now come only from explicit frontend-origin env vars: SMARTTOUR_CORS_ORIGINS, CORS_ORIGINS, SMARTTOUR_WEB_URL, or WEB_ORIGIN.
+  - NEXT_PUBLIC_API_URL is no longer treated as a backend CORS origin source because it may be an API base URL rather than the browser frontend origin.
+  - CORS origin parsing now fails fast for invalid URL syntax, wildcard, unsupported protocols, credentials, path, query string, or fragment.
