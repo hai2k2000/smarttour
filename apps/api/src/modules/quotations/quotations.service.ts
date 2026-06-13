@@ -202,7 +202,9 @@ export class QuotationsService {
     this.assertStatus(current.status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'toggle smartlink');
     return this.prisma.quotation.update({
       where: { id },
-      data: enabled ? { smartLinkEnabled: true, smartLinkToken: this.secureSmartLinkToken(current.smartLinkToken) } : { smartLinkEnabled: false },
+      data: enabled
+        ? { smartLinkEnabled: true, smartLinkToken: this.secureSmartLinkToken(current.smartLinkToken, current.smartLinkEnabled) }
+        : { smartLinkEnabled: false },
       include: this.includeAll(),
     });
   }
@@ -430,8 +432,8 @@ export class QuotationsService {
     if (start && end && end < start) throw new BadRequestException(message);
   }
 
-  private secureSmartLinkToken(current?: string | null) {
-    return current && /^[A-Za-z0-9_-]{43}$/.test(current) ? current : this.token();
+  private secureSmartLinkToken(current: string | null | undefined, alreadyEnabled: boolean) {
+    return alreadyEnabled && current && /^[A-Za-z0-9_-]{43}$/.test(current) ? current : this.token();
   }
 
   private token() {

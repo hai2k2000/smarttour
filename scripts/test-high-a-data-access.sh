@@ -155,8 +155,11 @@ async function main() {
   assert.match(smart.smartLinkToken, /^[A-Za-z0-9_-]{43}$/, 'SmartLink token must be 32 random bytes encoded as base64url');
   assert(!smart.smartLinkToken.toLowerCase().includes(quotationA.quoteCode.toLowerCase()), 'SmartLink token must not expose quote code');
   assertPublicQuotation(await quotations.publicDetail(smart.smartLinkToken));
-  const rotatedSmart = await quotations.smartLink(quotationA.id, true, allUser);
-  assert.equal(rotatedSmart.smartLinkToken, smart.smartLinkToken, 'SmartLink token should stay stable when already enabled');
+  const repeatedEnable = await quotations.smartLink(quotationA.id, true, allUser);
+  assert.equal(repeatedEnable.smartLinkToken, smart.smartLinkToken, 'SmartLink token should stay stable when already enabled');
+  await quotations.smartLink(quotationA.id, false, allUser);
+  const reenabledSmart = await quotations.smartLink(quotationA.id, true, allUser);
+  assert.notEqual(reenabledSmart.smartLinkToken, smart.smartLinkToken, 'SmartLink token should rotate when transitioning from disabled to enabled');
   await prisma.quotation.update({ where: { id: quotationA.id }, data: { smartLinkToken: `${quotationA.quoteCode.toLowerCase()}-legacy`, smartLinkEnabled: true } });
   await rejects(() => quotations.publicDetail(`${quotationA.quoteCode.toLowerCase()}-legacy`), 'predictable legacy SmartLink tokens must be rejected');
 

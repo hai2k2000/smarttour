@@ -1457,3 +1457,7 @@
 - 2026-06-13 Completed logout timeout follow-up:
   - Added a 3-second AbortController timeout around the awaited logout request and regression checks for signal/timer cleanup.
   - Confirmed legacy absolute file metadata URLs are already authorized by normalized object key matching and covered by TEST_HIGH_A_DATA_ACCESS_OK.
+
+- 2026-06-13 Completed SmartLink lifecycle and dev audit follow-up:
+  - Added regression coverage proving repeated enable preserves an active link and re-enable after disable rotates it.
+  - Confirmed package-lock esbuild 0.28.1 and npm lockfile audit with zero vulnerabilities; no dependency change was needed.

@@ -1781,3 +1781,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - AppShell logout now awaits the backend revoke/clear-cookie response for up to 3 seconds using AbortController, then deterministically clears local UI state and redirects.
   - File metadata authorization already normalizes relative, absolute, and legacy download URLs to object keys; no additional file-service change was required.
   - No database schema change.
+
+- 2026-06-13 SmartLink lifecycle and dev audit follow-up:
+  - Repeated enable while SmartLink is active preserves its valid token, while disabled-to-enabled transitions now issue a new random token; missing/legacy tokens are also replaced.
+  - package-lock.json already pins esbuild 0.28.1 and lockfile audit reports zero vulnerabilities; host node_modules may still show stale esbuild 0.28.0 until npm ci, but Docker verification installs from the lockfile.
+  - No database schema or frontend change.
