@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, PaymentStatus, TourStatus, TourType } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBooleanString, IsDateString, IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBooleanString, IsDateString, IsEmpty, IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
 
 const trimOptional = ({ value }: { value: unknown }) => {
@@ -22,46 +22,19 @@ const uniqueValues = (...values: string[][]) => Array.from(new Set(values.flat()
 const REPORT_TYPE_VALUES = uniqueValues(enumValues(OrderType), enumValues(TourType));
 const REPORT_STATUS_VALUES = uniqueValues(enumValues(OrderStatus), enumValues(TourStatus));
 const REPORT_PAYMENT_STATUS_VALUES = uniqueValues(enumValues(OrderPaymentStatus), enumValues(PaymentStatus));
-const REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt', 'closedAt'] as const;
+const ORDER_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'] as const;
+const TOUR_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
+const DEBT_REPORT_DATE_FIELDS = ['documentDate'] as const;
+const REPORT_DATE_FIELDS = uniqueValues([...ORDER_REPORT_DATE_FIELDS], [...TOUR_REPORT_DATE_FIELDS], [...DEBT_REPORT_DATE_FIELDS]);
 const REPORT_GROUPS = ['by-created-date', 'by-checkin-date', 'by-checkout-date', 'by-approved-date', 'by-employee', 'by-agency', 'by-branch', 'by-department', 'by-market', 'by-type'] as const;
 
-export class ReportQueryDto {
+export class BaseReportQueryDto {
   @ApiPropertyOptional({ maxLength: LIST_SEARCH_MAX_LENGTH })
   @Transform(trimOptional)
   @IsOptional()
   @IsString({ message: 'search must be a string' })
   @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `search must not exceed ${LIST_SEARCH_MAX_LENGTH} characters` })
   search?: string;
-
-  @ApiPropertyOptional({ enum: REPORT_TYPE_VALUES })
-  @Transform(upperOptional)
-  @IsOptional()
-  @IsIn(REPORT_TYPE_VALUES, { message: 'type is not valid' })
-  type?: string;
-
-  @ApiPropertyOptional({ enum: REPORT_STATUS_VALUES })
-  @Transform(upperOptional)
-  @IsOptional()
-  @IsIn(REPORT_STATUS_VALUES, { message: 'status is not valid' })
-  status?: string;
-
-  @ApiPropertyOptional({ enum: REPORT_PAYMENT_STATUS_VALUES })
-  @Transform(upperOptional)
-  @IsOptional()
-  @IsIn(REPORT_PAYMENT_STATUS_VALUES, { message: 'paymentStatus is not valid' })
-  paymentStatus?: string;
-
-  @ApiPropertyOptional({ enum: OrderCostStatus })
-  @Transform(upperOptional)
-  @IsOptional()
-  @IsEnum(OrderCostStatus, { message: 'costStatus is not valid' })
-  costStatus?: OrderCostStatus;
-
-  @ApiPropertyOptional({ enum: REPORT_DATE_FIELDS })
-  @Transform(trimOptional)
-  @IsOptional()
-  @IsIn(REPORT_DATE_FIELDS, { message: 'dateField is not valid' })
-  dateField?: string;
 
   @ApiPropertyOptional({ enum: REPORT_GROUPS })
   @Transform(trimOptional)
@@ -164,4 +137,110 @@ export class ReportQueryDto {
   @IsString()
   @MaxLength(120)
   supplier?: string;
+}
+
+export class OrderFilterReportQueryDto extends BaseReportQueryDto {
+  @ApiPropertyOptional({ enum: OrderType })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(OrderType, { message: 'type is not valid for Order reports' })
+  type?: OrderType;
+
+  @ApiPropertyOptional({ enum: OrderStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(OrderStatus, { message: 'status is not valid for Order reports' })
+  status?: OrderStatus;
+
+  @ApiPropertyOptional({ enum: OrderPaymentStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(OrderPaymentStatus, { message: 'paymentStatus is not valid for Order reports' })
+  paymentStatus?: OrderPaymentStatus;
+
+  @ApiPropertyOptional({ enum: OrderCostStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(OrderCostStatus, { message: 'costStatus is not valid for Order reports' })
+  costStatus?: OrderCostStatus;
+
+}
+
+export class OrderReportQueryDto extends OrderFilterReportQueryDto {
+  @ApiPropertyOptional({ enum: ORDER_REPORT_DATE_FIELDS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(ORDER_REPORT_DATE_FIELDS, { message: 'dateField is not valid for Order reports' })
+  dateField?: string;
+}
+
+export class DebtReportQueryDto extends OrderFilterReportQueryDto {
+  @ApiPropertyOptional({ enum: DEBT_REPORT_DATE_FIELDS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(DEBT_REPORT_DATE_FIELDS, { message: 'dateField is not valid for debt reports' })
+  dateField?: string;
+}
+
+export class TourReportQueryDto extends BaseReportQueryDto {
+  @ApiPropertyOptional({ enum: TourType })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(TourType, { message: 'type is not valid for Tour reports' })
+  type?: TourType;
+
+  @ApiPropertyOptional({ enum: TourStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(TourStatus, { message: 'status is not valid for Tour reports' })
+  status?: TourStatus;
+
+  @ApiPropertyOptional({ enum: PaymentStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(PaymentStatus, { message: 'paymentStatus is not valid for Tour reports' })
+  paymentStatus?: PaymentStatus;
+
+  @ApiPropertyOptional({ enum: TOUR_REPORT_DATE_FIELDS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(TOUR_REPORT_DATE_FIELDS, { message: 'dateField is not valid for Tour reports' })
+  dateField?: string;
+
+  @ApiPropertyOptional({ description: 'Order-only filter; not accepted for Tour reports' })
+  @Transform(upperOptional)
+  @IsEmpty({ message: 'costStatus is not valid for Tour reports' })
+  costStatus?: never;
+}
+
+export class ReportQueryDto extends BaseReportQueryDto {
+  @ApiPropertyOptional({ enum: REPORT_TYPE_VALUES })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsIn(REPORT_TYPE_VALUES, { message: 'type is not valid' })
+  type?: string;
+
+  @ApiPropertyOptional({ enum: REPORT_STATUS_VALUES })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsIn(REPORT_STATUS_VALUES, { message: 'status is not valid' })
+  status?: string;
+
+  @ApiPropertyOptional({ enum: REPORT_PAYMENT_STATUS_VALUES })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsIn(REPORT_PAYMENT_STATUS_VALUES, { message: 'paymentStatus is not valid' })
+  paymentStatus?: string;
+
+  @ApiPropertyOptional({ enum: OrderCostStatus })
+  @Transform(upperOptional)
+  @IsOptional()
+  @IsEnum(OrderCostStatus, { message: 'costStatus is not valid' })
+  costStatus?: OrderCostStatus;
+
+  @ApiPropertyOptional({ enum: REPORT_DATE_FIELDS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(REPORT_DATE_FIELDS, { message: 'dateField is not valid' })
+  dateField?: string;
 }

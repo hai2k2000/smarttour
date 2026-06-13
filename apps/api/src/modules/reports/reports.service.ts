@@ -103,12 +103,14 @@ export class ReportsService {
   }
 
   async revenue(groupBy: string, query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
     const group = this.normalizeGroup(groupBy);
     const orders = await this.orders({ ...query, dateField: this.dateFieldFromGroup(group, query.dateField) }, user);
     return this.groupOrders(orders, group);
   }
 
   async profit(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
     const groupBy = this.normalizeGroup(query.groupBy || 'by-employee');
     const result = this.groupOrders(await this.orders({ ...query, dateField: this.dateFieldFromGroup(groupBy, query.dateField) }, user), groupBy);
     return { ...result, rows: result.rows.map((row) => ({ ...row, profitAfterCommission: row.profit - row.commission })) };
@@ -141,6 +143,7 @@ export class ReportsService {
   }
 
   async customerDebt(query: ReportQuery, user?: RequestUser) {
+    this.assertDebtQuery(query);
     const entries = await this.prisma.customerLedgerEntry.findMany({
       where: branchDepartmentScopeWhere(this.customerDebtWhere(query), user),
       include: { customer: true, order: true, tour: true, receipt: true, invoice: true },
@@ -155,6 +158,7 @@ export class ReportsService {
   }
 
   async supplierDebt(query: ReportQuery, user?: RequestUser) {
+    this.assertDebtQuery(query);
     const entries = await this.prisma.supplierLedgerEntry.findMany({
       where: branchDepartmentScopeWhere(this.supplierDebtWhere(query), user),
       include: { supplier: { include: { category: true } }, order: true, tour: true, operationVoucher: true, payment: true },
@@ -169,6 +173,7 @@ export class ReportsService {
   }
 
   async supplierHistory(supplierId: string, query: ReportQuery, user?: RequestUser) {
+    this.assertSupplierHistoryQuery(query);
     return this.prisma.operationVoucher.findMany({
       where: branchDepartmentScopeWhere({ deletedAt: null, supplierId, ...this.dateRange('serviceDate', query.dateFrom, query.dateTo) }, user),
       include: { payments: true },
@@ -204,6 +209,7 @@ export class ReportsService {
   }
 
   private async orders(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
     return this.prisma.order.findMany({
       where: branchDepartmentScopeWhere(this.orderWhere(query), user),
       include: { _count: { select: { members: true, operationItems: true } } },
@@ -213,6 +219,7 @@ export class ReportsService {
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {
+    this.assertTourQuery(query);
     return this.prisma.tour.findMany({
       where: branchDepartmentScopeWhere(this.tourWhere(query), user),
       include: {
@@ -613,31 +620,75 @@ export class ReportsService {
   }
 
   private orderType(value?: string): OrderType | undefined {
-    return ORDER_TYPES.has(value || '') ? value as OrderType : undefined;
+    if (!value) return undefined;
+    if (!ORDER_TYPES.has(value)) throw new BadRequestException('type is not valid for Order reports');
+    return value as OrderType;
   }
 
   private tourType(value?: string): TourType | undefined {
-    return TOUR_TYPES.has(value || '') ? value as TourType : undefined;
+    if (!value) return undefined;
+    if (!TOUR_TYPES.has(value)) throw new BadRequestException('type is not valid for Tour reports');
+    return value as TourType;
   }
 
   private orderStatus(value?: string): OrderStatus | undefined {
-    return ORDER_STATUSES.has(value || '') ? value as OrderStatus : undefined;
+    if (!value) return undefined;
+    if (!ORDER_STATUSES.has(value)) throw new BadRequestException('status is not valid for Order reports');
+    return value as OrderStatus;
   }
 
   private tourStatus(value?: string): TourStatus | undefined {
-    return TOUR_STATUSES.has(value || '') ? value as TourStatus : undefined;
+    if (!value) return undefined;
+    if (!TOUR_STATUSES.has(value)) throw new BadRequestException('status is not valid for Tour reports');
+    return value as TourStatus;
   }
 
   private orderPaymentStatus(value?: string): OrderPaymentStatus | undefined {
-    return ORDER_PAYMENT_STATUSES.has(value || '') ? value as OrderPaymentStatus : undefined;
+    if (!value) return undefined;
+    if (!ORDER_PAYMENT_STATUSES.has(value)) throw new BadRequestException('paymentStatus is not valid for Order reports');
+    return value as OrderPaymentStatus;
   }
 
   private tourPaymentStatus(value?: string): PaymentStatus | undefined {
-    return TOUR_PAYMENT_STATUSES.has(value || '') ? value as PaymentStatus : undefined;
+    if (!value) return undefined;
+    if (!TOUR_PAYMENT_STATUSES.has(value)) throw new BadRequestException('paymentStatus is not valid for Tour reports');
+    return value as PaymentStatus;
   }
 
   private orderCostStatus(value?: string): OrderCostStatus | undefined {
-    return ORDER_COST_STATUSES.has(value || '') ? value as OrderCostStatus : undefined;
+    if (!value) return undefined;
+    if (!ORDER_COST_STATUSES.has(value)) throw new BadRequestException('costStatus is not valid for Order reports');
+    return value as OrderCostStatus;
+  }
+
+  private assertOrderQuery(query: ReportQuery) {
+    this.orderType(query.type);
+    this.orderStatus(query.status);
+    this.orderPaymentStatus(query.paymentStatus);
+    this.orderCostStatus(query.costStatus);
+    this.normalizeDateField(query.dateField);
+  }
+
+  private assertTourQuery(query: ReportQuery) {
+    this.tourType(query.type);
+    this.tourStatus(query.status);
+    this.tourPaymentStatus(query.paymentStatus);
+    this.normalizeTourDateField(query.dateField);
+    if (query.costStatus) throw new BadRequestException('costStatus is not valid for Tour reports');
+  }
+
+  private assertDebtQuery(query: ReportQuery) {
+    this.orderType(query.type);
+    this.orderStatus(query.status);
+    this.orderPaymentStatus(query.paymentStatus);
+    this.orderCostStatus(query.costStatus);
+    if (query.dateField && query.dateField !== 'documentDate') throw new BadRequestException('dateField is not valid for debt reports');
+  }
+
+  private assertSupplierHistoryQuery(query: ReportQuery) {
+    const allowed = new Set(['dateFrom', 'dateTo']);
+    const unsupported = Object.entries(query).find(([key, value]) => value !== undefined && !allowed.has(key));
+    if (unsupported) throw new BadRequestException(`${unsupported[0]} is not valid for supplier history reports`);
   }
 
   private dateFieldFromGroup(groupBy: string, fallback?: string) {
@@ -648,11 +699,15 @@ export class ReportsService {
   }
 
   private normalizeDateField(field?: string): OrderDateField {
-    return field && ORDER_DATE_FIELDS.includes(field as OrderDateField) ? field as OrderDateField : 'createdAt';
+    if (!field) return 'createdAt';
+    if (!ORDER_DATE_FIELDS.includes(field as OrderDateField)) throw new BadRequestException('dateField is not valid for Order reports');
+    return field as OrderDateField;
   }
 
   private normalizeTourDateField(field?: string): TourDateField {
-    return field && TOUR_DATE_FIELDS.includes(field as TourDateField) ? field as TourDateField : 'createdAt';
+    if (!field) return 'createdAt';
+    if (!TOUR_DATE_FIELDS.includes(field as TourDateField)) throw new BadRequestException('dateField is not valid for Tour reports');
+    return field as TourDateField;
   }
 
   private dateRange(field: string, from?: string, to?: string) {

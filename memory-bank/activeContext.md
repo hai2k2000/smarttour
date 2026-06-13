@@ -1786,3 +1786,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Repeated enable while SmartLink is active preserves its valid token, while disabled-to-enabled transitions now issue a new random token; missing/legacy tokens are also replaced.
   - package-lock.json already pins esbuild 0.28.1 and lockfile audit reports zero vulnerabilities; host node_modules may still show stale esbuild 0.28.0 until npm ci, but Docker verification installs from the lockfile.
   - No database schema or frontend change.
+
+- 2026-06-13 Report endpoint-specific query validation:
+  - Order-backed report routes now use `OrderReportQueryDto`; debt reports use `DebtReportQueryDto`; Tour finance uses `TourReportQueryDto`; dynamic exports keep the shared DTO and receive service-level endpoint validation.
+  - Incompatible type/status/paymentStatus/dateField filters now return 400 instead of being dropped, and invalid dateField values no longer fall back to `createdAt`.
+  - Tour finance explicitly rejects the Order-only `costStatus` filter; debt reports only accept `documentDate`; supplier history rejects unsupported report filters. No database schema change.
+  - ReportsClient sends `documentDate` for debt reports, filters Order/Tour query keys and enum values by tab, and no longer presents Order-only date/type/cost filters on Tour finance.
+  - Added `TEST_REPORT_QUERY_VALIDATION_OK`; Docker toolchain verification, Prisma validate, route permission audit, and High-A data access regression all pass.

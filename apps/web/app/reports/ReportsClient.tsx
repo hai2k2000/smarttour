@@ -17,7 +17,7 @@ type GroupKey =
   | 'by-department'
   | 'by-market'
   | 'by-type';
-type DateFieldKey = 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'paymentDate' | 'settledAt';
+type DateFieldKey = 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'paymentDate' | 'settledAt' | 'closedAt';
 type MessageTone = 'idle' | 'success' | 'info' | 'error';
 type LoadReason = 'filter' | 'tab' | 'reset';
 
@@ -91,6 +91,14 @@ const typeOptions = [
   ['SINGLE_SERVICE', 'Dịch vụ lẻ'],
   ['FLIGHT_ORDER', 'Vé máy bay'],
 ];
+const tourTypeOptions = [
+  ['', 'Tất cả'],
+  ['FIT', 'FIT'],
+  ['GIT', 'GIT'],
+  ['LANDTOUR', 'Landtour'],
+];
+const orderTypeValues = new Set(typeOptions.map(([value]) => value).filter(Boolean));
+const tourTypeValues = new Set(tourTypeOptions.map(([value]) => value).filter(Boolean));
 const paymentOptions = [
   ['', 'Tất cả'],
   ['UNPAID', 'Chưa thu'],
@@ -122,6 +130,15 @@ const dateFields: Array<[DateFieldKey, string]> = [
   ['paymentDate', 'Ngày thanh toán'],
   ['settledAt', 'Ngày chốt'],
 ];
+const tourDateFields: Array<[DateFieldKey, string]> = [
+  ['createdAt', 'Ngày tạo'],
+  ['bookingDate', 'Ngày đặt'],
+  ['startDate', 'Ngày bắt đầu'],
+  ['endDate', 'Ngày kết thúc'],
+  ['closedAt', 'Ngày đóng tour'],
+];
+const orderDateFieldValues = new Set(dateFields.map(([value]) => value));
+const tourDateFieldValues = new Set(tourDateFields.map(([value]) => value));
 const orderFilterKeys = new Set([
   'search',
   'dateFrom',
@@ -140,6 +157,8 @@ const orderFilterKeys = new Set([
   'settled',
 ]);
 const supplierDebtFilterKeys = new Set(['search', 'supplier', 'dateFrom', 'dateTo']);
+const customerDebtFilterKeys = new Set([...orderFilterKeys].filter((key) => key !== 'dateField'));
+const tourFilterKeys = new Set(['search', 'dateFrom', 'dateTo', 'dateField', 'type', 'paymentStatus', 'status', 'branch', 'department', 'employee', 'marketGroup']);
 const emptyReport: ReportData = { summary: {}, rows: [] };
 const defaultFilters: Filters = { dateField: 'createdAt' };
 
@@ -185,11 +204,22 @@ function endpointFor(tab: ReportTabKey, selectedGroup: GroupKey) {
 }
 
 function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: GroupKey, includeGroup = true) {
-  const allowedKeys = tab === 'supplier-debt' ? supplierDebtFilterKeys : orderFilterKeys;
+  const allowedKeys = tab === 'finance'
+    ? tourFilterKeys
+    : tab === 'customer-debt'
+      ? customerDebtFilterKeys
+      : tab === 'supplier-debt'
+        ? supplierDebtFilterKeys
+        : orderFilterKeys;
   const query: Filters = {};
   allowedKeys.forEach((key) => {
-    if (currentFilters[key]) query[key] = currentFilters[key];
+    const value = currentFilters[key];
+    if (!value) return;
+    if (key === 'type' && !(tab === 'finance' ? tourTypeValues : orderTypeValues).has(value)) return;
+    if (key === 'dateField' && !(tab === 'finance' ? tourDateFieldValues : orderDateFieldValues).has(value as DateFieldKey)) return;
+    query[key] = value;
   });
+  if (tab === 'customer-debt' || tab === 'supplier-debt') query.dateField = 'documentDate';
   if (includeGroup && groupedTabs.has(tab)) query.groupBy = selectedGroup;
   return query;
 }
@@ -450,6 +480,8 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
   }
 
   const isSupplierDebt = active === 'supplier-debt';
+  const isCustomerDebt = active === 'customer-debt';
+  const isFinance = active === 'finance';
   const messageStyle = message.tone === 'error' ? { color: '#b42318' } : message.tone === 'success' ? { color: '#276749' } : undefined;
 
   return (
@@ -476,18 +508,18 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
             <label>NCC<input value={filters.supplier || ''} placeholder="Tên nhà cung cấp" onChange={(event) => setFilter('supplier', event.target.value)} /></label>
           ) : (
             <>
-              <label>Lọc theo ngày<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{dateFields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>Loại dịch vụ<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+              {!isCustomerDebt && <label>Lọc theo ngày<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{(isFinance ? tourDateFields : dateFields).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+              <label>Loại dịch vụ<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{(isFinance ? tourTypeOptions : typeOptions).map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
-              <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+              {!isFinance && <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>}
               <label>Trạng thái đơn<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Chi nhánh<input value={filters.branch || ''} onChange={(event) => setFilter('branch', event.target.value)} /></label>
               <label>Phòng ban<input value={filters.department || ''} onChange={(event) => setFilter('department', event.target.value)} /></label>
               <label>Nhân viên<input value={filters.employee || ''} onChange={(event) => setFilter('employee', event.target.value)} /></label>
-              <label>Đại lý<input value={filters.agency || ''} onChange={(event) => setFilter('agency', event.target.value)} /></label>
-              <label>Loại khách<input value={filters.customerType || ''} onChange={(event) => setFilter('customerType', event.target.value)} /></label>
+              {!isFinance && <label>Đại lý<input value={filters.agency || ''} onChange={(event) => setFilter('agency', event.target.value)} /></label>}
+              {!isFinance && <label>Loại khách<input value={filters.customerType || ''} onChange={(event) => setFilter('customerType', event.target.value)} /></label>}
               <label>Thị trường<input value={filters.marketGroup || ''} onChange={(event) => setFilter('marketGroup', event.target.value)} /></label>
-              <label>Trạng thái chốt<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tất cả</option><option value="true">Đã chốt</option><option value="false">Chưa chốt</option></select></label>
+              {!isFinance && <label>Trạng thái chốt<select value={filters.settled || ''} onChange={(event) => setFilter('settled', event.target.value)}><option value="">Tất cả</option><option value="true">Đã chốt</option><option value="false">Chưa chốt</option></select></label>}
             </>
           )}
         </div>

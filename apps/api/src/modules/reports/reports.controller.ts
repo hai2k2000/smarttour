@@ -2,7 +2,7 @@ import { Controller, ForbiddenException, Get, Header, Param, Query, Req } from '
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser, userPermissions } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { ReportQueryDto } from './dto/report-query.dto';
+import { DebtReportQueryDto, OrderReportQueryDto, ReportQueryDto, TourReportQueryDto } from './dto/report-query.dto';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
@@ -12,28 +12,28 @@ export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 
   @Get('overview')
-  overview(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  overview(@Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.overview(query, request?.user);
   }
 
   @Get('business-summary')
-  businessSummary(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  businessSummary(@Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.businessSummary(query, request?.user);
   }
 
   @Get('revenue/:groupBy')
-  revenue(@Param('groupBy') groupBy: string, @Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  revenue(@Param('groupBy') groupBy: string, @Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.revenue(groupBy, query, request?.user);
   }
 
   @Get('profit')
-  profit(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  profit(@Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.profit(query, request?.user);
   }
 
   @Get('finance')
   @RequirePermissions('report.view', 'finance.cashflow.view')
-  finance(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  finance(@Query() query: TourReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.finance(query, request?.user);
   }
 
@@ -45,13 +45,13 @@ export class ReportsController {
 
   @Get('debt/customers')
   @RequirePermissions('report.view', 'finance.debt.view')
-  customerDebt(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  customerDebt(@Query() query: DebtReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.customerDebt(query, request?.user);
   }
 
   @Get('debt/suppliers')
   @RequirePermissions('report.view', 'finance.debt.view')
-  supplierDebt(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  supplierDebt(@Query() query: DebtReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.supplierDebt(query, request?.user);
   }
 
@@ -62,12 +62,12 @@ export class ReportsController {
   }
 
   @Get('employees')
-  employees(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  employees(@Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.employees(query, request?.user);
   }
 
   @Get('employees/performance')
-  employeePerformance(@Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  employeePerformance(@Query() query: OrderReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.employeePerformance(query, request?.user);
   }
 

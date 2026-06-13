@@ -1461,3 +1461,11 @@
 - 2026-06-13 Completed SmartLink lifecycle and dev audit follow-up:
   - Added regression coverage proving repeated enable preserves an active link and re-enable after disable rotates it.
   - Confirmed package-lock esbuild 0.28.1 and npm lockfile audit with zero vulnerabilities; no dependency change was needed.
+
+- 2026-06-13 Completed report endpoint-specific query validation:
+  - Split report query validation into Order, debt, and Tour DTOs while preserving a shared DTO for dynamic export dispatch.
+  - Added service-level guards so direct/internal calls and dynamic exports reject incompatible enum/dateField filters with 400 before Prisma; supplier history also rejects unsupported report filters.
+  - Added regression coverage for Order/Tour-only types, date fields, invalid statuses, Tour costStatus, debt documentDate, supplier-history ignored filters, and dynamic exports.
+  - Updated ReportsClient query construction and controls so finance uses Tour-compatible filters and debt uses `documentDate`.
+  - No schema change.
+  - Verification passed: `TEST_REPORT_QUERY_VALIDATION_OK`, `TEST_HIGH_A_DATA_ACCESS_OK`, `TEST_ROUTE_PERMISSIONS_OK`, `scripts/verify-toolchain-docker.sh`, Prisma validate, `docker compose config --quiet`, and `git diff --check`.
