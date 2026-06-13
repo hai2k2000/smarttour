@@ -1419,3 +1419,13 @@
   - No schema/frontend/deploy changes.
   - Verified: `TEST_HIGH_B_FINANCE_AUDIT_OK`, `TEST_COMMISSION_REPORTS_SECURITY_OK`, `TEST_OPERATION_VOUCHERS_SERVICE_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, API Docker build, and `git diff --check`.
   - Unrelated pre-existing failures remain in operations controller contract supplier-service expectation and customer file MIME-message expectation.
+
+- 2026-06-13 Completed Medium/Low priority pass:
+  - Added `npm run verify:toolchain` via `scripts/verify-toolchain-docker.sh` to run npm ci, workspace lint/typecheck, and prisma validate inside Docker while host toolchain remains unsafe to mutate.
+  - Removed stale web API URL defaults from Dockerfile/compose and required NEXT_PUBLIC_API_URL for web build/runtime; missing build arg is verified to fail before Next build.
+  - Added commission report DTO validation and removed loose commission enum casts from report filters.
+  - Fixed reports employee/search filter composition by nesting the employee OR and search OR inside AND groups for order and tour reports.
+  - Added commission.export/order.export enforcement, migration `20260613103000_export_permissions`, role grants, security permission catalog labels, and route audit coverage for public logout.
+  - Cleaned duplicate Supplier CSS at the end of globals.css and fixed a row-detail indentation-only diff.
+  - Verification passed: `docker compose build api web`, `docker compose build api`, `docker compose build web`, `scripts/verify-toolchain-docker.sh`, `scripts/test-route-permissions.sh`, direct compiled ReportsService employee/search contract check, `docker compose config --quiet`, and `git diff --check`.
+  - Remaining risk: npm audit during Docker verification still reports one high severity advisory; broader raw Record/as any DTO cleanup remains outside this narrow pass.

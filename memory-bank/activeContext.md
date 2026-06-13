@@ -1736,3 +1736,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - No database schema, frontend, or deployment change was made.
   - Verified on VPS: `TEST_HIGH_B_FINANCE_AUDIT_OK`, `TEST_COMMISSION_REPORTS_SECURITY_OK`, `TEST_OPERATION_VOUCHERS_SERVICE_OK`, `TEST_FINANCE_SERVICE_FLOWS_OK`, `docker compose build api`, and `git diff --check`.
   - Existing unrelated checks still fail before reaching this work: `test-operations-controller-contract.sh` on generic supplier `supplierServices`, and `test-customers-service.sh` on an outdated dangerous-MIME error-message expectation.
+
+- 2026-06-13 Medium/Low review follow-up:
+  - Added Docker-based toolchain verification because host node_modules remains broken for lint/prisma; no production dependency repair was attempted on host.
+  - Web Docker build now requires explicit NEXT_PUBLIC_API_URL and no longer defaults to the stale quanly.dunientravel.com domain; missing build arg fails early.
+  - Commission report query/action/pay requests now use focused DTO validation for enum/date/take/id/note/amount fields while keeping existing service guards.
+  - Report order/tour filters now combine employee and search OR groups under AND so one filter no longer overwrites the other.
+  - Commission/order CSV exports now require dedicated commission.export/order.export permissions, with RBAC role grants and security permission labels/catalog updated.
+  - Supplier CSS cleanup removed duplicate scoped rules and fixed row detail indentation only; no UI redesign was performed.
+  - Verified repeatedly on VPS with git diff --check, docker compose config --quiet, Docker api/web builds, scripts/verify-toolchain-docker.sh, TEST_ROUTE_PERMISSIONS_OK, and direct report filter contract check. npm audit still reports one high severity dependency advisory for follow-up.
