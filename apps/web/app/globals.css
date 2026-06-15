@@ -1612,13 +1612,12 @@ label { min-width: 0; }
 }
 
 .cellClamp2 {
-  display: -webkit-box;
+  display: block;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .supplierPrimaryCell {

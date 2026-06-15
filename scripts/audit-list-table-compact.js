@@ -36,7 +36,16 @@ function blockAfter(anchor, token) {
   return globals.slice(previousRuleEnd >= 0 ? previousRuleEnd + 1 : 0, blockEnd + 1);
 }
 
+function ruleBlock(selector) {
+  const selectorIndex = globals.indexOf(selector);
+  if (selectorIndex < 0) return '';
+  const blockEnd = globals.indexOf('}', selectorIndex);
+  if (blockEnd < 0) return '';
+  return globals.slice(selectorIndex, blockEnd + 1);
+}
+
 const fixedLayoutBlock = blockAfter('Compact list tables', 'table-layout: fixed;');
+const cellClamp2Block = ruleBlock('.cellClamp2');
 
 for (const tableClass of listTables) {
   const compactSelector = `table.${tableClass}`;
@@ -53,6 +62,17 @@ for (const tableClass of listTables) {
 
 if (!globals.includes('--list-visible-rows: 10')) {
   failures.push('globals.css: compact list viewport must show 10 rows');
+}
+
+if (!cellClamp2Block) {
+  failures.push('globals.css: missing .cellClamp2 rule');
+} else {
+  if (cellClamp2Block.includes('-webkit-line-clamp: 2')) {
+    failures.push('globals.css: .cellClamp2 must not clamp to 2 lines');
+  }
+  for (const token of ['white-space: nowrap', 'text-overflow: ellipsis', 'overflow: hidden']) {
+    if (!cellClamp2Block.includes(token)) failures.push(`globals.css: .cellClamp2 missing ${token}`);
+  }
 }
 
 if (failures.length) {
