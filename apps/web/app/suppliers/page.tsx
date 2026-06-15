@@ -264,66 +264,66 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
             <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a>
           </div>
 
-      <section className="panel listPanel supplierListPanel">
-        <div className="sectionHeader">
-          <h2>Danh sách nhà cung cấp</h2>
-          <span>{suppliers.length} nhà cung cấp</span>
-        </div>
-        <div className="supplierTableWrap">
-          <table className="supplierTable">
-          <thead>
-            <tr>
-              <th>Nhà cung cấp</th>
-              <th>Loại nhà cung cấp</th>
-              <th>Liên hệ</th>
-              <th>Điện thoại</th>
-              <th>Email</th>
-              <th>Địa chỉ</th>
-              <th>Công nợ / ghi chú</th>
-              <th>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.map((supplier) => (
-              <tr key={supplier.id}>
-                <td>
-                  <strong>{supplier.name}</strong>
-                  <span className="supplierMeta">Cập nhật: {formatDate(supplier.updatedAt)}</span>
-                </td>
-                <td>{supplier.category?.name || 'Chưa phân loại'}</td>
-                <td>{display(supplier.contactPerson)}</td>
-                <td>{display(supplier.phone)}</td>
-                <td>{display(supplier.email)}</td>
-                <td>{display(supplier.address)}</td>
-                <td>
-                  <div className="supplierDebtBlock">
-                    {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
-                    {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
-                    {supplier.notes ? <span><strong>Ghi chú:</strong> {supplier.notes}</span> : null}
-                    {!supplier.debtNote && !supplier.pricePolicy && !supplier.notes ? <span className="supplierDebtNote mutedText">Chưa có ghi chú công nợ.</span> : null}
-                  </div>
-                </td>
-                <td className="actionsCell">
-                  <div className="rowActions">
-                    <a className="secondaryButton iconOnlyButton" href={`#${editSupplierModalId(supplier.id)}`} title="Sửa nhà cung cấp">
-                      <Pencil size={14} />
-                    </a>
-                    <a className="dangerButton iconOnlyButton" href={`#${deleteSupplierModalId(supplier.id)}`} title="Xóa nhà cung cấp">
-                      <Trash2 size={14} />
-                    </a>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {suppliers.length === 0 ? (
-              <tr>
-                <td colSpan={8}>Chưa có nhà cung cấp. Hãy tạo loại nhà cung cấp và nhà cung cấp đầu tiên.</td>
-              </tr>
-            ) : null}
-          </tbody>
-          </table>
-        </div>
-      </section>
+          <section className="panel listPanel supplierListPanel">
+            <div className="sectionHeader">
+              <h2>Danh sách nhà cung cấp</h2>
+              <span>{suppliers.length} nhà cung cấp</span>
+            </div>
+            <div className="supplierTableWrap">
+              <table className="supplierTable">
+                <thead>
+                  <tr>
+                    <th>Nhà cung cấp</th>
+                    <th>Loại nhà cung cấp</th>
+                    <th>Liên hệ</th>
+                    <th>Điện thoại</th>
+                    <th>Email</th>
+                    <th>Địa chỉ</th>
+                    <th>Công nợ / ghi chú</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliers.map((supplier) => (
+                    <tr key={supplier.id}>
+                      <td>
+                        <strong>{supplier.name}</strong>
+                        <span className="supplierMeta">Cập nhật: {formatDate(supplier.updatedAt)}</span>
+                      </td>
+                      <td>{supplier.category?.name || 'Chưa phân loại'}</td>
+                      <td>{display(supplier.contactPerson)}</td>
+                      <td>{display(supplier.phone)}</td>
+                      <td>{display(supplier.email)}</td>
+                      <td>{display(supplier.address)}</td>
+                      <td>
+                        <div className="supplierDebtBlock">
+                          {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
+                          {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
+                          {supplier.notes ? <span><strong>Ghi chú:</strong> {supplier.notes}</span> : null}
+                          {!supplier.debtNote && !supplier.pricePolicy && !supplier.notes ? <span className="supplierDebtNote mutedText">Chưa có ghi chú công nợ.</span> : null}
+                        </div>
+                      </td>
+                      <td className="actionsCell">
+                        <div className="rowActions">
+                          <a className="secondaryButton iconOnlyButton" href={`#${editSupplierModalId(supplier.id)}`} title="Sửa nhà cung cấp">
+                            <Pencil size={14} />
+                          </a>
+                          <a className="dangerButton iconOnlyButton" href={`#${deleteSupplierModalId(supplier.id)}`} title="Xóa nhà cung cấp">
+                            <Trash2 size={14} />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {suppliers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8}>Chưa có nhà cung cấp. Hãy tạo loại nhà cung cấp và nhà cung cấp đầu tiên.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </section>
 
