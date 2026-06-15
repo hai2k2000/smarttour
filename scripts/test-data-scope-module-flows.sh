@@ -383,7 +383,7 @@ async function main() {
   });
   const scopedLock = await suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, branchUser);
   assert(scopedLock.allocation.orderId === orderA.id, 'branch user should lock allotment against scoped order');
-  await suppliers.confirmAllotmentAllocation(scopedLock.allocation.id, { note: 'confirm scoped' }, branchUser);
+  await suppliers.confirmAllotmentAllocation(scopedLock.allocation.id, { note: 'confirm scoped', actor: 'scope-test' }, branchUser);
   const otherLock = await suppliers.lockAllotment(allotment.id, { orderId: orderB.id, quantity: 1, actor: 'scope-test' }, allUser);
   await rejects(() => suppliers.lockAllotment(allotment.id, { quantity: 1, actor: 'scope-test' }, branchUser), 'scoped allotment lock should require order, booking or tour');
   await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderB.id, quantity: 1, actor: 'scope-test' }, branchUser), 'scoped allotment lock should reject other branch order');

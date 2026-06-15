@@ -33,6 +33,7 @@
     "test:suppliers:hotel": "scripts/test-suppliers-hotel.sh",
     "test:core-workflows": "scripts/test-core-business-workflows-contract.sh",
     "test:ux-ui": "scripts/test-ux-ui-contract.sh",
+    "test:role-permissions": "node scripts/test-role-permission-contract.js",
     "test:list-table-compact": "node scripts/audit-list-table-compact.js",
     "smoke:data-scope": "scripts/verify-data-scope.sh",
     "smoke:all": "npm run smoke:rbac && npm run smoke:business && npm run smoke:operations && npm run smoke:suppliers && npm run smoke:finance && npm run smoke:reports && npm run smoke:exports && npm run smoke:ui && npm run smoke:ui:browser && npm run smoke:ui:interactions",
