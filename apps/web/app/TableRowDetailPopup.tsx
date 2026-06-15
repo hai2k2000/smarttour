@@ -58,6 +58,17 @@ function bindTableCellTitles(root: ParentNode = document) {
   });
 }
 
+function bindTableRows(root: ParentNode = document) {
+  root.querySelectorAll(rowSelector).forEach((row) => {
+    if (!(row instanceof HTMLTableRowElement)) return;
+    if (row.querySelector('.tableEmptyState')) return;
+
+    if (!row.hasAttribute('tabindex')) row.tabIndex = 0;
+    if (!row.hasAttribute('aria-label')) row.setAttribute('aria-label', 'Mở chi tiết dòng dữ liệu');
+    if (!row.hasAttribute('aria-haspopup')) row.setAttribute('aria-haspopup', 'dialog');
+  });
+}
+
 function detailFromRow(row: HTMLTableRowElement): RowDetail | null {
   if (row.querySelector('.tableEmptyState')) return null;
 
@@ -87,32 +98,49 @@ export default function TableRowDetailPopup() {
 
   useEffect(() => {
     bindTableCellTitles();
+    bindTableRows();
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
-          if (node instanceof Element) bindTableCellTitles(node);
+          if (node instanceof Element) {
+            bindTableCellTitles(node);
+            bindTableRows(node);
+          }
         });
       }
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
+    const openRowDetail = (target: Element) => {
+      if (target.closest(interactiveSelector)) return false;
+      const row = target.closest(rowSelector);
+      if (!(row instanceof HTMLTableRowElement)) return false;
+
+      const nextDetail = detailFromRow(row);
+      if (!nextDetail) return false;
+      setDetail(nextDetail);
+      return true;
+    };
+
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (target.closest(interactiveSelector)) return;
-
-      const row = target.closest(rowSelector);
-      if (!(row instanceof HTMLTableRowElement)) return;
-
-      const nextDetail = detailFromRow(row);
-      if (!nextDetail) return;
-      setDetail(nextDetail);
+      openRowDetail(target);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDetail(null);
+      if (event.key === 'Escape') {
+        setDetail(null);
+        return;
+      }
+      const isOpenKey = event.key === 'Enter' || event.key === ' ';
+      if (!isOpenKey) return;
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (openRowDetail(target)) event.preventDefault();
     };
 
     document.addEventListener('click', onClick);

@@ -49,6 +49,12 @@ const cellClamp2Block = ruleBlock('.cellClamp2');
 const bindTitleStart = popup.indexOf('function bindTableCellTitles');
 const bindTitleEnd = popup.indexOf('function detailFromRow', bindTitleStart);
 const bindTitleBlock = bindTitleStart >= 0 && bindTitleEnd > bindTitleStart ? popup.slice(bindTitleStart, bindTitleEnd) : '';
+const bindRowsStart = popup.indexOf('function bindTableRows');
+const bindRowsEnd = popup.indexOf('function detailFromRow', bindRowsStart);
+const bindRowsBlock = bindRowsStart >= 0 && bindRowsEnd > bindRowsStart ? popup.slice(bindRowsStart, bindRowsEnd) : '';
+const keydownStart = popup.indexOf('const onKeyDown');
+const keydownEnd = popup.indexOf('document.addEventListener', keydownStart);
+const keydownBlock = keydownStart >= 0 && keydownEnd > keydownStart ? popup.slice(keydownStart, keydownEnd) : '';
 
 for (const tableClass of listTables) {
   const compactSelector = `table.${tableClass}`;
@@ -82,6 +88,26 @@ if (!bindTitleBlock) {
   failures.push('TableRowDetailPopup.tsx: missing bindTableCellTitles');
 } else if (!bindTitleBlock.includes("cell.hasAttribute('title')")) {
   failures.push('TableRowDetailPopup.tsx: bindTableCellTitles must preserve existing business tooltips');
+}
+
+if (!bindRowsBlock) {
+  failures.push('TableRowDetailPopup.tsx: missing bindTableRows for keyboard row focus');
+} else {
+  for (const token of ['tabIndex = 0', "aria-label", "aria-haspopup"]) {
+    if (!bindRowsBlock.includes(token)) failures.push(`TableRowDetailPopup.tsx: bindTableRows missing ${token}`);
+  }
+}
+
+for (const token of ['bindTableRows();', 'bindTableRows(node)']) {
+  if (!popup.includes(token)) failures.push(`TableRowDetailPopup.tsx: missing ${token}`);
+}
+
+if (!keydownBlock) {
+  failures.push('TableRowDetailPopup.tsx: missing row detail keydown handler');
+} else {
+  for (const token of ["event.key === 'Enter'", "event.key === ' '", 'preventDefault()', 'openRowDetail']) {
+    if (!keydownBlock.includes(token)) failures.push(`TableRowDetailPopup.tsx: keydown handler missing ${token}`);
+  }
 }
 
 if (failures.length) {
