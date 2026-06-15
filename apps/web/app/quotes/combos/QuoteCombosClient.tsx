@@ -467,8 +467,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
         </div>
         {error && !formOpen ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
         {message && !formOpen ? <div className="quoteAlert quoteAlertInfo">{message}</div> : null}
-        <div className="fitTableWrap quoteListWrap">
-          <table className="fitTable quoteComboListTable">
+        <div className="fitTableWrap quoteListWrap compactListTableWrap">
+          <table className="fitTable quoteComboListTable compactListTable">
             <thead>{comboTable.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {comboTable.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}

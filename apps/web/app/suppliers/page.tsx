@@ -269,8 +269,8 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
               <h2>Danh sách nhà cung cấp</h2>
               <span>{suppliers.length} nhà cung cấp</span>
             </div>
-            <div className="supplierTableWrap">
-              <table className="supplierTable">
+            <div className="supplierTableWrap compactListTableWrap">
+              <table className="supplierTable compactListTable">
                 <thead>
                   <tr>
                     <th>Nhà cung cấp</th>

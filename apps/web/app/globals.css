@@ -1626,84 +1626,30 @@ label { min-width: 0; }
 }
 
 /* Compact list tables: keep long operational codes from widening the whole workspace. */
-.fitTableWrap > .fitTable.orderListTable,
-.fitTableWrap > .fitTable.hotelListTable,
-.fitTableWrap > .fitTable.tourProgramTable,
-.fitTableWrap > .fitTable.fitTourListTable,
-.fitTableWrap > .fitTable.quoteListTable,
-.fitTableWrap > .fitTable.quoteComboListTable,
-.fitTableWrap > .fitTable.quotationListTable,
-.fitTableWrap > .fitTable.reportTable,
-.fitTableWrap > .fitTable.commissionTable,
-.fitTableWrap > .fitTable.customerTable,
-.fitTableWrap > .fitTable.financeTable,
-.fitTableWrap > .fitTable.operationsTable,
-.fitTableWrap > .fitTable.securityTable,
-.fitTableWrap > .fitTable.hotelInventoryTable,
-.fitTableWrap > table.reconciliationItemTable {
+.compactListTable {
   width: max(100%, var(--list-table-min-width, 1080px));
   table-layout: fixed;
 }
 
-.fitTableWrap > .fitTable.orderListTable th,
-.fitTableWrap > .fitTable.orderListTable td,
-.fitTableWrap > .fitTable.hotelListTable th,
-.fitTableWrap > .fitTable.hotelListTable td,
-.fitTableWrap > .fitTable.tourProgramTable th,
-.fitTableWrap > .fitTable.tourProgramTable td,
-.fitTableWrap > .fitTable.fitTourListTable th,
-.fitTableWrap > .fitTable.fitTourListTable td,
-.fitTableWrap > .fitTable.quoteListTable th,
-.fitTableWrap > .fitTable.quoteListTable td,
-.fitTableWrap > .fitTable.quoteComboListTable th,
-.fitTableWrap > .fitTable.quoteComboListTable td,
-.fitTableWrap > .fitTable.quotationListTable th,
-.fitTableWrap > .fitTable.quotationListTable td,
-.fitTableWrap > .fitTable.reportTable th,
-.fitTableWrap > .fitTable.reportTable td,
-.fitTableWrap > .fitTable.commissionTable th,
-.fitTableWrap > .fitTable.commissionTable td,
-.fitTableWrap > .fitTable.customerTable th,
-.fitTableWrap > .fitTable.customerTable td {
+.compactListTable th,
+.compactListTable td {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.fitTableWrap > .fitTable.orderListTable td > strong,
-.fitTableWrap > .fitTable.orderListTable td > span,
-.fitTableWrap > .fitTable.hotelListTable td > strong,
-.fitTableWrap > .fitTable.hotelListTable td > span,
-.fitTableWrap > .fitTable.tourProgramTable td > strong,
-.fitTableWrap > .fitTable.tourProgramTable td > span,
-.fitTableWrap > .fitTable.fitTourListTable td > strong,
-.fitTableWrap > .fitTable.fitTourListTable td > span,
-.fitTableWrap > .fitTable.quoteListTable td > strong,
-.fitTableWrap > .fitTable.quoteListTable td > span,
-.fitTableWrap > .fitTable.quoteComboListTable td > strong,
-.fitTableWrap > .fitTable.quoteComboListTable td > span,
-.fitTableWrap > .fitTable.quotationListTable td > strong,
-.fitTableWrap > .fitTable.quotationListTable td > span,
-.fitTableWrap > .fitTable.reportTable td > strong,
-.fitTableWrap > .fitTable.reportTable td > span,
-.fitTableWrap > .fitTable.commissionTable td > strong,
-.fitTableWrap > .fitTable.commissionTable td > span,
-.fitTableWrap > .fitTable.customerTable td > strong,
-.fitTableWrap > .fitTable.customerTable td > span {
+.compactListTable td > :where(strong, span) {
   max-width: 100%;
 }
 
-.fitTableWrap > .fitTable.orderListTable .orderCellStack,
-.fitTableWrap > .fitTable.orderListTable .rowActions,
-.fitTableWrap > .fitTable.orderListTable .actionsCell,
-.fitTableWrap > .fitTable.hotelListTable .rowActions,
-.fitTableWrap > .fitTable.hotelListTable .actionsCell {
+.compactListTable .orderCellStack,
+.compactListTable .rowActions,
+.compactListTable .actionsCell {
   min-width: 0;
 }
 
-.fitTableWrap > .fitTable.orderListTable .rowActions,
-.fitTableWrap > .fitTable.hotelListTable .rowActions {
+.compactListTable .rowActions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -2041,23 +1987,7 @@ label { min-width: 0; }
   --list-visible-rows: 10;
 }
 
-.fitTableWrap:has(> table.orderListTable),
-.fitTableWrap:has(> table.hotelListTable),
-.fitTableWrap:has(> table.tourProgramTable),
-.fitTableWrap:has(> table.fitTourListTable),
-.fitTableWrap:has(> table.quoteListTable),
-.fitTableWrap:has(> table.quoteComboListTable),
-.fitTableWrap:has(> table.quotationListTable),
-.fitTableWrap:has(> table.reportTable),
-.fitTableWrap:has(> table.customerTable),
-.fitTableWrap:has(> table.commissionTable),
-.fitTableWrap:has(> table.financeTable),
-.fitTableWrap:has(> table.operationsTable),
-.fitTableWrap:has(> table.securityTable),
-.fitTableWrap:has(> table.hotelInventoryTable),
-.fitTableWrap:has(> table.reconciliationItemTable),
-.supplierTableWrap,
-.quoteListWrap {
+.compactListTableWrap {
   max-height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 2px);
   overflow: auto;
   scrollbar-gutter: stable both-edges;
@@ -2065,43 +1995,11 @@ label { min-width: 0; }
   border-radius: 7px;
 }
 
-.fitTableWrap:has(> table.orderListTable) > table,
-.fitTableWrap:has(> table.hotelListTable) > table,
-.fitTableWrap:has(> table.tourProgramTable) > table,
-.fitTableWrap:has(> table.fitTourListTable) > table,
-.fitTableWrap:has(> table.quoteListTable) > table,
-.fitTableWrap:has(> table.quoteComboListTable) > table,
-.fitTableWrap:has(> table.quotationListTable) > table,
-.fitTableWrap:has(> table.reportTable) > table,
-.fitTableWrap:has(> table.customerTable) > table,
-.fitTableWrap:has(> table.commissionTable) > table,
-.fitTableWrap:has(> table.financeTable) > table,
-.fitTableWrap:has(> table.operationsTable) > table,
-.fitTableWrap:has(> table.securityTable) > table,
-.fitTableWrap:has(> table.hotelInventoryTable) > table,
-.fitTableWrap:has(> table.reconciliationItemTable) > table,
-.supplierTableWrap > table,
-.quoteListWrap > table {
+.compactListTableWrap > table {
   margin: 0;
 }
 
-.fitTableWrap:has(> table.orderListTable) th,
-.fitTableWrap:has(> table.hotelListTable) th,
-.fitTableWrap:has(> table.tourProgramTable) th,
-.fitTableWrap:has(> table.fitTourListTable) th,
-.fitTableWrap:has(> table.quoteListTable) th,
-.fitTableWrap:has(> table.quoteComboListTable) th,
-.fitTableWrap:has(> table.quotationListTable) th,
-.fitTableWrap:has(> table.reportTable) th,
-.fitTableWrap:has(> table.customerTable) th,
-.fitTableWrap:has(> table.commissionTable) th,
-.fitTableWrap:has(> table.financeTable) th,
-.fitTableWrap:has(> table.operationsTable) th,
-.fitTableWrap:has(> table.securityTable) th,
-.fitTableWrap:has(> table.hotelInventoryTable) th,
-.fitTableWrap:has(> table.reconciliationItemTable) th,
-.supplierTableWrap th,
-.quoteListWrap th {
+.compactListTableWrap th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -2112,45 +2010,13 @@ label { min-width: 0; }
   text-overflow: ellipsis;
 }
 
-.fitTableWrap:has(> table.orderListTable) th:first-child,
-.fitTableWrap:has(> table.hotelListTable) th:first-child,
-.fitTableWrap:has(> table.tourProgramTable) th:first-child,
-.fitTableWrap:has(> table.fitTourListTable) th:first-child,
-.fitTableWrap:has(> table.quoteListTable) th:first-child,
-.fitTableWrap:has(> table.quoteComboListTable) th:first-child,
-.fitTableWrap:has(> table.quotationListTable) th:first-child,
-.fitTableWrap:has(> table.reportTable) th:first-child,
-.fitTableWrap:has(> table.customerTable) th:first-child,
-.fitTableWrap:has(> table.commissionTable) th:first-child,
-.fitTableWrap:has(> table.financeTable) th:first-child,
-.fitTableWrap:has(> table.operationsTable) th:first-child,
-.fitTableWrap:has(> table.securityTable) th:first-child,
-.fitTableWrap:has(> table.hotelInventoryTable) th:first-child,
-.fitTableWrap:has(> table.reconciliationItemTable) th:first-child,
-.supplierTableWrap th:first-child,
-.quoteListWrap th:first-child {
+.compactListTableWrap th:first-child {
   left: 0;
   z-index: 5;
   box-shadow: 1px 0 0 #e3efd9;
 }
 
-.fitTableWrap:has(> table.orderListTable) td,
-.fitTableWrap:has(> table.hotelListTable) td,
-.fitTableWrap:has(> table.tourProgramTable) td,
-.fitTableWrap:has(> table.fitTourListTable) td,
-.fitTableWrap:has(> table.quoteListTable) td,
-.fitTableWrap:has(> table.quoteComboListTable) td,
-.fitTableWrap:has(> table.quotationListTable) td,
-.fitTableWrap:has(> table.reportTable) td,
-.fitTableWrap:has(> table.customerTable) td,
-.fitTableWrap:has(> table.commissionTable) td,
-.fitTableWrap:has(> table.financeTable) td,
-.fitTableWrap:has(> table.operationsTable) td,
-.fitTableWrap:has(> table.securityTable) td,
-.fitTableWrap:has(> table.hotelInventoryTable) td,
-.fitTableWrap:has(> table.reconciliationItemTable) td,
-.supplierTableWrap td,
-.quoteListWrap td {
+.compactListTableWrap td {
   height: var(--list-row-height);
   max-height: var(--list-row-height);
   padding: 7px 9px;
@@ -2161,23 +2027,7 @@ label { min-width: 0; }
   text-overflow: ellipsis;
 }
 
-.fitTableWrap:has(> table.orderListTable) td:first-child,
-.fitTableWrap:has(> table.hotelListTable) td:first-child,
-.fitTableWrap:has(> table.tourProgramTable) td:first-child,
-.fitTableWrap:has(> table.fitTourListTable) td:first-child,
-.fitTableWrap:has(> table.quoteListTable) td:first-child,
-.fitTableWrap:has(> table.quoteComboListTable) td:first-child,
-.fitTableWrap:has(> table.quotationListTable) td:first-child,
-.fitTableWrap:has(> table.reportTable) td:first-child,
-.fitTableWrap:has(> table.customerTable) td:first-child,
-.fitTableWrap:has(> table.commissionTable) td:first-child,
-.fitTableWrap:has(> table.financeTable) td:first-child,
-.fitTableWrap:has(> table.operationsTable) td:first-child,
-.fitTableWrap:has(> table.securityTable) td:first-child,
-.fitTableWrap:has(> table.hotelInventoryTable) td:first-child,
-.fitTableWrap:has(> table.reconciliationItemTable) td:first-child,
-.supplierTableWrap td:first-child,
-.quoteListWrap td:first-child {
+.compactListTableWrap td:first-child {
   position: sticky;
   left: 0;
   z-index: 3;
@@ -2185,60 +2035,13 @@ label { min-width: 0; }
   box-shadow: 1px 0 0 #e3efd9;
 }
 
-.fitTableWrap:has(> table.orderListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.hotelListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.tourProgramTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.fitTourListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.quoteListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.quoteComboListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.quotationListTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.reportTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.customerTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.commissionTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.financeTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.operationsTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.securityTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.reconciliationItemTable) tbody tr:hover td:first-child,
-.supplierTableWrap tbody tr:hover td:first-child,
-.quoteListWrap tbody tr:hover td:first-child,
-.fitTableWrap:has(> table.orderListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.hotelListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.tourProgramTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.fitTourListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.quoteListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.quoteComboListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.quotationListTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.reportTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.customerTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.commissionTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.financeTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.operationsTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.securityTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:focus-within td:first-child,
-.fitTableWrap:has(> table.reconciliationItemTable) tbody tr:focus-within td:first-child,
-.supplierTableWrap tbody tr:focus-within td:first-child,
-.quoteListWrap tbody tr:focus-within td:first-child {
+.compactListTableWrap tbody tr:hover td:first-child,
+.compactListTableWrap tbody tr:focus-within td:first-child,
+.compactListTableWrap tbody tr:focus-within td {
   background: var(--dn-hover-bg);
 }
 
-.fitTableWrap:has(> table.orderListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.hotelListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.tourProgramTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.fitTourListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.quoteListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.quoteComboListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.quotationListTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.reportTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.customerTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.commissionTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.financeTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.operationsTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.securityTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.hotelInventoryTable) td > :where(strong, span, small, em, a),
-.fitTableWrap:has(> table.reconciliationItemTable) td > :where(strong, span, small, em, a),
-.supplierTableWrap td > :where(strong, span, small, em, a),
-.quoteListWrap td > :where(strong, span, small, em, a) {
+.compactListTableWrap td > :where(strong, span, small, em, a) {
   display: inline;
   max-width: 100%;
   margin: 0;
@@ -2248,45 +2051,13 @@ label { min-width: 0; }
   vertical-align: baseline;
 }
 
-.fitTableWrap:has(> table.orderListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.hotelListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.tourProgramTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.fitTourListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.quoteListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.quoteComboListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.quotationListTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.reportTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.customerTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.commissionTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.financeTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.operationsTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.securityTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.hotelInventoryTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.fitTableWrap:has(> table.reconciliationItemTable) td > :where(strong, a) + :where(span, small, em, a)::before,
-.supplierTableWrap td > :where(strong, a) + :where(span, small, em, a)::before,
-.quoteListWrap td > :where(strong, a) + :where(span, small, em, a)::before {
-  content: " · ";
+.compactListTableWrap td > :where(strong, a) + :where(span, small, em, a)::before {
+  content: " \00b7 ";
   color: var(--dn-muted);
   font-weight: 700;
 }
 
-.fitTableWrap:has(> table.orderListTable) td > :where(div, p),
-.fitTableWrap:has(> table.hotelListTable) td > :where(div, p),
-.fitTableWrap:has(> table.tourProgramTable) td > :where(div, p),
-.fitTableWrap:has(> table.fitTourListTable) td > :where(div, p),
-.fitTableWrap:has(> table.quoteListTable) td > :where(div, p),
-.fitTableWrap:has(> table.quoteComboListTable) td > :where(div, p),
-.fitTableWrap:has(> table.quotationListTable) td > :where(div, p),
-.fitTableWrap:has(> table.reportTable) td > :where(div, p),
-.fitTableWrap:has(> table.customerTable) td > :where(div, p),
-.fitTableWrap:has(> table.commissionTable) td > :where(div, p),
-.fitTableWrap:has(> table.financeTable) td > :where(div, p),
-.fitTableWrap:has(> table.operationsTable) td > :where(div, p),
-.fitTableWrap:has(> table.securityTable) td > :where(div, p),
-.fitTableWrap:has(> table.hotelInventoryTable) td > :where(div, p),
-.fitTableWrap:has(> table.reconciliationItemTable) td > :where(div, p),
-.supplierTableWrap td > :where(div, p),
-.quoteListWrap td > :where(div, p) {
+.compactListTableWrap td > :where(div, p) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2299,13 +2070,12 @@ label { min-width: 0; }
   vertical-align: middle;
 }
 
-.fitTableWrap:has(> table.orderListTable) .rowActions,
-.fitTableWrap:has(> table.hotelListTable) .rowActions,
-.fitTableWrap:has(> table.tourProgramTable) .tourProgramRowActions,
-.fitTableWrap:has(> table.customerTable) .miniTags,
-.fitTableWrap:has(> table.financeTable) .financeInvoiceFiles,
-.fitTableWrap:has(> table.securityTable) .permissionChips,
-.supplierTableWrap .supplierDebtBlock {
+.compactListTableWrap .rowActions,
+.compactListTableWrap .tourProgramRowActions,
+.compactListTableWrap .miniTags,
+.compactListTableWrap .financeInvoiceFiles,
+.compactListTableWrap .permissionChips,
+.compactListTableWrap .supplierDebtBlock {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -2315,75 +2085,22 @@ label { min-width: 0; }
   overflow: hidden;
 }
 
-.fitTableWrap:has(> table.orderListTable) .rowActions > *,
-.fitTableWrap:has(> table.hotelListTable) .rowActions > *,
-.fitTableWrap:has(> table.tourProgramTable) .tourProgramRowActions > *,
-.fitTableWrap:has(> table.customerTable) .miniTags > *,
-.fitTableWrap:has(> table.financeTable) .financeInvoiceFiles > *,
-.fitTableWrap:has(> table.securityTable) .permissionChips > *,
-.supplierTableWrap .supplierDebtBlock > * {
+.compactListTableWrap .rowActions > *,
+.compactListTableWrap .tourProgramRowActions > *,
+.compactListTableWrap .miniTags > *,
+.compactListTableWrap .financeInvoiceFiles > *,
+.compactListTableWrap .permissionChips > *,
+.compactListTableWrap .supplierDebtBlock > * {
   flex: 0 0 auto;
 }
 
-.fitTableWrap:has(> table.orderListTable) .tableEmptyState,
-.fitTableWrap:has(> table.hotelListTable) .tableEmptyState,
-.fitTableWrap:has(> table.tourProgramTable) .tableEmptyState,
-.fitTableWrap:has(> table.fitTourListTable) .tableEmptyState,
-.fitTableWrap:has(> table.quoteListTable) .tableEmptyState,
-.fitTableWrap:has(> table.quoteComboListTable) .tableEmptyState,
-.fitTableWrap:has(> table.quotationListTable) .tableEmptyState,
-.fitTableWrap:has(> table.reportTable) .tableEmptyState,
-.fitTableWrap:has(> table.customerTable) .tableEmptyState,
-.fitTableWrap:has(> table.commissionTable) .tableEmptyState,
-.fitTableWrap:has(> table.financeTable) .tableEmptyState,
-.fitTableWrap:has(> table.operationsTable) .tableEmptyState,
-.fitTableWrap:has(> table.securityTable) .tableEmptyState,
-.fitTableWrap:has(> table.hotelInventoryTable) .tableEmptyState,
-.fitTableWrap:has(> table.reconciliationItemTable) .tableEmptyState,
-.supplierTableWrap .tableEmptyState,
-.quoteListWrap .tableEmptyState {
+.compactListTableWrap .tableEmptyState {
   height: calc(var(--list-row-height) * var(--list-visible-rows));
   white-space: normal;
 }
 
-.fitTableWrap:has(> table.orderListTable) tbody tr,
-.fitTableWrap:has(> table.hotelListTable) tbody tr,
-.fitTableWrap:has(> table.tourProgramTable) tbody tr,
-.fitTableWrap:has(> table.fitTourListTable) tbody tr,
-.fitTableWrap:has(> table.quoteListTable) tbody tr,
-.fitTableWrap:has(> table.quoteComboListTable) tbody tr,
-.fitTableWrap:has(> table.quotationListTable) tbody tr,
-.fitTableWrap:has(> table.reportTable) tbody tr,
-.fitTableWrap:has(> table.customerTable) tbody tr,
-.fitTableWrap:has(> table.commissionTable) tbody tr,
-.fitTableWrap:has(> table.financeTable) tbody tr,
-.fitTableWrap:has(> table.operationsTable) tbody tr,
-.fitTableWrap:has(> table.securityTable) tbody tr,
-.fitTableWrap:has(> table.hotelInventoryTable) tbody tr,
-.fitTableWrap:has(> table.reconciliationItemTable) tbody tr,
-.supplierTableWrap tbody tr,
-.quoteListWrap tbody tr {
+.compactListTableWrap tbody tr {
   cursor: pointer;
-}
-
-.fitTableWrap:has(> table.orderListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.hotelListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.tourProgramTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.fitTourListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.quoteListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.quoteComboListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.quotationListTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.reportTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.customerTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.commissionTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.financeTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.operationsTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.securityTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.hotelInventoryTable) tbody tr:focus-within td,
-.fitTableWrap:has(> table.reconciliationItemTable) tbody tr:focus-within td,
-.supplierTableWrap tbody tr:focus-within td,
-.quoteListWrap tbody tr:focus-within td {
-  background: var(--dn-hover-bg);
 }
 
 .rowDetailOverlay {

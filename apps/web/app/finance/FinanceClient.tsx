@@ -371,7 +371,7 @@ function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: 
       <div className="debtGrid">
       <section className="panel financeList">
         <div className="sectionHeader"><h2>Công nợ khách hàng</h2><span>{customerDebt.length} khách hàng · {customerDebt.filter((row) => row.aging.overdueTotal > 0).length} quá hạn</span></div>
-        <div className="fitTableWrap"><table className="financeTable">
+        <div className="fitTableWrap compactListTableWrap"><table className="financeTable compactListTable">
           <thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th>Tổng phải thu</th><th>Đã thu</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
           <tbody>
             {customerDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong>{row.aging.overdueTotal > 0 ? <StatusPill status="OVERDUE" /> : null}</td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td><strong className={row.aging.overdueTotal > 0 ? 'dangerText' : ''} title={agingTitle(row.aging)}>{money(row.aging.overdueTotal)}</strong></td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
@@ -381,7 +381,7 @@ function DebtTab({ customerDebt, supplierDebt, onAdjust, can }: { customerDebt: 
       </section>
       <section className="panel financeList">
         <div className="sectionHeader"><h2>Công nợ nhà cung cấp</h2><span>{supplierDebt.length} nhà cung cấp · {supplierDebt.filter((row) => row.aging.overdueTotal > 0).length} quá hạn</span></div>
-        <div className="fitTableWrap"><table className="financeTable">
+        <div className="fitTableWrap compactListTableWrap"><table className="financeTable compactListTable">
           <thead><tr><th>Nhà cung cấp</th><th>Số điện thoại</th><th>Tổng phải trả</th><th>Đã trả</th><th>Trong hạn</th><th>Quá hạn</th><th>Còn lại</th></tr></thead>
           <tbody>
             {supplierDebt.map((row) => <tr key={row.id}><td><strong>{row.name}</strong>{row.aging.overdueTotal > 0 ? <StatusPill status="OVERDUE" /> : null}</td><td>{row.phone || '-'}</td><td>{money(row.debitTotal)}</td><td>{money(row.creditTotal)}</td><td>{money(row.aging.current)}</td><td><strong className={row.aging.overdueTotal > 0 ? 'dangerText' : ''} title={agingTitle(row.aging)}>{money(row.aging.overdueTotal)}</strong></td><td><strong style={{color: row.balance > 0 ? '#b20000' : 'inherit'}}>{money(row.balance)}</strong></td></tr>)}
@@ -408,7 +408,7 @@ function FinanceModal({ title, onClose, children }: { title: string; onClose: ()
 
 
 function FinanceTable({ title, count, action, children }: { title: string; count: number; action?: React.ReactNode; children: React.ReactNode }) {
-  return <section className="panel financeList"><div className="sectionHeader"><h2>{title}</h2><div className="sectionActions"><span>{count} dòng</span>{action}</div></div><div className="fitTableWrap"><table className="financeTable">{children}</table></div></section>;
+  return <section className="panel financeList"><div className="sectionHeader"><h2>{title}</h2><div className="sectionActions"><span>{count} dòng</span>{action}</div></div><div className="fitTableWrap compactListTableWrap"><table className="financeTable compactListTable">{children}</table></div></section>;
 }
 function Metric({ label, value }: { label: string; value: string | number }) { return <article className="metric"><span>{label}</span><strong>{value}</strong></article>; }
 function authHeaders(json = true) { return { Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) }; }

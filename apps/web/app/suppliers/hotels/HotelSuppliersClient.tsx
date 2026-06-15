@@ -968,8 +968,8 @@ export default function HotelSuppliersClient({
               <button type="submit" disabled={isInventoryLoading}><Search size={16} /> Lọc tồn quỹ</button>
               <button type="button" className="secondaryButton iconButton" onClick={resetInventoryFilters} disabled={isInventoryLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc tồn quỹ"><RefreshCcw size={16} /></button>
             </form>
-            <div className="fitTableWrap">
-              <table className="fitTable hotelInventoryTable">
+            <div className="fitTableWrap compactListTableWrap">
+              <table className="fitTable hotelInventoryTable compactListTable">
                 <thead>
                   <tr>
                     <th>Khách sạn</th>
@@ -1037,8 +1037,8 @@ export default function HotelSuppliersClient({
                 <button type="button" className="iconTextButton" onClick={openCreate} disabled={!canManage}><Plus size={16} /> Thêm nhà cung cấp khách sạn</button>
               </div>
             </div>
-            <div className="fitTableWrap">
-              <table className="fitTable hotelListTable">
+            <div className="fitTableWrap compactListTableWrap">
+              <table className="fitTable hotelListTable compactListTable">
                 <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
                 <tbody>
                   {isLoading ? <HotelListLoadingRows /> : null}

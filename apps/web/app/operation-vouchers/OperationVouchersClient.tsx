@@ -532,8 +532,8 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
         </div>
         {message && !formOpen ? <span className={messageClass(message)} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
         {reloading ? <div className="loadingBar" /> : null}
-        <div className="fitTableWrap">
-          <table className="fitTable orderListTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="fitTable orderListTable compactListTable">
             <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}

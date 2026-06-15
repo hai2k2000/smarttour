@@ -546,8 +546,8 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
 
       <section className="panel listPanel">
         <div className="sectionHeader"><h2>{tabLabels[active]}</h2><span>{loading ? 'Đang tải dữ liệu...' : `${rows.length} dòng`}</span></div>
-        <div className="fitTableWrap">
-          <table className="fitTable orderListTable reportTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="fitTable orderListTable reportTable compactListTable">
             <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}

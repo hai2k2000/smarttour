@@ -645,8 +645,8 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
         </div>
         {error && !formOpen ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
         {message && !formOpen ? <div className="quoteAlert quoteAlertInfo">{message}</div> : null}
-        <div className="fitTableWrap quoteListWrap">
-          <table className="fitTable quoteListTable">
+        <div className="fitTableWrap quoteListWrap compactListTableWrap">
+          <table className="fitTable quoteListTable compactListTable">
             <thead>{quoteTable.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
             <tbody>
               {quoteTable.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}

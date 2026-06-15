@@ -266,8 +266,8 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         {tours.length === 0 ? (
           <div className="tableEmptyState"><BriefcaseBusiness size={20} /> Chưa có tour GIT nào.</div>
         ) : (
-          <div className="fitTableWrap">
-            <table className="fitTable orderListTable">
+          <div className="fitTableWrap compactListTableWrap">
+            <table className="fitTable orderListTable compactListTable">
               <thead>
                 <tr><th>Mã</th><th>Tour</th><th>Khách hàng / Đại lý</th><th>Ngày tour</th><th>Điều hành</th><th>Trạng thái</th><th>Thanh toán</th><th>Hóa đơn</th><th>Dòng dữ liệu</th><th>Thao tác</th></tr>
               </thead>

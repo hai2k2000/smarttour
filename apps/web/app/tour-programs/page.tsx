@@ -311,8 +311,8 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
         {tourPrograms.length === 0 ? (
           <div className="tableEmptyState"><Map size={20} /> Chưa có tour mẫu. Hãy tạo tour đầu tiên để tiếp tục luồng booking và điều hành.</div>
         ) : (
-          <div className="fitTableWrap tourProgramTableWrap">
-            <table className="fitTable orderListTable tourProgramTable">
+          <div className="fitTableWrap tourProgramTableWrap compactListTableWrap">
+            <table className="fitTable orderListTable tourProgramTable compactListTable">
               <thead>
                 <tr>
                   <th>Mã / số ngày</th>

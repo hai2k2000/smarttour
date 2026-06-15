@@ -277,8 +277,8 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
           </button>
         </div>
         {listMessage ? <div className={messageClass(listMessage)} role="status">{listMessage}</div> : null}
-        <div className="fitTableWrap">
-          <table className="fitTable orderListTable fitTourListTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="fitTable orderListTable fitTourListTable compactListTable">
             <thead>
               <tr>
                 <th>Tour FIT</th>

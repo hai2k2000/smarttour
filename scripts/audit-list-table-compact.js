@@ -8,6 +8,30 @@ const popup = fs.readFileSync(path.join(root, 'apps/web/app/TableRowDetailPopup.
 const reportsClient = fs.readFileSync(path.join(root, 'apps/web/app/reports/ReportsClient.tsx'), 'utf8');
 const securityClient = fs.readFileSync(path.join(root, 'apps/web/app/security/SecurityClient.tsx'), 'utf8');
 
+const sourceFiles = [
+  'apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx',
+  'apps/web/app/suppliers/[type]/GenericSupplierClient.tsx',
+  'apps/web/app/suppliers/page.tsx',
+  'apps/web/app/tour-programs/page.tsx',
+  'apps/web/app/bookings/page.tsx',
+  'apps/web/app/fit-tours/FitToursClient.tsx',
+  'apps/web/app/git-tours/page.tsx',
+  'apps/web/app/landtours/page.tsx',
+  'apps/web/app/quotes/tours/QuoteToursClient.tsx',
+  'apps/web/app/quotes/combos/QuoteCombosClient.tsx',
+  'apps/web/app/orders/[type]/OrdersClient.tsx',
+  'apps/web/app/operation-vouchers/OperationVouchersClient.tsx',
+  'apps/web/app/tour-guides/TourGuidesClient.tsx',
+  'apps/web/app/order-center/OrderCenterClient.tsx',
+  'apps/web/app/quotations/QuotationsClient.tsx',
+  'apps/web/app/reports/ReportsClient.tsx',
+  'apps/web/app/customers/CustomersClient.tsx',
+  'apps/web/app/commission-reports/CommissionReportsClient.tsx',
+  'apps/web/app/finance/FinanceClient.tsx',
+  'apps/web/app/operations/OperationsClient.tsx',
+  'apps/web/app/security/SecurityClient.tsx',
+].map((file) => [file, fs.readFileSync(path.join(root, file), 'utf8')]);
+
 const listTables = [
   'orderListTable',
   'hotelListTable',
@@ -28,6 +52,29 @@ const listTables = [
 
 const failures = [];
 
+function sourceHasClassPair(source, tableClass) {
+  const classPattern = /className="([^"]+)"/g;
+  let match;
+  while ((match = classPattern.exec(source))) {
+    const classes = match[1].split(/\s+/);
+    if (classes.includes(tableClass) && classes.includes('compactListTable')) return true;
+  }
+  return false;
+}
+
+function compactTableWrapperFailures(file, source) {
+  const failures = [];
+  const tablePattern = /<table className="([^"]*\bcompactListTable\b[^"]*)"/g;
+  let match;
+  while ((match = tablePattern.exec(source))) {
+    const beforeTable = source.slice(Math.max(0, match.index - 220), match.index);
+    if (!/className="[^"]*\bcompactListTableWrap\b[^"]*"[^>]*>\s*$/.test(beforeTable)) {
+      failures.push(`${file}: compactListTable must be directly wrapped by compactListTableWrap (${match[1]})`);
+    }
+  }
+  return failures;
+}
+
 function blockAfter(anchor, token) {
   const anchorIndex = globals.indexOf(anchor);
   const tokenIndex = anchorIndex >= 0 ? globals.indexOf(token, anchorIndex) : -1;
@@ -47,6 +94,9 @@ function ruleBlock(selector) {
 }
 
 const fixedLayoutBlock = blockAfter('Compact list tables', 'table-layout: fixed;');
+const compactCssStart = globals.indexOf('Compact list-table viewport');
+const compactCssEnd = globals.indexOf('.rowDetailOverlay', compactCssStart);
+const compactCssBlock = compactCssStart >= 0 && compactCssEnd > compactCssStart ? globals.slice(compactCssStart, compactCssEnd) : '';
 const cellClamp2Block = ruleBlock('.cellClamp2');
 const bindTitleStart = popup.indexOf('function bindTableCellTitles');
 const bindTitleEnd = popup.indexOf('function detailFromRow', bindTitleStart);
@@ -60,15 +110,23 @@ const keydownBlock = keydownStart >= 0 && keydownEnd > keydownStart ? popup.slic
 
 for (const tableClass of listTables) {
   const compactSelector = `table.${tableClass}`;
-  if (!globals.includes(`:has(> ${compactSelector})`)) {
-    failures.push(`globals.css: missing compact selector for ${tableClass}`);
-  }
   if (!popup.includes(`table.${tableClass}`)) {
     failures.push(`TableRowDetailPopup.tsx: missing row detail selector for ${tableClass}`);
   }
-  if (!fixedLayoutBlock.includes(`.${tableClass}`)) {
-    failures.push(`globals.css: missing fixed table layout for ${tableClass}`);
-  }
+  const sourceHasCompactTable = sourceFiles.some(([, source]) => sourceHasClassPair(source, tableClass));
+  if (!sourceHasCompactTable) failures.push(`source: ${tableClass} must use compactListTable`);
+}
+
+if (!globals.includes('.compactListTableWrap')) failures.push('globals.css: missing .compactListTableWrap');
+if (!globals.includes('.compactListTable')) failures.push('globals.css: missing .compactListTable');
+if (!fixedLayoutBlock.includes('.compactListTable')) failures.push('globals.css: compact fixed layout must use .compactListTable');
+if (globals.includes(':has(> table.compactListTable')) failures.push('globals.css: compact styles must rely on .compactListTableWrap instead of :has(> table.compactListTable)');
+if (globals.includes('.fitTableWrap > .fitTable.orderListTable')) failures.push('globals.css: compact clamp styles must use .compactListTable instead of per-table selectors');
+for (const tableClass of listTables) {
+  if (compactCssBlock.includes(`:has(> table.${tableClass})`)) failures.push(`globals.css: compact block must not repeat ${tableClass} selector`);
+}
+for (const [file, source] of sourceFiles) {
+  failures.push(...compactTableWrapperFailures(file, source));
 }
 
 if (!globals.includes('--list-visible-rows: 10')) {

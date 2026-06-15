@@ -431,8 +431,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
           <h2>Danh sách booking</h2>
           <span>Trang {page} · {bookings.length} booking</span>
         </div>
-        <div className="fitTableWrap">
-          <table className="fitTable orderListTable bookingListTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="fitTable orderListTable bookingListTable compactListTable">
             <thead>
               <tr>
                 <th>Mã booking</th>

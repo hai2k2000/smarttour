@@ -460,8 +460,8 @@ export default function CustomersClient() {
 
       <section className="panel customerList">
         <div className="sectionHeader"><h2>Danh sách</h2><div className="sectionActions"><span>{rows.length} khách</span><button className="iconTextButton" disabled={!canManage} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo mới</button></div></div>
-        <div className="fitTableWrap">
-          <table className="customerTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="customerTable compactListTable">
             <thead><tr><th>Mã</th><th>Khách hàng</th><th>Phân loại</th><th>Phụ trách</th><th>Tag</th><th>Thao tác</th></tr></thead>
             <tbody>
               {rows.map((row) => (

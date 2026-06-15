@@ -298,8 +298,8 @@ export default function SecurityClient() {
           <h2>Danh sách người dùng</h2>
           <span>{users.length} người dùng</span>
         </div>
-        <div className="fitTableWrap">
-          <table className="securityTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="securityTable compactListTable">
             <thead><tr><th>Người dùng</th><th>Vai trò</th><th>Phạm vi dữ liệu</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
             <tbody>
               {users.map((user) => (
@@ -323,8 +323,8 @@ export default function SecurityClient() {
           <h2>Vai trò và quyền</h2>
           <span>{roles.length} vai trò</span>
         </div>
-        <div className="fitTableWrap">
-          <table className="securityTable">
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="securityTable compactListTable">
             <thead><tr><th>Vai trò</th><th>Mô tả</th><th>Người dùng</th><th>Phạm vi dữ liệu</th><th>Quyền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
             <tbody>
               {roles.map((role) => (

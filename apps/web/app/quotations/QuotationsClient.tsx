@@ -907,8 +907,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
           </div>
         </div>
         {reloading ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải lại dashboard và danh sách báo giá...</div> : null}
-        <div className="fitTableWrap quoteListWrap">
-          <table className="fitTable quoteListTable quotationListTable">
+        <div className="fitTableWrap quoteListWrap compactListTableWrap">
+          <table className="fitTable quoteListTable quotationListTable compactListTable">
             <thead>
               {table.getHeaderGroups().map((group) => (
                 <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>

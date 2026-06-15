@@ -129,8 +129,8 @@ export default function CommissionReportsClient() {
       <section className="contentGrid commissionGrid">
         <section className="panel">
           <div className="sectionHeader"><h2>Danh sách hoa hồng</h2><span>{rows.length} dòng</span></div>
-          <div className="fitTableWrap">
-            <table className="commissionTable">
+          <div className="fitTableWrap compactListTableWrap">
+            <table className="commissionTable compactListTable">
               <thead><tr><th>Đơn hàng</th><th>Khách</th><th>Sales</th><th>Cột mốc</th><th>Doanh thu</th><th>Lợi nhuận</th><th>%</th><th>Hoa hồng</th><th>Trạng thái</th><th></th></tr></thead>
               <tbody>
                 {rows.map((row) => (

@@ -924,8 +924,8 @@ function ReconciliationPanel({
         <div><strong>Bước 3: Hoàn tất đối soát</strong><span>{paid ? 'Đã hoàn tất đối soát và ghi nhận thanh toán.' : 'Chưa hoàn tất đối soát thanh toán.'}</span></div>
       </div>
       <div className="reconciliationDetails">
-        <div className="fitTableWrap reconciliationItemsWrap">
-          <table className="reconciliationItemTable">
+        <div className="fitTableWrap reconciliationItemsWrap compactListTableWrap">
+          <table className="reconciliationItemTable compactListTable">
             <thead><tr><th>Nhà cung cấp</th><th>Khoản chi</th><th>Số tiền</th><th>Ghi chú</th></tr></thead>
             <tbody>
               {request.items.length === 0 ? <tr><td colSpan={4}>Yêu cầu chưa có dòng thanh toán.</td></tr> : null}
@@ -960,7 +960,7 @@ function authHeaders() {
 }
 
 function OperationsTable({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
-  return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{new Intl.NumberFormat('vi-VN').format(count)} bản ghi</span></div><div className="fitTableWrap"><table className="operationsTable">{children}</table></div></section>;
+  return <section className="panel operationsList"><div className="sectionHeader"><h2>{title}</h2><span>{new Intl.NumberFormat('vi-VN').format(count)} bản ghi</span></div><div className="fitTableWrap compactListTableWrap"><table className="operationsTable compactListTable">{children}</table></div></section>;
 }
 function operationFormDraftFromFormData(formData: FormData): OperationFormDraft {
   return {

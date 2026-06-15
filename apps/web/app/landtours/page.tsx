@@ -267,8 +267,8 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
         {tours.length === 0 ? (
           <div className="tableEmptyState"><Boxes size={20} /> Ch&#432;a c&#243; LandTour / Combo n&#224;o.</div>
         ) : (
-          <div className="fitTableWrap">
-            <table className="fitTable orderListTable">
+          <div className="fitTableWrap compactListTableWrap">
+            <table className="fitTable orderListTable compactListTable">
               <thead>
                 <tr><th>M&#227;</th><th>Tour</th><th>Kh&#225;ch h&#224;ng</th><th>Ng&#224;y tour</th><th>Lo&#7841;i combo</th><th>H&#432;&#7899;ng d&#7851;n vi&#234;n</th><th>Tr&#7841;ng th&#225;i</th><th>Thanh to&#225;n</th><th>D&#242;ng d&#7919; li&#7879;u</th><th>Thao t&#225;c</th></tr>
               </thead>
