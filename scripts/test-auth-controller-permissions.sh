@@ -6,6 +6,7 @@ cd "$REPO_DIR"
 
 docker run --rm -i -v "$PWD:/workspace:ro" -w /workspace node:22-alpine node <<'NODE'
 const fs = require('fs');
+const path = require('path');
 
 const controller = fs.readFileSync('apps/api/src/modules/auth/auth.controller.ts', 'utf8').split(/\r?\n/);
 const moduleSource = fs.readFileSync('apps/api/src/modules/auth/auth.module.ts', 'utf8');
@@ -22,6 +23,13 @@ const expected = {
   createRole: { http: 'POST', public: false, permissions: ['auth.role.manage'] },
   updateRole: { http: 'PUT', public: false, permissions: ['auth.role.manage'] },
 };
+
+const expectedPublicRoutes = new Set([
+  'apps/api/src/modules/auth/auth.controller.ts#bootstrap',
+  'apps/api/src/modules/auth/auth.controller.ts#login',
+  'apps/api/src/modules/auth/auth.controller.ts#logout',
+  'apps/api/src/modules/quotations/quotations.controller.ts#publicDetail',
+]);
 
 const routes = {};
 let decorators = [];
@@ -60,6 +68,50 @@ for (const [method, contract] of Object.entries(expected)) {
 for (const method of Object.keys(routes)) {
   if (!expected[method]) failures.push(`unexpected auth endpoint without reviewed permission mapping: ${method}`);
 }
+
+function publicRoutes() {
+  const routes = [];
+  const moduleRoot = path.join('apps', 'api', 'src', 'modules');
+
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.name.endsWith('.controller.ts')) {
+        inspectController(fullPath);
+      }
+    }
+  }
+
+  function inspectController(filePath) {
+    const relative = filePath.replace(/\\/g, '/');
+    let decorators = [];
+    for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('@')) {
+        decorators.push(trimmed);
+        continue;
+      }
+      const className = trimmed.match(/^export\s+class\s+([A-Za-z0-9_]+)/)?.[1];
+      if (className) {
+        if (decorators.some((decorator) => /^@Public\b/.test(decorator))) failures.push(`class-level @Public is not allowed: ${relative}#${className}`);
+        decorators = [];
+        continue;
+      }
+      const method = trimmed.match(/^(?:async\s+)?([A-Za-z0-9_]+)\s*\(/)?.[1];
+      if (!method) {
+        if (trimmed && !trimmed.startsWith('//')) decorators = [];
+        continue;
+      }
+      if (decorators.some((decorator) => /^@Public\b/.test(decorator))) routes.push(`${relative}#${method}`);
+      decorators = [];
+    }
+  }
+
+  visit(moduleRoot);
+  return routes;
+}
 if (!moduleSource.includes('{ provide: APP_GUARD, useClass: AuthGuard }')) failures.push('AuthGuard is not registered as APP_GUARD');
 if (controller.some((line) => line.includes('@UseGuards(AuthGuard)'))) failures.push('AuthController should not register duplicate AuthGuard');
 const controllerSource = controller.join('\n');
@@ -70,6 +122,13 @@ const sessionTokenUses = [...controllerSource.matchAll(/this\.sessionToken\(requ
 if (sessionTokenUses !== 3) failures.push(`logout, me and changePassword should all use sessionToken(request); saw ${sessionTokenUses} uses`);
 if (/service\.(logout|me|changePassword)\([^)]*tokenFromHeaders\(request\.headers\)/.test(controllerSource)) {
   failures.push('AuthController session endpoints should not call tokenFromHeaders inline');
+}
+const actualPublicRoutes = publicRoutes();
+for (const route of actualPublicRoutes) {
+  if (!expectedPublicRoutes.has(route)) failures.push(`unexpected @Public route: ${route}`);
+}
+for (const route of expectedPublicRoutes) {
+  if (!actualPublicRoutes.includes(route)) failures.push(`expected @Public route missing: ${route}`);
 }
 
 if (failures.length) {

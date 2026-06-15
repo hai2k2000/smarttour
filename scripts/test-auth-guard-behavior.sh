@@ -72,12 +72,14 @@ async function run() {
   assert(smartTourEnvironment() === 'development', 'development env should resolve');
   assert(authEnforceEnabled() === false, 'development should not enforce by default');
   let missingTokenError;
+  const noTokenSeen = [];
   try {
-    await new AuthGuard(reflector(), authService()).canActivate(context());
+    await new AuthGuard(reflector(), authService([], noTokenSeen)).canActivate(context());
   } catch (error) {
     missingTokenError = error;
   }
   assert(missingTokenError instanceof UnauthorizedException, 'development private route without token should reject even when enforce is off');
+  assert(noTokenSeen.length === 0, 'guard should reject missing token before calling validateToken');
 
   process.env.SMARTTOUR_ENV = 'production';
   process.env.SMARTTOUR_AUTH_ENFORCE = 'true';

@@ -46,6 +46,66 @@ function collectRolePermissions() {
   return roles;
 }
 
+function collectBackendRoutePermissions() {
+  const moduleRoot = path.join(root, 'apps', 'api', 'src', 'modules');
+  const permissions = new Set();
+  const controllers = [];
+
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.name.endsWith('.controller.ts')) {
+        controllers.push(fullPath);
+      }
+    }
+  }
+
+  visit(moduleRoot);
+  for (const controllerPath of controllers) {
+    const source = fs.readFileSync(controllerPath, 'utf8');
+    for (const match of source.matchAll(/@RequirePermissions\s*\(([^)]*)\)/g)) {
+      for (const permissionMatch of match[1].matchAll(/['"]([^'"]+)['"]/g)) {
+        permissions.add(permissionMatch[1]);
+      }
+    }
+  }
+  return permissions;
+}
+
+function collectFrontendPermissionKeys() {
+  const files = [
+    'apps/web/app/i18n.ts',
+    'apps/web/app/security/SecurityClient.tsx',
+  ];
+  const permissionPattern = /['"`]([a-z][a-z0-9_-]*(?:\.[a-z0-9_*_-]+)+|\*)['"`]/g;
+  const allowedPrefixes = /^(auth|data|booking|tour|order|quote|quotation|customer|commission|report|guide|supplier|operation|finance|file)\./;
+  const permissions = new Set();
+  for (const file of files) {
+    const source = read(file);
+    for (const match of source.matchAll(permissionPattern)) {
+      const permission = match[1];
+      if (permission === '*' || allowedPrefixes.test(permission)) permissions.add(permission);
+    }
+  }
+  return permissions;
+}
+
+function collectFrontendPermissionLabels() {
+  const source = read('apps/web/app/i18n.ts');
+  const permissions = new Set();
+  const objectMatch = source.match(/const permissionLabels:\s*Record<string,\s*string>\s*=\s*\{([\s\S]*?)\n\};/);
+  if (!objectMatch) {
+    failures.push('Không tìm thấy permissionLabels trong i18n.ts');
+    return permissions;
+  }
+  for (const match of objectMatch[1].matchAll(/['"]([^'"]+)['"]\s*:/g)) {
+    permissions.add(match[1]);
+  }
+  return permissions;
+}
+
 function requirePermissions(roles, role, permissions) {
   const actual = roles.get(role);
   for (const permission of permissions) {
@@ -66,6 +126,26 @@ function forbidPrefix(roles, role, prefix) {
 }
 
 const roles = collectRolePermissions();
+const backendRoutePermissions = collectBackendRoutePermissions();
+const backendKnownPermissions = new Set(['*', ...backendRoutePermissions]);
+for (const rolePermissions of roles.values()) {
+  for (const permission of rolePermissions) backendKnownPermissions.add(permission);
+}
+const frontendPermissionKeys = collectFrontendPermissionKeys();
+const frontendPermissionLabels = collectFrontendPermissionLabels();
+
+for (const permission of frontendPermissionKeys) {
+  assert(backendKnownPermissions.has(permission), `frontend dùng permission key chưa có ở backend/migration: ${permission}`);
+}
+
+for (const permission of backendRoutePermissions) {
+  assert(frontendPermissionLabels.has(permission), `frontend i18n thiếu label cho backend permission ${permission}`);
+}
+
+for (const requiredSecurityPermission of ['auth.user.manage', 'auth.role.manage', 'data.scope.all', 'data.scope.branch', 'data.scope.department']) {
+  assert(frontendPermissionKeys.has(requiredSecurityPermission), `frontend security thiếu permission key ${requiredSecurityPermission}`);
+  assert(backendKnownPermissions.has(requiredSecurityPermission), `backend thiếu permission key ${requiredSecurityPermission}`);
+}
 
 requirePermissions(roles, 'super_admin', ['*']);
 requirePermissions(roles, 'sales', [
