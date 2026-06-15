@@ -4,7 +4,9 @@ set -euo pipefail
 cd "${REPO_DIR:-/opt/smarttour}"
 
 node scripts/audit-data-scope.js
+node scripts/test-data-scope-contract.js
 scripts/test-data-scope-module-flows.sh
+scripts/test-data-scope-api-flows.sh
 scripts/smoke-rbac-workflows.sh
 
 if [[ -n "${ADMIN_PASSWORD:-}" ]]; then

@@ -21,12 +21,15 @@ const checks = [
 
 const controllerChecks = [
   'apps/api/src/modules/bookings/bookings.controller.ts',
+  'apps/api/src/modules/customers/customers.controller.ts',
   'apps/api/src/modules/finance/finance.controller.ts',
   'apps/api/src/modules/fit-tours/fit-tours.controller.ts',
   'apps/api/src/modules/git-tours/git-tours.controller.ts',
   'apps/api/src/modules/landtours/landtours.controller.ts',
   'apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts',
   'apps/api/src/modules/operations/operations.controller.ts',
+  'apps/api/src/modules/orders/orders.controller.ts',
+  'apps/api/src/modules/reports/reports.controller.ts',
   'apps/api/src/modules/suppliers/suppliers.controller.ts',
   'apps/api/src/modules/tour-guides/tour-guides.controller.ts',
 ];
