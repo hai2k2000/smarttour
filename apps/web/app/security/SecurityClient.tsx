@@ -121,6 +121,15 @@ const actionLabels: Record<SecurityAction, { present: string; success: string }>
   updateRole: { present: 'cập nhật vai trò', success: 'Đã cập nhật vai trò.' },
   changePassword: { present: 'đổi mật khẩu', success: 'Đã đổi mật khẩu. Các phiên đăng nhập khác đã được thu hồi.' },
 };
+const USER_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: viStatus('ACTIVE') },
+  { value: 'INACTIVE', label: viStatus('INACTIVE') },
+  { value: 'LOCKED', label: viStatus('LOCKED') },
+] as const;
+const ROLE_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: viStatus('ACTIVE') },
+  { value: 'INACTIVE', label: viStatus('INACTIVE') },
+] as const;
 
 export default function SecurityClient() {
   const [users, setUsers] = useState<User[]>([]);
@@ -161,9 +170,11 @@ export default function SecurityClient() {
       setCanManageUsers(true);
       setSelectedUserId((current) => reconcileSelection(current, nextUsers));
     } else {
+      setUsers([]);
+      setSelectedUserId('');
       setCanManageUsers(false);
       invalidSession ||= isUnauthorized(userResult.reason);
-      errors.push(loadError('người dùng', 'auth.user.manage', userResult.reason));
+      errors.push(loadError('danh sách người dùng', 'auth.user.manage', userResult.reason));
     }
 
     if (roleResult.status === 'fulfilled') {
@@ -172,9 +183,11 @@ export default function SecurityClient() {
       setCanManageRoles(true);
       setSelectedRoleId((current) => reconcileSelection(current, nextRoles));
     } else {
+      setRoles([]);
+      setSelectedRoleId('');
       setCanManageRoles(false);
       invalidSession ||= isUnauthorized(roleResult.reason);
-      errors.push(loadError('vai trò', 'auth.role.manage', roleResult.reason));
+      errors.push(loadError('danh sách vai trò', 'auth.role.manage', roleResult.reason));
     }
 
     setAuthState(invalidSession ? 'invalid' : 'ready');
@@ -253,7 +266,7 @@ export default function SecurityClient() {
       return true;
     } catch (error) {
       if (isUnauthorized(error)) setAuthState('invalid');
-      setMessage({ kind: 'error', text: `Không thể ${actionLabels[action].present}: ${actionError(error)}.` });
+      setMessage({ kind: 'error', text: `Không thể ${actionLabels[action].present}: ${actionError(error, action)}.` });
       return false;
     } finally {
       setBusyAction(null);
@@ -261,8 +274,9 @@ export default function SecurityClient() {
   }
 
   function openModal(modal: Exclude<ActiveModal, null>, id?: string) {
-    if (modal === 'updateUser' && id) setSelectedUserId(id);
-    if (modal === 'updateRole' && id) setSelectedRoleId(id);
+    setMessage(null);
+    if (modal === 'updateUser') setSelectedUserId((current) => id || reconcileSelection(current, users));
+    if (modal === 'updateRole') setSelectedRoleId((current) => id || reconcileSelection(current, roles));
     setActiveModal(modal);
   }
 
@@ -275,12 +289,12 @@ export default function SecurityClient() {
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Hệ thống</p>
-          <h1>Quản trị người dùng và phân quyền</h1>
+          <h1>Người dùng, vai trò và phân quyền</h1>
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral" role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
-          <button type="button" disabled={!canManageUsers || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('createUser')}><Plus size={16} /> Thêm người dùng</button>
-          <button type="button" disabled={!canManageRoles || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('createRole')}><ShieldCheck size={16} /> Thêm vai trò</button>
+          <button type="button" disabled={!canManageUsers || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('createUser')}><Plus size={16} /> Tạo người dùng</button>
+          <button type="button" disabled={!canManageRoles || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('createRole')}><ShieldCheck size={16} /> Tạo vai trò</button>
           <button type="button" disabled={authState !== 'ready' || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('password')}><KeyRound size={16} /> Đổi mật khẩu</button>
           <button type="button" disabled={loading} className="secondaryButton iconTextButton" onClick={() => void load()}><RefreshCcw size={16} /> {loading ? 'Đang tải...' : 'Tải lại'}</button>
         </div>
@@ -290,7 +304,7 @@ export default function SecurityClient() {
         <Metric label="Người dùng" value={users.length} />
         <Metric label="Vai trò" value={roles.length} />
         <Metric label="Quyền hệ thống" value={permissionCount} />
-        <Metric label="Phiên đăng nhập" value={authStateLabel(authState)} />
+        <Metric label="Trạng thái phiên" value={authStateLabel(authState)} />
       </section>
 
       <section className="panel securityList">
@@ -304,9 +318,12 @@ export default function SecurityClient() {
             <tbody>
               {users.map((user) => (
                 <tr key={user.id}>
-                  <td><strong>{user.name}</strong><span>{user.username || 'Chưa có tên đăng nhập'} · {user.email}</span></td>
-                  <td>{user.roles.map((role) => viRoleCode(role.code)).join(', ') || 'Chưa gán vai trò'}</td>
-                  <td><span className="statusPill">{scopeLabel(user)}</span></td>
+                  <td>
+                    <strong><CellText text={user.name} /></strong>
+                    <CellText text={`${user.username || 'Chưa có tên đăng nhập'} · ${user.email}`} />
+                  </td>
+                  <td><CellText text={user.roles.map((role) => viRoleCode(role.code)).join(', ')} fallback="Chưa gán vai trò" /></td>
+                  <td><span className="statusPill" title={scopeLabel(user)}>{scopeLabel(user)}</span></td>
                   <td>{date(user.lastLoginAt)}</td>
                   <td><span className="statusPill">{viStatus(user.status)}</span></td>
                   <td><button type="button" disabled={!canManageUsers || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('updateUser', user.id)}><Pencil size={14} /> Sửa</button></td>
@@ -329,11 +346,14 @@ export default function SecurityClient() {
             <tbody>
               {roles.map((role) => (
                 <tr key={role.id}>
-                  <td><strong>{viRoleCode(role.code)}</strong><span>{role.code}</span></td>
-                  <td>{role.description || 'Chưa có mô tả'}</td>
+                  <td>
+                    <strong><CellText text={viRoleCode(role.code)} /></strong>
+                    <CellText text={role.code} />
+                  </td>
+                  <td><CellText text={role.description || ''} fallback="Chưa có mô tả" /></td>
                   <td>{role._count?.users || 0}</td>
-                  <td><span className="statusPill">{roleScopeLabel(role)}</span></td>
-                  <td><div className="permissionChips">{role.permissions.map((item) => <span key={item.id} title={item.permission}>{viPermission(item.permission)}</span>)}</div></td>
+                  <td><span className="statusPill" title={roleScopeLabel(role)}>{roleScopeLabel(role)}</span></td>
+                  <td><CellText text={permissionSummary(role)} title={permissionTitle(role)} /></td>
                   <td><span className="statusPill">{viStatus(role.status)}</span></td>
                   <td><button type="button" disabled={!canManageRoles || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('updateRole', role.id)}><Pencil size={14} /> Sửa</button></td>
                 </tr>
@@ -404,7 +424,7 @@ function UserModal({
 }) {
   const creating = mode === 'create';
   return (
-    <SecurityModal title={creating ? 'Thêm người dùng' : 'Cập nhật người dùng'} onClose={onClose} wide>
+    <SecurityModal title={creating ? 'Tạo người dùng' : 'Cập nhật người dùng'} onClose={onClose} wide>
       <form action={async (formData) => { if (await onSubmit(formData)) onClose(); }} className="modalFormStack">
         {!creating ? (
           <fieldset>
@@ -419,7 +439,7 @@ function UserModal({
             <label>Email<input name="email" type="email" required readOnly={!creating} defaultValue={user?.email || ''} placeholder="user@company.com" autoComplete="email" /></label>
             <label>Họ và tên<input name="name" required defaultValue={user?.name || ''} autoComplete="name" /></label>
             <label>{creating ? 'Mật khẩu' : 'Mật khẩu mới'}<input name="password" type="password" required={creating} minLength={8} placeholder={creating ? 'Tối thiểu 8 ký tự' : 'Để trống nếu không đổi'} autoComplete="new-password" /></label>
-            {!creating ? <label>Trạng thái<select name="status" defaultValue={user?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="LOCKED">Đã khóa</option></select></label> : null}
+            {!creating ? <label>Trạng thái<select name="status" defaultValue={user?.status || 'ACTIVE'}>{USER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label> : null}
           </div>
         </fieldset>
         <fieldset>
@@ -455,7 +475,7 @@ function RoleModal({
 }) {
   const creating = mode === 'create';
   return (
-    <SecurityModal title={creating ? 'Thêm vai trò' : 'Cập nhật vai trò'} onClose={onClose} wide>
+    <SecurityModal title={creating ? 'Tạo vai trò' : 'Cập nhật vai trò'} onClose={onClose} wide>
       <form action={async (formData) => { if (await onSubmit(formData)) onClose(); }} className="modalFormStack">
         {!creating ? (
           <fieldset>
@@ -468,7 +488,7 @@ function RoleModal({
           <div className="modalFormGrid">
             <label>Mã vai trò<input name="code" required={creating} readOnly={!creating} defaultValue={role?.code || ''} placeholder="finance_manager" /></label>
             <label>Tên vai trò<input name="name" required defaultValue={role?.name || ''} /></label>
-            {!creating ? <label>Trạng thái<select name="status" defaultValue={role?.status || 'ACTIVE'}><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label> : null}
+            {!creating ? <label>Trạng thái<select name="status" defaultValue={role?.status || 'ACTIVE'}>{ROLE_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label> : null}
             <label className="span2">Mô tả<textarea name="description" rows={3} defaultValue={role?.description || ''} /></label>
           </div>
         </fieldset>
@@ -500,7 +520,7 @@ function PermissionReference() {
 function ModalActions({ busy, busyText, submitText, icon, onClose }: { busy: boolean; busyText: string; submitText: string; icon: ReactNode; onClose: () => void }) {
   return (
     <div className="modalActions">
-      <button type="button" disabled={busy} className="secondaryButton" onClick={onClose}>Đóng</button>
+      <button type="button" disabled={busy} className="secondaryButton" onClick={onClose}>Hủy</button>
       <button type="submit" disabled={busy}>{icon} {busy ? busyText : submitText}</button>
     </div>
   );
@@ -508,6 +528,12 @@ function ModalActions({ busy, busyText, submitText, icon, onClose }: { busy: boo
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return <article className="metric"><span>{label}</span><strong>{value}</strong></article>;
+}
+
+function CellText({ text, fallback = '-', title }: { text: string; fallback?: string; title?: string }) {
+  const value = text.trim() || fallback;
+  const tooltip = title || value;
+  return <span className="cellClamp" title={tooltip}>{value}</span>;
 }
 
 function userPayload(formData: FormData, roles: Role[], creating: boolean) {
@@ -522,6 +548,7 @@ function userPayload(formData: FormData, roles: Role[], creating: boolean) {
   validateDataScope(roleCodes, roles, branch, department);
   if (creating && !password) throw new Error('Cần nhập mật khẩu.');
   if (password) validPassword(password, creating ? 'Mật khẩu' : 'Mật khẩu mới');
+  const status = creating ? undefined : validStatus(requiredText(formData, 'status', 'trạng thái người dùng'), USER_STATUS_OPTIONS, 'Trạng thái người dùng');
   return {
     username,
     ...(creating ? { email } : {}),
@@ -529,7 +556,7 @@ function userPayload(formData: FormData, roles: Role[], creating: boolean) {
     branch,
     department,
     roleCodes,
-    ...(!creating ? { status: requiredText(formData, 'status', 'trạng thái') } : {}),
+    ...(status ? { status } : {}),
     ...(password ? { password } : {}),
   };
 }
@@ -537,13 +564,14 @@ function userPayload(formData: FormData, roles: Role[], creating: boolean) {
 function rolePayload(formData: FormData, creating: boolean) {
   const code = creating ? validRoleCode(requiredText(formData, 'code', 'mã vai trò')) : undefined;
   const name = requiredText(formData, 'name', 'tên vai trò');
-  const permissions = splitLines(cleanText(formData.get('permissions')));
+  const permissions = validatePermissions(splitLines(cleanText(formData.get('permissions'))));
   if (!permissions.length) throw new Error('Vai trò phải có ít nhất một quyền.');
+  const status = creating ? undefined : validStatus(requiredText(formData, 'status', 'trạng thái vai trò'), ROLE_STATUS_OPTIONS, 'Trạng thái vai trò');
   return {
     ...(code ? { code } : {}),
     name,
     description: cleanText(formData.get('description')),
-    ...(!creating ? { status: requiredText(formData, 'status', 'trạng thái') } : {}),
+    ...(status ? { status } : {}),
     permissions,
   };
 }
@@ -566,27 +594,39 @@ function validateDataScope(roleCodes: string[], roles: Role[], branch: string, d
 
 function scopeLabel(user: User) {
   const permissions = new Set(user.permissions);
-  if (permissions.has('*') || permissions.has('data.scope.all') || user.dataScope === 'all') return 'Toàn bộ dữ liệu';
+  if (permissions.has('*') || permissions.has('data.scope.all') || user.dataScope === 'all') return 'Toàn bộ dữ liệu hệ thống';
   const scopes: string[] = [];
-  if (permissions.has('data.scope.branch') || user.dataScope === 'branch') scopes.push(user.branch ? `Chi nhánh: ${user.branch}` : 'Thiếu chi nhánh được phân công');
-  if (permissions.has('data.scope.department') || user.dataScope === 'department') scopes.push(user.department ? `Phòng ban: ${user.department}` : 'Thiếu phòng ban được phân công');
-  return scopes.join(' · ') || 'Không có phạm vi dữ liệu nghiệp vụ';
+  if (permissions.has('data.scope.branch') || user.dataScope === 'branch') scopes.push(user.branch ? `Theo chi nhánh: ${user.branch}` : 'Thiếu chi nhánh được phân công');
+  if (permissions.has('data.scope.department') || user.dataScope === 'department') scopes.push(user.department ? `Theo phòng ban: ${user.department}` : 'Thiếu phòng ban được phân công');
+  return scopes.join(' · ') || 'Chưa có phạm vi dữ liệu nghiệp vụ';
 }
 
 function roleScopeLabel(role: Role) {
   const permissions = new Set(role.permissions.map((item) => item.permission));
-  if (permissions.has('*') || permissions.has('data.scope.all')) return 'Toàn bộ dữ liệu';
+  if (permissions.has('*') || permissions.has('data.scope.all')) return 'Toàn bộ dữ liệu hệ thống';
   const scopes: string[] = [];
-  if (permissions.has('data.scope.branch')) scopes.push('Theo chi nhánh được phân công');
-  if (permissions.has('data.scope.department')) scopes.push('Theo phòng ban được phân công');
-  return scopes.join(' · ') || 'Không có phạm vi dữ liệu nghiệp vụ';
+  if (permissions.has('data.scope.branch')) scopes.push('Theo chi nhánh người dùng');
+  if (permissions.has('data.scope.department')) scopes.push('Theo phòng ban người dùng');
+  return scopes.join(' · ') || 'Chưa có phạm vi dữ liệu nghiệp vụ';
 }
 
 function authStateLabel(state: AuthState) {
-  if (state === 'ready') return 'Đã xác thực';
-  if (state === 'missing') return 'Chưa đăng nhập';
-  if (state === 'invalid') return 'Phiên không hợp lệ';
-  return 'Đang kiểm tra';
+  if (state === 'ready') return 'Phiên hợp lệ';
+  if (state === 'missing') return 'Chưa có phiên';
+  if (state === 'invalid') return 'Phiên hết hạn';
+  return 'Đang kiểm tra phiên';
+}
+
+function permissionSummary(role: Role) {
+  const permissions = role.permissions.map((item) => item.permission).filter(Boolean);
+  if (!permissions.length) return 'Chưa có quyền';
+  if (permissions.includes('*')) return 'Toàn quyền hệ thống';
+  return `${permissions.length} quyền`;
+}
+
+function permissionTitle(role: Role) {
+  const permissions = role.permissions.map((item) => item.permission).filter(Boolean).sort();
+  return permissions.map((permission) => `${viPermission(permission)} (${permission})`).join('\n') || 'Chưa có quyền';
 }
 
 function reconcileSelection<T extends { id: string }>(current: string, rows: T[]) {
@@ -642,7 +682,9 @@ function loadError(label: string, permission: string, error: unknown) {
   return `Không tải được ${label}: ${errorText(error)}.`;
 }
 
-function actionError(error: unknown) {
+function actionError(error: unknown, action?: SecurityAction) {
+  if (action === 'changePassword' && error instanceof ApiError && error.status === 401) return 'Mật khẩu hiện tại không đúng hoặc phiên đăng nhập đã hết hạn';
+  if (action === 'changePassword' && error instanceof ApiError && error.status === 400) return `Mật khẩu mới chưa đạt chính sách: ${error.message.replace(/[.]$/, '')}`;
   if (error instanceof ApiError && error.status === 401) return 'phiên đăng nhập không hợp lệ hoặc đã hết hạn';
   if (error instanceof ApiError && error.status === 403) return 'tài khoản không có quyền thực hiện thao tác này';
   return errorText(error).replace(/[.]$/, '');
@@ -682,7 +724,7 @@ function cleanText(value: FormDataEntryValue | null) {
 
 function validUsername(value: string) {
   const username = value.toLowerCase();
-  if (!/^[a-z0-9._-]{3,50}$/.test(username)) throw new Error('Tên đăng nhập phải dài 3-50 ký tự và chỉ gồm chữ thường không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.');
+  if (!/^[a-z0-9][a-z0-9._-]{2,49}$/.test(username)) throw new Error('Tên đăng nhập phải dài 3-50 ký tự, bắt đầu bằng chữ hoặc số và chỉ gồm chữ thường không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.');
   return username;
 }
 
@@ -694,6 +736,7 @@ function validEmail(value: string) {
 
 function validPassword(value: string, label: string) {
   if (value.length < 8) throw new Error(`${label} phải có ít nhất 8 ký tự.`);
+  if (value.length > 128) throw new Error(`${label} không được vượt quá 128 ký tự.`);
   return value;
 }
 
@@ -701,6 +744,18 @@ function validRoleCode(value: string) {
   const code = value.toLowerCase();
   if (!/^[a-z][a-z0-9._-]{2,63}$/.test(code)) throw new Error('Mã vai trò phải dài 3-64 ký tự, bắt đầu bằng chữ thường và chỉ gồm chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang.');
   return code;
+}
+
+function validStatus<T extends readonly { value: string }[]>(value: string, options: T, label: string) {
+  const status = value.toUpperCase();
+  if (!options.some((option) => option.value === status)) throw new Error(`${label} không hợp lệ: ${status}.`);
+  return status;
+}
+
+function validatePermissions(permissions: string[]) {
+  const invalid = permissions.filter((permission) => permission !== '*' && !/^[a-z][a-z0-9_-]*(?:\.[a-z0-9_*_-]+)+$/.test(permission));
+  if (invalid.length) throw new Error(`Quyền không hợp lệ: ${invalid.join(', ')}.`);
+  return permissions;
 }
 
 function errorText(error: unknown) {
