@@ -64,7 +64,7 @@ const comboTypes = [
   { value: '5N4D', label: '5N4D' },
   { value: '6N5D', label: '6N5D' },
   { value: '7N6D', label: '7N6D' },
-  { value: 'Combo khac', label: 'Combo khác' },
+  { value: 'Combo khác', label: 'Combo khác' },
 ];
 const emptyItem: ComboItem = { supplierId: '', serviceId: '', serviceName: '', checkIn: '', netPricePerService: 0, nightCount: 1, paxCount: 1 };
 
@@ -82,8 +82,8 @@ function freshDefaultValues(): ComboForm {
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
   if (typeof window === 'undefined') return apiBase;
-  if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
-  return apiBase;
+  if (!apiBase || apiBase.includes('smarttour-api-1')) return '';
+  return apiBase.replace(/\/$/, '');
 }
 
 function safeNumber(value: unknown, fallback = 0) {
@@ -108,12 +108,21 @@ function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function formatDateParts(year: number, month: number, day: number) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
 function dateInputValue(value: unknown) {
   if (!value) return '';
-  const raw = String(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const vietnameseDate = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (vietnameseDate) return formatDateParts(Number(vietnameseDate[3]), Number(vietnameseDate[2]), Number(vietnameseDate[1]));
+  const date = value instanceof Date ? value : new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : formatDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 function money(value: unknown) {
@@ -259,11 +268,30 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     columns: useMemo(() => {
       const helper = createColumnHelper<ComboSummary>();
       return [
-        helper.accessor('comboCode', { header: 'Mã combo', cell: (info) => <strong>{info.getValue()}</strong> }),
-        helper.accessor('comboType', { header: 'Loại combo' }),
-        helper.accessor('totalNetPricePerPax', { header: 'NET/khách', cell: (info) => money(info.getValue()) }),
-        helper.accessor('adultComboPrice', { header: 'Giá người lớn', cell: (info) => money(info.getValue()) }),
-        helper.display({ id: 'count', header: 'Dịch vụ', cell: ({ row }) => row.original._count?.items ?? 0 }),
+        helper.accessor('comboCode', {
+          header: 'Mã combo',
+          cell: (info) => {
+            const comboTitle = info.getValue();
+            return <span className="cellClamp" title={comboTitle}>{comboTitle}</span>;
+          },
+        }),
+        helper.accessor('comboType', {
+          header: 'Loại combo',
+          cell: (info) => {
+            const comboTypeTitle = info.getValue() || 'Chưa có loại combo';
+            return <span className="cellClamp" title={comboTypeTitle}>{info.getValue() || '-'}</span>;
+          },
+        }),
+        helper.accessor('totalNetPricePerPax', { header: 'NET/khách', cell: (info) => <span className="cellClamp" title={money(info.getValue())}>{money(info.getValue())}</span> }),
+        helper.accessor('adultComboPrice', { header: 'Giá người lớn', cell: (info) => <span className="cellClamp" title={money(info.getValue())}>{money(info.getValue())}</span> }),
+        helper.display({
+          id: 'count',
+          header: 'Dịch vụ',
+          cell: ({ row }) => {
+            const serviceCountTitle = `${row.original._count?.items ?? 0} dịch vụ`;
+            return <span className="cellClamp" title={serviceCountTitle}>{row.original._count?.items ?? 0}</span>;
+          },
+        }),
         helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{statusText(info.getValue())}</span> }),
         helper.display({
           id: 'actions',
@@ -298,8 +326,16 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   async function loadCombo(id: string, showSuccess = true) {
+    const previousEditingId = editingId;
+    const switchingRecord = previousEditingId !== id;
     setLoadingComboId(id);
     setError('');
+    setMessage('');
+    if (switchingRecord) {
+      setEditingId(null);
+      setFormOpen(false);
+      reset(freshDefaultValues());
+    }
     try {
       const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết combo.'));
@@ -308,7 +344,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
       });
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('API không trả về chi tiết combo hợp lệ.');
       const combo = data as Record<string, unknown>;
-      const comboItems = Array.isArray(combo.items) ? combo.items.map((item) => normalizeComboItem(item, serviceOptions)).filter(hasValidComboItem) : [];
+      if (!Array.isArray(combo.items)) throw new Error('API không trả về danh sách dịch vụ của combo hợp lệ.');
+      const comboItems = combo.items.map((item) => normalizeComboItem(item, serviceOptions)).filter(hasValidComboItem);
 
       setEditingId(id);
       setFormOpen(true);
@@ -324,6 +361,11 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
       if (showSuccess) setMessage('Đã tải chi tiết combo.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không tải được chi tiết combo.');
+      if (switchingRecord) {
+        setEditingId(null);
+        setFormOpen(false);
+        reset(freshDefaultValues());
+      }
     } finally {
       setLoadingComboId(null);
     }
@@ -356,17 +398,18 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   async function action(path: ComboAction) {
-    if (!editingId) {
+    const currentId = editingId;
+    if (!currentId) {
       setError(`Cần mở một combo đã lưu trước khi ${actionLabels[path]}.`);
       return;
     }
     setActionLoading(path);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${editingId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${currentId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
       if (!response.ok) throw new Error(await responseError(response, `Không thể ${actionLabels[path]}.`));
       await reload(false);
-      await loadCombo(editingId, false);
+      await loadCombo(currentId, false);
       setMessage(`Đã ${actionLabels[path]}.`);
     } catch (caught) {
       setError(caught instanceof Error ? `${actionLabels[path][0].toUpperCase()}${actionLabels[path].slice(1)} lỗi: ${caught.message}` : `Không thể ${actionLabels[path]}.`);
@@ -392,7 +435,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   const validationMessage = errors.comboCode?.message || errors.comboType?.message || errors.profitPerPax?.message || errors.childPricePercent?.message;
-  const formBusy = isSubmitting || Boolean(actionLoading || loadingComboId);
+  const formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingComboId);
 
   return (
     <div className="quotePage quoteComboPage">
@@ -405,7 +448,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
                 <div className="quoteComboMain">
                   <section className="panel quoteFormSection">
                     <div className="sectionHeader">
-                      <h2>{editingId ? 'Cập nhật combo' : 'Tạo combo'}</h2>
+                      <h2>{editingId ? 'Cập nhật báo giá combo' : 'Tạo báo giá combo'}</h2>
                       <span>{message || 'Backend sẽ tính lại NET/người và giá combo trước khi lưu.'}</span>
                     </div>
                     {validationMessage ? <div className="formErrors"><AlertCircle size={15} /> {validationMessage}</div> : null}
@@ -460,11 +503,13 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
             <span>{listLoading ? 'Đang tải dữ liệu...' : `${filteredCombos.length} combo`}</span>
           </div>
           <div className="quoteListActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại</button>
-            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Thêm mới</button>
-            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã combo, loại combo..." /></label>
+            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Tạo báo giá combo</button>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã combo, loại combo, trạng thái..." /></label>
           </div>
         </div>
+        {listLoading && !formOpen ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải lại danh sách combo...</div> : null}
+        {loadingComboId && !formOpen ? <div className="quoteAlert quoteAlertInfo">Đang tải chi tiết combo...</div> : null}
         {error && !formOpen ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
         {message && !formOpen ? <div className="quoteAlert quoteAlertInfo">{message}</div> : null}
         <div className="fitTableWrap quoteListWrap compactListTableWrap">
@@ -517,6 +562,8 @@ function ComboRows({
                   const currentService = serviceOptions.find((item) => item.id === currentServiceId);
                   if (currentService && currentService.supplierId !== supplierId) {
                     setValue(`items.${row.index}.serviceId`, '');
+                    setValue(`items.${row.index}.serviceName`, '');
+                    setValue(`items.${row.index}.netPricePerService`, 0);
                   }
                 }}
               >

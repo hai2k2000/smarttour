@@ -604,7 +604,7 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .quoteComboPage .quoteComboTable th:last-child, .quoteComboPage .quoteComboTable td:last-child { width: 58px; }
 .quoteComboPage .quoteComboTable input, .quoteComboPage .quoteComboTable select { width: 100%; min-width: 0; }
 .quoteComboListTable { width: max(100%, 840px); min-width: 840px; table-layout: fixed; }
-.quoteComboListTable th, .quoteComboListTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quoteComboListTable th, .quoteComboListTable td { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .quoteComboListTable th:nth-child(1), .quoteComboListTable td:nth-child(1) { width: 150px; }
 .quoteComboListTable th:nth-child(2), .quoteComboListTable td:nth-child(2) { width: 130px; }
 .quoteComboListTable th:nth-child(3), .quoteComboListTable td:nth-child(3),
