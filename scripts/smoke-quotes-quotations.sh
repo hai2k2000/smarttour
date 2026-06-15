@@ -457,6 +457,17 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', `/quotations/${quotation.id}/submit`, { actor: 'quote-smoke' }, [400]);
 
   const order = await request(admin, 'GET', `/orders/fit-tours/${converted.convertedOrderId}`);
+  assert(order.type === 'FIT_TOUR', 'converted order has wrong order type');
+  assert(order.systemCode === `ORD-${quotation.quoteCode}`, 'converted order lost systemCode mapping');
+  assert(order.tourCode === quotation.quoteCode, 'converted order lost tourCode mapping');
+  assert(order.name === 'Ha Noi - Ninh Binh Updated', 'converted order lost name/route mapping');
+  assert(order.currency === quotationPayload().currency, 'converted order lost currency');
+  almost(order.exchangeRate, 3, 'converted order exchangeRate');
+  assert(order.branch === quotationPayload().branch, 'converted order lost branch');
+  assert(order.department === quotationPayload().department, 'converted order lost department');
+  assert(order.operatorOwner === quotationPayload().operatorOwner, 'converted order lost operatorOwner');
+  assert(order.terms?.[0]?.language === quotationPayload().language, 'converted order lost terms language');
+  assert(order.terms?.[0]?.terms === quotationPayload().terms, 'converted order lost terms content');
   almost(order.totalRevenue, expectedRate3.totalSelling, 'converted order totalRevenue');
   almost(order.totalCost, expectedRate3.totalCost, 'converted order totalCost');
   almost(order.profit, expectedRate3.totalSelling - expectedRate3.totalCost, 'converted order profit');
@@ -464,6 +475,7 @@ function assertLoadableQuotation(row) {
   assert(order.route === 'Ha Noi - Ninh Binh Updated', 'converted order lost updated route');
   assert(Array.isArray(order.salesItems) && order.salesItems.length === 2, 'converted order salesItems missing');
   assert(Array.isArray(order.operationItems) && order.operationItems.length === 2, 'converted order operationItems missing');
+  assert(order.operationItems.every((item) => item.status === 'WAITING'), 'converted order operation item status must start as WAITING');
   almost(order.salesItems[0].amount, expectedRate3.sell1, 'converted order first sales amount');
   almost(order.operationItems[0].amount, expectedRate3.cost1, 'converted order first operation amount');
 

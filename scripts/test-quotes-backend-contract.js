@@ -20,6 +20,9 @@ const quotesController = read('apps/api/src/modules/quotes/quotes.controller.ts'
 const quotesService = read('apps/api/src/modules/quotes/quotes.service.ts');
 const quotationsService = read('apps/api/src/modules/quotations/quotations.service.ts');
 const validationFactory = read('apps/api/src/validation-exception.factory.ts');
+const quoteToursClient = read('apps/web/app/quotes/tours/QuoteToursClient.tsx');
+const quoteCombosClient = read('apps/web/app/quotes/combos/QuoteCombosClient.tsx');
+const quotationsClient = read('apps/web/app/quotations/QuotationsClient.tsx');
 
 for (const permission of [
   "@RequirePermissions('quote.view')",
@@ -99,5 +102,29 @@ includes(quotationsService, 'return this.number(item.quantity, 1) * this.number(
 includes(quotationsService, 'return this.number(item.markupAmount) + cost * (this.number(item.markupPercent) / 100);', 'Quotation backend itemMarkup must match frontend fixed markup plus percent of cost.');
 includes(quotesService, '(item.quantity ?? 1) * (item.serviceCount ?? 1) * (item.unitPrice ?? 0) * (item.exchangeRate ?? 1) + (item.vat ?? 0)', 'Quote tour backend amount must match frontend VAT/phụ thu as absolute add-on.');
 includes(quotesService, 'return sum + ((item.netPricePerService ?? 0) * nights) / pax;', 'Quote combo backend net per pax must match frontend.');
+
+includes(quoteToursClient, 'return quantity * serviceCount * unitPrice * exchangeRate + vat;', 'Quote tour frontend lineAmount must match backend VAT/phụ thu as absolute add-on.');
+includes(quoteToursClient, "const common = items.filter((item) => item.costType === 'COMMON').reduce((sum, item) => sum + lineAmount(item), 0);", 'Quote tour frontend must split common costs like backend.');
+includes(quoteToursClient, "const privateTotal = items.filter((item) => item.costType === 'HOTEL' || item.costType === 'PRIVATE').reduce((sum, item) => sum + lineAmount(item), 0);", 'Quote tour frontend must split hotel/private costs like backend.');
+includes(quoteToursClient, 'const pax = Math.max(1, safeNumber(values.adultQty) + safeNumber(values.childQty) + safeNumber(values.infantQty));', 'Quote tour frontend total pax must include adult/child/infant like backend.');
+includes(quoteToursClient, 'const net = common / pax + privateTotal;', 'Quote tour frontend net price must match backend common-per-pax plus private total.');
+includes(quoteToursClient, 'const selling = Math.max(0, net + profit + commission - discount);', 'Quote tour frontend selling price must match backend profit/commission/discount rule.');
+includes(quoteToursClient, 'child: selling * childPercent / 100,', 'Quote tour frontend child price must be percentage of selling price.');
+includes(quoteToursClient, 'infant: selling * infantPercent / 100,', 'Quote tour frontend infant price must be percentage of selling price.');
+includes(quoteToursClient, 'profitRate: selling > 0 ? profit / selling * 100 : 0,', 'Quote tour frontend profit rate must match backend.');
+
+includes(quoteCombosClient, 'return safeNumber(item.netPricePerService) * nights / pax;', 'Quote combo frontend net per pax must match backend.');
+includes(quoteCombosClient, 'const totalNet = normalizedItems.reduce((sum, item) => sum + itemNetPerPax(item), 0);', 'Quote combo frontend total net must sum item net per pax.');
+includes(quoteCombosClient, 'const adult = totalNet + profit;', 'Quote combo frontend adult price must match backend total net plus profit.');
+includes(quoteCombosClient, 'return { totalNet, adult, child: adult * childPercent / 100 };', 'Quote combo frontend child price must be percentage of adult price.');
+
+includes(quotationsClient, 'const totalCost = rows.reduce((sum, item) => sum + itemCost(item, exchangeRate), 0);', 'Quotation frontend total cost must sum itemCost like backend.');
+includes(quotationsClient, 'const totalMarkup = rows.reduce((sum, item) => sum + itemMarkup(item, exchangeRate), 0);', 'Quotation frontend total markup must sum itemMarkup like backend.');
+includes(quotationsClient, 'const totalSelling = totalCost + totalMarkup;', 'Quotation frontend total selling must equal cost plus markup like backend.');
+includes(quotationsClient, 'profitPerPax: sellingPerPax - costPerPax,', 'Quotation frontend profit per pax must match backend.');
+includes(quotationsClient, 'marginRate: totalSelling ? totalMarkup / totalSelling * 100 : 0,', 'Quotation frontend margin rate must match backend.');
+includes(quotationsService, 'childPrice: sellingPerPax * childPercent / 100, infantPrice: sellingPerPax * infantPercent / 100', 'Quotation backend child/infant price must be percentage of selling per pax.');
+includes(quotationsService, 'return nightCount * netPrice * exchangeRate * (1 + vat / 100);', 'Quotation convert unit cost must preserve net price, exchange rate, VAT percent and night count.');
+includes(quotationsService, 'return this.itemSelling(item, exchangeRate) / denominator;', 'Quotation convert unit selling must distribute item selling over quantity and nights.');
 
 console.log('TEST_QUOTES_BACKEND_CONTRACT_OK');
