@@ -631,6 +631,7 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .quotationPage .quotationItemTable th:nth-child(13), .quotationPage .quotationItemTable td:nth-child(13) { width: 116px; }
 .quotationPage .quotationItemTable th:last-child, .quotationPage .quotationItemTable td:last-child { width: 54px; }
 .quotationPage .quotationListTable { width: max(100%, 980px); min-width: 980px; }
+.quotationPage .quotationListTable th, .quotationPage .quotationListTable td { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .quotationPage .quotationListTable th:nth-child(1), .quotationPage .quotationListTable td:nth-child(1) { width: 150px; }
 .quotationPage .quotationListTable th:nth-child(2), .quotationPage .quotationListTable td:nth-child(2) { width: 180px; }
 .quotationPage .quotationListTable th:nth-child(3), .quotationPage .quotationListTable td:nth-child(3) { width: 250px; }

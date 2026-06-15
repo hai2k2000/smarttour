@@ -180,8 +180,8 @@ function freshDefaultValues(): QuotationForm {
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
   if (typeof window === 'undefined') return apiBase;
-  if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
-  return apiBase;
+  if (!apiBase || apiBase.includes('smarttour-api-1')) return '';
+  return apiBase.replace(/\/$/, '');
 }
 
 function safeNumber(value: unknown, fallback = 0) {
@@ -202,12 +202,21 @@ function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function formatDateParts(year: number, month: number, day: number) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
 function dateInputValue(value: unknown) {
   if (!value) return '';
-  const raw = String(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const vietnameseDate = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (vietnameseDate) return formatDateParts(Number(vietnameseDate[3]), Number(vietnameseDate[2]), Number(vietnameseDate[1]));
+  const date = value instanceof Date ? value : new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : formatDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 function money(value: unknown) {
@@ -350,7 +359,8 @@ function normalizeQuotationForm(data: unknown): QuotationForm {
     throw new Error('API không trả về chi tiết báo giá hợp lệ.');
   }
   const row = data as Record<string, unknown>;
-  const items = Array.isArray(row.items) ? row.items.map(normalizeItem) : [];
+  if (!Array.isArray(row.items)) throw new Error('API không trả về danh sách dịch vụ của báo giá hợp lệ.');
+  const items = row.items.map(normalizeItem);
   const defaults = freshDefaultValues();
   return {
     ...defaults,
@@ -529,30 +539,29 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       return [
         helper.display({
           id: 'code',
-          header: 'Mã BG',
-          cell: ({ row }) => (
-            <span className="quoteCellStack">
-              <strong>{row.original.quoteCode || '-'}</strong>
-              <small>{productTypeText(row.original.productType)}</small>
-            </span>
-          ),
+          header: 'Mã báo giá',
+          cell: ({ row }) => {
+            const codeTitle = `${row.original.quoteCode || '-'} · ${productTypeText(row.original.productType)}`;
+            return <span className="cellClamp" title={codeTitle}>{codeTitle}</span>;
+          },
         }),
         helper.display({
           id: 'customer',
-          header: 'Khách',
-          cell: ({ row }) => (
-            <span className="quoteCellStack">
-              <strong>{row.original.customerName || '-'}</strong>
-              <small>{row.original.customerPhone || 'Chưa có SĐT'}</small>
-            </span>
-          ),
+          header: 'Khách hàng',
+          cell: ({ row }) => {
+            const customerTitle = `${row.original.customerName || '-'} · ${row.original.customerPhone || 'Chưa có điện thoại'}`;
+            return <span className="cellClamp" title={customerTitle}>{customerTitle}</span>;
+          },
         }),
         helper.accessor('route', {
-          header: 'Sản phẩm / Hành trình',
-          cell: (info) => <span className="quoteTextClamp">{info.getValue() || '-'}</span>,
+          header: 'Sản phẩm / hành trình',
+          cell: (info) => {
+            const routeTitle = info.getValue() || 'Chưa có sản phẩm / hành trình';
+            return <span className="cellClamp" title={routeTitle}>{info.getValue() || '-'}</span>;
+          },
         }),
-        helper.accessor('totalSelling', { header: 'Tổng giá trị', cell: (info) => money(info.getValue()) }),
-        helper.accessor('sellingPerPax', { header: 'Giá/khách', cell: (info) => money(info.getValue()) }),
+        helper.accessor('totalSelling', { header: 'Tổng giá trị', cell: (info) => <span className="cellClamp" title={money(info.getValue())}>{money(info.getValue())}</span> }),
+        helper.accessor('sellingPerPax', { header: 'Giá/khách', cell: (info) => <span className="cellClamp" title={money(info.getValue())}>{money(info.getValue())}</span> }),
         helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className={statusPillClass(info.getValue())}>{statusText(info.getValue())}</span> }),
         helper.display({
           id: 'actions',
@@ -572,7 +581,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   const approveEnabled = Boolean(editingId) && currentStatus === 'PENDING_APPROVAL';
   const smartLinkEnabledForStatus = Boolean(editingId) && !['CONVERTED', 'CANCELLED'].includes(currentStatus);
   const convertEnabled = Boolean(editingId) && currentStatus === 'APPROVED';
-  const savingDisabled = isSubmitting || Boolean(actionLoading) || !canManage || currentStatus === 'CONVERTED';
+  const savingDisabled = isSubmitting || reloading || Boolean(actionLoading || loadingQuotationId) || !canManage || currentStatus === 'CONVERTED';
 
   async function reload(showSuccess = true) {
     setReloading(true);
@@ -620,9 +629,15 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   }
 
   async function loadQuotation(id: string, showSuccess = true) {
+    const previousEditingId = editingId;
+    const switchingRecord = previousEditingId !== id;
     setLoadingQuotationId(id);
     setError('');
     setMessage('');
+    if (switchingRecord) {
+      setEditingId(null);
+      reset(freshDefaultValues());
+    }
     try {
       const response = await fetch(`${browserApiBase()}/api/quotations/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết báo giá.'));
@@ -635,6 +650,10 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không tải được chi tiết báo giá.');
+      if (switchingRecord) {
+        setEditingId(null);
+        reset(freshDefaultValues());
+      }
     } finally {
       setLoadingQuotationId(null);
     }
@@ -669,19 +688,22 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   }
 
   async function action(actionKey: QuotationAction, path: 'submit' | 'approve' | 'smartlink' | 'convert', method = 'POST', body: Record<string, unknown> = { actor: 'Nhân sự vận hành' }) {
-    if (!editingId) return;
+    const currentId = editingId;
+    if (!currentId) {
+      setError(`Cần mở một báo giá đã lưu trước khi ${actionLabels[actionKey]}.`);
+      return;
+    }
     const label = actionLabels[actionKey];
     setActionLoading(actionKey);
     setError('');
     setMessage('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotations/${editingId}/${path}`, {
+      const response = await fetch(`${browserApiBase()}/api/quotations/${currentId}/${path}`, {
         method,
         headers: authJsonHeaders(),
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error(await responseError(response, `Không ${label} được.`));
-      const currentId = editingId;
       await loadQuotation(currentId, false);
       await reload(false);
       setMessage(`Đã ${label}.`);
@@ -716,6 +738,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       <form onSubmit={handleSubmit(onSubmit)} className="quoteForm">
         {error ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
         {validationError ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {validationError}</div> : null}
+        {loadingQuotationId ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải chi tiết báo giá...</div> : null}
         {message ? <div className="quoteAlert quoteAlertInfo"><Check size={16} /> {message}</div> : null}
 
         <section className="quoteWorkArea">
@@ -729,7 +752,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
               <input type="hidden" {...register('status')} />
 
               <section className="quoteFormSection">
-                <h3>Thông tin quotation</h3>
+                <h3>Thông tin báo giá</h3>
                 <div className="quoteFormGrid">
                   <label>Mã báo giá<input {...register('quoteCode')} /></label>
                   <label>Loại sản phẩm<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{productTypeText(item)}</option>)}</select></label>
@@ -752,7 +775,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
               </section>
 
               <section className="quoteFormSection">
-                <h3>Phân bổ sales / operator / branch / department</h3>
+                <h3>Phân bổ phụ trách</h3>
                 <div className="quoteFormGrid">
                   <label>Sales phụ trách<input {...register('salesOwner')} /></label>
                   <label>Điều hành<input {...register('operatorOwner')} /></label>
@@ -762,7 +785,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
               </section>
 
               <section className="quoteFormSection">
-                <h3>Pax</h3>
+                <h3>Số khách</h3>
                 <div className="quoteFormGrid quotePaxGrid">
                   <label>Người lớn<input type="number" min="0" step="1" inputMode="numeric" {...register('paxAdult', { valueAsNumber: true })} /></label>
                   <label>Trẻ em<input type="number" min="0" step="1" inputMode="numeric" {...register('paxChild', { valueAsNumber: true })} /></label>
@@ -804,7 +827,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
               </section>
 
               <section className="quoteFormSection">
-                <h3>Điều khoản / ghi chú</h3>
+                <h3>Điều khoản và ghi chú</h3>
                 <div className="quoteFormGrid">
                   <label className="span2">Điều khoản<textarea rows={3} {...register('terms')} /></label>
                   <label className="span2">Ghi chú nội bộ<textarea rows={3} {...register('note')} /></label>
@@ -814,9 +837,9 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
 
             <section className="fitTableBlock">
               <div className="sectionHeader">
-                <h2>Items / dịch vụ báo giá</h2>
+                <h2>Dòng dịch vụ báo giá</h2>
                 <button type="button" className="secondaryButton iconTextButton" onClick={() => items.append({ ...emptyItem })}>
-                  <Plus size={16} /> Thêm dòng
+                  <Plus size={16} /> Thêm dòng dịch vụ
                 </button>
               </div>
               <div className="fitTableWrap quoteListWrap">
@@ -824,17 +847,17 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
                   <thead>
                     <tr>
                       <th>STT</th>
-                      <th>Loại DV</th>
-                      <th>NCC</th>
+                      <th>Loại dịch vụ</th>
+                      <th>Nhà cung cấp</th>
                       <th>Dịch vụ</th>
-                      <th>ĐVT</th>
-                      <th>SL</th>
-                      <th>Pax</th>
+                      <th>Đơn vị tính</th>
+                      <th>Số lượng</th>
+                      <th>Số khách</th>
                       <th>Đêm</th>
-                      <th>NET</th>
+                      <th>Giá NET</th>
                       <th>VAT %</th>
-                      <th>Markup</th>
-                      <th>Markup %</th>
+                      <th>Lãi cố định</th>
+                      <th>Lãi %</th>
                       <th>Thành tiền</th>
                       <th />
                     </tr>
@@ -870,17 +893,17 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
           <aside className="panel quoteSummaryBox">
             <h2>Tổng hợp giá</h2>
               <div className="summaryRows">
-                <div><span>Tổng cost</span><strong>{money(totals.totalCost)}</strong></div>
-                <div><span>Markup</span><strong>{money(totals.totalMarkup)}</strong></div>
-                <div><span>Tổng selling</span><strong>{money(totals.totalSelling)}</strong></div>
-                <div><span>Pax</span><strong>{totals.pax}</strong></div>
+                <div><span>Tổng chi phí</span><strong>{money(totals.totalCost)}</strong></div>
+                <div><span>Tổng lãi</span><strong>{money(totals.totalMarkup)}</strong></div>
+                <div><span>Tổng giá bán</span><strong>{money(totals.totalSelling)}</strong></div>
+                <div><span>Tổng khách</span><strong>{totals.pax}</strong></div>
                 <div><span>Tỷ giá tính giá</span><strong>{positiveRate(values.exchangeRate).toLocaleString('vi-VN')}</strong></div>
-              <div><span>Cost/pax</span><strong>{money(totals.costPerPax)}</strong></div>
-              <div><span>Selling/pax</span><strong>{money(totals.sellingPerPax)}</strong></div>
+              <div><span>Chi phí/khách</span><strong>{money(totals.costPerPax)}</strong></div>
+              <div><span>Giá bán/khách</span><strong>{money(totals.sellingPerPax)}</strong></div>
               <div><span>Giá người lớn</span><strong>{money(totals.adultPrice)}</strong></div>
               <div><span>Giá trẻ em</span><strong>{money(totals.childPrice)}</strong></div>
               <div><span>Giá em bé</span><strong>{money(totals.infantPrice)}</strong></div>
-              <div><span>Lãi/pax</span><strong>{money(totals.profitPerPax)}</strong></div>
+              <div><span>Lãi/khách</span><strong>{money(totals.profitPerPax)}</strong></div>
               <div><span>Biên lợi nhuận</span><strong>{totals.marginRate.toFixed(1)}%</strong></div>
             </div>
           </aside>
@@ -903,7 +926,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
             <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => reload()}>
               <RefreshCcw size={15} /> {reloading ? 'Đang tải' : 'Tải lại'}
             </button>
-            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã, khách, sản phẩm..." /></label>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã báo giá, khách hàng, sản phẩm..." /></label>
           </div>
         </div>
         {reloading ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải lại dashboard và danh sách báo giá...</div> : null}

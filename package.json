@@ -22,6 +22,7 @@
     "smoke:quotes": "bash scripts/smoke-quotes-quotations.sh",
     "test:quotes:combo-client": "node scripts/test-quote-combos-client-contract.js",
     "test:quotes:tour-client": "node scripts/test-quote-tours-client-contract.js",
+    "test:quotations:client": "node scripts/test-quotations-client-contract.js",
     "smoke:suppliers": "scripts/smoke-suppliers.sh",
     "smoke:finance": "scripts/smoke-finance-reports.sh",
     "smoke:reports": "scripts/smoke-reports-business-rules.sh",
