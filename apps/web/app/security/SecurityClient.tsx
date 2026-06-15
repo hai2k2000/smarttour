@@ -312,10 +312,10 @@ export default function SecurityClient() {
                   <td><button type="button" disabled={!canManageUsers || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('updateUser', user.id)}><Pencil size={14} /> Sửa</button></td>
                 </tr>
               ))}
+              {users.length === 0 ? <tr><td colSpan={6} className="tableEmptyState">Không có người dùng hoặc bạn chưa có quyền xem danh sách.</td></tr> : null}
             </tbody>
           </table>
         </div>
-        {!users.length ? <div className="tableEmptyState">Không có người dùng hoặc bạn chưa có quyền xem danh sách.</div> : null}
       </section>
 
       <section className="panel securityList">
@@ -338,10 +338,10 @@ export default function SecurityClient() {
                   <td><button type="button" disabled={!canManageRoles || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('updateRole', role.id)}><Pencil size={14} /> Sửa</button></td>
                 </tr>
               ))}
+              {roles.length === 0 ? <tr><td colSpan={7} className="tableEmptyState">Không có vai trò hoặc bạn chưa có quyền xem danh sách.</td></tr> : null}
             </tbody>
           </table>
         </div>
-        {!roles.length ? <div className="tableEmptyState">Không có vai trò hoặc bạn chưa có quyền xem danh sách.</div> : null}
       </section>
 
       {activeModal === 'password' ? <PasswordModal busy={busyAction === 'changePassword'} onClose={closeModal} onSubmit={changeOwnPassword} /> : null}

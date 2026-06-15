@@ -546,14 +546,15 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
 
       <section className="panel listPanel">
         <div className="sectionHeader"><h2>{tabLabels[active]}</h2><span>{loading ? 'Đang tải dữ liệu...' : `${rows.length} dòng`}</span></div>
-        {rows.length ? (
-          <div className="fitTableWrap">
-            <table className="fitTable orderListTable reportTable">
-              <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-              <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
-            </table>
-          </div>
-        ) : <div className="tableEmptyState">{loading ? 'Đang tải dữ liệu báo cáo...' : 'Không có dữ liệu báo cáo phù hợp bộ lọc.'}</div>}
+        <div className="fitTableWrap">
+          <table className="fitTable orderListTable reportTable">
+            <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+              {rows.length === 0 ? <tr><td colSpan={table.getAllLeafColumns().length} className="tableEmptyState">{loading ? 'Đang tải dữ liệu báo cáo...' : 'Không có dữ liệu báo cáo phù hợp bộ lọc.'}</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

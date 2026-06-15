@@ -5,6 +5,8 @@ const root = process.cwd();
 
 const globals = fs.readFileSync(path.join(root, 'apps/web/app/globals.css'), 'utf8');
 const popup = fs.readFileSync(path.join(root, 'apps/web/app/TableRowDetailPopup.tsx'), 'utf8');
+const reportsClient = fs.readFileSync(path.join(root, 'apps/web/app/reports/ReportsClient.tsx'), 'utf8');
+const securityClient = fs.readFileSync(path.join(root, 'apps/web/app/security/SecurityClient.tsx'), 'utf8');
 
 const listTables = [
   'orderListTable',
@@ -108,6 +110,25 @@ if (!keydownBlock) {
   for (const token of ["event.key === 'Enter'", "event.key === ' '", 'preventDefault()', 'openRowDetail']) {
     if (!keydownBlock.includes(token)) failures.push(`TableRowDetailPopup.tsx: keydown handler missing ${token}`);
   }
+}
+
+if (reportsClient.includes(') : <div className="tableEmptyState"')) {
+  failures.push('ReportsClient.tsx: empty state must render inside reportTable tbody');
+}
+if (!reportsClient.includes('td colSpan={table.getAllLeafColumns().length} className="tableEmptyState"')) {
+  failures.push('ReportsClient.tsx: reportTable empty state must reserve compact table height');
+}
+if (securityClient.includes('</div>\n        {!users.length ? <div className="tableEmptyState"')) {
+  failures.push('SecurityClient.tsx: user empty state must render inside securityTable tbody');
+}
+if (securityClient.includes('</div>\n        {!roles.length ? <div className="tableEmptyState"')) {
+  failures.push('SecurityClient.tsx: role empty state must render inside securityTable tbody');
+}
+for (const token of [
+  'users.length === 0 ? <tr><td colSpan={6} className="tableEmptyState"',
+  'roles.length === 0 ? <tr><td colSpan={7} className="tableEmptyState"',
+]) {
+  if (!securityClient.includes(token)) failures.push(`SecurityClient.tsx: missing ${token}`);
 }
 
 if (failures.length) {
