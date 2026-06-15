@@ -493,7 +493,8 @@ export class BookingsService {
 
   private ensureAllowedBookingPayload(dto: object, allowedFields: readonly string[], action: 'tạo' | 'cập nhật') {
     const allowed = new Set(allowedFields);
-    const invalidFields = Object.keys(dto as Record<string, unknown>).filter((field) => !allowed.has(field));
+    const payload = dto as Record<string, unknown>;
+    const invalidFields = Object.keys(payload).filter((field) => payload[field] !== undefined && !allowed.has(field));
     if (invalidFields.length) {
       throw new BadRequestException(`Trường không thuộc dữ liệu booking được phép ${action}: ${invalidFields.join(', ')}`);
     }
