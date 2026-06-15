@@ -60,12 +60,12 @@ export class QuotationsService {
 
   async detail(id: string, user?: RequestUser) {
     const quote = await this.prisma.quotation.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: this.includeAll() });
-    if (!quote) throw new NotFoundException('Quotation not found');
+    if (!quote) throw new NotFoundException('Không tìm thấy báo giá.');
     return quote;
   }
 
   async publicDetail(token: string) {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new NotFoundException('Quotation smartlink not found');
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new NotFoundException('Không tìm thấy SmartLink báo giá.');
     const quote = await this.prisma.quotation.findFirst({
       where: { smartLinkToken: token, smartLinkEnabled: true },
       select: {
@@ -106,13 +106,14 @@ export class QuotationsService {
         },
       },
     });
-    if (!quote) throw new NotFoundException('Quotation smartlink not found');
+    if (!quote) throw new NotFoundException('Không tìm thấy SmartLink báo giá.');
     return quote;
   }
 
   async create(dto: CreateQuotationDto, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
     dto = this.prepareDto(dto, true);
+    this.assertWritableQuotationStatus(dto.status);
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -123,7 +124,7 @@ export class QuotationsService {
         return tx.quotation.findUniqueOrThrow({ where: { id: quote.id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Quotation code already exists');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã báo giá đã tồn tại.');
       throw error;
     }
   }
@@ -133,6 +134,7 @@ export class QuotationsService {
     dto = applyWriteDataScope(dto, user);
     this.assertEditable(current.status);
     dto = this.prepareDto(dto, false);
+    this.assertWritableQuotationStatus(dto.status, current.status);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const items = dto.items ?? current.items.map((item) => ({
@@ -165,7 +167,7 @@ export class QuotationsService {
         return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Quotation code already exists');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã báo giá đã tồn tại.');
       throw error;
     }
   }
@@ -211,7 +213,7 @@ export class QuotationsService {
 
   async convert(id: string, dto: QuotationActionDto, user?: RequestUser) {
     const quote = await this.detail(id, user);
-    if (quote.status !== 'APPROVED') throw new BadRequestException('Only approved quotations can be converted');
+    if (quote.status !== 'APPROVED') throw new BadRequestException('Chỉ báo giá đã duyệt mới được chuyển thành đơn hàng.');
     const orderType = ORDER_TYPE_BY_PRODUCT[quote.productType] || 'SINGLE_SERVICE';
     const exchangeRate = this.positiveRate(quote.exchangeRate);
     const totals = this.calculate({
@@ -280,12 +282,12 @@ export class QuotationsService {
 
   private sanitizeItems(items: CreateQuotationDto['items'], requireOne: boolean): QuotationItemInput[] {
     const rows = (items ?? []).filter((item) => this.hasItemContent(item));
-    if (requireOne && !rows.length) throw new BadRequestException('At least one quotation item is required');
+    if (requireOne && !rows.length) throw new BadRequestException('Cần ít nhất một dòng dịch vụ báo giá.');
     return rows.map((item, index) => {
       const serviceType = this.text(item.serviceType);
       const serviceName = this.text(item.serviceName);
-      if (!serviceType || serviceType.length < 2) throw new BadRequestException(`Quotation item ${index + 1} requires service type`);
-      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Quotation item ${index + 1} requires service name`);
+      if (!serviceType || serviceType.length < 2) throw new BadRequestException(`Dòng dịch vụ báo giá ${index + 1} cần loại dịch vụ tối thiểu 2 ký tự.`);
+      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Dòng dịch vụ báo giá ${index + 1} cần tên dịch vụ tối thiểu 2 ký tự.`);
       return {
         serviceType,
         supplierId: this.text(item.supplierId) ?? undefined,
@@ -417,13 +419,26 @@ export class QuotationsService {
   }
 
   private assertStatus(status: QuotationStatus, allowed: QuotationStatus[], action: string) {
-    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} quotation from status ${status}`);
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(`Không thể ${this.actionLabel(action)} báo giá từ trạng thái ${this.statusLabel(status)}.`);
+    }
+  }
+
+  private assertWritableQuotationStatus(nextStatus?: QuotationStatus, currentStatus?: QuotationStatus) {
+    if (!nextStatus) return;
+    if (!currentStatus) {
+      if (nextStatus !== 'DRAFT') throw new BadRequestException('Không được tạo báo giá trực tiếp ở trạng thái khác Nháp.');
+      return;
+    }
+    if (nextStatus !== currentStatus) {
+      throw new BadRequestException('Không được đổi trạng thái báo giá trực tiếp. Hãy dùng các hành động gửi duyệt, duyệt, từ chối hoặc chuyển đơn.');
+    }
   }
 
   private validateDates(dto: Partial<CreateQuotationDto>) {
-    this.assertDateOrder(dto.createdDate, dto.expiredDate, 'Expired date must be after created date');
-    this.assertDateOrder(dto.createdDate, dto.expectedPaymentDate, 'Expected payment date must be after created date');
-    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Return date must be after departure date');
+    this.assertDateOrder(dto.createdDate, dto.expiredDate, 'Ngày hết hạn phải sau ngày tạo báo giá.');
+    this.assertDateOrder(dto.createdDate, dto.expectedPaymentDate, 'Ngày dự kiến thanh toán phải sau ngày tạo báo giá.');
+    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Ngày kết thúc phải sau ngày khởi hành.');
   }
 
   private assertDateOrder(startValue: unknown, endValue: unknown, message: string) {
@@ -452,8 +467,31 @@ export class QuotationsService {
   private dateValue(value?: unknown) {
     if (!value) return null;
     const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid date');
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Ngày không hợp lệ.');
     return date;
+  }
+
+  private actionLabel(action: string) {
+    return ({
+      submit: 'gửi duyệt',
+      approve: 'duyệt',
+      reject: 'từ chối',
+      'toggle smartlink': 'bật/tắt SmartLink',
+      edit: 'chỉnh sửa',
+      delete: 'xóa',
+    } as Record<string, string>)[action] ?? action;
+  }
+
+  private statusLabel(status: string) {
+    return ({
+      DRAFT: 'Nháp',
+      PENDING_APPROVAL: 'Chờ duyệt',
+      APPROVED: 'Đã duyệt',
+      REJECTED: 'Từ chối',
+      CONVERTED: 'Đã chuyển đơn',
+      EXPIRED: 'Hết hạn',
+      CANCELLED: 'Đã hủy',
+    } as Record<string, string>)[status] ?? status;
   }
 
   private number(value: unknown, fallback = 0) {

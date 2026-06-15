@@ -414,8 +414,10 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-MISSING`), quoteCode: '' }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-NUM`), items: [{ ...quotationPayload().items[0], netPrice: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-ITEMS`), items: [] }, [400]);
+  await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-STATUS`), status: 'APPROVED' }, [400]);
 
   const stateQuote = await request(admin, 'POST', '/quotations', quotationPayload(`${run}-QTE-STATE`));
+  await request(admin, 'PUT', `/quotations/${stateQuote.id}`, { status: 'APPROVED' }, [400]);
   await request(admin, 'POST', `/quotations/${stateQuote.id}/approve`, { actor: 'quote-smoke' }, [400]);
   await request(admin, 'POST', `/quotations/${stateQuote.id}/convert`, { actor: 'quote-smoke' }, [400]);
 

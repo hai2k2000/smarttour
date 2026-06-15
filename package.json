@@ -20,6 +20,7 @@
     "smoke:operations": "scripts/smoke-operations-backend.sh",
     "smoke:operations:ui": "node scripts/smoke-operations-ui.js",
     "smoke:quotes": "bash scripts/smoke-quotes-quotations.sh",
+    "test:quotes:backend": "node scripts/test-quotes-backend-contract.js",
     "test:quotes:combo-client": "node scripts/test-quote-combos-client-contract.js",
     "test:quotes:tour-client": "node scripts/test-quote-tours-client-contract.js",
     "test:quotations:client": "node scripts/test-quotations-client-contract.js",

@@ -42,7 +42,7 @@ export class QuotesService {
         itineraries: { orderBy: [{ sortOrder: 'asc' }, { dayNo: 'asc' }] },
       },
     });
-    if (!quote) throw new NotFoundException('Tour quote not found');
+    if (!quote) throw new NotFoundException('Không tìm thấy báo giá tour.');
     return quote;
   }
 
@@ -68,7 +68,7 @@ export class QuotesService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Quote code already exists');
+        throw new ConflictException('Mã báo giá tour đã tồn tại.');
       }
       throw error;
     }
@@ -108,7 +108,7 @@ export class QuotesService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Quote code already exists');
+        throw new ConflictException('Mã báo giá tour đã tồn tại.');
       }
       throw error;
     }
@@ -169,7 +169,7 @@ export class QuotesService {
       where: { id },
       include: { items: { include: { supplier: true, supplierService: true }, orderBy: { sortOrder: 'asc' } } },
     });
-    if (!combo) throw new NotFoundException('Combo quote not found');
+    if (!combo) throw new NotFoundException('Không tìm thấy báo giá combo.');
     return combo;
   }
 
@@ -188,7 +188,7 @@ export class QuotesService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Combo code already exists');
+        throw new ConflictException('Mã combo đã tồn tại.');
       }
       throw error;
     }
@@ -220,7 +220,7 @@ export class QuotesService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Combo code already exists');
+        throw new ConflictException('Mã combo đã tồn tại.');
       }
       throw error;
     }
@@ -277,11 +277,11 @@ export class QuotesService {
 
   private sanitizeTourCostItems(items: CreateQuoteTourDto['costItems'], requireOne: boolean): TourCostItemInput[] {
     const rows = (items ?? []).filter((item) => this.hasTourCostContent(item));
-    if (requireOne && !rows.length) throw new BadRequestException('At least one cost item is required');
+    if (requireOne && !rows.length) throw new BadRequestException('Cần ít nhất một dòng chi phí cho báo giá tour.');
     return rows.map((item, index) => {
       const serviceType = this.optionalText(item.serviceType);
       const description = this.optionalText(item.description);
-      if (!serviceType && !description) throw new BadRequestException(`Cost item ${index + 1} requires service type or description`);
+      if (!serviceType && !description) throw new BadRequestException(`Dòng chi phí ${index + 1} cần loại dịch vụ hoặc mô tả.`);
       return {
         costType: item.costType,
         serviceType: serviceType ?? undefined,
@@ -329,7 +329,7 @@ export class QuotesService {
 
   private async sanitizeComboItems(items: CreateQuoteComboDto['items'], requireOne: boolean): Promise<ComboItemInput[]> {
     const rows = (items ?? []).filter((item) => this.hasComboItemContent(item));
-    if (requireOne && !rows.length) throw new BadRequestException('At least one combo item is required');
+    if (requireOne && !rows.length) throw new BadRequestException('Cần ít nhất một dòng dịch vụ cho combo.');
     const serviceIds = [...new Set(rows.map((item) => this.optionalText(item.serviceId)).filter((id): id is string => Boolean(id)))];
     const services = serviceIds.length
       ? await this.prisma.supplierService.findMany({ where: { id: { in: serviceIds } }, select: { id: true, supplierId: true, serviceName: true, netPrice: true } })
@@ -339,13 +339,13 @@ export class QuotesService {
     return rows.map((item, index) => {
       const serviceId = this.optionalText(item.serviceId);
       const service = serviceId ? serviceById.get(serviceId) : undefined;
-      if (serviceId && !service) throw new BadRequestException(`Combo item ${index + 1} references an unknown service`);
+      if (serviceId && !service) throw new BadRequestException(`Dòng dịch vụ combo ${index + 1} tham chiếu dịch vụ không tồn tại.`);
       const supplierId = this.optionalText(item.supplierId);
       if (service?.supplierId && supplierId && supplierId !== service.supplierId) {
-        throw new BadRequestException(`Combo item ${index + 1} service does not belong to selected supplier`);
+        throw new BadRequestException(`Dịch vụ ở dòng combo ${index + 1} không thuộc nhà cung cấp đã chọn.`);
       }
       const serviceName = this.optionalText(item.serviceName) || this.optionalText(service?.serviceName);
-      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Combo item ${index + 1} requires service name`);
+      if (!serviceName || serviceName.length < 2) throw new BadRequestException(`Dòng dịch vụ combo ${index + 1} cần tên dịch vụ tối thiểu 2 ký tự.`);
       return {
         supplierId: supplierId || service?.supplierId || undefined,
         serviceId: service?.id || undefined,
@@ -532,14 +532,14 @@ export class QuotesService {
     const unrestricted = !user || hasUnrestrictedDataScope(user);
     if (!identity.length) {
       if (unrestricted) return undefined;
-      throw new BadRequestException('Scoped tour quotes require a customer in your data scope');
+      throw new BadRequestException('Báo giá tour theo phạm vi dữ liệu cần gắn với khách hàng thuộc phạm vi của bạn.');
     }
     const where: Prisma.CustomerWhereInput = { mergedIntoId: null, AND: identity };
     const customer = await this.prisma.customer.findFirst({
       where: unrestricted ? where : branchDepartmentScopeWhere(where, user),
       select: { id: true },
     });
-    if (!customer && !unrestricted) throw new BadRequestException('Cannot create tour quote for a customer outside your data scope');
+    if (!customer && !unrestricted) throw new BadRequestException('Không thể tạo báo giá tour cho khách hàng ngoài phạm vi dữ liệu của bạn.');
     return customer?.id;
   }
 
@@ -625,7 +625,9 @@ export class QuotesService {
   }
 
   private assertTourQuoteStatus(status: QuoteStatus, allowed: QuoteStatus[], action: string) {
-    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} tour quote from status ${status}`);
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(`Không thể ${this.tourQuoteActionLabel(action)} báo giá tour từ trạng thái ${this.tourQuoteStatusLabel(status)}.`);
+    }
   }
 
   private assertComboEditable(status: QuoteComboStatus) {
@@ -633,12 +635,14 @@ export class QuotesService {
   }
 
   private assertComboStatus(status: QuoteComboStatus, allowed: QuoteComboStatus[], action: string) {
-    if (!allowed.includes(status)) throw new BadRequestException(`Cannot ${action} combo from status ${status}`);
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(`Không thể ${this.comboActionLabel(action)} combo từ trạng thái ${this.comboStatusLabel(status)}.`);
+    }
   }
 
   private validateTourDates(dto: Partial<CreateQuoteTourDto>) {
-    this.assertDateOrder(dto.bookingDate, dto.paymentDate, 'Payment date must be after booking date');
-    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Return date must be after departure date');
+    this.assertDateOrder(dto.bookingDate, dto.paymentDate, 'Ngày thanh toán phải sau ngày đặt dịch vụ.');
+    this.assertDateOrder(dto.departureDate, dto.returnDate, 'Ngày kết thúc phải sau ngày khởi hành.');
   }
 
   private assertDateOrder(startValue: unknown, endValue: unknown, message: string) {
@@ -663,8 +667,45 @@ export class QuotesService {
   private dateValue(value?: unknown) {
     if (!value) return null;
     const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid date');
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Ngày không hợp lệ.');
     return date;
+  }
+
+  private tourQuoteActionLabel(action: string) {
+    return ({
+      approve: 'chốt',
+      reject: 'từ chối',
+      convert: 'chuyển thành đơn hàng',
+      edit: 'chỉnh sửa',
+      delete: 'xóa',
+    } as Record<string, string>)[action] ?? action;
+  }
+
+  private tourQuoteStatusLabel(status: string) {
+    return ({
+      DRAFT: 'Nháp',
+      PENDING: 'Chờ duyệt',
+      APPROVED: 'Đã chốt',
+      REJECTED: 'Từ chối',
+      CONVERTED: 'Đã tạo đơn',
+    } as Record<string, string>)[status] ?? status;
+  }
+
+  private comboActionLabel(action: string) {
+    return ({
+      quote: 'chốt báo giá',
+      'create order': 'tạo đơn hàng',
+      edit: 'chỉnh sửa',
+      delete: 'xóa',
+    } as Record<string, string>)[action] ?? action;
+  }
+
+  private comboStatusLabel(status: string) {
+    return ({
+      DRAFT: 'Nháp',
+      QUOTED: 'Đã chốt báo giá',
+      ORDER_CREATED: 'Đã tạo đơn hàng',
+    } as Record<string, string>)[status] ?? status;
   }
 
   private number(value: unknown, fallback = 0) {
