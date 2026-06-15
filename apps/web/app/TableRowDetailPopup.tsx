@@ -22,6 +22,7 @@ const tableSelectors = [
   '.fitTableWrap table.operationsTable',
   '.fitTableWrap table.securityTable',
   '.fitTableWrap table.hotelInventoryTable',
+  '.fitTableWrap table.reconciliationItemTable',
   '.supplierTableWrap table',
   '.quoteListWrap table',
 ];
