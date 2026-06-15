@@ -26,6 +26,18 @@ const listTables = [
 
 const failures = [];
 
+function blockAfter(anchor, token) {
+  const anchorIndex = globals.indexOf(anchor);
+  const tokenIndex = anchorIndex >= 0 ? globals.indexOf(token, anchorIndex) : -1;
+  if (tokenIndex < 0) return '';
+  const previousRuleEnd = globals.lastIndexOf('}', tokenIndex);
+  const blockEnd = globals.indexOf('}', tokenIndex);
+  if (blockEnd < 0) return '';
+  return globals.slice(previousRuleEnd >= 0 ? previousRuleEnd + 1 : 0, blockEnd + 1);
+}
+
+const fixedLayoutBlock = blockAfter('Compact list tables', 'table-layout: fixed;');
+
 for (const tableClass of listTables) {
   const compactSelector = `table.${tableClass}`;
   if (!globals.includes(`:has(> ${compactSelector})`)) {
@@ -33,6 +45,9 @@ for (const tableClass of listTables) {
   }
   if (!popup.includes(`table.${tableClass}`)) {
     failures.push(`TableRowDetailPopup.tsx: missing row detail selector for ${tableClass}`);
+  }
+  if (!fixedLayoutBlock.includes(`.${tableClass}`)) {
+    failures.push(`globals.css: missing fixed table layout for ${tableClass}`);
   }
 }
 

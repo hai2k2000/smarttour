@@ -1636,7 +1636,12 @@ label { min-width: 0; }
 .fitTableWrap > .fitTable.quotationListTable,
 .fitTableWrap > .fitTable.reportTable,
 .fitTableWrap > .fitTable.commissionTable,
-.fitTableWrap > .fitTable.customerTable {
+.fitTableWrap > .fitTable.customerTable,
+.fitTableWrap > .fitTable.financeTable,
+.fitTableWrap > .fitTable.operationsTable,
+.fitTableWrap > .fitTable.securityTable,
+.fitTableWrap > .fitTable.hotelInventoryTable,
+.fitTableWrap > table.reconciliationItemTable {
   width: max(100%, var(--list-table-min-width, 1080px));
   table-layout: fixed;
 }
