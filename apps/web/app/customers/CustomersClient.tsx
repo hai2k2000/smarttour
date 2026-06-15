@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 type Option = { id: string; name: string; code?: string; color?: string; isActive?: boolean };
 type CustomerFile = { id: string; fileName: string; fileUrl: string; fileType?: string | null };
 type MessageState = { type: 'success' | 'warning' | 'error' | 'info'; text: string } | null;
+type CustomerFormErrors = Partial<Record<'fullName' | 'phone' | 'email' | 'opportunityValue' | 'opportunityProbability', string>>;
 type Customer = {
   id: string;
   code: string;
@@ -127,6 +128,8 @@ export default function CustomersClient() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState<CustomerFormErrors>({});
+  const listRequestRef = useRef(0);
   const detailRequestRef = useRef(0);
 
   const query = useMemo(() => {
@@ -143,20 +146,26 @@ export default function CustomersClient() {
   }, [query]);
 
   async function load() {
+    const requestId = listRequestRef.current + 1;
+    listRequestRef.current = requestId;
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/customers${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được danh sách khách hàng'));
       const data = await response.json();
+      if (listRequestRef.current !== requestId) return;
       setRows(Array.isArray(data.rows) ? data.rows : []);
       setDashboard(data.dashboard || emptyDashboard);
       setTypes(Array.isArray(data.types) ? data.types : []);
       setTags(Array.isArray(data.tags) ? data.tags : []);
       setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
     } catch (error) {
+      if (listRequestRef.current !== requestId) return;
+      setRows([]);
+      setDashboard(emptyDashboard);
       setMessage({ type: 'error', text: errorText(error, 'Không tải được dữ liệu khách hàng. Kiểm tra kết nối mạng hoặc đăng nhập lại.') });
     } finally {
-      setLoading(false);
+      if (listRequestRef.current === requestId) setLoading(false);
     }
   }
 
@@ -166,7 +175,14 @@ export default function CustomersClient() {
       setMessage({ type: 'error', text: 'Bạn chưa có quyền customer.manage để tạo khách hàng.' });
       return;
     }
+    const validationErrors = validateCustomerForm(form);
+    if (Object.keys(validationErrors).length) {
+      setFormErrors(validationErrors);
+      setMessage({ type: 'error', text: 'Vui lòng kiểm tra các trường chưa hợp lệ trước khi lưu khách hàng.' });
+      return;
+    }
     setSaving(true);
+    setFormErrors({});
     setMessage(null);
     const payload = {
       ...form,
@@ -265,6 +281,7 @@ export default function CustomersClient() {
 
   function openCreate() {
     setForm(createBlank());
+    setFormErrors({});
     setCreateFiles([]);
     setModal('create');
   }
@@ -272,6 +289,7 @@ export default function CustomersClient() {
   function closeModal() {
     detailRequestRef.current += 1;
     setCreateFiles([]);
+    setFormErrors({});
     setSelected(null);
     setDetailLoading(false);
     setModal(null);
@@ -279,6 +297,7 @@ export default function CustomersClient() {
 
   function change(key: string, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key in formErrors) setFormErrors((current) => ({ ...current, [key]: undefined }));
   }
 
   function updatePrimaryContact(key: string, value: string) {
@@ -300,6 +319,8 @@ export default function CustomersClient() {
       const opportunity = current.opportunities[0] || createBlank().opportunities[0];
       return { ...current, opportunities: [{ ...opportunity, [key]: value }] };
     });
+    if (key === 'value') setFormErrors((current) => ({ ...current, opportunityValue: undefined }));
+    if (key === 'probability') setFormErrors((current) => ({ ...current, opportunityProbability: undefined }));
   }
 
   function toggleTag(id: string) {
@@ -332,6 +353,24 @@ export default function CustomersClient() {
     }
   }
 
+  function clearCustomerFilters() {
+    setSearch('');
+    setFilter({
+      owner: '',
+      market: '',
+      branch: '',
+      department: '',
+      source: '',
+      typeId: '',
+      campaignId: '',
+      tagId: '',
+      status: '',
+      createdFrom: '',
+      createdTo: '',
+    });
+    setMessage({ type: 'info', text: 'Đã xóa bộ lọc khách hàng.' });
+  }
+
   const primaryContact = form.contacts[0];
   const firstCareTask = form.careTasks[0];
   const firstOpportunity = form.opportunities[0];
@@ -345,7 +384,7 @@ export default function CustomersClient() {
           <h1>Dữ liệu khách hàng</h1>
         </div>
         <div className="pageHeaderActions">
-          {message ? <span className={`statusPill ${messageClass[message.type]}`}>{message.text}</span> : null}
+          {message ? <span className={`statusPill ${messageClass[message.type]}`} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
           {!canManage ? <span className="permissionHint">Action quản lý đang bị vô hiệu vì thiếu quyền customer.manage.</span> : null}
           <button className="iconTextButton" disabled={!canManage || saving} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo khách hàng</button>
           <button className="secondaryButton iconTextButton" disabled={loading} onClick={load}><RefreshCcw size={16} /> {loading ? 'Đang tải...' : 'Tải lại'}</button>
@@ -373,15 +412,16 @@ export default function CustomersClient() {
         <label>Loại khách<select value={filter.typeId} onChange={(event) => setFilter({ ...filter, typeId: event.target.value })}><option value="">Tất cả</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
         <label>Chiến dịch<select value={filter.campaignId} onChange={(event) => setFilter({ ...filter, campaignId: event.target.value })}><option value="">Tất cả</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
         <label>Tag<select value={filter.tagId} onChange={(event) => setFilter({ ...filter, tagId: event.target.value })}><option value="">Tất cả</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
-        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Đang hoạt động</option><option value="ACTIVE">Hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="MERGED">Đã gộp</option><option value="ALL">Tất cả</option></select></label>
+        <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Chưa gộp</option><option value="ACTIVE">Hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option><option value="MERGED">Đã gộp</option><option value="ALL">Tất cả</option></select></label>
         <label>Tạo từ<input type="date" value={filter.createdFrom} onChange={(event) => setFilter({ ...filter, createdFrom: event.target.value })} /></label>
         <label>Tạo đến<input type="date" value={filter.createdTo} onChange={(event) => setFilter({ ...filter, createdTo: event.target.value })} /></label>
+        <button type="button" className="secondaryButton iconTextButton" disabled={loading} onClick={clearCustomerFilters}>Xóa lọc</button>
         <button className="secondaryButton iconTextButton" disabled={exporting || !canView} onClick={exportCsv}><Download size={16} /> {exporting ? 'Đang export...' : 'CSV'}</button>
       </section>
 
       {modal === 'create' ? (
         <div className="modalOverlay" role="presentation">
-          <form className="modalPanel modalPanelWide customerForm" role="dialog" aria-modal="true" aria-labelledby="customer-create-title" onSubmit={submit}>
+          <form className="modalPanel modalPanelWide customerForm" role="dialog" aria-modal="true" aria-labelledby="customer-create-title" onSubmit={submit} noValidate>
             <header>
               <h2 id="customer-create-title"><UserRoundCheck size={18} /> Hồ sơ khách hàng</h2>
               <button type="button" className="secondaryButton iconTextButton" onClick={closeModal}>Đóng</button>
@@ -392,9 +432,9 @@ export default function CustomersClient() {
               <div className="customerFormGrid">
                 <label>Loại hồ sơ<select value={form.kind} onChange={(event) => change('kind', event.target.value)}><option value="INDIVIDUAL">Cá nhân / CTV</option><option value="BUSINESS">Doanh nghiệp / đối tác</option></select></label>
                 <label>Loại khách<select value={form.typeId} onChange={(event) => change('typeId', event.target.value)}><option value="">Chưa chọn</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-                <label>Họ tên / Tên giao dịch<input required value={form.fullName} onChange={(event) => change('fullName', event.target.value)} /></label>
-                <label>SĐT<input required value={form.phone} onChange={(event) => change('phone', event.target.value)} /></label>
-                <label>Email<input value={form.email} onChange={(event) => change('email', event.target.value)} /></label>
+                <label>Họ tên / Tên giao dịch<input required aria-invalid={Boolean(formErrors.fullName)} value={form.fullName} onChange={(event) => change('fullName', event.target.value)} />{formErrors.fullName ? <span className="formErrors" role="alert">{formErrors.fullName}</span> : null}</label>
+                <label>SĐT<input required type="tel" inputMode="tel" aria-invalid={Boolean(formErrors.phone)} value={form.phone} onChange={(event) => change('phone', event.target.value)} />{formErrors.phone ? <span className="formErrors" role="alert">{formErrors.phone}</span> : null}</label>
+                <label>Email<input type="email" aria-invalid={Boolean(formErrors.email)} value={form.email} onChange={(event) => change('email', event.target.value)} />{formErrors.email ? <span className="formErrors" role="alert">{formErrors.email}</span> : null}</label>
                 <label>Giới tính<input value={form.gender} onChange={(event) => change('gender', event.target.value)} /></label>
                 <label>Tỉnh thành<input value={form.province} onChange={(event) => change('province', event.target.value)} /></label>
                 <label>Nhóm khách<input value={form.groupName} onChange={(event) => change('groupName', event.target.value)} /></label>
@@ -416,14 +456,14 @@ export default function CustomersClient() {
               <div className="customerMiniGrid">
                 <label>Người liên hệ<input value={primaryContact.fullName} onChange={(event) => updatePrimaryContact('fullName', event.target.value)} /></label>
                 <label>Chức vụ<input value={primaryContact.position} onChange={(event) => updatePrimaryContact('position', event.target.value)} /></label>
-                <label>SĐT liên hệ<input value={primaryContact.phone} onChange={(event) => updatePrimaryContact('phone', event.target.value)} /></label>
-                <label>Email liên hệ<input value={primaryContact.email} onChange={(event) => updatePrimaryContact('email', event.target.value)} /></label>
+                <label>SĐT liên hệ<input type="tel" inputMode="tel" value={primaryContact.phone} onChange={(event) => updatePrimaryContact('phone', event.target.value)} /></label>
+                <label>Email liên hệ<input type="email" value={primaryContact.email} onChange={(event) => updatePrimaryContact('email', event.target.value)} /></label>
                 <label>Lịch CSKH<input type="datetime-local" value={firstCareTask.scheduledAt} onChange={(event) => updateCareTask('scheduledAt', event.target.value)} /></label>
                 <label>Kênh CSKH<input value={firstCareTask.channel} onChange={(event) => updateCareTask('channel', event.target.value)} /></label>
                 <label>Owner CSKH<input value={firstCareTask.owner} onChange={(event) => updateCareTask('owner', event.target.value)} /></label>
                 <label>Cơ hội<input value={firstOpportunity.title} onChange={(event) => updateOpportunity('title', event.target.value)} /></label>
-                <label>Giá trị cơ hội<input type="number" min="0" value={firstOpportunity.value} onChange={(event) => updateOpportunity('value', Number(event.target.value))} /></label>
-                <label>Xác suất (%)<input type="number" min="0" max="100" value={firstOpportunity.probability} onChange={(event) => updateOpportunity('probability', Number(event.target.value))} /></label>
+                <label>Giá trị cơ hội<input type="number" min="0" aria-invalid={Boolean(formErrors.opportunityValue)} value={firstOpportunity.value} onChange={(event) => updateOpportunity('value', Number(event.target.value))} />{formErrors.opportunityValue ? <span className="formErrors" role="alert">{formErrors.opportunityValue}</span> : null}</label>
+                <label>Xác suất (%)<input type="number" min="0" max="100" aria-invalid={Boolean(formErrors.opportunityProbability)} value={firstOpportunity.probability} onChange={(event) => updateOpportunity('probability', Number(event.target.value))} />{formErrors.opportunityProbability ? <span className="formErrors" role="alert">{formErrors.opportunityProbability}</span> : null}</label>
               </div>
             </section>
 
@@ -523,6 +563,19 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 
 function money(value: number) {
   return new Intl.NumberFormat('vi-VN').format(Number(value || 0));
+}
+
+function validateCustomerForm(form: ReturnType<typeof createBlank>): CustomerFormErrors {
+  const errors: CustomerFormErrors = {};
+  if (!form.fullName.trim()) errors.fullName = 'Nhập họ tên hoặc tên giao dịch.';
+  const phoneDigits = form.phone.replace(/\D/g, '');
+  if (!form.phone.trim()) errors.phone = 'Nhập số điện thoại.';
+  else if (phoneDigits.length < 8 || phoneDigits.length > 15) errors.phone = 'Số điện thoại phải có từ 8 đến 15 chữ số.';
+  if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Email không đúng định dạng.';
+  if (!Number.isFinite(form.opportunities[0]?.value) || Number(form.opportunities[0]?.value) < 0) errors.opportunityValue = 'Giá trị cơ hội không được âm.';
+  const probability = Number(form.opportunities[0]?.probability);
+  if (!Number.isFinite(probability) || probability < 0 || probability > 100) errors.opportunityProbability = 'Xác suất phải từ 0 đến 100%.';
+  return errors;
 }
 
 async function responseMessage(response: Response, fallback: string) {

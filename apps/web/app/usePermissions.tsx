@@ -16,19 +16,44 @@ type StoredUser = {
 
 export function usePermissions() {
   const [user, setUser] = useState<StoredUser | null>(null);
+  const [permissionsReady, setPermissionsReady] = useState(false);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem('smarttour.auth.user');
-    if (!raw) return;
-    try {
-      setUser(JSON.parse(raw));
-    } catch {
-      setUser(null);
+    const controller = new AbortController();
+    let active = true;
+
+    async function syncPermissions() {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+      try {
+        const response = await fetch(`${apiBase}/api/auth/me`, {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Không xác định được quyền của phiên đăng nhập');
+        const nextUser = await response.json() as StoredUser;
+        if (!active) return;
+        window.localStorage.setItem('smarttour.auth.user', JSON.stringify(nextUser));
+        setUser(nextUser);
+      } catch {
+        if (!active || controller.signal.aborted) return;
+        window.localStorage.removeItem('smarttour.auth.user');
+        setUser(null);
+      } finally {
+        if (active) setPermissionsReady(true);
+      }
     }
+
+    void syncPermissions();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, []);
 
   function can(permission: string) {
-    if (!user) return true;
+    if (!permissionsReady || !user) return false;
     const permissions = user.permissions || [];
     return permissions.includes('*') || permissions.includes(permission);
   }
@@ -37,7 +62,7 @@ export function usePermissions() {
     return permissions.some((permission) => can(permission));
   }
 
-  return { user, can, canAny, isLoggedIn: Boolean(user) };
+  return { user, can, canAny, isLoggedIn: Boolean(user), permissionsReady };
 }
 
 export function PermissionNotice({ allowed, label, missingPermissions = [] }: { allowed: boolean; label: string; missingPermissions?: string[] }) {

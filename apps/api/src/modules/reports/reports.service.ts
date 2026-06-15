@@ -840,12 +840,12 @@ export class ReportsService {
   }
 
   private toCsv(rows: any[]) {
-    if (!rows.length) return '';
+    if (!rows.length) return '\uFEFF';
     const headers = Object.keys(rows[0]);
-    return [
+    return `\uFEFF${[
       headers.join(','),
       ...rows.map((row) => headers.map((header) => this.csv(row[header])).join(',')),
-    ].join('\n');
+    ].join('\r\n')}`;
   }
 
   private csv(value: unknown) {

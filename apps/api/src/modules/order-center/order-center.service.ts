@@ -112,12 +112,12 @@ export class OrderCenterService {
       'department',
       'operatorOwner',
     ];
-    return [
+    return `\uFEFF${[
       header.join(','),
       ...rows.map((order) =>
         header.map((key) => this.csv((order as unknown as Record<string, unknown>)[key])).join(','),
       ),
-    ].join('\n');
+    ].join('\r\n')}`;
   }
 
   private where(query: OrderCenterQuery): Prisma.OrderWhereInput {

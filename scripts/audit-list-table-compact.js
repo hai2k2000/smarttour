@@ -149,6 +149,12 @@ if (!bindTitleBlock) {
 } else if (!bindTitleBlock.includes("cell.hasAttribute('title')")) {
   failures.push('TableRowDetailPopup.tsx: bindTableCellTitles must preserve existing business tooltips');
 }
+if (!popup.includes('function matchingElements') || !popup.includes('root.matches(selector)')) {
+  failures.push('TableRowDetailPopup.tsx: async table binding must include the mutation root element');
+}
+if (!popup.includes('const cellSelector = tableSelectors.flatMap')) {
+  failures.push('TableRowDetailPopup.tsx: cell selectors must suffix every compact table selector');
+}
 
 if (!bindRowsBlock) {
   failures.push('TableRowDetailPopup.tsx: missing bindTableRows for keyboard row focus');

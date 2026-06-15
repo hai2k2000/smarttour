@@ -2041,7 +2041,7 @@ label { min-width: 0; }
   background: var(--dn-hover-bg);
 }
 
-.compactListTableWrap td > :where(strong, span, small, em, a) {
+.compactListTableWrap > table.compactListTable td > :where(strong, span, small, em, a) {
   display: inline;
   max-width: 100%;
   margin: 0;
@@ -2051,13 +2051,13 @@ label { min-width: 0; }
   vertical-align: baseline;
 }
 
-.compactListTableWrap td > :where(strong, a) + :where(span, small, em, a)::before {
+.compactListTableWrap > table.compactListTable td > :where(strong, a) + :where(span, small, em, a)::before {
   content: " \00b7 ";
   color: var(--dn-muted);
   font-weight: 700;
 }
 
-.compactListTableWrap td > :where(div, p) {
+.compactListTableWrap > table.compactListTable td > :where(div, p) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2092,6 +2092,17 @@ label { min-width: 0; }
 .compactListTableWrap .permissionChips > *,
 .compactListTableWrap .supplierDebtBlock > * {
   flex: 0 0 auto;
+}
+
+.compactListTableWrap > table.compactListTable td :where(button, .iconButton, .iconTextButton) {
+  min-height: 30px;
+  padding: 5px 8px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.compactListTableWrap > table.compactListTable td :where(.iconButton) {
+  min-width: 30px;
 }
 
 .compactListTableWrap .tableEmptyState {

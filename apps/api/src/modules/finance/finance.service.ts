@@ -974,7 +974,7 @@ export class FinanceService {
   }
 
   private csv(rows: AnyRecord[], keys: string[]) {
-    return [keys.join(','), ...rows.map((row) => keys.map((key) => this.csvCell(row[key])).join(','))].join('\n');
+    return `\uFEFF${[keys.join(','), ...rows.map((row) => keys.map((key) => this.csvCell(row[key])).join(','))].join('\r\n')}`;
   }
 
   private csvCell(value: unknown) {

@@ -29,6 +29,7 @@ const tableSelectors = [
 
 const tableSelector = tableSelectors.join(',');
 const rowSelector = tableSelectors.map((selector) => `${selector} tbody tr`).join(',');
+const cellSelector = tableSelectors.flatMap((selector) => [`${selector} th`, `${selector} td`]).join(',');
 
 const interactiveSelector = [
   'a',
@@ -45,8 +46,13 @@ function cleanText(text: string) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function matchingElements(root: ParentNode, selector: string) {
+  const matches = root instanceof Element && root.matches(selector) ? [root] : [];
+  return [...matches, ...Array.from(root.querySelectorAll(selector))];
+}
+
 function bindTableCellTitles(root: ParentNode = document) {
-  root.querySelectorAll(`${tableSelector} th, ${tableSelector} td`).forEach((cell) => {
+  matchingElements(root, cellSelector).forEach((cell) => {
     if (!(cell instanceof HTMLElement)) return;
     if (cell.querySelector('.tableEmptyState')) return;
     if (cell.hasAttribute('title')) return;
@@ -59,7 +65,7 @@ function bindTableCellTitles(root: ParentNode = document) {
 }
 
 function bindTableRows(root: ParentNode = document) {
-  root.querySelectorAll(rowSelector).forEach((row) => {
+  matchingElements(root, rowSelector).forEach((row) => {
     if (!(row instanceof HTMLTableRowElement)) return;
     if (row.querySelector('.tableEmptyState')) return;
 

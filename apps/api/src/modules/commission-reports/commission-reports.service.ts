@@ -352,6 +352,6 @@ export class CommissionReportsService {
   private toCsv(rows: AnyRecord[]) {
     const headers = Object.keys(rows[0] ?? { empty: '' });
     const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    return [headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\n');
+    return `\uFEFF${[headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\r\n')}`;
   }
 }

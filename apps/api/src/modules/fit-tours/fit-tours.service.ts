@@ -224,7 +224,7 @@ export class FitToursService {
     this.appendExportRows(rows, 'operation.services', fitTour.operationServices, (row) => [row.serviceType, row.bookingCode, row.amount, row.status]);
     this.appendExportRows(rows, 'attachments', fitTour.attachments, (row) => [row.step, row.fileName, row.fileUrl, row.uploadedBy]);
     this.appendExportRows(rows, 'survey.questions', fitTour.surveyQuestions, (row) => [row.orderNo, row.question, row.notes, '']);
-    return `\ufeff${rows.map((row) => row.map((cell) => this.csvCell(cell)).join(',')).join('\n')}\n`;
+    return `\uFEFF${rows.map((row) => row.map((cell) => this.csvCell(cell)).join(',')).join('\r\n')}\r\n`;
   }
 
   async uploadAttachment(id: string, step: string | undefined, file: UploadedFitFile | undefined, user?: RequestUser) {
