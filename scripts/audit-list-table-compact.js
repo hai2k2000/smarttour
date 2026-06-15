@@ -46,6 +46,9 @@ function ruleBlock(selector) {
 
 const fixedLayoutBlock = blockAfter('Compact list tables', 'table-layout: fixed;');
 const cellClamp2Block = ruleBlock('.cellClamp2');
+const bindTitleStart = popup.indexOf('function bindTableCellTitles');
+const bindTitleEnd = popup.indexOf('function detailFromRow', bindTitleStart);
+const bindTitleBlock = bindTitleStart >= 0 && bindTitleEnd > bindTitleStart ? popup.slice(bindTitleStart, bindTitleEnd) : '';
 
 for (const tableClass of listTables) {
   const compactSelector = `table.${tableClass}`;
@@ -73,6 +76,12 @@ if (!cellClamp2Block) {
   for (const token of ['white-space: nowrap', 'text-overflow: ellipsis', 'overflow: hidden']) {
     if (!cellClamp2Block.includes(token)) failures.push(`globals.css: .cellClamp2 missing ${token}`);
   }
+}
+
+if (!bindTitleBlock) {
+  failures.push('TableRowDetailPopup.tsx: missing bindTableCellTitles');
+} else if (!bindTitleBlock.includes("cell.hasAttribute('title')")) {
+  failures.push('TableRowDetailPopup.tsx: bindTableCellTitles must preserve existing business tooltips');
 }
 
 if (failures.length) {

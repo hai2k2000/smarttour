@@ -49,9 +49,10 @@ function bindTableCellTitles(root: ParentNode = document) {
   root.querySelectorAll(`${tableSelector} th, ${tableSelector} td`).forEach((cell) => {
     if (!(cell instanceof HTMLElement)) return;
     if (cell.querySelector('.tableEmptyState')) return;
+    if (cell.hasAttribute('title')) return;
 
     const text = cleanText(cell.textContent || '');
-    if (!text || text === cell.getAttribute('title')) return;
+    if (!text) return;
 
     cell.setAttribute('title', text);
   });
