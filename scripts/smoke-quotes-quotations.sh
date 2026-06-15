@@ -372,6 +372,9 @@ function assertLoadableQuotation(row) {
   assertTourTotals(tour);
   const updatedTour = await request(admin, 'PUT', `/quotes/tours/${tour.id}`, { profit: 150, itineraries: [{ dayNo: 1, title: 'Updated day', content: 'Updated content' }] });
   assertTourTotals(updatedTour, { common: 1210, privateTotal: 1250, net: 1552.5, selling: 1732.5 });
+  assert(updatedTour.costItems?.length === 3, 'tour update lost cost items');
+  assert(updatedTour.itineraries?.length === 1, 'tour update did not replace itineraries');
+  assert(updatedTour.itineraries?.[0]?.title === 'Updated day', 'tour update did not return updated itinerary');
   const tourDetail = await request(view, 'GET', `/quotes/tours/${tour.id}`);
   assertLoadableTour(tourDetail);
   const tourList = await request(admin, 'GET', `/quotes/tours?search=${encodeURIComponent(run)}`);
@@ -397,6 +400,9 @@ function assertLoadableQuotation(row) {
     items: comboPayload().items,
   });
   assertComboTotals(updatedCombo, { totalNet: 1100, adult: 1350, child: 675 });
+  assert(updatedCombo.items?.length === 2, 'combo update lost items');
+  almost(updatedCombo.items[0].netPricePerPax, 1000, 'combo first item netPricePerPax');
+  almost(updatedCombo.items[1].netPricePerPax, 100, 'combo second item netPricePerPax');
   const comboDetail = await request(view, 'GET', `/quotes/combos/${combo.id}`);
   assertLoadableCombo(comboDetail);
   const comboList = await request(admin, 'GET', `/quotes/combos?search=${encodeURIComponent(run)}`);
@@ -426,6 +432,9 @@ function assertLoadableQuotation(row) {
   await request(view, 'PUT', `/quotations/${quotation.id}`, { route: 'Denied update' }, [403]);
   const updatedQuotation = await request(admin, 'PUT', `/quotations/${quotation.id}`, { exchangeRate: 3, route: 'Ha Noi - Ninh Binh Updated' });
   const expectedRate3 = assertQuotationTotals(updatedQuotation, 3);
+  assert(updatedQuotation.items?.length === 2, 'quotation update lost items');
+  assert(updatedQuotation.status === 'DRAFT', 'quotation update changed status unexpectedly');
+  assert(Array.isArray(updatedQuotation.logs) && updatedQuotation.logs.some((log) => log.action === 'UPDATE'), 'quotation update log missing');
   const quotationDetail = await request(view, 'GET', `/quotations/${quotation.id}`);
   assertLoadableQuotation(quotationDetail);
   const quotationList = await request(admin, 'GET', `/quotations?search=${encodeURIComponent(run)}`);
