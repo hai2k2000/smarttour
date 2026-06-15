@@ -153,8 +153,8 @@ function freshDefaultValues(): QuoteForm {
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
   if (typeof window === 'undefined') return apiBase;
-  if (apiBase.includes('smarttour-api-1')) return `http://${window.location.hostname}:4000`;
-  return apiBase;
+  if (!apiBase || apiBase.includes('smarttour-api-1')) return '';
+  return apiBase.replace(/\/$/, '');
 }
 
 function money(value: unknown) {
@@ -175,12 +175,21 @@ function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function formatDateParts(year: number, month: number, day: number) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
 function dateInputValue(value: unknown) {
   if (!value) return '';
-  const raw = String(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const vietnameseDate = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (vietnameseDate) return formatDateParts(Number(vietnameseDate[3]), Number(vietnameseDate[2]), Number(vietnameseDate[1]));
+  const date = value instanceof Date ? value : new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : formatDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 function normalizeCostType(value: unknown): CostType {
@@ -365,25 +374,35 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
       return [
         helper.accessor('quoteCode', {
           header: 'Mã báo giá',
-          cell: (info) => (
-            <span className="quoteCellStack">
-              <strong>{info.getValue()}</strong>
-              <small>{info.row.original.bookingDate ? `Ngày đặt: ${info.row.original.bookingDate}` : 'Chưa có ngày đặt'}</small>
-            </span>
-          ),
+          cell: (info) => {
+            const bookingText = info.row.original.bookingDate ? `Ngày đặt: ${info.row.original.bookingDate}` : 'Chưa có ngày đặt';
+            const quoteTitle = `${info.getValue()} · ${bookingText}`;
+            return <span className="cellClamp" title={quoteTitle}>{quoteTitle}</span>;
+          },
         }),
         helper.accessor('tourCode', {
           header: 'Mã tour',
-          cell: (info) => (
-            <span className="quoteCellStack">
-              <strong>{info.getValue()}</strong>
-              <small>{info.row.original.tourName || 'Chưa đặt tên tour'}</small>
-            </span>
-          ),
+          cell: (info) => {
+            const tourName = info.row.original.tourName || 'Chưa đặt tên tour';
+            const tourTitle = `${info.getValue()} · ${tourName}`;
+            return <span className="cellClamp" title={tourTitle}>{tourTitle}</span>;
+          },
         }),
-        helper.accessor('route', { header: 'Hành trình', cell: (info) => <span className="quoteTextClamp">{info.getValue() || '-'}</span> }),
-        helper.accessor('customerName', { header: 'Người đặt', cell: (info) => info.getValue() || '-' }),
-        helper.accessor('sellingPrice', { header: 'Giá/khách', cell: (info) => money(info.getValue()) }),
+        helper.accessor('route', {
+          header: 'Hành trình',
+          cell: (info) => {
+            const routeTitle = info.getValue() || 'Chưa có hành trình';
+            return <span className="cellClamp" title={routeTitle}>{info.getValue() || '-'}</span>;
+          },
+        }),
+        helper.accessor('customerName', {
+          header: 'Người đặt',
+          cell: (info) => {
+            const customerTitle = info.getValue() || 'Chưa có người đặt';
+            return <span className="cellClamp" title={customerTitle}>{info.getValue() || '-'}</span>;
+          },
+        }),
+        helper.accessor('sellingPrice', { header: 'Giá/khách', cell: (info) => <span className="cellClamp" title={money(info.getValue())}>{money(info.getValue())}</span> }),
         helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className="statusPill">{statusText(info.getValue())}</span> }),
         helper.display({
           id: 'actions',
@@ -418,8 +437,16 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   async function loadQuote(id: string, showSuccess = true) {
+    const previousEditingId = editingId;
+    const switchingRecord = previousEditingId !== id;
     setLoadingQuoteId(id);
     setError('');
+    setMessage('');
+    if (switchingRecord) {
+      setEditingId(null);
+      setFormOpen(false);
+      reset(freshDefaultValues());
+    }
     try {
       const response = await fetch(`${browserApiBase()}/api/quotes/tours/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết báo giá tour.'));
@@ -430,8 +457,10 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
         throw new Error('API không trả về chi tiết báo giá tour hợp lệ.');
       }
       const quote = data as Record<string, unknown>;
-      const costRows = Array.isArray(quote.costItems) ? quote.costItems.map(normalizeCostItem) : [];
-      const itineraryRows = Array.isArray(quote.itineraries) ? quote.itineraries.map((item, index) => normalizeItinerary(item, index)).filter(hasItineraryContent) : [];
+      if (!Array.isArray(quote.costItems)) throw new Error('API không trả về danh sách chi phí của báo giá tour hợp lệ.');
+      if (!Array.isArray(quote.itineraries)) throw new Error('API không trả về lịch trình của báo giá tour hợp lệ.');
+      const costRows = quote.costItems.map(normalizeCostItem);
+      const itineraryRows = quote.itineraries.map((item, index) => normalizeItinerary(item, index)).filter(hasItineraryContent);
       setEditingId(id);
       setFormOpen(true);
       reset({
@@ -469,6 +498,11 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
       if (showSuccess) setMessage('Đã tải chi tiết báo giá.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không tải được chi tiết báo giá tour.');
+      if (switchingRecord) {
+        setEditingId(null);
+        setFormOpen(false);
+        reset(freshDefaultValues());
+      }
     } finally {
       setLoadingQuoteId(null);
     }
@@ -497,21 +531,22 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   async function action(path: keyof typeof actionLabels) {
-    if (!editingId) {
+    const currentId = editingId;
+    if (!currentId) {
       setError(`Cần mở một báo giá đã lưu trước khi ${actionLabels[path]}.`);
       return;
     }
     setActionLoading(path);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours/${editingId}/${path}`, {
+      const response = await fetch(`${browserApiBase()}/api/quotes/tours/${currentId}/${path}`, {
         method: 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify({ approvedBy: 'Operator' }),
       });
       if (!response.ok) throw new Error(await responseError(response, `Không thể ${actionLabels[path]}.`));
       await reload(false);
-      await loadQuote(editingId, false);
+      await loadQuote(currentId, false);
       setMessage(`Đã ${actionLabels[path]}.`);
     } catch (caught) {
       setError(caught instanceof Error ? `${actionLabels[path][0].toUpperCase()}${actionLabels[path].slice(1)} lỗi: ${caught.message}` : `Không thể ${actionLabels[path]}.`);
@@ -537,7 +572,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   const validationMessage = errors.quoteCode?.message || errors.tourCode?.message || errors.customerEmail?.message;
-  const formBusy = isSubmitting || Boolean(actionLoading || loadingQuoteId);
+  const formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingQuoteId);
 
   return (
     <div className="quotePage">
@@ -582,7 +617,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
               </section>
 
               <section className="panel quoteFormSection">
-                <h3>Khách đoàn / pax</h3>
+                <h3>Khách đoàn và số khách</h3>
                 <div className="quoteFormGrid quotePaxGrid">
                   <label>Người lớn<input type="number" min="0" step="1" inputMode="numeric" {...register('adultQty')} /></label>
                   <label>Trẻ em<input type="number" min="0" step="1" inputMode="numeric" {...register('childQty')} /></label>
@@ -638,11 +673,13 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
             <span>{listLoading ? 'Đang tải dữ liệu...' : `${filteredQuotes.length} báo giá`}</span>
           </div>
           <div className="quoteListActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại</button>
-            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Thêm mới</button>
-            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã tour, khách, hành trình..." /></label>
+            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Tạo báo giá</button>
+            <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã báo giá, mã tour, người đặt, hành trình..." /></label>
           </div>
         </div>
+        {listLoading && !formOpen ? <div className="quoteAlert quoteAlertInfo"><RefreshCcw size={16} /> Đang tải lại danh sách báo giá tour...</div> : null}
+        {loadingQuoteId && !formOpen ? <div className="quoteAlert quoteAlertInfo">Đang tải chi tiết báo giá tour...</div> : null}
         {error && !formOpen ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
         {message && !formOpen ? <div className="quoteAlert quoteAlertInfo">{message}</div> : null}
         <div className="fitTableWrap quoteListWrap compactListTableWrap">
@@ -672,11 +709,11 @@ function CostRows({ register, fieldArray }: { register: UseFormRegister<QuoteFor
     { key: 'vat', label: 'VAT/phụ thu', type: 'number' },
     { key: 'note', label: 'Ghi chú' },
   ];
-  return <DynamicRows title="Cost items / chi phí tour" name="costItems" register={register} fieldArray={fieldArray} columns={columns} emptyRow={emptyCost} />;
+  return <DynamicRows title="Chi phí tour" name="costItems" register={register} fieldArray={fieldArray} columns={columns} emptyRow={emptyCost} />;
 }
 
 function ItineraryRows({ register, fieldArray }: { register: UseFormRegister<QuoteForm>; fieldArray: UseFieldArrayReturn<QuoteForm, 'itineraries', 'id'> }) {
-  return <DynamicRows title="Itinerary / lịch trình" name="itineraries" register={register} fieldArray={fieldArray} columns={[{ key: 'dayNo', label: 'Ngày', type: 'number' }, { key: 'title', label: 'Tiêu đề' }, { key: 'content', label: 'Nội dung', type: 'textarea' }]} emptyRow={emptyItinerary} />;
+  return <DynamicRows title="Lịch trình tour" name="itineraries" register={register} fieldArray={fieldArray} columns={[{ key: 'dayNo', label: 'Ngày trong tour', type: 'number' }, { key: 'title', label: 'Tiêu đề' }, { key: 'content', label: 'Nội dung', type: 'textarea' }]} emptyRow={emptyItinerary} />;
 }
 
 function DynamicRows<T extends ArrayName>({ title, name, register, fieldArray, columns, emptyRow }: { title: string; name: T; register: UseFormRegister<QuoteForm>; fieldArray: UseFieldArrayReturn<QuoteForm, T, 'id'>; columns: Array<{ key: string; label: string; type?: string }>; emptyRow: Record<string, unknown> }) {
@@ -707,7 +744,7 @@ function DynamicRows<T extends ArrayName>({ title, name, register, fieldArray, c
             <button type="button" className="secondaryButton" onClick={() => addCost('HOTEL')}><Plus size={16} /> Khách sạn</button>
             <button type="button" className="secondaryButton" onClick={() => addCost('PRIVATE')}><Plus size={16} /> Chi phí riêng</button>
           </div>
-        ) : <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm ngày</button>}
+        ) : <button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16} /> Thêm ngày tour</button>}
       </div>
       <div className="fitTableWrap">
         <table className="fitTable quoteDynamicTable">

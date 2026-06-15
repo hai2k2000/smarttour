@@ -351,18 +351,20 @@ function assertLoadableQuotation(row) {
 (async () => {
   const admin = await adminToken();
   const viewRoleCode = `quote-view-${lowerRun}`;
+  const noQuoteRoleCode = `quote-no-access-${lowerRun}`;
   const viewEmail = `quote-view-${lowerRun}@smarttour.local`;
   const noPermEmail = `quote-noperm-${lowerRun}@smarttour.local`;
 
   await request(admin, 'POST', '/auth/roles', { code: viewRoleCode, name: 'Quote smoke view role', permissions: ['quote.view', 'quotation.view', 'data.scope.all'] });
+  await request(admin, 'POST', '/auth/roles', { code: noQuoteRoleCode, name: 'Quote smoke no quote role', permissions: ['customer.view', 'data.scope.all'] });
   await request(admin, 'POST', '/auth/users', { email: viewEmail, name: 'Quote Smoke View', password: rolePassword, branch: 'SMOKE-BR', department: 'SMOKE-DEP', roleCodes: [viewRoleCode] });
-  await request(admin, 'POST', '/auth/users', { email: noPermEmail, name: 'Quote Smoke No Permission', password: rolePassword, branch: 'SMOKE-BR', department: 'SMOKE-DEP', roleCodes: [] });
+  await request(admin, 'POST', '/auth/users', { email: noPermEmail, name: 'Quote Smoke No Permission', password: rolePassword, branch: 'SMOKE-BR', department: 'SMOKE-DEP', roleCodes: [noQuoteRoleCode] });
   const view = await login(viewEmail, rolePassword);
   const noPerm = await login(noPermEmail, rolePassword);
 
   await request(null, 'GET', '/quotes/tours', undefined, [401]);
-  await request(noPerm, 'GET', '/quotes/tours', undefined, [401]);
-  await request(view, 'POST', '/quotes/tours', tourPayload(`${run}-TOUR-DENY`), [401]);
+  await request(noPerm, 'GET', '/quotes/tours', undefined, [403]);
+  await request(view, 'POST', '/quotes/tours', tourPayload(`${run}-TOUR-DENY`), [403]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-MISSING`), quoteCode: '' }, [400]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-NUM`), costItems: [{ ...tourPayload().costItems[0], quantity: 'abc' }] }, [400]);
 
@@ -382,7 +384,7 @@ function assertLoadableQuotation(row) {
   await request(admin, 'PUT', `/quotes/tours/${tour.id}`, { customerNote: 'blocked after convert' }, [400]);
 
   await request(null, 'GET', '/quotes/combos', undefined, [401]);
-  await request(noPerm, 'GET', '/quotes/combos', undefined, [401]);
+  await request(noPerm, 'GET', '/quotes/combos', undefined, [403]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-MISSING`), comboCode: '' }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-NUM`), items: [{ serviceName: 'Bad combo', netPricePerService: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-ITEMS`), items: [] }, [400]);
@@ -399,7 +401,7 @@ function assertLoadableQuotation(row) {
   assertLoadableCombo(comboDetail);
   const comboList = await request(admin, 'GET', `/quotes/combos?search=${encodeURIComponent(run)}`);
   assert(includesJson(comboList, `${run}-COMBO`), 'combo search did not return created combo');
-  await request(view, 'POST', `/quotes/combos/${combo.id}/create-quote`, {}, [401]);
+  await request(view, 'POST', `/quotes/combos/${combo.id}/create-quote`, {}, [403]);
   const quotedCombo = await request(admin, 'POST', `/quotes/combos/${combo.id}/create-quote`, {});
   assert(quotedCombo.status === 'QUOTED', 'combo create-quote did not set QUOTED');
   const orderedCombo = await request(admin, 'POST', `/quotes/combos/${combo.id}/create-order`, {});
@@ -407,8 +409,8 @@ function assertLoadableQuotation(row) {
   await request(admin, 'PUT', `/quotes/combos/${combo.id}`, { note: 'blocked after order' }, [400]);
 
   await request(null, 'GET', '/quotations', undefined, [401]);
-  await request(noPerm, 'GET', '/quotations', undefined, [401]);
-  await request(view, 'POST', '/quotations', quotationPayload(`${run}-QTE-DENY`), [401]);
+  await request(noPerm, 'GET', '/quotations', undefined, [403]);
+  await request(view, 'POST', '/quotations', quotationPayload(`${run}-QTE-DENY`), [403]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-MISSING`), quoteCode: '' }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-NUM`), items: [{ ...quotationPayload().items[0], netPrice: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-ITEMS`), items: [] }, [400]);
@@ -419,7 +421,7 @@ function assertLoadableQuotation(row) {
 
   const quotation = await request(admin, 'POST', '/quotations', quotationPayload());
   assertQuotationTotals(quotation, 2);
-  await request(view, 'PUT', `/quotations/${quotation.id}`, { route: 'Denied update' }, [401]);
+  await request(view, 'PUT', `/quotations/${quotation.id}`, { route: 'Denied update' }, [403]);
   const updatedQuotation = await request(admin, 'PUT', `/quotations/${quotation.id}`, { exchangeRate: 3, route: 'Ha Noi - Ninh Binh Updated' });
   const expectedRate3 = assertQuotationTotals(updatedQuotation, 3);
   const quotationDetail = await request(view, 'GET', `/quotations/${quotation.id}`);

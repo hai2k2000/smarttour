@@ -565,7 +565,7 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .quoteCellStack { display: grid; gap: 4px; min-width: 0; }
 .quoteCellStack strong, .quoteCellStack small { overflow-wrap: anywhere; }
 .quoteCellStack small { color: var(--dn-muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
-.quoteTextClamp { display: -webkit-box; max-width: 260px; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.quoteTextClamp { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quotePage .quoteDynamicTable { width: max(100%, 1160px); min-width: 1160px; table-layout: fixed; }
 .quotePage .quoteDynamicTable th, .quotePage .quoteDynamicTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
 .quotePage .quoteDynamicTable th:nth-child(1), .quotePage .quoteDynamicTable td:nth-child(1) { width: 52px; color: var(--dn-muted); font-weight: 700; }
@@ -579,7 +579,7 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .quotePage .quoteDynamicTable th:last-child, .quotePage .quoteDynamicTable td:last-child { width: 58px; }
 .quotePage .quoteDynamicTable input, .quotePage .quoteDynamicTable select, .quotePage .quoteDynamicTable textarea { width: 100%; min-width: 0; }
 .quotePage .quoteListTable { width: max(100%, 900px); min-width: 900px; table-layout: fixed; }
-.quotePage .quoteListTable th, .quotePage .quoteListTable td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+.quotePage .quoteListTable th, .quotePage .quoteListTable td { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .quotePage .quoteListTable th:nth-child(1), .quotePage .quoteListTable td:nth-child(1) { width: 160px; }
 .quotePage .quoteListTable th:nth-child(2), .quotePage .quoteListTable td:nth-child(2) { width: 180px; }
 .quotePage .quoteListTable th:nth-child(3), .quotePage .quoteListTable td:nth-child(3) { width: 240px; }
