@@ -109,6 +109,22 @@ async function run() {
   assert(calls[3][0] === 'me' && calls[3][1] === 'me.cookie', 'me should accept cookie token');
   assert(calls[4][0] === 'changePassword' && calls[4][1] === 'user-2' && calls[4][3] === 'change.cookie' && calls[4][4].ip === '127.0.0.1', 'change password should use cookie token and request metadata');
 
+  const headerLogoutResponse = responseRecorder();
+  await controller.logout({ headers: { authorization: 'Bearer logout.header.only' } }, headerLogoutResponse);
+  controller.me({ headers: { authorization: 'Bearer me.header.only' } });
+  const headerChangeResponse = responseRecorder();
+  await controller.changePassword(
+    { headers: { authorization: 'Bearer change.header.only' }, user: { id: 'user-3' } },
+    { currentPassword: 'old', newPassword: 'new' },
+    '127.0.0.2',
+    headerChangeResponse,
+  );
+  assert(calls[5][0] === 'logout' && calls[5][1] === 'logout.header.only', 'logout should accept Authorization bearer token when cookie is absent');
+  assert(headerLogoutResponse.cleared[0]?.name === AUTH_TOKEN_COOKIE, 'header-only logout should still clear auth cookie');
+  assert(calls[6][0] === 'me' && calls[6][1] === 'me.header.only', 'me should accept Authorization bearer token when cookie is absent');
+  assert(calls[7][0] === 'changePassword' && calls[7][1] === 'user-3' && calls[7][3] === 'change.header.only' && calls[7][4].ip === '127.0.0.2', 'change password should accept Authorization bearer token when cookie is absent');
+  assertAuthCookie(headerChangeResponse.cookies[0], 'change.token', 'header-only change password');
+
   console.log('TEST_AUTH_TOKEN_EXTRACTION_OK');
 }
 

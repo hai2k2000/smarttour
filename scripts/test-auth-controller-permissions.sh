@@ -62,6 +62,15 @@ for (const method of Object.keys(routes)) {
 }
 if (!moduleSource.includes('{ provide: APP_GUARD, useClass: AuthGuard }')) failures.push('AuthGuard is not registered as APP_GUARD');
 if (controller.some((line) => line.includes('@UseGuards(AuthGuard)'))) failures.push('AuthController should not register duplicate AuthGuard');
+const controllerSource = controller.join('\n');
+if (!/private\s+sessionToken\s*\(\s*request:\s*AuthRequest\s*\)/.test(controllerSource)) {
+  failures.push('AuthController should centralize request token extraction in a private sessionToken(request) helper');
+}
+const sessionTokenUses = [...controllerSource.matchAll(/this\.sessionToken\(request\)/g)].length;
+if (sessionTokenUses !== 3) failures.push(`logout, me and changePassword should all use sessionToken(request); saw ${sessionTokenUses} uses`);
+if (/service\.(logout|me|changePassword)\([^)]*tokenFromHeaders\(request\.headers\)/.test(controllerSource)) {
+  failures.push('AuthController session endpoints should not call tokenFromHeaders inline');
+}
 
 if (failures.length) {
   console.error('FAIL_AUTH_CONTROLLER_PERMISSIONS');

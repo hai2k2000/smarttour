@@ -56,7 +56,7 @@ export class AuthController {
   @Public()
   async logout(@Req() request: AuthRequest, @Res({ passthrough: true }) response: AuthCookieResponse) {
     try {
-      return await this.service.logout(tokenFromHeaders(request.headers), request.user?.id);
+      return await this.service.logout(this.sessionToken(request), request.user?.id);
     } finally {
       clearAuthCookie(response);
     }
@@ -64,7 +64,7 @@ export class AuthController {
 
   @Get('me')
   me(@Req() request: AuthRequest) {
-    return this.service.me(tokenFromHeaders(request.headers));
+    return this.service.me(this.sessionToken(request));
   }
 
   @Post('change-password')
@@ -74,7 +74,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: AuthCookieResponse,
   ) {
-    const result = await this.service.changePassword(request.user?.id, dto, tokenFromHeaders(request.headers), { headers: request.headers, ip });
+    const result = await this.service.changePassword(request.user?.id, dto, this.sessionToken(request), { headers: request.headers, ip });
     this.setSessionCookie(response, result);
     return result;
   }
@@ -117,5 +117,9 @@ export class AuthController {
 
   private setSessionCookie(response: AuthCookieResponse, result: SessionPayload | undefined) {
     if (result?.token && result.expiresAt) setAuthCookie(response, result.token, result.expiresAt);
+  }
+
+  private sessionToken(request: AuthRequest) {
+    return tokenFromHeaders(request.headers);
   }
 }
