@@ -289,6 +289,20 @@ model User {
   username     String?       @unique
   email        String        @unique
   name         String
+  phone        String?
+  gender       String?
+  dateOfBirth  DateTime?
+  address      String?
+  identityNo   String?
+  maritalStatus String?
+  nationality  String?
+  ethnicity    String?
+  religion     String?
+  taxCode      String?
+  rank         String?
+  bankAccountNumber String?
+  bankAccountName   String?
+  bankName          String?
   passwordHash String
   status       String        @default("ACTIVE")
   branch       String?
@@ -302,6 +316,7 @@ model User {
 
   @@index([status])
   @@index([username])
+  @@index([phone])
   @@index([branch])
   @@index([department])
 }

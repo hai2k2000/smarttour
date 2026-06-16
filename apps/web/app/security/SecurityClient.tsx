@@ -21,6 +21,20 @@ type User = {
   username?: string | null;
   email: string;
   name: string;
+  phone?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
+  identityNo?: string | null;
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  ethnicity?: string | null;
+  religion?: string | null;
+  taxCode?: string | null;
+  rank?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bankName?: string | null;
   status: string;
   branch?: string;
   department?: string;
@@ -314,7 +328,7 @@ export default function SecurityClient() {
         </div>
         <div className="fitTableWrap compactListTableWrap">
           <table className="securityTable compactListTable">
-            <thead><tr><th>Người dùng</th><th>Vai trò</th><th>Phạm vi dữ liệu</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+            <thead><tr><th>Người dùng</th><th>Liên hệ</th><th>Vai trò</th><th>Phạm vi dữ liệu</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
             <tbody>
               {users.map((user) => (
                 <tr key={user.id}>
@@ -322,6 +336,7 @@ export default function SecurityClient() {
                     <strong><CellText text={user.name} /></strong>
                     <CellText text={`${user.username || 'Chưa có tên đăng nhập'} · ${user.email}`} />
                   </td>
+                  <td><CellText text={userContactSummary(user)} title={userProfileTitle(user)} /></td>
                   <td><CellText text={user.roles.map((role) => viRoleCode(role.code)).join(', ')} fallback="Chưa gán vai trò" /></td>
                   <td><span className="statusPill" title={scopeLabel(user)}>{scopeLabel(user)}</span></td>
                   <td>{date(user.lastLoginAt)}</td>
@@ -329,7 +344,7 @@ export default function SecurityClient() {
                   <td><button type="button" disabled={!canManageUsers || isBusy} className="secondaryButton iconTextButton" onClick={() => openModal('updateUser', user.id)}><Pencil size={14} /> Sửa</button></td>
                 </tr>
               ))}
-              {users.length === 0 ? <tr><td colSpan={6} className="tableEmptyState">Không có người dùng hoặc bạn chưa có quyền xem danh sách.</td></tr> : null}
+              {users.length === 0 ? <tr><td colSpan={7} className="tableEmptyState">Không có người dùng hoặc bạn chưa có quyền xem danh sách.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -443,6 +458,30 @@ function UserModal({
           </div>
         </fieldset>
         <fieldset>
+          <legend>Hồ sơ nhân sự</legend>
+          <div className="modalFormGrid">
+            <label>Số điện thoại<input name="phone" defaultValue={user?.phone || ''} inputMode="tel" autoComplete="tel" /></label>
+            <label>Giới tính<select name="gender" defaultValue={user?.gender || ''}><option value="">Chưa cập nhật</option><option value="Nam">Nam</option><option value="Nữ">Nữ</option><option value="Khác">Khác</option></select></label>
+            <label>Ngày sinh<input name="dateOfBirth" type="date" defaultValue={dateInput(user?.dateOfBirth)} /></label>
+            <label>CCCD/CMND<input name="identityNo" defaultValue={user?.identityNo || ''} /></label>
+            <label>Hôn nhân<input name="maritalStatus" defaultValue={user?.maritalStatus || ''} /></label>
+            <label>Quốc tịch<input name="nationality" defaultValue={user?.nationality || ''} /></label>
+            <label>Dân tộc<input name="ethnicity" defaultValue={user?.ethnicity || ''} /></label>
+            <label>Tôn giáo<input name="religion" defaultValue={user?.religion || ''} /></label>
+            <label>Mã số thuế<input name="taxCode" defaultValue={user?.taxCode || ''} /></label>
+            <label>Cấp bậc<input name="rank" defaultValue={user?.rank || ''} /></label>
+            <label className="span2">Địa chỉ<input name="address" defaultValue={user?.address || ''} autoComplete="street-address" /></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Thông tin ngân hàng</legend>
+          <div className="modalFormGrid">
+            <label>Số tài khoản<input name="bankAccountNumber" defaultValue={user?.bankAccountNumber || ''} inputMode="numeric" /></label>
+            <label>Tên tài khoản<input name="bankAccountName" defaultValue={user?.bankAccountName || ''} /></label>
+            <label className="span2">Tên ngân hàng<input name="bankName" defaultValue={user?.bankName || ''} /></label>
+          </div>
+        </fieldset>
+        <fieldset>
           <legend>Vai trò và phạm vi dữ liệu</legend>
           <div className="modalFormGrid">
             <label>Chi nhánh<input name="branch" defaultValue={user?.branch || ''} placeholder="Bắt buộc nếu vai trò theo chi nhánh" /></label>
@@ -543,6 +582,7 @@ function userPayload(formData: FormData, roles: Role[], creating: boolean) {
   const password = cleanText(formData.get('password'));
   const branch = cleanText(formData.get('branch'));
   const department = cleanText(formData.get('department'));
+  const profile = userProfilePayload(formData);
   const roleCodes = values(formData, 'roleCodes');
   validateRoleCodes(roleCodes, roles);
   validateDataScope(roleCodes, roles, branch, department);
@@ -553,11 +593,31 @@ function userPayload(formData: FormData, roles: Role[], creating: boolean) {
     username,
     ...(creating ? { email } : {}),
     name,
+    ...profile,
     branch,
     department,
     roleCodes,
     ...(status ? { status } : {}),
     ...(password ? { password } : {}),
+  };
+}
+
+function userProfilePayload(formData: FormData) {
+  return {
+    phone: cleanText(formData.get('phone')),
+    gender: cleanText(formData.get('gender')),
+    dateOfBirth: cleanText(formData.get('dateOfBirth')),
+    address: cleanText(formData.get('address')),
+    identityNo: cleanText(formData.get('identityNo')),
+    maritalStatus: cleanText(formData.get('maritalStatus')),
+    nationality: cleanText(formData.get('nationality')),
+    ethnicity: cleanText(formData.get('ethnicity')),
+    religion: cleanText(formData.get('religion')),
+    taxCode: cleanText(formData.get('taxCode')),
+    rank: cleanText(formData.get('rank')),
+    bankAccountNumber: cleanText(formData.get('bankAccountNumber')),
+    bankAccountName: cleanText(formData.get('bankAccountName')),
+    bankName: cleanText(formData.get('bankName')),
   };
 }
 
@@ -590,6 +650,27 @@ function validateDataScope(roleCodes: string[], roles: Role[], branch: string, d
   if (selectedPermissions.has('*') || selectedPermissions.has('data.scope.all')) return;
   if (selectedPermissions.has('data.scope.branch') && !branch) throw new Error('Cần nhập chi nhánh cho vai trò có phạm vi theo chi nhánh.');
   if (selectedPermissions.has('data.scope.department') && !department) throw new Error('Cần nhập phòng ban cho vai trò có phạm vi theo phòng ban.');
+}
+
+function userContactSummary(user: User) {
+  return [user.phone, user.rank, user.address].map((item) => item?.trim()).filter(Boolean).join(' · ') || 'Chưa cập nhật liên hệ';
+}
+
+function userProfileTitle(user: User) {
+  return [
+    `SĐT: ${user.phone || '-'}`,
+    `Giới tính: ${user.gender || '-'}`,
+    `Ngày sinh: ${dateOnly(user.dateOfBirth)}`,
+    `CCCD/CMND: ${user.identityNo || '-'}`,
+    `Hôn nhân: ${user.maritalStatus || '-'}`,
+    `Quốc tịch: ${user.nationality || '-'}`,
+    `Dân tộc: ${user.ethnicity || '-'}`,
+    `Tôn giáo: ${user.religion || '-'}`,
+    `Mã số thuế: ${user.taxCode || '-'}`,
+    `Cấp bậc: ${user.rank || '-'}`,
+    `Địa chỉ: ${user.address || '-'}`,
+    `Ngân hàng: ${[user.bankAccountNumber, user.bankAccountName, user.bankName].map((item) => item?.trim()).filter(Boolean).join(' · ') || '-'}`,
+  ].join('\n');
 }
 
 function scopeLabel(user: User) {
@@ -764,4 +845,17 @@ function errorText(error: unknown) {
 
 function date(value?: string) {
   return value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
+}
+
+function dateOnly(value?: string | null) {
+  if (!value) return '-';
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
+  return new Date(value).toLocaleDateString('vi-VN');
+}
+
+function dateInput(value?: string | null) {
+  if (!value) return '';
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return isoDate ? `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}` : '';
 }

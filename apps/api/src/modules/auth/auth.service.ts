@@ -29,12 +29,42 @@ type PermissionUser = {
 const DEFAULT_PERMISSIONS = ['*'] as const;
 const USER_STATUSES = new Set(['ACTIVE', 'INACTIVE', 'LOCKED']);
 const ROLE_STATUSES = new Set(['ACTIVE', 'INACTIVE']);
+const USER_PROFILE_FIELDS = [
+  'phone',
+  'gender',
+  'dateOfBirth',
+  'address',
+  'identityNo',
+  'maritalStatus',
+  'nationality',
+  'ethnicity',
+  'religion',
+  'taxCode',
+  'rank',
+  'bankAccountNumber',
+  'bankAccountName',
+  'bankName',
+] as const;
 
 const SAFE_USER_SELECT = {
   id: true,
   username: true,
   email: true,
   name: true,
+  phone: true,
+  gender: true,
+  dateOfBirth: true,
+  address: true,
+  identityNo: true,
+  maritalStatus: true,
+  nationality: true,
+  ethnicity: true,
+  religion: true,
+  taxCode: true,
+  rank: true,
+  bankAccountNumber: true,
+  bankAccountName: true,
+  bankName: true,
   status: true,
   branch: true,
   department: true,
@@ -252,6 +282,7 @@ export class AuthService {
     const password = this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
     const name = this.requiredText(dto.name, 'Cần nhập họ tên');
     const roleCodes = this.requiredRoleCodes(dto.roleCodes);
+    const profileData = this.userProfileData(dto);
     this.assertPasswordPolicy(password);
 
     try {
@@ -269,6 +300,7 @@ export class AuthService {
             email,
             username,
             name,
+            ...profileData,
             passwordHash: this.hashPassword(password),
             branch,
             department,
@@ -298,6 +330,7 @@ export class AuthService {
     const nextPassword = dto.password === undefined ? undefined : this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
     const nextStatus = dto.status === undefined ? undefined : this.normalizeStatus(dto.status, USER_STATUSES, 'trạng thái người dùng');
     const nextName = dto.name === undefined ? undefined : this.requiredText(dto.name, 'Cần nhập họ tên');
+    const profileData = this.userProfileData(dto);
     if (nextPassword) this.assertPasswordPolicy(nextPassword);
 
     try {
@@ -328,6 +361,7 @@ export class AuthService {
           data: {
             ...(nextUsername !== undefined ? { username: nextUsername } : {}),
             ...(nextName !== undefined ? { name: nextName } : {}),
+            ...profileData,
             ...(nextStatus !== undefined ? { status: nextStatus } : {}),
             ...(dto.branch !== undefined ? { branch: nextBranch } : {}),
             ...(dto.department !== undefined ? { department: nextDepartment } : {}),
@@ -343,8 +377,8 @@ export class AuthService {
         const after = this.userAuditSnapshot(user);
         await this.audit(tx, actor.id, 'UPDATE', 'User', id, {
           actorScope: this.actorAuditScope(actor),
-          changedFields: this.changedFields(dto, ['username', 'name', 'status', 'branch', 'department', 'password', 'roleCodes']),
-          changes: this.objectChanges(before, after, ['username', 'email', 'name', 'status', 'branch', 'department', 'dataScope']),
+          changedFields: this.changedFields(dto, ['username', 'name', 'status', 'branch', 'department', 'password', 'roleCodes', ...USER_PROFILE_FIELDS]),
+          changes: this.objectChanges(before, after, ['username', 'email', 'name', 'status', 'branch', 'department', 'dataScope', ...USER_PROFILE_FIELDS]),
           before,
           after,
           roleChanges: this.arrayChanges(before.roleCodes, after.roleCodes),
@@ -448,6 +482,14 @@ export class AuthService {
     return { token, tokenType: 'Bearer', expiresAt, user: this.safeUser(user) };
   }
 
+  private userProfileData(dto: AnyRecord) {
+    return USER_PROFILE_FIELDS.reduce<Record<string, string | Date | null>>((data, field) => {
+      if (dto[field] === undefined) return data;
+      data[field] = field === 'dateOfBirth' ? this.optionalDate(dto[field], 'ngày sinh') : this.text(dto[field]);
+      return data;
+    }, {});
+  }
+
   private assertBootstrapEnvironment(dto: AnyRecord) {
     const environment = smartTourEnvironment();
     const configuredKey = this.text(process.env.SMARTTOUR_BOOTSTRAP_KEY);
@@ -495,6 +537,20 @@ export class AuthService {
       username: user.username,
       email: user.email,
       name: user.name,
+      phone: user.phone,
+      gender: user.gender,
+      dateOfBirth: user.dateOfBirth,
+      address: user.address,
+      identityNo: user.identityNo,
+      maritalStatus: user.maritalStatus,
+      nationality: user.nationality,
+      ethnicity: user.ethnicity,
+      religion: user.religion,
+      taxCode: user.taxCode,
+      rank: user.rank,
+      bankAccountNumber: user.bankAccountNumber,
+      bankAccountName: user.bankAccountName,
+      bankName: user.bankName,
       status: user.status,
       branch: user.branch,
       department: user.department,
@@ -639,6 +695,20 @@ export class AuthService {
       username: safe.username,
       email: safe.email,
       name: safe.name,
+      phone: safe.phone,
+      gender: safe.gender,
+      dateOfBirth: safe.dateOfBirth,
+      address: safe.address,
+      identityNo: safe.identityNo,
+      maritalStatus: safe.maritalStatus,
+      nationality: safe.nationality,
+      ethnicity: safe.ethnicity,
+      religion: safe.religion,
+      taxCode: safe.taxCode,
+      rank: safe.rank,
+      bankAccountNumber: safe.bankAccountNumber,
+      bankAccountName: safe.bankAccountName,
+      bankName: safe.bankName,
       status: safe.status,
       branch: safe.branch,
       department: safe.department,
@@ -765,6 +835,24 @@ export class AuthService {
     const status = this.requiredText(value, `Cần nhập ${label}`).toUpperCase();
     if (!allowed.has(status)) throw new BadRequestException(`${label} không hợp lệ: ${status}`);
     return status;
+  }
+
+  private optionalDate(value: unknown, label: string) {
+    const valueText = this.text(value);
+    if (!valueText) return null;
+    const ymd = valueText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (ymd) {
+      const [, year, month, day] = ymd;
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    }
+    const dmy = valueText.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmy) {
+      const [, day, month, year] = dmy;
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    }
+    const parsed = new Date(valueText);
+    if (!Number.isFinite(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
+    return parsed;
   }
 
   private requiredPermissions(value: unknown) {
