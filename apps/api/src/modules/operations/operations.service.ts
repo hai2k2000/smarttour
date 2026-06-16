@@ -244,7 +244,7 @@ export class OperationsService {
   }
 
   async createForm(dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
     const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
@@ -271,7 +271,7 @@ export class OperationsService {
   }
 
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     const current = await this.formDetail(id, user);
     const bookingId = this.text(dto.bookingId) ?? current.bookingId;
     const links = await this.resolveBookingOrderTour({
@@ -301,7 +301,7 @@ export class OperationsService {
   }
 
   async cancelForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     const reason = this.text(dto.reason) ?? this.text(dto.notes);
     const current = await this.formDetail(id, user);
     if (current.status === OperationStatus.CANCELLED) return current;
@@ -364,7 +364,7 @@ export class OperationsService {
   }
 
   async createPaymentRequest(dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     const status = this.supplierPaymentStatus(dto.status, SupplierPaymentStatus.DRAFT);
     if (status !== SupplierPaymentStatus.DRAFT) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp phải được tạo ở trạng thái nháp');
     const items = this.paymentItems(dto);
@@ -389,7 +389,7 @@ export class OperationsService {
   }
 
   async updatePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     const current = await this.paymentRequestDetail(id, user);
     if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được chỉnh sửa');
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
@@ -407,6 +407,7 @@ export class OperationsService {
         where: { id },
         data: {
           ...(dto.code !== undefined ? { code: this.requiredText(dto.code, 'Cần nhập mã yêu cầu thanh toán') } : {}),
+          ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: actor } : {}),
           ...(items ? { items: { create: items } } : {}),
         },
         include: this.paymentRequestDetailInclude(),
@@ -422,7 +423,7 @@ export class OperationsService {
 
   async approvePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: true } });
       if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
@@ -464,7 +465,7 @@ export class OperationsService {
 
   async createFinancePaymentForRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.supplierPaymentRequest.findUnique({
         where: { id },
@@ -607,7 +608,7 @@ export class OperationsService {
 
   private async changePaymentRequestStatus(id: string, status: SupplierPaymentStatus, dto: AnyRecord = {}, user?: RequestUser) {
     await this.paymentRequestDetail(id, user);
-    const actor = this.userActor(user);
+    const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.supplierPaymentRequest.findUnique({
         where: { id },
@@ -625,7 +626,7 @@ export class OperationsService {
         data: {
           status,
           ...(status === SupplierPaymentStatus.REQUESTED ? { requestedBy: actor, requestedAt: new Date() } : {}),
-          ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: null } : {}),
+          ...(status === SupplierPaymentStatus.REJECTED ? { approvedBy: actor } : {}),
         },
         include: this.paymentRequestDetailInclude(),
       });
@@ -1026,8 +1027,8 @@ export class OperationsService {
     return form.order?.department || form.tour?.department || form.booking?.customer?.department || null;
   }
 
-  private userActor(user?: RequestUser) {
-    return user?.username || user?.email || user?.name || user?.id || 'operation';
+  private userActor(user?: RequestUser, dtoActor?: unknown) {
+    return user?.username || user?.email || user?.name || this.text(dtoActor) || user?.id || 'operation';
   }
 
   private assertSupplierPaymentTransition(current: SupplierPaymentStatus, next: SupplierPaymentStatus) {
@@ -1200,12 +1201,14 @@ export class OperationsService {
 
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata?: unknown, user?: RequestUser) {
     const safeMetadata = this.auditMetadata(metadata);
+    const actorId = this.text(user?.id);
+    const actor = actorId ? await tx.user.findUnique({ where: { id: actorId }, select: { id: true } }) : null;
     await tx.auditLog.create({
       data: {
         action,
         entity,
         entityId,
-        actorId: user?.id,
+        ...(actor ? { actorId: actor.id } : {}),
         ...(safeMetadata === undefined ? {} : { metadata: safeMetadata }),
       },
     });
