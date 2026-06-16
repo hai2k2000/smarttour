@@ -92,6 +92,33 @@ function costStatus(totalCost, paidCost) {
   return paidCost >= totalCost ? 'PAID' : 'PARTIAL';
 }
 
+function tourType(row) {
+  if (row.type === 'GIT_COMBO') return 'GIT';
+  if (row.type === 'LANDTOUR') return 'LANDTOUR';
+  return 'FIT';
+}
+
+function tourServiceStatus(row) {
+  if (row.status === 'CANCELLED') return 'CANCELLED';
+  if (row.status === 'COMPLETED' || row.status === 'SETTLED') return 'COMPLETED';
+  if (row.status === 'RUNNING') return 'OPERATING';
+  return 'WAITING';
+}
+
+function tourOperationStatus(row) {
+  if (row.status === 'CANCELLED') return 'CANCELLED';
+  if (row.status === 'COMPLETED' || row.status === 'SETTLED') return 'DONE';
+  if (row.status === 'RUNNING') return 'IN_PROGRESS';
+  return 'PENDING';
+}
+
+function tourCostPaymentStatus(row) {
+  const status = costStatus(row.totalCost, row.paidCost);
+  if (status === 'PAID') return 'PAID';
+  if (status === 'PARTIAL') return 'PARTIAL';
+  return 'UNPAID';
+}
+
 function normalizeRows(payload) {
   const rows = Array.isArray(payload.rows) ? payload.rows : [];
   return rows
@@ -231,6 +258,219 @@ function operationItem(row) {
   };
 }
 
+function tourData(row, order) {
+  return {
+    type: tourType(row),
+    status: row.status,
+    paymentStatus: paymentStatus(row.totalRevenue, row.paidAmount),
+    systemCode: row.systemCode,
+    orderId: order.id,
+    tourCode: row.tourCode || row.systemCode,
+    name: row.name,
+    marketGroup: row.marketGroup,
+    productType: row.rawTourType || row.type,
+    bookingDate: row.bookingDate,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    createdBy: row.createdBy || IMPORT_MARKER,
+    operatorOwner: row.operatorOwner,
+    branch: row.branch,
+    department: row.department,
+    customerSource: SOURCE_LABEL,
+    route: row.name,
+    notes: orderNote(row),
+    deletedAt: null,
+    ...(row.status === 'SETTLED' ? { closedAt: new Date(), closedBy: row.operatorOwner || row.createdBy || IMPORT_MARKER } : { closedAt: null, closedBy: null }),
+  };
+}
+
+function tourCustomerData(row, tourId, customer) {
+  return {
+    tourId,
+    crmCustomerId: customer?.id || null,
+    customerType: 'CUSTOMER',
+    name: row.customerName,
+    phone: row.customerPhone,
+    email: row.customerEmail,
+    groupName: row.marketGroup,
+    isPrimary: true,
+    notes: `Imported from ${SOURCE_LABEL}. ${IMPORT_MARKER}`,
+  };
+}
+
+function tourRevenueData(row, tourId, customerId) {
+  return {
+    tourId,
+    customerId,
+    description: row.name,
+    quantity: Math.max(1, row.adultQty + row.childQty + row.infantQty),
+    unitPrice: row.totalRevenue,
+    currency: 'VND',
+    exchangeRate: 1,
+    vat: 0,
+    amount: row.totalRevenue,
+    paymentStatus: paymentStatus(row.totalRevenue, row.paidAmount),
+    notes: `Imported total revenue from ${SOURCE_LABEL}. ${IMPORT_MARKER}`,
+  };
+}
+
+function tourServiceData(row, tourId) {
+  return {
+    tourId,
+    serviceType: row.rawTourType || row.type,
+    serviceDate: row.startDate,
+    description: row.name,
+    quantity: 1,
+    unit: 'tour',
+    currency: 'VND',
+    exchangeRate: 1,
+    salesUnitPrice: row.totalRevenue,
+    budgetUnitPrice: row.totalCost,
+    confirmedUnitPrice: row.totalCost,
+    vat: 0,
+    salesAmount: row.totalRevenue,
+    budgetAmount: row.totalCost,
+    confirmedAmount: row.totalCost,
+    confirmationStatus: tourServiceStatus(row),
+    bookingCode: row.systemCode,
+    notes: `Imported service summary from ${SOURCE_LABEL}. ${IMPORT_MARKER}`,
+  };
+}
+
+function tourCostData(row, tourId, serviceId) {
+  return {
+    tourId,
+    serviceId,
+    costType: row.rawTourType || row.type,
+    description: row.name,
+    expectedAmount: row.totalCost,
+    actualAmount: row.totalCost,
+    currency: 'VND',
+    exchangeRate: 1,
+    vat: 0,
+    paymentStatus: tourCostPaymentStatus(row),
+    notes: `Imported total cost from ${SOURCE_LABEL}. ${IMPORT_MARKER}`,
+  };
+}
+
+function tourOperationData(row, tourId) {
+  return {
+    tourId,
+    title: `Dieu hanh ${row.tourCode || row.systemCode}`,
+    assignee: row.operatorOwner,
+    dueDate: row.startDate,
+    status: tourOperationStatus(row),
+    priority: 'NORMAL',
+    notes: `Imported operation summary from ${SOURCE_LABEL}. ${IMPORT_MARKER}`,
+  };
+}
+
+async function upsertImportedTourCustomer(tx, row, tourId, customer) {
+  const data = tourCustomerData(row, tourId, customer);
+  const existing = await tx.tourCustomer.findFirst({
+    where: { tourId, notes: { contains: IMPORT_MARKER } },
+    select: { id: true },
+  });
+  if (existing) return tx.tourCustomer.update({ where: { id: existing.id }, data });
+  return tx.tourCustomer.create({ data });
+}
+
+async function upsertImportedTourRevenue(tx, row, tourId, customerId) {
+  if (row.totalRevenue <= 0) return null;
+  const data = tourRevenueData(row, tourId, customerId);
+  const existing = await tx.tourRevenue.findFirst({
+    where: { tourId, notes: { contains: IMPORT_MARKER } },
+    select: { id: true },
+  });
+  if (existing) return tx.tourRevenue.update({ where: { id: existing.id }, data });
+  return tx.tourRevenue.create({ data });
+}
+
+async function upsertImportedTourService(tx, row, tourId) {
+  if (row.totalRevenue <= 0 && row.totalCost <= 0) return null;
+  const data = tourServiceData(row, tourId);
+  const existing = await tx.tourService.findFirst({
+    where: { tourId, notes: { contains: IMPORT_MARKER } },
+    select: { id: true },
+  });
+  if (existing) return tx.tourService.update({ where: { id: existing.id }, data });
+  return tx.tourService.create({ data });
+}
+
+async function upsertImportedTourCost(tx, row, tourId, serviceId) {
+  if (row.totalCost <= 0) return null;
+  const data = tourCostData(row, tourId, serviceId);
+  const existing = await tx.tourCost.findFirst({
+    where: { tourId, notes: { contains: IMPORT_MARKER } },
+    select: { id: true },
+  });
+  if (existing) return tx.tourCost.update({ where: { id: existing.id }, data });
+  return tx.tourCost.create({ data });
+}
+
+async function upsertImportedTourOperation(tx, row, tourId) {
+  const data = tourOperationData(row, tourId);
+  const existing = await tx.tourOperation.findFirst({
+    where: { tourId, notes: { contains: IMPORT_MARKER } },
+    select: { id: true },
+  });
+  if (existing) return tx.tourOperation.update({ where: { id: existing.id }, data });
+  return tx.tourOperation.create({ data });
+}
+
+async function linkOrderChildrenToTour(tx, orderId, tourId) {
+  await tx.booking.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.operationForm.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.operationVoucher.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.financePayment.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.financeInvoice.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.financeCashflowEntry.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.customerLedgerEntry.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.supplierLedgerEntry.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.supplierAllotmentAllocation.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+  await tx.guideSchedule.updateMany({ where: { orderId, tourId: null }, data: { tourId } });
+
+  const receiptLinks = await tx.financeReceiptOrder.findMany({
+    where: { orderId },
+    select: { receiptId: true },
+  });
+  const receiptIds = Array.from(new Set(receiptLinks.map((item) => item.receiptId).filter(Boolean)));
+  if (receiptIds.length) {
+    await tx.financeReceipt.updateMany({ where: { id: { in: receiptIds }, tourId: null }, data: { tourId } });
+  }
+}
+
+async function findExistingTour(tx, orderId, systemCode) {
+  const byOrder = await tx.tour.findFirst({ where: { orderId }, select: { id: true } });
+  if (byOrder) return byOrder;
+  return tx.tour.findUnique({ where: { systemCode }, select: { id: true } });
+}
+
+async function ensureTour(tx, row, order, customer) {
+  const existing = await findExistingTour(tx, order.id, row.systemCode);
+  const data = tourData(row, order);
+  const tour = existing
+    ? await tx.tour.update({ where: { id: existing.id }, data, select: { id: true } })
+    : await tx.tour.create({ data, select: { id: true } });
+
+  const tourCustomer = await upsertImportedTourCustomer(tx, row, tour.id, customer);
+  await upsertImportedTourRevenue(tx, row, tour.id, tourCustomer.id);
+  const tourService = await upsertImportedTourService(tx, row, tour.id);
+  await upsertImportedTourCost(tx, row, tour.id, tourService?.id || null);
+  await upsertImportedTourOperation(tx, row, tour.id);
+  await linkOrderChildrenToTour(tx, order.id, tour.id);
+  await tx.tourLog.create({
+    data: {
+      tourId: tour.id,
+      action: existing ? 'TOURKIT_ORDER_IMPORT_UPDATE_TOUR' : 'TOURKIT_ORDER_IMPORT_CREATE_TOUR',
+      entity: 'Order',
+      entityId: order.id,
+      metadata: { marker: IMPORT_MARKER, source: SOURCE_LABEL, row: row.index, systemCode: row.systemCode },
+    },
+  });
+  return { id: tour.id, created: !existing };
+}
+
 async function ensureCustomer(tx, row) {
   const existing = await tx.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
   if (existing) return existing;
@@ -266,16 +506,27 @@ async function ensureCustomer(tx, row) {
 async function main() {
   const file = arg('--file') || process.argv[2];
   const dryRun = process.argv.includes('--dry-run');
+  const syncToursOnly = process.argv.includes('--sync-tours-only');
   if (!file) throw new Error('Cần truyền --file=/path/to/tourkit-orders.json');
   const payload = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8').replace(/^\uFEFF/, ''));
   const rows = normalizeRows(payload);
   const duplicateCodes = rows.map((row) => row.systemCode).filter((code, index, all) => all.indexOf(code) !== index);
   if (duplicateCodes.length) throw new Error(`Mã hệ thống bị trùng trong file: ${Array.from(new Set(duplicateCodes)).join(', ')}`);
   const importCodes = rows.map((row) => row.systemCode);
-  const activeObsolete = await prisma.order.findMany({
-    where: { deletedAt: null, systemCode: { notIn: importCodes } },
-    select: { id: true, systemCode: true, name: true, type: true, status: true },
+  const activeObsolete = syncToursOnly
+    ? []
+    : await prisma.order.findMany({
+      where: { deletedAt: null, systemCode: { notIn: importCodes } },
+      select: { id: true, systemCode: true, name: true, type: true, status: true },
+    });
+  const existingOrderCodes = await prisma.order.findMany({
+    where: { systemCode: { in: importCodes } },
+    select: { systemCode: true },
   });
+  const existingOrderCodeSet = new Set(existingOrderCodes.map((order) => order.systemCode));
+  const missingOrdersForTourSync = syncToursOnly
+    ? rows.filter((row) => !existingOrderCodeSet.has(row.systemCode)).map((row) => ({ row: row.index, systemCode: row.systemCode }))
+    : [];
   const missingCustomers = [];
   for (const row of rows) {
     const found = await prisma.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
@@ -288,8 +539,10 @@ async function main() {
     statusCounts: rows.reduce((acc, row) => ({ ...acc, [row.status]: (acc[row.status] || 0) + 1 }), {}),
     activeObsoleteCount: activeObsolete.length,
     activeObsoleteSample: activeObsolete.slice(0, 10),
+    missingOrdersForTourSync,
     missingCustomers,
     dryRun,
+    syncToursOnly,
   }, null, 2));
   if (dryRun) return;
 
@@ -304,22 +557,38 @@ async function main() {
 
     let created = 0;
     let updated = 0;
+    let createdTours = 0;
+    let updatedTours = 0;
     let createdCustomers = 0;
+    let missingOrders = 0;
     for (const row of rows) {
       const customerBefore = await tx.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
       const customer = customerBefore || await ensureCustomer(tx, row);
       if (!customerBefore) createdCustomers += 1;
       const existing = await tx.order.findUnique({ where: { systemCode: row.systemCode }, select: { id: true } });
+      if (syncToursOnly) {
+        if (!existing) {
+          missingOrders += 1;
+          continue;
+        }
+        const tour = await ensureTour(tx, row, existing, customer);
+        if (tour.created) createdTours += 1;
+        else updatedTours += 1;
+        continue;
+      }
       if (existing) {
         await Promise.all([
           tx.orderSalesItem.deleteMany({ where: { orderId: existing.id } }),
           tx.orderOperationItem.deleteMany({ where: { orderId: existing.id } }),
           tx.orderLog.deleteMany({ where: { orderId: existing.id, action: { in: ['TOURKIT_IMPORT_CREATE', 'TOURKIT_IMPORT_UPDATE'] } } }),
         ]);
-        await tx.order.update({ where: { id: existing.id }, data: orderData(row, customer) });
-        await tx.orderSalesItem.create({ data: { ...salesItem(row), orderId: existing.id } });
-        await tx.orderOperationItem.create({ data: { ...operationItem(row), orderId: existing.id } });
-        await tx.orderLog.create({ data: { orderId: existing.id, action: 'TOURKIT_IMPORT_UPDATE', newValue: { marker: IMPORT_MARKER, source: SOURCE_LABEL, row: row.index } } });
+        const order = await tx.order.update({ where: { id: existing.id }, data: orderData(row, customer), select: { id: true } });
+        await tx.orderSalesItem.create({ data: { ...salesItem(row), orderId: order.id } });
+        await tx.orderOperationItem.create({ data: { ...operationItem(row), orderId: order.id } });
+        await tx.orderLog.create({ data: { orderId: order.id, action: 'TOURKIT_IMPORT_UPDATE', newValue: { marker: IMPORT_MARKER, source: SOURCE_LABEL, row: row.index } } });
+        const tour = await ensureTour(tx, row, order, customer);
+        if (tour.created) createdTours += 1;
+        else updatedTours += 1;
         updated += 1;
       } else {
         const order = await tx.order.create({
@@ -332,10 +601,13 @@ async function main() {
           select: { id: true },
         });
         if (!order.id) throw new Error(`Không tạo được đơn ${row.systemCode}`);
+        const tour = await ensureTour(tx, row, order, customer);
+        if (tour.created) createdTours += 1;
+        else updatedTours += 1;
         created += 1;
       }
     }
-    return { softDeletedActiveObsolete: activeObsolete.length, created, updated, createdCustomers };
+    return { softDeletedActiveObsolete: activeObsolete.length, created, updated, createdCustomers, createdTours, updatedTours, missingOrders };
   }, { timeout: 60_000 });
 
   const activeCount = await prisma.order.count({ where: { deletedAt: null } });
