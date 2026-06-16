@@ -230,7 +230,6 @@ async function setStoredSession(page, token, user) {
     name: 'smarttour.auth.token',
     value: token,
     url: siteUrl.origin,
-    path: '/',
     httpOnly: true,
     secure: siteUrl.protocol === 'https:',
     sameSite: 'Lax',
