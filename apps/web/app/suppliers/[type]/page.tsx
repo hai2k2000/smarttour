@@ -11,7 +11,7 @@ const supplierPageConfigs: Record<SupplierType, { title: string; shortTitle: str
   restaurants: { title: 'Nhà cung cấp nhà hàng', shortTitle: 'Nhà hàng' },
   flights: { title: 'Nhà cung cấp vé máy bay', shortTitle: 'Vé máy bay' },
   'attraction-tickets': { title: 'Nhà cung cấp vé tham quan', shortTitle: 'Vé tham quan' },
-  'landtour-suppliers': { title: 'Nhà cung cấp Land Tour', shortTitle: 'Land Tour' },
+  'landtour-suppliers': { title: 'Nhà cung cấp Landtour', shortTitle: 'Landtour' },
   water: { title: 'Nhà cung cấp nước uống', shortTitle: 'Nước uống' },
   transport: { title: 'Nhà cung cấp vận chuyển', shortTitle: 'Vận chuyển' },
   bus: { title: 'Nhà xe tuyến cố định', shortTitle: 'Nhà xe' },
@@ -57,7 +57,7 @@ export default async function SupplierTypePage({ params }: { params: Promise<{ t
           <Link href="/suppliers/restaurants" className={type === 'restaurants' ? 'active' : ''}>Nhà cung cấp nhà hàng</Link>
           <Link href="/suppliers/flights" className={type === 'flights' ? 'active' : ''}>Nhà cung cấp vé máy bay</Link>
           <Link href="/suppliers/attraction-tickets" className={type === 'attraction-tickets' ? 'active' : ''}>Nhà cung cấp vé tham quan</Link>
-          <Link href="/suppliers/landtour-suppliers" className={type === 'landtour-suppliers' ? 'active' : ''}>Nhà cung cấp Land Tour</Link>
+          <Link href="/suppliers/landtour-suppliers" className={type === 'landtour-suppliers' ? 'active' : ''}>Nhà cung cấp Landtour</Link>
           <Link href="/fit-tours">Tour khách lẻ FIT</Link>
         </nav>
       </aside>

@@ -20,8 +20,9 @@ const supplierCategoryNameKey = (value: string) => value
   .toLocaleLowerCase('vi')
   .replace(/\s+/g, ' ')
   .trim();
+const HOTEL_SUPPLIER_CATEGORY_NAME = 'Khách sạn';
 const SPECIALIZED_SUPPLIER_CATEGORY_KEYS = new Set(
-  ['Hotel', ...Object.values(SUPPLIER_TYPE_LABELS), ...Object.values(SUPPLIER_TYPE_CATEGORY_ALIASES).flat()].map(supplierCategoryNameKey),
+  [HOTEL_SUPPLIER_CATEGORY_NAME, 'Hotel', ...Object.values(SUPPLIER_TYPE_LABELS), ...Object.values(SUPPLIER_TYPE_CATEGORY_ALIASES).flat()].map(supplierCategoryNameKey),
 );
 const SUPPLIER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPLIER_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -509,7 +510,7 @@ export class SuppliersService {
     this.validateSupplierPayload(dto, false, false);
     this.validateSpecializedSupplierIdentity(dto);
     this.validateHotelProfilePayload(dto);
-    const category = await this.ensureCategoryByName('Hotel');
+    const category = await this.ensureCategoryByName(HOTEL_SUPPLIER_CATEGORY_NAME);
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
       return await this.prisma.$transaction(async (tx) => {

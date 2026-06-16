@@ -25,7 +25,7 @@ assert frontend_routes == expected_routes, f'frontend typed routes differ: {fron
 
 for route, label in {
     'restaurants': 'Nhà hàng', 'flights': 'Vé máy bay', 'attraction-tickets': 'Vé tham quan',
-    'landtour-suppliers': 'Land Tour', 'water': 'Nước uống', 'transport': 'Vận chuyển', 'bus': 'Nhà xe',
+    'landtour-suppliers': 'Landtour', 'water': 'Nước uống', 'transport': 'Vận chuyển', 'bus': 'Nhà xe',
     'other': 'Chi phí khác', 'villas': 'Biệt thự', 'passport': 'Visa và hộ chiếu', 'guides': 'Hướng dẫn viên',
     'series-tickets': 'Vé series',
 }.items():
@@ -33,7 +33,7 @@ for route, label in {
     assert re.search(pattern, types_source), f'missing backend mapping for {route}'
     assert re.search(rf"(?:'{re.escape(route)}'|{re.escape(route)}): \{{", frontend), f'missing frontend config for {route}'
 
-for alias in ["restaurants: ['Restaurant']", "flights: ['Flight', 'Flight Ticket']", "'landtour-suppliers': ['LandTour Supplier', 'Landtour']", "transport: ['Transport', 'Vehicle']"]:
+for alias in ["restaurants: ['Restaurant']", "flights: ['Flight', 'Flight Ticket']", "'landtour-suppliers': ['Land Tour', 'LandTour Supplier']", "transport: ['Transport', 'Vehicle']"]:
     assert alias in types_source, f'missing legacy category alias: {alias}'
 assert 'export function getTypeLabel(type: TypedSupplierRoute)' in types_source, 'typed category labels must be exposed through a helper'
 assert 'return [getTypeLabel(type), ...SUPPLIER_TYPE_CATEGORY_ALIASES[type]]' in types_source, 'typed category aliases must use the shared label helper'

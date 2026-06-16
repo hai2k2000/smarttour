@@ -206,13 +206,15 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
   const error = singleParam(params.error);
-  const [categoriesResult, suppliersResult] = await Promise.all([
-    apiGet<SupplierCategory[]>('/supplier-categories', [], 'Tải danh sách loại nhà cung cấp'),
+  const [categoriesResult, allCategoriesResult, suppliersResult] = await Promise.all([
+    apiGet<SupplierCategory[]>('/supplier-categories?includeEmpty=false', [], 'Tải danh sách loại nhà cung cấp đang dùng'),
+    apiGet<SupplierCategory[]>('/supplier-categories', [], 'Tải danh sách đầy đủ loại nhà cung cấp'),
     apiGet<Supplier[]>('/suppliers', [], 'Tải danh sách nhà cung cấp'),
   ]);
   const categories = categoriesResult.data;
+  const allCategories = allCategoriesResult.data;
   const suppliers = suppliersResult.data;
-  const loadErrors = [categoriesResult.error, suppliersResult.error].filter(Boolean);
+  const loadErrors = [categoriesResult.error, allCategoriesResult.error, suppliersResult.error].filter(Boolean);
 
   return (
     <section className="workspace suppliersPage">
@@ -338,13 +340,13 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           submitLabel="Lưu thay đổi"
         />
       ))}
-      <SupplierModal id={createSupplierModalId} title="Thêm nhà cung cấp" categories={categories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
+      <SupplierModal id={createSupplierModalId} title="Thêm nhà cung cấp" categories={allCategories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
       {suppliers.map((supplier) => (
         <SupplierModal
           key={supplier.id}
           id={editSupplierModalId(supplier.id)}
           title={`Sửa ${supplier.name}`}
-          categories={categories}
+          categories={allCategories}
           supplier={supplier}
           action={updateSupplier}
           submitLabel="Lưu thay đổi"

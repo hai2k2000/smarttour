@@ -574,7 +574,7 @@ function typedMatrixPayload(type, suffix) {
   assert(renamedDisposableCategory.name.endsWith('Updated'), 'category update should persist name');
   await request(manageToken, 'DELETE', `/supplier-categories/${disposableCategory.id}`);
 
-  const hotelSystemCategory = initialCategories.find((item) => item.name === 'Hotel');
+  const hotelSystemCategory = initialCategories.find((item) => item.name === 'Khách sạn');
   if (hotelSystemCategory) {
     await request(manageToken, 'PATCH', `/supplier-categories/${hotelSystemCategory.id}`, { name: `${run} Renamed Hotel` }, [400]);
     await request(manageToken, 'DELETE', `/supplier-categories/${hotelSystemCategory.id}`, undefined, [400]);
@@ -1648,12 +1648,12 @@ function typedMatrixPayload(type, suffix) {
     hotelProject: `${run} Hotel Project`,
   });
   assert(hotel.hotelProfile?.hotelProject === `${run} Hotel Project`, 'hotel supplier should include hotel profile');
-  assert(hotel.category?.name === 'Hotel', 'hotel supplier should use the shared Hotel category');
+  assert(hotel.category?.name === 'Khách sạn', 'hotel supplier should use the shared hotel category');
   const hotelList = await request(manageToken, 'GET', `/suppliers/hotels?search=${encodeURIComponent(run)}`);
   const listedHotel = hotelList.find((item) => item.id === hotel.id);
-  assert(listedHotel?.category?.name === 'Hotel' && listedHotel.hotelProfile, 'hotel list response should include category and hotel profile');
+  assert(listedHotel?.category?.name === 'Khách sạn' && listedHotel.hotelProfile, 'hotel list response should include category and hotel profile');
   const hotelDetail = await request(manageToken, 'GET', `/suppliers/hotels/${hotel.id}`);
-  assert(hotelDetail.id === hotel.id && hotelDetail.category?.name === 'Hotel', 'hotel detail response should preserve shared supplier linkage');
+  assert(hotelDetail.id === hotel.id && hotelDetail.category?.name === 'Khách sạn', 'hotel detail response should preserve shared supplier linkage');
   const updatedHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${hotel.id}`, { hotelProject: `${run} Hotel Project Updated` });
   assert(updatedHotel.hotelProfile?.hotelProject.endsWith('Updated'), 'hotel supplier manage permission should allow update');
   const hotelCategoryChangeError = await request(manageToken, 'PATCH', `/suppliers/${hotel.id}`, { categoryId: category.id }, [400]);

@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 
 const SOURCE_LABEL = 'TourKit NCC export 16/06/2026 09:56:52';
 const IMPORT_MARKER = 'TOURKIT_NCC_IMPORT_2026_06_16';
-const HOTEL_CATEGORY = 'Hotel';
+const HOTEL_CATEGORY = 'Khách sạn';
 
 const TYPE_CATEGORY_MAP = new Map([
   ['khach san', HOTEL_CATEGORY],
   ['nha xe', 'Nhà xe'],
-  ['landtour', 'Land Tour'],
+  ['landtour', 'Landtour'],
   ['nha hang', 'Nhà hàng'],
   ['tour guide', 'Hướng dẫn viên'],
   ['chi phi khac', 'Chi phí khác'],
@@ -250,7 +250,7 @@ async function main() {
     }
 
     const demoCategories = await tx.supplierCategory.findMany({
-      where: { name: { in: ['Demo Hotel', 'Smoke Category'] } },
+      where: { name: { in: ['Demo Hotel', 'Hotel', 'Land Tour', 'Smoke Category'] } },
       include: { _count: { select: { suppliers: true } } },
     });
     for (const category of demoCategories) {
