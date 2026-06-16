@@ -357,7 +357,7 @@ async function ensureTourProgram(tx, row) {
 
 async function findOrder(tx, row) {
   const codes = [row.orderSystemCode, row.legacyCode, row.bookingCode].map((code) => text(code)).filter(Boolean);
-  return tx.order.findFirst({ where: { systemCode: { in: Array.from(new Set(codes)) } }, select: { id: true } });
+  return tx.order.findFirst({ where: { systemCode: { in: Array.from(new Set(codes)) } }, select: { id: true, status: true } });
 }
 
 async function ensureOrder(tx, row, customer) {
@@ -368,7 +368,7 @@ async function ensureOrder(tx, row, customer) {
       tx.orderOperationItem.deleteMany({ where: { orderId: existing.id, note: { contains: IMPORT_MARKER } } }),
       tx.orderLog.deleteMany({ where: { orderId: existing.id, action: { in: ['TOURKIT_BOOKING_IMPORT_CREATE', 'TOURKIT_BOOKING_IMPORT_UPDATE'] } } }),
     ]);
-    const order = await tx.order.update({ where: { id: existing.id }, data: orderData(row, customer), select: { id: true, systemCode: true } });
+    const order = await tx.order.update({ where: { id: existing.id }, data: { ...orderData(row, customer), status: existing.status }, select: { id: true, systemCode: true } });
     await tx.orderSalesItem.create({ data: { ...salesItem(row), orderId: order.id } });
     await tx.orderOperationItem.create({ data: { ...operationItem(row), orderId: order.id } });
     await tx.orderLog.create({ data: { orderId: order.id, action: 'TOURKIT_BOOKING_IMPORT_UPDATE', newValue: { marker: IMPORT_MARKER, source: SOURCE_LABEL, row: row.index } } });

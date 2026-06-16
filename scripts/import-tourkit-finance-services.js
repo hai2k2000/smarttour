@@ -50,6 +50,10 @@ function rows(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8')).sheets[0].rows;
 }
 
+function validServiceRows(values) {
+  return values.filter((row) => text(row['Mã phiếu']) && text(row['Mã tour']));
+}
+
 function numberValue(value) {
   if (value === null || value === undefined || value === '') return 0;
   const parsed = Number(String(value).replace(/,/g, '').trim());
@@ -824,9 +828,11 @@ async function main() {
 
   const receipts = rows(receiptFile);
   const payments = rows(paymentFile);
-  const services = rows(serviceFile);
+  const rawServices = rows(serviceFile);
+  const services = validServiceRows(rawServices);
   const refs = await loadReferenceData(receipts, payments, services);
   const audit = auditPayload(receipts, payments, services, refs);
+  audit.skippedInvalidServiceRows = rawServices.length - services.length;
   const paymentRefs = buildPaymentRefs(services);
   const receiptCodes = receipts.map((row) => text(row['Mã Phiếu thu'])).filter(Boolean);
   const paymentCodes = unique([...payments.map((row) => text(row['Số chứng từ'])), ...paymentRefs.map((ref) => ref.code)]);
