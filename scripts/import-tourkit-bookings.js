@@ -441,16 +441,19 @@ async function deleteBookingDependencies(tx, bookingIds) {
 async function main() {
   const file = arg('--file') || process.argv[2];
   const dryRun = process.argv.includes('--dry-run');
+  const preserveExisting = process.argv.includes('--preserve-existing') || process.argv.includes('--append');
   if (!file) throw new Error('Cần truyền --file=/path/to/tourkit-bookings.json');
   const payload = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8').replace(/^\uFEFF/, ''));
   const rows = normalizeRows(payload);
   assertRows(rows);
   const importCodes = rows.map((row) => row.bookingCode);
-  const obsoleteBookings = await prisma.booking.findMany({
-    where: { code: { notIn: importCodes } },
-    select: { id: true, code: true, customerName: true, tourProgramId: true },
-    orderBy: { code: 'asc' },
-  });
+  const obsoleteBookings = preserveExisting
+    ? []
+    : await prisma.booking.findMany({
+      where: { code: { notIn: importCodes } },
+      select: { id: true, code: true, customerName: true, tourProgramId: true },
+      orderBy: { code: 'asc' },
+    });
   const existingImportBookings = await prisma.booking.findMany({
     where: { code: { in: importCodes } },
     select: { id: true, code: true },
@@ -477,6 +480,7 @@ async function main() {
     linkedOrders: linkedOrders.slice(0, 20),
     newOrders,
     dryRun,
+    preserveExisting,
   }, null, 2));
   if (dryRun) return;
 
