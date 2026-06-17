@@ -18,6 +18,8 @@ type GroupKey =
   | 'by-market'
   | 'by-type';
 type DateFieldKey = 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'paymentDate' | 'settledAt' | 'closedAt';
+type FinanceDateFieldKey = DateFieldKey | 'documentDate';
+type FinanceViewKey = 'overview' | 'orders' | 'receipts' | 'payments' | 'customer-debt' | 'supplier-debt' | 'reconciliation';
 type MessageTone = 'idle' | 'success' | 'info' | 'error';
 type LoadReason = 'filter' | 'tab' | 'reset';
 
@@ -34,6 +36,15 @@ type Summary = {
   commission?: number;
   marginRate?: number;
   supplierCount?: number;
+  totalReceipt?: number;
+  totalPayment?: number;
+  netCashflow?: number;
+  receiptCount?: number;
+  paymentCount?: number;
+  customerDebtBalance?: number;
+  supplierDebtBalance?: number;
+  issueCount?: number;
+  orderCount?: number;
 };
 type MetricRow = Summary & {
   key: string;
@@ -46,7 +57,19 @@ type MetricRow = Summary & {
   profitAfterCommission?: number;
   paidRatio?: number;
 };
-type ReportData = { summary?: Summary; rows?: any[]; orders?: any[]; byType?: any[]; cashflowByMonth?: any[] };
+type ReportData = {
+  summary?: Summary;
+  rows?: any[];
+  orders?: any[];
+  byType?: any[];
+  cashflowByMonth?: any[];
+  orderRows?: any[];
+  receiptRows?: any[];
+  paymentRows?: any[];
+  customerDebtRows?: any[];
+  supplierDebtRows?: any[];
+  reconciliationRows?: any[];
+};
 type Overview = Summary & {
   totalOrders?: number;
   totalCustomers?: number;
@@ -67,6 +90,15 @@ const reportTabs: Array<{ key: ReportTabKey; label: string }> = [
   { key: 'customer-debt', label: 'Công nợ khách hàng' },
   { key: 'supplier-debt', label: 'Công nợ NCC' },
   { key: 'employees', label: 'Nhân viên' },
+];
+const financeViews: Array<{ key: FinanceViewKey; label: string }> = [
+  { key: 'overview', label: 'Tổng quan tài chính' },
+  { key: 'orders', label: 'Theo đơn / tour' },
+  { key: 'receipts', label: 'Phiếu thu' },
+  { key: 'payments', label: 'Phiếu chi' },
+  { key: 'customer-debt', label: 'Công nợ khách hàng' },
+  { key: 'supplier-debt', label: 'Công nợ nhà cung cấp' },
+  { key: 'reconciliation', label: 'Đối soát' },
 ];
 const tabLabels = Object.fromEntries(reportTabs.map((tab) => [tab.key, tab.label])) as Record<ReportTabKey, string>;
 const groupedTabs = new Set<ReportTabKey>(['revenue', 'profit']);
@@ -91,14 +123,7 @@ const typeOptions = [
   ['SINGLE_SERVICE', 'Dịch vụ lẻ'],
   ['FLIGHT_ORDER', 'Vé máy bay'],
 ];
-const tourTypeOptions = [
-  ['', 'Tất cả'],
-  ['FIT', 'FIT'],
-  ['GIT', 'GIT'],
-  ['LANDTOUR', 'Landtour'],
-];
 const orderTypeValues = new Set(typeOptions.map(([value]) => value).filter(Boolean));
-const tourTypeValues = new Set(tourTypeOptions.map(([value]) => value).filter(Boolean));
 const paymentOptions = [
   ['', 'Tất cả'],
   ['UNPAID', 'Chưa thu'],
@@ -130,15 +155,17 @@ const dateFields: Array<[DateFieldKey, string]> = [
   ['paymentDate', 'Ngày thanh toán'],
   ['settledAt', 'Ngày chốt'],
 ];
-const tourDateFields: Array<[DateFieldKey, string]> = [
-  ['createdAt', 'Ngày tạo'],
+const financeDateFields: Array<[FinanceDateFieldKey, string]> = [
+  ['createdAt', 'Ngày tạo đơn'],
   ['bookingDate', 'Ngày đặt'],
   ['startDate', 'Ngày bắt đầu'],
   ['endDate', 'Ngày kết thúc'],
-  ['closedAt', 'Ngày đóng tour'],
+  ['paymentDate', 'Ngày thanh toán đơn'],
+  ['settledAt', 'Ngày chốt đơn'],
+  ['documentDate', 'Ngày chứng từ'],
 ];
 const orderDateFieldValues = new Set(dateFields.map(([value]) => value));
-const tourDateFieldValues = new Set(tourDateFields.map(([value]) => value));
+const financeDateFieldValues = new Set(financeDateFields.map(([value]) => value));
 const orderFilterKeys = new Set([
   'search',
   'dateFrom',
@@ -156,9 +183,9 @@ const orderFilterKeys = new Set([
   'marketGroup',
   'settled',
 ]);
+const financeFilterKeys = new Set([...orderFilterKeys, 'supplier']);
 const supplierDebtFilterKeys = new Set(['search', 'supplier', 'dateFrom', 'dateTo']);
 const customerDebtFilterKeys = new Set([...orderFilterKeys].filter((key) => key !== 'dateField'));
-const tourFilterKeys = new Set(['search', 'dateFrom', 'dateTo', 'dateField', 'type', 'paymentStatus', 'status', 'branch', 'department', 'employee', 'marketGroup']);
 const emptyReport: ReportData = { summary: {}, rows: [] };
 const defaultFilters: Filters = { dateField: 'createdAt' };
 
@@ -205,7 +232,7 @@ function endpointFor(tab: ReportTabKey, selectedGroup: GroupKey) {
 
 function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: GroupKey, includeGroup = true) {
   const allowedKeys = tab === 'finance'
-    ? tourFilterKeys
+    ? financeFilterKeys
     : tab === 'customer-debt'
       ? customerDebtFilterKeys
       : tab === 'supplier-debt'
@@ -215,8 +242,8 @@ function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: Gro
   allowedKeys.forEach((key) => {
     const value = currentFilters[key];
     if (!value) return;
-    if (key === 'type' && !(tab === 'finance' ? tourTypeValues : orderTypeValues).has(value)) return;
-    if (key === 'dateField' && !(tab === 'finance' ? tourDateFieldValues : orderDateFieldValues).has(value as DateFieldKey)) return;
+    if (key === 'type' && !orderTypeValues.has(value)) return;
+    if (key === 'dateField' && !(tab === 'finance' ? financeDateFieldValues : orderDateFieldValues).has(value as FinanceDateFieldKey)) return;
     query[key] = value;
   });
   if (tab === 'customer-debt' || tab === 'supplier-debt') query.dateField = 'documentDate';
@@ -326,10 +353,14 @@ function reportSummaryCards(tab: ReportTabKey, summary: Summary, rowCount: numbe
   }
   if (tab === 'finance') {
     return [
+      { label: 'Tổng doanh thu', value: summary.totalRevenue, formatter: money },
       { label: 'Thực thu', value: summary.paidAmount, formatter: money },
       { label: 'Thực chi', value: summary.paidCost, formatter: money },
-      { label: 'Dòng tiền ròng', value: numberValue(summary.paidAmount) - numberValue(summary.paidCost), formatter: money },
-      { label: 'Tỷ suất', value: summary.marginRate, formatter: percent },
+      { label: 'Dòng tiền ròng', value: summary.netCashflow ?? numberValue(summary.paidAmount) - numberValue(summary.paidCost), formatter: money },
+      { label: 'Còn phải thu', value: summary.remainingRevenue, formatter: money },
+      { label: 'Còn phải chi', value: summary.remainingCost, formatter: money },
+      { label: 'Lợi nhuận', value: summary.profit, formatter: money },
+      { label: 'Cần đối soát', value: summary.issueCount, formatter: integer },
     ];
   }
   return [
@@ -345,9 +376,44 @@ function filenameFor(tab: ReportTabKey) {
   return `smarttour-${tab}-${date}.csv`;
 }
 
+function dateText(value: unknown) {
+  if (!value) return '—';
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return String(value);
+  return date.toLocaleDateString('vi-VN');
+}
+
+function clipped(value: unknown, fallback = '—') {
+  const textValue = String(value ?? '').trim();
+  return textValue || fallback;
+}
+
+function financeStatus(value: unknown) {
+  const status = String(value || '');
+  const labels: Record<string, string> = {
+    DRAFT: 'Nháp',
+    PENDING: 'Chờ duyệt',
+    APPROVED: 'Đã duyệt',
+    REJECTED: 'Từ chối',
+    CANCELLED: 'Đã hủy',
+    PARTIAL: 'Một phần',
+    PAID: 'Đã thanh toán',
+    UNPAID: 'Chưa thanh toán',
+  };
+  return labels[status] || status || '—';
+}
+
+function financeAmountClass(value: unknown) {
+  const amount = numberValue(value);
+  if (amount > 0) return 'financeAmountPositive';
+  if (amount < 0) return 'financeAmountNegative';
+  return '';
+}
+
 export default function ReportsClient({ initialOverview, initialRevenue, initialMessage }: { initialOverview: Overview; initialRevenue: ReportData; initialMessage?: string }) {
   const [overview, setOverview] = useState<Overview>(initialOverview || {});
   const [active, setActive] = useState<ReportTabKey>('revenue');
+  const [financeView, setFinanceView] = useState<FinanceViewKey>('overview');
   const [groupBy, setGroupBy] = useState<GroupKey>('by-created-date');
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [report, setReport] = useState<ReportData>(initialRevenue || emptyReport);
@@ -479,6 +545,145 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
     }
   }
 
+  function renderFinanceTable(title: string, rows: any[], columns: Array<{ key: string; header: string; numeric?: boolean; render?: (row: any) => any }>, emptyText: string) {
+    return (
+      <section className="financeReportBlock">
+        <div className="sectionHeader">
+          <h3>{title}</h3>
+          <span>{rows.length} dòng</span>
+        </div>
+        <div className="fitTableWrap compactListTableWrap financeReportTableWrap">
+          <table className="fitTable reportTable compactListTable financeReportTable">
+            <thead>
+              <tr>{columns.map((column) => <th key={column.key}>{column.header}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.key || row.id || `${title}-${index}`}>
+                  {columns.map((column) => {
+                    const raw = column.render ? column.render(row) : row[column.key];
+                    const titleText = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : undefined;
+                    return <td key={column.key} title={titleText} className={column.numeric ? financeAmountClass(raw) : undefined}>{raw}</td>;
+                  })}
+                </tr>
+              ))}
+              {rows.length === 0 ? <tr><td colSpan={columns.length} className="tableEmptyState">{loading ? 'Đang tải dữ liệu tài chính...' : emptyText}</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
+
+  function renderFinanceHybrid() {
+    const summary = report.summary || {};
+    const orderRows = report.orderRows || [];
+    const receiptRows = report.receiptRows || [];
+    const paymentRows = report.paymentRows || [];
+    const customerDebtRows = report.customerDebtRows || [];
+    const supplierDebtRows = report.supplierDebtRows || [];
+    const reconciliationRows = report.reconciliationRows || [];
+    const cashflowRows = report.cashflowByMonth || [];
+    const overviewMetrics = [
+      ['Tổng doanh thu', summary.totalRevenue],
+      ['Thực thu theo đơn', summary.paidAmount],
+      ['Thực chi theo đơn', summary.paidCost],
+      ['Dòng tiền thực', summary.netCashflow],
+      ['Công nợ khách hàng', summary.customerDebtBalance],
+      ['Công nợ nhà cung cấp', summary.supplierDebtBalance],
+      ['Phiếu thu', summary.receiptCount],
+      ['Phiếu chi', summary.paymentCount],
+      ['Dòng cần đối soát', summary.issueCount],
+    ];
+
+    return (
+      <div className="financeReportHybrid">
+        <div className="financeReportTabs">
+          {financeViews.map((view) => (
+            <button type="button" key={view.key} className={financeView === view.key ? 'active' : ''} onClick={() => setFinanceView(view.key)}>
+              {view.label}
+            </button>
+          ))}
+        </div>
+
+        {financeView === 'overview' ? (
+          <div className="financeReportOverview">
+            <div className="summaryRows reportSummary financeReportSummary">
+              {overviewMetrics.map(([label, value]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{String(label).includes('Phiếu') || String(label).includes('Dòng cần') ? integer(value) : money(value)}</strong>
+                </div>
+              ))}
+            </div>
+            {renderFinanceTable('Dòng tiền theo tháng', cashflowRows, [
+              { key: 'period', header: 'Tháng' },
+              { key: 'received', header: 'Tiền vào', numeric: true, render: (row) => money(row.received) },
+              { key: 'paid', header: 'Tiền ra', numeric: true, render: (row) => money(row.paid) },
+              { key: 'netCashflow', header: 'Dòng tiền ròng', numeric: true, render: (row) => money(row.netCashflow) },
+            ], 'Chưa có dòng tiền theo tháng.')}
+          </div>
+        ) : null}
+
+        {financeView === 'orders' ? renderFinanceTable('Theo đơn / tour', orderRows, [
+          { key: 'systemCode', header: 'Mã đơn', render: (row) => <strong title={row.systemCode}>{row.systemCode}</strong> },
+          { key: 'customerName', header: 'Khách hàng', render: (row) => clipped(row.customerName) },
+          { key: 'name', header: 'Tour / Dịch vụ', render: (row) => clipped(row.name) },
+          { key: 'startDate', header: 'Lịch', render: (row) => `${dateText(row.startDate)} - ${dateText(row.endDate)}` },
+          { key: 'revenue', header: 'Tổng thu', numeric: true, render: (row) => money(row.revenue) },
+          { key: 'paidAmount', header: 'Thực thu', numeric: true, render: (row) => money(row.paidAmount) },
+          { key: 'remainingRevenue', header: 'Còn thu', numeric: true, render: (row) => money(row.remainingRevenue) },
+          { key: 'cost', header: 'Tổng chi', numeric: true, render: (row) => money(row.cost) },
+          { key: 'paidCost', header: 'Thực chi', numeric: true, render: (row) => money(row.paidCost) },
+          { key: 'profit', header: 'Lợi nhuận', numeric: true, render: (row) => money(row.profit) },
+          { key: 'issueCount', header: 'Đối soát', render: (row) => row.issueCount ? <span className="financeIssueBadge" title={(row.issues || []).join('\n')}>{integer(row.issueCount)} vấn đề</span> : 'Ổn' },
+        ], 'Không có đơn/tour phù hợp bộ lọc.') : null}
+
+        {financeView === 'receipts' ? renderFinanceTable('Phiếu thu', receiptRows, [
+          { key: 'receiptCode', header: 'Mã phiếu thu', render: (row) => <strong title={row.receiptCode}>{row.receiptCode}</strong> },
+          { key: 'payerName', header: 'Người nộp', render: (row) => clipped(row.payerName) },
+          { key: 'paymentDate', header: 'Ngày thu', render: (row) => dateText(row.paymentDate) },
+          { key: 'receiptAmount', header: 'Số tiền', numeric: true, render: (row) => money(row.receiptAmount) },
+          { key: 'approvalStatus', header: 'Trạng thái', render: (row) => financeStatus(row.approvalStatus) },
+          { key: 'orderCode', header: 'Đơn / Tour', render: (row) => clipped(row.orderCode || row.tourCode || row.tourName) },
+        ], 'Không có phiếu thu phù hợp bộ lọc.') : null}
+
+        {financeView === 'payments' ? renderFinanceTable('Phiếu chi', paymentRows, [
+          { key: 'voucherCode', header: 'Mã phiếu chi', render: (row) => <strong title={row.voucherCode}>{row.voucherCode}</strong> },
+          { key: 'receiverName', header: 'NCC / Người nhận', render: (row) => clipped(row.supplierName || row.receiverName) },
+          { key: 'paymentDate', header: 'Ngày chi', render: (row) => dateText(row.paymentDate) },
+          { key: 'paymentAmount', header: 'Số tiền', numeric: true, render: (row) => money(row.paymentAmount) },
+          { key: 'approvalStatus', header: 'Trạng thái', render: (row) => financeStatus(row.approvalStatus) },
+          { key: 'orderCode', header: 'Đơn / Tour', render: (row) => clipped(row.orderCode || row.tourCode || row.operationVoucherCode) },
+        ], 'Không có phiếu chi phù hợp bộ lọc.') : null}
+
+        {financeView === 'customer-debt' ? renderFinanceTable('Công nợ khách hàng', customerDebtRows, [
+          { key: 'customerName', header: 'Khách hàng', render: (row) => clipped(row.customerName || row.label) },
+          { key: 'systemCode', header: 'Mã đơn', render: (row) => clipped(row.systemCode || row.orderCodes?.join(', ')) },
+          { key: 'debitTotal', header: 'Phải thu', numeric: true, render: (row) => money(row.debitTotal ?? row.revenue) },
+          { key: 'creditTotal', header: 'Đã thu', numeric: true, render: (row) => money(row.creditTotal ?? row.paidAmount) },
+          { key: 'balance', header: 'Còn nợ', numeric: true, render: (row) => money(row.balance ?? row.remainingRevenue) },
+        ], 'Không có công nợ khách hàng phù hợp bộ lọc.') : null}
+
+        {financeView === 'supplier-debt' ? renderFinanceTable('Công nợ nhà cung cấp', supplierDebtRows, [
+          { key: 'supplierName', header: 'Nhà cung cấp', render: (row) => clipped(row.supplierName || row.label) },
+          { key: 'voucherCodes', header: 'Phiếu dịch vụ', render: (row) => clipped(row.voucherCodes?.join(', ')) },
+          { key: 'debitTotal', header: 'Phải chi', numeric: true, render: (row) => money(row.debitTotal ?? row.totalPurchase) },
+          { key: 'creditTotal', header: 'Đã chi', numeric: true, render: (row) => money(row.creditTotal ?? row.paidAmount) },
+          { key: 'balance', header: 'Còn nợ', numeric: true, render: (row) => money(row.balance ?? row.remainingAmount) },
+        ], 'Không có công nợ nhà cung cấp phù hợp bộ lọc.') : null}
+
+        {financeView === 'reconciliation' ? renderFinanceTable('Đối soát', reconciliationRows, [
+          { key: 'type', header: 'Loại', render: (row) => row.type === 'ORDER' ? 'Đơn hàng' : row.type === 'ORPHAN_RECEIPT' ? 'Phiếu thu rời' : 'Phiếu chi rời' },
+          { key: 'code', header: 'Mã', render: (row) => <strong title={row.code}>{row.code}</strong> },
+          { key: 'title', header: 'Nội dung', render: (row) => clipped(row.title || row.customerName || row.supplierName) },
+          { key: 'amount', header: 'Số tiền lệch', numeric: true, render: (row) => money(row.amount) },
+          { key: 'issues', header: 'Cảnh báo', render: (row) => <span className="financeIssueBadge" title={(row.issues || []).join('\n')}>{(row.issues || []).join('; ') || 'Cần kiểm tra'}</span> },
+        ], 'Không có dòng cần đối soát.') : null}
+      </div>
+    );
+  }
+
   const isSupplierDebt = active === 'supplier-debt';
   const isCustomerDebt = active === 'customer-debt';
   const isFinance = active === 'finance';
@@ -508,10 +713,10 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
             <label>NCC<input value={filters.supplier || ''} placeholder="Tên nhà cung cấp" onChange={(event) => setFilter('supplier', event.target.value)} /></label>
           ) : (
             <>
-              {!isCustomerDebt && <label>Lọc theo ngày<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{(isFinance ? tourDateFields : dateFields).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
-              <label>Loại dịch vụ<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{(isFinance ? tourTypeOptions : typeOptions).map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+              {!isCustomerDebt && <label>Lọc theo ngày<select value={filters.dateField || 'createdAt'} onChange={(event) => setFilter('dateField', event.target.value)}>{(isFinance ? financeDateFields : dateFields).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+              <label>Loại dịch vụ<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
-              {!isFinance && <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>}
+              <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Trạng thái đơn<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
               <label>Chi nhánh<input value={filters.branch || ''} onChange={(event) => setFilter('branch', event.target.value)} /></label>
               <label>Phòng ban<input value={filters.department || ''} onChange={(event) => setFilter('department', event.target.value)} /></label>
@@ -546,15 +751,17 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
 
       <section className="panel listPanel">
         <div className="sectionHeader"><h2>{tabLabels[active]}</h2><span>{loading ? 'Đang tải dữ liệu...' : `${rows.length} dòng`}</span></div>
-        <div className="fitTableWrap compactListTableWrap">
-          <table className="fitTable orderListTable reportTable compactListTable">
-            <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-              {rows.length === 0 ? <tr><td colSpan={table.getAllLeafColumns().length} className="tableEmptyState">{loading ? 'Đang tải dữ liệu báo cáo...' : 'Không có dữ liệu báo cáo phù hợp bộ lọc.'}</td></tr> : null}
-            </tbody>
-          </table>
-        </div>
+        {active === 'finance' ? renderFinanceHybrid() : (
+          <div className="fitTableWrap compactListTableWrap">
+            <table className="fitTable orderListTable reportTable compactListTable">
+              <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
+              <tbody>
+                {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+                {rows.length === 0 ? <tr><td colSpan={table.getAllLeafColumns().length} className="tableEmptyState">{loading ? 'Đang tải dữ liệu báo cáo...' : 'Không có dữ liệu báo cáo phù hợp bộ lọc.'}</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -16,6 +16,28 @@ type TourFinanceRow = Prisma.TourGetPayload<{
     financePayments: true;
   };
 }>;
+type FinanceReceiptReportRow = Prisma.FinanceReceiptGetPayload<{
+  include: {
+    customer: true;
+    orders: true;
+  };
+}>;
+type FinancePaymentReportRow = Prisma.FinancePaymentGetPayload<{
+  include: {
+    supplier: true;
+    order: true;
+    tour: true;
+    operationVoucher: true;
+  };
+}>;
+type FinanceCashflowReportRow = Prisma.FinanceCashflowEntryGetPayload<{
+  include: {
+    order: true;
+    tour: true;
+    customer: true;
+    supplier: true;
+  };
+}>;
 type MetricRow = {
   key: string;
   label: string;
@@ -66,8 +88,10 @@ const TOUR_PAYMENT_STATUSES = new Set<string>(Object.values(PaymentStatus));
 const ORDER_COST_STATUSES = new Set<string>(Object.values(OrderCostStatus));
 const ORDER_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'] as const;
 const TOUR_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
+const FINANCE_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt', 'documentDate'] as const;
 type OrderDateField = typeof ORDER_DATE_FIELDS[number];
 type TourDateField = typeof TOUR_DATE_FIELDS[number];
+type FinanceDateField = typeof FINANCE_DATE_FIELDS[number];
 
 
 @Injectable()
@@ -117,19 +141,48 @@ export class ReportsService {
   }
 
   async finance(query: ReportQuery, user?: RequestUser) {
-    const tours = await this.tours(query, user);
-    const byType = this.groupTours(tours, 'by-type').rows;
+    this.assertFinanceQuery(query);
+    const orders = await this.orders(this.financeOrderQuery(query), user);
+    const orderIds = orders.map((order) => order.id);
+    const [receiptRows, paymentRows, cashflowRows, customerDebtReport, supplierDebtReport] = await Promise.all([
+      this.financeReceiptRows(query, orderIds, user),
+      this.financePaymentRows(query, orderIds, user),
+      this.financeCashflowRows(query, orderIds, user),
+      this.customerDebt({ ...query, dateField: 'documentDate' }, user),
+      this.supplierDebt({ ...query, dateField: 'documentDate' }, user),
+    ]);
+    const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows);
+    const orphanReceiptRows = this.orphanReceiptRows(receiptRows);
+    const orphanPaymentRows = this.orphanPaymentRows(paymentRows);
+    const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
+    const grouped = this.groupOrders(orders, 'by-type');
+    const cashflowSummary = this.cashflowSummary(cashflowRows);
+    const summary = {
+      ...grouped.summary,
+      totalReceipt: cashflowSummary.totalReceipt,
+      totalPayment: cashflowSummary.totalPayment,
+      netCashflow: cashflowSummary.netCashflow,
+      receiptCount: receiptRows.length,
+      paymentCount: paymentRows.length,
+      customerDebtBalance: Number(customerDebtReport.summary?.balance || customerDebtReport.summary?.remainingRevenue || 0),
+      supplierDebtBalance: Number(supplierDebtReport.summary?.balance || supplierDebtReport.summary?.remainingAmount || 0),
+      issueCount: reconciliationRows.length,
+      orderCount: orderRows.length,
+    };
     return {
-      summary: this.tourFinanceSummary(tours),
-      rows: byType,
-      byType,
-      cashflowByMonth: this.groupTours(tours, 'by-created-date', 'month').rows.map((row) => ({
-        period: row.key,
-        received: row.paidAmount,
-        paid: row.paidCost,
-        netCashflow: row.paidAmount - row.paidCost,
-      })),
-      tours: tours.slice(0, 300),
+      summary,
+      rows: grouped.rows,
+      byType: grouped.rows,
+      cashflowByMonth: this.cashflowByMonth(cashflowRows),
+      orders: orders.slice(0, 300),
+      orderRows,
+      receiptRows: receiptRows.map((row) => this.receiptRows(row)),
+      paymentRows: paymentRows.map((row) => this.paymentRows(row)),
+      customerDebtRows: customerDebtReport.rows,
+      supplierDebtRows: supplierDebtReport.rows,
+      reconciliationRows,
+      orphanReceiptRows,
+      orphanPaymentRows,
     };
   }
 
@@ -233,6 +286,325 @@ export class ReportsService {
       orderBy: [{ createdAt: 'desc' }, { systemCode: 'asc' }],
       take: 1000,
     });
+  }
+
+  private financeOrderQuery(query: ReportQuery): ReportQuery {
+    if (query.dateField === 'documentDate') {
+      const { dateField, ...rest } = query;
+      return rest;
+    }
+    return query;
+  }
+
+  private async financeReceiptRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
+    const searchOr: Prisma.FinanceReceiptWhereInput[] = contains
+      ? [
+          { receiptCode: contains },
+          { receiptName: contains },
+          { payerName: contains },
+          { payerPhone: contains },
+          { payerEmail: contains },
+          { reason: contains },
+          { partnerName: contains },
+          { note: contains },
+          { customer: { is: { fullName: contains } } },
+          { customer: { is: { phone: contains } } },
+          { orders: { some: { orderCode: contains } } },
+          { orders: { some: { tourCode: contains } } },
+          { orders: { some: { tourName: contains } } },
+          ...(orderIds.length ? [{ orders: { some: { orderId: { in: orderIds } } } }] : []),
+        ]
+      : [];
+    const where = branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({
+      deletedAt: null,
+      ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
+      ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
+      ...(query.employee ? { assignedStaff: { contains: query.employee, mode: 'insensitive' } } : {}),
+      ...(searchOr.length ? { OR: searchOr } : {}),
+      ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
+    }, user);
+    return this.prisma.financeReceipt.findMany({
+      where,
+      include: { customer: true, orders: true },
+      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { receiptCode: 'asc' }],
+      take: 300,
+    });
+  }
+
+  private async financePaymentRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
+    const searchOr: Prisma.FinancePaymentWhereInput[] = contains
+      ? [
+          { voucherCode: contains },
+          { voucherName: contains },
+          { receiverName: contains },
+          { receiverPhone: contains },
+          { reason: contains },
+          { partnerName: contains },
+          { note: contains },
+          { supplier: { is: { supplierCode: contains } } },
+          { supplier: { is: { name: contains } } },
+          { order: { is: { systemCode: contains } } },
+          { order: { is: { tourCode: contains } } },
+          { order: { is: { name: contains } } },
+          { tour: { is: { systemCode: contains } } },
+          { tour: { is: { tourCode: contains } } },
+          { operationVoucher: { is: { voucherCode: contains } } },
+          { operationVoucher: { is: { serviceName: contains } } },
+          ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
+        ]
+      : [];
+    const where = branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({
+      deletedAt: null,
+      ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
+      ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
+      ...(query.employee ? { assignedStaff: { contains: query.employee, mode: 'insensitive' } } : {}),
+      ...(searchOr.length ? { OR: searchOr } : {}),
+      ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
+    }, user);
+    return this.prisma.financePayment.findMany({
+      where,
+      include: { supplier: true, order: true, tour: true, operationVoucher: true },
+      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { voucherCode: 'asc' }],
+      take: 300,
+    });
+  }
+
+  private async financeCashflowRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
+    const searchOr: Prisma.FinanceCashflowEntryWhereInput[] = contains
+      ? [
+          { sourceId: contains },
+          { note: contains },
+          { staff: contains },
+          { order: { is: { systemCode: contains } } },
+          { order: { is: { tourCode: contains } } },
+          { order: { is: { name: contains } } },
+          { tour: { is: { systemCode: contains } } },
+          { tour: { is: { tourCode: contains } } },
+          { customer: { is: { fullName: contains } } },
+          { customer: { is: { phone: contains } } },
+          { supplier: { is: { supplierCode: contains } } },
+          { supplier: { is: { name: contains } } },
+          ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
+        ]
+      : [];
+    const where = branchDepartmentScopeWhere<Prisma.FinanceCashflowEntryWhereInput>({
+      ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
+      ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
+      ...(query.employee ? { staff: { contains: query.employee, mode: 'insensitive' } } : {}),
+      ...(searchOr.length ? { OR: searchOr } : {}),
+      ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
+    }, user);
+    return this.prisma.financeCashflowEntry.findMany({
+      where,
+      include: { order: true, tour: true, customer: true, supplier: true },
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+      take: 1000,
+    });
+  }
+
+  private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[]) {
+    const receiptsByOrder = new Map<string, { amount: number; count: number }>();
+    const paymentsByOrder = new Map<string, { amount: number; count: number }>();
+    receiptRows.forEach((receipt) => {
+      if (receipt.approvalStatus !== 'APPROVED') return;
+      receipt.orders.forEach((line) => {
+        if (!line.orderId) return;
+        const current = receiptsByOrder.get(line.orderId) || { amount: 0, count: 0 };
+        current.amount += Number(line.amount || 0);
+        current.count += 1;
+        receiptsByOrder.set(line.orderId, current);
+      });
+    });
+    paymentRows.forEach((payment) => {
+      if (payment.approvalStatus !== 'APPROVED' || !payment.orderId) return;
+      const current = paymentsByOrder.get(payment.orderId) || { amount: 0, count: 0 };
+      current.amount += Number(payment.paymentAmount || 0);
+      current.count += 1;
+      paymentsByOrder.set(payment.orderId, current);
+    });
+
+    return orders.map((order) => {
+      const revenue = Number(order.totalRevenue);
+      const paidAmount = Number(order.paidAmount);
+      const remainingRevenue = Number(order.remainingRevenue);
+      const cost = Number(order.totalCost);
+      const paidCost = Number(order.paidCost);
+      const remainingCost = Number(order.remainingCost);
+      const profit = Number(order.profit);
+      const receipt = receiptsByOrder.get(order.id) || { amount: 0, count: 0 };
+      const payment = paymentsByOrder.get(order.id) || { amount: 0, count: 0 };
+      const issues: string[] = [];
+      if (remainingRevenue > 0) issues.push(`Còn phải thu ${remainingRevenue.toLocaleString('vi-VN')} VND`);
+      if (remainingCost > 0) issues.push(`Còn phải chi ${remainingCost.toLocaleString('vi-VN')} VND`);
+      if (Math.abs(paidAmount - receipt.amount) > 1) issues.push(`Thực thu đơn hàng lệch phiếu thu ${Math.abs(paidAmount - receipt.amount).toLocaleString('vi-VN')} VND`);
+      if (Math.abs(paidCost - payment.amount) > 1) issues.push(`Thực chi đơn hàng lệch phiếu chi ${Math.abs(paidCost - payment.amount).toLocaleString('vi-VN')} VND`);
+      return {
+        key: order.id,
+        orderId: order.id,
+        label: `${order.systemCode} - ${order.name}`,
+        systemCode: order.systemCode,
+        tourCode: order.tourCode,
+        holdCode: order.holdCode,
+        name: order.name,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        type: order.type,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        costStatus: order.costStatus,
+        startDate: order.startDate,
+        endDate: order.endDate,
+        branch: order.branch,
+        department: order.department,
+        employee: order.operatorOwner || order.createdBy,
+        orderCount: 1,
+        customerCount: order.customerName || order.customerPhone ? 1 : 0,
+        revenue,
+        totalRevenue: revenue,
+        paidAmount,
+        remainingRevenue,
+        cost,
+        totalCost: cost,
+        paidCost,
+        remainingCost,
+        profit,
+        commission: Number(order.commission),
+        marginRate: revenue ? (profit / revenue) * 100 : 0,
+        receiptAmount: receipt.amount,
+        receiptCount: receipt.count,
+        paymentAmount: payment.amount,
+        paymentCount: payment.count,
+        issueCount: issues.length,
+        issues,
+      };
+    });
+  }
+
+  private receiptRows(row: FinanceReceiptReportRow) {
+    const firstOrder = row.orders[0];
+    return {
+      key: row.id,
+      id: row.id,
+      receiptCode: row.receiptCode,
+      receiptName: row.receiptName,
+      receiptType: row.receiptType,
+      payerName: row.payerName || row.customer?.fullName || '',
+      payerPhone: row.payerPhone || row.customer?.phone || '',
+      paymentDate: row.paymentDate,
+      paymentMethod: row.paymentMethod,
+      approvalStatus: row.approvalStatus,
+      totalAmount: Number(row.totalAmount),
+      receiptAmount: Number(row.receiptAmount),
+      branch: row.branch,
+      assignedStaff: row.assignedStaff,
+      orderId: firstOrder?.orderId || null,
+      orderCode: firstOrder?.orderCode || '',
+      tourCode: firstOrder?.tourCode || '',
+      tourName: firstOrder?.tourName || '',
+      orderCount: row.orders.filter((line) => line.orderId).length,
+    };
+  }
+
+  private paymentRows(row: FinancePaymentReportRow) {
+    return {
+      key: row.id,
+      id: row.id,
+      voucherCode: row.voucherCode,
+      voucherName: row.voucherName,
+      voucherType: row.voucherType,
+      receiverName: row.receiverName || row.supplier?.name || '',
+      receiverPhone: row.receiverPhone || row.supplier?.phone || '',
+      supplierName: row.supplier?.name || '',
+      supplierCode: row.supplier?.supplierCode || '',
+      paymentDate: row.paymentDate,
+      paymentMethod: row.paymentMethod,
+      approvalStatus: row.approvalStatus,
+      totalAmount: Number(row.totalAmount),
+      paymentAmount: Number(row.paymentAmount),
+      branch: row.branch,
+      assignedStaff: row.assignedStaff,
+      orderId: row.orderId,
+      orderCode: row.order?.systemCode || '',
+      tourCode: row.tour?.tourCode || row.order?.tourCode || '',
+      tourName: row.tour?.name || row.order?.name || '',
+      operationVoucherCode: row.operationVoucher?.voucherCode || '',
+    };
+  }
+
+  private orphanReceiptRows(rows: FinanceReceiptReportRow[]) {
+    return rows
+      .filter((row) => !row.orders.some((line) => line.orderId))
+      .map((row) => this.receiptRows(row));
+  }
+
+  private orphanPaymentRows(rows: FinancePaymentReportRow[]) {
+    return rows
+      .filter((row) => !row.orderId)
+      .map((row) => this.paymentRows(row));
+  }
+
+  private financeReconciliationRows(orderRows: any[], orphanReceiptRows: any[], orphanPaymentRows: any[]) {
+    const orderIssues = orderRows
+      .filter((row) => row.issueCount > 0)
+      .map((row) => ({
+        key: `ORDER:${row.orderId}`,
+        type: 'ORDER',
+        severity: row.remainingRevenue > 0 || row.remainingCost > 0 ? 'warning' : 'info',
+        code: row.systemCode,
+        title: row.name,
+        customerName: row.customerName,
+        amount: Math.max(row.remainingRevenue, row.remainingCost, Math.abs(row.paidAmount - row.receiptAmount), Math.abs(row.paidCost - row.paymentAmount)),
+        issueCount: row.issueCount,
+        issues: row.issues,
+      }));
+    const receiptIssues = orphanReceiptRows.map((row) => ({
+      key: `RECEIPT:${row.id}`,
+      type: 'ORPHAN_RECEIPT',
+      severity: row.approvalStatus === 'APPROVED' ? 'warning' : 'info',
+      code: row.receiptCode,
+      title: row.receiptName,
+      customerName: row.payerName,
+      amount: row.receiptAmount,
+      issueCount: 1,
+      issues: ['Phiếu thu chưa gắn đơn/tour để đối soát doanh thu'],
+    }));
+    const paymentIssues = orphanPaymentRows.map((row) => ({
+      key: `PAYMENT:${row.id}`,
+      type: 'ORPHAN_PAYMENT',
+      severity: row.approvalStatus === 'APPROVED' ? 'warning' : 'info',
+      code: row.voucherCode,
+      title: row.voucherName || row.receiverName,
+      supplierName: row.supplierName || row.receiverName,
+      amount: row.paymentAmount,
+      issueCount: 1,
+      issues: ['Phiếu chi chưa gắn đơn/tour để đối soát chi phí'],
+    }));
+    return [...orderIssues, ...receiptIssues, ...paymentIssues].slice(0, 300);
+  }
+
+  private cashflowSummary(rows: FinanceCashflowReportRow[]) {
+    const totalReceipt = rows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
+    const totalPayment = rows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
+    return { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment };
+  }
+
+  private cashflowByMonth(rows: FinanceCashflowReportRow[]) {
+    const months = new Map<string, { period: string; received: number; paid: number; netCashflow: number }>();
+    rows.forEach((row) => {
+      const period = row.paymentDate ? row.paymentDate.toISOString().slice(0, 7) : 'NO_DATE';
+      const current = months.get(period) || { period, received: 0, paid: 0, netCashflow: 0 };
+      if (row.entryType === 'RECEIPT') current.received += Number(row.amount);
+      if (row.entryType === 'PAYMENT') current.paid += Number(row.amount);
+      current.netCashflow = current.received - current.paid;
+      months.set(period, current);
+    });
+    return [...months.values()].sort((left, right) => right.period.localeCompare(left.period));
   }
 
   private orderWhere(query: ReportQuery): Prisma.OrderWhereInput {
@@ -677,6 +1049,14 @@ export class ReportsService {
     if (query.costStatus) throw new BadRequestException('costStatus is not valid for Tour reports');
   }
 
+  private assertFinanceQuery(query: ReportQuery) {
+    this.orderType(query.type);
+    this.orderStatus(query.status);
+    this.orderPaymentStatus(query.paymentStatus);
+    this.orderCostStatus(query.costStatus);
+    this.normalizeFinanceDateField(query.dateField);
+  }
+
   private assertDebtQuery(query: ReportQuery) {
     this.orderType(query.type);
     this.orderStatus(query.status);
@@ -708,6 +1088,12 @@ export class ReportsService {
     if (!field) return 'createdAt';
     if (!TOUR_DATE_FIELDS.includes(field as TourDateField)) throw new BadRequestException('dateField is not valid for Tour reports');
     return field as TourDateField;
+  }
+
+  private normalizeFinanceDateField(field?: string): FinanceDateField {
+    if (!field) return 'createdAt';
+    if (!FINANCE_DATE_FIELDS.includes(field as FinanceDateField)) throw new BadRequestException('dateField is not valid for finance reports');
+    return field as FinanceDateField;
   }
 
   private dateRange(field: string, from?: string, to?: string) {

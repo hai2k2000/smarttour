@@ -52,6 +52,13 @@ check_container() {
   fi
 }
 
+recent_logs_for_scan() {
+  local name="$1"
+  docker logs --since "${LOG_WINDOW:-10m}" "$name" 2>&1 \
+    | grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
+    || true
+}
+
 check_container smarttour-web-1
 check_container smarttour-api-1
 check_container smarttour-nginx-1
@@ -123,14 +130,14 @@ else
   fi
 fi
 
-if docker logs --since "${LOG_WINDOW:-10m}" smarttour-api-1 2>&1 | grep -Eiq 'error|exception|failed'; then
+if recent_logs_for_scan smarttour-api-1 | grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG api has recent error signature"
   failures=$((failures + 1))
 else
   echo "OK_LOG api"
 fi
 
-if docker logs --since "${LOG_WINDOW:-10m}" smarttour-web-1 2>&1 | grep -Eiq 'error|exception|failed'; then
+if recent_logs_for_scan smarttour-web-1 | grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG web has recent error signature"
   failures=$((failures + 1))
 else

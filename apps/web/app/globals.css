@@ -698,6 +698,20 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .reportTabs { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--dn-border); padding-bottom: 12px; margin-bottom: 14px; }
 .reportTabs button { border: 1px solid var(--dn-border); background: #fff; color: #276c72; border-radius: 7px; padding: 9px 12px; font-weight: 700; cursor: pointer; }
 .reportTabs button.active { background: var(--dn-primary); border-color: var(--dn-primary); color: #fff; }
+.financeReportHybrid { display: grid; gap: 14px; min-width: 0; }
+.financeReportTabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.financeReportTabs button { border: 1px solid var(--dn-border); background: #fff; color: #276c72; border-radius: 999px; padding: 8px 12px; font-weight: 800; cursor: pointer; }
+.financeReportTabs button.active { background: var(--dn-primary); border-color: var(--dn-primary); color: #fff; }
+.financeReportOverview { display: grid; gap: 12px; }
+.financeReportSummary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.financeReportBlock { display: grid; gap: 10px; min-width: 0; }
+.financeReportTableWrap { max-height: var(--compact-table-height, 520px); }
+.financeReportTable { min-width: 1040px; table-layout: fixed; }
+.financeReportTable th:first-child,
+.financeReportTable td:first-child { width: 170px; }
+.financeIssueBadge { display: inline-flex; align-items: center; max-width: 100%; border-radius: 999px; padding: 3px 8px; background: #fff4d6; color: #9a5b00; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.financeAmountPositive { color: #276749; font-weight: 800; }
+.financeAmountNegative { color: #b42318; font-weight: 800; }
 .reportControls { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; align-items: end; }
 .reportSummary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0; }
 @media (max-width: 1400px) { .orderWorkArea { grid-template-columns: 1fr; } .orderFilterGrid, .reportFilterGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

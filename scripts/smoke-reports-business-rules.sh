@@ -307,6 +307,22 @@ function financeShape(data) {
     for (const key of ['received', 'paid', 'netCashflow']) assertNumber(row[key], `finance.cashflowByMonth[${index}].${key}`);
   }
   assertArray(data.orders, 'finance.orders');
+  assertArray(data.orderRows, 'finance.orderRows');
+  assertArray(data.receiptRows, 'finance.receiptRows');
+  assertArray(data.paymentRows, 'finance.paymentRows');
+  assertArray(data.customerDebtRows, 'finance.customerDebtRows');
+  assertArray(data.supplierDebtRows, 'finance.supplierDebtRows');
+  assertArray(data.reconciliationRows, 'finance.reconciliationRows');
+  for (const key of ['totalReceipt', 'totalPayment', 'netCashflow', 'receiptCount', 'paymentCount', 'customerDebtBalance', 'supplierDebtBalance', 'issueCount', 'orderCount']) {
+    assertNumber(data.summary[key], `finance.summary.${key}`);
+  }
+  for (const [index, row] of data.orderRows.entries()) {
+    for (const key of ['systemCode', 'label']) assert(typeof row[key] === 'string', `finance.orderRows[${index}].${key} missing`);
+    for (const key of ['revenue', 'paidAmount', 'remainingRevenue', 'cost', 'paidCost', 'remainingCost', 'profit', 'receiptAmount', 'paymentAmount', 'issueCount']) {
+      assertNumber(row[key], `finance.orderRows[${index}].${key}`);
+    }
+    assertArray(row.issues, `finance.orderRows[${index}].issues`);
+  }
 }
 
 function customerDebtShape(data, label = 'customerDebt') {

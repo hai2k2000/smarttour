@@ -2,7 +2,7 @@ import { Controller, ForbiddenException, Get, Header, Param, Query, Req } from '
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser, userPermissions } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { DebtReportQueryDto, OrderReportQueryDto, ReportQueryDto, TourReportQueryDto } from './dto/report-query.dto';
+import { DebtReportQueryDto, FinanceReportQueryDto, OrderReportQueryDto, ReportQueryDto } from './dto/report-query.dto';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
@@ -33,7 +33,7 @@ export class ReportsController {
 
   @Get('finance')
   @RequirePermissions('report.view', 'finance.cashflow.view')
-  finance(@Query() query: TourReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  finance(@Query() query: FinanceReportQueryDto, @Req() request?: { user?: RequestUser }) {
     return this.service.finance(query, request?.user);
   }
 

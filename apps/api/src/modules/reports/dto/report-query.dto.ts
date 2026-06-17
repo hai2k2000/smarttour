@@ -25,6 +25,7 @@ const REPORT_PAYMENT_STATUS_VALUES = uniqueValues(enumValues(OrderPaymentStatus)
 const ORDER_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'] as const;
 const TOUR_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
 const DEBT_REPORT_DATE_FIELDS = ['documentDate'] as const;
+const FINANCE_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt', 'documentDate'] as const;
 const REPORT_DATE_FIELDS = uniqueValues([...ORDER_REPORT_DATE_FIELDS], [...TOUR_REPORT_DATE_FIELDS], [...DEBT_REPORT_DATE_FIELDS]);
 const REPORT_GROUPS = ['by-created-date', 'by-checkin-date', 'by-checkout-date', 'by-approved-date', 'by-employee', 'by-agency', 'by-branch', 'by-department', 'by-market', 'by-type'] as const;
 
@@ -179,6 +180,14 @@ export class DebtReportQueryDto extends OrderFilterReportQueryDto {
   @Transform(trimOptional)
   @IsOptional()
   @IsIn(DEBT_REPORT_DATE_FIELDS, { message: 'dateField is not valid for debt reports' })
+  dateField?: string;
+}
+
+export class FinanceReportQueryDto extends OrderFilterReportQueryDto {
+  @ApiPropertyOptional({ enum: FINANCE_REPORT_DATE_FIELDS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(FINANCE_REPORT_DATE_FIELDS, { message: 'dateField is not valid for finance reports' })
   dateField?: string;
 }
 
