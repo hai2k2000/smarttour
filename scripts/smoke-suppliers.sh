@@ -276,6 +276,7 @@ const typedMetadataSamples = {
     issueFee: '30000',
     commission: '25000',
   },
+  vouchers: {},
   'attraction-tickets': {},
   'landtour-suppliers': {
     supplierTourCode: 'LT-MATRIX',
@@ -432,6 +433,7 @@ function typedMatrixPayload(type, suffix) {
   const typedRoutes = [
     'restaurants',
     'flights',
+    'vouchers',
     'attraction-tickets',
     'landtour-suppliers',
     'water',

@@ -23,6 +23,7 @@ import { SupplierFile } from '../uploadSupplierFiles';
 export type SupplierType =
   | 'restaurants'
   | 'flights'
+  | 'vouchers'
   | 'attraction-tickets'
   | 'landtour-suppliers'
   | 'water'
@@ -90,6 +91,13 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
       { key: 'commission', label: 'Hoa hồng', type: 'number' },
     ],
   },
+  vouchers: {
+    title: 'Nhà cung cấp voucher',
+    shortTitle: 'Vouchers',
+    serviceTitle: 'Voucher và dịch vụ',
+    serviceNameLabel: 'Tên voucher',
+    serviceFields: [{ key: 'quantity', label: 'Số lượng', type: 'number' }, ...priceFields, { key: 'description', label: 'Mô tả', type: 'textarea' }],
+  },
   'attraction-tickets': {
     title: 'Nhà cung cấp vé tham quan',
     shortTitle: 'Vé tham quan',
@@ -118,9 +126,9 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
     ],
   },
   water: {
-    title: 'Nhà cung cấp nước uống',
-    shortTitle: 'Nước uống',
-    serviceTitle: 'Sản phẩm nước uống',
+    title: 'Nhà cung cấp nước suối',
+    shortTitle: 'Nước suối',
+    serviceTitle: 'Sản phẩm nước suối',
     serviceNameLabel: 'Tên sản phẩm',
     serviceFields: [
       { key: 'packageSize', label: 'Quy cách đóng gói' },

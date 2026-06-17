@@ -1,9 +1,10 @@
 export const SUPPLIER_TYPE_LABELS = {
   restaurants: 'Nhà hàng',
   flights: 'Vé máy bay',
+  vouchers: 'Vouchers',
   'attraction-tickets': 'Vé tham quan',
   'landtour-suppliers': 'Landtour',
-  water: 'Nước uống',
+  water: 'Nước suối',
   transport: 'Vận chuyển',
   bus: 'Nhà xe',
   other: 'Chi phí khác',
@@ -19,6 +20,7 @@ export type SupplierMetadataFieldType = 'text' | 'number' | 'date' | 'time' | 'd
 export const SUPPLIER_TYPE_CATEGORY_ALIASES: Record<TypedSupplierRoute, readonly string[]> = {
   restaurants: ['Restaurant'],
   flights: ['Flight', 'Flight Ticket'],
+  vouchers: ['Voucher', 'Vouchers', 'Service Voucher'],
   'attraction-tickets': ['Attraction Ticket'],
   'landtour-suppliers': ['Land Tour', 'LandTour Supplier'],
   water: ['Water'],
@@ -39,6 +41,7 @@ export const SUPPLIER_TYPE_METADATA_FIELDS: Record<TypedSupplierRoute, Readonly<
     nameDeadline: 'datetime', fullpayDeadline: 'datetime', taxPrice: 'number', airportFee: 'number',
     issueFee: 'number', commission: 'number',
   },
+  vouchers: {},
   'attraction-tickets': {},
   'landtour-suppliers': {
     supplierTourCode: 'text', duration: 'text', departurePlace: 'text', destinationPlace: 'text', tourType: 'text',

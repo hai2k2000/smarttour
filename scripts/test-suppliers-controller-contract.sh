@@ -15,14 +15,14 @@ upload_filter = Path('apps/api/src/modules/files/file-upload-size-exception.filt
 expected_types = {
     'restaurants', 'flights', 'attraction-tickets', 'landtour-suppliers',
     'water', 'transport', 'bus', 'other', 'villas', 'passport', 'guides',
-    'series-tickets',
+    'series-tickets', 'vouchers',
 }
 backend_types = set(re.findall(r"^\s{2}(?:'([^']+)'|([a-z][a-z-]*)):\s*'", types_source, re.M))
 backend_types = {quoted or plain for quoted, plain in backend_types}
 frontend_types = set(re.findall(r"^\s*\|\s*'([^']+)'", frontend, re.M))
 assert backend_types == expected_types, f'backend typed supplier routes differ: {backend_types}'
 assert frontend_types == expected_types, f'frontend typed supplier routes differ: {frontend_types}'
-for label in ['Nhà hàng', 'Vé máy bay', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên']:
+for label in ['Nhà hàng', 'Vé máy bay', 'Vouchers', 'Nước suối', 'Chi phí khác', 'Visa và hộ chiếu', 'Hướng dẫn viên']:
     assert label in types_source, f'typed supplier label must be Vietnamese: {label}'
 for alias in ["'Restaurant'", "'Flight'", "'Other Cost'", "'Passport Visa'", "'Series Ticket'"]:
     assert alias in types_source, f'legacy English category alias must remain supported: {alias}'

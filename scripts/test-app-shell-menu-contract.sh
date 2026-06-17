@@ -42,6 +42,35 @@ for (const title of expectedGroupOrder) {
   if (index >= 0) previousIndex = index;
 }
 
+const supplierGroupStart = groupsBlock.indexOf("key: 'suppliers'");
+const supplierGroupEnd = groupsBlock.indexOf("key: 'crm'", supplierGroupStart);
+const supplierGroupBlock = groupsBlock.slice(supplierGroupStart, supplierGroupEnd);
+const expectedSupplierItems = [
+  ["Tất cả nhà cung cấp", "/suppliers"],
+  ["Khách sạn", "/suppliers/hotels"],
+  ["Vouchers", "/suppliers/vouchers"],
+  ["Vé tham quan", "/suppliers/attraction-tickets"],
+  ["Nhà hàng", "/suppliers/restaurants"],
+  ["Vé máy bay", "/suppliers/flights"],
+  ["LandTour", "/suppliers/landtour-suppliers"],
+  ["Nước suối", "/suppliers/water"],
+  ["Vận chuyển", "/suppliers/transport"],
+  ["Nhà xe", "/suppliers/bus"],
+  ["Chi phí khác", "/suppliers/other"],
+  ["Villas", "/suppliers/villas"],
+  ["Hộ chiếu", "/suppliers/passport"],
+  ["Tour Guide", "/suppliers/guides"],
+  ["Series vé", "/suppliers/series-tickets"],
+];
+previousIndex = -1;
+for (const [label, href] of expectedSupplierItems) {
+  const token = `{ label: '${label}', href: '${href}'`;
+  const index = supplierGroupBlock.indexOf(token);
+  if (index < 0) failures.push(`missing supplier menu item: ${label} -> ${href}`);
+  if (index >= 0 && index <= previousIndex) failures.push(`supplier menu item out of order: ${label}`);
+  if (index >= 0) previousIndex = index;
+}
+
 for (const token of [
   'openNavGroups',
   'toggleNavGroup',

@@ -10,9 +10,10 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 const supplierPageConfigs: Record<SupplierType, { title: string; shortTitle: string }> = {
   restaurants: { title: 'Nhà cung cấp nhà hàng', shortTitle: 'Nhà hàng' },
   flights: { title: 'Nhà cung cấp vé máy bay', shortTitle: 'Vé máy bay' },
+  vouchers: { title: 'Nhà cung cấp voucher', shortTitle: 'Vouchers' },
   'attraction-tickets': { title: 'Nhà cung cấp vé tham quan', shortTitle: 'Vé tham quan' },
   'landtour-suppliers': { title: 'Nhà cung cấp Landtour', shortTitle: 'Landtour' },
-  water: { title: 'Nhà cung cấp nước uống', shortTitle: 'Nước uống' },
+  water: { title: 'Nhà cung cấp nước suối', shortTitle: 'Nước suối' },
   transport: { title: 'Nhà cung cấp vận chuyển', shortTitle: 'Vận chuyển' },
   bus: { title: 'Nhà xe tuyến cố định', shortTitle: 'Nhà xe' },
   other: { title: 'Nhà cung cấp chi phí khác', shortTitle: 'Chi phí khác' },

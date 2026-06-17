@@ -15,7 +15,7 @@ schema = Path('prisma/schema.prisma').read_text()
 
 expected_routes = {
     'restaurants', 'flights', 'attraction-tickets', 'landtour-suppliers', 'water', 'transport',
-    'bus', 'other', 'villas', 'passport', 'guides', 'series-tickets',
+    'bus', 'other', 'villas', 'passport', 'guides', 'series-tickets', 'vouchers',
 }
 backend_routes = set(re.findall(r"^  (?:'([^']+)'|([a-z][a-z-]*)): '[^']+',?$", types_source.split('export type TypedSupplierRoute')[0], re.M))
 backend_routes = {quoted or plain for quoted, plain in backend_routes}
@@ -25,9 +25,9 @@ assert frontend_routes == expected_routes, f'frontend typed routes differ: {fron
 
 for route, label in {
     'restaurants': 'Nhà hàng', 'flights': 'Vé máy bay', 'attraction-tickets': 'Vé tham quan',
-    'landtour-suppliers': 'Landtour', 'water': 'Nước uống', 'transport': 'Vận chuyển', 'bus': 'Nhà xe',
+    'landtour-suppliers': 'Landtour', 'water': 'Nước suối', 'transport': 'Vận chuyển', 'bus': 'Nhà xe',
     'other': 'Chi phí khác', 'villas': 'Biệt thự', 'passport': 'Visa và hộ chiếu', 'guides': 'Hướng dẫn viên',
-    'series-tickets': 'Vé series',
+    'series-tickets': 'Vé series', 'vouchers': 'Vouchers',
 }.items():
     pattern = rf"(?:'{re.escape(route)}'|{re.escape(route)}): '{re.escape(label)}'"
     assert re.search(pattern, types_source), f'missing backend mapping for {route}'
@@ -47,6 +47,7 @@ for key in ['taxPrice', 'departureDate', 'capacity', 'driverPhone', 'bedroomCoun
 for label in [
     "title: 'Nhà cung cấp nhà hàng'",
     "title: 'Nhà cung cấp vé máy bay'",
+    "title: 'Nhà cung cấp voucher'",
     "title: 'Nhà cung cấp vé tham quan'",
     "title: 'Nhà cung cấp Landtour'",
     "title: 'Nhà cung cấp vận chuyển'",
@@ -56,6 +57,7 @@ for label in [
     "title: 'Nhà cung cấp visa và hộ chiếu'",
     "title: 'Hướng dẫn viên'",
     "title: 'Series vé giữ chỗ'",
+    "title: 'Nhà cung cấp nước suối'",
     "label: 'Sân bay khởi hành'",
     "label: 'Sân bay đến'",
     "label: 'Hạn thanh toán đủ (FullPay)'",
