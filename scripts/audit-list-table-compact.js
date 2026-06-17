@@ -7,6 +7,7 @@ const globals = fs.readFileSync(path.join(root, 'apps/web/app/globals.css'), 'ut
 const popup = fs.readFileSync(path.join(root, 'apps/web/app/TableRowDetailPopup.tsx'), 'utf8');
 const reportsClient = fs.readFileSync(path.join(root, 'apps/web/app/reports/ReportsClient.tsx'), 'utf8');
 const securityClient = fs.readFileSync(path.join(root, 'apps/web/app/security/SecurityClient.tsx'), 'utf8');
+const orderCenterClient = fs.readFileSync(path.join(root, 'apps/web/app/order-center/OrderCenterClient.tsx'), 'utf8');
 
 const sourceFiles = [
   'apps/web/app/suppliers/hotels/HotelSuppliersClient.tsx',
@@ -97,6 +98,8 @@ const fixedLayoutBlock = blockAfter('Compact list tables', 'table-layout: fixed;
 const compactCssStart = globals.indexOf('Compact list-table viewport');
 const compactCssEnd = globals.indexOf('.rowDetailOverlay', compactCssStart);
 const compactCssBlock = compactCssStart >= 0 && compactCssEnd > compactCssStart ? globals.slice(compactCssStart, compactCssEnd) : '';
+const compactWrapBlock = ruleBlock('.compactListTableWrap');
+const fitCompactWrapBlock = ruleBlock('.fitTableWrap.compactListTableWrap');
 const cellClamp2Block = ruleBlock('.cellClamp2');
 const bindTitleStart = popup.indexOf('function bindTableCellTitles');
 const bindTitleEnd = popup.indexOf('function detailFromRow', bindTitleStart);
@@ -131,6 +134,19 @@ for (const [file, source] of sourceFiles) {
 
 if (!globals.includes('--list-visible-rows: 10')) {
   failures.push('globals.css: compact list viewport must show 10 rows');
+}
+if (!compactWrapBlock.includes('height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 2px)')) {
+  failures.push('globals.css: compact list viewport must reserve exactly 10 visible rows instead of relying only on max-height');
+}
+if (!fitCompactWrapBlock) {
+  failures.push('globals.css: .fitTableWrap.compactListTableWrap must explicitly override fitTableWrap overflow-y');
+} else {
+  for (const token of ['overflow-y: auto', 'overflow-x: auto', 'overscroll-behavior: contain']) {
+    if (!fitCompactWrapBlock.includes(token)) failures.push(`globals.css: .fitTableWrap.compactListTableWrap missing ${token}`);
+  }
+}
+if (/<br\s*\/?>/.test(orderCenterClient)) {
+  failures.push('OrderCenterClient.tsx: compact order-center list cells must not use <br /> because rows must stay one visual line');
 }
 
 if (!cellClamp2Block) {
@@ -189,7 +205,7 @@ if (securityClient.includes('</div>\n        {!roles.length ? <div className="ta
   failures.push('SecurityClient.tsx: role empty state must render inside securityTable tbody');
 }
 for (const token of [
-  'users.length === 0 ? <tr><td colSpan={6} className="tableEmptyState"',
+  'users.length === 0 ? <tr><td colSpan={7} className="tableEmptyState"',
   'roles.length === 0 ? <tr><td colSpan={7} className="tableEmptyState"',
 ]) {
   if (!securityClient.includes(token)) failures.push(`SecurityClient.tsx: missing ${token}`);

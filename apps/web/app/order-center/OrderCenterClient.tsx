@@ -63,15 +63,15 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
     columns: useMemo(() => {
       const helper = createColumnHelper<OrderRow>();
       return [
-        helper.display({ id: 'code', header: 'Mã đơn', cell: ({ row }) => <div><strong>{row.original.systemCode}</strong><br /><span className="mutedText">{row.original.type}</span></div> }),
-        helper.display({ id: 'tour', header: 'Tour / Dịch vụ', cell: ({ row }) => <span>{row.original.tourCode || '-'}<br />{row.original.name}</span> }),
-        helper.display({ id: 'customer', header: 'Khách hàng', cell: ({ row }) => <span>{row.original.customerName || '-'}<br />{row.original.customerPhone || '-'}</span> }),
-        helper.display({ id: 'dates', header: 'Lịch', cell: ({ row }) => <span>{dateOnly(row.original.startDate)}<br />{dateOnly(row.original.endDate)}</span> }),
-        helper.display({ id: 'revenue', header: 'Thu', cell: ({ row }) => <span>{money(row.original.totalRevenue)}<br />Con: {money(row.original.remainingRevenue)}</span> }),
-        helper.display({ id: 'cost', header: 'Chi', cell: ({ row }) => <span>{money(row.original.totalCost)}<br />Con: {money(row.original.remainingCost)}</span> }),
+        helper.display({ id: 'code', header: 'Mã đơn', cell: ({ row }) => <span><strong>{row.original.systemCode}</strong><span className="mutedText"> · {row.original.type}</span></span> }),
+        helper.display({ id: 'tour', header: 'Tour / Dịch vụ', cell: ({ row }) => <span>{row.original.tourCode || '-'} · {row.original.name}</span> }),
+        helper.display({ id: 'customer', header: 'Khách hàng', cell: ({ row }) => <span>{row.original.customerName || '-'} · {row.original.customerPhone || '-'}</span> }),
+        helper.display({ id: 'dates', header: 'Lịch', cell: ({ row }) => <span>{dateOnly(row.original.startDate)} - {dateOnly(row.original.endDate)}</span> }),
+        helper.display({ id: 'revenue', header: 'Thu', cell: ({ row }) => <span>{money(row.original.totalRevenue)} · Còn: {money(row.original.remainingRevenue)}</span> }),
+        helper.display({ id: 'cost', header: 'Chi', cell: ({ row }) => <span>{money(row.original.totalCost)} · Còn: {money(row.original.remainingCost)}</span> }),
         helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => money(info.getValue()) }),
         helper.display({ id: 'status', header: 'Trạng thái', cell: ({ row }) => <span className={`statusPill status-${row.original.status.toLowerCase()}`}>{viStatus(row.original.status)}</span> }),
-        helper.display({ id: 'owner', header: 'Chi nhánh / NVDH', cell: ({ row }) => <span>{row.original.branch || '-'}<br />{row.original.operatorOwner || '-'}</span> }),
+        helper.display({ id: 'owner', header: 'Chi nhánh / NVDH', cell: ({ row }) => <span>{row.original.branch || '-'} · {row.original.operatorOwner || '-'}</span> }),
       ];
     }, []),
     getCoreRowModel: getCoreRowModel(),

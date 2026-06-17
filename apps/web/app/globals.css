@@ -2007,11 +2007,19 @@ label { min-width: 0; }
 }
 
 .compactListTableWrap {
+  height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 2px);
   max-height: calc(var(--list-head-height) + (var(--list-row-height) * var(--list-visible-rows)) + 2px);
   overflow: auto;
   scrollbar-gutter: stable both-edges;
   border: 1px solid #e3efd9;
   border-radius: 7px;
+}
+
+.fitTableWrap.compactListTableWrap,
+.supplierTableWrap.compactListTableWrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .compactListTableWrap > table {
