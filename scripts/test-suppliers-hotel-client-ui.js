@@ -575,6 +575,19 @@ async function loadMockedList(page) {
     if (page.url().includes('/login')) throw new Error('Hotel suppliers page redirected to login');
     await visibleText(page, 'Nhà cung cấp khách sạn', true);
 
+    await run('hotel list is prioritized before empty inventory', async () => {
+      await visibleText(page, 'Danh sách nhà cung cấp khách sạn');
+      const listTop = await page.getByRole('heading', { name: 'Danh sách nhà cung cấp khách sạn' }).first().boundingBox();
+      const inventoryTop = await page.getByRole('heading', { name: 'Tồn quỹ phòng theo ngày' }).first().boundingBox();
+      assert(listTop && inventoryTop, 'hotel list and inventory headings must be visible');
+      assert(listTop.y < inventoryTop.y, 'hotel supplier list should render before the inventory table so imported hotels are visible immediately');
+    });
+
+    await run('supplier navigation highlights current tab only', async () => {
+      const activeModuleLinks = await page.locator('.moduleStripInner a.active').evaluateAll((links) => links.map((link) => link.textContent?.trim()).filter(Boolean));
+      assert(activeModuleLinks.length === 1 && activeModuleLinks[0] === 'Khách sạn', `expected only Khách sạn tab active, got ${activeModuleLinks.join(', ')}`);
+    });
+
     await run('search filter list', async () => {
       await loadMockedList(page);
       const filterPanel = page.locator('.supplierFilterPanel');

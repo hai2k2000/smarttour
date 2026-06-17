@@ -287,6 +287,17 @@ function pathMatches(currentPathname: string, itemPath: string) {
   return itemPath === '/' ? currentPath === '/' : currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 
+function hasMoreSpecificActivePeer(href: string, pathname: string, routePath: string, searchParams: SearchReader, peerItems: { href: string }[]) {
+  return peerItems.some((item) => {
+    if (item.href === href) return false;
+    const peerRoute = routeParts(item.href);
+    if (peerRoute.path === routePath || !peerRoute.path.startsWith(`${routePath}/`)) return false;
+    if (!pathMatches(pathname, peerRoute.path)) return false;
+    const peerHasQuery = paramsEntries(peerRoute.params).length > 0;
+    return !peerHasQuery || paramsMatch(peerRoute.params, searchParams);
+  });
+}
+
 function isRouteActive(href: string, pathname: string, searchParams: SearchReader, peerItems: { href: string }[] = []) {
   const route = routeParts(href);
   if (!pathMatches(pathname, route.path)) return false;
@@ -299,7 +310,7 @@ function isRouteActive(href: string, pathname: string, searchParams: SearchReade
     const peerRoute = routeParts(item.href);
     return peerRoute.path === route.path && paramsEntries(peerRoute.params).length > 0 && paramsMatch(peerRoute.params, searchParams);
   });
-  return !hasActiveQueryPeer;
+  return !hasActiveQueryPeer && !hasMoreSpecificActivePeer(href, pathname, route.path, searchParams, peerItems);
 }
 
 function currentPage(pathname: string, searchParams: SearchReader, items: ShellItem[]) {
