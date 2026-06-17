@@ -62,7 +62,8 @@ const groups = [
     title: 'Workspace',
     icon: LayoutDashboard,
     items: [
-      { label: 'Tổng quan AI Tour', href: '/', icon: LayoutDashboard },
+      { label: 'Bàn làm việc', href: '/workspace', icon: BriefcaseBusiness },
+      { label: 'Tổng quan', href: '/workspace/overview', icon: LayoutDashboard },
       { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
       { label: 'Tour mẫu', href: '/tour-programs', icon: BookOpen },
     ],
