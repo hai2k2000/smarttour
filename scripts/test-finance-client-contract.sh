@@ -13,6 +13,7 @@ const failures = [];
 const requiredTabs = ['Phiếu thu chờ', 'Phiếu thu', 'Phiếu chi', 'Hóa đơn VAT', 'Dòng tiền', 'Công nợ'];
 for (const label of requiredTabs) if (!source.includes(label)) failures.push(`missing finance tab label: ${label}`);
 if (!source.includes('Promise.allSettled') || !source.includes("label: 'Công nợ khách hàng'") || !source.includes('Không tải được ${failed.join')) failures.push('load() must report each failed API branch');
+if (!source.includes('permissionsReady') || !source.includes('if (!permissionsReady) return') || !source.includes('[query, permissionsReady]')) failures.push('finance list load must wait for hydrated permissions and rerun when they become ready');
 for (const action of ["approve: 'Đã duyệt chứng từ'", "cancel: 'Đã hủy chứng từ'", "reject: 'Đã từ chối chứng từ'"]) if (!source.includes(action)) failures.push(`missing action-specific notice: ${action}`);
 if (!source.includes('Đã tải ${uploaded.length}/${files.length} tệp hóa đơn') || !source.includes('Tệp lỗi:')) failures.push('multi-file upload must report partial failures');
 if (!source.includes('Đã nhập thành công ${imported} dòng CSV') || !source.includes('File CSV không được vượt quá 5 MB')) failures.push('CSV import result and validation messages are incomplete');

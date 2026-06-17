@@ -50,7 +50,7 @@ const actionLabels: Record<FinanceAction, string> = {
 };
 
 export default function FinanceClient() {
-  const { can, canAny } = usePermissions();
+  const { can, canAny, permissionsReady } = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<FinanceTab>('receipts');
@@ -77,7 +77,10 @@ export default function FinanceClient() {
   }, [filter]);
 
   useEffect(() => { setTab(normalizeTab(searchParams.get('tab'))); }, [searchParams]);
-  useEffect(() => { void load(); }, [query]);
+  useEffect(() => {
+    if (!permissionsReady) return;
+    void load();
+  }, [query, permissionsReady]);
 
   function openTab(nextTab: FinanceTab) {
     setTab(nextTab);
@@ -85,6 +88,7 @@ export default function FinanceClient() {
   }
 
   async function load() {
+    if (!permissionsReady) return;
     setLoading(true);
     const branches: LoadBranch[] = [
       { label: 'Phiếu thu', permission: 'finance.receipt.view', run: () => getJson(`/api/finance/receipts?${query}`), apply: (data: any) => { setReceipts(data.rows || []); setReceiptSummary(data.summary || emptySummary); } },
