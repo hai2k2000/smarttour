@@ -23,6 +23,10 @@ function nullableText(value) {
   return valueText || null;
 }
 
+function fallbackCustomerName(systemCode, index) {
+  return `Khách chưa xác định - ${systemCode || `dòng ${index + 1}`}`;
+}
+
 function key(value) {
   return text(value)
     .normalize('NFD')
@@ -124,6 +128,7 @@ function normalizeRows(payload) {
   return rows
     .map((row, index) => {
       const systemCode = text(rowValue(row, 'Mã hệ thống'));
+      const customerName = text(rowValue(row, 'Tên KH')) || fallbackCustomerName(systemCode, index);
       const totalRevenue = numberValue(rowValue(row, 'Tổng thu'));
       const paidAmount = numberValue(rowValue(row, 'Thực thu'));
       const totalCost = numberValue(rowValue(row, 'Tổng chi'));
@@ -135,12 +140,12 @@ function normalizeRows(payload) {
         tourCode: nullableText(rowValue(row, 'Mã Tour')),
         bookingDate: parseDate(rowValue(row, 'Ngày đặt Tour (Ngày tạo đơn)')),
         name: text(rowValue(row, 'Lịch trình')),
-        customerName: text(rowValue(row, 'Tên KH')),
+        customerName,
         marketType: nullableText(rowValue(row, 'Loại hình')),
         rawTourType: nullableText(rowValue(row, 'Loại Tour')),
         type: orderType(rowValue(row, 'Loại Tour')),
         marketGroup: nullableText(rowValue(row, 'Nhóm/Thị trường')),
-        customerPhone: digits(rowValue(row, 'SĐT')),
+        customerPhone: digits(rowValue(row, 'SĐT')) || null,
         customerEmail: nullableText(rowValue(row, 'Email')),
         startDate: parseDate(rowValue(row, 'Ngày check in')),
         endDate: parseDate(rowValue(row, 'Ngày check Out')),
@@ -167,7 +172,7 @@ function normalizeRows(payload) {
         status: orderStatus(rowValue(row, 'Trạng thái')),
       };
     })
-    .filter((row) => row.systemCode && row.name && row.customerName && row.customerPhone);
+    .filter((row) => row.systemCode && row.name);
 }
 
 function orderNote(row) {
@@ -471,8 +476,14 @@ async function ensureTour(tx, row, order, customer) {
   return { id: tour.id, created: !existing };
 }
 
+async function findCustomerByPhone(client, row) {
+  if (!row.customerPhone) return null;
+  return client.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
+}
+
 async function ensureCustomer(tx, row) {
-  const existing = await tx.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
+  if (!row.customerPhone) return null;
+  const existing = await findCustomerByPhone(tx, row);
   if (existing) return existing;
   return tx.customer.create({
     data: {
@@ -528,8 +539,13 @@ async function main() {
     ? rows.filter((row) => !existingOrderCodeSet.has(row.systemCode)).map((row) => ({ row: row.index, systemCode: row.systemCode }))
     : [];
   const missingCustomers = [];
+  const rowsWithoutCustomerPhone = [];
   for (const row of rows) {
-    const found = await prisma.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
+    if (!row.customerPhone) {
+      rowsWithoutCustomerPhone.push({ row: row.index, systemCode: row.systemCode, customerName: row.customerName });
+      continue;
+    }
+    const found = await findCustomerByPhone(prisma, row);
     if (!found) missingCustomers.push({ row: row.index, phone: row.customerPhone, customerName: row.customerName });
   }
   console.log(JSON.stringify({
@@ -541,6 +557,7 @@ async function main() {
     activeObsoleteSample: activeObsolete.slice(0, 10),
     missingOrdersForTourSync,
     missingCustomers,
+    rowsWithoutCustomerPhone,
     dryRun,
     syncToursOnly,
   }, null, 2));
@@ -562,9 +579,9 @@ async function main() {
     let createdCustomers = 0;
     let missingOrders = 0;
     for (const row of rows) {
-      const customerBefore = await tx.customer.findUnique({ where: { phone: row.customerPhone }, select: { id: true } });
+      const customerBefore = await findCustomerByPhone(tx, row);
       const customer = customerBefore || await ensureCustomer(tx, row);
-      if (!customerBefore) createdCustomers += 1;
+      if (!customerBefore && customer) createdCustomers += 1;
       const existing = await tx.order.findUnique({ where: { systemCode: row.systemCode }, select: { id: true } });
       if (syncToursOnly) {
         if (!existing) {
