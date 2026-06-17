@@ -50,27 +50,122 @@ const orderIcons = {
   'single-services': ReceiptText,
 };
 
+function orderMenuItem(type: (typeof orderNavigation)[number]['type']) {
+  const item = orderNavigation.find((entry) => entry.type === type);
+  if (!item) throw new Error(`Missing order navigation item: ${type}`);
+  return { label: item.label, href: item.href, icon: orderIcons[item.type] };
+}
+
 const groups = [
   {
-    title: 'Tổng quan',
+    key: 'workspace',
+    title: 'Workspace',
+    icon: LayoutDashboard,
     items: [
       { label: 'Tổng quan AI Tour', href: '/', icon: LayoutDashboard },
       { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
-      { label: 'Báo cáo lãi lỗ', href: '/reports', icon: BarChart3 },
-      { label: 'Báo cáo hoa hồng', href: '/commission-reports', icon: HandCoins },
+      { label: 'Tour mẫu', href: '/tour-programs', icon: BookOpen },
     ],
   },
   {
-    title: 'Bán hàng',
+    key: 'suppliers',
+    title: 'Nhà cung cấp',
+    icon: Warehouse,
+    items: [
+      { label: 'Tất cả nhà cung cấp', href: '/suppliers', icon: Warehouse },
+      { label: 'Khách sạn', href: '/suppliers/hotels', icon: BedDouble },
+      { label: 'Nhà hàng', href: '/suppliers/restaurants', icon: ReceiptText },
+      { label: 'Landtour', href: '/suppliers/landtour-suppliers', icon: Landmark },
+      { label: 'Vận chuyển', href: '/suppliers/transport', icon: Route },
+      { label: 'Biệt thự', href: '/suppliers/villas', icon: Warehouse },
+      { label: 'Chi phí khác', href: '/suppliers/other', icon: ReceiptText },
+    ],
+  },
+  {
+    key: 'crm',
+    title: 'CRM',
+    icon: Users,
     items: [
       { label: 'CRM khách hàng', href: '/customers', icon: Users },
-      { label: 'Công cụ báo giá', href: '/quotations', icon: Calculator },
-      { label: 'Tính giá tour', href: '/quotes/tours', icon: FileText },
-      { label: 'Tính giá combo', href: '/quotes/combos', icon: TicketCheck },
     ],
   },
   {
-    title: 'Tài chính / Kế toán',
+    key: 'quotes',
+    title: 'Báo Giá',
+    icon: Calculator,
+    items: [
+      { label: 'Danh sách báo giá', href: '/quotations', icon: Calculator },
+      { label: 'Báo giá tour', href: '/quotes/tours', icon: FileText },
+      { label: 'Báo giá combo', href: '/quotes/combos', icon: TicketCheck },
+    ],
+  },
+  {
+    key: 'orders',
+    title: 'Đơn hàng/LKH',
+    icon: ClipboardList,
+    items: [
+      { label: 'Trung tâm đơn hàng', href: '/order-center', icon: ClipboardList },
+      orderMenuItem('fit-tours'),
+      orderMenuItem('git-combos'),
+      orderMenuItem('landtours'),
+      orderMenuItem('single-services'),
+    ],
+  },
+  {
+    key: 'hotel-bookings',
+    title: 'Booking Phòng/Khách sạn',
+    icon: BedDouble,
+    items: [
+      orderMenuItem('hotel-bookings'),
+      { label: 'Nhà cung cấp khách sạn', href: '/suppliers/hotels', icon: Warehouse },
+    ],
+  },
+  {
+    key: 'flight-orders',
+    title: 'Vé Máy Bay',
+    icon: Plane,
+    items: [
+      orderMenuItem('flight-orders'),
+      { label: 'Nhà cung cấp vé máy bay', href: '/suppliers/flights', icon: Plane },
+      { label: 'Series vé giữ chỗ', href: '/suppliers/series-tickets', icon: TicketCheck },
+    ],
+  },
+  {
+    key: 'guides',
+    title: 'Hướng dẫn viên',
+    icon: Users,
+    items: [
+      { label: 'Danh sách hướng dẫn viên', href: '/tour-guides', icon: Users },
+      { label: 'Nhà cung cấp hướng dẫn viên', href: '/suppliers/guides', icon: Warehouse },
+    ],
+  },
+  {
+    key: 'vehicles',
+    title: 'Quản lý xe',
+    icon: Route,
+    items: [
+      { label: 'Nhà cung cấp vận chuyển', href: '/suppliers/transport', icon: Route },
+      { label: 'Nhà xe tuyến cố định', href: '/suppliers/bus', icon: Route },
+      { label: 'Tàu thuyền / đường thủy', href: '/suppliers/water', icon: Landmark },
+    ],
+  },
+  {
+    key: 'operations',
+    title: 'Điều hành Tour',
+    icon: ClipboardCheck,
+    items: [
+      { label: 'Booking tour', href: '/bookings', icon: FileCheck2 },
+      { label: 'Phiếu điều hành', href: '/operation-vouchers', icon: FileCheck2 },
+      { label: 'Vận hành tour', href: '/operations', icon: ClipboardCheck },
+      { label: 'Tour khách lẻ FIT', href: '/fit-tours', icon: Route },
+      { label: 'Tour đoàn GIT', href: '/git-tours', icon: BriefcaseBusiness },
+      { label: 'LandTour / Combo', href: '/landtours', icon: Landmark },
+    ],
+  },
+  {
+    key: 'finance',
+    title: 'Tài chính/Kế toán',
+    icon: WalletCards,
     items: [
       { label: 'Tổng quan tài chính', href: '/finance', icon: WalletCards },
       { label: 'Phiếu thu chờ', href: '/finance?tab=pending', icon: ReceiptText },
@@ -82,29 +177,67 @@ const groups = [
     ],
   },
   {
-    title: 'Đơn hàng',
+    key: 'kpis',
+    title: 'KPIs',
+    icon: BarChart3,
     items: [
-      ...orderNavigation.map((item) => ({ label: item.label, href: item.href, icon: orderIcons[item.type] })),
+      { label: 'Tổng quan KPIs', href: '/reports?view=kpis', icon: BarChart3 },
+      { label: 'Hiệu suất nhân viên', href: '/reports?tab=employee-performance', icon: Users },
     ],
   },
   {
-    title: 'Sản phẩm & vận hành',
+    key: 'commission',
+    title: 'Hoa Hồng',
+    icon: HandCoins,
     items: [
-      { label: 'Tour mẫu', href: '/tour-programs', icon: BookOpen },
-      { label: 'Booking tour', href: '/bookings', icon: FileCheck2 },
-      { label: 'Tour khách lẻ FIT', href: '/fit-tours', icon: Route },
-      { label: 'Tour đoàn GIT', href: '/git-tours', icon: BriefcaseBusiness },
-      { label: 'LandTour / Combo', href: '/landtours', icon: Landmark },
-      { label: 'Phiếu điều hành', href: '/operation-vouchers', icon: FileCheck2 },
-      { label: 'Vận hành tour', href: '/operations', icon: ClipboardCheck },
-      { label: 'Hướng dẫn viên', href: '/tour-guides', icon: Users },
-      { label: 'Nhà cung cấp', href: '/suppliers', icon: Warehouse },
+      { label: 'Báo cáo hoa hồng', href: '/commission-reports', icon: HandCoins },
+      { label: 'Công nợ hoa hồng', href: '/finance?tab=debt', icon: WalletCards },
     ],
   },
   {
-    title: 'Hệ thống',
+    key: 'projects',
+    title: 'Dự án & Công việc',
+    icon: BriefcaseBusiness,
+    items: [
+      { label: 'Dự án tour mẫu', href: '/tour-programs', icon: BookOpen },
+      { label: 'Công việc điều hành', href: '/operations', icon: ClipboardCheck },
+    ],
+  },
+  {
+    key: 'hrm',
+    title: 'HRM',
+    icon: Users,
+    items: [
+      { label: 'Người dùng & vai trò', href: '/security?tab=users', icon: Users },
+      { label: 'Phân quyền nhân sự', href: '/security?tab=roles', icon: ShieldCheck },
+    ],
+  },
+  {
+    key: 'marketing',
+    title: 'Marketing',
+    icon: Bell,
+    items: [
+      { label: 'Chiến dịch khách hàng', href: '/customers?view=campaigns', icon: Bell },
+      { label: 'Tệp khách hàng CRM', href: '/customers', icon: Users },
+    ],
+  },
+  {
+    key: 'reports',
+    title: 'Báo cáo',
+    icon: BarChart3,
+    items: [
+      { label: 'Báo cáo tổng quan', href: '/reports', icon: BarChart3 },
+      { label: 'Báo cáo tài chính', href: '/finance?tab=cashflow', icon: WalletCards },
+      { label: 'Báo cáo công nợ', href: '/finance?tab=debt', icon: FileText },
+    ],
+  },
+  {
+    key: 'settings',
+    title: 'Cài đặt hệ thống',
+    icon: Settings,
     items: [
       { label: 'Phân quyền', href: '/security', icon: ShieldCheck },
+      { label: 'Đăng nhập', href: '/login', icon: LogIn },
     ],
   },
 ];
@@ -115,42 +248,9 @@ const shortcuts = [
   { label: 'CRM', href: '/customers' },
 ];
 
-const workflowLinks: Record<string, { label: string; href: string }[]> = {
-  'Tổng quan': [
-    { label: 'Trung tâm đơn hàng', href: '/order-center' },
-    { label: 'Báo cáo lãi lỗ', href: '/reports' },
-    { label: 'Hoa hồng', href: '/commission-reports' },
-  ],
-  'Bán hàng': [
-    { label: 'CRM', href: '/customers' },
-    { label: 'Báo giá', href: '/quotations' },
-    { label: 'Tính giá tour', href: '/quotes/tours' },
-    { label: 'Tính giá combo', href: '/quotes/combos' },
-  ],
-  'Tài chính / Kế toán': [
-    { label: 'Tổng quan', href: '/finance' },
-    { label: 'Phiếu thu chờ', href: '/finance?tab=pending' },
-    { label: 'Phiếu thu', href: '/finance?tab=receipts' },
-    { label: 'Phiếu chi', href: '/finance?tab=payments' },
-    { label: 'Hóa đơn VAT', href: '/finance?tab=invoices' },
-    { label: 'Dòng tiền', href: '/finance?tab=cashflow' },
-    { label: 'Công nợ', href: '/finance?tab=debt' },
-  ],
-  'Đơn hàng': orderNavigation.map((item) => ({ label: item.workflowLabel, href: item.href })),
-  'Sản phẩm & vận hành': [
-    { label: 'Tour mẫu', href: '/tour-programs' },
-    { label: 'FIT', href: '/fit-tours' },
-    { label: 'GIT', href: '/git-tours' },
-    { label: 'LandTour', href: '/landtours' },
-    { label: 'Điều hành', href: '/operation-vouchers' },
-    { label: 'Vận hành', href: '/operations' },
-    { label: 'Nhà cung cấp', href: '/suppliers' },
-  ],
-  'Hệ thống': [
-    { label: 'Người dùng & vai trò', href: '/security' },
-    { label: 'Đăng nhập', href: '/login' },
-  ],
-};
+const workflowLinks: Record<string, { label: string; href: string }[]> = Object.fromEntries(
+  groups.map((group) => [group.title, group.items.map((item) => ({ label: item.label, href: item.href }))]),
+);
 
 type SearchReader = Pick<URLSearchParams, 'get'>;
 type ShellItem = (typeof groups)[number]['items'][number] & { group: string };
@@ -222,6 +322,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const searchKey = searchParams.toString();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>({});
   const [activityOpen, setActivityOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState({ query: '', focused: false });
@@ -252,6 +353,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem('smarttour.sidebar.collapsed') === 'true');
+    const storedNavGroups = window.localStorage.getItem('smarttour.sidebar.navGroups');
+    if (storedNavGroups) {
+      try {
+        setOpenNavGroups(JSON.parse(storedNavGroups));
+      } catch {
+        window.localStorage.removeItem('smarttour.sidebar.navGroups');
+      }
+    }
     const storedUser = window.localStorage.getItem('smarttour.auth.user');
     if (storedUser) {
       try {
@@ -300,6 +409,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
     });
   }
 
+  function toggleNavGroup(key: string, currentOpen: boolean) {
+    setOpenNavGroups((current) => {
+      const next = { ...current, [key]: !currentOpen };
+      window.localStorage.setItem('smarttour.sidebar.navGroups', JSON.stringify(next));
+      return next;
+    });
+  }
+
   async function logout() {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), LOGOUT_REQUEST_TIMEOUT_MS);
@@ -339,21 +456,38 @@ function AppShellContent({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="appNav">
-          {groups.map((group) => (
-            <section key={group.title} className="navGroup">
-              <h2>{group.title}</h2>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isRouteActive(item.href, pathname, searchParams, group.items);
-                return (
-                  <Link key={item.href} href={item.href} prefetch={false} className={active ? 'active' : ''} onClick={() => setOpen(false)}>
-                    <Icon size={16} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </section>
-          ))}
+          {groups.map((group) => {
+            const GroupIcon = group.icon;
+            const groupActive = group.items.some((item) => isRouteActive(item.href, pathname, searchParams, group.items));
+            const groupOpen = openNavGroups[group.key] ?? groupActive;
+            return (
+              <section key={group.key} className={`navGroup ${groupOpen ? 'expanded' : 'collapsed'}`}>
+                <button
+                  type="button"
+                  className={`navGroupHeader ${groupActive ? 'active' : ''}`}
+                  aria-expanded={groupOpen}
+                  aria-controls={`nav-group-${group.key}`}
+                  onClick={() => toggleNavGroup(group.key, groupOpen)}
+                >
+                  <GroupIcon size={16} />
+                  <span>{group.title}</span>
+                  <ChevronDown className="navGroupToggleIcon" size={15} />
+                </button>
+                <div id={`nav-group-${group.key}`} className="navGroupItems">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isRouteActive(item.href, pathname, searchParams, group.items);
+                    return (
+                      <Link key={item.href} href={item.href} prefetch={false} className={active ? 'active' : ''} onClick={() => setOpen(false)}>
+                        <Icon size={16} />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
         </nav>
         <div className="sidebarFooter">
           <span>AI Tour</span>

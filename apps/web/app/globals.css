@@ -49,15 +49,23 @@ a { color: inherit; }
 .brandActions { display: inline-flex; align-items: center; gap: 6px; }
 .collapseButton { display: inline-flex; align-items: center; justify-content: center; padding: 7px; min-width: 32px; background: #24575e; border: 1px solid #2f6971; border-radius: var(--dn-radius-sm); color: #eef8ea; }
 .collapseButton:hover { background: #276c72; }
-.sidebarCollapsed .brandMark span:not(.textLogo), .sidebarCollapsed .navGroup h2, .sidebarCollapsed .navGroup a span, .sidebarCollapsed .sidebarFooter { display: none; }
+.sidebarCollapsed .brandMark span:not(.textLogo), .sidebarCollapsed .navGroup h2, .sidebarCollapsed .navGroupHeader span, .sidebarCollapsed .navGroupHeader .navGroupToggleIcon, .sidebarCollapsed .navGroupItems, .sidebarCollapsed .navGroup a span, .sidebarCollapsed .sidebarFooter { display: none; }
 .sidebarCollapsed .brandMark .textLogo { display: grid; }
 .sidebarCollapsed .appBrand { justify-content: center; padding: 14px 8px; }
 .sidebarCollapsed .brandActions { display: none; }
 .sidebarCollapsed .appNav { padding: 16px 10px; }
+.sidebarCollapsed .navGroupHeader { grid-template-columns: 1fr; justify-items: center; padding: 10px; }
 .sidebarCollapsed .navGroup a { grid-template-columns: 1fr; justify-items: center; padding: 10px; }
 .appNav { display: grid; gap: 16px; padding: 16px 12px 14px; }
 .navGroup { display: grid; gap: 4px; }
 .navGroup h2 { margin: 0 8px 6px; color: #b9d8b2; font-size: 11px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; display: block; }
+.navGroupHeader { width: 100%; min-height: 38px; color: #eef8ea; padding: 9px 10px; border-radius: var(--dn-radius-md); font-size: 13px; display: grid; grid-template-columns: 18px 1fr 16px; align-items: center; gap: 9px; border: 1px solid transparent; background: transparent; text-align: left; }
+.navGroupHeader:hover { background: #24575e; border-color: #2f6971; color: #fff; }
+.navGroupHeader.active { background: #24575e; border-color: #2f6971; color: #fff; }
+.navGroupToggleIcon { justify-self: end; transition: transform .16s ease; }
+.navGroup.expanded .navGroupToggleIcon { transform: rotate(180deg); }
+.navGroupItems { display: grid; gap: 3px; padding-left: 10px; }
+.navGroup.collapsed .navGroupItems { display: none; }
 .navGroup a { min-height: 38px; color: #eef8ea; text-decoration: none; padding: 9px 10px; border-radius: var(--dn-radius-md); font-size: 13px; display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 9px; border: 1px solid transparent; }
 .navGroup a:hover { background: #24575e; border-color: #2f6971; color: #fff; }
 .navGroup a.active { background: var(--dn-primary); border-color: #66aeb5; color: #fff; box-shadow: inset 3px 0 0 var(--dn-green); }
@@ -182,6 +190,11 @@ a { color: inherit; }
   .sidebarCollapsed .appSidebar.open .brandActions { display: inline-flex; }
   .sidebarCollapsed .appSidebar.open .brandMark span:not(.textLogo) { display: grid; }
   .sidebarCollapsed .appSidebar.open .navGroup h2 { display: block; }
+  .sidebarCollapsed .appSidebar.open .navGroupHeader { grid-template-columns: 18px 1fr 16px; justify-items: stretch; padding: 9px 10px; }
+  .sidebarCollapsed .appSidebar.open .navGroupHeader span { display: inline; }
+  .sidebarCollapsed .appSidebar.open .navGroupHeader .navGroupToggleIcon { display: block; }
+  .sidebarCollapsed .appSidebar.open .navGroupItems { display: grid; }
+  .sidebarCollapsed .appSidebar.open .navGroup.collapsed .navGroupItems { display: none; }
   .sidebarCollapsed .appSidebar.open .navGroup a span { display: inline; }
   .sidebarCollapsed .appSidebar.open .sidebarFooter { display: grid; }
   .sidebarCollapsed .appSidebar.open .appBrand { justify-content: space-between; padding: 14px 16px; }
