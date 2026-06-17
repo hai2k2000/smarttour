@@ -798,6 +798,17 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .workspaceTaskTable,
 .workspaceActionTable,
 .workspaceFinanceDeepTable { --list-table-min-width: 920px; }
+.workspaceProductSalesTable { --list-table-min-width: 980px; }
+.workspaceServiceMix { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; align-items: center; min-width: 0; }
+.workspaceProductBarTrack { display: block; width: 100%; height: 9px; border-radius: 999px; background: #edf2f7; overflow: hidden; min-width: 84px; }
+.workspaceProductBar { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2cc7c9, #ff8a1f); }
+.workspaceMarketGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.workspaceMarketCard { display: grid; gap: 9px; border: 1px solid #edf2f7; border-radius: 16px; padding: 14px; background: linear-gradient(180deg, #fff 0%, #fbfdff 100%); min-width: 0; }
+.workspaceMarketCard div { display: flex; justify-content: space-between; gap: 10px; min-width: 0; }
+.workspaceMarketCard strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dn-text); }
+.workspaceMarketCard span,
+.workspaceMarketCard em { color: #64748b; font-style: normal; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.workspaceMarketCard b { color: var(--dn-primary); font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspaceCeoHero { display: flex; justify-content: space-between; gap: 18px; align-items: center; border-radius: 18px; padding: 22px 26px; color: #fff; background: linear-gradient(135deg, #ff4d00, #ff8a1f); box-shadow: 0 14px 34px rgba(255, 91, 32, .24); }
 .workspaceCeoHero h1 { margin: 2px 0 5px; font-size: clamp(26px, 3vw, 40px); color: #fff; }
 .workspaceCeoHero .eyebrow,
@@ -847,7 +858,7 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 @media (max-width: 1100px) { .orderMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1100px) { .workspaceKpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workspaceQuickActions { width: 100%; margin: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .orderMetrics, .orderFilterGrid, .reportFilterGrid { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .workspaceKpiGrid, .workspaceModuleTabs, .workspaceQuickActions { grid-template-columns: 1fr; } .workspaceDeskHero, .workspaceCeoHero { padding: 18px; } .workspaceCeoHero, .workspaceCalendarHeader { grid-template-columns: 1fr; display: grid; } .workspaceCalendarGrid { min-width: 760px; } .workspaceCard:has(.workspaceCalendarGrid) { overflow-x: auto; } }
+@media (max-width: 760px) { .workspaceKpiGrid, .workspaceModuleTabs, .workspaceQuickActions, .workspaceServiceMix { grid-template-columns: 1fr; } .workspaceDeskHero, .workspaceCeoHero { padding: 18px; } .workspaceCeoHero, .workspaceCalendarHeader { grid-template-columns: 1fr; display: grid; } .workspaceCalendarGrid { min-width: 760px; } .workspaceCard:has(.workspaceCalendarGrid) { overflow-x: auto; } }
 @media (max-width: 900px) { .reportsPage .metrics, .reportMetrics, .reportControls, .reportSummary { grid-template-columns: 1fr; } }
 
 .customerPage { display: grid; gap: 14px; }

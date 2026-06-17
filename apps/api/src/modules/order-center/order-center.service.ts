@@ -31,6 +31,8 @@ type OrderCenterQuery = {
   supplier?: string;
   commissionStatus?: string;
   customerType?: string;
+  compact?: string | boolean;
+  take?: string | number;
 };
 
 @Injectable()
@@ -62,8 +64,42 @@ export class OrderCenterService {
   }
 
   async list(query: OrderCenterQuery, user?: RequestUser) {
+    const where = branchDepartmentScopeWhere(this.where(query), user);
+    const take = this.take(query.take, 500);
+    if (this.isCompact(query.compact)) {
+      return this.prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          systemCode: true,
+          type: true,
+          tourCode: true,
+          name: true,
+          customerName: true,
+          customerPhone: true,
+          startDate: true,
+          endDate: true,
+          status: true,
+          paymentStatus: true,
+          costStatus: true,
+          totalRevenue: true,
+          remainingRevenue: true,
+          totalCost: true,
+          remainingCost: true,
+          profit: true,
+          branch: true,
+          department: true,
+          operatorOwner: true,
+          createdBy: true,
+          marketGroup: true,
+          updatedAt: true,
+        },
+        orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
+        take,
+      });
+    }
     return this.prisma.order.findMany({
-      where: branchDepartmentScopeWhere(this.where(query), user),
+      where,
       include: {
         _count: { select: { members: true, salesItems: true, operationItems: true } },
         operationItems: {
@@ -83,7 +119,7 @@ export class OrderCenterService {
         },
       },
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
-      take: 500,
+      take,
     });
   }
 
@@ -165,6 +201,16 @@ export class OrderCenterService {
   private dateRange(field: 'createdAt' | 'startDate' | 'endDate' | 'paymentDate', from?: string, to?: string) {
     if (!from && !to) return {};
     return { [field]: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } };
+  }
+
+  private take(value: string | number | undefined, fallback: number) {
+    const numeric = Number(value || fallback);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.max(1, Math.min(Math.trunc(numeric), 500));
+  }
+
+  private isCompact(value: string | boolean | undefined) {
+    return value === true || value === 'true' || value === '1';
   }
 
   private csv(value: unknown) {

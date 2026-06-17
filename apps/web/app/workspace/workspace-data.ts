@@ -173,8 +173,24 @@ export type WorkspaceData = {
   errors: string[];
 };
 
+export type WorkspaceReportData = {
+  summary?: WorkspaceSummary;
+  rows?: MetricRow[];
+};
+
+export type WorkspaceOverviewData = {
+  overview: WorkspaceSummary;
+  productSales: MetricRow[];
+  marketRows: MetricRow[];
+  orderDashboard: WorkspaceOrderDashboard;
+  orders: WorkspaceOrder[];
+  operations: WorkspaceOperationDashboard;
+  errors: string[];
+};
+
 const emptyOverview: WorkspaceSummary = {};
 const emptyFinance: WorkspaceFinance = { summary: {}, orderRows: [], receiptRows: [], paymentRows: [], customerDebtRows: [], supplierDebtRows: [], reconciliationRows: [], cashflowByMonth: [] };
+const emptyReport: WorkspaceReportData = { summary: {}, rows: [] };
 const emptyOrderDashboard: WorkspaceOrderDashboard = {};
 const emptyOperations: WorkspaceOperationDashboard = {};
 const emptyQuotations: WorkspaceQuotationDashboard = {};
@@ -212,10 +228,10 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
   const headers = await serverAuthHeaders();
   const [user, overview, finance, orderDashboard, orders, operations, quotations, receiptsData, paymentsData] = await Promise.all([
     apiGet<WorkspaceUser | null>('/api/auth/me', null, 'Thông tin người dùng', errors, headers),
-    apiGet<WorkspaceSummary>('/api/reports/overview?dateField=createdAt', emptyOverview, 'Tổng quan vận hành', errors, headers),
+    apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tổng quan vận hành', errors, headers),
     apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate', emptyFinance, 'Báo cáo tài chính', errors, headers),
     apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tổng hợp đơn hàng', errors, headers),
-    apiGet<WorkspaceOrder[]>('/api/order-center', [], 'Danh sách đơn hàng', errors, headers),
+    apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sách đơn hàng', errors, headers),
     apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Điều hành tour', errors, headers),
     apiGet<WorkspaceQuotationDashboard>('/api/quotations/dashboard', emptyQuotations, 'Báo giá', errors, headers),
     apiGet<{ rows?: WorkspaceReceipt[] }>('/api/finance/receipts', { rows: [] }, 'Phiếu thu', errors, headers),
@@ -232,6 +248,29 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
     quotations,
     receipts: receiptsData.rows || [],
     payments: paymentsData.rows || [],
+    errors,
+  };
+}
+
+export async function getWorkspaceOverviewData(): Promise<WorkspaceOverviewData> {
+  const errors: string[] = [];
+  const headers = await serverAuthHeaders();
+  const [overview, productReport, marketReport, orderDashboard, orders, operations] = await Promise.all([
+    apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tổng quan vận hành', errors, headers),
+    apiGet<WorkspaceReportData>('/api/reports/revenue/by-type?dateField=createdAt', emptyReport, 'Doanh số theo dòng sản phẩm', errors, headers),
+    apiGet<WorkspaceReportData>('/api/reports/revenue/by-market?dateField=createdAt', emptyReport, 'Phân tích thị trường địa lý', errors, headers),
+    apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tổng hợp đơn hàng', errors, headers),
+    apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sách đơn hàng', errors, headers),
+    apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Điều hành tour', errors, headers),
+  ]);
+  const productSales = productReport.rows || overview.byType || [];
+  return {
+    overview: { ...(productReport.summary || {}), ...overview, byType: productSales },
+    productSales,
+    marketRows: marketReport.rows || [],
+    orderDashboard,
+    orders,
+    operations,
     errors,
   };
 }

@@ -1,20 +1,19 @@
-import { CalendarDays, CheckCircle2, ClipboardList, HandCoins, PieChart, ReceiptText, Route, WalletCards } from 'lucide-react';
+import { CalendarDays, ClipboardList, HandCoins, PieChart, ReceiptText, Route, WalletCards } from 'lucide-react';
 import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
-import { getWorkspaceData, MetricRow, WorkspaceOrder } from '../workspace-data';
+import { getWorkspaceOverviewData, MetricRow, WorkspaceOrder } from '../workspace-data';
 
 export const dynamic = 'force-dynamic';
 
 const weekDays = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
 export default async function WorkspaceOverviewPage() {
-  const data = await getWorkspaceData();
+  const data = await getWorkspaceOverviewData();
   const summary = data.overview || {};
-  const financeSummary = data.finance.summary || {};
-  const cashflowRows = data.finance.cashflowByMonth || [];
-  const monthRows = chartRows(summary.byMonth || [], cashflowRows);
+  const productRows = data.productSales || [];
+  const marketRows = data.marketRows || [];
+  const monthRows = chartRows(summary.byMonth || []);
   const calendar = calendarDays(new Date(), data.orders);
-  const reconciliationRows = (data.finance.reconciliationRows || []).slice(0, 8);
   const salesRows = salesRanking(data.orders).slice(0, 5);
   const customerRows = customerRanking(data.orders).slice(0, 7);
   const statusTotal = Math.max(numberValue(data.orderDashboard.total), 1);
@@ -26,7 +25,7 @@ export default async function WorkspaceOverviewPage() {
         <div>
           <p className="eyebrow">CEO Analytics</p>
           <h1>CEO Analytics</h1>
-          <span>Tổng quan điều hành, bán hàng, tài chính và công nợ theo dữ liệu SmartTour hiện tại.</span>
+          <span>Tổng quan điều hành, bán hàng, sản phẩm và thị trường theo dữ liệu SmartTour hiện tại.</span>
         </div>
         <div className="workspaceCeoHeroActions">
           <span>Ngày giờ: {new Date().toLocaleDateString('vi-VN')}</span>
@@ -37,22 +36,22 @@ export default async function WorkspaceOverviewPage() {
       {data.errors.length ? <div className="workspaceNotice panel">Một số dữ liệu chưa tải được: {data.errors.slice(0, 3).join('; ')}</div> : null}
 
       <section className="workspaceModuleTabs">
-        {['Dòng bán hàng', 'Tạo công việc', 'Tạo phiếu đoàn DVT', 'Tạo thanh toán', 'Tạo booking phòng', 'Tạo dịch vụ', 'Tạo mail', 'Hệ thống'].map((item) => <span key={item}>{item}</span>)}
+        {['Dòng bán hàng', 'Tạo công việc', 'Tạo thanh toán', 'Tạo booking phòng', 'Tạo dịch vụ', 'Tạo mail', 'Báo cáo', 'Hệ thống'].map((item) => <span key={item}>{item}</span>)}
       </section>
 
       <section className="workspaceKpiGrid">
-        <Kpi title="Doanh thu dự kiến" value={money(summary.totalRevenue)} hint="Theo đơn hàng" icon={<WalletCards size={18} />} tone="blue" />
-        <Kpi title="Thực thu" value={money(summary.paidAmount)} hint="Phiếu thu đã ghi nhận" icon={<ReceiptText size={18} />} tone="green" />
-        <Kpi title="Lợi nhuận" value={money(summary.profit)} hint="Sau chi phí trực tiếp" icon={<HandCoins size={18} />} tone="amber" />
-        <Kpi title="Công nợ còn thu" value={money(summary.remainingRevenue)} hint="Cần theo dõi" icon={<ClipboardList size={18} />} tone="red" />
-        <Kpi title="Tổng chi" value={money(summary.totalCost)} hint="Chi phí dự kiến" icon={<WalletCards size={18} />} tone="blue" />
-        <Kpi title="Đã chi" value={money(summary.paidCost)} hint="Phiếu chi đã ghi nhận" icon={<HandCoins size={18} />} tone="green" />
-        <Kpi title="Còn phải chi" value={money(summary.remainingCost)} hint="Công nợ NCC" icon={<ReceiptText size={18} />} tone="red" />
-        <Kpi title="Đối soát lệch" value={numberValue(financeSummary.issueCount).toLocaleString('vi-VN')} hint="Dòng cần kiểm tra" icon={<CheckCircle2 size={18} />} tone="amber" />
-        <Kpi title="Tổng đơn hàng" value={numberValue(summary.totalOrders).toLocaleString('vi-VN')} hint="Tất cả loại đơn" icon={<Route size={18} />} tone="blue" />
-        <Kpi title="Khách hàng" value={numberValue(summary.totalCustomers).toLocaleString('vi-VN')} hint="Khách có giao dịch" icon={<PieChart size={18} />} tone="green" />
-        <Kpi title="Phiếu thu" value={numberValue(financeSummary.receiptCount).toLocaleString('vi-VN')} hint={money(financeSummary.totalReceipt)} icon={<ReceiptText size={18} />} tone="blue" />
-        <Kpi title="Phiếu chi" value={numberValue(financeSummary.paymentCount).toLocaleString('vi-VN')} hint={money(financeSummary.totalPayment)} icon={<HandCoins size={18} />} tone="red" />
+        <Kpi title="Doanh thu dự kiến" value={money(summary.totalRevenue ?? data.orderDashboard.revenue)} hint="Theo đơn hàng" icon={<WalletCards size={18} />} tone="blue" />
+        <Kpi title="Thực thu" value={money(summary.paidAmount)} hint="Đã ghi nhận" icon={<ReceiptText size={18} />} tone="green" />
+        <Kpi title="Lợi nhuận" value={money(summary.profit ?? data.orderDashboard.profit)} hint="Sau chi phí trực tiếp" icon={<HandCoins size={18} />} tone="amber" />
+        <Kpi title="Còn phải thu" value={money(summary.remainingRevenue)} hint="Cần theo dõi" icon={<ClipboardList size={18} />} tone="red" />
+        <Kpi title="Tổng chi" value={money(summary.totalCost ?? data.orderDashboard.cost)} hint="Chi phí dự kiến" icon={<WalletCards size={18} />} tone="blue" />
+        <Kpi title="Đã chi" value={money(summary.paidCost)} hint="Chi phí đã thanh toán" icon={<HandCoins size={18} />} tone="green" />
+        <Kpi title="Còn phải chi" value={money(summary.remainingCost)} hint="Công nợ nhà cung cấp" icon={<ReceiptText size={18} />} tone="red" />
+        <Kpi title="Tổng đơn hàng" value={numberValue(summary.totalOrders ?? data.orderDashboard.total).toLocaleString('vi-VN')} hint="Tất cả loại đơn" icon={<Route size={18} />} tone="blue" />
+        <Kpi title="Sắp khởi hành" value={numberValue(data.orderDashboard.upcoming).toLocaleString('vi-VN')} hint="Cần chuẩn bị" icon={<CalendarDays size={18} />} tone="amber" />
+        <Kpi title="Đang chạy" value={numberValue(data.orderDashboard.running).toLocaleString('vi-VN')} hint="Đang vận hành" icon={<Route size={18} />} tone="green" />
+        <Kpi title="Hoàn thành" value={numberValue(data.orderDashboard.completed).toLocaleString('vi-VN')} hint="Đã kết thúc" icon={<PieChart size={18} />} tone="green" />
+        <Kpi title="Khách hàng" value={numberValue(summary.totalCustomers).toLocaleString('vi-VN')} hint="Khách có giao dịch" icon={<PieChart size={18} />} tone="blue" />
       </section>
 
       <section className="workspaceAnalyticsGrid">
@@ -72,7 +71,7 @@ export default async function WorkspaceOverviewPage() {
         </article>
 
         <article className="workspaceCard panel workspaceDonutPanel">
-          <div className="sectionHeader"><h2>Hiệu quả marketing</h2><span>{completionPercent}% hoàn tất</span></div>
+          <div className="sectionHeader"><h2>Tỉ lệ hoàn thành đơn</h2><span>{completionPercent}% hoàn tất</span></div>
           <div className="workspaceDonut" style={donutStyle(completionPercent)}><span>{completionPercent}%</span></div>
           <div className="workspaceChartLegend">
             <span><i style={{ background: '#2cc7c9' }} /> Hoàn tất</span>
@@ -81,16 +80,18 @@ export default async function WorkspaceOverviewPage() {
         </article>
       </section>
 
-      <section className="workspaceCard panel">
-        <div className="workspaceCalendarHeader">
-          <div><CalendarDays size={20} /><h2>Điều hành khởi hành</h2></div>
-          <strong>{monthTitle(new Date())}</strong>
-          <Link href="/order-center">Month</Link>
-        </div>
-        <CalendarGrid days={calendar} />
-      </section>
-
       <section className="workspaceAnalyticsGrid">
+        <article className="workspaceCard panel">
+          <div className="sectionHeader"><h2>Cơ cấu dịch vụ</h2><Link href="/reports">Xem chi tiết</Link></div>
+          <div className="workspaceServiceMix">
+            <div className="workspaceDonut workspaceDonutSmall" style={serviceDonut(productRows)}><span>{numberValue(summary.totalOrders ?? data.orderDashboard.total)}</span></div>
+            <div className="workspacePieRows">
+              {productRows.slice(0, 6).map((row) => <span key={row.key || row.label}><i />{row.label || row.key}: {numberValue(row.orderCount).toLocaleString('vi-VN')} đơn</span>)}
+              {!productRows.length ? <p className="mutedText">Chưa có dữ liệu theo loại dịch vụ.</p> : null}
+            </div>
+          </div>
+        </article>
+
         <article className="workspaceCard panel">
           <div className="sectionHeader"><h2>Trạng thái vận hành</h2><Link href="/order-center">Xem chi tiết</Link></div>
           <div className="workspaceStatusCards">
@@ -100,13 +101,42 @@ export default async function WorkspaceOverviewPage() {
             <MiniStatus label="Đã hủy" value={data.orderDashboard.cancelled} />
           </div>
         </article>
-        <article className="workspaceCard panel">
-          <div className="sectionHeader"><h2>Cơ cấu dịch vụ</h2><Link href="/reports">Xem chi tiết</Link></div>
-          <div className="workspacePieRows">
-            {(summary.byType || []).slice(0, 6).map((row) => <span key={row.key || row.label}><i />{row.label || row.key}: {numberValue(row.orderCount)}</span>)}
-            {!(summary.byType || []).length ? <p className="mutedText">Chưa có dữ liệu theo loại dịch vụ.</p> : null}
-          </div>
-        </article>
+      </section>
+
+      <section className="workspaceCard panel">
+        <div className="sectionHeader">
+          <h2>Doanh số theo dòng sản phẩm</h2>
+          <Link href="/reports?tab=revenue">Xem chi tiết</Link>
+        </div>
+        <div className="fitTableWrap compactListTableWrap">
+          <table className="fitTable compactListTable workspaceProductSalesTable">
+            <thead><tr><th>Dòng sản phẩm</th><th>Số đơn</th><th>Khách hàng</th><th>Doanh thu</th><th>Chi phí</th><th>Lợi nhuận</th><th>Tỉ trọng</th></tr></thead>
+            <tbody>
+              {productRows.map((row) => <ProductSalesRow key={row.key || row.label} row={row} max={maxRevenue(productRows)} />)}
+              {!productRows.length ? <tr><td colSpan={7} className="tableEmptyState">Chưa có dữ liệu doanh số theo dòng sản phẩm.</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="workspaceCard panel">
+        <div className="sectionHeader">
+          <h2>Phân tích thị trường địa lý</h2>
+          <Link href="/reports?groupBy=by-market">Xem chi tiết</Link>
+        </div>
+        <div className="workspaceMarketGrid">
+          {marketRows.slice(0, 8).map((row) => <MarketCard key={row.key || row.label} row={row} max={maxRevenue(marketRows)} />)}
+          {!marketRows.length ? <p className="mutedText">Chưa có dữ liệu thị trường địa lý.</p> : null}
+        </div>
+      </section>
+
+      <section className="workspaceCard panel">
+        <div className="workspaceCalendarHeader">
+          <div><CalendarDays size={20} /><h2>Điều hành khởi hành</h2></div>
+          <strong>{monthTitle(new Date())}</strong>
+          <Link href="/order-center">Month</Link>
+        </div>
+        <CalendarGrid days={calendar} />
       </section>
 
       <section className="workspaceCard panel">
@@ -124,40 +154,6 @@ export default async function WorkspaceOverviewPage() {
                   <td><span className="statusPill statusPillNeutral">{row.status}</span></td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="workspaceAnalyticsGrid">
-        <article className="workspaceCard panel">
-          <div className="sectionHeader"><h2>Cơ cấu dịch vụ</h2><span>{numberValue(summary.totalOrders)} đơn</span></div>
-          <div className="workspaceDonut workspaceDonutSmall" style={serviceDonut(summary.byType || [])}><span>{numberValue(summary.totalOrders)}</span></div>
-        </article>
-        <article className="workspaceCard panel">
-          <div className="sectionHeader"><h2>Phiếu bán hàng thông minh</h2><Link href="/quotations">Xem chi tiết</Link></div>
-          <div className="workspaceMiniBarChart workspaceMiniBarChartThin">
-            <span className="workspaceMiniChartBar" style={{ height: `${Math.max(8, numberValue(data.quotations.total))}%`, background: '#2cc7c9' }} />
-          </div>
-        </article>
-      </section>
-
-      <section className="workspaceCard panel">
-        <div className="sectionHeader"><h2>Báo cáo tài chính sâu</h2><Link href="/reports?tab=finance">Xem chi tiết</Link></div>
-        <div className="fitTableWrap compactListTableWrap">
-          <table className="fitTable compactListTable workspaceFinanceDeepTable">
-            <thead><tr><th>Chỉ nhánh</th><th>Số nhóm sự kiện</th><th>Số đơn</th><th>Doanh thu</th><th>Thực thu</th><th>Còn thiếu</th><th>Lợi nhuận</th><th>Hoa hồng</th></tr></thead>
-            <tbody>
-              <tr>
-                <td>Chi nhánh Tổng</td>
-                <td>{numberValue(data.operations.upcomingDepartures)}</td>
-                <td>{numberValue(summary.totalOrders)}</td>
-                <td>{money(summary.totalRevenue)}</td>
-                <td>{money(summary.paidAmount)}</td>
-                <td className="financeAmountNegative">{money(summary.remainingRevenue)}</td>
-                <td className="financeAmountPositive">{money(summary.profit)}</td>
-                <td>{money(summary.commission)}</td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -194,6 +190,31 @@ function ChartMonth({ row, max }: { row: { label: string; revenue: number; cost:
   );
 }
 
+function ProductSalesRow({ row, max }: { row: MetricRow; max: number }) {
+  return (
+    <tr>
+      <td>{row.label || row.key || 'Chưa phân loại'}</td>
+      <td>{numberValue(row.orderCount).toLocaleString('vi-VN')}</td>
+      <td>{numberValue(row.customerCount).toLocaleString('vi-VN')}</td>
+      <td>{money(row.revenue)}</td>
+      <td>{money(row.cost)}</td>
+      <td className={numberValue(row.profit) >= 0 ? 'financeAmountPositive' : 'financeAmountNegative'}>{money(row.profit)}</td>
+      <td><span className="workspaceProductBarTrack"><i className="workspaceProductBar" style={{ width: barWidth(row.revenue, max) }} /></span></td>
+    </tr>
+  );
+}
+
+function MarketCard({ row, max }: { row: MetricRow; max: number }) {
+  return (
+    <article className="workspaceMarketCard">
+      <div><strong>{row.label || row.key || 'Chưa phân loại'}</strong><span>{numberValue(row.orderCount).toLocaleString('vi-VN')} đơn</span></div>
+      <b>{money(row.revenue)}</b>
+      <em>{numberValue(row.customerCount).toLocaleString('vi-VN')} khách hàng</em>
+      <span className="workspaceProductBarTrack"><i className="workspaceProductBar" style={{ width: barWidth(row.revenue, max) }} /></span>
+    </article>
+  );
+}
+
 function CalendarGrid({ days }: { days: Array<{ date: Date; inMonth: boolean; orders: WorkspaceOrder[] }> }) {
   return (
     <div className="workspaceCalendarGrid workspaceOverviewCalendar">
@@ -221,26 +242,21 @@ function RankingList({ rows, empty }: { rows: Array<{ name: string; value: numbe
   );
 }
 
-function actionRows(data: Awaited<ReturnType<typeof getWorkspaceData>>) {
+function actionRows(data: Awaited<ReturnType<typeof getWorkspaceOverviewData>>) {
   return [
-    { title: 'Đối soát phiếu thu/chi', content: `${numberValue(data.finance.summary?.issueCount)} dòng cần kiểm tra`, due: 'Hôm nay', status: 'Cần xử lý' },
-    { title: 'Xác nhận dịch vụ NCC', content: `${numberValue(data.operations.waitingSupplierConfirmations)} dịch vụ chờ xác nhận`, due: 'Hôm nay', status: 'Đang chờ' },
-    { title: 'Theo dõi công nợ khách hàng', content: `${money(data.finance.summary?.customerDebtBalance)} còn phải thu`, due: 'Tuần này', status: 'Theo dõi' },
-    { title: 'Duyệt đề nghị thanh toán', content: `${numberValue(data.operations.pendingSupplierPayments)} đề nghị đang mở`, due: 'Tuần này', status: 'Chờ duyệt' },
-  ];
+    { title: 'Xác nhận dịch vụ nhà cung cấp', content: `${numberValue(data.operations.waitingSupplierConfirmations)} dịch vụ chờ xác nhận`, due: 'Hôm nay', status: 'Đang chờ' },
+    { title: 'Theo dõi đơn còn phải thu', content: `${numberValue(data.orderDashboard.unpaid)} đơn còn phải thu`, due: 'Tuần này', status: 'Theo dõi' },
+    { title: 'Theo dõi đơn còn phải chi', content: `${numberValue(data.orderDashboard.unpaidCost)} đơn còn phải chi`, due: 'Tuần này', status: 'Theo dõi' },
+    { title: 'Xử lý công việc quá hạn', content: `${numberValue(data.operations.overdueTasks)} việc quá hạn`, due: 'Hôm nay', status: 'Cần xử lý' },
+  ].filter((row) => !row.content.startsWith('0 '));
 }
 
-function chartRows(months: MetricRow[], cashflowRows: Array<{ key?: string; label?: string; receipt?: number; payment?: number; net?: number }>) {
-  const rows = months.length ? months.slice(-12).map((row) => ({
+function chartRows(months: MetricRow[]) {
+  const rows = months.slice(-12).map((row) => ({
     label: shortMonth(row.label || row.key),
     revenue: numberValue(row.revenue ?? row.paidAmount),
     cost: numberValue(row.cost ?? row.paidCost),
     profit: numberValue(row.profit),
-  })) : cashflowRows.slice(-12).map((row) => ({
-    label: shortMonth(row.label || row.key),
-    revenue: numberValue(row.receipt),
-    cost: numberValue(row.payment),
-    profit: numberValue(row.net),
   }));
   return rows.length ? rows : [{ label: 'Tháng này', revenue: 0, cost: 0, profit: 0 }];
 }
@@ -249,8 +265,16 @@ function maxChart(rows: Array<{ revenue: number; cost: number; profit: number }>
   return Math.max(1, ...rows.flatMap((row) => [row.revenue, row.cost, Math.max(row.profit, 0)]));
 }
 
+function maxRevenue(rows: MetricRow[]) {
+  return Math.max(1, ...rows.map((row) => numberValue(row.revenue)));
+}
+
 function barHeight(value: number, max: number) {
   return `${Math.max(4, Math.round((value / max) * 100))}%`;
+}
+
+function barWidth(value: unknown, max: number) {
+  return `${Math.max(4, Math.round((numberValue(value) / max) * 100))}%`;
 }
 
 function donutStyle(percent: number): CSSProperties {

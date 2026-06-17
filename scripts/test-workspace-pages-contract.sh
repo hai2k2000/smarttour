@@ -41,17 +41,31 @@ require_grep "workspaceOverviewPage" apps/web/app/workspace/overview/page.tsx
 require_grep "CEO Analytics" apps/web/app/workspace/overview/page.tsx
 require_grep "Doanh thu & chi phí" apps/web/app/workspace/overview/page.tsx
 require_grep "Điều hành khởi hành" apps/web/app/workspace/overview/page.tsx
-require_grep "Báo cáo tài chính sâu" apps/web/app/workspace/overview/page.tsx
+require_grep "Doanh số theo dòng sản phẩm" apps/web/app/workspace/overview/page.tsx
+require_grep "Phân tích thị trường địa lý" apps/web/app/workspace/overview/page.tsx
 require_grep "Top khách hàng trung thành" apps/web/app/workspace/overview/page.tsx
+if grep -Fq "Phiếu bán hàng thông minh" apps/web/app/workspace/overview/page.tsx; then
+  fail "removed_section_still_present:Phiếu bán hàng thông minh"
+fi
+if grep -Fq "Báo cáo tài chính sâu" apps/web/app/workspace/overview/page.tsx; then
+  fail "removed_section_still_present:Báo cáo tài chính sâu"
+fi
 
 require_grep "getWorkspaceData" apps/web/app/workspace/workspace-data.ts
+require_grep "getWorkspaceOverviewData" apps/web/app/workspace/workspace-data.ts
 require_grep "/api/reports/overview" apps/web/app/workspace/workspace-data.ts
 require_grep "/api/reports/finance" apps/web/app/workspace/workspace-data.ts
 require_grep "/api/order-center" apps/web/app/workspace/workspace-data.ts
+require_grep "/api/reports/revenue/by-type" apps/web/app/workspace/workspace-data.ts
+require_grep "/api/reports/revenue/by-market" apps/web/app/workspace/workspace-data.ts
+require_grep "/api/order-center?compact=true&take=120" apps/web/app/workspace/workspace-data.ts
+require_grep "getWorkspaceOverviewData" apps/web/app/workspace/overview/page.tsx
 
 require_grep ".workspaceDeskPage" apps/web/app/globals.css
 require_grep ".workspaceOverviewPage" apps/web/app/globals.css
 require_grep ".workspaceCalendarGrid" apps/web/app/globals.css
 require_grep ".workspaceMiniChartBar" apps/web/app/globals.css
+require_grep ".workspaceProductSalesTable" apps/web/app/globals.css
+require_grep ".workspaceMarketGrid" apps/web/app/globals.css
 
 echo "TEST_WORKSPACE_PAGES_CONTRACT_OK"
