@@ -454,8 +454,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
                     {validationMessage ? <div className="formErrors"><AlertCircle size={15} /> {validationMessage}</div> : null}
                     <h3>Thông tin combo</h3>
                     <div className="quoteComboTop quoteComboInfoGrid">
-                      <label>Mã combo<input {...register('comboCode')} /></label>
-                      <label>Loại combo<select {...register('comboType')}>{comboTypes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+                      <label>Mã combo<input required {...register('comboCode')} /></label>
+                      <label>Loại combo<select required {...register('comboType')}>{comboTypes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
                     </div>
                   </section>
 
@@ -611,7 +611,7 @@ function ComboRows({
           cell: ({ row }) => {
             if (column.type === 'number') {
               const isPaxOrNight = column.key === 'nightCount' || column.key === 'paxCount';
-              return <input type="number" min={isPaxOrNight ? 1 : 0} step={isPaxOrNight ? 1 : 0.01} inputMode={isPaxOrNight ? 'numeric' : 'decimal'} {...register(`items.${row.index}.${column.key}` as any, { valueAsNumber: true })} />;
+              return <input type="number" required min={isPaxOrNight ? 1 : 0} step={isPaxOrNight ? 1 : 0.01} inputMode={isPaxOrNight ? 'numeric' : 'decimal'} {...register(`items.${row.index}.${column.key}` as any, { valueAsNumber: true })} />;
             }
             return <input type={column.type || 'text'} {...register(`items.${row.index}.${column.key}` as any)} />;
           },

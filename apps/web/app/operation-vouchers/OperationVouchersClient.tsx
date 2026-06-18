@@ -447,11 +447,11 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
                     {loadingVoucherId ? <div className="loadingBar" /> : null}
                     <div className="sectionHeader"><h2>Thông tin chung</h2><span>Nhà cung cấp, dịch vụ và ngày thanh toán</span></div>
                     <div className="quoteFormGrid">
-                      <label>Mã phiếu<input {...register('voucherCode')} disabled={formBusy} /></label>
+                      <label>Mã phiếu<input required {...register('voucherCode')} disabled={formBusy} /></label>
                       <label>Nhà cung cấp<input {...register('supplierName')} disabled={formBusy} /></label>
-                      <label>Loại dịch vụ<input {...register('serviceType')} disabled={formBusy} /></label>
-                      <label>Tên dịch vụ<input {...register('serviceName')} disabled={formBusy} /></label>
-                      <label>Ngày dịch vụ<input type="date" {...register('serviceDate')} disabled={formBusy} /></label>
+                      <label>Loại dịch vụ<input required {...register('serviceType')} disabled={formBusy} /></label>
+                      <label>Tên dịch vụ<input required {...register('serviceName')} disabled={formBusy} /></label>
+                      <label>Ngày dịch vụ<input type="date" required {...register('serviceDate')} disabled={formBusy} /></label>
                       <label>Hạn thanh toán<input type="date" {...register('paymentDeadline')} disabled={formBusy} /></label>
                       <label>Tour ID<input {...register('tourId')} disabled={formBusy} /></label>
                       <label>Booking ID<input {...register('bookingId')} disabled={formBusy} /></label>

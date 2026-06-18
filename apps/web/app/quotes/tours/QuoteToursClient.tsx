@@ -589,8 +589,8 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
                 {validationMessage ? <div className="formErrors"><AlertCircle size={15} /> {validationMessage}</div> : null}
                 <h3>Thông tin chung</h3>
                 <div className="quoteFormGrid">
-                  <label>Mã báo giá<input {...register('quoteCode')} /></label>
-                  <label>Mã tour<input {...register('tourCode')} /></label>
+                  <label>Mã báo giá<input required {...register('quoteCode')} /></label>
+                  <label>Mã tour<input required {...register('tourCode')} /></label>
                   <label>Tên tour<input {...register('tourName')} /></label>
                   <label>Hành trình<input {...register('route')} /></label>
                   <label>Thị trường<input {...register('marketGroup')} /></label>
@@ -768,7 +768,7 @@ function RowInput<T extends ArrayName>({ name, index, column, register }: { name
   if (column.type === 'textarea') return <textarea rows={2} {...register(field as any)} />;
   if (column.type === 'number') {
     const isDayNo = column.key === 'dayNo';
-    return <input type="number" min={isDayNo ? 1 : 0} step={isDayNo ? 1 : 0.01} inputMode={isDayNo ? 'numeric' : 'decimal'} {...register(field as any, { valueAsNumber: true })} />;
+    return <input type="number" required min={isDayNo ? 1 : 0} step={isDayNo ? 1 : 0.01} inputMode={isDayNo ? 'numeric' : 'decimal'} {...register(field as any, { valueAsNumber: true })} />;
   }
   return <input type="text" {...register(field as any)} />;
 }

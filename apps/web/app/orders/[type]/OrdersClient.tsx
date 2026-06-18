@@ -392,7 +392,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
                 </div></fieldset> : null}
                 {activeStep === 1 ? <>
                   <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
-                    <label>Mã hệ thống<input {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
+                    <label>Mã hệ thống<input required {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input required {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
                     <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
                   </div></fieldset>
                   <fieldset><legend>Khách hàng</legend><div className="quoteFormGrid">

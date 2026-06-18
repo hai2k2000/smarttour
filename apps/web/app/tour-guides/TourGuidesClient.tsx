@@ -513,9 +513,9 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
                 {loadingGuideId ? <div className="loadingBar" /> : null}
                 <div className="sectionHeader"><h2>Thông tin cá nhân</h2><span>Mã, liên hệ, ngôn ngữ và thị trường</span></div>
                 <div className="quoteFormGrid">
-                  <label>Mã hướng dẫn viên<input {...register('guideCode')} disabled={formBusy} /></label>
-                  <label>Họ tên<input {...register('fullName')} disabled={formBusy} /></label>
-                  <label>Điện thoại<input {...register('phone')} disabled={formBusy} /></label>
+                  <label>Mã hướng dẫn viên<input required {...register('guideCode')} disabled={formBusy} /></label>
+                  <label>Họ tên<input required {...register('fullName')} disabled={formBusy} /></label>
+                  <label>Điện thoại<input required {...register('phone')} disabled={formBusy} /></label>
                   <label>Email<input type="email" {...register('email')} disabled={formBusy} /></label>
                   <label>Loại hướng dẫn viên<input {...register('guideType')} disabled={formBusy} /></label>
                   <label>Ngày sinh<input type="date" {...register('birthday')} disabled={formBusy} /></label>

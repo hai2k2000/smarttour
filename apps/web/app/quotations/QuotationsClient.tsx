@@ -754,8 +754,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
               <section className="quoteFormSection">
                 <h3>Thông tin báo giá</h3>
                 <div className="quoteFormGrid">
-                  <label>Mã báo giá<input {...register('quoteCode')} /></label>
-                  <label>Loại sản phẩm<select {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{productTypeText(item)}</option>)}</select></label>
+                  <label>Mã báo giá<input required {...register('quoteCode')} /></label>
+                  <label>Loại sản phẩm<select required {...register('productType')}>{productTypes.map((item) => <option key={item} value={item}>{productTypeText(item)}</option>)}</select></label>
                   <label>Nhóm thị trường<input {...register('marketGroup')} /></label>
                   <label>Loại hình sản phẩm<input {...register('productCategory')} /></label>
                   <label className="span2">Sản phẩm / Hành trình<input {...register('route')} /></label>
@@ -868,15 +868,15 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
                       return (
                         <tr key={field.id}>
                           <td>{index + 1}</td>
-                          <td><select {...register(`items.${index}.serviceType`)}>{services.map((service) => <option key={service} value={service}>{service}</option>)}</select></td>
+                          <td><select required {...register(`items.${index}.serviceType`)}>{services.map((service) => <option key={service} value={service}>{service}</option>)}</select></td>
                           <td><input {...register(`items.${index}.supplierName`)} /></td>
                           <td><input {...register(`items.${index}.serviceName`)} /></td>
                           <td><input {...register(`items.${index}.unit`)} /></td>
-                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.quantity`, { valueAsNumber: true })} /></td>
-                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.paxCount`, { valueAsNumber: true })} /></td>
-                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.nightCount`, { valueAsNumber: true })} /></td>
-                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.netPrice`, { valueAsNumber: true })} /></td>
-                          <td><input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.vat`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" required min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.quantity`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" required min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.paxCount`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" required min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.nightCount`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" required min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.netPrice`, { valueAsNumber: true })} /></td>
+                          <td><input type="number" required min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.vat`, { valueAsNumber: true })} /></td>
                           <td><input type="number" step="0.01" inputMode="decimal" {...register(`items.${index}.markupAmount`, { valueAsNumber: true })} /></td>
                           <td><input type="number" step="0.01" inputMode="decimal" {...register(`items.${index}.markupPercent`, { valueAsNumber: true })} /></td>
                           <td>{money(itemCost(row, values.exchangeRate) + itemMarkup(row, values.exchangeRate))}</td>
