@@ -28,6 +28,7 @@ const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 const paymentStatuses = ['UNPAID', 'PARTIAL', 'PAID'];
 const landWorkflowSteps = ['LANDTOUR_INFO', 'LANDTOUR_COSTING', 'LANDTOUR_OPERATION', 'LANDTOUR_HANDOVER', 'LANDTOUR_SURVEY', 'LANDTOUR_COMPLETED'];
+const operationStatuses = ['WAITING', 'REQUESTED', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'];
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -227,20 +228,20 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
             <label>Kh&#225;ch h&#224;ng ch&#237;nh<input name="customerName" minLength={2} maxLength={200} /></label>
             <label>Nh&#226;n vi&#234;n &#273;i&#7873;u h&#224;nh<input name="operatorOwner" maxLength={200} /></label>
             <label>H&#432;&#7899;ng d&#7851;n vi&#234;n<input name="guideName" maxLength={200} /></label>
-            <label>Lo&#7841;i combo<select name="comboType" defaultValue="Combo du l&#7883;ch"><option>Land only</option><option>Land + V&#233;</option><option>Land + Ph&#242;ng</option><option>Land + Xe</option><option>Land + Kh&#225;ch s&#7841;n</option><option>Combo du l&#7883;ch</option></select></label>
+            <label>Lo&#7841;i combo<select name="comboType" defaultValue="Combo du l&#7883;ch"><option value="Land only">Ch&#7881; land</option><option value="Land + V&#233;">Land + v&#233; m&#225;y bay</option><option value="Land + Ph&#242;ng">Land + ph&#242;ng kh&#225;ch s&#7841;n</option><option value="Land + Xe">Land + xe</option><option value="Land + Kh&#225;ch s&#7841;n">Land + kh&#225;ch s&#7841;n</option><option value="Combo du l&#7883;ch">Combo du l&#7883;ch</option></select></label>
             <label>Ti&#7873;n t&#7879;<select name="exchangeRateCode" defaultValue="VND"><option>VND</option><option>USD</option><option>EUR</option></select></label>
             <label>Gi&#225; tr&#7883; t&#7927; gi&#225;<input name="exchangeRate" type="number" min="0.000001" step="0.000001" defaultValue={1} /></label>
-            <label>Lo&#7841;i d&#7883;ch v&#7909; b&#225;n<input name="salesServiceType" placeholder="LAND_CAR" maxLength={100} /></label>
+            <label>Lo&#7841;i d&#7883;ch v&#7909; b&#225;n<input name="salesServiceType" placeholder="Xe, kh&#225;ch s&#7841;n, v&#233; tham quan..." maxLength={100} /></label>
             <label>Di&#7877;n gi&#7843;i d&#7883;ch v&#7909; b&#225;n<input name="salesDescription" maxLength={500} /></label>
             <label>S&#7889; l&#432;&#7907;ng b&#225;n<input name="salesQuantity" type="number" min={1} defaultValue={1} /></label>
             <label>&#272;&#417;n gi&#225; b&#225;n<input name="salesUnitPrice" type="number" min={0} defaultValue={0} /></label>
             <label>VAT b&#225;n (%)<input name="salesVat" type="number" min={0} max={100} defaultValue={0} /></label>
-            <label>Lo&#7841;i d&#7883;ch v&#7909; &#273;i&#7873;u h&#224;nh<input name="operationServiceType" placeholder="LAND_HOTEL" maxLength={100} /></label>
+            <label>Lo&#7841;i d&#7883;ch v&#7909; &#273;i&#7873;u h&#224;nh<input name="operationServiceType" placeholder="Kh&#225;ch s&#7841;n, xe, nh&#224; h&#224;ng..." maxLength={100} /></label>
             <label>Di&#7877;n gi&#7843;i &#273;i&#7873;u h&#224;nh<input name="operationDescription" maxLength={500} /></label>
             <label>S&#7889; l&#432;&#7907;ng &#273;i&#7873;u h&#224;nh<input name="operationQuantity" type="number" min={1} defaultValue={1} /></label>
             <label>Gi&#225; x&#225;c nh&#7853;n<input name="operationUnitPrice" type="number" min={0} defaultValue={0} /></label>
             <label>VAT &#273;i&#7873;u h&#224;nh (%)<input name="operationVat" type="number" min={0} max={100} defaultValue={0} /></label>
-            <label>Tr&#7841;ng th&#225;i d&#7883;ch v&#7909;<select name="operationStatus" defaultValue="WAITING"><option>WAITING</option><option>REQUESTED</option><option>CONFIRMED</option><option>OPERATING</option><option>COMPLETED</option><option>CANCELLED</option></select></label>
+            <label>Tr&#7841;ng th&#225;i d&#7883;ch v&#7909;<select name="operationStatus" defaultValue="WAITING">{operationStatuses.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label>
             <label>M&#227; SmartLink<input name="smartLinkCode" maxLength={100} /></label>
             <label className="checkLine"><input name="autoTermsEnabled" type="checkbox" /> T&#7921; &#273;&#7897;ng &#225;p d&#7909;ng &#273;i&#7873;u kho&#7843;n</label>
             <label>&#272;i&#7873;u kho&#7843;n ti&#7871;ng Vi&#7879;t<textarea name="termsVi" rows={2} maxLength={4000} /></label>

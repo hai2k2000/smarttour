@@ -95,7 +95,7 @@ export default function CommissionReportsClient() {
     <section className="workspace commissionPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Finance</p>
+          <p className="eyebrow">Tài chính</p>
           <h1>Báo cáo hoa hồng theo cột mốc</h1>
         </div>
         <div className="pageHeaderActions">
@@ -119,11 +119,11 @@ export default function CommissionReportsClient() {
         <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Mã đơn, tour, khách, sales" /></label>
         <label>Trạng thái<select value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option><option value="PENDING">Chờ duyệt</option><option value="APPROVED">Đã duyệt</option><option value="REJECTED">Từ chối</option><option value="REVOKED">Thu hồi</option></select></label>
         <label>Thanh toán<select value={filter.paymentStatus} onChange={(event) => setFilter({ ...filter, paymentStatus: event.target.value })}><option value="">Tất cả</option><option value="UNPAID">Chưa chi</option><option value="PARTIAL">Chi một phần</option><option value="PAID">Đã chi</option></select></label>
-        <label>Sản phẩm<select value={filter.productType} onChange={(event) => setFilter({ ...filter, productType: event.target.value })}><option value="">Tất cả</option><option value="FIT_TOUR">FIT</option><option value="GIT_COMBO">GIT/Combo</option><option value="LANDTOUR">LandTour</option><option value="HOTEL_BOOKING">Booking phòng</option><option value="FLIGHT_ORDER">Vé máy bay</option><option value="SINGLE_SERVICE">Dịch vụ lẻ</option></select></label>
+        <label>Sản phẩm<select value={filter.productType} onChange={(event) => setFilter({ ...filter, productType: event.target.value })}><option value="">Tất cả</option><option value="FIT_TOUR">Tour FIT</option><option value="GIT_COMBO">Tour GIT / Combo</option><option value="LANDTOUR">LandTour / Combo</option><option value="HOTEL_BOOKING">Booking phòng khách sạn</option><option value="FLIGHT_ORDER">Đơn vé máy bay</option><option value="SINGLE_SERVICE">Dịch vụ lẻ</option></select></label>
         <label>Sales<input value={filter.employee} onChange={(event) => setFilter({ ...filter, employee: event.target.value })} /></label>
         <label>Phòng ban<input value={filter.department} onChange={(event) => setFilter({ ...filter, department: event.target.value })} /></label>
         <label>Chi nhánh<input value={filter.branch} onChange={(event) => setFilter({ ...filter, branch: event.target.value })} /></label>
-        <label>Group<select value={filter.groupBy} onChange={(event) => setFilter({ ...filter, groupBy: event.target.value })}><option value="salesOwner">Nhân viên</option><option value="team">Nhóm</option><option value="department">Phòng ban</option><option value="branch">Chi nhánh</option><option value="market">Thị trường</option></select></label>
+        <label>Nhóm tổng hợp<select value={filter.groupBy} onChange={(event) => setFilter({ ...filter, groupBy: event.target.value })}><option value="salesOwner">Nhân viên</option><option value="team">Nhóm kinh doanh</option><option value="department">Phòng ban</option><option value="branch">Chi nhánh</option><option value="market">Thị trường</option></select></label>
       </section>
 
       <section className="contentGrid commissionGrid">
@@ -166,7 +166,7 @@ export default function CommissionReportsClient() {
           </div>
           {selected && (
             <>
-              <h2>Chi tiet</h2>
+              <h2>Chi tiết</h2>
               <div className="summaryRows">
                 <div><span>Công thức</span><strong>{selected.formula || '-'}</strong></div>
                 <div><span>Hoa hồng</span><strong>{money(Number(selected.commissionAmount))}</strong></div>

@@ -39,13 +39,32 @@ const statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'
 const services = ['Vé máy bay', 'Khách sạn', 'Xe', 'Nhà hàng', 'Hướng dẫn viên', 'Vé tham quan', 'Visa', 'Bảo hiểm', 'Sim', 'Dịch vụ khác'];
 
 const productTypeLabels: Record<string, string> = {
-  FIT: 'FIT',
-  GIT: 'GIT',
-  LANDTOUR: 'Land tour',
+  FIT: 'Tour FIT',
+  GIT: 'Tour GIT',
+  LANDTOUR: 'LandTour',
   COMBO: 'Combo',
-  BOOKING: 'Booking',
-  VISA: 'Visa',
+  BOOKING: 'Booking phòng',
+  VISA: 'Visa / hộ chiếu',
   SERVICE: 'Dịch vụ',
+};
+
+const serviceTypeLabels: Record<string, string> = {
+  FLIGHT: 'Vé máy bay',
+  FLIGHT_ORDER: 'Vé máy bay',
+  HOTEL: 'Khách sạn',
+  HOTEL_BOOKING: 'Khách sạn',
+  TRANSPORT: 'Xe',
+  CAR: 'Xe',
+  RESTAURANT: 'Nhà hàng',
+  MEAL: 'Nhà hàng',
+  GUIDE: 'Hướng dẫn viên',
+  TICKET: 'Vé tham quan',
+  ATTRACTION_TICKET: 'Vé tham quan',
+  VISA: 'Visa / hộ chiếu',
+  INSURANCE: 'Bảo hiểm',
+  SIM: 'SIM du lịch',
+  OTHER: 'Dịch vụ khác',
+  SERVICE: 'Dịch vụ khác',
 };
 
 const statusLabels: Record<string, string> = {
@@ -239,6 +258,11 @@ function statusText(status: unknown) {
 function productTypeText(productType: unknown) {
   const key = text(productType);
   return productTypeLabels[key] || key || '-';
+}
+
+function serviceTypeText(serviceType: unknown) {
+  const key = text(serviceType);
+  return serviceTypeLabels[key] || key || '-';
 }
 
 function statusPillClass(status: unknown) {
@@ -810,7 +834,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
                 <h3>Trạng thái duyệt</h3>
                 <div className="quoteFormGrid">
                   <label>Cấp duyệt<select {...register('approvalLevel', { valueAsNumber: true })}><option value="0">Không duyệt</option><option value="1">1 cấp</option><option value="2">2 cấp</option></select></label>
-                  <label>Ngôn ngữ<select {...register('language')}><option value="VI">Tiếng Việt</option><option value="EN">English</option></select></label>
+                  <label>Ngôn ngữ<select {...register('language')}><option value="VI">Tiếng Việt</option><option value="EN">Tiếng Anh</option></select></label>
                   <div className="quotationStatusLine">
                     <span>Trạng thái</span>
                     <strong className={statusPillClass(currentStatus)}>{statusText(currentStatus)}</strong>
@@ -868,7 +892,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
                       return (
                         <tr key={field.id}>
                           <td>{index + 1}</td>
-                          <td><select required {...register(`items.${index}.serviceType`)}>{services.map((service) => <option key={service} value={service}>{service}</option>)}</select></td>
+                          <td><select required {...register(`items.${index}.serviceType`)}>{services.map((service) => <option key={service} value={service}>{serviceTypeText(service)}</option>)}</select></td>
                           <td><input {...register(`items.${index}.supplierName`)} /></td>
                           <td><input {...register(`items.${index}.serviceName`)} /></td>
                           <td><input {...register(`items.${index}.unit`)} /></td>

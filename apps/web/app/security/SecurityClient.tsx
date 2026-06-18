@@ -486,7 +486,7 @@ function UserModal({
           <div className="modalFormGrid">
             <label>Chi nhánh<input name="branch" defaultValue={user?.branch || ''} placeholder="Bắt buộc nếu vai trò theo chi nhánh" /></label>
             <label>Phòng ban<input name="department" defaultValue={user?.department || ''} placeholder="Bắt buộc nếu vai trò theo phòng ban" /></label>
-            <label className="span2">Vai trò<select name="roleCodes" multiple required size={Math.min(8, Math.max(4, roles.length))} defaultValue={user?.roles.map((role) => role.code) || []}>{roles.map((role) => <option key={role.code} value={role.code}>{viRoleCode(role.code)} · {role.code}</option>)}</select></label>
+            <label className="span2">Vai trò<select name="roleCodes" multiple required size={Math.min(8, Math.max(4, roles.length))} defaultValue={user?.roles.map((role) => role.code) || []}>{roles.map((role) => <option key={role.code} value={role.code}>{roleOptionLabel(role)}</option>)}</select></label>
           </div>
         </fieldset>
         <ModalActions busy={busy} busyText={creating ? 'Đang tạo...' : 'Đang lưu...'} submitText={creating ? 'Tạo người dùng' : 'Lưu người dùng'} icon={creating ? <UserCog size={16} /> : <CheckCircle2 size={16} />} onClose={onClose} />
@@ -519,13 +519,13 @@ function RoleModal({
         {!creating ? (
           <fieldset>
             <legend>Vai trò đang chỉnh sửa</legend>
-            <label>Chọn vai trò<select value={role?.id || ''} onChange={(event) => onSelectRole?.(event.target.value)}>{roles.map((item) => <option key={item.id} value={item.id}>{viRoleCode(item.code)} · {item.code}</option>)}</select></label>
+            <label>Chọn vai trò<select value={role?.id || ''} onChange={(event) => onSelectRole?.(event.target.value)}>{roles.map((item) => <option key={item.id} value={item.id}>{roleOptionLabel(item)}</option>)}</select></label>
           </fieldset>
         ) : null}
         <fieldset>
           <legend>Thông tin vai trò</legend>
           <div className="modalFormGrid">
-            <label>Mã vai trò<input name="code" required={creating} readOnly={!creating} defaultValue={role?.code || ''} placeholder="finance_manager" /></label>
+            <label>Mã vai trò<input name="code" required={creating} readOnly={!creating} defaultValue={role?.code || ''} placeholder="quan_ly_tai_chinh" /></label>
             <label>Tên vai trò<input name="name" required defaultValue={role?.name || ''} /></label>
             {!creating ? <label>Trạng thái<select name="status" defaultValue={role?.status || 'ACTIVE'}>{ROLE_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label> : null}
             <label className="span2">Mô tả<textarea name="description" rows={3} defaultValue={role?.description || ''} /></label>
@@ -689,6 +689,12 @@ function roleScopeLabel(role: Role) {
   if (permissions.has('data.scope.branch')) scopes.push('Theo chi nhánh người dùng');
   if (permissions.has('data.scope.department')) scopes.push('Theo phòng ban người dùng');
   return scopes.join(' · ') || 'Chưa có phạm vi dữ liệu nghiệp vụ';
+}
+
+function roleOptionLabel(role: Pick<Role, 'code' | 'name'>) {
+  const localized = viRoleCode(role.code);
+  if (localized && localized !== role.code) return localized;
+  return role.name || role.code;
 }
 
 function authStateLabel(state: AuthState) {

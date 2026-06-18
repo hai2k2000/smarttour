@@ -35,6 +35,26 @@ const typeOptions = ['', 'FIT_TOUR', 'GIT_COMBO', 'LANDTOUR', 'HOTEL_BOOKING', '
 const statusOptions = ['', 'DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 const paymentOptions = ['', 'UNPAID', 'PARTIAL', 'PAID', 'REFUND'];
 const costOptions = ['', 'PENDING', 'PARTIAL', 'PAID', 'OVERDUE'];
+const orderTypeLabels: Record<string, string> = {
+  FIT_TOUR: 'Tour FIT',
+  GIT_COMBO: 'Tour GIT / Combo',
+  LANDTOUR: 'LandTour / Combo',
+  HOTEL_BOOKING: 'Booking phòng khách sạn',
+  SINGLE_SERVICE: 'Dịch vụ lẻ',
+  FLIGHT_ORDER: 'Đơn vé máy bay',
+};
+const paymentStatusLabels: Record<string, string> = {
+  UNPAID: 'Chưa thu',
+  PARTIAL: 'Thu một phần',
+  PAID: 'Đã thu',
+  REFUND: 'Đã hoàn tiền',
+};
+const costStatusLabels: Record<string, string> = {
+  PENDING: 'Chờ chi',
+  PARTIAL: 'Chi một phần',
+  PAID: 'Đã chi',
+  OVERDUE: 'Quá hạn chi',
+};
 
 function browserApiBase() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
@@ -44,6 +64,10 @@ function browserApiBase() {
 }
 function money(value: unknown) { return Number(value || 0).toLocaleString('vi-VN'); }
 function dateOnly(value?: string | null) { return value ? value.slice(0, 10) : '-'; }
+function orderTypeLabel(value: unknown) { const key = String(value || '').trim(); return key ? orderTypeLabels[key] || viStatus(key) : 'Tất cả'; }
+function orderStatusLabel(value: unknown) { const key = String(value || '').trim(); return key ? viStatus(key) : 'Tất cả'; }
+function paymentStatusLabel(value: unknown) { const key = String(value || '').trim(); return key ? paymentStatusLabels[key] || viStatus(key) : 'Tất cả'; }
+function costStatusLabel(value: unknown) { const key = String(value || '').trim(); return key ? costStatusLabels[key] || viStatus(key) : 'Tất cả'; }
 function qs(filters: Filters) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
@@ -63,7 +87,7 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
     columns: useMemo(() => {
       const helper = createColumnHelper<OrderRow>();
       return [
-        helper.display({ id: 'code', header: 'Mã đơn', cell: ({ row }) => <span><strong>{row.original.systemCode}</strong><span className="mutedText"> · {row.original.type}</span></span> }),
+        helper.display({ id: 'code', header: 'Mã đơn', cell: ({ row }) => <span><strong>{row.original.systemCode}</strong><span className="mutedText"> · {orderTypeLabel(row.original.type)}</span></span> }),
         helper.display({ id: 'tour', header: 'Tour / Dịch vụ', cell: ({ row }) => <span>{row.original.tourCode || '-'} · {row.original.name}</span> }),
         helper.display({ id: 'customer', header: 'Khách hàng', cell: ({ row }) => <span>{row.original.customerName || '-'} · {row.original.customerPhone || '-'}</span> }),
         helper.display({ id: 'dates', header: 'Lịch', cell: ({ row }) => <span>{dateOnly(row.original.startDate)} - {dateOnly(row.original.endDate)}</span> }),
@@ -156,10 +180,10 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
           <label>Tên tour/dịch vụ<input value={filters.name || ''} onChange={(event) => setFilter('name', event.target.value)} /></label>
           <label>Khách hàng<input value={filters.customerName || ''} onChange={(event) => setFilter('customerName', event.target.value)} /></label>
           <label>Điện thoại<input value={filters.customerPhone || ''} onChange={(event) => setFilter('customerPhone', event.target.value)} /></label>
-          <label>Loại đơn<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
-          <label>Trạng thái<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
-          <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
-          <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map((item) => <option key={item || 'all'} value={item}>{item || 'Tất cả'}</option>)}</select></label>
+          <label>Loại đơn<select value={filters.type || ''} onChange={(event) => setFilter('type', event.target.value)}>{typeOptions.map((item) => <option key={item || 'all'} value={item}>{orderTypeLabel(item)}</option>)}</select></label>
+          <label>Trạng thái<select value={filters.status || ''} onChange={(event) => setFilter('status', event.target.value)}>{statusOptions.map((item) => <option key={item || 'all'} value={item}>{orderStatusLabel(item)}</option>)}</select></label>
+          <label>Thanh toán<select value={filters.paymentStatus || ''} onChange={(event) => setFilter('paymentStatus', event.target.value)}>{paymentOptions.map((item) => <option key={item || 'all'} value={item}>{paymentStatusLabel(item)}</option>)}</select></label>
+          <label>Chi phí<select value={filters.costStatus || ''} onChange={(event) => setFilter('costStatus', event.target.value)}>{costOptions.map((item) => <option key={item || 'all'} value={item}>{costStatusLabel(item)}</option>)}</select></label>
           <label>Khởi hành từ<input type="date" value={filters.startFrom || ''} onChange={(event) => setFilter('startFrom', event.target.value)} /></label>
           <label>Khởi hành đến<input type="date" value={filters.startTo || ''} onChange={(event) => setFilter('startTo', event.target.value)} /></label>
           <label>Ngày về từ<input type="date" value={filters.endFrom || ''} onChange={(event) => setFilter('endFrom', event.target.value)} /></label>

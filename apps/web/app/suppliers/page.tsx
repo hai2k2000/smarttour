@@ -39,6 +39,37 @@ const editCategoryModalId = (id: string) => `suppliers-edit-category-${id}`;
 const createSupplierModalId = 'suppliers-create-supplier';
 const editSupplierModalId = (id: string) => `suppliers-edit-${id}`;
 const deleteSupplierModalId = (id: string) => `suppliers-delete-${id}`;
+const supplierCategoryLabels: Record<string, string> = {
+  'attraction ticket': 'Vé tham quan',
+  'attraction tickets': 'Vé tham quan',
+  bus: 'Nhà xe tuyến cố định',
+  flight: 'Vé máy bay',
+  'flight ticket': 'Vé máy bay',
+  'flight tickets': 'Vé máy bay',
+  guide: 'Hướng dẫn viên',
+  guides: 'Hướng dẫn viên',
+  hotel: 'Khách sạn',
+  'demo hotel': 'Khách sạn demo',
+  landtour: 'LandTour',
+  'land tour': 'LandTour',
+  other: 'Chi phí khác',
+  passport: 'Visa / hộ chiếu',
+  restaurant: 'Nhà hàng',
+  restaurants: 'Nhà hàng',
+  transport: 'Vận chuyển',
+  villa: 'Biệt thự',
+  villas: 'Biệt thự',
+  voucher: 'Voucher',
+  vouchers: 'Voucher',
+  water: 'Nước suối',
+};
+
+function supplierCategoryLabel(value?: string | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Chưa phân loại';
+  const key = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  return supplierCategoryLabels[key] || raw;
+}
 
 async function responseError(response: Response) {
   try {
@@ -247,10 +278,10 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
             {categories.map((category) => (
               <div className="supplierCategoryCard" key={category.id}>
                 <div>
-                  <strong>{category.name}</strong>
+                  <strong>{supplierCategoryLabel(category.name)}</strong>
                   <span>{category._count?.suppliers ?? 0} nhà cung cấp đang gắn</span>
                 </div>
-                <a className="secondaryButton iconOnlyButton" href={`#${editCategoryModalId(category.id)}`} title={`Sửa loại ${category.name}`} aria-label={`Sửa loại ${category.name}`}><Pencil size={14} /></a>
+                <a className="secondaryButton iconOnlyButton" href={`#${editCategoryModalId(category.id)}`} title={`Sửa loại ${supplierCategoryLabel(category.name)}`} aria-label={`Sửa loại ${supplierCategoryLabel(category.name)}`}><Pencil size={14} /></a>
               </div>
             ))}
             {categories.length === 0 ? <div className="tableEmptyState">Chưa có loại nhà cung cấp.</div> : null}
@@ -292,7 +323,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                         <strong>{supplier.name}</strong>
                         <span className="supplierMeta">Cập nhật: {formatDate(supplier.updatedAt)}</span>
                       </td>
-                      <td>{supplier.category?.name || 'Chưa phân loại'}</td>
+                      <td>{supplierCategoryLabel(supplier.category?.name)}</td>
                       <td>{display(supplier.contactPerson)}</td>
                       <td>{display(supplier.phone)}</td>
                       <td>{display(supplier.email)}</td>
@@ -334,7 +365,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
         <CategoryModal
           key={`category-${category.id}`}
           id={editCategoryModalId(category.id)}
-          title={`Sửa loại ${category.name}`}
+          title={`Sửa loại ${supplierCategoryLabel(category.name)}`}
           category={category}
           action={updateCategory}
           submitLabel="Lưu thay đổi"
@@ -452,7 +483,7 @@ function SupplierForm({
             <select name="categoryId" required defaultValue={selectedCategoryId}>
               <option value="">Chọn loại nhà cung cấp</option>
               {categories.map((category) => (
-                <option value={category.id} key={category.id}>{category.name}</option>
+                <option value={category.id} key={category.id}>{supplierCategoryLabel(category.name)}</option>
               ))}
             </select>
           </label>
