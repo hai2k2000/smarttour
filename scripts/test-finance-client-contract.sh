@@ -26,6 +26,10 @@ if (!css.includes('.financeNotice-error') || !css.includes('.status-overdue') ||
 if (!source.includes('className="financeFilterLabel"')) failures.push('finance search label must not collapse the input grid');
 if (!appShell.includes("label: 'Phi\u1ebfu thu ch\u1edd'") || !appShell.includes("label: 'H\u00f3a \u0111\u01a1n VAT'")) failures.push('finance sidebar labels must use full Vietnamese wording');
 for (const label of ["QR: 'Thanh to\u00e1n QR'", "OFFSET: 'B\u00f9 tr\u1eeb'", "OTHER: 'Kh\u00e1c'"]) if (!i18n.includes(label)) failures.push(`missing Vietnamese payment method label: ${label}`);
+if (!source.includes('<th>Tên phiếu thu</th>') || !source.includes('<strong>{primaryReceiptName(row)}</strong>') || !source.includes('secondaryReceiptCode(row)')) failures.push('receipt table first column must prioritize receipt name over code');
+if (!source.includes('<th>Tên phiếu chi</th>') || !source.includes('<strong>{primaryPaymentName(row)}</strong>') || !source.includes('secondaryPaymentCode(row)')) failures.push('payment table first column must prioritize voucher name over code');
+if (!source.includes('<th>Tên hóa đơn và tài liệu</th>') || !source.includes('<strong>{primaryInvoiceName(row)}</strong>') || !source.includes('secondaryInvoiceCode(row)')) failures.push('invoice table first column must prioritize invoice/customer name over code');
+if (!source.includes('<td>{financeLabel(row.voucherType)}</td>') || !source.includes('<td>{financeLabel(row.receiptType)}</td>') || !source.includes('<td>{financeLabel(row.sourceType)}</td>')) failures.push('finance tables must use localized financeLabel instead of exposing raw enum codes');
 if ((controller.match(/financeImportInterceptorOptions\(\)/g) || []).length !== 2) failures.push('frontend multipart CSV import requires backend file interceptors');
 if (failures.length) {
   console.error('FAIL_FINANCE_CLIENT_CONTRACT');

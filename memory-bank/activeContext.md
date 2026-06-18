@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance table readability follow-up:
+  - Updated finance list tables so receipt/payment/invoice first columns prioritize document names instead of hard-to-remember generated codes; codes remain secondary traceability text only when different from the name.
+  - Finance receipt/payment/cashflow table enum cells now use a finance-specific label helper to avoid raw underscore enum codes being exposed in list views.
+  - Added finance client contract assertions for name-first columns and localized finance table enum rendering.
+
+
 - Finance and shared dropdown localization:
   - Expanded `apps/web/app/i18n.ts` so finance receipt/payment voucher types and common order/tour/service status enums render as Vietnamese labels through `viStatus()` instead of raw enum codes in forms, filters, and tables.
   - Extended `scripts/test-localized-dropdowns-contract.js` to guard finance voucher labels (`SUPPLIER_PAYMENT`, `CUSTOMER_REFUND`, `INTERNAL_EXPENSE`, etc.) and shared order/tour labels (`UPCOMING`, `RUNNING`, `FIT_TOUR`, `HOTEL_BOOKING`, etc.).

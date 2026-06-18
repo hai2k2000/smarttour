@@ -2,6 +2,12 @@
 
 ## Done
 
+- Improved finance table Vietnamese/readability:
+  - Changed finance receipt, payment, and invoice list first columns from code-first to name-first display.
+  - Added a table-safe finance label helper so voucher/source/payment method cells do not fall back to raw enum codes such as `SUPPLIER_PAYMENT`.
+  - Expanded finance client contract coverage for the name-first table columns and localized finance enum cells.
+
+
 - Fixed English/raw enum labels in finance and shared form dropdowns:
   - Added Vietnamese `viStatus()` mappings for finance receipt/payment types, common order statuses, quotation/order product types, service types, FIT workflow steps, and debt adjustment directions.
   - Strengthened localized-dropdown contract coverage so finance voucher dropdowns cannot regress to raw enum labels such as `SUPPLIER_PAYMENT` or `CUSTOMER_REFUND`.
