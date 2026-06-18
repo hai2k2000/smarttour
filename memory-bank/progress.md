@@ -2,6 +2,20 @@
 
 ## Done
 
+- Repaired the remaining actionable receipt-link reconciliation anomaly:
+  - Added receipt-link audit/backfill tooling plus regression coverage for
+    approved receipts whose document code identifies one booking while their
+    receipt-order row and side effects point to another booking/tour.
+  - Production repair moved the two approved receipts
+    `S2-0626-NBI.012-51_3080_NO.1` and `S2-0626-NBI.012-51_3080_NO.2` from
+    `LANDTOUR_92` to booking `S2-0626-NBI.012-51`, updating the receipt
+    `tourId`, receipt-order rows, cashflow tour links, and customer-ledger
+    order/tour links. Order paid snapshots were intentionally left unchanged.
+  - Receipt-link audit now reports 0 issues. Duplicate-import and legacy
+    cashflow audits remain at 0. Order reconciliation no longer has any
+    `docs_gt_order` drift; remaining drift is historical `order_gt_docs`
+    snapshot data without active approved finance documents.
+
 - Repaired duplicate TourKit finance imports and duplicate cashflow reporting:
   - Added duplicate-import audit/backfill tooling with regression coverage for
     canonical-code duplicates, dry-run safety, idempotency, side-effect cleanup,

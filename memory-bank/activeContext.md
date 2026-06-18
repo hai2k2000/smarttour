@@ -20,6 +20,28 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance receipt-link repair for order reconciliation drift:
+  - Added `scripts/finance-receipt-link-audit.js` and
+    `scripts/test-finance-receipt-link-audit.sh` to detect approved receipts
+    whose receipt code starts with booking A but whose `FinanceReceiptOrder`,
+    receipt `tourId`, customer ledger, and cashflow still point to booking B.
+    The matcher uses the longest canonical order-code prefix so booking codes
+    containing underscores such as `BK_61` are handled safely.
+  - Production dry-run found exactly 2 actionable receipts, both
+    `S2-0626-NBI.012-51_3080_NO.1/NO.2`, linked to `LANDTOUR_92` while the
+    receipt code and matching customer point to booking `S2-0626-NBI.012-51`.
+    Backfill updated 2 receipts, 2 receipt-order rows, 2 cashflow rows, and 2
+    customer-ledger rows without rewriting order paid snapshots.
+  - Post-repair audits: receipt-link issues 0, duplicate imports 0, duplicate
+    legacy cashflow 0, and finance side-effect audit still only has the known
+    zero-amount payment `_18332__NO.1` anomaly.
+  - Order reconciliation drift is now only historical snapshot drift where
+    `Order.paidAmount`/`paidCost` is greater than active approved finance docs:
+    5 receipt-side orders and 4 payment-side orders. No `docs_gt_order` drift
+    remains after this repair. These historical paid snapshots need a business
+    decision before creating missing historical documents or resetting order
+    paid values.
+
 - Finance duplicate import and legacy cashflow repair:
   - Added `scripts/finance-duplicate-import-audit.js` and
     `scripts/test-finance-duplicate-import-audit.sh` to detect duplicate
