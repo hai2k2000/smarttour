@@ -2,6 +2,19 @@
 
 ## Done
 
+- Cleaned the final approved zero-amount finance import artifact:
+  - Added zero-amount audit/backfill tooling plus regression coverage for
+    actionable zero documents, blocked zero documents with side effects,
+    dry-run safety, and idempotent apply behavior.
+  - Production cleanup soft-deleted approved payment `_18332__NO.1`
+    (`59cf81c4-a719-4004-b831-a292d10df38f`), an amount-0 TourKit import
+    artifact with no cashflow/ledger/downstream links. A real approved payment
+    on the same order/supplier/date already covers the booking cost, so order
+    paid snapshots were intentionally left unchanged.
+  - Zero-amount audit now reports 0 issues, and finance side-effect guard now
+    reports 0 missing receipt/payment cashflow or customer/supplier ledger
+    side effects.
+
 - Repaired the remaining actionable receipt-link reconciliation anomaly:
   - Added receipt-link audit/backfill tooling plus regression coverage for
     approved receipts whose document code identifies one booking while their

@@ -20,6 +20,28 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance zero-amount approved import artifact cleanup:
+  - Added `scripts/finance-zero-amount-audit.js` and
+    `scripts/test-finance-zero-amount-audit.sh` to detect approved original
+    finance receipts/payments with nonpositive amounts. The cleanup only
+    soft-deletes actionable zero-amount documents that have no cashflow,
+    ledger, reversal, operation-voucher payment, supplier-payment request, or
+    invoice linkage; zero-amount documents with side effects are reported as
+    blocked instead of modified.
+  - Production audit found exactly one actionable document: approved supplier
+    payment `_18332__NO.1` (`59cf81c4-a719-4004-b831-a292d10df38f`) with
+    amount 0, no side effects/downstream links, and a real same order/supplier
+    payment `_18359__NO.2` for 4,538,000 VND already covering the booking's
+    paid cost. Backfill soft-deleted the zero-amount artifact and left order
+    paid snapshots unchanged.
+  - Post-cleanup `finance-zero-amount-audit` reports 0 issues and
+    `finance-side-effect-audit --mode=guard` now reports 0 missing cashflow or
+    ledger side effects.
+  - Remaining finance/order reconciliation gap is only historical
+    `order_gt_docs` paid snapshot data without active approved finance
+    documents; no duplicate import, legacy cashflow, receipt-link, zero-amount,
+    or missing-side-effect issues remain actionable from the current audits.
+
 - Finance receipt-link repair for order reconciliation drift:
   - Added `scripts/finance-receipt-link-audit.js` and
     `scripts/test-finance-receipt-link-audit.sh` to detect approved receipts
