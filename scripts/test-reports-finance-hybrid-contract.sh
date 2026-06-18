@@ -47,6 +47,12 @@ for (const key of ['financeView', 'orderRows', 'receiptRows', 'paymentRows', 'cu
 }
 requireText(client, "active === 'finance' ? renderFinanceHybrid()", 'finance tab must use dedicated hybrid renderer');
 requireText(client, "query.dateField = 'documentDate'", 'receipt/payment/debt sub views must be able to use documentDate filtering');
+requireText(client, 'Theo ch\\u1ee9ng t\\u1eeb', 'finance order rows must label evidence-based receipt/payment amounts clearly');
+requireText(client, 'Snapshot TourKit', 'finance order rows must expose historical TourKit snapshot amounts separately');
+requireText(client, 'financeSource', 'finance order rows must render financeSource classification');
+requireText(client, 'tourkit_import_snapshot', 'finance order rows must identify TourKit import snapshot rows');
+requireText(client, 'snapshotPaidAmount', 'finance order rows must render snapshotPaidAmount');
+requireText(client, 'snapshotPaidCost', 'finance order rows must render snapshotPaidCost');
 requireText(css, '.financeReportTabs', 'missing finance report tab styles');
 requireText(css, '.financeReportTable', 'missing finance report table styles');
 requireText(css, '.financeIssueBadge', 'missing finance issue badge styles');

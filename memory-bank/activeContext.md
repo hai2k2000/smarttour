@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance report UI snapshot labeling:
+  - Updated `apps/web/app/reports/ReportsClient.tsx` so Finance Report order rows label paid values as evidence-based `Theo chung tu` amounts and expose a separate `Snapshot TourKit` column.
+  - The UI now renders `financeSource` classification, showing `Snapshot TourKit` for historical import-only rows instead of presenting them like normal finance evidence.
+  - Strengthened `scripts/test-reports-finance-hybrid-contract.sh` to require the snapshot/evidence labels and fields.
+
 - Finance report TourKit snapshot handling:
   - Updated `ReportsService.finance()` so Finance Report paid/remaining metrics are based on approved finance evidence or cashflow rows, not raw `Order.paidAmount`/`paidCost` snapshots. The order snapshot values remain exposed as `snapshotPaidAmount` and `snapshotPaidCost` for traceability.
   - TourKit import-marker orders that have paid snapshots but no finance evidence are now classified as `financeSource: tourkit_import_snapshot` and do not create actionable reconciliation issues in Finance Report. Revenue/profit operational reports still use order snapshots as before.

@@ -410,6 +410,19 @@ function financeAmountClass(value: unknown) {
   return '';
 }
 
+function financeSourceLabel(row: any) {
+  if (row.financeSource === 'tourkit_import_snapshot') return 'Snapshot TourKit';
+  return 'Theo ch\u1ee9ng t\u1eeb';
+}
+
+function tourkitSnapshotText(row: any) {
+  const receiptSnapshot = numberValue(row.snapshotPaidAmount);
+  const paymentSnapshot = numberValue(row.snapshotPaidCost);
+  if (receiptSnapshot <= 0 && paymentSnapshot <= 0) return '-';
+  return 'Thu ' + money(receiptSnapshot) + ' / Chi ' + money(paymentSnapshot);
+}
+
+
 export default function ReportsClient({ initialOverview, initialRevenue, initialMessage }: { initialOverview: Overview; initialRevenue: ReportData; initialMessage?: string }) {
   const [overview, setOverview] = useState<Overview>(initialOverview || {});
   const [active, setActive] = useState<ReportTabKey>('revenue');

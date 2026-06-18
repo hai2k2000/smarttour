@@ -2,6 +2,10 @@
 
 ## Done
 
+- Clarified Finance Report UI for TourKit import snapshots:
+  - Finance order rows now show evidence-based paid amounts as `Theo chung tu` and display imported paid snapshots separately under `Snapshot TourKit`.
+  - Added contract coverage so the UI keeps rendering `financeSource`, `snapshotPaidAmount`, and `snapshotPaidCost` instead of hiding the distinction.
+
 - Fixed Finance Report handling for historical TourKit paid snapshots:
   - Finance Report now computes paid/remaining amounts from finance evidence/cashflow instead of treating imported order paid snapshots as actual finance receipts/payments.
   - Historical TourKit snapshot rows keep `snapshotPaidAmount`/`snapshotPaidCost` and are tagged with `financeSource: tourkit_import_snapshot`, but they no longer inflate actionable reconciliation issue counts when no active finance documents exist.
