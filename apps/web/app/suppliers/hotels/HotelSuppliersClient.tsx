@@ -1062,16 +1062,16 @@ export default function HotelSuppliersClient({
                   <fieldset>
                     <legend>Thông tin khách sạn</legend>
                     <div className="hotelFormGrid">
-                      <label>Mã nhà cung cấp *<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
-                      <label>Tên khách sạn *<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
+                      <label>Mã nhà cung cấp<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
+                      <label>Tên khách sạn<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
                       <label>Mã số thuế<input aria-invalid={Boolean(errors.taxCode)} {...register('taxCode')} /><FieldError message={errors.taxCode?.message} /></label>
                       <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.builtYear)} {...register('builtYear')} /><FieldError message={errors.builtYear?.message} /></label>
-                      <label>Số điện thoại *<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
+                      <label>Số điện thoại<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
                       <label>Email<input type="email" placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.email)} {...register('email')} /><FieldError message={errors.email?.message} /></label>
                       <label>Quốc gia<input placeholder="Việt Nam" aria-invalid={Boolean(errors.country)} {...register('country')} /><FieldError message={errors.country?.message} /></label>
                       <label>Tỉnh/thành<input placeholder="Ví dụ: Hà Nội, Quảng Ninh" aria-invalid={Boolean(errors.province)} {...register('province')} /><FieldError message={errors.province?.message} /></label>
-                      <label>Hạng khách sạn *<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." aria-invalid={Boolean(errors.classHotel)} {...register('classHotel')} /><FieldError message={errors.classHotel?.message} /></label>
-                      <label>Dòng sản phẩm / dự án *<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" aria-invalid={Boolean(errors.hotelProject)} {...register('hotelProject')} /><FieldError message={errors.hotelProject?.message} /></label>
+                      <label>Hạng khách sạn<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." aria-invalid={Boolean(errors.classHotel)} {...register('classHotel')} /><FieldError message={errors.classHotel?.message} /></label>
+                      <label>Dòng sản phẩm / dự án<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" aria-invalid={Boolean(errors.hotelProject)} {...register('hotelProject')} /><FieldError message={errors.hotelProject?.message} /></label>
                       <label>Thị trường<input placeholder="Ví dụ: Nội địa, inbound" aria-invalid={Boolean(errors.market)} {...register('market')} /><FieldError message={errors.market?.message} /></label>
                       <label>Xếp hạng<input type="number" min="0" max="5" step="1" aria-invalid={Boolean(errors.rating)} {...register('rating')} /><FieldError message={errors.rating?.message} /></label>
                       <label>Trạng thái<select aria-invalid={Boolean(errors.status)} {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><FieldError message={errors.status?.message} /></label>

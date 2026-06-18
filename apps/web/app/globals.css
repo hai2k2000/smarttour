@@ -270,6 +270,29 @@ a.iconTextButton:hover { background: var(--dn-primary-dark); border-color: var(-
 .dangerButton:hover { background: #fecaca; }
 input, select, textarea { width: 100%; border: 1px solid var(--dn-border); border-radius: 6px; padding: 10px 11px; font: inherit; background: #fff; color: var(--dn-text); }
 label { display: grid; gap: 6px; color: #276c72; font-size: 13px; font-weight: 700; }
+label:has(:is(input, select, textarea)[required]:not([type="hidden"]):not([type="checkbox"]):not([type="file"])),
+label:has(:is(input, select, textarea)[aria-required="true"]:not([type="hidden"]):not([type="checkbox"]):not([type="file"])) { position: relative; padding-right: 72px; }
+label:has(:is(input, select, textarea)[required]:not([type="hidden"]):not([type="checkbox"]):not([type="file"]))::before,
+label:has(:is(input, select, textarea)[aria-required="true"]:not([type="hidden"]):not([type="checkbox"]):not([type="file"]))::before {
+  content: "Bắt buộc";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  padding: 2px 7px;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: .01em;
+}
+input[required], select[required], textarea[required],
+input[aria-required="true"], select[aria-required="true"], textarea[aria-required="true"] {
+  border-color: #bfe3b8;
+  box-shadow: inset 3px 0 0 rgba(194, 65, 12, .38);
+}
 th { text-align: left; color: #4b6b3d; font-size: 13px; padding: 11px 8px; border-bottom: 1px solid var(--dn-border); background: #fff; }
 .fitTableWrap th { position: sticky; top: 0; z-index: 1; }
 .fitTableWrap { border-radius: 7px; }

@@ -742,15 +742,15 @@ export default function GenericSupplierClient({
                   <fieldset>
                     <legend>Thông tin nhà cung cấp</legend>
                     <div className="hotelFormGrid">
-                      <label>Mã nhà cung cấp<input {...register('supplierCode')} /></label>
-                      <label>Tên nhà cung cấp<input {...register('name')} /></label>
+                      <label>Mã nhà cung cấp<input required {...register('supplierCode')} /></label>
+                      <label>Tên nhà cung cấp<input required {...register('name')} /></label>
                       <label>Mã số thuế<input {...register('taxCode')} /></label>
-                      <label>Số điện thoại<input type="tel" {...register('phone')} /></label>
+                      <label>Số điện thoại<input type="tel" required {...register('phone')} /></label>
                       <label>Email<input type="email" {...register('email')} /></label>
                       <label>Tỉnh/thành<input {...register('province')} /></label>
                       <label>Thị trường<input {...register('market')} /></label>
                       <label>Xếp hạng<input type="number" min="0" max="5" step="1" {...register('rating')} /></label>
-                      <label>Trạng thái<select {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                      <label>Trạng thái<select required {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                       <label>Website<input type="url" {...register('website')} /></label>
                       <label>Liên kết tham khảo<input type="url" {...register('link')} /></label>
                       <label className="span2">Địa chỉ<input {...register('address')} /></label>

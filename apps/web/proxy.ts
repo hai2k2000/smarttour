@@ -21,7 +21,7 @@ export async function proxy(request: NextRequest) {
 }
 
 async function isValidSession(request: NextRequest, token: string) {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || request.nextUrl.origin;
+  const apiBaseUrl = serverApiBase(request);
   try {
     const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
       headers: { Cookie: `smarttour.auth.token=${encodeURIComponent(token)}` },
@@ -31,6 +31,15 @@ async function isValidSession(request: NextRequest, token: string) {
   } catch {
     return false;
   }
+}
+
+function serverApiBase(request: NextRequest) {
+  const internalApiBase = process.env.SMARTTOUR_SERVER_API_URL?.trim();
+  if (internalApiBase) return internalApiBase.replace(/\/+$/, '');
+
+  const publicApiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  if (process.env.NODE_ENV === 'production') return 'http://api:4000';
+  return publicApiBase || request.nextUrl.origin;
 }
 
 function redirectToLogin(request: NextRequest, pathname: string, search: string) {
