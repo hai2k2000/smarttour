@@ -20,6 +20,21 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance order paid snapshot audit:
+  - Added `scripts/finance-order-snapshot-audit.js` and
+    `scripts/test-finance-order-snapshot-audit.sh` to compare
+    `Order.paidAmount`/`paidCost` against active approved finance receipts and
+    payments, while classifying TourKit import-marker rows with no active docs
+    as historical import snapshots instead of actionable drift.
+  - Production audit reports 0 actionable receipt/payment mismatches. The only
+    remaining rows are 9 TourKit import snapshots: 5 receipt-side paid snapshots
+    and 4 payment-side paid snapshots with no active finance documents. These
+    values match TourKit `Thuc thu/Thuc chi` import notes and were intentionally
+    not reset or converted into synthetic finance documents.
+  - `finance-order-snapshot-audit --mode=guard` is now suitable as a regression
+    guard for new actionable snapshot/doc mismatches while tolerating documented
+    historical import snapshots.
+
 - Finance zero-amount approved import artifact cleanup:
   - Added `scripts/finance-zero-amount-audit.js` and
     `scripts/test-finance-zero-amount-audit.sh` to detect approved original

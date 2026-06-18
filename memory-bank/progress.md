@@ -2,6 +2,15 @@
 
 ## Done
 
+- Added an order paid snapshot reconciliation guard:
+  - Added finance order snapshot audit tooling plus regression coverage for
+    actionable receipt/payment mismatches, balanced orders, and TourKit import
+    snapshots with paid values but no active finance documents.
+  - Production audit classifies the remaining reconciliation drift as 0
+    actionable mismatches and 9 historical TourKit import snapshots (5 receipt
+    side, 4 payment side). No order snapshots were reset and no synthetic
+    finance documents were created.
+
 - Cleaned the final approved zero-amount finance import artifact:
   - Added zero-amount audit/backfill tooling plus regression coverage for
     actionable zero documents, blocked zero documents with side effects,
