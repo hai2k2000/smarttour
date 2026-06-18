@@ -20,6 +20,38 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance duplicate import and legacy cashflow repair:
+  - Added `scripts/finance-duplicate-import-audit.js` and
+    `scripts/test-finance-duplicate-import-audit.sh` to detect duplicate
+    imported finance documents by canonical document code. The cleanup keeps
+    the earliest active document, soft-deletes later duplicate receipts or
+    payments, and removes cashflow/customer-ledger/supplier-ledger side effects
+    attached only to the duplicate documents. It groups payments by canonical
+    voucher code, order, and amount so duplicate rows with a wrong supplier from
+    the second import are still caught.
+  - Production duplicate cleanup soft-deleted 3 duplicate receipts and 24
+    duplicate payments, removing 54 duplicate cashflow rows, 3 duplicate
+    customer-ledger rows, and 24 duplicate supplier-ledger rows. Duplicate
+    import audit now reports 0 actionable duplicates.
+  - Added `scripts/finance-legacy-cashflow-audit.js` and
+    `scripts/test-finance-legacy-cashflow-audit.sh` to remove legacy importer
+    cashflow rows (`FINANCE_RECEIPT` / `FINANCE_PAYMENT`) only when the same
+    approved document already has the live-service cashflow row (`RECEIPT` /
+    `PAYMENT`). Production cleanup removed 195 duplicate legacy receipt
+    cashflow rows and 388 duplicate legacy payment cashflow rows; legacy
+    duplicate audit now reports 0.
+  - Order reconciliation drift after duplicate cleanup is reduced to historical
+    import gaps: 7 receipt-side drifts and 4 payment-side drifts. Payment-side
+    drifts are all `order_gt_docs` historical paid-cost values without active
+    approved payment docs. The remaining `docs_gt_order` receipt drift is the
+    known `LANDTOUR_92` / `S2-0626-NBI.012-51` mislink pattern and needs a
+    separate targeted receipt-link repair.
+  - Finance side-effect audit remains unchanged after cleanup except for the
+    known zero-amount approved payment `_18332__NO.1`
+    (`59cf81c4-a719-4004-b831-a292d10df38f`), which still has one missing
+    payment cashflow and one missing supplier ledger by design because live
+    posting rules reject zero/negative amounts.
+
 - Finance side-effect audit/backfill tooling and production repair:
   - Added `scripts/finance-side-effect-audit.js` with `audit`, `guard`, and
     dry-run-by-default `backfill` modes to detect and repair approved finance

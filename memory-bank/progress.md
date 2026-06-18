@@ -2,6 +2,27 @@
 
 ## Done
 
+- Repaired duplicate TourKit finance imports and duplicate cashflow reporting:
+  - Added duplicate-import audit/backfill tooling with regression coverage for
+    canonical-code duplicates, dry-run safety, idempotency, side-effect cleanup,
+    and supplier-mismatch duplicates from the second import pass.
+  - Production cleanup soft-deleted 3 duplicate finance receipts and 24
+    duplicate finance payments while removing side effects attached to those
+    duplicate rows only: 54 cashflow entries, 3 customer ledger entries, and 24
+    supplier ledger entries.
+  - Added legacy-cashflow audit/backfill tooling with regression coverage that
+    deletes importer legacy cashflow only when a live-service cashflow row for
+    the same approved document already exists, leaving legacy-only rows intact.
+  - Production cleanup removed 195 duplicate legacy receipt cashflow rows and
+    388 duplicate legacy payment cashflow rows, preventing finance cashflow
+    reports from double-counting those imported approved documents.
+  - Post-cleanup duplicate-import audit reports 0 duplicates, legacy-cashflow
+    audit reports 0 duplicate legacy rows, and finance side-effect audit remains
+    at only the known zero-amount approved payment anomaly.
+  - Remaining order reconciliation drift is now narrowed to historical import
+    gaps plus one `LANDTOUR_92` / `S2-0626-NBI.012-51` receipt-link anomaly for
+    a separate targeted repair.
+
 - Added Finance side-effect audit/backfill tooling and repaired production
   approved-document postings:
   - `scripts/finance-side-effect-audit.js` audits approved original finance
