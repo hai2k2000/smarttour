@@ -20,6 +20,30 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance side-effect audit/backfill tooling and production repair:
+  - Added `scripts/finance-side-effect-audit.js` with `audit`, `guard`, and
+    dry-run-by-default `backfill` modes to detect and repair approved finance
+    receipts/payments that are missing cashflow or customer/supplier ledger
+    side effects after import/backfill paths bypassed the live service posting
+    helpers.
+  - Added `scripts/test-finance-side-effect-audit.sh` covering missing receipt
+    cashflow, payment cashflow, customer ledger, supplier ledger, company-level
+    no-tour `OTHER` payment cashflow, dry-run behavior, idempotency, and guard
+    behavior.
+  - Production dry-run found 198 approved receipts missing receipt cashflow,
+    413 approved payments missing payment cashflow, no missing customer ledger,
+    and one missing supplier ledger. Backfill applied only positive-amount
+    actionable rows: 198 receipt cashflow entries and 412 payment cashflow
+    entries.
+  - Production audit after backfill leaves one approved supplier payment
+    `_18332__NO.1` (`id=59cf81c4-a719-4004-b831-a292d10df38f`) with amount 0;
+    it still lacks payment cashflow and supplier ledger by design because the
+    live finance posting helpers reject zero/negative amounts. This needs a
+    business data decision rather than automatic side-effect creation.
+  - `scripts/test-tour-type-apis.sh` was refreshed to assert the current
+    validated reports `paymentStatus` mapping and frontend filter controls
+    instead of a stale static literal.
+
 - Finance company expense payment tour-link fix:
   - FinancePayment create/update/import/approve/cancel now allows company-level
     `INTERNAL_EXPENSE` and `OTHER` payment vouchers without a Tour, Order, or

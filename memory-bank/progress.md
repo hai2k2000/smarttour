@@ -2,6 +2,26 @@
 
 ## Done
 
+- Added Finance side-effect audit/backfill tooling and repaired production
+  approved-document postings:
+  - `scripts/finance-side-effect-audit.js` audits approved original finance
+    receipts/payments for missing cashflow and customer/supplier ledger side
+    effects, provides a failing `guard` mode, and keeps `backfill` dry-run by
+    default unless `--apply` is passed.
+  - `scripts/test-finance-side-effect-audit.sh` verifies missing side-effect
+    detection, company-level no-tour `OTHER` payment cashflow backfill,
+    dry-run safety, idempotent apply behavior, and guard pass/fail behavior.
+  - Production dry-run found 198 receipt cashflow gaps, 413 payment cashflow
+    gaps, no customer ledger gaps, and one supplier ledger gap. Applied
+    backfill created 198 receipt cashflow entries and 412 payment cashflow
+    entries.
+  - Remaining production anomaly is approved supplier payment `_18332__NO.1`
+    (`59cf81c4-a719-4004-b831-a292d10df38f`) with amount 0, leaving one payment
+    cashflow and one supplier ledger gap intentionally unresolved because live
+    finance posting rules reject zero/negative amounts.
+  - Refreshed `scripts/test-tour-type-apis.sh` static contract for the current
+    validated reports `paymentStatus` mapping and frontend filter controls.
+
 - Fixed FinancePayment company expense vouchers without tour links:
   - `INTERNAL_EXPENSE` and `OTHER` phiếu chi can now be created, approved,
     posted to cashflow, cancelled, and reversed without a Tour/Order/

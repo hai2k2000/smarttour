@@ -277,7 +277,9 @@ function assertGitToursFrontendContract() {
   assert(i18nSource.includes('SETTLED'), 'Shared status label SETTLED should be localized for GIT status filters');
   assert(i18nSource.includes('PAID') && i18nSource.includes('PARTIAL') && i18nSource.includes('UNPAID') && i18nSource.includes('INVOICE'), 'Shared payment/invoice labels should be localized for GIT UI/report filters');
   const reportSource = require('fs').readFileSync('/workspace/apps/api/src/modules/reports/reports.service.ts', 'utf8');
-  assert(reportSource.includes('query.paymentStatus') && reportSource.includes('paymentStatus: query.paymentStatus'), 'Reports should keep paymentStatus filter support for tour finance/reporting');
+  const reportsClientSource = require('fs').readFileSync('/workspace/apps/web/app/reports/ReportsClient.tsx', 'utf8');
+  assert(reportSource.includes('tourPaymentStatus(query.paymentStatus)') && reportSource.includes('paymentStatus: this.tourPaymentStatus(query.paymentStatus)'), 'Reports should keep validated paymentStatus filter support for tour finance/reporting');
+  assert(reportsClientSource.includes("'paymentStatus'") && reportsClientSource.includes('filters.paymentStatus') && reportsClientSource.includes('paymentOptions'), 'Reports frontend should keep paymentStatus filter controls');
 }
 
 function assertTourRootOrchestrationBoundaries() {
