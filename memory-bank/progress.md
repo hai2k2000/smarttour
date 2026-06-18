@@ -2,6 +2,12 @@
 
 ## Done
 
+- Fixed English/raw enum labels in finance and shared form dropdowns:
+  - Added Vietnamese `viStatus()` mappings for finance receipt/payment types, common order statuses, quotation/order product types, service types, FIT workflow steps, and debt adjustment directions.
+  - Strengthened localized-dropdown contract coverage so finance voucher dropdowns cannot regress to raw enum labels such as `SUPPLIER_PAYMENT` or `CUSTOMER_REFUND`.
+  - Reran a broad uppercase-enum scan across app forms and confirmed the remaining candidates are already rendered with local Vietnamese labels or are internal literals.
+
+
 - Clarified Finance Report UI for TourKit import snapshots:
   - Finance order rows now show evidence-based paid amounts as `Theo chung tu` and display imported paid snapshots separately under `Snapshot TourKit`.
   - Added contract coverage so the UI keeps rendering `financeSource`, `snapshotPaidAmount`, and `snapshotPaidCost` instead of hiding the distinction.

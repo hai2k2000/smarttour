@@ -22,6 +22,8 @@ function assertNotContains(source, unexpected, label) {
 
 const orderCenter = read('apps/web/app/order-center/OrderCenterClient.tsx');
 const quotations = read('apps/web/app/quotations/QuotationsClient.tsx');
+const finance = read('apps/web/app/finance/FinanceClient.tsx');
+const i18n = read('apps/web/app/i18n.ts');
 const landtours = read('apps/web/app/landtours/page.tsx');
 const commission = read('apps/web/app/commission-reports/CommissionReportsClient.tsx');
 const security = read('apps/web/app/security/SecurityClient.tsx');
@@ -36,6 +38,42 @@ assertContains(orderCenter, 'orderTypeLabel(row.original.type)', 'order type tab
 assertNotContains(quotations, '<option value="EN">English</option>', 'quotation language dropdown');
 assertContains(quotations, '<option value="EN">Tiếng Anh</option>', 'quotation language dropdown');
 assertContains(quotations, 'serviceTypeText(service)', 'quotation item service type dropdown');
+
+
+for (const [enumValue, label] of [
+  ['DEPOSIT', 'Đặt cọc'],
+  ['TOUR_PAYMENT', 'Thu tiền tour'],
+  ['CUSTOMER_DEBT', 'Thu công nợ khách hàng'],
+  ['COLLECT_ON_BEHALF', 'Thu hộ'],
+  ['SUPPLIER_FUND_REFUND', 'Nhà cung cấp hoàn quỹ'],
+  ['SUPPLIER_PAYMENT', 'Thanh toán nhà cung cấp'],
+  ['CUSTOMER_REFUND', 'Hoàn tiền khách hàng'],
+  ['COMMISSION', 'Hoa hồng'],
+  ['INTERNAL_EXPENSE', 'Chi phí nội bộ'],
+  ['SUPPLIER_DEPOSIT', 'Đặt cọc nhà cung cấp'],
+  ['ADVANCE', 'Tạm ứng'],
+]) {
+  assertContains(i18n, `${enumValue}: '${label}'`, `finance enum label ${enumValue}`);
+}
+assertContains(finance, 'paymentTypes.map((type) => <option key={type} value={type}>{viStatus(type)}</option>)', 'finance payment type dropdown localized through viStatus');
+assertContains(finance, 'receiptTypes.map((type) => <option key={type} value={type}>{viStatus(type)}</option>)', 'finance receipt type dropdown localized through viStatus');
+
+for (const [enumValue, label] of [
+  ['UPCOMING', 'Sắp khởi hành'],
+  ['RUNNING', 'Đang chạy'],
+  ['OVERDUE', 'Quá hạn'],
+  ['PENDING_APPROVAL', 'Chờ duyệt'],
+  ['FIT_TOUR', 'Tour FIT'],
+  ['GIT_COMBO', 'Tour GIT / Combo'],
+  ['HOTEL_BOOKING', 'Booking phòng khách sạn'],
+  ['SINGLE_SERVICE', 'Dịch vụ lẻ'],
+  ['FLIGHT_ORDER', 'Đơn vé máy bay'],
+  ['HOTEL', 'Khách sạn'],
+  ['TRANSPORT', 'Xe'],
+  ['GUIDE', 'Hướng dẫn viên'],
+]) {
+  assertContains(i18n, `${enumValue}: '${label}'`, `shared enum label ${enumValue}`);
+}
 
 assertNotContains(landtours, '<option>WAITING</option>', 'landtour operation status dropdown');
 assertContains(landtours, 'operationStatuses.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)', 'landtour operation status dropdown');

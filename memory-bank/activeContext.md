@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance and shared dropdown localization:
+  - Expanded `apps/web/app/i18n.ts` so finance receipt/payment voucher types and common order/tour/service status enums render as Vietnamese labels through `viStatus()` instead of raw enum codes in forms, filters, and tables.
+  - Extended `scripts/test-localized-dropdowns-contract.js` to guard finance voucher labels (`SUPPLIER_PAYMENT`, `CUSTOMER_REFUND`, `INTERNAL_EXPENSE`, etc.) and shared order/tour labels (`UPCOMING`, `RUNNING`, `FIT_TOUR`, `HOTEL_BOOKING`, etc.).
+  - Reviewed remaining uppercase dropdown candidates; outstanding matches are either locally labeled options or non-UI/internal literals.
+
+
 - Finance report UI snapshot labeling:
   - Updated `apps/web/app/reports/ReportsClient.tsx` so Finance Report order rows label paid values as evidence-based `Theo chung tu` amounts and expose a separate `Snapshot TourKit` column.
   - The UI now renders `financeSource` classification, showing `Snapshot TourKit` for historical import-only rows instead of presenting them like normal finance evidence.
