@@ -20,6 +20,18 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Finance company expense payment tour-link fix:
+  - FinancePayment create/update/import/approve/cancel now allows company-level
+    `INTERNAL_EXPENSE` and `OTHER` payment vouchers without a Tour, Order, or
+    OperationVoucher link, so non-tour company expenses can be recorded.
+  - Supplier/tour-linked payment types still require a valid Tour through the
+    existing finance tour guard, and linked Order/OperationVoucher flows keep
+    their reconciliation behavior.
+  - Regression now covers creating, approving, cashflow-posting, cancelling,
+    and cashflow-netting no-tour company expense payments while preserving the
+    supplier-payment no-tour rejection.
+  - VPS verification passed: `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 - Pre-deploy review fixes for remaining High/Medium/Low items:
   - Operation voucher payment recording now locks the selected approved
     FinancePayment, rejects any existing OperationVoucherPayment usage for the

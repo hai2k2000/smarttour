@@ -2,6 +2,14 @@
 
 ## Done
 
+- Fixed FinancePayment company expense vouchers without tour links:
+  - `INTERNAL_EXPENSE` and `OTHER` phiếu chi can now be created, approved,
+    posted to cashflow, cancelled, and reversed without a Tour/Order/
+    OperationVoucher link.
+  - Supplier/tour payment flows still require valid tour resolution, preserving
+    operation voucher, supplier ledger, and order-cost reconciliation rules.
+  - Verified on VPS with `TEST_FINANCE_SERVICE_FLOWS_OK`.
+
 - Closed remaining pre-deploy review findings:
   - Blocked reuse of one approved FinancePayment across operation voucher
     payment histories without row locking and global usage checks.

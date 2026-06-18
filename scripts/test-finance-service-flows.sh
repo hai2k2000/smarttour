@@ -422,7 +422,28 @@ async function main() {
     items: [{ itemName: 'Bad invoice link', quantity: 1, unitPrice: 100, taxRate: 10 }],
   }), 'invoice should reject mismatched customer/order links');
   await rejects(() => finance.createReceipt({ receiptCode: run + '-NO-TOUR-RCPT', receiptName: 'No Tour Receipt', receiptType: 'TOUR_PAYMENT', receiptAmount: 1 }), 'receipt should require a tour link');
-  await rejects(() => finance.createPayment({ voucherCode: run + '-NO-TOUR-PAY', voucherName: 'No Tour Payment', voucherType: 'SUPPLIER_PAYMENT', paymentAmount: 1 }), 'payment should require a tour link');
+  for (const companyExpenseType of ['INTERNAL_EXPENSE', 'OTHER']) {
+    const companyExpensePayment = await finance.createPayment({
+      voucherCode: run + '-' + companyExpenseType,
+      voucherName: 'Company Expense ' + companyExpenseType,
+      voucherType: companyExpenseType,
+      paymentMethod: 'CASH',
+      totalAmount: 120,
+      paymentAmount: 120,
+      reason: 'Company expense not linked to a tour',
+      branch: 'FIN-BR',
+      department: 'FIN-DEP',
+    }, branchUser);
+    assert(!companyExpensePayment.tourId && !companyExpensePayment.orderId && !companyExpensePayment.operationVoucherId, companyExpenseType + ' payment should be allowed without tour/order/voucher links');
+    const approvedCompanyExpensePayment = await finance.approvePayment(companyExpensePayment.id, { actor: 'client-spoof' }, branchUser);
+    assert(approvedCompanyExpensePayment.approvalStatus === 'APPROVED' && approvedCompanyExpensePayment.approvedBy === branchUser.username, companyExpenseType + ' payment should approve without a tour link');
+    assert(await prisma.financeCashflowEntry.count({ where: { sourceType: 'PAYMENT', sourceId: companyExpensePayment.id, tourId: null, supplierId: null } }) === 1, companyExpenseType + ' payment should create company cashflow without tour or supplier ledger link');
+    assert(await prisma.supplierLedgerEntry.count({ where: { sourceType: 'FINANCE_PAYMENT', sourceId: companyExpensePayment.id } }) === 0, companyExpenseType + ' payment should not create supplier ledger when no supplier is linked');
+    const cancelledCompanyExpensePayment = await finance.cancelPayment(companyExpensePayment.id, { actor: 'client-spoof', reason: 'cancel company expense test' }, branchUser);
+    assert(cancelledCompanyExpensePayment.approvalStatus === 'CANCELLED' && cancelledCompanyExpensePayment.reversals.length === 1, companyExpenseType + ' payment should cancel with reversal without a tour link');
+    assert(await cashflowNet(prisma, { paymentId: { in: [companyExpensePayment.id, cancelledCompanyExpensePayment.reversals[0].id] } }) === 0, companyExpenseType + ' payment cashflow should net to zero after cancellation');
+  }
+  await rejects(() => finance.createPayment({ voucherCode: run + '-NO-TOUR-PAY', voucherName: 'No Tour Supplier Payment', voucherType: 'SUPPLIER_PAYMENT', paymentAmount: 1 }), 'supplier payment should require a tour link');
   await rejects(() => finance.createInvoice({ invoiceCode: run + '-NO-TOUR-INV', invoiceType: 'VAT', items: [{ itemName: 'No tour invoice', quantity: 1, unitPrice: 1 }] }), 'invoice should require a tour link');
 
   await rejects(() => finance.createReceipt({

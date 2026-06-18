@@ -34,6 +34,7 @@ const PROTECTED_FINANCE_WRITE_FIELDS = new Set([
   'lockedAt',
   'reversalOfId',
 ]);
+const COMPANY_EXPENSE_PAYMENT_TYPES = new Set(['INTERNAL_EXPENSE', 'OTHER']);
 
 @Injectable()
 export class FinanceService {
@@ -277,7 +278,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), 'Phiếu chi');
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), dto);
       const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...dto, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
       await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto, user);
       return payment;
@@ -290,7 +291,7 @@ export class FinanceService {
     if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, 'Phiếu chi');
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, { ...current, ...dto });
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode, tourId }) });
       await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto, user);
       return payment;
@@ -318,7 +319,7 @@ export class FinanceService {
         where: { id },
         data: { approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date() },
       });
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), 'Phiếu chi');
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), payment);
       if (tourId && payment.tourId !== tourId) await tx.financePayment.update({ where: { id }, data: { tourId } });
       const postedPayment = { ...payment, tourId };
       const supplierId = await resolvePaymentSupplier(tx, postedPayment);
@@ -344,7 +345,7 @@ export class FinanceService {
       if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi');
       assertCanCancelFinanceEntity(payment, 'Phiếu chi');
       await assertPaymentLinks(tx, { supplierId: payment.supplierId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, tourId: payment.tourId }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), 'Phiếu chi');
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: payment.tourId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId }, user), payment);
       const reversalCode = await this.nextCode(tx, 'FINANCE_PAYMENT', 'PCDC', new Date(), payment.branch || undefined);
       const reversal = await tx.financePayment.create({
         data: { voucherCode: reversalCode, voucherName: `Dao ${payment.voucherCode}`, voucherType: payment.voucherType, paymentDate: new Date(), paymentMethod: payment.paymentMethod, supplierId: payment.supplierId, operationVoucherId: payment.operationVoucherId, orderId: payment.orderId, tourId, receiverName: payment.receiverName, reason, totalAmount: payment.paymentAmount, paymentAmount: payment.paymentAmount, branch: payment.branch, department: payment.department, assignedStaff: payment.assignedStaff, approvalStatus: 'APPROVED', approvedBy: actor, approvedAt: new Date(), lockedAt: new Date(), reversalOfId: id, createdBy: actor },
@@ -653,7 +654,7 @@ export class FinanceService {
         const row = applyWriteDataScope(this.financeWriteInput(rawRow as AnyRecord) as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const voucherCode = this.text(row.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(row.paymentDate), this.text(row.branch));
         await assertPaymentLinks(tx, { supplierId: this.text(row.supplierId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user);
-        const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), 'Phiếu chi');
+        const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), row);
         const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
         await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' }, user);
         imported.push(payment);
@@ -675,6 +676,20 @@ export class FinanceService {
     const resolved = this.text(tourId);
     if (!resolved) throw new BadRequestException(`${label} phải liên kết với tour hợp lệ`);
     return resolved;
+  }
+
+  private paymentTourId(tourId: string | null | undefined, payment: AnyRecord) {
+    const resolved = this.text(tourId);
+    if (resolved) return resolved;
+    if (this.allowsCompanyExpenseWithoutTour(payment)) return null;
+    return this.requireFinanceTourId(resolved, 'Phiếu chi');
+  }
+
+  private allowsCompanyExpenseWithoutTour(payment: AnyRecord) {
+    const voucherType = this.text(payment.voucherType) || 'SUPPLIER_PAYMENT';
+    return COMPANY_EXPENSE_PAYMENT_TYPES.has(voucherType)
+      && !this.text(payment.orderId)
+      && !this.text(payment.operationVoucherId);
   }
 
   private receiptData(dto: AnyRecord): Prisma.FinanceReceiptUncheckedCreateInput {
