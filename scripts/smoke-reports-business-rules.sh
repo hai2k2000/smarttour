@@ -24,6 +24,8 @@ SUPPLIER_CATEGORY_ID="rpt_supplier_category_${RUN_ID_SAFE}"
 SUPPLIER_A_ID="rpt_supplier_a_${RUN_ID_SAFE}"
 ORDER_A_ID="rpt_order_a_${RUN_ID_SAFE}"
 ORDER_B_ID="rpt_order_b_${RUN_ID_SAFE}"
+ORDER_C_ID="rpt_order_c_${RUN_ID_SAFE}"
+SNAPSHOT_ORDER_CODE="SNAPSHOT-${TOKEN_HASH:0:12}-ORD-C"
 
 psql_exec() {
   docker exec -i "$POSTGRES_CONTAINER" psql -U smarttour -d smarttour "$@"
@@ -38,7 +40,7 @@ cleanup() {
 DELETE FROM "FinanceCashflowEntry" WHERE "sourceId" LIKE '${RUN_ID}%';
 DELETE FROM "CustomerLedgerEntry" WHERE "sourceId" LIKE '${RUN_ID}%' OR "documentCode" LIKE '${RUN_ID}%';
 DELETE FROM "SupplierLedgerEntry" WHERE "sourceId" LIKE '${RUN_ID}%' OR "documentCode" LIKE '${RUN_ID}%';
-DELETE FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%';
+DELETE FROM "Order" WHERE id = '${ORDER_C_ID}' OR "systemCode" LIKE '${RUN_ID}%' OR "systemCode" = '${SNAPSHOT_ORDER_CODE}';
 DELETE FROM "Supplier" WHERE id = '${SUPPLIER_A_ID}' OR "supplierCode" LIKE '${RUN_ID}%';
 DELETE FROM "SupplierCategory" WHERE id = '${SUPPLIER_CATEGORY_ID}' OR name = '${RUN_ID} Supplier Category';
 DELETE FROM "Customer" WHERE id IN ('${CUSTOMER_A_ID}', '${CUSTOMER_B_ID}') OR code LIKE '${RUN_ID}%';
@@ -106,7 +108,7 @@ INSERT INTO "Order" (
   status, "paymentStatus", "costStatus", "createdBy", branch, department, "customerName", "customerType", "customerPhone",
   "customerEmail", "agencyName", "operatorOwner", "adultQty", "childQty", "infantQty", quantity,
   "totalRevenue", "paidAmount", "remainingRevenue", "totalCost", "paidCost", "remainingCost", profit, commission,
-  "settledAt", "createdAt", "updatedAt"
+  "settledAt", "createdAt", "updatedAt", note
 ) VALUES
   (
     '${ORDER_A_ID}', 'FIT_TOUR', '${RUN_ID}-ORD-A', '${CUSTOMER_A_ID}', '${RUN_ID}-TOUR-A', 'Reports Order A', 'Ha Noi - Ha Long', 'RPT Market A',
@@ -114,7 +116,7 @@ INSERT INTO "Order" (
     'SETTLED', 'PARTIAL', 'PARTIAL', 'rpt-created-a', 'RPT-BR-A', 'RPT-DEP-A', 'Reports Customer A', 'VIP', '098${RUN_ID_SAFE:0:7}1',
     'customer-a-${RUN_ID_LOWER}@smarttour.local', 'RPT Agency A', 'rpt-employee-a', 2, 1, 0, 3,
     1000, 400, 600, 500, 200, 300, 500, 50,
-    '2026-09-10T00:00:00Z', '2026-09-01T10:00:00Z', '2026-09-15T00:00:00Z'
+    '2026-09-10T00:00:00Z', '2026-09-01T10:00:00Z', '2026-09-15T00:00:00Z', null
   ),
   (
     '${ORDER_B_ID}', 'HOTEL_BOOKING', '${RUN_ID}-ORD-B', '${CUSTOMER_B_ID}', '${RUN_ID}-HOTEL-B', 'Reports Order B', 'Da Nang', 'RPT Market B',
@@ -122,7 +124,15 @@ INSERT INTO "Order" (
     'SETTLED', 'PAID', 'PAID', 'rpt-created-b', 'RPT-BR-B', 'RPT-DEP-B', 'Reports Customer B', 'STANDARD', '098${RUN_ID_SAFE:0:7}2',
     'customer-b-${RUN_ID_LOWER}@smarttour.local', 'RPT Agency B', 'rpt-employee-b', 2, 0, 0, 2,
     2000, 2000, 0, 1200, 1200, 0, 800, 80,
-    '2026-09-11T00:00:00Z', '2026-09-02T10:00:00Z', '2026-09-16T00:00:00Z'
+    '2026-09-11T00:00:00Z', '2026-09-02T10:00:00Z', '2026-09-16T00:00:00Z', null
+  ),
+  (
+    '${ORDER_C_ID}', 'FIT_TOUR', '${SNAPSHOT_ORDER_CODE}', '${CUSTOMER_A_ID}', 'SNAPSHOT-TOUR-C', 'Reports TourKit Snapshot Order C', 'Imported Snapshot', 'RPT Market A',
+    '2026-08-22T00:00:00Z', '2026-09-07T00:00:00Z', '2026-10-15T00:00:00Z', '2026-10-18T00:00:00Z',
+    'SETTLED', 'PAID', 'PAID', 'rpt-created-c', 'RPT-BR-A', 'RPT-DEP-A', 'Snapshot Customer', 'VIP', '0990000000',
+    'snapshot-customer@smarttour.local', 'Snapshot Agency', 'snapshot-employee', 1, 0, 0, 1,
+    700, 700, 0, 300, 300, 0, 400, 40,
+    '2026-09-12T00:00:00Z', '2026-09-03T10:00:00Z', '2026-09-17T00:00:00Z', 'Nguon: TourKit order export 16/06/2026\nThuc thu TourKit: 700 VND\nThuc chi TourKit: 300 VND\nImport marker: TOURKIT_ORDER_IMPORT_2026_06_16'
   );
 
 INSERT INTO "CustomerLedgerEntry" (
@@ -148,7 +158,7 @@ INSERT INTO "FinanceCashflowEntry" (
   ('rpt_cash_payment_b_${RUN_ID_SAFE}', 'REPORT_SMOKE_PAYMENT', '${RUN_ID}-CF-PB', 'PAYMENT', 1200, 'BANK_TRANSFER', '2026-09-06T00:00:00Z', 'RPT-BR-B', 'RPT-DEP-B', '${RUN_ID}', '${ORDER_B_ID}', null, '${SUPPLIER_A_ID}', '${RUN_ID} order B payment');
 SQL
 
-export API_URL RUN_ID RUN_ID_SAFE TOKEN CUSTOMER_A_ID CUSTOMER_B_ID SUPPLIER_A_ID
+export API_URL RUN_ID RUN_ID_SAFE TOKEN CUSTOMER_A_ID CUSTOMER_B_ID SUPPLIER_A_ID SNAPSHOT_ORDER_CODE
 
 run_node() {
   if command -v node >/dev/null 2>&1; then
@@ -413,6 +423,19 @@ function zeroSummary(data, label) {
   const financeReport = await request(`/reports/finance?${qs({ search: run })}`);
   financeShape(financeReport);
   reportSummary(financeReport, 'financeReport', expectedAll);
+  const snapshotFinanceReport = await request(`/reports/finance?${qs({ search: process.env.SNAPSHOT_ORDER_CODE })}`);
+  financeShape(snapshotFinanceReport);
+  almost(snapshotFinanceReport.summary.paidAmount, 0, 'snapshotFinanceReport.summary.paidAmount should use approved receipt docs');
+  almost(snapshotFinanceReport.summary.paidCost, 0, 'snapshotFinanceReport.summary.paidCost should use approved payment docs');
+  assert(snapshotFinanceReport.summary.issueCount === 0, `snapshotFinanceReport.summary.issueCount expected 0, got ${snapshotFinanceReport.summary.issueCount}`);
+  const snapshotOrderRow = snapshotFinanceReport.orderRows.find((row) => row.systemCode === process.env.SNAPSHOT_ORDER_CODE);
+  assert(snapshotOrderRow, 'snapshotFinanceReport.orderRows missing TourKit snapshot order');
+  almost(snapshotOrderRow.paidAmount, 0, 'snapshotFinanceReport.snapshotOrder.paidAmount should use approved receipt docs');
+  almost(snapshotOrderRow.paidCost, 0, 'snapshotFinanceReport.snapshotOrder.paidCost should use approved payment docs');
+  assert(snapshotOrderRow.issueCount === 0, `snapshotFinanceReport.snapshotOrder.issueCount expected 0, got ${snapshotOrderRow.issueCount}`);
+  assert(snapshotOrderRow.snapshotPaidAmount === 700, 'snapshotFinanceReport.snapshotOrder.snapshotPaidAmount should preserve order snapshot');
+  assert(snapshotOrderRow.snapshotPaidCost === 300, 'snapshotFinanceReport.snapshotOrder.snapshotPaidCost should preserve order snapshot');
+
   const cashflowMonth = financeReport.cashflowByMonth.find((row) => row.period === '2026-09');
   assert(cashflowMonth, 'financeReport.cashflowByMonth missing 2026-09');
   almost(cashflowMonth.received, 2400, 'financeReport.cashflowByMonth.received');

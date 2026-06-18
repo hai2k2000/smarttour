@@ -2,6 +2,11 @@
 
 ## Done
 
+- Fixed Finance Report handling for historical TourKit paid snapshots:
+  - Finance Report now computes paid/remaining amounts from finance evidence/cashflow instead of treating imported order paid snapshots as actual finance receipts/payments.
+  - Historical TourKit snapshot rows keep `snapshotPaidAmount`/`snapshotPaidCost` and are tagged with `financeSource: tourkit_import_snapshot`, but they no longer inflate actionable reconciliation issue counts when no active finance documents exist.
+  - Added smoke coverage with a snapshot-only order to prevent regressions.
+
 - Added an order paid snapshot reconciliation guard:
   - Added finance order snapshot audit tooling plus regression coverage for
     actionable receipt/payment mismatches, balanced orders, and TourKit import

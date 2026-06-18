@@ -151,11 +151,11 @@ export class ReportsService {
       this.customerDebt({ ...query, dateField: 'documentDate' }, user),
       this.supplierDebt({ ...query, dateField: 'documentDate' }, user),
     ]);
-    const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows);
+    const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows, cashflowRows);
     const orphanReceiptRows = this.orphanReceiptRows(receiptRows);
     const orphanPaymentRows = this.orphanPaymentRows(paymentRows);
     const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
-    const grouped = this.groupOrders(orders, 'by-type');
+    const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
     const cashflowSummary = this.cashflowSummary(cashflowRows);
     const summary = {
       ...grouped.summary,
@@ -408,9 +408,12 @@ export class ReportsService {
     });
   }
 
-  private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[]) {
+  private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[], cashflowRows: FinanceCashflowReportRow[]) {
     const receiptsByOrder = new Map<string, { amount: number; count: number }>();
     const paymentsByOrder = new Map<string, { amount: number; count: number }>();
+    const receiptCashflowByOrder = new Map<string, { amount: number; count: number }>();
+    const paymentCashflowByOrder = new Map<string, { amount: number; count: number }>();
+
     receiptRows.forEach((receipt) => {
       if (receipt.approvalStatus !== 'APPROVED') return;
       receipt.orders.forEach((line) => {
@@ -421,6 +424,7 @@ export class ReportsService {
         receiptsByOrder.set(line.orderId, current);
       });
     });
+
     paymentRows.forEach((payment) => {
       if (payment.approvalStatus !== 'APPROVED' || !payment.orderId) return;
       const current = paymentsByOrder.get(payment.orderId) || { amount: 0, count: 0 };
@@ -429,25 +433,46 @@ export class ReportsService {
       paymentsByOrder.set(payment.orderId, current);
     });
 
+    cashflowRows.forEach((entry) => {
+      if (!entry.orderId) return;
+      const target = entry.entryType === 'RECEIPT' ? receiptCashflowByOrder : entry.entryType === 'PAYMENT' ? paymentCashflowByOrder : null;
+      if (!target) return;
+      const current = target.get(entry.orderId) || { amount: 0, count: 0 };
+      current.amount += Number(entry.amount || 0);
+      current.count += 1;
+      target.set(entry.orderId, current);
+    });
+
     return orders.map((order) => {
       const revenue = Number(order.totalRevenue);
-      const paidAmount = Number(order.paidAmount);
-      const remainingRevenue = Number(order.remainingRevenue);
       const cost = Number(order.totalCost);
-      const paidCost = Number(order.paidCost);
-      const remainingCost = Number(order.remainingCost);
       const profit = Number(order.profit);
-      const receipt = receiptsByOrder.get(order.id) || { amount: 0, count: 0 };
-      const payment = paymentsByOrder.get(order.id) || { amount: 0, count: 0 };
+      const snapshotPaidAmount = Number(order.paidAmount);
+      const snapshotPaidCost = Number(order.paidCost);
+      const receiptDoc = receiptsByOrder.get(order.id) || { amount: 0, count: 0 };
+      const paymentDoc = paymentsByOrder.get(order.id) || { amount: 0, count: 0 };
+      const receiptCashflow = receiptCashflowByOrder.get(order.id) || { amount: 0, count: 0 };
+      const paymentCashflow = paymentCashflowByOrder.get(order.id) || { amount: 0, count: 0 };
+      const receipt = receiptDoc.count ? receiptDoc : receiptCashflow;
+      const payment = paymentDoc.count ? paymentDoc : paymentCashflow;
+      const paidAmount = receipt.amount;
+      const paidCost = payment.amount;
+      const remainingRevenue = Math.max(revenue - paidAmount, 0);
+      const remainingCost = Math.max(cost - paidCost, 0);
+      const hasReceiptEvidence = receiptDoc.count > 0 || receiptCashflow.count > 0;
+      const hasPaymentEvidence = paymentDoc.count > 0 || paymentCashflow.count > 0;
+      const isImportSnapshot = this.isTourKitImportSnapshot(order);
       const issues: string[] = [];
-      if (remainingRevenue > 0) issues.push(`Còn phải thu ${remainingRevenue.toLocaleString('vi-VN')} VND`);
-      if (remainingCost > 0) issues.push(`Còn phải chi ${remainingCost.toLocaleString('vi-VN')} VND`);
-      if (Math.abs(paidAmount - receipt.amount) > 1) issues.push(`Thực thu đơn hàng lệch phiếu thu ${Math.abs(paidAmount - receipt.amount).toLocaleString('vi-VN')} VND`);
-      if (Math.abs(paidCost - payment.amount) > 1) issues.push(`Thực chi đơn hàng lệch phiếu chi ${Math.abs(paidCost - payment.amount).toLocaleString('vi-VN')} VND`);
+
+      if (remainingRevenue > 0 && (!isImportSnapshot || hasReceiptEvidence)) issues.push('C\u00f2n ph\u1ea3i thu ' + remainingRevenue.toLocaleString('vi-VN') + ' VND');
+      if (remainingCost > 0 && (!isImportSnapshot || hasPaymentEvidence)) issues.push('C\u00f2n ph\u1ea3i chi ' + remainingCost.toLocaleString('vi-VN') + ' VND');
+      if (!isImportSnapshot && Math.abs(snapshotPaidAmount - receipt.amount) > 1) issues.push('Th\u1ef1c thu \u0111\u01a1n h\u00e0ng l\u1ec7ch phi\u1ebfu thu ' + Math.abs(snapshotPaidAmount - receipt.amount).toLocaleString('vi-VN') + ' VND');
+      if (!isImportSnapshot && Math.abs(snapshotPaidCost - payment.amount) > 1) issues.push('Th\u1ef1c chi \u0111\u01a1n h\u00e0ng l\u1ec7ch phi\u1ebfu chi ' + Math.abs(snapshotPaidCost - payment.amount).toLocaleString('vi-VN') + ' VND');
+
       return {
         key: order.id,
         orderId: order.id,
-        label: `${order.systemCode} - ${order.name}`,
+        label: order.systemCode + ' - ' + order.name,
         systemCode: order.systemCode,
         tourCode: order.tourCode,
         holdCode: order.holdCode,
@@ -476,14 +501,61 @@ export class ReportsService {
         profit,
         commission: Number(order.commission),
         marginRate: revenue ? (profit / revenue) * 100 : 0,
+        snapshotPaidAmount,
+        snapshotPaidCost,
         receiptAmount: receipt.amount,
         receiptCount: receipt.count,
         paymentAmount: payment.amount,
         paymentCount: payment.count,
+        financeSource: isImportSnapshot && !hasReceiptEvidence && !hasPaymentEvidence ? 'tourkit_import_snapshot' : 'finance_evidence',
         issueCount: issues.length,
         issues,
       };
     });
+  }
+
+  private groupFinanceOrderRows(orderRows: any[], groupBy: string) {
+    const rows = new Map<string, MetricRow>();
+    orderRows.forEach((order) => {
+      const { key, label } = this.groupKey(order, groupBy, 'day');
+      const current = rows.get(key) || this.emptyRow(key, label);
+      current.orderCount += 1;
+      current.customerCount += order.customerName || order.customerPhone ? 1 : 0;
+      current.revenue += Number(order.revenue);
+      current.paidAmount += Number(order.paidAmount);
+      current.remainingRevenue += Number(order.remainingRevenue);
+      current.cost += Number(order.cost);
+      current.paidCost += Number(order.paidCost);
+      current.remainingCost += Number(order.remainingCost);
+      current.profit += Number(order.profit);
+      current.commission += Number(order.commission);
+      current.marginRate = current.revenue ? (current.profit / current.revenue) * 100 : 0;
+      rows.set(key, current);
+    });
+    const list = [...rows.values()].sort((a, b) => b.revenue - a.revenue);
+    return { summary: this.metricSummary(list), rows: list };
+  }
+
+  private metricSummary(rows: MetricRow[]) {
+    return rows.reduce(
+      (summary, row) => {
+        summary.totalRevenue += row.revenue;
+        summary.paidAmount += row.paidAmount;
+        summary.remainingRevenue += row.remainingRevenue;
+        summary.totalCost += row.cost;
+        summary.paidCost += row.paidCost;
+        summary.remainingCost += row.remainingCost;
+        summary.profit += row.profit;
+        summary.commission += row.commission;
+        summary.marginRate = summary.totalRevenue ? (summary.profit / summary.totalRevenue) * 100 : 0;
+        return summary;
+      },
+      { totalRevenue: 0, paidAmount: 0, remainingRevenue: 0, totalCost: 0, paidCost: 0, remainingCost: 0, profit: 0, commission: 0, marginRate: 0 },
+    );
+  }
+
+  private isTourKitImportSnapshot(order: { note?: string | null }) {
+    return /TOURKIT_(ORDER|BOOKING)_IMPORT_/i.test(order.note || '') || /TourKit (order|booking) export/i.test(order.note || '');
   }
 
   private receiptRows(row: FinanceReceiptReportRow) {
