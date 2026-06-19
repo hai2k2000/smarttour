@@ -2059,3 +2059,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a GIT API regression proving a cost payload with `amount: 0` and `expectedAmount: 1000` preserves the explicit zero expected amount.
   - Updated `TourCoreService.mapCosts()` to use the shared alias picker and fall back only when `amount` is blank/null.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
+
+- 2026-06-19 FIT upload contract audit unblock:
+  - Found `test-fit-tour-root-contract.sh` still asserted old FilesService denied-list variable names even though production upload validation now uses allowlists `allowedExtensions` and `allowedMimeTypes` plus `assertAllowedUpload(file)` in the interceptor/service.
+  - Updated the FIT root contract assertion to match the current allowlist-based upload guard, removing the stale residual failure that blocked FIT audit verification.
+  - No production code or runtime behavior changed.
+  - Verification passed: `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.

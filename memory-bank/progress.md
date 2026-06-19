@@ -1687,3 +1687,8 @@
   - Common Tour cost rows now preserve explicit `amount: 0` instead of falling through to `expectedAmount` aliases.
   - Added regression coverage for GIT cost rows where zero amount input previously became a positive expected cost when an alias was present.
   - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed FIT upload contract audit unblock:
+  - Updated the FIT root contract test to check the current FilesService upload allowlist guard instead of obsolete denied-list variable names.
+  - This was a test-only change; production upload filtering already used `allowedExtensions`, `allowedMimeTypes`, and `assertAllowedUpload(file)`.
+  - Verification passed: FIT root contract, Tour type API, bookings service, operations service flows, `git diff --check`, and API Docker build.
