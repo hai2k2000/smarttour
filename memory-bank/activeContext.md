@@ -2140,3 +2140,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found FIT root detail mapper used `actualAmount > 0 ? actualAmount : expectedAmount`, so explicit zero actual cost values displayed as expected costs in legacy-compatible cost groups.
   - Added FIT root contract coverage for a TourCost with `expectedAmount=1000` and explicit `actualAmount=0`, requiring detail `commonCosts[].amount` to remain zero.
   - Updated root cost mapping to fallback only when `actualAmount` is null or undefined.
+
+
+- 2026-06-19 FIT legacy truthy fallback cleanup:
+  - Found FIT legacy compatibility mappers still used truthy fallbacks (`row.times || 1`, `row.exchangeRate || 1`, `row.quantity || 1`) and the FIT root cost bridge used `row.exchangeRate || 1`, which could overwrite explicit zero compatibility values.
+  - Added FIT root contract guards and direct mapper regressions proving explicit zero multipliers/quantities remain zero.
+  - Replaced those fallbacks with nullish defaults so only missing values default to one.

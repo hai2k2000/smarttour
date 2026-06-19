@@ -142,6 +142,10 @@ function assertLegacyCompatBoundary() {
   assert(serviceSource.includes('allowAttachmentMetadata') && serviceSource.includes('dropAttachmentPatch(scopedDto)'), 'FIT create should strip attachment metadata while legacy import may preserve it');
   assert(serviceSource.includes('validateChildPatches') && serviceSource.includes('validateStepConfirmation'), 'FIT service should validate child rows and confirmed pricing requirements');
   assert(legacyCompatSource.includes('rooms * times * exchangeRate * unitPrice'), 'FIT backend hotel formula should include room count like the wizard');
+  for (const forbidden of ['row.times || 1', 'row.exchangeRate || 1', 'row.quantity || 1']) {
+    assert(!legacyCompatSource.includes(forbidden), `FIT legacy mapper should not use truthy fallback ${forbidden}`);
+  }
+  assert(!serviceSource.includes('row.exchangeRate || 1'), 'FIT service root operation mapper should not use truthy exchangeRate fallback');
   assert(serviceSource.includes('Tour nguồn dự toán phải khác tour đích'), 'FIT budget copy should reject the target as its own source');
   assert(serviceSource.includes('description: this.optionalText(operationInputRows[index]?.description)'), 'FIT common operation service mapping should preserve descriptions');
   assert(fitWizardSource.includes('stepPayloadFields') && fitWizardSource.includes('/steps/${step}') && fitWizardSource.includes('/steps/${step}/confirm'), 'FIT wizard should save existing records through step-scoped draft/confirm payloads');
@@ -301,6 +305,13 @@ function assertLegacyCompatBoundary() {
 async function main() {
   assertFitDtoContract();
   assertLegacyCompatBoundary();
+  const zeroCompat = new FitTourLegacyCompatService();
+  const zeroCommon = zeroCompat.mapCommonCosts([{ serviceType: 'CAR', quantity: 0, times: 0, exchangeRate: 0, unitPrice: 1000 }])[0];
+  assert(decimal(zeroCommon.quantity) === 0 && decimal(zeroCommon.times) === 0 && decimal(zeroCommon.exchangeRate) === 0 && decimal(zeroCommon.amount) === 0, 'FIT legacy common cost mapper should preserve explicit zero multipliers');
+  const zeroHotel = zeroCompat.mapHotelCosts([{ serviceType: 'HOTEL', paxPerRoom: 2, times: 0, exchangeRate: 0, unitPrice: 1000 }], 4)[0];
+  assert(decimal(zeroHotel.times) === 0 && decimal(zeroHotel.exchangeRate) === 0 && decimal(zeroHotel.amount) === 0, 'FIT legacy hotel cost mapper should preserve explicit zero multipliers');
+  const zeroHandover = zeroCompat.mapHandoverItems([{ itemName: 'Voucher', quantity: 0 }])[0];
+  assert(decimal(zeroHandover.quantity) === 0, 'FIT legacy handover mapper should preserve explicit zero quantity');
   const prisma = new PrismaService();
   await prisma.$connect();
 

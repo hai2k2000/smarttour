@@ -121,8 +121,8 @@ export class FitTourLegacyCompatService {
   mapCommonCosts(rows?: unknown[]) {
     return this.rows(rows).map((row, index) => {
       const quantity = this.number(row.quantity);
-      const times = this.number(row.times || 1);
-      const exchangeRate = this.number(row.exchangeRate || 1);
+      const times = this.number(row.times ?? 1);
+      const exchangeRate = this.number(row.exchangeRate ?? 1);
       const unitPrice = this.number(row.unitPrice);
       const vat = this.number(row.vat);
       return {
@@ -146,8 +146,8 @@ export class FitTourLegacyCompatService {
     return this.rows(rows).map((row, index) => {
       const paxPerRoom = this.positiveNumber(row.paxPerRoom, 1);
       const rooms = Math.ceil(Math.max(1, totalPax) / paxPerRoom);
-      const times = this.number(row.times || 1);
-      const exchangeRate = this.number(row.exchangeRate || 1);
+      const times = this.number(row.times ?? 1);
+      const exchangeRate = this.number(row.exchangeRate ?? 1);
       const unitPrice = this.number(row.unitPrice);
       const vat = this.number(row.vat);
       return {
@@ -224,7 +224,7 @@ export class FitTourLegacyCompatService {
     return this.rows(source).map((row, index) => ({
       orderNo: this.number(row.orderNo || row.stt || index + 1),
       itemName: this.text(row.itemName || row.name || 'Tài liệu bàn giao'),
-      quantity: this.number(row.quantity || 1),
+      quantity: this.number(row.quantity ?? 1),
       notes: this.optionalText(row.notes),
     }));
   }

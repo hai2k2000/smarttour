@@ -1070,7 +1070,7 @@ export class FitToursService {
         expectedAmount: row.amount,
         actualAmount: row.amount,
         currency: row.currency || 'VND',
-        exchangeRate: row.exchangeRate || 1,
+        exchangeRate: row.exchangeRate ?? 1,
         vat: row.vat,
         notes: row.notes,
       }));

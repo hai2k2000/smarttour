@@ -1754,3 +1754,9 @@
 - 2026-06-19 Completed FIT root detail actual-zero fallback fix:
   - FIT detail cost groups now preserve explicit zero actual amounts instead of falling back to expected amounts.
   - FIT root contract now guards the explicit-zero actual amount behavior.
+
+
+- 2026-06-19 Completed FIT legacy truthy fallback cleanup:
+  - Legacy FIT common/hotel/handover mappers now preserve explicit zero times, exchange rate, and quantity values rather than defaulting them to one.
+  - FIT root cost bridge now preserves explicit zero exchange rates through nullish fallback.
+  - FIT root contract now guards against reintroducing these truthy fallback patterns.
