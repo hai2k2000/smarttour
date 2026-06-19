@@ -295,9 +295,9 @@ export class QuotationsService {
         supplierName: this.text(item.supplierName) ?? undefined,
         serviceName,
         unit: this.text(item.unit) ?? undefined,
-        quantity: this.nonNegative(item.quantity, 1),
-        paxCount: this.nonNegative(item.paxCount, 1),
-        nightCount: this.nonNegative(item.nightCount, 1),
+        quantity: this.positiveInput(item.quantity ?? 1, `Số lượng dòng dịch vụ báo giá ${index + 1}`),
+        paxCount: this.positiveInput(item.paxCount ?? 1, `Số khách dòng dịch vụ báo giá ${index + 1}`),
+        nightCount: this.positiveInput(item.nightCount ?? 1, `Số đêm dòng dịch vụ báo giá ${index + 1}`),
         netPrice: this.nonNegative(item.netPrice),
         vat: this.nonNegative(item.vat),
         markupAmount: this.number(item.markupAmount),
@@ -508,6 +508,12 @@ export class QuotationsService {
     if (value === undefined || value === null || value === '') return fallback;
     const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) throw new BadRequestException('Tỷ giá báo giá phải lớn hơn 0');
+    return number;
+  }
+
+  private positiveInput(value: unknown, label: string) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) throw new BadRequestException(`${label} phải lớn hơn 0`);
     return number;
   }
 

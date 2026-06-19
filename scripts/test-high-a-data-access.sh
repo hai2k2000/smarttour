@@ -151,6 +151,18 @@ async function main() {
     () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-RATE`, 'BR-A', 'DEP-A'), exchangeRate: 0 }, allUser),
     'quotation create should reject zero exchangeRate instead of defaulting it to one',
   );
+  await rejects(
+    () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-QTY`, 'BR-A', 'DEP-A'), items: [{ serviceType: 'HOTEL', serviceName: 'Hotel', quantity: 0, nightCount: 1, paxCount: 1, netPrice: 100 }] }, allUser),
+    'quotation create should reject zero item quantity instead of storing a zero line',
+  );
+  await rejects(
+    () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-NIGHT`, 'BR-A', 'DEP-A'), items: [{ serviceType: 'HOTEL', serviceName: 'Hotel', quantity: 1, nightCount: 0, paxCount: 1, netPrice: 100 }] }, allUser),
+    'quotation create should reject zero item nightCount instead of storing a zero line',
+  );
+  await rejects(
+    () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-PAX`, 'BR-A', 'DEP-A'), items: [{ serviceType: 'HOTEL', serviceName: 'Hotel', quantity: 1, nightCount: 1, paxCount: 0, netPrice: 100 }] }, allUser),
+    'quotation create should reject zero item paxCount instead of storing an invalid line',
+  );
   const quotationB = await quotations.create(quotationPayload(`${run}-QB`, 'BR-B', 'DEP-B'), allUser);
   assert.deepEqual((await quotations.list({ search: run }, branchUser)).map((row) => row.id), [quotationA.id], 'quotation list must be scoped');
   await rejects(() => quotations.detail(quotationB.id, branchUser), 'quotation detail must be scoped');

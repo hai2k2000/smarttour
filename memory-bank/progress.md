@@ -1728,3 +1728,7 @@
 - 2026-06-19 Completed quotation exchange-rate validation:
   - Legacy quotation create/update now rejects explicit zero/non-positive exchange rates instead of treating them as one.
   - Added High-A data access coverage for the zero quotation exchange-rate guard.
+
+- 2026-06-19 Completed quotation item positive-count validation:
+  - Legacy quotation service lines now reject explicit zero/non-positive quantity, night count, and pax count instead of storing invalid zero lines.
+  - Added High-A data access coverage for all three zero-count guards.
