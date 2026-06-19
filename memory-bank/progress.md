@@ -1692,3 +1692,7 @@
   - Updated the FIT root contract test to check the current FilesService upload allowlist guard instead of obsolete denied-list variable names.
   - This was a test-only change; production upload filtering already used `allowedExtensions`, `allowedMimeTypes`, and `assertAllowedUpload(file)`.
   - Verification passed: FIT root contract, Tour type API, bookings service, operations service flows, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed FIT explicit zero amount preservation:
+  - FIT common cost and budget service mappers now preserve explicit `amount: 0` instead of recalculating a positive amount from formula fields.
+  - Added root contract coverage to verify zero amounts remain consistent in FIT detail rows and common TourCost/TourService sync rows.

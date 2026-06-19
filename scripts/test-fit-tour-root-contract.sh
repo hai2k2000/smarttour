@@ -416,6 +416,20 @@ async function main() {
     'FIT child validation should reject invalid operation status',
   );
 
+  const zeroAmountTour = await fitTours.create({
+    quoteCode: `${run}-ZERO-AMOUNT-Q`,
+    tourCode: `${run}-ZERO-AMOUNT-T`,
+    customerName: 'FIT Zero Amount Customer',
+    adultCount: 1,
+    commonCosts: [{ serviceType: 'CAR', description: 'Zero amount car', quantity: 1, times: 1, unitPrice: 1000, vat: 0, amount: 0 }],
+    budgetServices: [{ serviceType: 'MEAL', supplierId: supplier.id, description: 'Zero amount budget', quantity: 1, unitPrice: 1000, vat: 0, amount: 0 }],
+  });
+  assert(decimal(zeroAmountTour.commonCosts[0].amount) === 0, 'FIT create should preserve explicit zero common cost amount');
+  assert(decimal(zeroAmountTour.budgetServices[0].amount) === 0, 'FIT create should preserve explicit zero budget service amount');
+  const zeroAmountRoot = await prisma.tour.findUnique({ where: { id: zeroAmountTour.tourId }, include: { costs: true, services: true } });
+  assert(zeroAmountRoot.costs.some((row) => row.costType === 'FIT_COMMON_COST:CAR' && decimal(row.expectedAmount) === 0), 'FIT common TourCost should preserve explicit zero cost amount');
+  assert(zeroAmountRoot.services.some((row) => row.serviceType === 'MEAL' && decimal(row.budgetAmount) === 0), 'FIT common TourService should preserve explicit zero budget amount');
+
   const attachedDetail = await fitTours.uploadAttachment(
     source.id,
     FitTourWorkflowStatus.PRICING,

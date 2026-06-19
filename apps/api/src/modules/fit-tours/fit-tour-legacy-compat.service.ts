@@ -347,8 +347,8 @@ export class FitTourLegacyCompatService {
   }
 
   private money(explicitAmount: unknown, subtotal: number, vat: number) {
-    const amount = this.number(explicitAmount);
-    return amount > 0 ? amount : subtotal * (1 + vat / 100);
+    const hasExplicitAmount = explicitAmount !== undefined && explicitAmount !== null && String(explicitAmount).trim() !== '';
+    return hasExplicitAmount ? this.number(explicitAmount) : subtotal * (1 + vat / 100);
   }
 
   private toAttachmentStep(step: unknown) {
