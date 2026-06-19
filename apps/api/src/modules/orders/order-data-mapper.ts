@@ -28,7 +28,7 @@ export function toOrderData(dto: Partial<ScopedOrderDto>) {
     ...(dto.costStatus !== undefined ? { costStatus: dto.costStatus } : {}),
     ...(dto.tourCategory !== undefined ? { tourCategory: text(dto.tourCategory) } : {}),
     ...(dto.currency !== undefined ? { currency: dto.currency || 'VND' } : {}),
-    ...(dto.exchangeRate !== undefined ? { exchangeRate: dto.exchangeRate || 1 } : {}),
+    ...(dto.exchangeRate !== undefined ? { exchangeRate: positiveNumber(dto.exchangeRate, 'exchangeRate') } : {}),
     ...(dto.createdBy !== undefined ? { createdBy: text(dto.createdBy) } : {}),
     ...(dto.createdDate !== undefined ? { createdDate: date(dto.createdDate, 'createdDate') } : {}),
     ...(dto.branch !== undefined ? { branch: text(dto.branch) } : {}),
@@ -267,6 +267,12 @@ function iso(value?: Date | string | null, field = 'date') {
 
 function number(value: unknown) {
   return Number(value ?? 0);
+}
+
+function positiveNumber(value: unknown, field: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new BadRequestException(`${field} must be greater than 0`);
+  return parsed;
 }
 
 function parseOrderDate(value: unknown, field: string) {

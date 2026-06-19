@@ -1712,3 +1712,7 @@
 - 2026-06-19 Completed finance invoice quantity validation:
   - Manual finance invoices now reject item `quantity: 0` instead of treating it as quantity one.
   - Added finance service coverage for the zero-quantity invoice item guard.
+
+- 2026-06-19 Completed order exchange-rate validation:
+  - Order create/update mapping now rejects explicit zero/non-positive exchange rates instead of defaulting them to one.
+  - Added order service coverage for the zero exchange-rate guard.

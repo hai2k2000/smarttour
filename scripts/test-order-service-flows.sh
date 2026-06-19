@@ -184,7 +184,12 @@ async function main() {
     name: 'Invalid date order',
     startDate: 'not-a-date',
   }), 'create should reject an invalid date value');
-  assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE'] } } }) === 0, 'invalid create dates should not persist orders');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-RATE',
+    name: 'Bad exchange rate order',
+    exchangeRate: 0,
+  }), 'create should reject zero exchangeRate instead of defaulting it to one');
+  assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE', run + '-BAD-RATE'] } } }) === 0, 'invalid create inputs should not persist orders');
   const explicitCustomerSnapshot = await service.create('single-services', {
     systemCode: run + '-CUS-OVERRIDE',
     name: 'Customer Override',

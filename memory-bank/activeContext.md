@@ -2090,3 +2090,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found finance invoice item mapping used `this.decimal(row.quantity) || 1`, so explicit `quantity: 0` could be silently converted into one unit and inflate invoice totals.
   - Added a finance service regression proving zero invoice item quantity is rejected with a 400 instead of defaulting to one.
   - Updated invoice item mapping to default only missing quantity to one and reject provided quantities less than or equal to zero.
+
+- 2026-06-19 Order exchange-rate validation audit:
+  - Found order mapping used `dto.exchangeRate || 1`, so explicit `exchangeRate: 0` could be silently converted into one instead of rejected.
+  - Added an order service regression proving zero exchange rate is rejected and no invalid order is persisted.
+  - Updated order data mapping to default only missing exchange rates and require provided exchange rates to be finite positive numbers.
