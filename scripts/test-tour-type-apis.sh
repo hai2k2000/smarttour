@@ -1058,6 +1058,8 @@ async function main() {
   );
   const blockedGitRemove = await expect(`/api/git-tours/${gitOrderLinkedTour.id}`, { method: 'DELETE' }, 400, 'GIT remove should block tour linked to order/external dependency');
   assertMessage(blockedGitRemove, 'Không thể xóa tour GIT đã phát sinh', 'GIT blocked remove should use Vietnamese service message');
+  const blockedCommonGitRemove = await expect(`/api/tours/${gitOrderLinkedTour.id}`, { method: 'DELETE' }, 400, 'common Tour remove should not bypass dependency guard for GIT tours');
+  assertMessage(blockedCommonGitRemove, 'Không thể xóa tour đã phát sinh', 'common Tour blocked remove should use Vietnamese service message');
   await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE', headers: viewHeaders }, 403, 'GIT delete should reject tour.view-only users');
   const removedGitTour = await expect(`/api/git-tours/${gitCopyTarget.id}`, { method: 'DELETE' }, 200, 'GIT remove should soft-delete target tour');
   assert(removedGitTour.deletedAt && removedGitTour.status === 'CANCELLED', 'GIT remove should cancel and soft-delete the common Tour owner');

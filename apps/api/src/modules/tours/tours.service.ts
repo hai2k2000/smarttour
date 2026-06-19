@@ -141,7 +141,38 @@ export class ToursService {
 
   async remove(id: string, user?: RequestUser) {
     await this.detail(id, user);
-    return this.prisma.$transaction((tx) => this.tourCore.softDelete(tx, id, this.actor(user)));
+    return this.prisma.$transaction(async (tx) => {
+      await this.ensureRemovable(tx, id, user);
+      return this.tourCore.softDelete(tx, id, this.actor(user));
+    });
+  }
+
+  private async ensureRemovable(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser) {
+    const tour = await tx.tour.findFirst({
+      where: this.tourCore.scopeWhere({ id: tourId }, user),
+      select: {
+        orderId: true,
+        _count: {
+          select: {
+            bookings: true,
+            operationVouchers: true,
+            operationForms: true,
+            financeReceipts: true,
+            financePayments: true,
+            financeInvoices: true,
+            financeCashflowEntries: true,
+            payments: true,
+            receipts: true,
+            expenses: true,
+          },
+        },
+      },
+    });
+    if (!tour) throw new NotFoundException('Không tìm thấy tour');
+    const hasExternalDependency = Boolean(tour.orderId) || Object.values(tour._count).some((count) => count > 0);
+    if (hasExternalDependency) {
+      throw new BadRequestException('Không thể xóa tour đã phát sinh đơn hàng, booking, điều hành hoặc chứng từ tài chính');
+    }
   }
 
   async close(id: string, dto: { note?: string }, user?: RequestUser) {

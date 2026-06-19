@@ -2029,3 +2029,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a GIT API regression proving a negative budget service unit price is rejected with a Vietnamese 400 instead of creating a negative `budgetAmount` tour service.
   - Hardened the shared Tour numeric parser to reject negative values before child rows are persisted, covering common revenue/cost/service/attachment/order fields that flow through TourCoreService.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build. `test-fit-tour-root-contract.sh` still fails on a stale FilesService source assertion expecting old denied-list variable names while the current upload allowlist guard remains in place.
+
+- 2026-06-19 Tour common delete dependency-guard audit:
+  - Found the generic `DELETE /tours/:id` endpoint bypassed the dependency guard implemented by `DELETE /git-tours/:id` and `DELETE /landtours/:id`, allowing a GIT/LandTour with linked orders, bookings, operations, or finance documents to be soft-deleted through the common route.
+  - Added a Tour type API regression proving a GIT tour linked to an Order is blocked through the common Tour delete route, not only the GIT-specific route.
+  - Added a common ToursService removability guard that checks order links and operational/finance child counts before calling `TourCoreService.softDelete`.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.

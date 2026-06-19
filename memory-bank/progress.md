@@ -1662,3 +1662,8 @@
   - Common Tour child mappers now reject negative numeric values instead of storing negative service/revenue/cost amounts through GIT/LandTour payloads.
   - Added a Tour type API regression for a negative GIT budget service unit price, covering the service-level path that DTO validation cannot inspect because child arrays are `unknown[]`.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build. Known residual: `test-fit-tour-root-contract.sh` currently fails on an outdated FilesService source-name assertion, not on the Tour numeric change.
+
+- 2026-06-19 Completed common Tour delete dependency guard:
+  - The generic Tour delete endpoint now blocks soft-delete when a tour has a linked order, booking, operation voucher/form, finance document/cashflow entry, or legacy payment/receipt/expense relation.
+  - Added regression coverage for the previous bypass where a GIT tour linked to an Order was blocked by `/git-tours/:id` but could still be cancelled/deleted through `/tours/:id`.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
