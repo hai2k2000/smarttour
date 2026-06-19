@@ -1226,11 +1226,10 @@ export class ReportsService {
 
   private tourCost(tour: TourFinanceRow) {
     const explicit = tour.costs.reduce((sum, row) => {
-      const actual = Number(row.actualAmount);
-      return sum + (actual > 0 ? actual : Number(row.expectedAmount));
+      return sum + (this.hasValue(row.actualAmount) ? Number(row.actualAmount) : Number(row.expectedAmount));
     }, 0);
-    if (explicit > 0) return explicit;
-    return tour.services.reduce((sum, row) => sum + Number(row.confirmedAmount || row.budgetAmount), 0);
+    if (tour.costs.length) return explicit;
+    return tour.services.reduce((sum, row) => sum + (this.hasValue(row.confirmedAmount) ? Number(row.confirmedAmount) : Number(row.budgetAmount)), 0);
   }
 
   private tourPaidAmount(tour: TourFinanceRow) {
@@ -1247,6 +1246,10 @@ export class ReportsService {
 
   private emptyRow(key: string, label: string): MetricRow {
     return { key, label, orderCount: 0, customerCount: 0, revenue: 0, paidAmount: 0, remainingRevenue: 0, cost: 0, paidCost: 0, remainingCost: 0, profit: 0, commission: 0, marginRate: 0 };
+  }
+
+  private hasValue(value: unknown) {
+    return value !== undefined && value !== null;
   }
 
   private dateKey(date: Date | null, mode: 'day' | 'month') {

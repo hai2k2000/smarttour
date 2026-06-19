@@ -2128,3 +2128,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added quote smoke API regressions proving zero cost quantity, service count, and exchange rate are rejected with 400 responses.
   - Updated Tour Quote cost sanitization to default missing multipliers to one but reject provided non-positive values with Vietnamese business errors.
   - During smoke verification, found converted order child rows could be returned in nondeterministic DB order; fixed OrdersService detail/edit/copy includes to order sales and operation rows by `sortOrder`.
+
+
+- 2026-06-19 Reports tour P&L zero fallback audit:
+  - Found tour P&L cost helper still treated explicit zero actual costs as absent by using `actual > 0`, and treated explicit zero confirmed service costs as absent through truthy `confirmedAmount || budgetAmount` fallback.
+  - Added Reports finance hybrid contract guards to fail on those fallback patterns and require presence-based fallback logic.
+  - Updated tour cost aggregation to use expected/budget values only when actual/confirmed values are null or undefined, preserving explicit zero values.

@@ -1744,3 +1744,8 @@
   - Tour Quote cost rows now reject explicit zero/non-positive quantity, service count, pax-per-room, and exchange rate instead of storing collapsed zero-cost multipliers.
   - Quote smoke coverage now guards zero quantity/service count/exchange rate API behavior.
   - Order detail/edit/copy responses now return sales and operation child rows sorted by `sortOrder`, preventing converted quote/order lines from appearing in unstable order.
+
+
+- 2026-06-19 Completed Reports tour P&L zero fallback fix:
+  - Tour P&L report helpers now honor explicit zero `actualAmount` and `confirmedAmount` instead of falling back to expected/budget amounts.
+  - Reports finance hybrid contract now guards against reintroducing `actual > 0` and truthy `confirmedAmount || budgetAmount` fallbacks.

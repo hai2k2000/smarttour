@@ -30,6 +30,10 @@ requireText(service, 'supplierDebtRows', 'ReportsService finance response must i
 requireText(service, 'issueCount', 'finance summary must include issueCount');
 requireText(service, 'orphanReceiptRows', 'finance reconciliation must include orphan receipts');
 requireText(service, 'orphanPaymentRows', 'finance reconciliation must include orphan payments');
+if (service.includes('actual > 0 ? actual : Number(row.expectedAmount)')) failures.push('tour P&L cost must honor explicit zero actualAmount instead of falling back to expectedAmount');
+if (service.includes('row.confirmedAmount || row.budgetAmount')) failures.push('tour P&L service cost must honor explicit zero confirmedAmount instead of falling back to budgetAmount');
+requireText(service, 'this.hasValue(row.actualAmount) ? Number(row.actualAmount) : Number(row.expectedAmount)', 'tour P&L cost fallback must only use expectedAmount when actualAmount is absent');
+requireText(service, 'this.hasValue(row.confirmedAmount) ? Number(row.confirmedAmount) : Number(row.budgetAmount)', 'tour P&L service cost fallback must only use budgetAmount when confirmedAmount is absent');
 
 for (const label of [
   'Tổng quan tài chính',
