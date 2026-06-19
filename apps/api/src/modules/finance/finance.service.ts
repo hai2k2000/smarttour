@@ -541,9 +541,12 @@ export class FinanceService {
   }
 
   async customerDebt(query: Record<string, string>, user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     const where = branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
+      ...(contains ? { customer: { is: { OR: [{ fullName: contains }, { phone: contains }, { code: contains }] } } } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { customer: true, order: true, receipt: true, invoice: true };
@@ -556,9 +559,12 @@ export class FinanceService {
   }
 
   async supplierDebt(query: Record<string, string>, user?: RequestUser) {
+    const search = normalizeListSearch(query.search);
+    const contains = search ? containsSearch(search) : undefined;
     const where = branchDepartmentScopeWhere<Prisma.SupplierLedgerEntryWhereInput>({
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
+      ...(contains ? { supplier: { is: { OR: [{ name: contains }, { phone: contains }, { supplierCode: contains }] } } } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };

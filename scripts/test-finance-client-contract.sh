@@ -22,6 +22,7 @@ if (!source.includes('Phiếu thu chờ duyệt') || !source.includes("receipts.
 if (!source.includes('Dữ liệu chưa lưu sẽ bị mất') || !source.includes("event.key === 'Escape'")) failures.push('FinanceModal must protect dirty form state');
 if (!source.includes('Thao tác này sẽ tạo bút toán đảo') || !source.includes('Chứng từ sẽ được ghi nhận vào sổ tài chính')) failures.push('row actions need consequence-aware confirmation');
 if (!source.includes('agingTitle(row.aging)') || !source.includes('quá hạn</span>')) failures.push('debt tables must expose overdue counts and aging detail');
+if (!source.includes('getJson(`/api/finance/debt/customers?${query}`)') || !source.includes('getJson(`/api/finance/debt/suppliers?${query}`)')) failures.push('debt lists must receive the same finance filters as other tabs');
 if (!css.includes('.financeNotice-error') || !css.includes('.status-overdue') || !css.includes('.financeModalPanel') || !css.includes('.financeFilterLabel')) failures.push('finance notice/status/modal/filter styles are incomplete');
 if (!source.includes('className="financeFilterLabel"')) failures.push('finance search label must not collapse the input grid');
 if (!appShell.includes("label: 'Phi\u1ebfu thu ch\u1edd'") || !appShell.includes("label: 'H\u00f3a \u0111\u01a1n VAT'")) failures.push('finance sidebar labels must use full Vietnamese wording');

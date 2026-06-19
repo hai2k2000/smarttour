@@ -1976,3 +1976,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found that finance `to` date filters treated `YYYY-MM-DD` as midnight at the start of the day, so receipt/payment/invoice/cashflow/debt records later on the selected end date could be omitted.
   - Added service regressions for same-day date ranges on receipts, payments, invoices, customer debt, and supplier debt using timestamped records within the end date.
   - Updated FinanceService date filtering so date-only `to` values expand to 23:59:59.999 UTC while explicit timestamp filters remain exact.
+
+- 2026-06-19 Finance debt filter/search audit:
+  - Found the Finance web debt tab ignored the shared filter query while receipts/payments/invoices/cashflow used it, so date/search filters did not affect customer/supplier debt views.
+  - Fixed FinanceClient to pass the shared query to customer and supplier debt endpoints.
+  - Added backend debt search by customer name/phone/code and supplier name/phone/code so the shared search box actually filters debt rows.

@@ -95,8 +95,8 @@ export default function FinanceClient() {
       { label: 'Phiếu chi', permission: 'finance.payment.view', run: () => getJson(`/api/finance/payments?${query}`), apply: (data: any) => { setPayments(data.rows || []); setPaymentSummary(data.summary || emptySummary); } },
       { label: 'Hóa đơn VAT', permission: 'finance.invoice.view', run: () => getJson(`/api/finance/invoices?${query}`), apply: (data: any) => { setInvoices(data.rows || []); setInvoiceSummary(data.summary || emptySummary); } },
       { label: 'Dòng tiền', permission: 'finance.cashflow.view', run: () => getJson(`/api/finance/cashflow?${query}`), apply: (data: any) => { setCashflow(data.rows || []); setCashSummary(data.summary || { totalReceipt: 0, totalPayment: 0, netCashflow: 0, byMethod: [] }); } },
-      { label: 'Công nợ khách hàng', permission: 'finance.debt.view', run: () => getJson('/api/finance/debt/customers'), apply: (data: any) => setCustomerDebt(data.rows || []) },
-      { label: 'Công nợ nhà cung cấp', permission: 'finance.debt.view', run: () => getJson('/api/finance/debt/suppliers'), apply: (data: any) => setSupplierDebt(data.rows || []) },
+      { label: 'Công nợ khách hàng', permission: 'finance.debt.view', run: () => getJson(`/api/finance/debt/customers?${query}`), apply: (data: any) => setCustomerDebt(data.rows || []) },
+      { label: 'Công nợ nhà cung cấp', permission: 'finance.debt.view', run: () => getJson(`/api/finance/debt/suppliers?${query}`), apply: (data: any) => setSupplierDebt(data.rows || []) },
     ].filter((branch) => can(branch.permission));
     const results = await Promise.allSettled(branches.map((branch) => branch.run()));
     const failed: string[] = [];

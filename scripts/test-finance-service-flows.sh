@@ -913,6 +913,8 @@ async function main() {
   const dateFilterCustomerAdjustment = await finance.createCustomerDebtAdjustment(paginationCustomer.id, { direction: 'INCREASE', amount: 75, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter customer increase' });
   const dateFilterCustomerDebt = await finance.customerDebt({ customerId: paginationCustomer.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
   assert(dateFilterCustomerDebt.entries.some((entry) => entry.id === dateFilterCustomerAdjustment.id), 'customer debt date filter should include entries throughout the to date');
+  const searchedCustomerDebt = await finance.customerDebt({ search: 'Pagination Customer', take: '1000' });
+  assert(searchedCustomerDebt.rows.some((row) => row.id === paginationCustomer.id) && !searchedCustomerDebt.rows.some((row) => row.id === customer.id), 'customer debt search should filter by customer name/code/phone');
   const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);
   const outCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, outOfScopeUser);
   assert(branchCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should include branch scoped entries');
@@ -943,6 +945,8 @@ async function main() {
   const dateFilterSupplierAdjustment = await finance.createSupplierDebtAdjustment(paginationSupplier.id, { direction: 'INCREASE', amount: 60, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter supplier increase' });
   const dateFilterSupplierDebt = await finance.supplierDebt({ supplierId: paginationSupplier.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
   assert(dateFilterSupplierDebt.entries.some((entry) => entry.id === dateFilterSupplierAdjustment.id), 'supplier debt date filter should include entries throughout the to date');
+  const searchedSupplierDebt = await finance.supplierDebt({ search: 'Pagination Supplier', take: '1000' });
+  assert(searchedSupplierDebt.rows.some((row) => row.id === paginationSupplier.id) && !searchedSupplierDebt.rows.some((row) => row.id === supplier.id), 'supplier debt search should filter by supplier name/code/phone');
   const branchSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, branchUser);
   const outSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, outOfScopeUser);
   assert(branchSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should include branch scoped entries');

@@ -1614,3 +1614,8 @@
   - Finance list/date filters now include records throughout the selected `to` date for receipt, payment, invoice, cashflow, customer debt, and supplier debt queries.
   - Added regression coverage for timestamped finance records filtered with same-day `from`/`to` date-only inputs.
   - Verification passed: finance service/client/report tests, report query validation, finance guard audits, API Docker build, and `git diff --check`.
+
+- 2026-06-19 Completed finance debt filter/search fix:
+  - Customer/supplier debt endpoints now support the finance `search` query on party name, phone, and code.
+  - The Finance debt tab now sends the same filter query as the other finance tabs, so date/search filters apply consistently.
+  - Added service and client contract regressions for debt filtering/search behavior. Verification passed: finance service/client/report tests, report query validation, finance guard audits, API/web Docker build, and `git diff --check`.
