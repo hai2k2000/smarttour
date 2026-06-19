@@ -147,6 +147,10 @@ async function main() {
   });
 
   const quotationA = await quotations.create(quotationPayload(`${run}-QA`, 'BR-A', 'DEP-A'), allUser);
+  await rejects(
+    () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-RATE`, 'BR-A', 'DEP-A'), exchangeRate: 0 }, allUser),
+    'quotation create should reject zero exchangeRate instead of defaulting it to one',
+  );
   const quotationB = await quotations.create(quotationPayload(`${run}-QB`, 'BR-B', 'DEP-B'), allUser);
   assert.deepEqual((await quotations.list({ search: run }, branchUser)).map((row) => row.id), [quotationA.id], 'quotation list must be scoped');
   await rejects(() => quotations.detail(quotationB.id, branchUser), 'quotation detail must be scoped');

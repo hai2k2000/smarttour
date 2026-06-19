@@ -2105,3 +2105,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found combo quote sanitization used a clamp helper for `nightCount`/`paxCount`, so explicit zero values could be silently converted into one.
   - Added a High-A data access regression proving combo quote creation rejects zero `nightCount` instead of defaulting it.
   - Updated combo quote sanitization to default missing counts to one but reject provided non-positive counts with Vietnamese business errors.
+
+- 2026-06-19 Quotation exchange-rate validation audit:
+  - Found legacy quotation `positiveRate()` defaulted explicit zero/non-positive exchange rates back to one, matching the bug already fixed in Orders and Tour Quotes.
+  - Added a High-A data access regression proving quotation creation rejects `exchangeRate: 0` instead of silently defaulting it.
+  - Updated quotation exchange-rate parsing to default only missing values and reject provided non-positive or non-finite rates with a Vietnamese business error.

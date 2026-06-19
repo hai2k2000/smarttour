@@ -505,8 +505,10 @@ export class QuotationsService {
   }
 
   private positiveRate(value: unknown, fallback = 1) {
-    const number = this.number(value, fallback);
-    return number > 0 ? number : fallback;
+    if (value === undefined || value === null || value === '') return fallback;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) throw new BadRequestException('Tỷ giá báo giá phải lớn hơn 0');
+    return number;
   }
 
   private derivePricePercent(price: unknown, sellingPerPax: unknown, fallback: number) {

@@ -1724,3 +1724,7 @@
 - 2026-06-19 Completed quote combo positive-count validation:
   - Combo quote items now reject explicit zero/non-positive night and pax counts instead of silently clamping them to one.
   - Added High-A data access coverage for zero combo night count.
+
+- 2026-06-19 Completed quotation exchange-rate validation:
+  - Legacy quotation create/update now rejects explicit zero/non-positive exchange rates instead of treating them as one.
+  - Added High-A data access coverage for the zero quotation exchange-rate guard.
