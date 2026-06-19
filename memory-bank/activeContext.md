@@ -2041,3 +2041,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a GIT API regression proving `quantity: 0` in a budget service is rejected instead of being persisted as quantity 1 with a positive budget amount.
   - Added shared TourCore helpers that default only blank values, preserve explicit numeric input, and require positive quantity/exchangeRate values while keeping unit prices non-negative.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Tour child unit-price alias audit:
+  - Found common Tour service mappers still used truthy alias fallbacks such as `row.unitPrice || row.budgetUnitPrice`, so explicit zero unit prices could be ignored when an alias field was also present.
+  - Added a GIT API regression proving a budget-service payload with `unitPrice: 0` and `budgetUnitPrice: 1000` preserves the explicit zero unit price and calculated zero budget amount.
+  - Added a shared alias picker that falls back only when the primary value is blank/null, then applied it to sales, budget, and operation service unit-price aliases.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.

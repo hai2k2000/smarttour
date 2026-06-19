@@ -822,6 +822,22 @@ async function main() {
     'GIT should reject zero nested service quantity instead of defaulting it to one',
   );
   assertMessage(invalidGitZeroQuantity, 'quantity phải lớn hơn 0', 'GIT zero nested quantity should use Vietnamese service message');
+  const gitZeroUnitPriceTour = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-ZERO-UNIT-SYS`,
+        tourCode: `${run}-GIT-ZERO-UNIT`,
+        name: 'Tour type API GIT zero unit price service',
+        budgetServices: [{ serviceType: 'GIT_HOTEL', quantity: 1, unitPrice: 0, budgetUnitPrice: 1000, exchangeRate: 1 }],
+      }),
+    },
+    201,
+    'GIT should preserve explicit zero unitPrice instead of falling through to budgetUnitPrice alias',
+  );
+  const gitZeroUnitPriceService = gitZeroUnitPriceTour.services.find((service) => service.serviceType === 'GIT_HOTEL');
+  assert(gitZeroUnitPriceService && Number(gitZeroUnitPriceService.budgetUnitPrice) === 0 && Number(gitZeroUnitPriceService.budgetAmount) === 0, 'GIT should preserve explicit zero unitPrice and zero calculated budget amount');
 
   const gitArrayCustomerTour = await expect(
     '/api/git-tours',

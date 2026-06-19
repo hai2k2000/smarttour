@@ -332,7 +332,7 @@ export class TourCoreService {
   mapSalesServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
       const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
-      const salesUnitPrice = this.number(row.unitPrice || row.salesUnitPrice, 'salesUnitPrice');
+      const salesUnitPrice = this.number(this.firstPresent(row.unitPrice, row.salesUnitPrice), 'salesUnitPrice');
       const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
@@ -355,7 +355,7 @@ export class TourCoreService {
   mapBudgetServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
       const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
-      const budgetUnitPrice = this.number(row.unitPrice || row.budgetUnitPrice, 'budgetUnitPrice');
+      const budgetUnitPrice = this.number(this.firstPresent(row.unitPrice, row.budgetUnitPrice), 'budgetUnitPrice');
       const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
@@ -378,7 +378,7 @@ export class TourCoreService {
   mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
       const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
-      const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice, 'confirmedUnitPrice');
+      const confirmedUnitPrice = this.number(this.firstPresent(row.confirmedUnitPrice, row.unitPrice), 'confirmedUnitPrice');
       const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
@@ -528,6 +528,10 @@ export class TourCoreService {
     if (!Number.isFinite(parsed)) throw new BadRequestException(`${field} phải là số hợp lệ`);
     if (parsed < 0) throw new BadRequestException(`${field} không được âm`);
     return parsed;
+  }
+
+  private firstPresent(primary: unknown, fallback: unknown) {
+    return this.optionalText(primary) === null ? fallback : primary;
   }
 
   private numberOrDefault(value: unknown, fallback: number, field: string) {

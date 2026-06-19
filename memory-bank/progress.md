@@ -1672,3 +1672,8 @@
   - Common Tour service/revenue mappers no longer convert explicit `0` quantity or exchange-rate inputs into default `1` values.
   - Quantity and exchange-rate fields that drive Tour child amount calculations now require values greater than zero when supplied, preventing silent positive revenue/cost generation from zero input.
   - Added regression coverage for the previous GIT budget-service `quantity: 0` bypass. Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed Tour child unit-price alias preservation:
+  - Common Tour service mappers now preserve explicit zero unit-price inputs instead of falling through to legacy alias fields.
+  - Added regression coverage for GIT budget services where `unitPrice: 0` previously could be overwritten by `budgetUnitPrice` and create a positive amount.
+  - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.
