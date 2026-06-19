@@ -493,7 +493,7 @@ export class QuotesService {
       ...(dto.route !== undefined ? { route: this.optionalText(dto.route) } : {}),
       ...(dto.marketGroup !== undefined ? { marketGroup: this.optionalText(dto.marketGroup) } : {}),
       ...(dto.currency !== undefined ? { currency: dto.currency || 'VND' } : {}),
-      ...(dto.exchangeRate !== undefined ? { exchangeRate: dto.exchangeRate || 1 } : {}),
+      ...(dto.exchangeRate !== undefined ? { exchangeRate: this.positiveInput(dto.exchangeRate, 'Tỷ giá báo giá tour') } : {}),
       ...(dto.bookingDate !== undefined ? { bookingDate: this.optionalDate(dto.bookingDate) } : {}),
       ...(dto.paymentDate !== undefined ? { paymentDate: this.optionalDate(dto.paymentDate) } : {}),
       ...(dto.departureDate !== undefined ? { departureDate: this.optionalDate(dto.departureDate) } : {}),
@@ -720,5 +720,11 @@ export class QuotesService {
 
   private positive(value: unknown, fallback = 1) {
     return Math.max(1, this.number(value, fallback));
+  }
+
+  private positiveInput(value: unknown, label: string) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) throw new BadRequestException(`${label} phải lớn hơn 0`);
+    return number;
   }
 }

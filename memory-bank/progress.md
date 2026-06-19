@@ -1716,3 +1716,7 @@
 - 2026-06-19 Completed order exchange-rate validation:
   - Order create/update mapping now rejects explicit zero/non-positive exchange rates instead of defaulting them to one.
   - Added order service coverage for the zero exchange-rate guard.
+
+- 2026-06-19 Completed quote exchange-rate validation:
+  - Tour Quote create/update mapping now rejects explicit zero/non-positive exchange rates instead of defaulting them to one.
+  - Added High-A data access coverage for the zero exchange-rate guard.

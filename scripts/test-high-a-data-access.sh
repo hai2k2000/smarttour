@@ -165,6 +165,10 @@ async function main() {
 
   const tourA = await quotes.createTourQuote(tourPayload(`${run}-TA`, customerA), branchUser);
   assert.equal(tourA.customerId, customerA.id, 'scoped tour quote create must link the scoped customer');
+  await rejects(
+    () => quotes.createTourQuote({ ...tourPayload(`${run}-TQ-BAD-RATE`, customerA), exchangeRate: 0 }, branchUser),
+    'tour quote create should reject zero exchangeRate instead of defaulting it to one',
+  );
   await rejects(() => quotes.createTourQuote(tourPayload(`${run}-TB-BLOCK`, customerB), branchUser), 'scoped tour quote create must reject customer outside scope');
   const tourB = await quotes.createTourQuote(tourPayload(`${run}-TB`, customerB), allUser);
   await prisma.tourQuote.update({ where: { id: tourB.id }, data: { customerId: customerB.id, customerName: customerA.fullName } });

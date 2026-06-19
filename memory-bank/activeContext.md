@@ -2095,3 +2095,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found order mapping used `dto.exchangeRate || 1`, so explicit `exchangeRate: 0` could be silently converted into one instead of rejected.
   - Added an order service regression proving zero exchange rate is rejected and no invalid order is persisted.
   - Updated order data mapping to default only missing exchange rates and require provided exchange rates to be finite positive numbers.
+
+- 2026-06-19 Quote exchange-rate validation audit:
+  - Found Tour Quote mapping used `dto.exchangeRate || 1`, so explicit `exchangeRate: 0` could be silently converted into one instead of rejected.
+  - Added a High-A data access regression proving scoped tour quote creation rejects zero exchange rate.
+  - Updated Tour Quote root mapping to require provided exchange rates to be finite positive numbers while preserving default behavior when the field is omitted.
