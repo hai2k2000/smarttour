@@ -2012,3 +2012,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found manual finance create/update paths relied on string casts for enums and silently dropped invalid write dates, while CSV import already returned business validation errors.
   - Added shared write-path enum and date guards for receipt/payment/invoice data builders so invalid receipt/payment/invoice types, payment methods, and write dates return 400 before Prisma.
   - Added service regressions for invalid receipt type, invalid payment method, and invalid invoice issued date.
+
+- 2026-06-19 Finance receipt allocation audit:
+  - Found receipt order allocations could differ from `receiptAmount`, causing cashflow/customer ledger to post one amount while booking paid revenue was reconciled by a different amount.
+  - Added a receipt allocation guard requiring the sum of `orders[].amount` to equal `receiptAmount` whenever booking allocation rows are present.
+  - Applied the guard to create, update, import, approve, and cancel paths so both new writes and legacy drafts cannot post mismatched booking reconciliation.

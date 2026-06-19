@@ -94,6 +94,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
       const orders = this.receiptOrders(dto);
+      this.assertReceiptOrderAllocation(this.decimal(dto.receiptAmount), orders);
       await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), tourCode: this.text(dto.tourCode), orders }, user), 'Phiếu thu');
       const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
@@ -109,6 +110,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
       const orders = hasOrders ? this.receiptOrders(dto) : current.orders;
+      this.assertReceiptOrderAllocation(this.decimal(dto.receiptAmount ?? current.receiptAmount), orders);
       await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orders }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orders }, user) || current.tourId, 'Phiếu thu');
       const data: AnyRecord = this.receiptData({ ...current, ...dto, receiptCode: this.text(dto.receiptCode) || current.receiptCode, tourId });
@@ -135,6 +137,7 @@ export class FinanceService {
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       assertCanApproveFinanceEntity(current, 'Phiếu thu');
+      this.assertReceiptOrderAllocation(this.decimal(current.receiptAmount), current.orders);
       await assertReceiptOrderLinks(tx, { customerId: current.customerId, orders: current.orders }, user);
       const receipt = await tx.financeReceipt.update({
         where: { id },
@@ -167,6 +170,7 @@ export class FinanceService {
       const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
       if (!receipt) throw new NotFoundException('Không tìm thấy phiếu thu');
       assertCanCancelFinanceEntity(receipt, 'Phiếu thu');
+      this.assertReceiptOrderAllocation(this.decimal(receipt.receiptAmount), receipt.orders);
       await assertReceiptOrderLinks(tx, { customerId: receipt.customerId, orders: receipt.orders }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: receipt.tourId, receiptId: id, orders: receipt.orders }, user), 'Phiếu thu');
       const reversalCode = await this.nextCode(tx, 'FINANCE_RECEIPT', 'PTDC', new Date(), receipt.branch || undefined);
@@ -658,6 +662,7 @@ export class FinanceService {
         const row = applyWriteDataScope(this.financeWriteInput(rawRow as AnyRecord) as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const receiptCode = this.text(row.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(row.paymentDate), this.text(row.branch));
         const orders = this.receiptOrders(row);
+        this.assertReceiptOrderAllocation(this.decimal(row.receiptAmount), orders);
         await assertReceiptOrderLinks(tx, { customerId: this.text(row.customerId), orders }, user);
         const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), tourCode: this.text(row.tourCode), orders }, user), 'Phiếu thu');
         const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
@@ -765,6 +770,14 @@ export class FinanceService {
       tourName: this.text(row.tourName),
       amount: this.decimal(row.amount),
     }));
+  }
+
+  private assertReceiptOrderAllocation(receiptAmount: number, orders: { amount: unknown }[]) {
+    if (!orders.length) return;
+    const allocated = orders.reduce((sum, row) => sum + Number(row.amount), 0);
+    if (Math.abs(allocated - receiptAmount) > 0.0001) {
+      throw new BadRequestException('Tổng phân bổ booking phải bằng số tiền phiếu thu');
+    }
   }
 
   private paymentData(dto: AnyRecord): Prisma.FinancePaymentUncheckedCreateInput {

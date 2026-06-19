@@ -1648,3 +1648,7 @@
 - 2026-06-19 Completed finance manual enum/date validation hardening:
   - Manual finance receipt/payment/invoice writes now validate enum fields and write dates before persistence, preventing Prisma validation errors and silent date drops.
   - Added focused regressions for invalid receipt type, invalid payment method, and invalid invoice date. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed finance receipt allocation validation:
+  - Receipt booking allocation rows now must sum to the receipt amount before create/update/import/approve/cancel can proceed, preventing booking revenue reconciliation from diverging from cashflow and customer ledger postings.
+  - Added a regression for mismatched receipt allocation versus `receiptAmount`. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
