@@ -526,6 +526,7 @@ export class TourCoreService {
   private number(value: unknown, field: string) {
     const parsed = Number(value ?? 0);
     if (!Number.isFinite(parsed)) throw new BadRequestException(`${field} phải là số hợp lệ`);
+    if (parsed < 0) throw new BadRequestException(`${field} không được âm`);
     return parsed;
   }
 

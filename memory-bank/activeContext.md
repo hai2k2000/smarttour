@@ -2023,3 +2023,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added service-level guards so receipt total must be at least paidBefore plus receiptAmount, and payment total must be at least paymentAmount.
   - Added finance service regressions for invalid manual receipt and payment totals.
   - Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Tour nested numeric validation audit:
+  - Found common Tour child mappers accepted negative numeric values in GIT/LandTour revenue, cost, and service rows because nested arrays are service-mapped `unknown[]` payloads and `TourCoreService.number()` only checked finite numbers.
+  - Added a GIT API regression proving a negative budget service unit price is rejected with a Vietnamese 400 instead of creating a negative `budgetAmount` tour service.
+  - Hardened the shared Tour numeric parser to reject negative values before child rows are persisted, covering common revenue/cost/service/attachment/order fields that flow through TourCoreService.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build. `test-fit-tour-root-contract.sh` still fails on a stale FilesService source assertion expecting old denied-list variable names while the current upload allowlist guard remains in place.

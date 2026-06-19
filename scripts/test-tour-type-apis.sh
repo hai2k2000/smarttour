@@ -792,6 +792,21 @@ async function main() {
     'GIT should reject invalid nested service numeric fields',
   );
   assertMessage(invalidGitNestedNumber, 'exchangeRate phải là số hợp lệ', 'GIT nested number validation should use Vietnamese service message');
+  const invalidGitNegativeNestedNumber = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-NEG-SERVICE-SYS`,
+        tourCode: `${run}-GIT-BAD-NEG-SERVICE`,
+        name: 'Tour type API GIT negative service number',
+        budgetServices: [{ serviceType: 'GIT_HOTEL', quantity: 1, unitPrice: -1000, exchangeRate: 1 }],
+      }),
+    },
+    400,
+    'GIT should reject negative nested service numeric fields',
+  );
+  assertMessage(invalidGitNegativeNestedNumber, 'budgetUnitPrice không được âm', 'GIT negative nested number should use Vietnamese service message');
 
   const gitArrayCustomerTour = await expect(
     '/api/git-tours',

@@ -1657,3 +1657,8 @@
   - Manual receipt writes now reject `totalAmount` values below `paidBefore + receiptAmount`, preventing documents that report less total debt/revenue than the amount already collected.
   - Manual payment writes now reject `totalAmount` values below `paymentAmount`, aligning manual paths with import validation and preserving coherent voucher totals.
   - Added focused regressions for invalid receipt/payment totals. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed Tour nested numeric validation hardening:
+  - Common Tour child mappers now reject negative numeric values instead of storing negative service/revenue/cost amounts through GIT/LandTour payloads.
+  - Added a Tour type API regression for a negative GIT budget service unit price, covering the service-level path that DTO validation cannot inspect because child arrays are `unknown[]`.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build. Known residual: `test-fit-tour-root-contract.sh` currently fails on an outdated FilesService source-name assertion, not on the Tour numeric change.
