@@ -334,6 +334,11 @@ async function main() {
   const protectedInvoiceCancelled = await finance.cancelInvoice(protectedInvoice.id, { actor: 'client-spoof', reason: 'Protected invoice cancel' }, branchUser);
   assert(protectedInvoiceCancelled.status === 'CANCELLED' && protectedInvoiceCancelled.approvalStatus === 'CANCELLED' && protectedInvoiceCancelled.cancelledBy === branchUser.username, 'invoice cancel should derive cancelledBy from request user');
 
+  await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-NEG-RCPT', receiptName: 'Negative Receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 100, receiptAmount: -1, tourId: tour.id }), 400, 'receipt create should reject negative money values');
+  await rejectsWithStatus(() => finance.createPayment({ voucherCode: run + '-BAD-NEG-PAY', voucherName: 'Negative Payment', voucherType: 'INTERNAL_EXPENSE', totalAmount: 100, paymentAmount: -1 }), 400, 'payment create should reject negative money values');
+  await rejectsWithStatus(() => finance.createInvoice({ invoiceCode: run + '-BAD-NEG-INV', customerId: customer.id, invoiceType: 'VAT', tourId: tour.id, items: [{ itemName: 'Negative invoice item', quantity: 1, unitPrice: -1, taxRate: 0 }] }), 400, 'invoice create should reject negative item values');
+  await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-NAN-RCPT', receiptName: 'Invalid Receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 'abc', receiptAmount: 1, tourId: tour.id }), 400, 'receipt create should reject non-numeric money values');
+
   const draftReceipt = await finance.createReceipt({
     receiptCode: run + '-CRUD-RCPT',
     receiptName: 'Receipt CRUD',

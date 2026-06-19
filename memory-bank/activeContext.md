@@ -2002,3 +2002,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found finance list/debt/cashflow service queries accepted invalid date and pagination values; invalid `from` could be silently ignored and invalid `to` could reach Prisma instead of returning a business 400.
   - Added service-level query guards so date filters must parse to valid dates and `take` must be a positive integer, covering receipts, payments, invoices, cashflow, customer debt, and supplier debt.
   - Added finance service regressions for invalid `from`, invalid `to`, zero `take`, and negative `take` across document, debt, and cashflow queries.
+
+- 2026-06-19 Finance numeric input validation audit:
+  - Found manual finance create/update paths could accept negative numeric values and coerce non-numeric values to zero, while CSV import already rejected those cases.
+  - Hardened the shared finance decimal parser to reject NaN/non-finite and negative values for receipt/payment amounts and invoice item numeric fields, while preserving zero-value draft behavior.
+  - Added service regressions for negative receipt/payment/invoice values and non-numeric receipt totals.

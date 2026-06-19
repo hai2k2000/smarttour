@@ -1074,8 +1074,11 @@ export class FinanceService {
   }
 
   private decimal(value: unknown) {
-    const number = Number(value ?? 0);
-    return Number.isFinite(number) ? number : 0;
+    if (value == null || value === '') return 0;
+    const number = Number(value);
+    if (!Number.isFinite(number)) throw new BadRequestException('Số tiền không hợp lệ');
+    if (number < 0) throw new BadRequestException('Số tiền không được âm');
+    return number;
   }
 
   private decimalOrUndefined(value: unknown) {
