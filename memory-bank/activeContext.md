@@ -2080,3 +2080,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found FIT child validation allowed zero quantity/times/exchange-rate values while legacy mappers could use truthy defaults like `row.times || 1`, so explicit zero multipliers could either create impossible zero rows or be silently converted to one.
   - Added FIT root contract regressions proving zero `commonCosts[].times` and zero `budgetServices[].quantity` are rejected with Vietnamese business errors.
   - Added positive-number validation for FIT cost/service calculation drivers while keeping explicit zero money amounts and zero unit prices allowed where they are legitimate.
+
+- 2026-06-19 FIT handover quantity validation audit:
+  - Found FIT handover item validation allowed `quantity: 0` while the legacy mapper used `row.quantity || 1`, so explicit zero quantities could be silently converted into one handover item.
+  - Added FIT root contract coverage proving zero handover item quantity is rejected with a Vietnamese business error.
+  - Added positive-number validation for `handoverItems[].quantity` while keeping ordering fields unchanged.

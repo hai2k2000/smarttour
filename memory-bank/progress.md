@@ -1704,3 +1704,7 @@
 - 2026-06-19 Completed FIT child zero-multiplier validation:
   - FIT cost/service child rows now reject zero values for calculation drivers such as quantity, pax-per-room, times, exchange-rate, and service quantity instead of silently defaulting or persisting impossible rows.
   - Added FIT root contract coverage for zero cost multipliers and zero budget service quantities.
+
+- 2026-06-19 Completed FIT handover quantity validation:
+  - FIT handover items now reject zero quantities instead of defaulting explicit zero input to one.
+  - Added FIT root contract coverage for the handover quantity guard.

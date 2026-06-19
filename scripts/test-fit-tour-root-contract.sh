@@ -421,6 +421,11 @@ async function main() {
     'FIT child validation should reject zero budget service quantities',
   );
   await assertRejects(
+    () => fitTours.update(source.id, { handoverItems: [{ itemName: 'Voucher dịch vụ', quantity: 0 }] }),
+    'handoverItems[0].quantity phải lớn hơn 0',
+    'FIT handover validation should reject zero handover item quantities instead of defaulting them to one',
+  );
+  await assertRejects(
     () => fitTours.update(source.id, { operationServices: [{ serviceType: 'HOTEL', status: 'INVALID_STATUS' }] }),
     'operationServices[0].status không thuộc danh sách trạng thái dịch vụ hợp lệ',
     'FIT child validation should reject invalid operation status',

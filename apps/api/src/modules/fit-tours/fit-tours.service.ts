@@ -679,6 +679,7 @@ export class FitToursService {
     this.validateChildRows(dto.handoverItems, 'handoverItems', (row, path) => {
       this.requiredText(row.itemName ?? row.name, `${path}.itemName`);
       this.validateChildNumbers(row, path, ['orderNo', 'quantity']);
+      this.validateChildPositiveNumbers(row, path, ['quantity']);
     });
     this.validateChildRows(dto.surveyQuestions, 'surveyQuestions', (row, path) => {
       this.requiredText(row.question, `${path}.question`);
