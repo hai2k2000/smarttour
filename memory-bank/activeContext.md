@@ -2085,3 +2085,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found FIT handover item validation allowed `quantity: 0` while the legacy mapper used `row.quantity || 1`, so explicit zero quantities could be silently converted into one handover item.
   - Added FIT root contract coverage proving zero handover item quantity is rejected with a Vietnamese business error.
   - Added positive-number validation for `handoverItems[].quantity` while keeping ordering fields unchanged.
+
+- 2026-06-19 Finance invoice item quantity audit:
+  - Found finance invoice item mapping used `this.decimal(row.quantity) || 1`, so explicit `quantity: 0` could be silently converted into one unit and inflate invoice totals.
+  - Added a finance service regression proving zero invoice item quantity is rejected with a 400 instead of defaulting to one.
+  - Updated invoice item mapping to default only missing quantity to one and reject provided quantities less than or equal to zero.

@@ -875,7 +875,8 @@ export class FinanceService {
   private invoiceItems(dto: AnyRecord): Prisma.FinanceInvoiceItemUncheckedCreateWithoutInvoiceInput[] {
     const rows = Array.isArray(dto.items) ? dto.items as AnyRecord[] : [];
     return rows.filter((row) => this.text(row.itemName)).map((row, index) => {
-      const quantity = this.decimal(row.quantity) || 1;
+      const quantity = this.decimal(row.quantity ?? 1);
+      if (quantity <= 0) throw new BadRequestException('Số lượng hóa đơn phải lớn hơn 0');
       const unitPrice = this.decimal(row.unitPrice);
       const taxRate = this.decimal(row.taxRate);
       const amountBeforeTax = quantity * unitPrice;

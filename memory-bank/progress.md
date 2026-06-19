@@ -1708,3 +1708,7 @@
 - 2026-06-19 Completed FIT handover quantity validation:
   - FIT handover items now reject zero quantities instead of defaulting explicit zero input to one.
   - Added FIT root contract coverage for the handover quantity guard.
+
+- 2026-06-19 Completed finance invoice quantity validation:
+  - Manual finance invoices now reject item `quantity: 0` instead of treating it as quantity one.
+  - Added finance service coverage for the zero-quantity invoice item guard.
