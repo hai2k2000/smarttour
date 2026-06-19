@@ -1677,3 +1677,8 @@
   - Common Tour service mappers now preserve explicit zero unit-price inputs instead of falling through to legacy alias fields.
   - Added regression coverage for GIT budget services where `unitPrice: 0` previously could be overwritten by `budgetUnitPrice` and create a positive amount.
   - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed Tour child explicit zero-amount preservation:
+  - Common Tour revenue/service amount mappers now preserve explicit `amount: 0` overrides instead of recalculating positive amounts from unit price formulas.
+  - Added regression coverage for GIT budget services where a zero amount override previously produced a positive `budgetAmount`.
+  - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.

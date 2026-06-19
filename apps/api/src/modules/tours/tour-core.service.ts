@@ -545,7 +545,7 @@ export class TourCoreService {
   }
 
   private money(explicitAmount: unknown, subtotal: number, vat: number) {
-    const amount = this.number(explicitAmount, 'amount');
-    return amount > 0 ? amount : subtotal * (1 + vat / 100);
+    if (this.optionalText(explicitAmount) !== null) return this.number(explicitAmount, 'amount');
+    return subtotal * (1 + vat / 100);
   }
 }

@@ -838,6 +838,22 @@ async function main() {
   );
   const gitZeroUnitPriceService = gitZeroUnitPriceTour.services.find((service) => service.serviceType === 'GIT_HOTEL');
   assert(gitZeroUnitPriceService && Number(gitZeroUnitPriceService.budgetUnitPrice) === 0 && Number(gitZeroUnitPriceService.budgetAmount) === 0, 'GIT should preserve explicit zero unitPrice and zero calculated budget amount');
+  const gitZeroExplicitAmountTour = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-ZERO-AMOUNT-SYS`,
+        tourCode: `${run}-GIT-ZERO-AMOUNT`,
+        name: 'Tour type API GIT zero explicit amount service',
+        budgetServices: [{ serviceType: 'GIT_HOTEL', quantity: 1, unitPrice: 1000, amount: 0, exchangeRate: 1 }],
+      }),
+    },
+    201,
+    'GIT should preserve explicit zero amount instead of recalculating from unit price',
+  );
+  const gitZeroExplicitAmountService = gitZeroExplicitAmountTour.services.find((service) => service.serviceType === 'GIT_HOTEL');
+  assert(gitZeroExplicitAmountService && Number(gitZeroExplicitAmountService.budgetAmount) === 0, 'GIT should preserve explicit zero budget amount override');
 
   const gitArrayCustomerTour = await expect(
     '/api/git-tours',
