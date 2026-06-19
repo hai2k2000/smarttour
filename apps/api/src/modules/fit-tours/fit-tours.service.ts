@@ -353,8 +353,39 @@ export class FitToursService {
     fitTour: Awaited<ReturnType<FitToursService['detail']>>,
     user?: RequestUser,
   ) {
-    if (fitTour.tourId) await this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user));
+    if (fitTour.tourId) {
+      await this.ensureRemovable(tx, fitTour.tourId, user);
+      await this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user));
+    }
     return tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
+  }
+
+  private async ensureRemovable(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser) {
+    const tour = await tx.tour.findFirst({
+      where: this.tourCore.scopeWhere({ id: tourId }, user),
+      select: {
+        orderId: true,
+        _count: {
+          select: {
+            bookings: true,
+            operationVouchers: true,
+            operationForms: true,
+            financeReceipts: true,
+            financePayments: true,
+            financeInvoices: true,
+            financeCashflowEntries: true,
+            payments: true,
+            receipts: true,
+            expenses: true,
+          },
+        },
+      },
+    });
+    if (!tour) throw new NotFoundException('Không tìm thấy tour FIT');
+    const hasExternalDependency = Boolean(tour.orderId) || Object.values(tour._count).some((count) => count > 0);
+    if (hasExternalDependency) {
+      throw new BadRequestException('Không thể xóa tour FIT đã phát sinh đơn hàng, booking, điều hành hoặc chứng từ tài chính');
+    }
   }
 
   private async copyFitBudgetAggregate(

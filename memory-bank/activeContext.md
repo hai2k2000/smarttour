@@ -2070,3 +2070,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found FIT money helpers still treated explicit `amount: 0` as blank because they only preserved positive overrides, so FIT common costs and budget services could be recalculated to positive amounts from quantity/unit price/VAT.
   - Added FIT root contract regressions proving zero common cost and zero budget service amounts are preserved in both legacy FIT rows and common Tour cost/service rows.
   - Updated FIT money helpers to auto-calculate only when amount is blank/null; explicit numeric inputs, including zero, are preserved while service-level validation continues rejecting negative values.
+
+- 2026-06-19 FIT remove dependency-guard audit:
+  - Found `FitToursService.remove()` called `TourCoreService.softDelete()` directly, bypassing the dependency guard used by the common Tour delete endpoint.
+  - Added a FIT root contract regression proving an order-linked FIT tour cannot be removed through the FIT service path and the common Tour root remains undeleted.
+  - Added a FIT removability guard that blocks delete when the common Tour root has linked orders, bookings, operation records, finance documents/cashflow entries, or legacy payment/receipt/expense rows.

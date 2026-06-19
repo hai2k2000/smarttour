@@ -1696,3 +1696,7 @@
 - 2026-06-19 Completed FIT explicit zero amount preservation:
   - FIT common cost and budget service mappers now preserve explicit `amount: 0` instead of recalculating a positive amount from formula fields.
   - Added root contract coverage to verify zero amounts remain consistent in FIT detail rows and common TourCost/TourService sync rows.
+
+- 2026-06-19 Completed FIT remove dependency guard:
+  - FIT-specific remove now blocks soft-delete when the linked common Tour has order, booking, operation, finance, or legacy payment dependencies, closing the bypass around the common Tour delete guard.
+  - Added FIT root contract coverage for an order-linked FIT tour removal attempt.

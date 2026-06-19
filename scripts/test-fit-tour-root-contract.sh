@@ -430,6 +430,22 @@ async function main() {
   assert(zeroAmountRoot.costs.some((row) => row.costType === 'FIT_COMMON_COST:CAR' && decimal(row.expectedAmount) === 0), 'FIT common TourCost should preserve explicit zero cost amount');
   assert(zeroAmountRoot.services.some((row) => row.serviceType === 'MEAL' && decimal(row.budgetAmount) === 0), 'FIT common TourService should preserve explicit zero budget amount');
 
+  const linkedOrder = await prisma.order.create({ data: { type: 'FIT_TOUR', systemCode: `${run}-ORDER-FIT`, name: 'FIT linked order' } });
+  const orderLinkedFit = await fitTours.create({
+    quoteCode: `${run}-ORDER-LINKED-Q`,
+    tourCode: `${run}-ORDER-LINKED-T`,
+    customerName: 'FIT Order Linked Customer',
+    adultCount: 1,
+    orderId: linkedOrder.id,
+  });
+  await assertRejects(
+    () => fitTours.remove(orderLinkedFit.id),
+    'Không thể xóa tour FIT đã phát sinh',
+    'FIT remove should block tours linked to orders or external dependencies',
+  );
+  const orderLinkedRootAfterRemove = await prisma.tour.findUnique({ where: { id: orderLinkedFit.tourId } });
+  assert(!orderLinkedRootAfterRemove.deletedAt, 'FIT blocked remove should not soft-delete the common Tour root');
+
   const attachedDetail = await fitTours.uploadAttachment(
     source.id,
     FitTourWorkflowStatus.PRICING,
