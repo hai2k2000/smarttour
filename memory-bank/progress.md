@@ -1682,3 +1682,8 @@
   - Common Tour revenue/service amount mappers now preserve explicit `amount: 0` overrides instead of recalculating positive amounts from unit price formulas.
   - Added regression coverage for GIT budget services where a zero amount override previously produced a positive `budgetAmount`.
   - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed Tour child cost amount alias preservation:
+  - Common Tour cost rows now preserve explicit `amount: 0` instead of falling through to `expectedAmount` aliases.
+  - Added regression coverage for GIT cost rows where zero amount input previously became a positive expected cost when an alias was present.
+  - Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.

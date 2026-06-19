@@ -2053,3 +2053,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a GIT API regression proving a budget-service payload with `amount: 0` preserves the explicit zero budget amount instead of recalculating a positive amount from `unitPrice`.
   - Updated `TourCoreService.money()` to auto-calculate only when amount is blank/null; explicit numeric inputs, including zero, are parsed and preserved.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Tour child cost amount alias audit:
+  - Found common Tour cost mapping used `row.amount || row.expectedAmount`, so explicit `amount: 0` cost rows could be overwritten by a legacy `expectedAmount` alias.
+  - Added a GIT API regression proving a cost payload with `amount: 0` and `expectedAmount: 1000` preserves the explicit zero expected amount.
+  - Updated `TourCoreService.mapCosts()` to use the shared alias picker and fall back only when `amount` is blank/null.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.

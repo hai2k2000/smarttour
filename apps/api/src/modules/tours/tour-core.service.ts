@@ -405,7 +405,7 @@ export class TourCoreService {
       supplierId: this.optionalText(row.supplierId),
       costType: this.optionalText(row.costType || row.serviceType) || costType,
       description: this.optionalText(row.description),
-      expectedAmount: this.number(row.amount || row.expectedAmount, 'expectedAmount'),
+      expectedAmount: this.number(this.firstPresent(row.amount, row.expectedAmount), 'expectedAmount'),
       actualAmount: this.number(row.actualAmount, 'actualAmount'),
       currency: this.optionalText(row.currency) || 'VND',
       exchangeRate: this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate'),
