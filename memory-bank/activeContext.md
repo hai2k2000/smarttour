@@ -2146,3 +2146,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found FIT legacy compatibility mappers still used truthy fallbacks (`row.times || 1`, `row.exchangeRate || 1`, `row.quantity || 1`) and the FIT root cost bridge used `row.exchangeRate || 1`, which could overwrite explicit zero compatibility values.
   - Added FIT root contract guards and direct mapper regressions proving explicit zero multipliers/quantities remain zero.
   - Replaced those fallbacks with nullish defaults so only missing values default to one.
+
+- 2026-06-19 Upload dependency audit fix:
+  - Fixed the high-severity upload DoS audit finding by overriding Nest's transitive `multer` dependency to `2.2.0` and the related Swagger `js-yaml` audit finding to `4.2.0`.
+  - Kept the lockfile change scoped to the affected package entries instead of accepting `npm audit fix --force`, which proposed breaking Nest/Swagger downgrades.
+  - Verification passed: `npm audit --omit=dev`, `./scripts/security-audit.sh`, and `docker compose build --no-cache api` with Docker install reporting `found 0 vulnerabilities`.

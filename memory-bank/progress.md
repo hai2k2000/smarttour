@@ -1760,3 +1760,8 @@
   - Legacy FIT common/hotel/handover mappers now preserve explicit zero times, exchange rate, and quantity values rather than defaulting them to one.
   - FIT root cost bridge now preserves explicit zero exchange rates through nullish fallback.
   - FIT root contract now guards against reintroducing these truthy fallback patterns.
+
+- 2026-06-19 Completed upload dependency audit fix:
+  - Added npm overrides for transitive `multer@2.2.0` and `js-yaml@4.2.0` to clear upload/Swagger DoS audit findings without breaking Nest/Swagger major versions.
+  - Updated `package-lock.json` with the patched resolved packages and verified `npm audit --omit=dev` now reports zero vulnerabilities.
+  - Verification passed: `./scripts/security-audit.sh` and `docker compose build --no-cache api`.
