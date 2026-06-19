@@ -1603,3 +1603,9 @@
   - Expanded auth guard/runtime config regression coverage for invalid origins, wildcard rejection, valid origin normalization, and NEXT_PUBLIC_API_URL-only production rejection.
   - No schema/frontend change.
   - Verification passed: `TEST_AUTH_GUARD_BEHAVIOR_OK`, `npm run verify:toolchain`, `docker compose config --quiet`, `git diff --check`, and reviewer check.
+
+- 2026-06-19 Completed finance summary pagination fix:
+  - Cashflow totals and by-method summary now use all matching rows, not only the currently returned page.
+  - Customer/supplier debt summaries and grouped balance rows now use all matching ledger entries, while detailed `entries` still obey `take` for pagination.
+  - Added regression coverage proving `take: '1'` limits returned rows/entries without truncating totals or grouped balances.
+  - Verification passed: `TEST_FINANCE_SERVICE_FLOWS_OK`, `TEST_FINANCE_CLIENT_CONTRACT_OK`, `TEST_REPORTS_FINANCE_HYBRID_CONTRACT_OK`, finance guard audits, API Docker build, and `git diff --check`.

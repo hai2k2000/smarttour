@@ -639,6 +639,17 @@ async function main() {
   const outCashflow = await finance.cashflow({ take: '1000' }, outOfScopeUser);
   assert(branchCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should include branch scoped rows');
   assert(!outCashflow.rows.some((row) => row.sourceId === receipt.id || row.sourceId === payment.id), 'cashflow list should exclude out-of-scope rows');
+  const paginationBranch = run + '-PAGE-BR';
+  await prisma.financeCashflowEntry.createMany({
+    data: [
+      { sourceType: 'PAGINATION_RECEIPT_1', sourceId: run + '-CF-1', entryType: 'RECEIPT', amount: 100, paymentMethod: 'CASH', paymentDate: new Date('2026-11-09'), branch: paginationBranch, department: 'FIN-PAGE' },
+      { sourceType: 'PAGINATION_RECEIPT_2', sourceId: run + '-CF-2', entryType: 'RECEIPT', amount: 50, paymentMethod: 'BANK_TRANSFER', paymentDate: new Date('2026-11-08'), branch: paginationBranch, department: 'FIN-PAGE' },
+      { sourceType: 'PAGINATION_PAYMENT_1', sourceId: run + '-CF-3', entryType: 'PAYMENT', amount: 25, paymentMethod: 'CASH', paymentDate: new Date('2026-11-07'), branch: paginationBranch, department: 'FIN-PAGE' },
+    ],
+  });
+  const pagedCashflow = await finance.cashflow({ branch: paginationBranch, take: '1' });
+  assert(pagedCashflow.rows.length === 1, 'cashflow pagination guard should limit returned rows');
+  assert(pagedCashflow.summary.totalReceipt === 150 && pagedCashflow.summary.totalPayment === 25 && pagedCashflow.summary.netCashflow === 125, 'cashflow summary should include all matching rows regardless of take');
   await rejects(() => finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'again' }), 'double cancel payment should be rejected as a final-state transition');
 
   const rollbackPayment = await finance.createPayment({
@@ -839,6 +850,22 @@ async function main() {
   const customerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' });
   const customerDebtRow = customerDebt.rows.find((row) => row.id === customer.id);
   assert(customerDebtRow && customerDebtRow.balance === 150, 'customer debt report should include net manual adjustment balance');
+  const paginationCustomer = await prisma.customer.create({
+    data: {
+      code: run + '-CUS-PAGE',
+      fullName: 'Finance Pagination Customer',
+      phone: '092' + String(Date.now()).slice(-7),
+      branch: 'FIN-BR',
+      department: 'FIN-DEP',
+    },
+  });
+  await finance.createCustomerDebtAdjustment(paginationCustomer.id, { direction: 'INCREASE', amount: 250, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'pagination customer increase' });
+  await finance.createCustomerDebtAdjustment(paginationCustomer.id, { direction: 'DECREASE', amount: 100, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'pagination customer decrease' });
+  const pagedCustomerDebt = await finance.customerDebt({ customerId: paginationCustomer.id, take: '1' });
+  const pagedCustomerDebtRow = pagedCustomerDebt.rows.find((row) => row.id === paginationCustomer.id);
+  assert(pagedCustomerDebt.entries.length === 1, 'customer debt pagination guard should limit returned entries');
+  assert(pagedCustomerDebt.summary.debit === 250 && pagedCustomerDebt.summary.credit === 100 && pagedCustomerDebt.summary.balance === 150 && pagedCustomerDebt.summary.count === 2, 'customer debt summary should include all matching entries regardless of take');
+  assert(pagedCustomerDebtRow && pagedCustomerDebtRow.balance === 150, 'customer debt grouped rows should include all matching entries regardless of take');
   const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);
   const outCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, outOfScopeUser);
   assert(branchCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should include branch scoped entries');
@@ -851,6 +878,21 @@ async function main() {
   const supplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' });
   const supplierDebtRow = supplierDebt.rows.find((row) => row.id === supplier.id);
   assert(supplierDebtRow && supplierDebtRow.balance === 275, 'supplier debt report should include net manual adjustment balance');
+  const paginationSupplier = await prisma.supplier.create({
+    data: {
+      categoryId: category.id,
+      supplierCode: run + '-SUP-PAGE',
+      name: 'Finance Pagination Supplier',
+      phone: '093' + String(Date.now()).slice(-7),
+    },
+  });
+  await finance.createSupplierDebtAdjustment(paginationSupplier.id, { direction: 'INCREASE', amount: 400, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'pagination supplier increase' });
+  await finance.createSupplierDebtAdjustment(paginationSupplier.id, { direction: 'DECREASE', amount: 125, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'pagination supplier decrease' });
+  const pagedSupplierDebt = await finance.supplierDebt({ supplierId: paginationSupplier.id, take: '1' });
+  const pagedSupplierDebtRow = pagedSupplierDebt.rows.find((row) => row.id === paginationSupplier.id);
+  assert(pagedSupplierDebt.entries.length === 1, 'supplier debt pagination guard should limit returned entries');
+  assert(pagedSupplierDebt.summary.debit === 400 && pagedSupplierDebt.summary.credit === 125 && pagedSupplierDebt.summary.balance === 275 && pagedSupplierDebt.summary.count === 2, 'supplier debt summary should include all matching entries regardless of take');
+  assert(pagedSupplierDebtRow && pagedSupplierDebtRow.balance === 275, 'supplier debt grouped rows should include all matching entries regardless of take');
   const branchSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, branchUser);
   const outSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, outOfScopeUser);
   assert(branchSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should include branch scoped entries');

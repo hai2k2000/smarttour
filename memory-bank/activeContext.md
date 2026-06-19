@@ -1965,3 +1965,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Browser CORS origins now come only from explicit frontend-origin env vars: SMARTTOUR_CORS_ORIGINS, CORS_ORIGINS, SMARTTOUR_WEB_URL, or WEB_ORIGIN.
   - NEXT_PUBLIC_API_URL is no longer treated as a backend CORS origin source because it may be an API base URL rather than the browser frontend origin.
   - CORS origin parsing now fails fast for invalid URL syntax, wildcard, unsupported protocols, credentials, path, query string, or fragment.
+
+- 2026-06-19 Finance summary pagination audit:
+  - Found a reporting correctness bug where cashflow, customer debt, and supplier debt summaries/grouped debt rows were computed from paginated `take` results instead of the full filtered dataset.
+  - Fixed FinanceService to keep paginated rows/entries for table display while computing summaries and grouped debt rows from all matching scoped entries using the same filters.
+  - Added finance service regression cases for `take: '1'` on cashflow, customer debt, and supplier debt so totals remain independent of pagination.
+  - Verified on VPS: `TEST_FINANCE_SERVICE_FLOWS_OK`, `TEST_FINANCE_CLIENT_CONTRACT_OK`, `TEST_REPORTS_FINANCE_HYBRID_CONTRACT_OK`, and all finance production guard audits passed with only accepted TourKit import snapshots remaining.

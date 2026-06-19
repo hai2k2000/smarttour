@@ -503,10 +503,14 @@ export class FinanceService {
 
   async cashflow(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
-    const rows = await this.prisma.financeCashflowEntry.findMany({ where, orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
-    const totalReceipt = rows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
-    const totalPayment = rows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
-    const byMethod = rows.reduce((map, row) => {
+    const orderBy = [{ paymentDate: 'desc' as const }, { createdAt: 'desc' as const }];
+    const [rows, summaryRows] = await Promise.all([
+      this.prisma.financeCashflowEntry.findMany({ where, orderBy, take: this.take(query.take) }),
+      this.prisma.financeCashflowEntry.findMany({ where }),
+    ]);
+    const totalReceipt = summaryRows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
+    const totalPayment = summaryRows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
+    const byMethod = summaryRows.reduce((map, row) => {
       const current = map.get(row.paymentMethod) || { method: row.paymentMethod, receipt: 0, payment: 0 };
       if (row.entryType === 'RECEIPT') current.receipt += Number(row.amount);
       else current.payment += Number(row.amount);
@@ -542,8 +546,13 @@ export class FinanceService {
       ...(query.tourId ? { tourId: query.tourId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const entries = await this.prisma.customerLedgerEntry.findMany({ where, include: { customer: true, order: true, receipt: true, invoice: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
-    return { rows: this.customerDebtRows(entries), entries, summary: this.ledgerSummary(entries) };
+    const include = { customer: true, order: true, receipt: true, invoice: true };
+    const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
+    const [entries, summaryEntries] = await Promise.all([
+      this.prisma.customerLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
+      this.prisma.customerLedgerEntry.findMany({ where, include, orderBy }),
+    ]);
+    return { rows: this.customerDebtRows(summaryEntries), entries, summary: this.ledgerSummary(summaryEntries) };
   }
 
   async supplierDebt(query: Record<string, string>, user?: RequestUser) {
@@ -552,8 +561,13 @@ export class FinanceService {
       ...(query.tourId ? { tourId: query.tourId } : {}),
       ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
     }, user);
-    const entries = await this.prisma.supplierLedgerEntry.findMany({ where, include: { supplier: true, order: true, operationVoucher: true, payment: true }, orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }], take: this.take(query.take) });
-    return { rows: this.supplierDebtRows(entries), entries, summary: this.supplierLedgerSummary(entries) };
+    const include = { supplier: true, order: true, operationVoucher: true, payment: true };
+    const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
+    const [entries, summaryEntries] = await Promise.all([
+      this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
+      this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy }),
+    ]);
+    return { rows: this.supplierDebtRows(summaryEntries), entries, summary: this.supplierLedgerSummary(summaryEntries) };
   }
 
   async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
