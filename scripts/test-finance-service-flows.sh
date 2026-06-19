@@ -393,6 +393,50 @@ async function main() {
   const deletedInvoice = await finance.deleteInvoice(draftInvoice.id);
   assert(deletedInvoice.deletedAt, 'invoice delete should soft delete draft');
 
+  const dateFilterReceipt = await finance.createReceipt({
+    receiptCode: run + '-DATE-RCPT',
+    receiptName: 'Date Filter Receipt',
+    receiptType: 'TOUR_PAYMENT',
+    paymentMethod: 'CASH',
+    paymentDate: '2026-10-04T15:30:00.000Z',
+    customerId: customer.id,
+    totalAmount: 100,
+    receiptAmount: 100,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const dateFilterPayment = await finance.createPayment({
+    voucherCode: run + '-DATE-PAY',
+    voucherName: 'Date Filter Payment',
+    voucherType: 'SUPPLIER_PAYMENT',
+    paymentMethod: 'CASH',
+    paymentDate: '2026-10-04T15:30:00.000Z',
+    supplierId: supplier.id,
+    totalAmount: 80,
+    paymentAmount: 80,
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+  });
+  const dateFilterInvoice = await finance.createInvoice({
+    invoiceCode: run + '-DATE-INV',
+    customerId: customer.id,
+    customerName: customer.fullName,
+    invoiceType: 'VAT',
+    issuedDate: '2026-10-04T15:30:00.000Z',
+    tourId: tour.id,
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+    items: [{ itemName: 'Date Filter Invoice', quantity: 1, unitPrice: 100, taxRate: 0 }],
+  });
+  const dateFilterReceipts = await finance.listReceipts({ search: run + '-DATE-RCPT', from: '2026-10-04', to: '2026-10-04', take: '1000' });
+  const dateFilterPayments = await finance.listPayments({ search: run + '-DATE-PAY', from: '2026-10-04', to: '2026-10-04', take: '1000' });
+  const dateFilterInvoices = await finance.listInvoices({ search: run + '-DATE-INV', from: '2026-10-04', to: '2026-10-04', take: '1000' });
+  assert(dateFilterReceipts.rows.some((row) => row.id === dateFilterReceipt.id), 'receipt date filter should include records throughout the to date');
+  assert(dateFilterPayments.rows.some((row) => row.id === dateFilterPayment.id), 'payment date filter should include records throughout the to date');
+  assert(dateFilterInvoices.rows.some((row) => row.id === dateFilterInvoice.id), 'invoice date filter should include records throughout the to date');
+
   await rejects(() => finance.createReceipt({
     receiptCode: run + '-BAD-RCPT-LINK',
     receiptName: 'Bad Receipt Link',
@@ -866,6 +910,9 @@ async function main() {
   assert(pagedCustomerDebt.entries.length === 1, 'customer debt pagination guard should limit returned entries');
   assert(pagedCustomerDebt.summary.debit === 250 && pagedCustomerDebt.summary.credit === 100 && pagedCustomerDebt.summary.balance === 150 && pagedCustomerDebt.summary.count === 2, 'customer debt summary should include all matching entries regardless of take');
   assert(pagedCustomerDebtRow && pagedCustomerDebtRow.balance === 150, 'customer debt grouped rows should include all matching entries regardless of take');
+  const dateFilterCustomerAdjustment = await finance.createCustomerDebtAdjustment(paginationCustomer.id, { direction: 'INCREASE', amount: 75, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter customer increase' });
+  const dateFilterCustomerDebt = await finance.customerDebt({ customerId: paginationCustomer.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
+  assert(dateFilterCustomerDebt.entries.some((entry) => entry.id === dateFilterCustomerAdjustment.id), 'customer debt date filter should include entries throughout the to date');
   const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);
   const outCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, outOfScopeUser);
   assert(branchCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should include branch scoped entries');
@@ -893,6 +940,9 @@ async function main() {
   assert(pagedSupplierDebt.entries.length === 1, 'supplier debt pagination guard should limit returned entries');
   assert(pagedSupplierDebt.summary.debit === 400 && pagedSupplierDebt.summary.credit === 125 && pagedSupplierDebt.summary.balance === 275 && pagedSupplierDebt.summary.count === 2, 'supplier debt summary should include all matching entries regardless of take');
   assert(pagedSupplierDebtRow && pagedSupplierDebtRow.balance === 275, 'supplier debt grouped rows should include all matching entries regardless of take');
+  const dateFilterSupplierAdjustment = await finance.createSupplierDebtAdjustment(paginationSupplier.id, { direction: 'INCREASE', amount: 60, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter supplier increase' });
+  const dateFilterSupplierDebt = await finance.supplierDebt({ supplierId: paginationSupplier.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
+  assert(dateFilterSupplierDebt.entries.some((entry) => entry.id === dateFilterSupplierAdjustment.id), 'supplier debt date filter should include entries throughout the to date');
   const branchSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, branchUser);
   const outSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, outOfScopeUser);
   assert(branchSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should include branch scoped entries');

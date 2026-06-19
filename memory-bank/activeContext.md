@@ -1971,3 +1971,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Fixed FinanceService to keep paginated rows/entries for table display while computing summaries and grouped debt rows from all matching scoped entries using the same filters.
   - Added finance service regression cases for `take: '1'` on cashflow, customer debt, and supplier debt so totals remain independent of pagination.
   - Verified on VPS: `TEST_FINANCE_SERVICE_FLOWS_OK`, `TEST_FINANCE_CLIENT_CONTRACT_OK`, `TEST_REPORTS_FINANCE_HYBRID_CONTRACT_OK`, and all finance production guard audits passed with only accepted TourKit import snapshots remaining.
+
+- 2026-06-19 Finance date-filter audit:
+  - Found that finance `to` date filters treated `YYYY-MM-DD` as midnight at the start of the day, so receipt/payment/invoice/cashflow/debt records later on the selected end date could be omitted.
+  - Added service regressions for same-day date ranges on receipts, payments, invoices, customer debt, and supplier debt using timestamped records within the end date.
+  - Updated FinanceService date filtering so date-only `to` values expand to 23:59:59.999 UTC while explicit timestamp filters remain exact.

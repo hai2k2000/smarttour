@@ -1609,3 +1609,8 @@
   - Customer/supplier debt summaries and grouped balance rows now use all matching ledger entries, while detailed `entries` still obey `take` for pagination.
   - Added regression coverage proving `take: '1'` limits returned rows/entries without truncating totals or grouped balances.
   - Verification passed: `TEST_FINANCE_SERVICE_FLOWS_OK`, `TEST_FINANCE_CLIENT_CONTRACT_OK`, `TEST_REPORTS_FINANCE_HYBRID_CONTRACT_OK`, finance guard audits, API Docker build, and `git diff --check`.
+
+- 2026-06-19 Completed finance end-date filter fix:
+  - Finance list/date filters now include records throughout the selected `to` date for receipt, payment, invoice, cashflow, customer debt, and supplier debt queries.
+  - Added regression coverage for timestamped finance records filtered with same-day `from`/`to` date-only inputs.
+  - Verification passed: finance service/client/report tests, report query validation, finance guard audits, API Docker build, and `git diff --check`.

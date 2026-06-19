@@ -544,7 +544,7 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
-      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
+      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { customer: true, order: true, receipt: true, invoice: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
@@ -559,7 +559,7 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere<Prisma.SupplierLedgerEntryWhereInput>({
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
-      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: this.date(query.to) } } : {}),
+      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
@@ -999,7 +999,16 @@ export class FinanceService {
 
   private dateRange(field: 'paymentDate' | 'issuedDate', from?: string, to?: string) {
     if (!from && !to) return {};
-    return { [field]: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } };
+    return { [field]: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: this.endOfDateFilter(to) } : {}) } };
+  }
+
+  private endOfDateFilter(value: string) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const date = new Date(value);
+      date.setUTCHours(23, 59, 59, 999);
+      return date;
+    }
+    return new Date(value);
   }
 
   private csv(rows: AnyRecord[], keys: string[]) {
