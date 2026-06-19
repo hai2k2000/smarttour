@@ -1667,3 +1667,8 @@
   - The generic Tour delete endpoint now blocks soft-delete when a tour has a linked order, booking, operation voucher/form, finance document/cashflow entry, or legacy payment/receipt/expense relation.
   - Added regression coverage for the previous bypass where a GIT tour linked to an Order was blocked by `/git-tours/:id` but could still be cancelled/deleted through `/tours/:id`.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed Tour child zero-defaulting validation:
+  - Common Tour service/revenue mappers no longer convert explicit `0` quantity or exchange-rate inputs into default `1` values.
+  - Quantity and exchange-rate fields that drive Tour child amount calculations now require values greater than zero when supplied, preventing silent positive revenue/cost generation from zero input.
+  - Added regression coverage for the previous GIT budget-service `quantity: 0` bypass. Verification passed: Tour type API, TourKit order-to-tour sync, bookings service, operations service flows, `git diff --check`, and API Docker build.

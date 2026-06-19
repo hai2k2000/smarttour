@@ -310,9 +310,9 @@ export class TourCoreService {
 
   mapRevenues(rows?: unknown[]): Prisma.TourRevenueCreateManyInput[] {
     return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1, 'quantity');
+      const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
       const unitPrice = this.number(row.unitPrice, 'unitPrice');
-      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
+      const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -331,9 +331,9 @@ export class TourCoreService {
 
   mapSalesServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1, 'quantity');
+      const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
       const salesUnitPrice = this.number(row.unitPrice || row.salesUnitPrice, 'salesUnitPrice');
-      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
+      const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -354,9 +354,9 @@ export class TourCoreService {
 
   mapBudgetServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1, 'quantity');
+      const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
       const budgetUnitPrice = this.number(row.unitPrice || row.budgetUnitPrice, 'budgetUnitPrice');
-      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
+      const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -377,9 +377,9 @@ export class TourCoreService {
 
   mapOperationServices(rows?: unknown[]): Prisma.TourServiceCreateManyInput[] {
     return this.rows(rows).map((row) => {
-      const quantity = this.number(row.quantity || 1, 'quantity');
+      const quantity = this.positiveNumberOrDefault(row.quantity, 1, 'quantity');
       const confirmedUnitPrice = this.number(row.confirmedUnitPrice || row.unitPrice, 'confirmedUnitPrice');
-      const exchangeRate = this.number(row.exchangeRate || 1, 'exchangeRate');
+      const exchangeRate = this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate');
       const vat = this.number(row.vat, 'vat');
       return {
         tourId: '',
@@ -408,7 +408,7 @@ export class TourCoreService {
       expectedAmount: this.number(row.amount || row.expectedAmount, 'expectedAmount'),
       actualAmount: this.number(row.actualAmount, 'actualAmount'),
       currency: this.optionalText(row.currency) || 'VND',
-      exchangeRate: this.number(row.exchangeRate || 1, 'exchangeRate'),
+      exchangeRate: this.positiveNumberOrDefault(row.exchangeRate, 1, 'exchangeRate'),
       vat: this.number(row.vat, 'vat'),
       invoiceNo: this.optionalText(row.invoiceNo),
       notes: this.optionalText(row.notes),
@@ -527,6 +527,16 @@ export class TourCoreService {
     const parsed = Number(value ?? 0);
     if (!Number.isFinite(parsed)) throw new BadRequestException(`${field} phải là số hợp lệ`);
     if (parsed < 0) throw new BadRequestException(`${field} không được âm`);
+    return parsed;
+  }
+
+  private numberOrDefault(value: unknown, fallback: number, field: string) {
+    return this.optionalText(value) === null ? fallback : this.number(value, field);
+  }
+
+  private positiveNumberOrDefault(value: unknown, fallback: number, field: string) {
+    const parsed = this.numberOrDefault(value, fallback, field);
+    if (parsed <= 0) throw new BadRequestException(`${field} phải lớn hơn 0`);
     return parsed;
   }
 

@@ -807,6 +807,21 @@ async function main() {
     'GIT should reject negative nested service numeric fields',
   );
   assertMessage(invalidGitNegativeNestedNumber, 'budgetUnitPrice không được âm', 'GIT negative nested number should use Vietnamese service message');
+  const invalidGitZeroQuantity = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-BAD-ZERO-QTY-SYS`,
+        tourCode: `${run}-GIT-BAD-ZERO-QTY`,
+        name: 'Tour type API GIT zero quantity service',
+        budgetServices: [{ serviceType: 'GIT_HOTEL', quantity: 0, unitPrice: 1000, exchangeRate: 1 }],
+      }),
+    },
+    400,
+    'GIT should reject zero nested service quantity instead of defaulting it to one',
+  );
+  assertMessage(invalidGitZeroQuantity, 'quantity phải lớn hơn 0', 'GIT zero nested quantity should use Vietnamese service message');
 
   const gitArrayCustomerTour = await expect(
     '/api/git-tours',

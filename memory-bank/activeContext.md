@@ -2035,3 +2035,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a Tour type API regression proving a GIT tour linked to an Order is blocked through the common Tour delete route, not only the GIT-specific route.
   - Added a common ToursService removability guard that checks order links and operational/finance child counts before calling `TourCoreService.softDelete`.
   - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Tour child zero-defaulting audit:
+  - Found common Tour child mappers used truthy fallbacks like `row.quantity || 1` and `row.exchangeRate || 1`, so explicit zero values in GIT/LandTour service/revenue rows were treated as missing and silently converted to one.
+  - Added a GIT API regression proving `quantity: 0` in a budget service is rejected instead of being persisted as quantity 1 with a positive budget amount.
+  - Added shared TourCore helpers that default only blank values, preserve explicit numeric input, and require positive quantity/exchangeRate values while keeping unit prices non-negative.
+  - Verification passed: `TEST_TOUR_TYPE_APIS_OK`, `TEST_TOURKIT_ORDERS_TOUR_SYNC_OK`, `TEST_BOOKINGS_SERVICE_OK`, `TEST_OPERATIONS_SERVICE_FLOWS_OK`, `git diff --check`, and API Docker build.
