@@ -1981,3 +1981,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the Finance web debt tab ignored the shared filter query while receipts/payments/invoices/cashflow used it, so date/search filters did not affect customer/supplier debt views.
   - Fixed FinanceClient to pass the shared query to customer and supplier debt endpoints.
   - Added backend debt search by customer name/phone/code and supplier name/phone/code so the shared search box actually filters debt rows.
+
+- 2026-06-19 Finance tour-code linking audit:
+  - Found the Finance web forms collected visible tour codes while the API only resolved tour links from internal `tourId`/`orderId`/voucher links, so manually created receipt/payment/invoice rows could fail tour-link validation from the UI.
+  - Added FinanceService regressions proving receipts, payments, and invoices can resolve an exact Tour `tourCode`/`systemCode` into `tourId`.
+  - Updated `resolveTourId` to accept `tourCode`, wired create/update/import flows to pass it, and added the missing payment form tour-code field.

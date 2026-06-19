@@ -91,7 +91,7 @@ export class FinanceService {
       const receiptCode = this.text(dto.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(dto.paymentDate), this.text(dto.branch));
       const orders = this.receiptOrders(dto);
       await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId), orders }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orders }, user), 'Phiếu thu');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), tourCode: this.text(dto.tourCode), orders }, user), 'Phiếu thu');
       const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...dto, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
       await this.audit(tx, 'CREATE', 'FinanceReceipt', receipt.id, dto, user);
       return receipt;
@@ -106,7 +106,7 @@ export class FinanceService {
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
       const orders = hasOrders ? this.receiptOrders(dto) : current.orders;
       await assertReceiptOrderLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orders }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orders }, user) || current.tourId, 'Phiếu thu');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orders }, user) || current.tourId, 'Phiếu thu');
       const data: AnyRecord = this.receiptData({ ...current, ...dto, receiptCode: this.text(dto.receiptCode) || current.receiptCode, tourId });
       if (hasOrders) {
         await tx.financeReceiptOrder.deleteMany({ where: { receiptId: id } });
@@ -278,7 +278,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const voucherCode = this.text(dto.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(dto.paymentDate), this.text(dto.branch));
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user);
-      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), dto);
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId), operationVoucherId: this.text(dto.operationVoucherId) }, user), dto);
       const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...dto, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
       await this.audit(tx, 'CREATE', 'FinancePayment', payment.id, dto, user);
       return payment;
@@ -291,7 +291,7 @@ export class FinanceService {
     if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
-      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, { ...current, ...dto });
+      const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, { ...current, ...dto });
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode, tourId }) });
       await this.audit(tx, 'UPDATE', 'FinancePayment', id, dto, user);
       return payment;
@@ -409,7 +409,7 @@ export class FinanceService {
       await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user);
       await this.assertInvoiceWriteScope(tx, dto, user);
       const invoiceCode = this.text(dto.invoiceCode) || await this.nextCode(tx, 'FINANCE_INVOICE', 'VAT', this.date(dto.issuedDate), this.text(dto.branch));
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user), 'Hóa đơn');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId), tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId), receiptId: this.text(dto.receiptId) }, user), 'Hóa đơn');
       const calculated = this.invoiceData({ ...dto, tourId });
       const invoice = await tx.financeInvoice.create({ data: { ...calculated, invoiceCode, status: 'DRAFT', approvalStatus: 'DRAFT', createdBy: actor, items: { create: this.invoiceItems(dto) } }, include: { items: true } });
       await this.audit(tx, 'CREATE', 'FinanceInvoice', invoice.id, dto, user);
@@ -424,7 +424,7 @@ export class FinanceService {
     return this.prisma.$transaction(async (tx) => {
       const hasItems = Object.prototype.hasOwnProperty.call(dto, 'items');
       await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user);
-      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user) || current.tourId, 'Hóa đơn');
+      const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user) || current.tourId, 'Hóa đơn');
       await this.assertInvoiceWriteScope(tx, {
         customerId: this.text(dto.customerId) || current.customerId,
         orderId: this.text(dto.orderId) || current.orderId,
@@ -655,7 +655,7 @@ export class FinanceService {
         const receiptCode = this.text(row.receiptCode) || await this.nextCode(tx, 'FINANCE_RECEIPT', 'PT', this.date(row.paymentDate), this.text(row.branch));
         const orders = this.receiptOrders(row);
         await assertReceiptOrderLinks(tx, { customerId: this.text(row.customerId), orders }, user);
-        const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orders }, user), 'Phiếu thu');
+        const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), tourCode: this.text(row.tourCode), orders }, user), 'Phiếu thu');
         const receipt = await tx.financeReceipt.create({ data: { ...this.receiptData({ ...row, receiptCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor, orders: { create: orders } }, include: { orders: true } });
         await this.audit(tx, 'IMPORT', 'FinanceReceipt', receipt.id, { source: file?.originalname || 'rows' }, user);
         imported.push(receipt);
@@ -674,7 +674,7 @@ export class FinanceService {
         const row = applyWriteDataScope(this.financeWriteInput(rawRow as AnyRecord) as AnyRecord & { branch?: string | null; department?: string | null }, user);
         const voucherCode = this.text(row.voucherCode) || await this.nextCode(tx, 'FINANCE_PAYMENT', 'PC', this.date(row.paymentDate), this.text(row.branch));
         await assertPaymentLinks(tx, { supplierId: this.text(row.supplierId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user);
-        const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), row);
+        const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(row.tourId), tourCode: this.text(row.tourCode), orderId: this.text(row.orderId), operationVoucherId: this.text(row.operationVoucherId) }, user), row);
         const payment = await tx.financePayment.create({ data: { ...this.paymentData({ ...row, voucherCode, tourId }), approvalStatus: 'DRAFT', createdBy: actor } });
         await this.audit(tx, 'IMPORT', 'FinancePayment', payment.id, { source: file?.originalname || 'rows' }, user);
         imported.push(payment);

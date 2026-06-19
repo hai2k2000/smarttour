@@ -82,7 +82,8 @@ export async function resolveTourId(
     receiptId?: string | null;
     paymentId?: string | null;
     operationVoucherId?: string | null;
-    orders?: { orderId?: string | null }[];
+    tourCode?: string | null;
+    orders?: { orderId?: string | null; tourCode?: string | null }[];
   },
   user?: RequestUser,
 ) {
@@ -119,6 +120,15 @@ export async function resolveTourId(
     if (!payment) throw new BadRequestException('Liên kết phiếu chi không hợp lệ hoặc nằm ngoài phạm vi dữ liệu được phép');
     if (payment.tourId) return resolveTourId(tx, { tourId: payment.tourId }, user);
     orderId = payment.orderId || null;
+  }
+  const tourCode = input.tourCode || input.orders?.find((line) => line.tourCode)?.tourCode || null;
+  if (!orderId && tourCode) {
+    const tour = await tx.tour.findFirst({
+      where: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ OR: [{ tourCode }, { systemCode: tourCode }], deletedAt: null }, user),
+      select: { id: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return tour?.id || null;
   }
   if (!orderId) return null;
 

@@ -490,6 +490,13 @@ async function main() {
   await rejects(() => finance.createPayment({ voucherCode: run + '-NO-TOUR-PAY', voucherName: 'No Tour Supplier Payment', voucherType: 'SUPPLIER_PAYMENT', paymentAmount: 1 }), 'supplier payment should require a tour link');
   await rejects(() => finance.createInvoice({ invoiceCode: run + '-NO-TOUR-INV', invoiceType: 'VAT', items: [{ itemName: 'No tour invoice', quantity: 1, unitPrice: 1 }] }), 'invoice should require a tour link');
 
+  const receiptByTourCode = await finance.createReceipt({ receiptCode: run + '-TOURCODE-RCPT', receiptName: 'Receipt by tour code', receiptType: 'TOUR_PAYMENT', paymentMethod: 'CASH', totalAmount: 40, receiptAmount: 40, tourCode: tour.tourCode, orders: [{ tourCode: tour.tourCode, tourName: tour.name, amount: 40 }] });
+  assert(receiptByTourCode.tourId === tour.id, 'receipt create should resolve tourCode to a tour link');
+  const paymentByTourCode = await finance.createPayment({ voucherCode: run + '-TOURCODE-PAY', voucherName: 'Payment by tour code', voucherType: 'SUPPLIER_PAYMENT', paymentMethod: 'CASH', totalAmount: 30, paymentAmount: 30, tourCode: tour.tourCode });
+  assert(paymentByTourCode.tourId === tour.id, 'payment create should resolve tourCode to a tour link');
+  const invoiceByTourCode = await finance.createInvoice({ invoiceCode: run + '-TOURCODE-INV', customerId: customer.id, customerName: customer.fullName, invoiceType: 'VAT', tourCode: tour.tourCode, items: [{ itemName: 'Invoice by tour code', quantity: 1, unitPrice: 20, taxRate: 0 }] });
+  assert(invoiceByTourCode.tourId === tour.id, 'invoice create should resolve tourCode to a tour link');
+
   await rejects(() => finance.createReceipt({
     receiptCode: run + '-SCOPE-RCPT', receiptName: 'Out of scope receipt', receiptType: 'TOUR_PAYMENT',
     customerId: customer.id, receiptAmount: 1, totalAmount: 1, tourId: tour.id,

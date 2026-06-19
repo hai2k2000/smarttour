@@ -1619,3 +1619,8 @@
   - Customer/supplier debt endpoints now support the finance `search` query on party name, phone, and code.
   - The Finance debt tab now sends the same filter query as the other finance tabs, so date/search filters apply consistently.
   - Added service and client contract regressions for debt filtering/search behavior. Verification passed: finance service/client/report tests, report query validation, finance guard audits, API/web Docker build, and `git diff --check`.
+
+- 2026-06-19 Completed finance tour-code linking fix:
+  - Finance create/update/import paths now resolve visible tour codes to canonical Tour IDs where relevant.
+  - Receipt and invoice forms continue using tour code, and the payment form now includes a tour-code field so API validation can succeed without exposing UUIDs.
+  - Added service and client contract regressions for tour-code linking behavior. Verification passed: finance service/client/report tests, report query validation, finance guard audits, API/web Docker build, and `git diff --check`.
