@@ -47,7 +47,7 @@ export default async function WorkspacePage() {
         <Link href="/operations"><Plus size={18} /> Tạo việc</Link>
         <Link href="/customers"><BriefcaseBusiness size={18} /> Tạo cơ hội</Link>
         <Link href="/bookings"><CalendarDays size={18} /> Tạo lịch hẹn</Link>
-        <Link href="/customers"><UserCircle size={18} /> Tạo Data khách</Link>
+        <Link href="/customers"><UserCircle size={18} /> Tạo dữ liệu khách</Link>
         <Link href="/order-center"><ClipboardList size={18} /> Tạo đơn</Link>
       </nav>
 
@@ -67,14 +67,14 @@ export default async function WorkspacePage() {
           </section>
 
           <section className="workspaceCard panel">
-            <p className="eyebrow">Schedule</p>
+            <p className="eyebrow">Lịch hôm nay</p>
             <h2>Lịch hẹn hôm nay</h2>
             <p>{todayOrders(data.orders).length ? `${todayOrders(data.orders).length} lịch khởi hành / dịch vụ trong hôm nay.` : 'Hôm nay không có lịch hẹn.'}</p>
             <Link className="workspaceGhostButton" href="/order-center">Xem lịch biểu đầy đủ</Link>
           </section>
 
           <section className="workspaceCard panel">
-            <p className="eyebrow">Pending</p>
+            <p className="eyebrow">Phiếu chờ duyệt</p>
             <h2>Phiếu cần duyệt</h2>
             <div className="workspacePendingTabs"><span>Phiếu thu</span><span>Phiếu chi</span></div>
             <div className="workspacePendingList">
@@ -85,7 +85,7 @@ export default async function WorkspacePage() {
           </section>
 
           <section className="workspaceCard panel workspaceCorporateCard">
-            <p className="eyebrow">Corporate</p>
+            <p className="eyebrow">Doanh nghiệp</p>
             <h2>Thông tin doanh nghiệp</h2>
             <p>Chưa có tin tức.</p>
             <Link className="workspaceGhostButton" href="/security">Xem thêm thông tin</Link>
@@ -119,7 +119,7 @@ export default async function WorkspacePage() {
             <div className="workspaceCalendarHeader">
               <div><CalendarDays size={20} /><h2>Lịch khởi hành</h2></div>
               <strong>{monthTitle(today)}</strong>
-              <Link href="/order-center">Month</Link>
+              <Link href="/order-center">Xem tháng</Link>
             </div>
             <CalendarGrid days={calendar} />
           </section>
@@ -153,7 +153,7 @@ export default async function WorkspacePage() {
 
         <aside className="workspaceDebtPanel">
           <section className="workspaceCard panel">
-            <p className="eyebrow">Outstanding</p>
+            <p className="eyebrow">Công nợ nổi bật</p>
             <h2>Công nợ khách hàng</h2>
             <div className="workspaceDebtList">
               {topDebts.map((row, index) => (
@@ -177,11 +177,21 @@ function InfoLine({ label, value, muted = false }: { label: string; value: strin
   return <div><span>{label}</span><strong className={muted ? 'mutedText' : ''}>{value}</strong></div>;
 }
 
+function primaryReceiptTitle(row: WorkspaceReceipt) {
+  return row.receiptName || row.payerName || row.customerName || row.receiptCode || row.code || 'Phiếu thu';
+}
+function secondaryReceiptInfo(row: WorkspaceReceipt) {
+  const code = row.receiptCode || row.code || '';
+  const party = row.payerName || row.customerName || '';
+  const parts = [party, code ? `Mã: ${code}` : ''].filter(Boolean);
+  return parts.length ? parts.join(' - ') : '-';
+}
+
 function PendingReceipt({ row }: { row: WorkspaceReceipt }) {
   return (
     <article>
       <CheckCircle2 size={18} />
-      <div><strong>{row.receiptCode || row.code || 'Phiếu thu'}</strong><span>{row.payerName || row.customerName || row.receiptName || '-'}</span></div>
+      <div><strong>{primaryReceiptTitle(row)}</strong><span>{secondaryReceiptInfo(row)}</span></div>
       <b>{money(row.receiptAmount ?? row.amount ?? row.totalAmount)}</b>
       <em>Thu</em>
     </article>

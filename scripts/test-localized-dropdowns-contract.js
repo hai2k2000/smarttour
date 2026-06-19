@@ -84,6 +84,8 @@ assertNotContains(commission, '<p className="eyebrow">Finance</p>', 'commission 
 assertNotContains(commission, '<label>Group<select', 'commission grouping dropdown label');
 assertContains(commission, '<label>Nhóm tổng hợp<select', 'commission grouping dropdown label');
 assertContains(commission, '<h2>Chi tiết</h2>', 'commission detail heading');
+assertNotContains(commission, "<td><strong>{row.orderCode}</strong><span>{row.tourCode || ''}</span></td>", 'commission order table code-first cell');
+assertContains(commission, '<td><strong>{commissionOrderTitle(row)}</strong><span>{commissionOrderSubtitle(row)}</span></td>', 'commission order table name-first cell');
 
 assertNotContains(security, '{viRoleCode(role.code)} · {role.code}</option>', 'security user role dropdown');
 assertNotContains(security, '{viRoleCode(item.code)} · {item.code}</option>', 'security role picker dropdown');

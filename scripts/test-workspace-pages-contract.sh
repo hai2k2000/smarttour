@@ -36,6 +36,29 @@ require_grep "Thông tin cá nhân" apps/web/app/workspace/page.tsx
 require_grep "Thông báo bạn cần quan tâm" apps/web/app/workspace/page.tsx
 require_grep "Lịch khởi hành" apps/web/app/workspace/page.tsx
 require_grep "Công việc của tôi" apps/web/app/workspace/page.tsx
+require_grep "Lịch hôm nay" apps/web/app/workspace/page.tsx
+require_grep "Phiếu chờ duyệt" apps/web/app/workspace/page.tsx
+require_grep "Doanh nghiệp" apps/web/app/workspace/page.tsx
+require_grep "Công nợ nổi bật" apps/web/app/workspace/page.tsx
+require_grep "Tạo dữ liệu khách" apps/web/app/workspace/page.tsx
+require_grep "Xem tháng" apps/web/app/workspace/page.tsx
+require_grep "primaryReceiptTitle(row)" apps/web/app/workspace/page.tsx
+require_grep "secondaryReceiptInfo(row)" apps/web/app/workspace/page.tsx
+if grep -Fq '<p className="eyebrow">Schedule</p>' apps/web/app/workspace/page.tsx; then
+  fail "english_label_still_present:Schedule"
+fi
+if grep -Fq '<p className="eyebrow">Pending</p>' apps/web/app/workspace/page.tsx; then
+  fail "english_label_still_present:Pending"
+fi
+if grep -Fq '<p className="eyebrow">Corporate</p>' apps/web/app/workspace/page.tsx; then
+  fail "english_label_still_present:Corporate"
+fi
+if grep -Fq '<p className="eyebrow">Outstanding</p>' apps/web/app/workspace/page.tsx; then
+  fail "english_label_still_present:Outstanding"
+fi
+if grep -Fq "Tạo Data khách" apps/web/app/workspace/page.tsx; then
+  fail "english_label_still_present:Tạo Data khách"
+fi
 
 require_grep "workspaceOverviewPage" apps/web/app/workspace/overview/page.tsx
 require_grep "CEO Analytics" apps/web/app/workspace/overview/page.tsx

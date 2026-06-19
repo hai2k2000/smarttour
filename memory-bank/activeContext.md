@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Broader table copy/name-first cleanup:
+  - Customer list now starts with customer name instead of a separate code column, and customer page copy no longer labels the module as CRM.
+  - Workspace cards were localized from English labels (`Schedule`, `Pending`, `Corporate`, `Outstanding`, `Month`, `Data`) to Vietnamese operational wording.
+  - Workspace pending receipts and commission report order cells now prioritize names/titles, with generated codes kept as secondary traceability text.
+  - Contracts were extended in UX, workspace, and localized-dropdown tests to prevent these code-first/English-label regressions.
+
+
 - Finance table readability follow-up:
   - Updated finance list tables so receipt/payment/invoice first columns prioritize document names instead of hard-to-remember generated codes; codes remain secondary traceability text only when different from the name.
   - Finance receipt/payment/cashflow table enum cells now use a finance-specific label helper to avoid raw underscore enum codes being exposed in list views.

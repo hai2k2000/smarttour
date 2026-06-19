@@ -380,7 +380,7 @@ export default function CustomersClient() {
     <section className="workspace customerPage">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">CRM</p>
+          <p className="eyebrow">Khách hàng</p>
           <h1>Dữ liệu khách hàng</h1>
         </div>
         <div className="pageHeaderActions">
@@ -400,7 +400,7 @@ export default function CustomersClient() {
         <Metric label="Doanh thu" value={money(dashboard.totalRevenue)} />
         <Metric label="Công nợ" value={money(dashboard.totalDebt)} />
       </section>
-      <PermissionNotice allowed={canView} label="xem và quản lý CRM khách hàng" />
+      <PermissionNotice allowed={canView} label="xem và quản lý khách hàng" />
 
       <section className="panel customerFilters">
         <label className="customerSearchFilter"><Search size={15} /> Tìm kiếm<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên, SĐT, email, mã khách" /></label>
@@ -502,11 +502,10 @@ export default function CustomersClient() {
         <div className="sectionHeader"><h2>Danh sách</h2><div className="sectionActions"><span>{rows.length} khách</span><button className="iconTextButton" disabled={!canManage} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo mới</button></div></div>
         <div className="fitTableWrap compactListTableWrap">
           <table className="customerTable compactListTable">
-            <thead><tr><th>Mã</th><th>Khách hàng</th><th>Phân loại</th><th>Phụ trách</th><th>Tag</th><th>Thao tác</th></tr></thead>
+            <thead><tr><th>Khách hàng</th><th>Phân loại</th><th>Phụ trách</th><th>Tag</th><th>Thao tác</th></tr></thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.code}</td>
                   <td className="customerNameCell"><strong>{row.fullName}</strong><span>{row.phone}{row.email ? ` - ${row.email}` : ''}</span></td>
                   <td>{row.type?.name || row.kind}<span>{row.source || row.market || row.status || ''}</span></td>
                   <td>{row.owner || '-'}<span>{row.branch || row.department || ''}</span></td>
@@ -514,7 +513,7 @@ export default function CustomersClient() {
                   <td><button className="secondaryButton iconButton" onClick={() => void openDetail(row.id)} aria-label={`Xem ${row.fullName}`}><Eye size={16} /></button></td>
                 </tr>
               ))}
-              {!rows.length ? <tr><td className="customerEmptyCell" colSpan={6}>{loading ? 'Đang tải dữ liệu khách hàng...' : 'Chưa có khách hàng phù hợp với bộ lọc.'}</td></tr> : null}
+              {!rows.length ? <tr><td className="customerEmptyCell" colSpan={5}>{loading ? 'Đang tải dữ liệu khách hàng...' : 'Chưa có khách hàng phù hợp với bộ lọc.'}</td></tr> : null}
             </tbody>
           </table>
         </div>

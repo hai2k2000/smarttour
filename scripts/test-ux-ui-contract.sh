@@ -44,6 +44,12 @@ for (const token of [
   assert(customers.includes(token), `CustomersClient.tsx missing ${token}`);
 }
 
+assert(!customers.includes('<p className="eyebrow">CRM</p>'), 'CustomersClient.tsx must not show CRM as page eyebrow');
+assert(!customers.includes('<thead><tr><th>Mã</th><th>Khách hàng</th>'), 'CustomersClient.tsx customer table must not start with code column');
+assert(customers.includes('<thead><tr><th>Khách hàng</th><th>Phân loại</th><th>Phụ trách</th><th>Tag</th><th>Thao tác</th></tr></thead>'), 'CustomersClient.tsx customer table must start with customer name column');
+assert(customers.includes('<td className="customerNameCell"><strong>{row.fullName}</strong>'), 'CustomersClient.tsx customer rows must prioritize full name in first column');
+assert(!customers.includes('label="xem và quản lý CRM khách hàng"'), 'CustomersClient.tsx permission notice must use travel-ops wording, not CRM');
+
 for (const token of [
   "fetch(`${apiBase}/api/auth/me`",
   'permissionsReady',

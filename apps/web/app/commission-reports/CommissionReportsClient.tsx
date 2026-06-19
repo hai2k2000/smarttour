@@ -24,6 +24,7 @@ type Row = {
   id: string;
   orderCode: string;
   tourCode?: string;
+  order?: { name?: string | null; systemCode?: string | null; tourCode?: string | null };
   customerName?: string;
   salesOwner?: string;
   team?: string;
@@ -135,7 +136,7 @@ export default function CommissionReportsClient() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
-                    <td><strong>{row.orderCode}</strong><span>{row.tourCode || ''}</span></td>
+                    <td><strong>{commissionOrderTitle(row)}</strong><span>{commissionOrderSubtitle(row)}</span></td>
                     <td>{row.customerName || '-'}</td>
                     <td>{row.salesOwner || '-'}<span>{row.department || row.branch || ''}</span></td>
                     <td>{date(row.milestoneDate)}</td>
@@ -185,6 +186,15 @@ export default function CommissionReportsClient() {
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return <article className="metric"><span>{label}</span><strong>{value}</strong></article>;
+}
+
+function commissionOrderTitle(row: Row) {
+  return row.order?.name || row.customerName || row.tourCode || row.orderCode || '-';
+}
+
+function commissionOrderSubtitle(row: Row) {
+  const codes = [row.orderCode, row.tourCode].filter(Boolean);
+  return codes.length ? `Mã: ${codes.join(' - ')}` : '';
 }
 
 function money(value: number) {

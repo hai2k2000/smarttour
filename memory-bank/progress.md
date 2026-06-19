@@ -2,6 +2,13 @@
 
 ## Done
 
+- Continued name-first and Vietnamese UI cleanup beyond Finance:
+  - Customer table removed the first `Mã` column and now starts directly with the customer name.
+  - Workspace page cards and quick actions use Vietnamese labels, and pending receipts show receipt/customer names before codes.
+  - Commission report order cells now use the linked order name as the primary label and move order/tour codes to secondary text.
+  - Added regression assertions to UX, workspace, and localized dropdown contracts.
+
+
 - Improved finance table Vietnamese/readability:
   - Changed finance receipt, payment, and invoice list first columns from code-first to name-first display.
   - Added a table-safe finance label helper so voucher/source/payment method cells do not fall back to raw enum codes such as `SUPPLIER_PAYMENT`.
