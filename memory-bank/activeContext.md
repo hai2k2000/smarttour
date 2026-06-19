@@ -2007,3 +2007,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found manual finance create/update paths could accept negative numeric values and coerce non-numeric values to zero, while CSV import already rejected those cases.
   - Hardened the shared finance decimal parser to reject NaN/non-finite and negative values for receipt/payment amounts and invoice item numeric fields, while preserving zero-value draft behavior.
   - Added service regressions for negative receipt/payment/invoice values and non-numeric receipt totals.
+
+- 2026-06-19 Finance manual enum/date validation audit:
+  - Found manual finance create/update paths relied on string casts for enums and silently dropped invalid write dates, while CSV import already returned business validation errors.
+  - Added shared write-path enum and date guards for receipt/payment/invoice data builders so invalid receipt/payment/invoice types, payment methods, and write dates return 400 before Prisma.
+  - Added service regressions for invalid receipt type, invalid payment method, and invalid invoice issued date.

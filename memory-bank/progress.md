@@ -1644,3 +1644,7 @@
   - Manual finance receipt, payment, and invoice paths now reject negative and non-numeric numeric values instead of storing negative money or silently converting invalid input to zero.
   - Zero-value draft documents remain allowed, with posting still blocked by existing cashflow/ledger guards.
   - Regression coverage was added for negative receipt/payment/invoice values and non-numeric receipt totals. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed finance manual enum/date validation hardening:
+  - Manual finance receipt/payment/invoice writes now validate enum fields and write dates before persistence, preventing Prisma validation errors and silent date drops.
+  - Added focused regressions for invalid receipt type, invalid payment method, and invalid invoice date. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.

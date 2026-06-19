@@ -35,6 +35,10 @@ const PROTECTED_FINANCE_WRITE_FIELDS = new Set([
   'reversalOfId',
 ]);
 const COMPANY_EXPENSE_PAYMENT_TYPES = new Set(['INTERNAL_EXPENSE', 'OTHER']);
+const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'];
+const FINANCE_PAYMENT_TYPES = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'];
+const FINANCE_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER'];
+const FINANCE_INVOICE_TYPES = ['VAT', 'E_INVOICE', 'PROFORMA', 'ADJUSTMENT', 'OTHER'];
 
 @Injectable()
 export class FinanceService {
@@ -723,11 +727,11 @@ export class FinanceService {
     return {
       receiptCode: this.text(dto.receiptCode) || this.code('PT'),
       receiptName: this.text(dto.receiptName) || 'Phiếu thu',
-      receiptType: (this.text(dto.receiptType) || 'TOUR_PAYMENT') as never,
-      documentDate: this.date(dto.documentDate),
-      transferDate: this.date(dto.transferDate),
-      paymentDate: this.date(dto.paymentDate),
-      paymentMethod: (this.text(dto.paymentMethod) || 'BANK_TRANSFER') as never,
+      receiptType: this.enumValue(dto.receiptType, FINANCE_RECEIPT_TYPES, 'TOUR_PAYMENT', 'Loại phiếu thu') as never,
+      documentDate: this.date(dto.documentDate, 'Ngày chứng từ'),
+      transferDate: this.date(dto.transferDate, 'Ngày chuyển khoản'),
+      paymentDate: this.date(dto.paymentDate, 'Ngày thanh toán'),
+      paymentMethod: this.enumValue(dto.paymentMethod, FINANCE_PAYMENT_METHODS, 'BANK_TRANSFER', 'Phương thức thanh toán') as never,
       customerId: this.text(dto.customerId),
       tourId: this.text(dto.tourId),
       payerName: this.text(dto.payerName),
@@ -769,11 +773,11 @@ export class FinanceService {
     return {
       voucherCode: this.text(dto.voucherCode) || this.code('PC'),
       voucherName: this.text(dto.voucherName),
-      voucherType: (this.text(dto.voucherType) || 'SUPPLIER_PAYMENT') as never,
-      documentDate: this.date(dto.documentDate),
-      transferDate: this.date(dto.transferDate),
-      paymentDate: this.date(dto.paymentDate),
-      paymentMethod: (this.text(dto.paymentMethod) || 'BANK_TRANSFER') as never,
+      voucherType: this.enumValue(dto.voucherType, FINANCE_PAYMENT_TYPES, 'SUPPLIER_PAYMENT', 'Loại phiếu chi') as never,
+      documentDate: this.date(dto.documentDate, 'Ngày chứng từ'),
+      transferDate: this.date(dto.transferDate, 'Ngày chuyển khoản'),
+      paymentDate: this.date(dto.paymentDate, 'Ngày thanh toán'),
+      paymentMethod: this.enumValue(dto.paymentMethod, FINANCE_PAYMENT_METHODS, 'BANK_TRANSFER', 'Phương thức thanh toán') as never,
       supplierId: this.text(dto.supplierId),
       operationVoucherId: this.text(dto.operationVoucherId),
       orderId: this.text(dto.orderId),
@@ -818,22 +822,22 @@ export class FinanceService {
       customerPhone: this.text(dto.customerPhone),
       customerEmail: this.text(dto.customerEmail),
       citizenId: this.text(dto.citizenId),
-      paymentMethod: (this.text(dto.paymentMethod) || 'BANK_TRANSFER') as never,
+      paymentMethod: this.enumValue(dto.paymentMethod, FINANCE_PAYMENT_METHODS, 'BANK_TRANSFER', 'Phương thức thanh toán') as never,
       taxCode: this.text(dto.taxCode),
       companyName: this.text(dto.companyName),
       companyAddress: this.text(dto.companyAddress),
       bankAccountNumber: this.text(dto.bankAccountNumber),
       bankName: this.text(dto.bankName),
-      invoiceType: (this.text(dto.invoiceType) || 'VAT') as never,
+      invoiceType: this.enumValue(dto.invoiceType, FINANCE_INVOICE_TYPES, 'VAT', 'Loại hóa đơn') as never,
       taxAuthorityCode: this.text(dto.taxAuthorityCode),
       invoiceNumber: this.text(dto.invoiceNumber),
-      invoiceDate: this.date(dto.invoiceDate),
-      issuedDate: this.date(dto.issuedDate),
-      emailSentDate: this.date(dto.emailSentDate),
+      invoiceDate: this.date(dto.invoiceDate, 'Ngày hóa đơn'),
+      issuedDate: this.date(dto.issuedDate, 'Ngày phát hành'),
+      emailSentDate: this.date(dto.emailSentDate, 'Ngày gửi email'),
       tourCode: this.text(dto.tourCode),
       tourName: this.text(dto.tourName),
-      checkinDate: this.date(dto.checkinDate),
-      checkoutDate: this.date(dto.checkoutDate),
+      checkinDate: this.date(dto.checkinDate, 'Ngày check-in'),
+      checkoutDate: this.date(dto.checkoutDate, 'Ngày check-out'),
       totalBeforeTax,
       totalTax,
       totalAfterTax,
@@ -1086,11 +1090,20 @@ export class FinanceService {
     return this.decimal(value);
   }
 
-  private date(value: unknown) {
+  private date(value: unknown, label = 'Ngày') {
     if (value instanceof Date) return value;
-    if (!value || typeof value !== 'string') return undefined;
+    if (value == null || value === '') return undefined;
+    if (typeof value !== 'string') throw new BadRequestException(`${label} không hợp lệ`);
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
+    return date;
+  }
+
+  private enumValue(value: unknown, allowed: string[], fallback: string, label: string) {
+    const normalized = this.text(value);
+    if (!normalized) return fallback;
+    if (!allowed.includes(normalized)) throw new BadRequestException(`${label} không hợp lệ`);
+    return normalized;
   }
 
   private code(prefix: string) {

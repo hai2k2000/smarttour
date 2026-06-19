@@ -338,6 +338,9 @@ async function main() {
   await rejectsWithStatus(() => finance.createPayment({ voucherCode: run + '-BAD-NEG-PAY', voucherName: 'Negative Payment', voucherType: 'INTERNAL_EXPENSE', totalAmount: 100, paymentAmount: -1 }), 400, 'payment create should reject negative money values');
   await rejectsWithStatus(() => finance.createInvoice({ invoiceCode: run + '-BAD-NEG-INV', customerId: customer.id, invoiceType: 'VAT', tourId: tour.id, items: [{ itemName: 'Negative invoice item', quantity: 1, unitPrice: -1, taxRate: 0 }] }), 400, 'invoice create should reject negative item values');
   await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-NAN-RCPT', receiptName: 'Invalid Receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 'abc', receiptAmount: 1, tourId: tour.id }), 400, 'receipt create should reject non-numeric money values');
+  await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-TYPE-RCPT', receiptName: 'Bad Type Receipt', receiptType: 'BAD_TYPE', totalAmount: 100, receiptAmount: 1, tourId: tour.id }), 400, 'receipt create should reject invalid receipt type');
+  await rejectsWithStatus(() => finance.createPayment({ voucherCode: run + '-BAD-METHOD-PAY', voucherName: 'Bad Method Payment', voucherType: 'INTERNAL_EXPENSE', paymentMethod: 'WIRE', totalAmount: 100, paymentAmount: 1 }), 400, 'payment create should reject invalid payment method');
+  await rejectsWithStatus(() => finance.createInvoice({ invoiceCode: run + '-BAD-DATE-INV', customerId: customer.id, invoiceType: 'VAT', issuedDate: 'bad-date', tourId: tour.id, items: [{ itemName: 'Bad date invoice', quantity: 1, unitPrice: 1, taxRate: 0 }] }), 400, 'invoice create should reject invalid dates');
 
   const draftReceipt = await finance.createReceipt({
     receiptCode: run + '-CRUD-RCPT',
