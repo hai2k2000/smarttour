@@ -37,6 +37,11 @@ export function assertCanDeleteFinanceEntity(entity: FinanceState, label: string
   if (reason) throw new BadRequestException(`${label} ${reason}, không thể xóa`);
 }
 
+export function assertCanUpdateFinanceEntity(entity: FinanceState, label: string) {
+  const reason = terminalReason(entity);
+  if (reason) throw new BadRequestException(`${label} ${reason}, không thể sửa`);
+}
+
 export function assertCanChangeFinanceAmount(entity: FinanceState, label: string) {
   const reason = terminalReason(entity);
   if (reason) throw new BadRequestException(`${label} ${reason}, không thể sửa số tiền`);

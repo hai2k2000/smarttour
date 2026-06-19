@@ -7,11 +7,11 @@ import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { createPaymentReversalCashflow, createReceiptReversalCashflow, upsertPaymentCashflow, upsertReceiptCashflow } from './finance-cashflow-postings';
 import { createInvoiceReversalCustomerLedger, createPaymentReversalSupplierLedger, createReceiptReversalCustomerLedger, upsertInvoiceCustomerLedger, upsertPaymentSupplierLedger, upsertReceiptCustomerLedger } from './finance-customer-ledger';
-import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanChangeFinanceAmount, assertCanDeleteFinanceEntity, assertCanRejectFinanceEntity, lockFinanceInvoice, lockFinancePayment, lockFinanceReceipt } from './finance-final-state';
+import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanDeleteFinanceEntity, assertCanRejectFinanceEntity, assertCanUpdateFinanceEntity, lockFinanceInvoice, lockFinancePayment, lockFinanceReceipt } from './finance-final-state';
 import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
 import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
-import { hasMoneyChange, invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
+import { invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -101,7 +101,7 @@ export class FinanceService {
   async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto), user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu thu');
+    assertCanUpdateFinanceEntity(current, 'Phiếu thu');
     return this.prisma.$transaction(async (tx) => {
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
       const orders = hasOrders ? this.receiptOrders(dto) : current.orders;
@@ -288,7 +288,7 @@ export class FinanceService {
   async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto), user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Phiếu chi');
+    assertCanUpdateFinanceEntity(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
       const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, { ...current, ...dto });
@@ -420,7 +420,7 @@ export class FinanceService {
   async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
     const current = await this.invoiceDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto) as AnyRecord & { branch?: string | null; department?: string | null }, user);
-    if (hasMoneyChange(dto)) assertCanChangeFinanceAmount(current, 'Hóa đơn');
+    assertCanUpdateFinanceEntity(current, 'Hóa đơn');
     return this.prisma.$transaction(async (tx) => {
       const hasItems = Object.prototype.hasOwnProperty.call(dto, 'items');
       await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user);

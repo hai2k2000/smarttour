@@ -1992,3 +1992,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a FinanceService guard requiring supplier payments to link either a supplier or an operation voucher; company expense voucher types such as `OTHER` remain allowed without a tour/supplier link.
   - Added a regression covering legacy draft supplier-payment approval with no party link so existing bad drafts remain blocked with the same business error.
   - Changed the standalone payment form default voucher type to `OTHER` because the form does not expose a supplier selector, and updated import regressions to include `supplierId` for supplier-payment CSV rows.
+
+- 2026-06-19 Finance posted-document update audit:
+  - Found approved finance receipts, payments, and invoices only blocked amount edits, while non-amount updates could still change posted document metadata/links without updating cashflow or ledger entries.
+  - Added a shared final-state update guard so approved/rejected/cancelled finance documents cannot be edited through update APIs; corrections must use cancel/reversal flows.
+  - Added service regressions proving approved receipts, payments, and invoices reject even note-only updates after posting.

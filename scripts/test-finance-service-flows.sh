@@ -570,6 +570,7 @@ async function main() {
   await rejects(() => finance.approveReceipt(receipt.id, { actor: 'finance-test' }), 'double approve receipt should be rejected as a final-state transition');
   await rejects(() => finance.rejectReceipt(receipt.id, { actor: 'finance-test', note: 'reject approved receipt' }), 'approved receipt should not be rejected');
   await rejects(() => finance.updateReceipt(receipt.id, { receiptAmount: 900 }), 'approved receipt amount should not be editable');
+  await rejects(() => finance.updateReceipt(receipt.id, { note: 'edited after approval' }), 'approved receipt should not be editable after posting');
   const cancelledReceipt = await finance.cancelReceipt(receipt.id, { actor: 'finance-test', reason: 'cancel receipt' });
   assert(cancelledReceipt.approvalStatus === 'CANCELLED' && cancelledReceipt.reversals.length === 1, 'receipt should cancel with reversal');
   const receiptReversal = await prisma.financeReceipt.findUniqueOrThrow({ where: { id: cancelledReceipt.reversals[0].id }, include: { orders: true } });
@@ -683,6 +684,7 @@ async function main() {
   await rejects(() => finance.approvePayment(payment.id, { actor: 'finance-test' }), 'double approve payment should be rejected as a final-state transition');
   await rejects(() => finance.rejectPayment(payment.id, { actor: 'finance-test', note: 'reject approved payment' }), 'approved payment should not be rejected');
   await rejects(() => finance.updatePayment(payment.id, { paymentAmount: 500 }), 'approved payment amount should not be editable');
+  await rejects(() => finance.updatePayment(payment.id, { note: 'edited after approval' }), 'approved payment should not be editable after posting');
   const cancelledPayment = await finance.cancelPayment(payment.id, { actor: 'finance-test', reason: 'cancel payment' });
   assert(cancelledPayment.approvalStatus === 'CANCELLED' && cancelledPayment.reversals.length === 1, 'payment should cancel with reversal');
   const paymentReversal = await prisma.financePayment.findUniqueOrThrow({ where: { id: cancelledPayment.reversals[0].id } });
@@ -792,6 +794,7 @@ async function main() {
   await rejects(() => finance.approveInvoice(invoice.id, { actor: 'finance-test' }), 'double approve invoice should be rejected as a final-state transition');
   await rejects(() => finance.rejectInvoice(invoice.id, { actor: 'finance-test', note: 'reject approved invoice' }), 'approved invoice should not be rejected');
   await rejects(() => finance.updateInvoice(invoice.id, { items: [{ itemName: 'Blocked edit', quantity: 1, unitPrice: 1, taxRate: 0 }] }), 'approved invoice amount should not be editable');
+  await rejects(() => finance.updateInvoice(invoice.id, { note: 'edited after approval' }), 'approved invoice should not be editable after posting');
   const cancelledInvoice = await finance.cancelInvoice(invoice.id, { actor: 'finance-test', reason: 'cancel invoice' });
   assert(cancelledInvoice.approvalStatus === 'CANCELLED' && cancelledInvoice.reversals.length === 1, 'invoice should cancel with reversal');
   assert(await sum(prisma, 'customerLedgerEntry', { invoiceId: { in: [invoice.id, cancelledInvoice.reversals[0].id] } }, 'debitAmount') === 1100, 'invoice original ledger debit should remain');

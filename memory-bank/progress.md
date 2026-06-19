@@ -1629,3 +1629,8 @@
   - Supplier-payment vouchers now must link a supplier or operation voucher before creation/update/import can proceed, preventing approved cash outflows that have no supplier ledger party.
   - The general payment form now defaults to `OTHER` instead of `SUPPLIER_PAYMENT`, preserving company expense use cases that are not tied to a tour or supplier.
   - Added/updated service and client contract regressions, including CSV import fixtures with explicit `supplierId` for supplier payments and a legacy draft approval guard case. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API/web Docker build.
+
+- 2026-06-19 Completed posted finance document update lock:
+  - Finance receipt/payment/invoice update APIs now reject all edits once a document is approved, rejected, or cancelled, preventing document fields from drifting away from already-posted cashflow and ledger entries.
+  - Added regression coverage for approved receipt, payment, and invoice note-only updates, alongside existing amount-change guards.
+  - Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, and `git diff --check`.
