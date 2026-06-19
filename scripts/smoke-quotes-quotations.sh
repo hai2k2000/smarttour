@@ -367,6 +367,9 @@ function assertLoadableQuotation(row) {
   await request(view, 'POST', '/quotes/tours', tourPayload(`${run}-TOUR-DENY`), [403]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-MISSING`), quoteCode: '' }, [400]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-NUM`), costItems: [{ ...tourPayload().costItems[0], quantity: 'abc' }] }, [400]);
+  await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-QTY`), costItems: [{ ...tourPayload().costItems[0], quantity: 0 }] }, [400]);
+  await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-COUNT`), costItems: [{ ...tourPayload().costItems[0], serviceCount: 0 }] }, [400]);
+  await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-RATE`), costItems: [{ ...tourPayload().costItems[0], exchangeRate: 0 }] }, [400]);
 
   const tour = await request(admin, 'POST', '/quotes/tours', tourPayload());
   assertTourTotals(tour);

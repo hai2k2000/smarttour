@@ -1738,3 +1738,9 @@
   - Orders now reject explicit zero/non-positive sales quantity, sales service count, operation quantity, and handover quantity for meaningful rows.
   - Hotel booking zero-quantity operation lines are rejected instead of being saved without allotment locks.
   - Added order service regression coverage for the invalid child row guards.
+
+
+- 2026-06-19 Completed Tour Quote cost multiplier validation:
+  - Tour Quote cost rows now reject explicit zero/non-positive quantity, service count, pax-per-room, and exchange rate instead of storing collapsed zero-cost multipliers.
+  - Quote smoke coverage now guards zero quantity/service count/exchange rate API behavior.
+  - Order detail/edit/copy responses now return sales and operation child rows sorted by `sortOrder`, preventing converted quote/order lines from appearing in unstable order.

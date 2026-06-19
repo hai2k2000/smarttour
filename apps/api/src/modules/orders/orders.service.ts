@@ -234,8 +234,8 @@ export class OrdersService {
     return {
       customer: true,
       guides: true,
-      salesItems: { include: { supplier: true, service: true } },
-      operationItems: { include: { supplier: true, service: true, allotmentLocks: true } },
+      salesItems: { include: { supplier: true, service: true }, orderBy: { sortOrder: 'asc' } },
+      operationItems: { include: { supplier: true, service: true, allotmentLocks: true }, orderBy: { sortOrder: 'asc' } },
       allotmentLocks: { include: { allotment: true, service: true, orderOperationItem: true }, orderBy: { createdAt: 'desc' } },
       members: true,
       itineraries: true,
@@ -250,8 +250,8 @@ export class OrdersService {
     return {
       customer: true,
       guides: true,
-      salesItems: true,
-      operationItems: { include: { allotmentLocks: true } },
+      salesItems: { orderBy: { sortOrder: 'asc' } },
+      operationItems: { include: { allotmentLocks: true }, orderBy: { sortOrder: 'asc' } },
       allotmentLocks: { orderBy: { createdAt: 'desc' } },
       members: true,
       itineraries: true,
@@ -265,8 +265,8 @@ export class OrdersService {
   private copyInclude() {
     return {
       guides: true,
-      salesItems: true,
-      operationItems: true,
+      salesItems: { orderBy: { sortOrder: 'asc' } },
+      operationItems: { orderBy: { sortOrder: 'asc' } },
       members: true,
       itineraries: true,
       handoverItems: true,

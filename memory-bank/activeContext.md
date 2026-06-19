@@ -2121,3 +2121,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found order child sync allowed explicit zero `salesItems.quantity`, `salesItems.serviceCount`, `operationItems.quantity`, and `handoverItems.quantity`, letting meaningful child rows persist as zero-value revenue/cost/allotment or invalid handover lines.
   - Added order service regressions proving those zero child counts are rejected, including hotel booking operation lines that previously skipped allotment locking silently.
   - Updated order child mappers to keep blank form rows ignored while rejecting non-positive counts on meaningful rows with Vietnamese business errors.
+
+
+- 2026-06-19 Tour quote cost multiplier validation audit:
+  - Found Tour Quote cost item sanitization accepted explicit zero `quantity`, `serviceCount`, `paxPerRoom`, and `exchangeRate`, allowing meaningful quote cost lines to collapse to zero or invalid multipliers.
+  - Added quote smoke API regressions proving zero cost quantity, service count, and exchange rate are rejected with 400 responses.
+  - Updated Tour Quote cost sanitization to default missing multipliers to one but reject provided non-positive values with Vietnamese business errors.
+  - During smoke verification, found converted order child rows could be returned in nondeterministic DB order; fixed OrdersService detail/edit/copy includes to order sales and operation rows by `sortOrder`.
