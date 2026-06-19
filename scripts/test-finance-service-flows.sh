@@ -61,6 +61,16 @@ async function rejectsWithMessage(action, message, label) {
   assert(false, label);
 }
 
+async function rejectsWithStatus(action, status, label) {
+  try {
+    await action();
+  } catch (error) {
+    assert(error?.status === status, `${label}: expected status ${status}, got ${error?.status || '<none>'}`);
+    return;
+  }
+  assert(false, label);
+}
+
 function amount(value) {
   return Number(value);
 }
@@ -447,6 +457,9 @@ async function main() {
   assert(dateFilterReceipts.rows.some((row) => row.id === dateFilterReceipt.id), 'receipt date filter should include records throughout the to date');
   assert(dateFilterPayments.rows.some((row) => row.id === dateFilterPayment.id), 'payment date filter should include records throughout the to date');
   assert(dateFilterInvoices.rows.some((row) => row.id === dateFilterInvoice.id), 'invoice date filter should include records throughout the to date');
+  await rejectsWithStatus(() => finance.listReceipts({ from: 'bad-date' }), 400, 'receipt list should reject invalid from date');
+  await rejectsWithStatus(() => finance.listPayments({ to: 'bad-date' }), 400, 'payment list should reject invalid to date');
+  await rejectsWithStatus(() => finance.listInvoices({ take: '0' }), 400, 'invoice list should reject non-positive take');
 
   await rejects(() => finance.createReceipt({
     receiptCode: run + '-BAD-RCPT-LINK',
@@ -937,6 +950,7 @@ async function main() {
   const dateFilterCustomerAdjustment = await finance.createCustomerDebtAdjustment(paginationCustomer.id, { direction: 'INCREASE', amount: 75, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter customer increase' });
   const dateFilterCustomerDebt = await finance.customerDebt({ customerId: paginationCustomer.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
   assert(dateFilterCustomerDebt.entries.some((entry) => entry.id === dateFilterCustomerAdjustment.id), 'customer debt date filter should include entries throughout the to date');
+  await rejectsWithStatus(() => finance.customerDebt({ customerId: paginationCustomer.id, from: 'bad-date' }), 400, 'customer debt should reject invalid from date');
   const searchedCustomerDebt = await finance.customerDebt({ search: 'Pagination Customer', take: '1000' });
   assert(searchedCustomerDebt.rows.some((row) => row.id === paginationCustomer.id) && !searchedCustomerDebt.rows.some((row) => row.id === customer.id), 'customer debt search should filter by customer name/code/phone');
   const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);
@@ -969,6 +983,8 @@ async function main() {
   const dateFilterSupplierAdjustment = await finance.createSupplierDebtAdjustment(paginationSupplier.id, { direction: 'INCREASE', amount: 60, documentDate: '2026-10-05T15:30:00.000Z', branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'date filter supplier increase' });
   const dateFilterSupplierDebt = await finance.supplierDebt({ supplierId: paginationSupplier.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
   assert(dateFilterSupplierDebt.entries.some((entry) => entry.id === dateFilterSupplierAdjustment.id), 'supplier debt date filter should include entries throughout the to date');
+  await rejectsWithStatus(() => finance.supplierDebt({ supplierId: paginationSupplier.id, to: 'bad-date' }), 400, 'supplier debt should reject invalid to date');
+  await rejectsWithStatus(() => finance.cashflow({ take: '-1' }), 400, 'cashflow should reject negative take');
   const searchedSupplierDebt = await finance.supplierDebt({ search: 'Pagination Supplier', take: '1000' });
   assert(searchedSupplierDebt.rows.some((row) => row.id === paginationSupplier.id) && !searchedSupplierDebt.rows.some((row) => row.id === supplier.id), 'supplier debt search should filter by supplier name/code/phone');
   const branchSupplierDebt = await finance.supplierDebt({ supplierId: supplier.id, take: '1000' }, branchUser);

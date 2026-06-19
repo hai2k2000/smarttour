@@ -1997,3 +1997,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found approved finance receipts, payments, and invoices only blocked amount edits, while non-amount updates could still change posted document metadata/links without updating cashflow or ledger entries.
   - Added a shared final-state update guard so approved/rejected/cancelled finance documents cannot be edited through update APIs; corrections must use cancel/reversal flows.
   - Added service regressions proving approved receipts, payments, and invoices reject even note-only updates after posting.
+
+- 2026-06-19 Finance query validation audit:
+  - Found finance list/debt/cashflow service queries accepted invalid date and pagination values; invalid `from` could be silently ignored and invalid `to` could reach Prisma instead of returning a business 400.
+  - Added service-level query guards so date filters must parse to valid dates and `take` must be a positive integer, covering receipts, payments, invoices, cashflow, customer debt, and supplier debt.
+  - Added finance service regressions for invalid `from`, invalid `to`, zero `take`, and negative `take` across document, debt, and cashflow queries.

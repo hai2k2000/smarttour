@@ -1634,3 +1634,8 @@
   - Finance receipt/payment/invoice update APIs now reject all edits once a document is approved, rejected, or cancelled, preventing document fields from drifting away from already-posted cashflow and ledger entries.
   - Added regression coverage for approved receipt, payment, and invoice note-only updates, alongside existing amount-change guards.
   - Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, and `git diff --check`.
+
+- 2026-06-19 Completed finance query validation hardening:
+  - Finance document, cashflow, customer debt, and supplier debt queries now reject invalid date filters with 400 instead of ignoring them or letting invalid Date values reach Prisma.
+  - Finance query pagination now requires positive integer `take` values and still caps valid requests at 2000 rows.
+  - Regression coverage was added for invalid date and pagination inputs. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.

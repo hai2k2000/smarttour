@@ -547,7 +547,7 @@ export class FinanceService {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
       ...(contains ? { customer: { is: { OR: [{ fullName: contains }, { phone: contains }, { code: contains }] } } } : {}),
-      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
+      ...(query.from || query.to ? { documentDate: { gte: this.queryDate(query.from, 'from'), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { customer: true, order: true, receipt: true, invoice: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
@@ -565,7 +565,7 @@ export class FinanceService {
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.tourId ? { tourId: query.tourId } : {}),
       ...(contains ? { supplier: { is: { OR: [{ name: contains }, { phone: contains }, { supplierCode: contains }] } } } : {}),
-      ...(query.from || query.to ? { documentDate: { gte: this.date(query.from), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
+      ...(query.from || query.to ? { documentDate: { gte: this.queryDate(query.from, 'from'), lte: query.to ? this.endOfDateFilter(query.to) : undefined } } : {}),
     }, user);
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
@@ -1009,16 +1009,23 @@ export class FinanceService {
 
   private dateRange(field: 'paymentDate' | 'issuedDate', from?: string, to?: string) {
     if (!from && !to) return {};
-    return { [field]: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: this.endOfDateFilter(to) } : {}) } };
+    return { [field]: { ...(from ? { gte: this.queryDate(from, 'from') } : {}), ...(to ? { lte: this.endOfDateFilter(to) } : {}) } };
+  }
+
+  private queryDate(value: string | undefined, field: string) {
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} không hợp lệ`);
+    return date;
   }
 
   private endOfDateFilter(value: string) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      const date = new Date(value);
+      const date = this.queryDate(value, 'to')!;
       date.setUTCHours(23, 59, 59, 999);
       return date;
     }
-    return new Date(value);
+    return this.queryDate(value, 'to')!;
   }
 
   private csv(rows: AnyRecord[], keys: string[]) {
@@ -1182,8 +1189,10 @@ export class FinanceService {
   }
 
   private take(value?: string) {
-    const take = Number(value || 300);
-    return Math.min(Number.isFinite(take) ? take : 300, 2000);
+    if (value == null || value === '') return 300;
+    const take = Number(value);
+    if (!Number.isInteger(take) || take <= 0) throw new BadRequestException('take phải là số nguyên dương');
+    return Math.min(take, 2000);
   }
 
 }
