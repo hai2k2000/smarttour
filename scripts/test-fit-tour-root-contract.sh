@@ -411,6 +411,16 @@ async function main() {
     'FIT child validation should reject negative cost amounts',
   );
   await assertRejects(
+    () => fitTours.update(source.id, { commonCosts: [{ serviceType: 'CAR', quantity: 1, times: 0, unitPrice: 1000 }] }),
+    'commonCosts[0].times phải lớn hơn 0',
+    'FIT child validation should reject zero cost multipliers instead of defaulting them to one',
+  );
+  await assertRejects(
+    () => fitTours.update(source.id, { budgetServices: [{ serviceType: 'HOTEL', quantity: 0, unitPrice: 1000 }] }),
+    'budgetServices[0].quantity phải lớn hơn 0',
+    'FIT child validation should reject zero budget service quantities',
+  );
+  await assertRejects(
     () => fitTours.update(source.id, { operationServices: [{ serviceType: 'HOTEL', status: 'INVALID_STATUS' }] }),
     'operationServices[0].status không thuộc danh sách trạng thái dịch vụ hợp lệ',
     'FIT child validation should reject invalid operation status',

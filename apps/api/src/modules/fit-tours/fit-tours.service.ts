@@ -659,15 +659,18 @@ export class FitToursService {
       this.validateChildRows(dto[field], field, (row, path) => {
         this.validateOptionalText(row.serviceType, `${path}.serviceType`);
         this.validateChildNumbers(row, path, ['orderNo', 'quantity', 'paxPerRoom', 'times', 'exchangeRate', 'unitPrice', 'vat', 'amount']);
+        this.validateChildPositiveNumbers(row, path, ['quantity', 'paxPerRoom', 'times', 'exchangeRate']);
       });
     }
     this.validateChildRows(dto.budgetServices, 'budgetServices', (row, path) => {
       this.validateOptionalText(row.serviceType, `${path}.serviceType`);
       this.validateChildNumbers(row, path, ['quantity', 'unitPrice', 'vat', 'amount']);
+      this.validateChildPositiveNumbers(row, path, ['quantity']);
     });
     this.validateChildRows(dto.operationServices, 'operationServices', (row, path) => {
       this.validateOptionalText(row.serviceType, `${path}.serviceType`);
       this.validateChildNumbers(row, path, ['quantity', 'confirmedUnitPrice', 'vat', 'amount']);
+      this.validateChildPositiveNumbers(row, path, ['quantity']);
       if (row.status !== undefined) this.toFitServiceStatusStrict(row.status, `${path}.status`);
     });
     this.validateChildRows(dto.guides, 'guides', (row, path) => {
@@ -706,6 +709,15 @@ export class FitToursService {
     for (const field of fields) {
       if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
         this.nonNegativeNumber(row[field], `${path}.${field}`);
+      }
+    }
+  }
+
+  private validateChildPositiveNumbers(row: Row, path: string, fields: string[]) {
+    for (const field of fields) {
+      if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
+        const number = this.nonNegativeNumber(row[field], `${path}.${field}`);
+        if (number <= 0) throw new BadRequestException(`${path}.${field} phải lớn hơn 0`);
       }
     }
   }

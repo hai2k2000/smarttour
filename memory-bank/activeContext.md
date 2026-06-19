@@ -2075,3 +2075,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `FitToursService.remove()` called `TourCoreService.softDelete()` directly, bypassing the dependency guard used by the common Tour delete endpoint.
   - Added a FIT root contract regression proving an order-linked FIT tour cannot be removed through the FIT service path and the common Tour root remains undeleted.
   - Added a FIT removability guard that blocks delete when the common Tour root has linked orders, bookings, operation records, finance documents/cashflow entries, or legacy payment/receipt/expense rows.
+
+- 2026-06-19 FIT child zero-multiplier validation audit:
+  - Found FIT child validation allowed zero quantity/times/exchange-rate values while legacy mappers could use truthy defaults like `row.times || 1`, so explicit zero multipliers could either create impossible zero rows or be silently converted to one.
+  - Added FIT root contract regressions proving zero `commonCosts[].times` and zero `budgetServices[].quantity` are rejected with Vietnamese business errors.
+  - Added positive-number validation for FIT cost/service calculation drivers while keeping explicit zero money amounts and zero unit prices allowed where they are legitimate.

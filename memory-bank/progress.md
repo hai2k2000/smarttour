@@ -1700,3 +1700,7 @@
 - 2026-06-19 Completed FIT remove dependency guard:
   - FIT-specific remove now blocks soft-delete when the linked common Tour has order, booking, operation, finance, or legacy payment dependencies, closing the bypass around the common Tour delete guard.
   - Added FIT root contract coverage for an order-linked FIT tour removal attempt.
+
+- 2026-06-19 Completed FIT child zero-multiplier validation:
+  - FIT cost/service child rows now reject zero values for calculation drivers such as quantity, pax-per-room, times, exchange-rate, and service quantity instead of silently defaulting or persisting impossible rows.
+  - Added FIT root contract coverage for zero cost multipliers and zero budget service quantities.
