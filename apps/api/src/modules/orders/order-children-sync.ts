@@ -93,36 +93,39 @@ function guideData(item: { guideId?: string | null; guideName?: string | null; p
 }
 
 function salesItemData(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; description?: string | null; quantity?: number; serviceCount?: number; unitPrice?: number; vat?: number; note?: string | null }, index: number) {
-  const amount = salesAmount(item);
-  if (!text(item.serviceType) && !text(item.supplierId) && !text(item.serviceId) && !text(item.description) && !text(item.note) && amount === 0) return null;
+  if (!hasSalesContent(item)) return null;
+  const quantity = positiveNumber(item.quantity ?? 1, `S? l??ng d?ng doanh thu ${index + 1}`);
+  const serviceCount = positiveNumber(item.serviceCount ?? 1, `S? l?n d?ch v? d?ng doanh thu ${index + 1}`);
+  const normalized = { ...item, quantity, serviceCount };
   return {
     serviceType: text(item.serviceType),
     supplierId: text(item.supplierId),
     serviceId: text(item.serviceId),
     description: text(item.description),
-    quantity: item.quantity ?? 1,
-    serviceCount: item.serviceCount ?? 1,
+    quantity,
+    serviceCount,
     unitPrice: item.unitPrice ?? 0,
     vat: item.vat ?? 0,
-    amount,
+    amount: salesAmount(normalized),
     note: text(item.note),
     sortOrder: index,
   };
 }
 
 function operationItemData(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; bookingCode?: string | null; serviceDate?: string | Date | null; quantity?: number; netPrice?: number; vat?: number; status?: string; note?: string | null }, index: number) {
-  const amount = operationAmount(item);
-  if (!text(item.serviceType) && !text(item.supplierId) && !text(item.serviceId) && !text(item.bookingCode) && !text(item.note) && amount === 0) return null;
+  if (!hasOperationContent(item)) return null;
+  const quantity = positiveNumber(item.quantity ?? 1, `S? l??ng d?ng chi ph? ${index + 1}`);
+  const normalized = { ...item, quantity };
   return {
     serviceType: text(item.serviceType),
     supplierId: text(item.supplierId),
     serviceId: text(item.serviceId),
     bookingCode: text(item.bookingCode),
     serviceDate: date(item.serviceDate),
-    quantity: item.quantity ?? 1,
+    quantity,
     netPrice: item.netPrice ?? 0,
     vat: item.vat ?? 0,
-    amount,
+    amount: operationAmount(normalized),
     status: item.status ?? 'WAITING',
     note: text(item.note),
     sortOrder: index,
@@ -167,7 +170,7 @@ function itineraryData(item: { dayNo?: number; title?: string | null; content?: 
 function handoverItemData(item: { itemName?: string | null; quantity?: number; note?: string | null }, index: number) {
   const itemName = text(item.itemName);
   if (!itemName) return null;
-  return { itemName, quantity: item.quantity ?? 1, note: text(item.note), sortOrder: index };
+  return { itemName, quantity: positiveNumber(item.quantity ?? 1, `S? l??ng b?n giao ${index + 1}`), note: text(item.note), sortOrder: index };
 }
 
 function surveyQuestionData(item: { question?: string | null; note?: string | null }, index: number) {
@@ -182,6 +185,25 @@ function termData(item: { language?: string | null; terms?: string | null; notes
 
 function isChildData(value: ChildData | null): value is ChildData {
   return value !== null;
+}
+
+function hasSalesContent(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; description?: string | null; unitPrice?: number; vat?: number; note?: string | null }) {
+  return Boolean(text(item.serviceType) || text(item.supplierId) || text(item.serviceId) || text(item.description) || text(item.note) || numericValue(item.unitPrice) !== 0 || numericValue(item.vat) !== 0);
+}
+
+function hasOperationContent(item: { serviceType?: string | null; supplierId?: string | null; serviceId?: string | null; bookingCode?: string | null; serviceDate?: string | Date | null; netPrice?: number; vat?: number; status?: string; note?: string | null }) {
+  return Boolean(text(item.serviceType) || text(item.supplierId) || text(item.serviceId) || text(item.bookingCode) || item.serviceDate || text(item.note) || numericValue(item.netPrice) !== 0 || numericValue(item.vat) !== 0 || (item.status && item.status !== 'WAITING'));
+}
+
+function positiveNumber(value: unknown, label: string) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new BadRequestException(`${label} ph?i l?n h?n 0`);
+  return number;
+}
+
+function numericValue(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
 }
 
 function text(value?: string | null) {

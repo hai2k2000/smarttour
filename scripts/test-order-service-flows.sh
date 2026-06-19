@@ -190,6 +190,26 @@ async function main() {
     exchangeRate: 0,
   }), 'create should reject zero exchangeRate instead of defaulting it to one');
   assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE', run + '-BAD-RATE'] } } }) === 0, 'invalid create inputs should not persist orders');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-SALES-QTY',
+    name: 'Bad sales quantity order',
+    salesItems: [{ description: 'Bad sales quantity', quantity: 0, serviceCount: 1, unitPrice: 100000, vat: 0 }],
+  }), 'create should reject zero sales item quantity instead of storing a zero revenue line');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-SALES-COUNT',
+    name: 'Bad sales service count order',
+    salesItems: [{ description: 'Bad sales service count', quantity: 1, serviceCount: 0, unitPrice: 100000, vat: 0 }],
+  }), 'create should reject zero sales service count instead of storing a zero revenue line');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-OP-QTY',
+    name: 'Bad operation quantity order',
+    operationItems: [{ serviceType: 'OTHER', quantity: 0, netPrice: 100000, vat: 0, status: 'WAITING' }],
+  }), 'create should reject zero operation item quantity instead of storing a zero cost line');
+  await rejects(() => service.create('single-services', {
+    systemCode: run + '-BAD-HANDOVER-QTY',
+    name: 'Bad handover quantity order',
+    handoverItems: [{ itemName: 'Voucher', quantity: 0 }],
+  }), 'create should reject zero handover item quantity instead of storing an invalid handover line');
   const explicitCustomerSnapshot = await service.create('single-services', {
     systemCode: run + '-CUS-OVERRIDE',
     name: 'Customer Override',
@@ -415,16 +435,13 @@ async function main() {
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel booking should not auto-lock non-hotel operation lines');
   await service.remove('hotel-bookings', hotelOtherService.id);
 
-  const hotelZeroQty = await service.create('hotel-bookings', {
+  await rejects(() => service.create('hotel-bookings', {
     systemCode: run + '-HOTEL-ZERO-QTY',
-    name: 'Hotel Zero Quantity No Lock',
+    name: 'Hotel Zero Quantity Rejected',
     customerId: customer.id,
     startDate: '2026-10-10',
     operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: hotelService.id, serviceDate: '2026-10-10', quantity: 0, netPrice: 700000, vat: 0, status: 'WAITING' }],
-  });
-  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel booking should not auto-lock zero quantity lines');
-  await service.remove('hotel-bookings', hotelZeroQty.id);
+  }), 'hotel booking should reject zero quantity lines instead of silently skipping allotment locks');
 
   await prisma.$disconnect();
   console.log('TEST_ORDER_SERVICE_FLOWS_OK');

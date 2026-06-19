@@ -1732,3 +1732,9 @@
 - 2026-06-19 Completed quotation item positive-count validation:
   - Legacy quotation service lines now reject explicit zero/non-positive quantity, night count, and pax count instead of storing invalid zero lines.
   - Added High-A data access coverage for all three zero-count guards.
+
+
+- 2026-06-19 Completed order child positive-count validation:
+  - Orders now reject explicit zero/non-positive sales quantity, sales service count, operation quantity, and handover quantity for meaningful rows.
+  - Hotel booking zero-quantity operation lines are rejected instead of being saved without allotment locks.
+  - Added order service regression coverage for the invalid child row guards.

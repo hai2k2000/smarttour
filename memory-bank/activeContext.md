@@ -2115,3 +2115,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found legacy quotation item sanitization allowed explicit zero `quantity`, `nightCount`, and `paxCount`, letting zero-value service lines distort quotation totals and later order conversion prices.
   - Added High-A data access regressions proving zero item quantity, night count, and pax count are rejected.
   - Updated quotation item sanitization to default missing counts to one but reject provided non-positive counts with Vietnamese business errors.
+
+
+- 2026-06-19 Order child positive-count validation audit:
+  - Found order child sync allowed explicit zero `salesItems.quantity`, `salesItems.serviceCount`, `operationItems.quantity`, and `handoverItems.quantity`, letting meaningful child rows persist as zero-value revenue/cost/allotment or invalid handover lines.
+  - Added order service regressions proving those zero child counts are rejected, including hotel booking operation lines that previously skipped allotment locking silently.
+  - Updated order child mappers to keep blank form rows ignored while rejecting non-positive counts on meaningful rows with Vietnamese business errors.
