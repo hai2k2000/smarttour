@@ -342,6 +342,8 @@ async function main() {
   await rejectsWithStatus(() => finance.createPayment({ voucherCode: run + '-BAD-METHOD-PAY', voucherName: 'Bad Method Payment', voucherType: 'INTERNAL_EXPENSE', paymentMethod: 'WIRE', totalAmount: 100, paymentAmount: 1 }), 400, 'payment create should reject invalid payment method');
   await rejectsWithStatus(() => finance.createInvoice({ invoiceCode: run + '-BAD-DATE-INV', customerId: customer.id, invoiceType: 'VAT', issuedDate: 'bad-date', tourId: tour.id, items: [{ itemName: 'Bad date invoice', quantity: 1, unitPrice: 1, taxRate: 0 }] }), 400, 'invoice create should reject invalid dates');
   await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-ALLOC-RCPT', receiptName: 'Bad Allocation Receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 1000, receiptAmount: 100, tourId: tour.id, orders: [{ orderId: order.id, orderCode: order.systemCode, tourCode: order.tourCode, tourName: order.name, amount: 1000 }] }), 400, 'receipt create should reject order allocation that differs from receipt amount');
+  await rejectsWithStatus(() => finance.createReceipt({ receiptCode: run + '-BAD-TOTAL-RCPT', receiptName: 'Bad Total Receipt', receiptType: 'TOUR_PAYMENT', totalAmount: 100, paidBefore: 80, receiptAmount: 30, tourId: tour.id }), 400, 'receipt create should reject total below paidBefore plus receipt amount');
+  await rejectsWithStatus(() => finance.createPayment({ voucherCode: run + '-BAD-TOTAL-PAY', voucherName: 'Bad Total Payment', voucherType: 'INTERNAL_EXPENSE', totalAmount: 100, paymentAmount: 120 }), 400, 'payment create should reject total below payment amount');
 
   const draftReceipt = await finance.createReceipt({
     receiptCode: run + '-CRUD-RCPT',

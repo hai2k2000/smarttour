@@ -729,6 +729,9 @@ export class FinanceService {
     const total = this.decimal(dto.totalAmount);
     const paidBefore = this.decimal(dto.paidBefore);
     const receiptAmount = this.decimal(dto.receiptAmount);
+    if (total < paidBefore + receiptAmount) {
+      throw new BadRequestException('Tổng tiền phiếu thu phải lớn hơn hoặc bằng đã thu trước đó cộng số tiền thu');
+    }
     return {
       receiptCode: this.text(dto.receiptCode) || this.code('PT'),
       receiptName: this.text(dto.receiptName) || 'Phiếu thu',
@@ -783,6 +786,9 @@ export class FinanceService {
   private paymentData(dto: AnyRecord): Prisma.FinancePaymentUncheckedCreateInput {
     const total = this.decimal(dto.totalAmount);
     const amount = this.decimal(dto.paymentAmount);
+    if (total < amount) {
+      throw new BadRequestException('Tổng tiền phiếu chi phải lớn hơn hoặc bằng số tiền chi');
+    }
     return {
       voucherCode: this.text(dto.voucherCode) || this.code('PC'),
       voucherName: this.text(dto.voucherName),

@@ -1652,3 +1652,8 @@
 - 2026-06-19 Completed finance receipt allocation validation:
   - Receipt booking allocation rows now must sum to the receipt amount before create/update/import/approve/cancel can proceed, preventing booking revenue reconciliation from diverging from cashflow and customer ledger postings.
   - Added a regression for mismatched receipt allocation versus `receiptAmount`. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
+
+- 2026-06-19 Completed finance total amount consistency validation:
+  - Manual receipt writes now reject `totalAmount` values below `paidBefore + receiptAmount`, preventing documents that report less total debt/revenue than the amount already collected.
+  - Manual payment writes now reject `totalAmount` values below `paymentAmount`, aligning manual paths with import validation and preserving coherent voucher totals.
+  - Added focused regressions for invalid receipt/payment totals. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.

@@ -2017,3 +2017,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found receipt order allocations could differ from `receiptAmount`, causing cashflow/customer ledger to post one amount while booking paid revenue was reconciled by a different amount.
   - Added a receipt allocation guard requiring the sum of `orders[].amount` to equal `receiptAmount` whenever booking allocation rows are present.
   - Applied the guard to create, update, import, approve, and cancel paths so both new writes and legacy drafts cannot post mismatched booking reconciliation.
+
+- 2026-06-19 Finance total amount consistency audit:
+  - Found manual receipt/payment create and update paths accepted totals lower than the actual collected/paid amounts, while CSV import already rejected those inconsistent rows.
+  - Added service-level guards so receipt total must be at least paidBefore plus receiptAmount, and payment total must be at least paymentAmount.
+  - Added finance service regressions for invalid manual receipt and payment totals.
+  - Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API Docker build.
