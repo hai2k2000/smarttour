@@ -352,8 +352,8 @@ export class QuotesService {
         serviceName,
         checkIn: this.optionalText(item.checkIn) ?? undefined,
         netPricePerService: this.nonNegative(item.netPricePerService, service ? Number(service.netPrice) : 0),
-        nightCount: this.positive(item.nightCount, 1),
-        paxCount: this.positive(item.paxCount, 1),
+        nightCount: this.positiveInput(item.nightCount ?? 1, `Số đêm dòng combo ${index + 1}`),
+        paxCount: this.positiveInput(item.paxCount ?? 1, `Số khách dòng combo ${index + 1}`),
       };
     });
   }

@@ -1720,3 +1720,7 @@
 - 2026-06-19 Completed quote exchange-rate validation:
   - Tour Quote create/update mapping now rejects explicit zero/non-positive exchange rates instead of defaulting them to one.
   - Added High-A data access coverage for the zero exchange-rate guard.
+
+- 2026-06-19 Completed quote combo positive-count validation:
+  - Combo quote items now reject explicit zero/non-positive night and pax counts instead of silently clamping them to one.
+  - Added High-A data access coverage for zero combo night count.

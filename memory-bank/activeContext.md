@@ -2100,3 +2100,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Tour Quote mapping used `dto.exchangeRate || 1`, so explicit `exchangeRate: 0` could be silently converted into one instead of rejected.
   - Added a High-A data access regression proving scoped tour quote creation rejects zero exchange rate.
   - Updated Tour Quote root mapping to require provided exchange rates to be finite positive numbers while preserving default behavior when the field is omitted.
+
+- 2026-06-19 Quote combo positive-count validation audit:
+  - Found combo quote sanitization used a clamp helper for `nightCount`/`paxCount`, so explicit zero values could be silently converted into one.
+  - Added a High-A data access regression proving combo quote creation rejects zero `nightCount` instead of defaulting it.
+  - Updated combo quote sanitization to default missing counts to one but reject provided non-positive counts with Vietnamese business errors.

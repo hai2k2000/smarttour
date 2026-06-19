@@ -188,6 +188,11 @@ async function main() {
   assert(related.rows.some((row) => row.id === tourA.id), 'customer quotes must include scoped tour quote');
   assert(!related.rows.some((row) => row.id === tourB.id), 'customer quotes must not leak same-name tour quote from another branch');
 
+  await rejects(
+    () => quotes.createComboQuote({ comboCode: `${run}-CB-BAD-NIGHT`, comboType: 'Hotel combo', items: [{ serviceName: 'Combo hotel', nightCount: 0, paxCount: 1, netPricePerService: 100 }] }),
+    'combo quote create should reject zero nightCount instead of defaulting it to one',
+  );
+
   const keyA = `customers/${customerA.id}/2026/06/file-a.pdf`;
   const keyB = `customers/${customerB.id}/2026/06/file-b.pdf`;
   const url = (key) => `/api/files/download?key=${encodeURIComponent(key)}`;
