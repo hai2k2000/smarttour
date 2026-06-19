@@ -1986,3 +1986,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the Finance web forms collected visible tour codes while the API only resolved tour links from internal `tourId`/`orderId`/voucher links, so manually created receipt/payment/invoice rows could fail tour-link validation from the UI.
   - Added FinanceService regressions proving receipts, payments, and invoices can resolve an exact Tour `tourCode`/`systemCode` into `tourId`.
   - Updated `resolveTourId` to accept `tourCode`, wired create/update/import flows to pass it, and added the missing payment form tour-code field.
+
+- 2026-06-19 Finance supplier-payment party audit:
+  - Found `SUPPLIER_PAYMENT` could be created with a tour link but without `supplierId` or `operationVoucherId`, allowing approved cash outflow without supplier ledger traceability.
+  - Added a FinanceService guard requiring supplier payments to link either a supplier or an operation voucher; company expense voucher types such as `OTHER` remain allowed without a tour/supplier link.
+  - Added a regression covering legacy draft supplier-payment approval with no party link so existing bad drafts remain blocked with the same business error.
+  - Changed the standalone payment form default voucher type to `OTHER` because the form does not expose a supplier selector, and updated import regressions to include `supplierId` for supplier-payment CSV rows.

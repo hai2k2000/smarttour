@@ -1624,3 +1624,8 @@
   - Finance create/update/import paths now resolve visible tour codes to canonical Tour IDs where relevant.
   - Receipt and invoice forms continue using tour code, and the payment form now includes a tour-code field so API validation can succeed without exposing UUIDs.
   - Added service and client contract regressions for tour-code linking behavior. Verification passed: finance service/client/report tests, report query validation, finance guard audits, API/web Docker build, and `git diff --check`.
+
+- 2026-06-19 Completed supplier-payment party validation fix:
+  - Supplier-payment vouchers now must link a supplier or operation voucher before creation/update/import can proceed, preventing approved cash outflows that have no supplier ledger party.
+  - The general payment form now defaults to `OTHER` instead of `SUPPLIER_PAYMENT`, preserving company expense use cases that are not tied to a tour or supplier.
+  - Added/updated service and client contract regressions, including CSV import fixtures with explicit `supplierId` for supplier payments and a legacy draft approval guard case. Verification passed: finance service/client/helper/rule/permission/report tests, finance guard audits, `git diff --check`, and API/web Docker build.

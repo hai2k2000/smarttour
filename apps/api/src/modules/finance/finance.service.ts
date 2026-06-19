@@ -699,6 +699,10 @@ export class FinanceService {
   }
 
   private paymentTourId(tourId: string | null | undefined, payment: AnyRecord) {
+    const voucherType = this.text(payment.voucherType) || 'SUPPLIER_PAYMENT';
+    if (voucherType === 'SUPPLIER_PAYMENT' && !this.text(payment.supplierId) && !this.text(payment.operationVoucherId)) {
+      throw new BadRequestException('Phiếu chi nhà cung cấp phải liên kết nhà cung cấp hoặc phiếu điều hành');
+    }
     const resolved = this.text(tourId);
     if (resolved) return resolved;
     if (this.allowsCompanyExpenseWithoutTour(payment)) return null;

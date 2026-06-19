@@ -33,6 +33,7 @@ if (!source.includes('<th>Tên hóa đơn và tài liệu</th>') || !source.incl
 if (!source.includes('<td>{financeLabel(row.voucherType)}</td>') || !source.includes('<td>{financeLabel(row.receiptType)}</td>') || !source.includes('<td>{financeLabel(row.sourceType)}</td>')) failures.push('finance tables must use localized financeLabel instead of exposing raw enum codes');
 if (!source.includes('name="tourCode"') || !source.includes("tourCode: text(formData.get('tourCode'))")) failures.push('finance receipt form must submit tourCode accepted by the API');
 if (!source.includes('name="paymentTourCode"') || !source.includes("tourCode: text(formData.get('paymentTourCode'))")) failures.push('finance payment form must submit tourCode accepted by the API');
+if (!source.includes('<select name="voucherType" defaultValue="OTHER"')) failures.push('finance payment form must not default to supplier payment without a supplier selector');
 if (!source.includes('name="tourCode"') || !source.includes("tourCode: text(formData.get('tourCode'))")) failures.push('finance invoice form must submit tourCode accepted by the API');
 if ((controller.match(/financeImportInterceptorOptions\(\)/g) || []).length !== 2) failures.push('frontend multipart CSV import requires backend file interceptors');
 if (failures.length) {

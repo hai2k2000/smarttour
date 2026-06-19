@@ -50,6 +50,17 @@ async function rejects(action, label) {
   assert(rejected, label);
 }
 
+async function rejectsWithMessage(action, message, label) {
+  try {
+    await action();
+  } catch (error) {
+    const actual = String(error?.response?.message || error?.message || '');
+    assert(actual.includes(message), `${label}: expected message containing ${message}, got ${actual}`);
+    return;
+  }
+  assert(false, label);
+}
+
 function amount(value) {
   return Number(value);
 }
@@ -492,8 +503,11 @@ async function main() {
 
   const receiptByTourCode = await finance.createReceipt({ receiptCode: run + '-TOURCODE-RCPT', receiptName: 'Receipt by tour code', receiptType: 'TOUR_PAYMENT', paymentMethod: 'CASH', totalAmount: 40, receiptAmount: 40, tourCode: tour.tourCode, orders: [{ tourCode: tour.tourCode, tourName: tour.name, amount: 40 }] });
   assert(receiptByTourCode.tourId === tour.id, 'receipt create should resolve tourCode to a tour link');
-  const paymentByTourCode = await finance.createPayment({ voucherCode: run + '-TOURCODE-PAY', voucherName: 'Payment by tour code', voucherType: 'SUPPLIER_PAYMENT', paymentMethod: 'CASH', totalAmount: 30, paymentAmount: 30, tourCode: tour.tourCode });
-  assert(paymentByTourCode.tourId === tour.id, 'payment create should resolve tourCode to a tour link');
+  await rejects(() => finance.createPayment({ voucherCode: run + '-SUPPLIER-NO-PARTY', voucherName: 'Supplier payment without supplier', voucherType: 'SUPPLIER_PAYMENT', paymentMethod: 'CASH', totalAmount: 30, paymentAmount: 30, tourCode: tour.tourCode }), 'supplier payment should require a supplier or operation voucher link');
+  const orphanSupplierPayment = await prisma.financePayment.create({ data: { voucherCode: run + '-SUPPLIER-ORPHAN-DRAFT', voucherName: 'Legacy supplier payment without party', voucherType: 'SUPPLIER_PAYMENT', paymentMethod: 'CASH', totalAmount: 30, paymentAmount: 30, tourId: tour.id, approvalStatus: 'DRAFT' } });
+  await rejectsWithMessage(() => finance.approvePayment(orphanSupplierPayment.id, {}), 'li\u00ean k\u1ebft nh\u00e0 cung c\u1ea5p ho\u1eb7c phi\u1ebfu \u0111i\u1ec1u h\u00e0nh', 'supplier payment approve should require a supplier or operation voucher link');
+  const paymentByTourCode = await finance.createPayment({ voucherCode: run + '-TOURCODE-PAY', voucherName: 'Payment by tour code', voucherType: 'SUPPLIER_PAYMENT', paymentMethod: 'CASH', supplierId: supplier.id, totalAmount: 30, paymentAmount: 30, tourCode: tour.tourCode });
+  assert(paymentByTourCode.tourId === tour.id && paymentByTourCode.supplierId === supplier.id, 'payment create should resolve tourCode to a tour link while preserving supplier link');
   const invoiceByTourCode = await finance.createInvoice({ invoiceCode: run + '-TOURCODE-INV', customerId: customer.id, customerName: customer.fullName, invoiceType: 'VAT', tourCode: tour.tourCode, items: [{ itemName: 'Invoice by tour code', quantity: 1, unitPrice: 20, taxRate: 0 }] });
   assert(invoiceByTourCode.tourId === tour.id, 'invoice create should resolve tourCode to a tour link');
 
@@ -852,8 +866,8 @@ async function main() {
   await rejects(() => finance.importReceipts({ csv: 'receiptCode,receiptName,totalAmount,receiptAmount\nBAD,Bad,-1,1' }), 'receipt CSV import should reject negative amount');
 
   const paymentImportCsv = [
-    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId',
-    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV,FIN-BR,FIN-DEP,${tour.id}`,
+    'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId,supplierId',
+    `${run}-IMP-PAY,Import Payment,SUPPLIER_PAYMENT,CASH,2026-11-06,200,150,Supplier CSV,FIN-BR,FIN-DEP,${tour.id},${supplier.id}`,
   ].join('\n');
   const paymentImport = await finance.importPayments({ csv: paymentImportCsv });
   assert(paymentImport.imported === 1 && paymentImport.rows[0].voucherCode === `${run}-IMP-PAY`, 'payment CSV import should accept valid data');
@@ -880,8 +894,8 @@ async function main() {
   assert(controllerReceiptImport.imported === 1 && controllerReceiptImport.rows[0].department === 'FIN-DEP', 'receipt controller import should call real import flow');
   const controllerPaymentImport = await controller.importPayments({
     csv: [
-      'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId',
-      `${run}-IMP-PAY-CTRL,Controller Payment,SUPPLIER_PAYMENT,CASH,2026-11-08,220,200,Controller Supplier,FIN-BR,FIN-DEP,${tour.id}`,
+      'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId,supplierId',
+      `${run}-IMP-PAY-CTRL,Controller Payment,SUPPLIER_PAYMENT,CASH,2026-11-08,220,200,Controller Supplier,FIN-BR,FIN-DEP,${tour.id},${supplier.id}`,
     ].join('\n'),
   }, undefined, { user: undefined });
   assert(controllerPaymentImport.imported === 1 && controllerPaymentImport.rows[0].branch === 'FIN-BR', 'payment controller import should call real import flow');
