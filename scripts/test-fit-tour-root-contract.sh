@@ -444,6 +444,13 @@ async function main() {
   const zeroAmountRoot = await prisma.tour.findUnique({ where: { id: zeroAmountTour.tourId }, include: { costs: true, services: true } });
   assert(zeroAmountRoot.costs.some((row) => row.costType === 'FIT_COMMON_COST:CAR' && decimal(row.expectedAmount) === 0), 'FIT common TourCost should preserve explicit zero cost amount');
   assert(zeroAmountRoot.services.some((row) => row.serviceType === 'MEAL' && decimal(row.budgetAmount) === 0), 'FIT common TourService should preserve explicit zero budget amount');
+  await prisma.tourCost.updateMany({
+    where: { tourId: zeroAmountTour.tourId, costType: 'FIT_COMMON_COST:CAR' },
+    data: { expectedAmount: 1000, actualAmount: 0 },
+  });
+  const zeroActualDetail = await fitTours.detail(zeroAmountTour.id);
+  const zeroActualCommonCost = zeroActualDetail.commonCosts.find((row) => row.serviceType === 'CAR');
+  assert(zeroActualCommonCost && decimal(zeroActualCommonCost.amount) === 0, 'FIT root detail should preserve explicit zero actualAmount instead of falling back to expectedAmount');
 
   const linkedOrder = await prisma.order.create({ data: { type: 'FIT_TOUR', systemCode: `${run}-ORDER-FIT`, name: 'FIT linked order' } });
   const orderLinkedFit = await fitTours.create({

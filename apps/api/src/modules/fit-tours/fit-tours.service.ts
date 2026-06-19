@@ -859,7 +859,7 @@ export class FitToursService {
   }
 
   private rootFitCostRow(row: Row, parsed: { group: FitCostGroupField; serviceType: string }): Row {
-    const amount = this.number(row.actualAmount) > 0 ? row.actualAmount : row.expectedAmount;
+    const amount = this.hasValue(row.actualAmount) ? row.actualAmount : row.expectedAmount;
     const base = {
       id: row.id,
       serviceType: parsed.serviceType,
@@ -1195,6 +1195,10 @@ export class FitToursService {
       throw new BadRequestException(`${field} không hợp lệ`);
     }
     return date;
+  }
+
+  private hasValue(value: unknown) {
+    return value !== undefined && value !== null;
   }
 
   private number(value: unknown) {

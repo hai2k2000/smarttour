@@ -2134,3 +2134,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found tour P&L cost helper still treated explicit zero actual costs as absent by using `actual > 0`, and treated explicit zero confirmed service costs as absent through truthy `confirmedAmount || budgetAmount` fallback.
   - Added Reports finance hybrid contract guards to fail on those fallback patterns and require presence-based fallback logic.
   - Updated tour cost aggregation to use expected/budget values only when actual/confirmed values are null or undefined, preserving explicit zero values.
+
+
+- 2026-06-19 FIT root detail actual-zero fallback audit:
+  - Found FIT root detail mapper used `actualAmount > 0 ? actualAmount : expectedAmount`, so explicit zero actual cost values displayed as expected costs in legacy-compatible cost groups.
+  - Added FIT root contract coverage for a TourCost with `expectedAmount=1000` and explicit `actualAmount=0`, requiring detail `commonCosts[].amount` to remain zero.
+  - Updated root cost mapping to fallback only when `actualAmount` is null or undefined.

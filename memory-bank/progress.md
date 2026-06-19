@@ -1749,3 +1749,8 @@
 - 2026-06-19 Completed Reports tour P&L zero fallback fix:
   - Tour P&L report helpers now honor explicit zero `actualAmount` and `confirmedAmount` instead of falling back to expected/budget amounts.
   - Reports finance hybrid contract now guards against reintroducing `actual > 0` and truthy `confirmedAmount || budgetAmount` fallbacks.
+
+
+- 2026-06-19 Completed FIT root detail actual-zero fallback fix:
+  - FIT detail cost groups now preserve explicit zero actual amounts instead of falling back to expected amounts.
+  - FIT root contract now guards the explicit-zero actual amount behavior.
