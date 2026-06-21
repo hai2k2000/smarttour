@@ -110,6 +110,8 @@ async function main() {
 
     const viewRole = `${run}_guide_view`;
     const noGuideRole = `${run}_no_guide`;
+    const branchGuideRole = `${run}_guide_branch`;
+    const departmentGuideRole = `${run}_guide_department`;
     await request('POST', '/auth/roles', {
       token: adminToken,
       body: { code: viewRole, name: 'Guide Viewer', permissions: ['guide.view', 'data.scope.all'] },
@@ -118,6 +120,16 @@ async function main() {
     await request('POST', '/auth/roles', {
       token: adminToken,
       body: { code: noGuideRole, name: 'No Guide Access', permissions: ['customer.view', 'data.scope.all'] },
+      status: 201,
+    });
+    await request('POST', '/auth/roles', {
+      token: adminToken,
+      body: { code: branchGuideRole, name: 'Branch Guide Manager', permissions: ['guide.view', 'guide.manage', 'data.scope.branch'] },
+      status: 201,
+    });
+    await request('POST', '/auth/roles', {
+      token: adminToken,
+      body: { code: departmentGuideRole, name: 'Department Guide Manager', permissions: ['guide.view', 'guide.manage', 'data.scope.department'] },
       status: 201,
     });
     await request('POST', '/auth/users', {
@@ -130,8 +142,20 @@ async function main() {
       body: { email: `${run}_noguide@smarttour.local`, username: `${run}_noguide`, password, name: 'No Guide', roleCodes: [noGuideRole] },
       status: 201,
     });
+    await request('POST', '/auth/users', {
+      token: adminToken,
+      body: { email: `${run}_branch@smarttour.local`, username: `${run}_branch`, password, name: 'Branch Guide User', branch: 'BR-A', department: 'DEP-A', roleCodes: [branchGuideRole] },
+      status: 201,
+    });
+    await request('POST', '/auth/users', {
+      token: adminToken,
+      body: { email: `${run}_department@smarttour.local`, username: `${run}_department`, password, name: 'Department Guide User', branch: 'BR-X', department: 'DEP-B', roleCodes: [departmentGuideRole] },
+      status: 201,
+    });
     const viewToken = await login(`${run}_viewer`);
     const noGuideToken = await login(`${run}_noguide`);
+    const branchGuideToken = await login(`${run}_branch`);
+    const departmentGuideToken = await login(`${run}_department`);
 
     await request('GET', '/tour-guides', { token: noGuideToken, status: 403 });
     await request('GET', '/tour-guides/not-a-real-guide', { token: noGuideToken, status: 403 });
@@ -276,6 +300,64 @@ async function main() {
     await request('GET', `/tour-guides/${guide.id}`, { status: 401 });
     const detail = await request('GET', `/tour-guides/${guide.id}`, { token: viewToken });
     assert(detail.cards[0].cardType === 'Thẻ HDV' && String(detail.costServices[0].netPrice) === '1000000', 'detail should return enough child data for edit form');
+
+    const scopedStart = new Date('2030-04-01T00:00:00.000Z');
+    const scopedEnd = new Date('2030-04-05T23:59:59.000Z');
+    const scopedOrderA = await prisma.order.create({
+      data: {
+        type: 'FIT_TOUR',
+        systemCode: `${run}_SCOPED_ORDER_A`,
+        name: 'Scoped guide order A',
+        branch: 'BR-A',
+        department: 'DEP-A',
+        status: 'UPCOMING',
+        startDate: scopedStart,
+        endDate: scopedEnd,
+      },
+    });
+    const scopedOrderB = await prisma.order.create({
+      data: {
+        type: 'FIT_TOUR',
+        systemCode: `${run}_SCOPED_ORDER_B`,
+        name: 'Scoped guide order B',
+        branch: 'BR-B',
+        department: 'DEP-B',
+        status: 'UPCOMING',
+        startDate: scopedStart,
+        endDate: scopedEnd,
+      },
+    });
+    const scopedGuideA = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: guidePayload(`${run}_SCOPED_A`, {
+        phone: '0900000011',
+        email: `${run}_scoped_a@smarttour.local`,
+        schedules: [{ title: 'Scoped branch guide', orderId: scopedOrderA.id, startDate: '2030-04-02T08:00:00.000Z', endDate: '2030-04-02T17:00:00.000Z', status: 'BUSY' }],
+      }),
+      status: 201,
+    });
+    const scopedGuideB = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: guidePayload(`${run}_SCOPED_B`, {
+        phone: '0900000012',
+        email: `${run}_scoped_b@smarttour.local`,
+        schedules: [{ title: 'Scoped department guide', orderId: scopedOrderB.id, startDate: '2030-04-03T08:00:00.000Z', endDate: '2030-04-03T17:00:00.000Z', status: 'BUSY' }],
+      }),
+      status: 201,
+    });
+    const scopedListBranch = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: branchGuideToken });
+    const scopedListDepartment = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: departmentGuideToken });
+    const scopedListAll = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: viewToken });
+    assert(scopedListBranch.some((row) => row.id === scopedGuideA.id) && !scopedListBranch.some((row) => row.id === scopedGuideB.id), 'branch guide user should list only guides linked to branch-scoped orders');
+    assert(scopedListDepartment.some((row) => row.id === scopedGuideB.id) && !scopedListDepartment.some((row) => row.id === scopedGuideA.id), 'department guide user should list only guides linked to department-scoped orders');
+    assert(scopedListAll.some((row) => row.id === scopedGuideA.id) && scopedListAll.some((row) => row.id === scopedGuideB.id), 'unrestricted guide user should list all scoped guide records');
+    await request('GET', `/tour-guides/${scopedGuideA.id}`, { token: branchGuideToken });
+    await request('GET', `/tour-guides/${scopedGuideB.id}`, { token: branchGuideToken, status: 404 });
+    await request('GET', `/tour-guides/${scopedGuideB.id}`, { token: departmentGuideToken });
+    await request('GET', `/tour-guides/${scopedGuideA.id}`, { token: departmentGuideToken, status: 404 });
+    await request('PUT', `/tour-guides/${scopedGuideA.id}`, { token: branchGuideToken, body: { fullName: 'Scoped Branch Guide Updated' } });
+    await request('PUT', `/tour-guides/${scopedGuideB.id}`, { token: branchGuideToken, body: { fullName: 'Blocked Branch Guide Update' }, status: 404 });
+    await request('DELETE', `/tour-guides/${scopedGuideA.id}`, { token: departmentGuideToken, status: 404 });
     assert(String(detail.costServices[0].sellingPrice) === '1200000' && !('amount' in detail.costServices[0]), 'guide cost service should save price-book values without derived calculations');
     await request('PUT', `/tour-guides/${guide.id}`, { token: viewToken, body: { fullName: 'Viewer cannot update' }, status: 403 });
     await request('DELETE', `/tour-guides/${guide.id}`, { token: viewToken, status: 403 });

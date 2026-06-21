@@ -403,3 +403,12 @@ main().catch((error) => {
   process.exit(1);
 });
 NODE
+
+node <<'NODE'
+const fs = require('fs');
+const schema = fs.readFileSync('prisma/schema.prisma', 'utf8');
+if (!/paymentVoucherId\s+String\?\s+@unique/.test(schema)) {
+  throw new Error('OperationVoucherPayment.paymentVoucherId must be database-unique so one approved finance payment cannot be recorded twice');
+}
+console.log('TEST_OPERATION_VOUCHER_PAYMENT_SCHEMA_OK');
+NODE

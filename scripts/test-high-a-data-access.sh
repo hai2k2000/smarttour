@@ -164,7 +164,19 @@ async function main() {
     'quotation create should reject zero item paxCount instead of storing an invalid line',
   );
   const quotationB = await quotations.create(quotationPayload(`${run}-QB`, 'BR-B', 'DEP-B'), allUser);
-  assert.deepEqual((await quotations.list({ search: run }, branchUser)).map((row) => row.id), [quotationA.id], 'quotation list must be scoped');
+  const convertCandidate = await quotations.create(quotationPayload(`${run}-QCONVERT`, 'BR-A', 'DEP-A'), allUser);
+  await quotations.submit(convertCandidate.id, { actor: 'submitter' }, allUser);
+  await quotations.approve(convertCandidate.id, { actor: 'approver' }, allUser);
+  const [convertedOnce, convertedTwice] = await Promise.all([
+    quotations.convert(convertCandidate.id, { actor: 'converter-1' }, allUser),
+    quotations.convert(convertCandidate.id, { actor: 'converter-2' }, allUser),
+  ]);
+  assert.equal(convertedOnce.convertedOrderId, convertedTwice.convertedOrderId, 'quotation convert should be idempotent under concurrent requests');
+  const convertedAgain = await quotations.convert(convertCandidate.id, { actor: 'converter-3' }, allUser);
+  assert.equal(convertedAgain.convertedOrderId, convertedOnce.convertedOrderId, 'quotation convert should return the existing converted order on repeat calls');
+  assert.equal(await prisma.order.count({ where: { systemCode: `ORD-${convertCandidate.quoteCode}` } }), 1, 'quotation convert should create exactly one order for repeated convert calls');
+  const scopedQuotationIds = (await quotations.list({ search: run }, branchUser)).map((row) => row.id);
+  assert(scopedQuotationIds.includes(quotationA.id) && scopedQuotationIds.includes(convertCandidate.id) && !scopedQuotationIds.includes(quotationB.id), 'quotation list must be scoped');
   await rejects(() => quotations.detail(quotationB.id, branchUser), 'quotation detail must be scoped');
 
   const smart = await quotations.smartLink(quotationA.id, true, allUser);

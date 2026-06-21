@@ -2,6 +2,11 @@
 
 ## Done
 
+- Started Phase 1 remediation from the saved review plan:
+  - Tour-guide APIs and guide file authorization now enforce branch/department data scope via linked schedule order/tour records.
+  - Operation voucher payment history now has a database uniqueness invariant on `paymentVoucherId` to prevent the same approved finance payment from being recorded twice.
+  - Quotation convert now locks the quotation row and is idempotent for repeated/concurrent convert requests.
+  - Added regression coverage in tour guide API, High-A data access, and operation voucher service tests.
 - Continued name-first and Vietnamese UI cleanup beyond Finance:
   - Customer table removed the first `Mã` column and now starts directly with the customer name.
   - Workspace page cards and quick actions use Vietnamese labels, and pending receipts show receipt/customer names before codes.

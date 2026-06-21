@@ -212,16 +212,20 @@ export class QuotationsService {
   }
 
   async convert(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    const quote = await this.detail(id, user);
-    if (quote.status !== 'APPROVED') throw new BadRequestException('Chỉ báo giá đã duyệt mới được chuyển thành đơn hàng.');
-    const orderType = ORDER_TYPE_BY_PRODUCT[quote.productType] || 'SINGLE_SERVICE';
-    const exchangeRate = this.positiveRate(quote.exchangeRate);
-    const totals = this.calculate({
-      ...(quote as unknown as CreateQuotationDto),
-      childPricePercent: this.derivePricePercent(quote.childPrice, quote.sellingPerPax, 75),
-      infantPricePercent: this.derivePricePercent(quote.infantPrice, quote.sellingPerPax, 20),
-    });
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Quotation" WHERE id = ${id} FOR UPDATE`;
+      const quote = await tx.quotation.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: this.includeAll() });
+      if (!quote) throw new NotFoundException('Không tìm thấy báo giá.');
+      if (quote.status === 'CONVERTED' && quote.convertedOrderId) return quote;
+      if (quote.status !== 'APPROVED') throw new BadRequestException('Chỉ báo giá đã duyệt mới được chuyển thành đơn hàng.');
+
+      const orderType = ORDER_TYPE_BY_PRODUCT[quote.productType] || 'SINGLE_SERVICE';
+      const exchangeRate = this.positiveRate(quote.exchangeRate);
+      const totals = this.calculate({
+        ...(quote as unknown as CreateQuotationDto),
+        childPricePercent: this.derivePricePercent(quote.childPrice, quote.sellingPerPax, 75),
+        infantPricePercent: this.derivePricePercent(quote.infantPrice, quote.sellingPerPax, 20),
+      });
       const order = await tx.order.create({
         data: {
           type: orderType,
@@ -265,7 +269,6 @@ export class QuotationsService {
       return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
     });
   }
-
   private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto) {
     const quote = await this.prisma.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
     await this.prisma.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });

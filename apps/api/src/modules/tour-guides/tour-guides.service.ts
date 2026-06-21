@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma, TourStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { normalizeListSearch } from '../list-search';
 import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
@@ -18,14 +18,14 @@ type ScheduleLinkContext = {
 export class TourGuidesService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
-  async list(search?: string, status?: string) {
+  async list(search?: string, status?: string, user?: RequestUser) {
     const normalizedStatus = status ? this.normalizeGuideStatus(status) : undefined;
     const searchText = normalizeListSearch(search);
     const rows = await this.prisma.guideProfile.findMany({
-      where: {
+      where: this.guideScopeWhere({
         deletedAt: null,
         ...(normalizedStatus ? { status: normalizedStatus } : {}),
-      },
+      }, user),
       include: { _count: { select: { cards: true, documents: true, costServices: true, schedules: true } } },
       orderBy: [{ updatedAt: 'desc' }, { guideCode: 'asc' }],
     });
@@ -34,8 +34,8 @@ export class TourGuidesService {
     return rows.filter((item) => this.guideSearchValues(item).some((value) => this.normalizeSearchText(value).includes(needle)));
   }
 
-  async detail(id: string) {
-    const guide = await this.prisma.guideProfile.findFirst({ where: { id, deletedAt: null }, include: this.includeAll() });
+  async detail(id: string, user?: RequestUser) {
+    const guide = await this.prisma.guideProfile.findFirst({ where: this.guideScopeWhere({ id, deletedAt: null }, user), include: this.includeAll() });
     if (!guide) throw new NotFoundException('Không tìm thấy hồ sơ hướng dẫn viên');
     return guide;
   }
@@ -43,10 +43,10 @@ export class TourGuidesService {
   async addFile(
     guideId: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
-    actorId?: string,
+    user?: RequestUser,
   ) {
-    await this.detail(guideId);
-    const upload = await this.filesService.upload(file, `tour-guides/${guideId}`, actorId);
+    await this.detail(guideId, user);
+    const upload = await this.filesService.upload(file, `tour-guides/${guideId}`, user?.id);
     try {
       return await this.prisma.guideFile.create({
         data: {
@@ -54,7 +54,7 @@ export class TourGuidesService {
           fileName: upload.fileName,
           fileUrl: upload.url,
           fileType: upload.mimeType,
-          uploadedBy: actorId,
+          uploadedBy: user?.id,
         },
       });
     } catch (error) {
@@ -63,8 +63,8 @@ export class TourGuidesService {
     }
   }
 
-  async deleteFile(guideId: string, fileId: string) {
-    await this.detail(guideId);
+  async deleteFile(guideId: string, fileId: string, user?: RequestUser) {
+    await this.detail(guideId, user);
     const file = await this.prisma.guideFile.findFirst({ where: { id: fileId, guideId } });
     if (!file) throw new NotFoundException('Không tìm thấy file hướng dẫn viên');
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
@@ -91,6 +91,7 @@ export class TourGuidesService {
   async create(dto: CreateTourGuideDto, user?: RequestUser) {
     this.validateGuidePayload(dto);
     this.validateSchedules(dto.schedules ?? []);
+    this.assertScopedGuideWriteHasLinkedSchedule(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.assertUniqueGuide(tx, dto);
@@ -106,9 +107,10 @@ export class TourGuidesService {
   }
 
   async update(id: string, dto: UpdateTourGuideDto, user?: RequestUser) {
-    await this.detail(id);
+    await this.detail(id, user);
     this.validateGuidePayload(dto);
     if (dto.schedules) this.validateSchedules(dto.schedules);
+    if (dto.schedules !== undefined) this.assertScopedGuideWriteHasLinkedSchedule(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.assertUniqueGuide(tx, dto, id);
@@ -123,9 +125,34 @@ export class TourGuidesService {
     }
   }
 
-  async remove(id: string) {
-    await this.detail(id);
+  async remove(id: string, user?: RequestUser) {
+    await this.detail(id, user);
     return this.prisma.guideProfile.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+  }
+
+  private guideScopeWhere(where: Prisma.GuideProfileWhereInput, user?: RequestUser): Prisma.GuideProfileWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    const requiresBranch = permissions.has('data.scope.branch');
+    const requiresDepartment = permissions.has('data.scope.department');
+    if ((requiresBranch && !user.branch) || (requiresDepartment && !user.department) || (!requiresBranch && !requiresDepartment)) {
+      return { AND: [where, { id: '__no_data_scope__' }] };
+    }
+    const AND: Prisma.GuideProfileWhereInput[] = [where];
+    if (requiresBranch) {
+      AND.push({ schedules: { some: { OR: [{ order: { branch: user.branch } }, { tour: { branch: user.branch } }] } } });
+    }
+    if (requiresDepartment) {
+      AND.push({ schedules: { some: { OR: [{ order: { department: user.department } }, { tour: { department: user.department } }] } } });
+    }
+    return { AND };
+  }
+
+  private assertScopedGuideWriteHasLinkedSchedule(dto: Partial<CreateTourGuideDto>, user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return;
+    applyWriteDataScope({ branch: undefined, department: undefined }, user);
+    const hasScopedLink = (dto.schedules ?? []).some((item) => this.text(item.orderId) || this.text(item.tourId));
+    if (!hasScopedLink) throw new BadRequestException('Cần gắn lịch hướng dẫn viên với tour hoặc đơn hàng trong phạm vi dữ liệu');
   }
 
   private async replaceChildren(tx: Prisma.TransactionClient, guideId: string, dto: Partial<CreateTourGuideDto>, scheduleContext: ScheduleLinkContext) {

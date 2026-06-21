@@ -1366,7 +1366,7 @@ model OperationVoucherPayment {
   id               String           @id @default(uuid())
   voucherId        String
   voucher          OperationVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
-  paymentVoucherId String?
+  paymentVoucherId String?          @unique
   paymentVoucher   FinancePayment?  @relation(fields: [paymentVoucherId], references: [id], onDelete: SetNull)
   paidAmount       Decimal          @default(0)
   paymentDate      DateTime         @default(now())
@@ -1374,7 +1374,6 @@ model OperationVoucherPayment {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  @@index([paymentVoucherId])
 }
 
 model GuideProfile {

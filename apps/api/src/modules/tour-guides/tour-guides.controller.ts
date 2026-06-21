@@ -13,13 +13,13 @@ export class TourGuidesController {
   constructor(private readonly service: TourGuidesService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string) {
-    return this.service.list(search, status);
+  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
+    return this.service.list(search, status, request?.user);
   }
 
   @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.service.detail(id);
+  detail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.service.detail(id, request?.user);
   }
 
   @Post(':id/files')
@@ -28,15 +28,15 @@ export class TourGuidesController {
   addFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
-    @Req() request: { user?: { id?: string } },
+    @Req() request: { user?: RequestUser },
   ) {
-    return this.service.addFile(id, file, request.user?.id);
+    return this.service.addFile(id, file, request.user);
   }
 
   @Delete(':id/files/:fileId')
   @RequirePermissions('guide.manage')
-  removeFile(@Param('id') id: string, @Param('fileId') fileId: string) {
-    return this.service.deleteFile(id, fileId);
+  removeFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request?: { user?: RequestUser }) {
+    return this.service.deleteFile(id, fileId, request?.user);
   }
 
   @Post()
@@ -53,7 +53,7 @@ export class TourGuidesController {
 
   @Delete(':id')
   @RequirePermissions('guide.manage')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.service.remove(id, request?.user);
   }
 }

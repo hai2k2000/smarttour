@@ -260,12 +260,29 @@ export class FilesService {
   private async assertGuideFile(key: string, guideId: string, user: RequestUser | undefined, action: FileAccessAction) {
     this.assertPermission(user, action === 'view' ? 'guide.view' : 'guide.manage');
     const [parent, metadata] = await Promise.all([
-      this.prisma.guideProfile.findFirst({ where: { id: guideId, deletedAt: null }, select: { id: true } }),
+      this.prisma.guideProfile.findFirst({ where: this.guideScopeWhere({ id: guideId, deletedAt: null }, user), select: { id: true } }),
       this.prisma.guideFile.findMany({ where: { guideId }, select: { id: true, fileUrl: true } }),
     ]);
     this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));
   }
 
+  private guideScopeWhere(where: Prisma.GuideProfileWhereInput, user?: RequestUser): Prisma.GuideProfileWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    const requiresBranch = permissions.has('data.scope.branch');
+    const requiresDepartment = permissions.has('data.scope.department');
+    if ((requiresBranch && !user.branch) || (requiresDepartment && !user.department) || (!requiresBranch && !requiresDepartment)) {
+      return { AND: [where, { id: '__no_data_scope__' }] };
+    }
+    const AND: Prisma.GuideProfileWhereInput[] = [where];
+    if (requiresBranch) {
+      AND.push({ schedules: { some: { OR: [{ order: { branch: user.branch } }, { tour: { branch: user.branch } }] } } });
+    }
+    if (requiresDepartment) {
+      AND.push({ schedules: { some: { OR: [{ order: { department: user.department } }, { tour: { department: user.department } }] } } });
+    }
+    return { AND };
+  }
   private async assertFitTourFile(key: string, fitTourId: string, user: RequestUser | undefined, action: FileAccessAction) {
     this.assertPermission(user, action === 'view' ? 'tour.view' : 'tour.manage');
     const parent = await this.prisma.fitTour.findFirst({
