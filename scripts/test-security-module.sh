@@ -50,6 +50,18 @@ async function main() {
   const prisma = app.get(PrismaService);
   const run = `security_${Date.now()}`;
 
+  function sessionCookie(response, label) {
+    const setCookie = response.headers.get('set-cookie') || '';
+    assert(setCookie.includes('smarttour.auth.token='), `${label} should set auth cookie`);
+    return setCookie.split(';')[0];
+  }
+
+  function assertPublicSessionPayload(data, label) {
+    assert(data?.token === undefined, `${label} should not expose token in response body`);
+    assert(data?.tokenType === undefined, `${label} should not expose token type in response body`);
+    assert(data?.expiresAt, `${label} should keep session expiry in response body`);
+  }
+
   async function request(method, path, options = {}) {
     const headers = { ...(options.headers || {}) };
     let body;
@@ -57,7 +69,7 @@ async function main() {
       headers['Content-Type'] = 'application/json';
       body = JSON.stringify(options.body);
     }
-    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    if (options.cookie) headers.Cookie = options.cookie;
     const response = await fetch(`${baseUrl}${path}`, { method, headers, body });
     const text = await response.text();
     let data;
@@ -71,12 +83,13 @@ async function main() {
     } else if (!response.ok) {
       throw new Error(`${method} ${path} failed ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
     }
-    return data;
+    return options.withCookie ? { data, cookie: sessionCookie(response, `${method} ${path}`) } : data;
   }
 
   async function login(username, pass = password) {
-    const data = await request('POST', '/auth/login', { body: { username, password: pass } });
-    return data.token;
+    const result = await request('POST', '/auth/login', { body: { username, password: pass }, withCookie: true });
+    assertPublicSessionPayload(result.data, 'login');
+    return result.cookie;
   }
 
   try {
@@ -84,18 +97,21 @@ async function main() {
     await request('GET', '/auth/roles', { status: 401 });
 
     const adminUsername = `${run}_admin`;
-    const bootstrap = await request('POST', '/auth/bootstrap', {
+    const bootstrapSession = await request('POST', '/auth/bootstrap', {
       body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Security Admin' },
       status: 201,
+      withCookie: true,
     });
-    assert(bootstrap.token && bootstrap.tokenType === 'Bearer' && bootstrap.user.dataScope === 'all', 'bootstrap should issue wildcard admin session with all data scope');
+    const bootstrap = bootstrapSession.data;
+    assertPublicSessionPayload(bootstrap, 'bootstrap');
+    assert(bootstrapSession.cookie && bootstrap.user.dataScope === 'all', 'bootstrap should issue wildcard admin cookie with all data scope');
     await request('POST', '/auth/bootstrap', {
       body: { email: `${run}_second@smarttour.local`, username: `${run}_second`, password, name: 'Second Admin' },
       status: 401,
     });
 
-    const adminToken = bootstrap.token;
-    const adminMe = await request('GET', '/auth/me', { token: adminToken });
+    const adminToken = bootstrapSession.cookie;
+    const adminMe = await request('GET', '/auth/me', { cookie: adminToken });
     assert(adminMe.permissions.includes('*') && adminMe.dataScope === 'all', 'wildcard permission should map to all data scope in /auth/me');
 
     const userOnlyRole = `${run}_user_only`;
@@ -103,22 +119,22 @@ async function main() {
     const branchRole = `${run}_branch_manager`;
     const noSecurityRole = `${run}_no_security`;
     await request('POST', '/auth/roles', {
-      token: adminToken,
+      cookie: adminToken,
       body: { code: userOnlyRole, name: 'User Manager Only', permissions: ['auth.user.manage', 'data.scope.all'] },
       status: 201,
     });
     await request('POST', '/auth/roles', {
-      token: adminToken,
+      cookie: adminToken,
       body: { code: roleOnlyRole, name: 'Role Manager Only', permissions: ['auth.role.manage', 'data.scope.all'] },
       status: 201,
     });
     await request('POST', '/auth/roles', {
-      token: adminToken,
+      cookie: adminToken,
       body: { code: branchRole, name: 'Branch Security Manager', permissions: ['auth.user.manage', 'auth.role.manage', 'data.scope.branch'] },
       status: 201,
     });
     await request('POST', '/auth/roles', {
-      token: adminToken,
+      cookie: adminToken,
       body: { code: noSecurityRole, name: 'No Security', permissions: ['customer.view', 'data.scope.all'] },
       status: 201,
     });
@@ -128,22 +144,22 @@ async function main() {
     const branchUsername = `${run}_branch`;
     const noSecurityUsername = `${run}_nosec`;
     await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${userOnlyUsername}@smarttour.local`, username: userOnlyUsername, password, name: 'User Manager Only', roleCodes: [userOnlyRole] },
       status: 201,
     });
     await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${roleOnlyUsername}@smarttour.local`, username: roleOnlyUsername, password, name: 'Role Manager Only', roleCodes: [roleOnlyRole] },
       status: 201,
     });
     await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${branchUsername}@smarttour.local`, username: branchUsername, password, name: 'Branch Manager', branch: 'BR-A', department: 'DEP-A', roleCodes: [branchRole] },
       status: 201,
     });
     await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${noSecurityUsername}@smarttour.local`, username: noSecurityUsername, password, name: 'No Security', roleCodes: [noSecurityRole] },
       status: 201,
     });
@@ -153,91 +169,94 @@ async function main() {
     const branchToken = await login(branchUsername);
     const noSecurityToken = await login(noSecurityUsername);
 
-    await request('GET', '/auth/users', { token: userOnlyToken });
-    await request('GET', '/auth/roles', { token: userOnlyToken, status: 403 });
-    await request('GET', '/auth/users', { token: roleOnlyToken, status: 403 });
-    await request('GET', '/auth/roles', { token: roleOnlyToken });
-    await request('GET', '/auth/users', { token: noSecurityToken, status: 403 });
-    await request('GET', '/auth/roles', { token: noSecurityToken, status: 403 });
+    await request('GET', '/auth/users', { cookie: userOnlyToken });
+    await request('GET', '/auth/roles', { cookie: userOnlyToken, status: 403 });
+    await request('GET', '/auth/users', { cookie: roleOnlyToken, status: 403 });
+    await request('GET', '/auth/roles', { cookie: roleOnlyToken });
+    await request('GET', '/auth/users', { cookie: noSecurityToken, status: 403 });
+    await request('GET', '/auth/roles', { cookie: noSecurityToken, status: 403 });
 
-    const branchMe = await request('GET', '/auth/me', { token: branchToken });
+    const branchMe = await request('GET', '/auth/me', { cookie: branchToken });
     assert(branchMe.dataScope === 'branch' && branchMe.branch === 'BR-A', 'branch-scoped user should map to branch data scope in /auth/me');
-    const branchUsers = await request('GET', '/auth/users', { token: branchToken });
+    const branchUsers = await request('GET', '/auth/users', { cookie: branchToken });
     assert(branchUsers.length > 0 && branchUsers.every((user) => user.branch === 'BR-A'), 'branch-scoped security manager should load only users in own branch');
-    const branchRoles = await request('GET', '/auth/roles', { token: branchToken });
+    const branchRoles = await request('GET', '/auth/roles', { cookie: branchToken });
     assert(branchRoles.some((role) => role.code === branchRole) && !branchRoles.some((role) => role.code === 'super_admin'), 'branch-scoped security manager should load only assignable roles');
 
     const createdUser = await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${run}_created@smarttour.local`, username: `${run}_created`, password, name: 'Created User', branch: 'BR-A', roleCodes: [branchRole] },
       status: 201,
     });
     assert(createdUser.email === `${run}_created@smarttour.local` && createdUser.dataScope === 'branch', 'create user endpoint should return safe user data');
 
     const updatedUser = await request('PUT', `/auth/users/${createdUser.id}`, {
-      token: adminToken,
+      cookie: adminToken,
       body: { name: 'Created User Updated', status: 'LOCKED', branch: 'BR-A', roleCodes: [branchRole] },
     });
     assert(updatedUser.name === 'Created User Updated' && updatedUser.status === 'LOCKED', 'update user endpoint should update user');
 
     await request('POST', '/auth/users', {
-      token: branchToken,
+      cookie: branchToken,
       body: { email: `${run}_branch_created@smarttour.local`, username: `${run}_branch_created`, password, name: 'Branch Created', roleCodes: [branchRole] },
       status: 201,
     });
     await request('POST', '/auth/users', {
-      token: branchToken,
+      cookie: branchToken,
       body: { email: `${run}_branch_outside@smarttour.local`, username: `${run}_branch_outside`, password, name: 'Outside Branch', branch: 'BR-B', roleCodes: [branchRole] },
       status: 403,
     });
     await request('POST', '/auth/users', {
-      token: branchToken,
+      cookie: branchToken,
       body: { email: `${run}_grant_super@smarttour.local`, username: `${run}_grant_super`, password, name: 'Grant Super', branch: 'BR-A', roleCodes: ['super_admin'] },
       status: 403,
     });
 
     const createdRole = await request('POST', '/auth/roles', {
-      token: adminToken,
+      cookie: adminToken,
       body: { code: `${run}_role`, name: 'Security Test Role', permissions: ['auth.user.manage', 'data.scope.all'] },
       status: 201,
     });
     assert(createdRole.code === `${run}_role` && createdRole.permissions.some((entry) => entry.permission === 'auth.user.manage'), 'create role endpoint should persist permissions');
     const updatedRole = await request('PUT', `/auth/roles/${createdRole.id}`, {
-      token: adminToken,
+      cookie: adminToken,
       body: { name: 'Security Test Role Updated', permissions: ['auth.user.manage', 'auth.role.manage', 'data.scope.all'] },
     });
     assert(updatedRole.name === 'Security Test Role Updated' && updatedRole.permissions.some((entry) => entry.permission === 'auth.role.manage'), 'update role endpoint should persist permission changes');
     await request('POST', '/auth/roles', {
-      token: branchToken,
+      cookie: branchToken,
       body: { code: `${run}_branch_role`, name: 'Branch Role', permissions: ['auth.user.manage', 'data.scope.branch'] },
       status: 403,
     });
 
     const passwordUser = await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${run}_password@smarttour.local`, username: `${run}_password`, password, name: 'Password User', roleCodes: [noSecurityRole] },
       status: 201,
     });
     const passwordToken = await login(`${run}_password`);
-    const changed = await request('POST', '/auth/change-password', {
-      token: passwordToken,
+    const changedSession = await request('POST', '/auth/change-password', {
+      cookie: passwordToken,
       body: { currentPassword: password, newPassword: 'ChangedPass1' },
+      withCookie: true,
     });
-    assert(changed.token && changed.token !== passwordToken && changed.user.id === passwordUser.id, 'change password endpoint should issue a fresh token');
-    await request('GET', '/auth/me', { token: passwordToken, status: 401 });
-    await request('GET', '/auth/me', { token: changed.token });
+    const changed = changedSession.data;
+    assertPublicSessionPayload(changed, 'change password');
+    assert(changedSession.cookie && changedSession.cookie !== passwordToken && changed.user.id === passwordUser.id, 'change password endpoint should issue a fresh cookie');
+    await request('GET', '/auth/me', { cookie: passwordToken, status: 401 });
+    await request('GET', '/auth/me', { cookie: changedSession.cookie });
     await request('POST', '/auth/login', { body: { username: `${run}_password`, password }, status: 401 });
     await login(`${run}_password`, 'ChangedPass1');
 
     const logoutUser = await request('POST', '/auth/users', {
-      token: adminToken,
+      cookie: adminToken,
       body: { email: `${run}_logout@smarttour.local`, username: `${run}_logout`, password, name: 'Logout User', roleCodes: [noSecurityRole] },
       status: 201,
     });
     const logoutToken = await login(`${run}_logout`);
-    await request('GET', '/auth/me', { token: logoutToken });
-    await request('POST', '/auth/logout', { token: logoutToken });
-    await request('GET', '/auth/me', { token: logoutToken, status: 401 });
+    await request('GET', '/auth/me', { cookie: logoutToken });
+    await request('POST', '/auth/logout', { cookie: logoutToken });
+    await request('GET', '/auth/me', { cookie: logoutToken, status: 401 });
 
     const bootstrapAudit = await prisma.auditLog.findFirst({ where: { action: 'BOOTSTRAP', entity: 'User' } });
     const loginAudit = await prisma.auditLog.findFirst({ where: { action: 'LOGIN', actorId: logoutUser.id } });

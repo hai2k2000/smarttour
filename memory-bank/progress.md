@@ -2,6 +2,10 @@
 
 ## Done
 
+- Continued Phase 1 remediation from the saved review plan:
+  - Booking delete has been converted from hard delete to soft delete with `Booking.deletedAt`, active-row filters on list/detail/mutations/deleteGuard, retained dependency guards, and `AuditLog` tracing for soft-delete actions.
+  - Auth bootstrap/login/change-password public responses no longer return `token` or `tokenType`; controllers still issue the existing HttpOnly auth cookie for browser sessions.
+  - Public API/security regression scripts now assert token JSON is absent and use cookie-derived sessions where needed.
 - Started Phase 1 remediation from the saved review plan:
   - Tour-guide APIs and guide file authorization now enforce branch/department data scope via linked schedule order/tour records.
   - Operation voucher payment history now has a database uniqueness invariant on `paymentVoucherId` to prevent the same approved finance payment from being recorded twice.

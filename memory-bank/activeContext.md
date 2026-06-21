@@ -20,13 +20,17 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 1 remediation continued after business decisions:
+  - Booking delete now uses retention-safe soft delete by setting `Booking.deletedAt`; list/detail/mutation/deleteGuard ignore soft-deleted rows, existing usage guards still block deletes for bookings with operation forms, vouchers, or allotment locks, and every soft delete writes an `AuditLog` entry with booking code/status metadata.
+  - Browser auth bootstrap/login/change-password still set the HttpOnly `smarttour.auth.token` cookie, but public controller responses no longer expose `token` or `tokenType` in JSON.
+  - Updated auth/security/guide regression scripts that represented the public API contract so they no longer require token JSON from login/bootstrap.
+  - Verification passed: `scripts/test-bookings-service.sh`, `scripts/test-auth-token-extraction.sh`, `scripts/test-auth-cookie-session.sh`, `scripts/test-auth-session-flows.sh`, `scripts/test-security-module.sh`, `scripts/test-tour-guides-api.sh`, `scripts/test-high-a-data-access.sh`, `scripts/test-operation-vouchers-service.sh`, and `npx prisma validate --schema prisma/schema.prisma`.
 - Phase 1 remediation start:
   - Saved the remediation execution order under `docs/superpowers/plans/2026-06-21-smarttour-remediation-order.md`.
   - Added tour-guide data-scope enforcement through linked order/tour schedules for list/detail/update/remove and guide file authorization. Scoped users now only see guides linked to in-scope operational records; unrestricted users keep global access.
   - Added a database uniqueness invariant for `OperationVoucherPayment.paymentVoucherId` with a Prisma migration after production duplicate audit returned no duplicates.
   - Made legacy quotation convert idempotent/concurrency-safe by locking the quotation row and returning the existing converted order on repeat convert calls.
   - Verification passed: `scripts/test-tour-guides-api.sh`, `scripts/test-high-a-data-access.sh`, `scripts/test-operation-vouchers-service.sh`, `npx prisma validate --schema prisma/schema.prisma`, and `git diff --check`.
-  - Phase 1 items still needing business decision before code: booking hard-delete vs soft-delete retention policy, and whether API/CLI Bearer-token JSON compatibility should remain alongside HttpOnly cookie auth.
 - Broader table copy/name-first cleanup:
   - Customer list now starts with customer name instead of a separate code column, and customer page copy no longer labels the module as CRM.
   - Workspace cards were localized from English labels (`Schedule`, `Pending`, `Corporate`, `Outstanding`, `Month`, `Data`) to Vietnamese operational wording.

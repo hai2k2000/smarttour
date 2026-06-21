@@ -45,6 +45,13 @@ function session(token) {
   };
 }
 
+function assertPublicSessionPayload(result, label) {
+  assert(result?.token === undefined, `${label}: response body should not expose session token`);
+  assert(result?.tokenType === undefined, `${label}: response body should not expose token type`);
+  assert(result?.expiresAt instanceof Date, `${label}: response body should keep session expiry`);
+  assert(result?.user?.id === 'user-1', `${label}: response body should keep safe user payload`);
+}
+
 async function run() {
   assert(bearerToken('Bearer header.token') === 'header.token', 'bearer token should parse');
   assert(bearerToken('bearer lower.token') === 'lower.token', 'bearer scheme should be case insensitive');
@@ -82,12 +89,12 @@ async function run() {
 
   const bootstrapResponse = responseRecorder();
   const bootstrapResult = await controller.bootstrap({ email: 'admin@example.com' }, {}, '127.0.0.1', bootstrapResponse);
-  assert(bootstrapResult.token === 'bootstrap.token', 'bootstrap should keep returning token JSON for script compatibility');
+  assertPublicSessionPayload(bootstrapResult, 'bootstrap');
   assertAuthCookie(bootstrapResponse.cookies[0], 'bootstrap.token', 'bootstrap');
 
   const loginResponse = responseRecorder();
   const loginResult = await controller.login({ username: 'admin' }, {}, '127.0.0.1', loginResponse);
-  assert(loginResult.token === 'login.token', 'login should keep returning token JSON for script compatibility');
+  assertPublicSessionPayload(loginResult, 'login');
   assertAuthCookie(loginResponse.cookies[0], 'login.token', 'login');
 
   const logoutResponse = responseRecorder();
@@ -100,7 +107,7 @@ async function run() {
     '127.0.0.1',
     changePasswordResponse,
   );
-  assert(changeResult.token === 'change.token', 'change password should keep returning token JSON for script compatibility');
+  assertPublicSessionPayload(changeResult, 'change password');
   assertAuthCookie(changePasswordResponse.cookies[0], 'change.token', 'change password');
 
   assert(calls[2][0] === 'logout' && calls[2][1] === 'logout.cookie' && calls[2][2] === 'user-1', 'logout should use cookie token over stale bearer token');

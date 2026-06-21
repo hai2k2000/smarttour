@@ -17,6 +17,7 @@ type AuthRequest = {
 
 type SessionPayload = {
   token?: string;
+  tokenType?: string;
   expiresAt?: Date | string;
 };
 
@@ -36,7 +37,7 @@ export class AuthController {
   ) {
     const result = await this.service.bootstrap(dto, { headers, ip });
     this.setSessionCookie(response, result);
-    return result;
+    return this.publicSessionPayload(result);
   }
 
   @Post('login')
@@ -49,7 +50,7 @@ export class AuthController {
   ) {
     const result = await this.service.login(dto, { headers, ip });
     this.setSessionCookie(response, result);
-    return result;
+    return this.publicSessionPayload(result);
   }
 
   @Post('logout')
@@ -76,7 +77,7 @@ export class AuthController {
   ) {
     const result = await this.service.changePassword(request.user?.id, dto, this.sessionToken(request), { headers: request.headers, ip });
     this.setSessionCookie(response, result);
-    return result;
+    return this.publicSessionPayload(result);
   }
 
   @Get('users')
@@ -117,6 +118,14 @@ export class AuthController {
 
   private setSessionCookie(response: AuthCookieResponse, result: SessionPayload | undefined) {
     if (result?.token && result.expiresAt) setAuthCookie(response, result.token, result.expiresAt);
+  }
+
+  private publicSessionPayload(result: SessionPayload | undefined) {
+    if (!result) return result;
+    const payload = { ...result };
+    delete payload.token;
+    delete payload.tokenType;
+    return payload;
   }
 
   private sessionToken(request: AuthRequest) {

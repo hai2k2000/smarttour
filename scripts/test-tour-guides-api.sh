@@ -50,6 +50,13 @@ async function main() {
   const prisma = app.get(PrismaService);
   const run = `guide_${Date.now()}`;
 
+  function sessionToken(response, label) {
+    const setCookie = response.headers.get('set-cookie') || '';
+    const match = setCookie.match(/smarttour\.auth\.token=([^;]+)/);
+    assert(match?.[1], `${label} should set auth cookie`);
+    return decodeURIComponent(match[1]);
+  }
+
   async function request(method, path, options = {}) {
     const headers = { ...(options.headers || {}) };
     let body;
@@ -71,12 +78,13 @@ async function main() {
     } else if (!response.ok) {
       throw new Error(`${method} ${path} failed ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
     }
-    return data;
+    return options.withToken ? { data, token: sessionToken(response, `${method} ${path}`) } : data;
   }
 
   async function login(username, pass = password) {
-    const data = await request('POST', '/auth/login', { body: { username, password: pass } });
-    return data.token;
+    const result = await request('POST', '/auth/login', { body: { username, password: pass }, withToken: true });
+    assert(result.data.token === undefined && result.data.tokenType === undefined, 'login response should not expose token JSON');
+    return result.token;
   }
 
   function guidePayload(code, overrides = {}) {
@@ -102,11 +110,13 @@ async function main() {
     await request('GET', '/tour-guides', { status: 401 });
 
     const adminUsername = `${run}_admin`;
-    const bootstrap = await request('POST', '/auth/bootstrap', {
+    const bootstrapSession = await request('POST', '/auth/bootstrap', {
       body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Guide Admin' },
       status: 201,
+      withToken: true,
     });
-    const adminToken = bootstrap.token;
+    assert(bootstrapSession.data.token === undefined && bootstrapSession.data.tokenType === undefined, 'bootstrap response should not expose token JSON');
+    const adminToken = bootstrapSession.token;
 
     const viewRole = `${run}_guide_view`;
     const noGuideRole = `${run}_no_guide`;

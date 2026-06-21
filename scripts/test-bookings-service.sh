@@ -944,14 +944,26 @@ async function main() {
     endDate: '2026-11-03',
   }));
   await service.remove(deletable.id);
-  await rejects(() => service.detail(deletable.id), 'delete should remove booking without important dependencies');
+  const softDeleted = await prisma.booking.findUnique({ where: { id: deletable.id }, select: { id: true, deletedAt: true } });
+  assert(softDeleted?.id === deletable.id, 'delete should retain the booking row for audit/history');
+  assert(softDeleted.deletedAt instanceof Date, 'delete should mark deletedAt instead of hard deleting the booking');
+  await rejects(() => service.detail(deletable.id), 'delete should hide soft-deleted booking from detail');
+  assert(!(await service.list(run, undefined, undefined, undefined, 500)).some((row) => row.id === deletable.id), 'list should exclude soft-deleted bookings');
+  const softDeleteAudit = await prisma.auditLog.findFirst({
+    where: { entity: 'Booking', entityId: deletable.id, action: 'SOFT_DELETE' },
+    select: { id: true, metadata: true },
+  });
+  assert(softDeleteAudit?.id, 'delete should write a booking soft-delete audit log');
+  assert(softDeleteAudit.metadata?.code === deletable.code, 'soft-delete audit should include booking code metadata');
 
   const linkedDeletable = await service.create(bookingDto(run, 'DELETE-LINKED', tourProgram, links, {
     startDate: '2026-11-05',
     endDate: '2026-11-07',
   }));
   await service.remove(linkedDeletable.id);
-  await rejects(() => service.detail(linkedDeletable.id), 'delete should allow linked booking when no operation data exists');
+  const linkedSoftDeleted = await prisma.booking.findUnique({ where: { id: linkedDeletable.id }, select: { id: true, deletedAt: true } });
+  assert(linkedSoftDeleted?.deletedAt instanceof Date, 'delete should soft-delete linked booking when no operation data exists');
+  await rejects(() => service.detail(linkedDeletable.id), 'delete should hide linked soft-deleted booking from detail');
   assert((await prisma.customer.findUnique({ where: { id: links.customer.id } }))?.id === links.customer.id, 'delete should preserve linked customer');
   assert((await prisma.order.findUnique({ where: { id: links.order.id } }))?.id === links.order.id, 'delete should preserve linked order');
   assert((await prisma.tour.findUnique({ where: { id: links.tour.id } }))?.id === links.tour.id, 'delete should preserve linked tour');

@@ -1981,6 +1981,7 @@ model Booking {
   operationForm  OperationForm?
   operationVouchers OperationVoucher[]
   allotmentLocks SupplierAllotmentAllocation[]
+  deletedAt      DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -1990,6 +1991,7 @@ model Booking {
   @@index([startDate, code])
   @@index([status, startDate])
   @@index([tourProgramId, startDate])
+  @@index([deletedAt])
 }
 
 model Tour {

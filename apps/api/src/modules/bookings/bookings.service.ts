@@ -165,6 +165,7 @@ export class BookingsService {
     const normalizedTake = this.listTake(take);
     const normalizedSkip = this.listSkip(skip);
     const where: Prisma.BookingWhereInput = {
+      deletedAt: null,
       ...(normalizedStatus ? { status: normalizedStatus } : {}),
       ...(normalizedTourProgramId ? { tourProgramId: normalizedTourProgramId } : {}),
       ...(normalizedSearch
@@ -183,7 +184,7 @@ export class BookingsService {
 
   async deleteGuard(id: string, user?: RequestUser) {
     const booking = await this.prisma.booking.findFirst({
-      where: this.scopeWhere({ id }, user),
+      where: this.scopeWhere({ id, deletedAt: null }, user),
       select: { id: true },
     });
     if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
@@ -198,7 +199,7 @@ export class BookingsService {
 
   async detail(id: string, user?: RequestUser) {
     const booking = await this.prisma.booking.findFirst({
-      where: this.scopeWhere({ id }, user),
+      where: this.scopeWhere({ id, deletedAt: null }, user),
       select: this.detailSelect(),
     });
     if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
@@ -280,12 +281,31 @@ export class BookingsService {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT "id"
         FROM "Booking"
-        WHERE "id" = ${booking.id}
+        WHERE "id" = ${booking.id} AND "deletedAt" IS NULL
         FOR UPDATE
       `;
       if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
       await this.ensureCanDelete(booking.id, tx);
-      return tx.booking.delete({ where: { id: booking.id } });
+      const deletedAt = new Date();
+      const softDeleted = await tx.booking.update({
+        where: { id: booking.id },
+        data: { deletedAt },
+        select: this.detailSelect(),
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: user?.id,
+          action: 'SOFT_DELETE',
+          entity: 'Booking',
+          entityId: booking.id,
+          metadata: {
+            code: booking.code,
+            status: booking.status,
+            deletedAt: deletedAt.toISOString(),
+          },
+        },
+      });
+      return softDeleted;
     });
   }
 
@@ -295,7 +315,7 @@ export class BookingsService {
 
   private async loadForMutation(id: string, user?: RequestUser) {
     const booking = await this.prisma.booking.findFirst({
-      where: this.scopeWhere({ id }, user),
+      where: this.scopeWhere({ id, deletedAt: null }, user),
       select: this.mutationSelect(),
     });
     if (!booking) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
