@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened operation-voucher SSR list payload:
+  - Updated `/operation-vouchers` SSR preload to request `take=100`, aligning the first render with the already bounded client reload/backend list behavior.
+  - Added contract coverage so the page cannot regress to an unbounded operation-voucher preload.
+
 - Hardened Order Center list payloads:
   - Updated `/order-center` SSR preload to request compact bounded rows with `compact=true&take=100`.
   - Updated Order Center client reload to keep dashboard queries separate while always bounding/compacting the list request.

@@ -40,6 +40,7 @@ pageIncludes("apiGet<PermissionUser | null>(", 'Operation vouchers page should r
 pageIncludes("'/auth/me'", 'Operation vouchers page should call auth session endpoint.');
 pageIncludes("const canViewVouchers = hasPermission(currentUser, 'operation.form.view') || hasPermission(currentUser, 'operation.form.manage');", 'Operation vouchers page should calculate operation voucher view/manage access.');
 pageIncludes('canViewVouchers ? await apiGet', 'Operation vouchers page should not preload vouchers without view access.');
+pageIncludes("apiGet('/operation-vouchers?take=100'", 'Operation vouchers page should bound the SSR voucher list payload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewVouchers}', 'Operation vouchers page should show server permission notice when access is missing.');
 pageIncludes('{canViewVouchers ? (', 'Operation vouchers page should hide protected client content without access.');
 

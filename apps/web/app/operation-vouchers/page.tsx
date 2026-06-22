@@ -21,7 +21,7 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 export default async function OperationVouchersPage() {
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewVouchers = hasPermission(currentUser, 'operation.form.view') || hasPermission(currentUser, 'operation.form.manage');
-  const vouchers = canViewVouchers ? await apiGet('/operation-vouchers', []) : [];
+  const vouchers = canViewVouchers ? await apiGet('/operation-vouchers?take=100', []) : [];
 
   return (
     <section className="workspace">

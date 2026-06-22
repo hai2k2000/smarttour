@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 operation-voucher SSR payload hardening:
+  - `/operation-vouchers` SSR preload now requests `/operation-vouchers?take=100`, matching the already bounded client reload and backend list DTO.
+  - Operation voucher client contract now guards the bounded SSR voucher list preload.
+
 - Phase 3 order-center list payload hardening:
   - `/order-center` SSR preload now requests `/order-center?compact=true&take=100`, so the first render does not load full order-center rows.
   - Order Center client reload now keeps dashboard filters separate from list filters and always requests compact bounded list rows with `compact=true&take=100`.
