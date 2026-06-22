@@ -2183,3 +2183,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added High-A regression coverage proving approved quotation updates are rejected and stored route/item values remain unchanged.
   - Updated the quote/quotation smoke helper to authenticate through the current HttpOnly cookie contract while keeping token fallback compatibility.
   - Verification passed: `scripts/test-high-a-data-access.sh`, `bash scripts/smoke-quotes-quotations.sh`, `node scripts/test-quotations-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.
+
+- 2026-06-22 Phase 2 booking operation-form dependency hardening:
+  - Tightened Booking status transitions so a confirmed booking cannot move to OPERATING merely because an operation form exists.
+  - Booking OPERATING now requires the linked operation form to be IN_PROGRESS or DONE; PENDING forms still block operations and CANCELLED forms remain blocked.
+  - Added booking service regression coverage proving pending operation forms reject OPERATING and in-progress operation forms allow the transition.
+  - Verification passed: scripts/test-bookings-service.sh, scripts/test-bookings-controller-contract.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.

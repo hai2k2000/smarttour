@@ -1794,3 +1794,8 @@
   - Legacy quotations in `APPROVED` status are no longer editable through normal update; material edits must happen before approval or through a future revision workflow.
   - Regression coverage now guards approved quotation immutability and conversion idempotency remains covered.
   - Verification passed: `scripts/test-high-a-data-access.sh`, `bash scripts/smoke-quotes-quotations.sh`, `node scripts/test-quotations-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.
+
+- 2026-06-22 Completed Phase 2 booking operation-form dependency hardening:
+  - Booking status changes to OPERATING now require a linked operation form that is already IN_PROGRESS or DONE, not just present and non-cancelled.
+  - Regression coverage guards the pending-operation-form rejection and the valid in-progress transition path.
+  - Verification passed: scripts/test-bookings-service.sh, scripts/test-bookings-controller-contract.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.

@@ -1093,8 +1093,13 @@ async function main() {
   assert((await prisma.booking.findUnique({ where: { id: created.id } }))?.id === created.id, 'failed operation-form-guarded delete should preserve booking');
   assert((await prisma.operationForm.findUnique({ where: { bookingId: created.id } }))?.bookingId === created.id, 'failed delete should preserve operation form link');
 
+  await rejects(
+    () => service.updateStatus(created.id, 'OPERATING'),
+    'updateStatus should reject OPERATING while operationForm is still pending',
+  );
+  await prisma.operationForm.update({ where: { id: operationForm.id }, data: { status: 'IN_PROGRESS' } });
   const operating = await service.updateStatus(created.id, 'OPERATING');
-  assert(operating.status === 'OPERATING', 'updateStatus should allow CONFIRMED to OPERATING after operationForm exists');
+  assert(operating.status === 'OPERATING', 'updateStatus should allow CONFIRMED to OPERATING after operationForm is in progress');
   const completed = await service.updateStatus(created.id, 'COMPLETED');
   assert(completed.status === 'COMPLETED', 'updateStatus should allow OPERATING to COMPLETED');
   await rejects(() => service.updateStatus(created.id, 'CANCELLED'), 'updateStatus should reject changing final COMPLETED status');

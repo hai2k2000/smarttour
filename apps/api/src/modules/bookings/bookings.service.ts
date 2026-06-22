@@ -578,6 +578,9 @@ export class BookingsService {
     if (target === BookingStatus.OPERATING && operationFormStatus === OperationStatus.CANCELLED) {
       throw new BadRequestException('Không thể chuyển booking sang đang vận hành khi phiếu điều hành đã hủy');
     }
+    if (target === BookingStatus.OPERATING && operationFormStatus !== OperationStatus.IN_PROGRESS && operationFormStatus !== OperationStatus.DONE) {
+      throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh ph\u1ea3i \u0111ang x\u1eed l\u00fd ho\u1eb7c ho\u00e0n t\u1ea5t tr\u01b0\u1edbc khi booking chuy\u1ec3n sang \u0111ang v\u1eadn h\u00e0nh');
+    }
   }
 
   private changedOperationalFieldLabels(
