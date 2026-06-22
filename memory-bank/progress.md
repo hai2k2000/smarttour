@@ -2,6 +2,10 @@
 
 ## Done
 
+- Refreshed customer service file-upload regression coverage:
+  - Split customer file validation assertions into extension rejection, MIME rejection, size metadata mismatch, and actual oversized file cases to match the shared file service.
+  - Re-ran the remaining deep service/API tests after the customer regression fix; no runtime application code changed in this pass.
+
 - Aligned core workflow smoke with order lifecycle permissions:
   - Updated `smoke-core-business-workflows.sh` so order paid values are edited separately from status transitions.
   - Verified the corrected smoke against the live API and continued non-admin smoke coverage across reports, UX/export, suppliers, and TourKit imports.

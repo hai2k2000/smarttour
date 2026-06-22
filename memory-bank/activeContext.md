@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 customer file-validation test alignment:
+  - Customer service regression now matches the shared file upload validator: dangerous extensions, invalid MIME types, declared-size mismatches, and oversized files are asserted as separate cases.
+  - Deep service/API coverage was rerun for auth management, customers, bookings, orders, operation vouchers, commission reports, tour programs/type APIs, report query validation, security, and SmartLink audit.
+
 - Phase 3 core workflow smoke alignment:
   - Core business workflow smoke now follows the hardened order lifecycle boundary: financial edits stay on `PUT /orders/:type/:id`, while status changes use `PATCH /orders/:type/:id/status`.
   - This keeps the smoke aligned with the backend guard that blocks status mutations through ordinary order updates.

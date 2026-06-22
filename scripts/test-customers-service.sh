@@ -164,8 +164,11 @@ async function main() {
   assert(customer.contacts.length === 1 && customer.tags.length === 1, 'create should persist contacts and tags');
 
   await rejectsMessage(() => realFiles.upload(undefined), 'Cần chọn file', 'file upload should require a selected file');
-  await rejectsMessage(() => realFiles.upload({ originalname: 'bad.svg', mimetype: 'image/svg+xml', size: 5, buffer: Buffer.from('bad') }), 'Loại file không được phép', 'file upload should reject dangerous mime types');
-  await rejectsMessage(() => realFiles.upload({ originalname: 'large.txt', mimetype: 'text/plain', size: fileUploadMaxBytes() + 1, buffer: Buffer.from('x') }), 'File vượt quá giới hạn', 'file upload should reject files over max size');
+  await rejectsMessage(() => realFiles.upload({ originalname: 'bad.svg', mimetype: 'image/svg+xml', size: 5, buffer: Buffer.from('bad') }), 'Định dạng file không được phép tải lên', 'file upload should reject dangerous extensions');
+  await rejectsMessage(() => realFiles.upload({ originalname: 'bad.txt', mimetype: 'image/svg+xml', size: 5, buffer: Buffer.from('bad') }), 'MIME type của file không được phép tải lên', 'file upload should reject dangerous mime types');
+  await rejectsMessage(() => realFiles.upload({ originalname: 'mismatch.txt', mimetype: 'text/plain', size: fileUploadMaxBytes() + 1, buffer: Buffer.from('x') }), 'Kích thước file không khớp với nội dung tải lên', 'file upload should reject mismatched size metadata');
+  const oversizedBuffer = Buffer.alloc(fileUploadMaxBytes() + 1, 'x');
+  await rejectsMessage(() => realFiles.upload({ originalname: 'large.txt', mimetype: 'text/plain', size: oversizedBuffer.length, buffer: oversizedBuffer }), 'File vượt quá giới hạn', 'file upload should reject files over max size');
 
   const partialUpdate = await service.update(customer.id, { latestComment: 'Partial only', note: 'partial update' }, branchUser);
   assert(partialUpdate.contacts.length === 1 && partialUpdate.tags.length === 1, 'partial update should not drop contacts or tags');
