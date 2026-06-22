@@ -754,13 +754,14 @@ type SaveReason = 'autosave' | 'save' | 'confirm' | 'upload' | 'delete-attachmen
 type FitTourWizardProps = {
   suppliers: Supplier[];
   tours: FitTourSummary[];
+  canManageTours: boolean;
   initialTourId?: string;
   onSaved?: (tour: Partial<FitTourForm> & { id?: string }, reason: SaveReason) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onStatusChange?: (message: string) => void;
 };
 
-export default function FitTourWizard({ suppliers, tours, initialTourId = '', onSaved, onDirtyChange, onStatusChange }: FitTourWizardProps) {
+export default function FitTourWizard({ suppliers, tours, canManageTours, initialTourId = '', onSaved, onDirtyChange, onStatusChange }: FitTourWizardProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [saveState, setSaveState] = useState('Chưa lưu');
   const [selectedTourId, setSelectedTourId] = useState('');
@@ -810,7 +811,16 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   const maxOpenStep = workflowStepIndex(values.workflowStatus);
   const currentFormError = firstFormError(formState.errors);
   const isBusy = formState.isSubmitting || saveState.startsWith('Đang ');
+  const isMutationDisabled = !canManageTours || isBusy;
   const errorFor = (name: keyof FitTourForm) => fieldError(formState.errors, name);
+
+  function requireManagePermission() {
+    if (!canManageTours) {
+      setSaveState('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n qu\u1ea3n l\u00fd tour FIT.');
+      return false;
+    }
+    return true;
+  }
 
   function goToStep(index: number) {
     if (index < 0 || index >= workflowSteps.length) return;
@@ -868,6 +878,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   useEffect(() => {
     const timeout = setTimeout(async () => {
       const current = getValues();
+      if (!canManageTours) return;
       if (!formState.isDirty) return;
       if (!current.id) {
         setSaveState('Tour mới chỉ được lưu khi bạn bấm Lưu nháp');
@@ -909,10 +920,13 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
       }
     }, autosaveDelayMs);
     return () => clearTimeout(timeout);
-  }, [values, activeStep, formState.isDirty, formState.isSubmitting, getValues, onSaved]);
+  }, [values, activeStep, canManageTours, formState.isDirty, formState.isSubmitting, getValues, onSaved]);
 
 
   async function saveTour(data: FitTourForm, workflowStatus: WorkflowStepKey | string = data.workflowStatus || 'DRAFT', mode: 'draft' | 'confirm' = 'draft') {
+    if (!canManageTours) {
+      throw new Error('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n qu\u1ea3n l\u00fd tour FIT.');
+    }
     const step = workflowSteps.some((item) => item.key === workflowStatus) ? workflowStatus as WorkflowStepKey : undefined;
     const creating = !data.id;
     const payloadWorkflowStatus = creating && mode === 'draft' ? data.workflowStatus || 'DRAFT' : workflowStatus;
@@ -1032,6 +1046,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function copyBudget() {
+    if (!requireManagePermission()) return;
     const id = getValues('id');
     if (!id) {
       setSaveState('Hãy lưu tour trước khi sao chép dự toán');
@@ -1073,6 +1088,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function copyOperation() {
+    if (!requireManagePermission()) return;
     const id = getValues('id');
     if (!id) {
       setSaveState('Hãy lưu tour trước khi sao chép điều hành');
@@ -1120,6 +1136,9 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function uploadAttachmentFile(file: File, step: WorkflowStepKey) {
+    if (!canManageTours) {
+      throw new Error('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n qu\u1ea3n l\u00fd tour FIT.');
+    }
     let id = getValues('id');
     if (!id) {
       const created = await saveTour(getValues(), step, 'draft');
@@ -1144,7 +1163,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function addFiles(files: FileList | null) {
-    if (!files) return;
+    if (!canManageTours || !files) return;
     const validFiles = Array.from(files).filter((file) => file.name);
     if (!validFiles.length) return;
     const validationError = validFiles.map(validateAttachmentFile).find(Boolean);
@@ -1181,6 +1200,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
   }
 
   async function removeAttachment(attachment: FitTourForm['attachments'][number]) {
+    if (!requireManagePermission()) return;
     const id = getValues('id');
     if (!id || !attachment.id) {
       setSaveState('Chưa có file hợp lệ để xóa');
@@ -1235,8 +1255,8 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
             {tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.quoteCode} - {tour.customerName}</option>)}
           </select>
           <span className="fitSaveState" role="status" aria-live="polite">{saveState}</span>
-          <button type="submit" disabled={isBusy}><Save size={15} /> Lưu nháp</button>
-          <button type="button" disabled={isBusy} onClick={handleSubmit(confirmCurrentStep, handleInvalidSubmit)}><Send size={15} /> Xác nhận bước</button>
+          <button type="submit" disabled={isMutationDisabled}><Save size={15} /> Lưu nháp</button>
+          <button type="button" disabled={isMutationDisabled} onClick={handleSubmit(confirmCurrentStep, handleInvalidSubmit)}><Send size={15} /> Xác nhận bước</button>
         </div>
       </section>
       {currentFormError ? <div className="sectionError" role="alert">{currentFormError}</div> : null}
@@ -1324,7 +1344,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           ]} />
           <div className="copyBar">
             <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Chọn tour nguồn để sao chép dự toán" />
-            <button type="button" disabled={isBusy} onClick={copyBudget}><Copy size={15} /> Sao chép dự toán</button>
+            <button type="button" disabled={isMutationDisabled} onClick={copyBudget}><Copy size={15} /> Sao chép dự toán</button>
           </div>
           <EditableTable title="Dự toán dịch vụ" name="budgetServices" fields={arrays.budgetServices.fields} register={register} append={() => arrays.budgetServices.append({ ...emptyService })} remove={(index) => confirmRemoveRow('budgetServices', index, arrays.budgetServices.remove)} columns={budgetColumns} suppliers={suppliers} />
         </section>
@@ -1340,7 +1360,7 @@ export default function FitTourWizard({ suppliers, tours, initialTourId = '', on
           ]} />
           <div className="copyBar">
             <CopySourceSelect tours={tours} currentTourId={values.id} value={copySourceTourId} onChange={setCopySourceTourId} emptyLabel="Dùng dự toán của tour hiện tại" />
-            <button type="button" disabled={isBusy} onClick={copyOperation}><Copy size={15} /> Sao chép sang điều hành</button>
+            <button type="button" disabled={isMutationDisabled} onClick={copyOperation}><Copy size={15} /> Sao chép sang điều hành</button>
           </div>
           <EditableTable title="Điều hành dịch vụ" name="operationServices" fields={arrays.operationServices.fields} register={register} append={() => arrays.operationServices.append({ ...emptyService })} remove={(index) => confirmRemoveRow('operationServices', index, arrays.operationServices.remove)} columns={operationColumns} suppliers={suppliers} />
         </section>

@@ -1864,3 +1864,5 @@
   - Tour guide cost service NET and selling prices now match backend non-negative validation in the frontend schema and number inputs.
   - Added `scripts/test-tour-guides-client-contract.js` to guard Tour Guides permission rendering and numeric validation boundaries.
   - Verification passed: `node scripts/test-tour-guides-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- Phase 3 FIT tour RBAC frontend hardening completed: list content is gated by `tour.view`, create/edit and wizard mutations are gated by `tour.manage`, export is gated by `tour.export`, and `scripts/test-fit-tours-client-contract.js` covers these contracts.

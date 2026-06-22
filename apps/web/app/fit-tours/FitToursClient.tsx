@@ -3,6 +3,7 @@
 import { Download, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { authHeaders } from '../authFetch';
+import { PermissionNotice, usePermissions } from '../usePermissions';
 import FitTourWizard from './FitTourWizard';
 
 type Supplier = { id: string; name: string };
@@ -136,6 +137,10 @@ function savedMessage(summary: FitTourSummary, reason: SaveReason, existed: bool
 }
 
 export default function FitToursClient({ suppliers, tours, initialError = '' }: { suppliers: Supplier[]; tours: FitTourSummary[]; initialError?: string }) {
+  const { can } = usePermissions();
+  const canViewTours = can('tour.view');
+  const canManageTours = can('tour.manage');
+  const canExportTours = can('tour.export');
   const [rows, setRows] = useState<FitTourSummary[]>(tours);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTourId, setSelectedTourId] = useState('');
@@ -176,6 +181,10 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
   }
 
   async function exportTour(tour: FitTourSummary) {
+    if (!canExportTours) {
+      setListMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n xu\u1ea5t tour FIT.');
+      return;
+    }
     setListMessage('Đang xuất file tour FIT...');
     try {
       const response = await fetch(`${apiBase}/api/fit-tours/${tour.id}/export`, { headers: authHeaders() });
@@ -196,6 +205,10 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
   }
 
   function openCreate() {
+    if (!canManageTours) {
+      setListMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n t\u1ea1o tour FIT.');
+      return;
+    }
     setSelectedTourId('');
     setWizardDirty(false);
     setListMessage('Đang tạo tour FIT mới. Cần nhập mã báo giá, mã tour và họ tên khách trước khi lưu.');
@@ -203,6 +216,10 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
   }
 
   function openEdit(id: string) {
+    if (!canManageTours) {
+      setListMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n s\u1eeda tour FIT.');
+      return;
+    }
     setSelectedTourId(id);
     setWizardDirty(false);
     const selected = rows.find((tour) => tour.id === id);
@@ -238,6 +255,9 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
 
   return (
     <>
+      <PermissionNotice allowed={canViewTours} label="xem tour FIT" missingPermissions={['tour.view']} />
+      {canViewTours ? (
+      <>
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sách tour FIT</h2>
@@ -245,7 +265,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
             <button type="button" className="secondaryButton iconTextButton" onClick={() => void reloadTours()} disabled={listBusy}>
               <RefreshCw size={16} /> {listBusy ? 'Đang tải' : 'Tải lại'}
             </button>
-            <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Tạo tour FIT</button>
+            <button type="button" className="secondaryButton iconTextButton" onClick={openCreate} disabled={!canManageTours || listBusy}><Plus size={16} /> Tạo tour FIT</button>
             <span>{rows.length} tour</span>
           </div>
         </div>
@@ -311,8 +331,8 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
                     <span className="mutedText">{tour._count?.operationServices ?? 0} dịch vụ điều hành</span>
                   </td>
                   <td className="actionsCell">
-                    <button type="button" className="secondaryButton iconButton" onClick={() => openEdit(tour.id)} title="Mở tour FIT" aria-label={`Mở ${tour.quoteCode || tour.tourCode}`}><Pencil size={14} /></button>
-                    <button type="button" className="secondaryButton iconButton" onClick={() => void exportTour(tour)} title="Tải CSV" aria-label={`Tải CSV ${tour.quoteCode || tour.tourCode}`}><Download size={14} /></button>
+                    <button type="button" className="secondaryButton iconButton" onClick={() => openEdit(tour.id)} title={'M\u1edf tour FIT'} aria-label={`M\u1edf ${tour.quoteCode || tour.tourCode}`} disabled={!canManageTours}><Pencil size={14} /></button>
+                    <button type="button" className="secondaryButton iconButton" onClick={() => void exportTour(tour)} title={'T\u1ea3i CSV'} aria-label={`T\u1ea3i CSV ${tour.quoteCode || tour.tourCode}`} disabled={!canExportTours}><Download size={14} /></button>
                   </td>
                 </tr>
               ))}
@@ -338,9 +358,12 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
               onSaved={handleWizardSaved}
               onDirtyChange={setWizardDirty}
               onStatusChange={handleWizardStatus}
+              canManageTours={canManageTours}
             />
           </div>
         </div>
+      ) : null}
+      </>
       ) : null}
     </>
   );

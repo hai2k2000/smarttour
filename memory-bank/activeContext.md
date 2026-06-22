@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 FIT tour frontend permission hardening:
+  - FIT tour client now mirrors backend RBAC with `tour.view` gating, `tour.manage` create/edit/wizard mutation guards, and `tour.export` export-button guards.
+  - FIT tour wizard receives the manage-permission state so save, confirm, autosave, copy budget/operation, upload, and delete attachment actions fail closed before API calls when the user lacks manage permission.
+  - Added `scripts/test-fit-tours-client-contract.js` to guard the FIT tour permission rendering and mutation/export gates.
+
+
 - Phase 3 tour guide frontend permission and numeric validation hardening:
   - Tour Guides UI now mirrors backend RBAC with `guide.view` gating and `guide.manage` fail-closed create/edit/save actions.
   - Tour guide cost service NET/selling prices now reject negative values before API submission.
