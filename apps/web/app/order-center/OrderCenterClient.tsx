@@ -4,8 +4,6 @@ import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '
 import { Download, Loader2, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { authHeaders } from '../authFetch';
-import { usePermissions } from '../usePermissions';
-
 import { viStatus } from '../i18n';
 type Dashboard = { total: number; upcoming: number; running: number; completed: number; cancelled: number; unpaid: number; unpaidCost: number; revenue: number; cost: number; profit: number };
 type OrderRow = {
@@ -74,8 +72,15 @@ function qs(filters: Filters) {
   return params.toString();
 }
 
-export default function OrderCenterClient({ initialDashboard, initialOrders }: { initialDashboard: Dashboard; initialOrders: OrderRow[] }) {
-  const { can } = usePermissions();
+export default function OrderCenterClient({
+  initialDashboard,
+  initialOrders,
+  canExportOrders,
+}: {
+  initialDashboard: Dashboard;
+  initialOrders: OrderRow[];
+  canExportOrders: boolean;
+}) {
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [orders, setOrders] = useState(initialOrders);
   const [filters, setFilters] = useState<Filters>({});
@@ -136,6 +141,10 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
   }
 
   async function exportCsv() {
+    if (!canExportOrders) {
+      setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n xu\u1ea5t CSV trung t\u00e2m \u0111\u01a1n h\u00e0ng.');
+      return;
+    }
     setExporting(true);
     try {
       const query = qs(filters);
@@ -200,7 +209,9 @@ export default function OrderCenterClient({ initialDashboard, initialOrders }: {
         <div className="hotelFormActions orderActions">
           <button type="button" disabled={loading} onClick={() => void load()}>{loading ? <Loader2 size={17} /> : <Search size={17}/>} {loading ? 'Đang tải dữ liệu' : 'Lọc dữ liệu'}</button>
           <button type="button" disabled={loading} className="secondaryButton" onClick={resetFilters}><RefreshCw size={17}/> Xóa lọc</button>
-          <button type="button" disabled={exporting || !can('order.export')} className="secondaryButton" onClick={() => void exportCsv()}><Download size={17}/> {exporting ? 'Đang xuất...' : 'Xuất CSV'}</button>
+          {canExportOrders ? (
+            <button type="button" disabled={exporting} className="secondaryButton" onClick={() => void exportCsv()}><Download size={17}/> {exporting ? '\u0110ang xu\u1ea5t...' : 'Xu\u1ea5t CSV'}</button>
+          ) : null}
         </div>
       </section>
 

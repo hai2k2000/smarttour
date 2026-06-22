@@ -2277,3 +2277,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the Reports page fetched overview/revenue data before checking the current user's report.view permission.
   - Found the Reports client exposed finance, customer debt, supplier debt, and CSV export controls even though backend routes require finance.cashflow.view, finance.debt.view, and report.export.
   - Added a focused Reports permissions contract and updated the server page/client so report content, finance/debt tabs, finance subviews, and export actions fail closed by permission.
+
+- 2026-06-22 Phase 3 order center RBAC hardening:
+  - Found the server-rendered Order Center page fetched dashboard/order data before checking order.view, allowing unauthorized data preload into the page payload.
+  - Found the Order Center export control only disabled via client permission state instead of being server-driven and fail-closed by the page permission contract.
+  - Added a focused Order Center permissions contract and updated the page/client so order content requires order.view and CSV export requires order.export.

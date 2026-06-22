@@ -1878,3 +1878,9 @@
   - Reports client now hides/blocks finance reports without finance.cashflow.view, debt reports without finance.debt.view, and CSV export without report.export.
   - Added scripts/test-reports-permissions-contract.js to guard the server/client RBAC contract.
   - Verification passed: node scripts/test-reports-permissions-contract.js, bash scripts/test-reports-finance-hybrid-contract.sh, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Completed Phase 3 order center RBAC hardening:
+  - Order Center server page now reads /auth/me first, gates dashboard/list content behind order.view, and avoids loading order data when order.view is missing.
+  - Order Center client now receives canExportOrders from the server page, hides the CSV export button without order.export, and fail-closes the export handler.
+  - Added scripts/test-order-center-permissions-contract.js to guard the Order Center RBAC contract.
+  - Verification passed: node scripts/test-order-center-permissions-contract.js, bash scripts/test-orders-ui-auth-contract.sh, npm run build -w @smarttour/web, and git diff --check.
