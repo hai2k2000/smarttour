@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../authFetch';
+import { PermissionNotice, usePermissions } from '../usePermissions';
 
 type GuideSummary = {
   id: string;
@@ -43,7 +44,7 @@ const currencyOptions = ['VND', 'USD', 'EUR'].map((value) => ({ value, label: va
 
 const cardSchema = z.object({ cardType: z.string().default(''), cardNumber: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
 const documentSchema = z.object({ documentType: z.string().default(''), documentNo: z.string().default(''), country: z.string().default(''), issueDate: z.string().default(''), expiredDate: z.string().default(''), issuePlace: z.string().default(''), note: z.string().default('') });
-const costSchema = z.object({ serviceType: z.string().default(''), serviceName: z.string().default(''), unit: z.string().default(''), currency: z.string().default('VND'), netPrice: z.coerce.number().default(0), sellingPrice: z.coerce.number().default(0), note: z.string().default('') });
+const costSchema = z.object({ serviceType: z.string().default(''), serviceName: z.string().default(''), unit: z.string().default(''), currency: z.string().default('VND'), netPrice: z.coerce.number().min(0, 'Gi\u00e1 NET kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), sellingPrice: z.coerce.number().min(0, 'Gi\u00e1 b\u00e1n kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), note: z.string().default('') });
 const scheduleSchema = z.object({ title: z.string().default(''), startDate: z.string().default(''), endDate: z.string().default(''), status: z.string().default('BUSY'), note: z.string().default('') });
 const guideSchema = z.object({
   guideCode: z.string().min(2),
@@ -372,6 +373,9 @@ function buildPayload(data: GuideForm) {
 }
 
 export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSummary[] }) {
+  const { can } = usePermissions();
+  const canViewGuides = can('guide.view');
+  const canManageGuides = can('guide.manage');
   const [guides, setGuides] = useState(initialHDVs);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -408,13 +412,13 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
           id: 'actions',
           header: 'Thao tác',
           cell: ({ row }) => (
-            <button type="button" className="secondaryButton iconTextButton" disabled={loadingGuideId === row.original.id} onClick={() => loadGuide(row.original.id)}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canManageGuides || loadingGuideId === row.original.id} onClick={() => loadGuide(row.original.id)}>
               {loadingGuideId === row.original.id ? <Loader2 size={15} /> : <Pencil size={15} />} {loadingGuideId === row.original.id ? 'Đang tải' : 'Sửa'}
             </button>
           ),
         }),
       ];
-    }, [loadingGuideId]),
+    }, [canManageGuides, loadingGuideId]),
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -457,6 +461,10 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
   }
 
   async function onSubmit(data: GuideForm) {
+    if (!canManageGuides) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n l\u01b0u h\u1ed3 s\u01a1 h\u01b0\u1edbng d\u1eabn vi\u00ean.' });
+      return;
+    }
     const rowError = validateRows(data);
     if (rowError) {
       setMessage({ kind: 'error', text: rowError });
@@ -490,6 +498,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
   }
 
   function openCreate() {
+    if (!canManageGuides) return;
     setEditingId(null);
     setLoadingGuideId(null);
     setMessage(null);
@@ -501,6 +510,9 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
 
   return (
     <div className="orderPage">
+      <PermissionNotice allowed={canViewGuides} label="xem h\u01b0\u1edbng d\u1eabn vi\u00ean" missingPermissions={['guide.view']} />
+      {canViewGuides ? (
+        <>
       {formOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalPanel modalPanelWide">
@@ -575,7 +587,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
               ]} />
               {message ? <span className={messageClass(message)} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
               <div className="hotelFormActions">
-                <button type="submit" disabled={formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu hồ sơ'}</button>
+                <button type="submit" disabled={!canManageGuides || formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu hồ sơ'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm} disabled={isSubmitting}><X size={17} /> Đóng</button>
               </div>
             </form>
@@ -590,7 +602,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
           </div>
           <div className="pageHeaderActions">
             <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
-            <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Thêm mới</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canManageGuides || reloading} onClick={openCreate}><Plus size={16} /> {'Th\u00eam m\u1edbi'}</button>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Lọc trạng thái hướng dẫn viên">
               <option value="">Tất cả trạng thái</option>
               {guideStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -610,6 +622,8 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
           </table>
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

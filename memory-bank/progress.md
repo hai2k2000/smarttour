@@ -1858,3 +1858,9 @@
   - Dynamic order table number inputs now expose min constraints, including day number minimum 1, while root passenger/seat/paid amount inputs expose non-negative minimums.
   - Strengthened `scripts/test-orders-ui-auth-contract.sh` to guard these frontend/backend validation boundaries.
   - Verification passed: `bash scripts/test-orders-ui-auth-contract.sh`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 tour guide frontend permission and numeric validation hardening:
+  - Tour Guides client now uses `PermissionNotice`/`usePermissions`, hides content without `guide.view`, and disables/fail-closes create/edit/save actions without `guide.manage`.
+  - Tour guide cost service NET and selling prices now match backend non-negative validation in the frontend schema and number inputs.
+  - Added `scripts/test-tour-guides-client-contract.js` to guard Tour Guides permission rendering and numeric validation boundaries.
+  - Verification passed: `node scripts/test-tour-guides-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.

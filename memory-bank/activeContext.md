@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 tour guide frontend permission and numeric validation hardening:
+  - Tour Guides UI now mirrors backend RBAC with `guide.view` gating and `guide.manage` fail-closed create/edit/save actions.
+  - Tour guide cost service NET/selling prices now reject negative values before API submission.
+
 - Phase 3 orders numeric validation hardening:
   - Orders UI now mirrors backend non-negative numeric constraints for sales/operation rows, passenger counts, seats, paid amounts, and handover quantities; itinerary day numbers start at 1.
   - Orders UI contract now guards schema and input-level numeric bounds so invalid negative values are blocked before API submission.
