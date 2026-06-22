@@ -1872,3 +1872,9 @@
 - Phase 3 booking page RBAC hardening completed: the server-rendered booking page now gates content with `booking.view`, hides mutation/status/delete forms behind `booking.manage`, and is covered by `scripts/test-bookings-server-page-permissions-contract.js`.
 
 - Phase 3 supplier overview RBAC hardening completed: the server-rendered supplier page now gates content with `supplier.view`, hides mutation forms behind `supplier.manage`, and is covered by `scripts/test-suppliers-server-page-permissions-contract.js`.
+
+- 2026-06-22 Completed Phase 3 reports RBAC hardening:
+  - Reports server page now reads /auth/me first, gates report content behind report.view, and avoids loading report data when report.view is missing.
+  - Reports client now hides/blocks finance reports without finance.cashflow.view, debt reports without finance.debt.view, and CSV export without report.export.
+  - Added scripts/test-reports-permissions-contract.js to guard the server/client RBAC contract.
+  - Verification passed: node scripts/test-reports-permissions-contract.js, bash scripts/test-reports-finance-hybrid-contract.sh, npm run build -w @smarttour/web, and git diff --check.

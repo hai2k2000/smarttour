@@ -2272,3 +2272,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found GIT and LandTour page server actions used a numeric helper that silently defaulted invalid numeric form input to 0 or 1.
   - Added a focused frontend contract for numeric validation on quantities, VAT, commission rate, and exchange rate.
   - Updated GIT/LandTour create actions so invalid numbers redirect with validation errors, quantities/exchange rates must be positive, and VAT/commission values stay in 0..100 instead of posting silently coerced data.
+
+- 2026-06-22 Phase 3 reports RBAC hardening:
+  - Found the Reports page fetched overview/revenue data before checking the current user's report.view permission.
+  - Found the Reports client exposed finance, customer debt, supplier debt, and CSV export controls even though backend routes require finance.cashflow.view, finance.debt.view, and report.export.
+  - Added a focused Reports permissions contract and updated the server page/client so report content, finance/debt tabs, finance subviews, and export actions fail closed by permission.

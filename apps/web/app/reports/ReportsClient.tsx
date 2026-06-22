@@ -423,7 +423,21 @@ function tourkitSnapshotText(row: any) {
 }
 
 
-export default function ReportsClient({ initialOverview, initialRevenue, initialMessage }: { initialOverview: Overview; initialRevenue: ReportData; initialMessage?: string }) {
+export default function ReportsClient({
+  initialOverview,
+  initialRevenue,
+  initialMessage,
+  canViewFinanceReports,
+  canViewDebtReports,
+  canExportReports,
+}: {
+  initialOverview: Overview;
+  initialRevenue: ReportData;
+  initialMessage?: string;
+  canViewFinanceReports: boolean;
+  canViewDebtReports: boolean;
+  canExportReports: boolean;
+}) {
   const [overview, setOverview] = useState<Overview>(initialOverview || {});
   const [active, setActive] = useState<ReportTabKey>('revenue');
   const [financeView, setFinanceView] = useState<FinanceViewKey>('overview');
@@ -437,6 +451,15 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const requestSeq = useRef(0);
+  const visibleReportTabs = useMemo(() => reportTabs.filter((tab) => {
+    if (tab.key === 'finance') return canViewFinanceReports;
+    if (tab.key === 'customer-debt' || tab.key === 'supplier-debt') return canViewDebtReports;
+    return true;
+  }), [canViewDebtReports, canViewFinanceReports]);
+  const visibleFinanceViews = useMemo(() => financeViews.filter((view) => {
+    if (view.key === 'customer-debt' || view.key === 'supplier-debt') return canViewDebtReports;
+    return canViewFinanceReports;
+  }), [canViewDebtReports, canViewFinanceReports]);
 
   const rows = useMemo(() => normalizeRows(active, report), [active, report]);
   const summaryCards = useMemo(() => reportSummaryCards(active, report.summary || {}, rows.length), [active, report.summary, rows.length]);
@@ -515,8 +538,11 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
   }
 
   function setTab(tab: ReportTabKey) {
+    if (tab === 'finance' && !canViewFinanceReports) return;
+    if ((tab === 'customer-debt' || tab === 'supplier-debt') && !canViewDebtReports) return;
     if (tab === active) return;
     setActive(tab);
+    if (tab !== 'finance') setFinanceView('overview');
     void load(tab, groupBy, filters, 'tab');
   }
 
@@ -535,6 +561,10 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
   }
 
   async function exportCsv() {
+    if (!canExportReports) {
+      setMessage({ tone: 'error', text: 'T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n xu\u1ea5t b\u00e1o c\u00e1o.' });
+      return;
+    }
     setExporting(true);
     setMessage({ tone: 'info', text: `Đang xuất CSV báo cáo ${tabLabels[active]}...` });
     try {
@@ -612,7 +642,7 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
     return (
       <div className="financeReportHybrid">
         <div className="financeReportTabs">
-          {financeViews.map((view) => (
+          {visibleFinanceViews.map((view) => (
             <button type="button" key={view.key} className={financeView === view.key ? 'active' : ''} onClick={() => setFinanceView(view.key)}>
               {view.label}
             </button>
@@ -744,13 +774,15 @@ export default function ReportsClient({ initialOverview, initialRevenue, initial
         <div className="hotelFormActions reportActions">
           <button type="button" disabled={loading} onClick={applyFilters}>{loading ? <Loader2 size={17} /> : <Search size={17} />} {loading ? 'Đang lọc...' : 'Lọc dữ liệu'}</button>
           <button type="button" disabled={loading} className="secondaryButton" onClick={resetFilters}><RefreshCw size={17} /> Xóa lọc</button>
-          <button type="button" disabled={loading || exporting} className="secondaryButton" onClick={exportCsv}><Download size={17} /> {exporting ? 'Đang export...' : 'Export CSV'}</button>
+          {canExportReports ? (
+            <button type="button" disabled={loading || exporting} className="secondaryButton" onClick={exportCsv}><Download size={17} /> {exporting ? '\u0110ang xu\u1ea5t...' : 'Xu\u1ea5t CSV'}</button>
+          ) : null}
         </div>
       </section>
 
       <section className="panel">
         <div className="reportTabs">
-          {reportTabs.map((tab) => <button type="button" key={tab.key} className={active === tab.key ? 'active' : ''} onClick={() => setTab(tab.key)}>{tab.label}</button>)}
+          {visibleReportTabs.map((tab) => <button type="button" key={tab.key} className={active === tab.key ? 'active' : ''} onClick={() => setTab(tab.key)}>{tab.label}</button>)}
         </div>
         <div className="reportControls">
           {groupedTabs.has(active) ? (
