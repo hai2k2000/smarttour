@@ -2287,3 +2287,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Workspace and CEO Overview server data helpers fetched reports, finance, order-center, operations, quotations, receipts, and payments before checking the current user's permissions.
   - Added a focused workspace data permissions contract and changed workspace-data to read /auth/me first, then only call each protected API group when the matching backend permission is present.
   - This keeps workspace summary pages fail-closed and prevents unauthorized dashboard/order/finance data preloads through the workspace route family.
+
+- 2026-06-22 Phase 3 customers client RBAC hardening:
+  - Found Customers client started list fetches before permission readiness and still rendered filters/metrics/list while customer.view was missing.
+  - Found create/detail/file handlers relied mostly on disabled controls instead of failing closed by permission inside the handler.
+  - Added a focused Customers client permissions contract and updated the client to wait for permissions, hide customer data without customer.view, and guard create/detail/upload/delete handlers.

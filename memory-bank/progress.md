@@ -1890,3 +1890,9 @@
   - Workspace Overview now gates report/product/market/order/operation data before calling the underlying APIs.
   - Added scripts/test-workspace-data-permissions-contract.js to guard the workspace data RBAC contract.
   - Verification passed: node scripts/test-workspace-data-permissions-contract.js, bash scripts/test-workspace-pages-contract.sh, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Completed Phase 3 customers client RBAC hardening:
+  - Customers client now waits for permissions before loading CRM data, clears stale customer rows/metrics when customer.view is unavailable, and hides customer data content behind customer.view.
+  - Create customer and customer file upload/delete actions now fail closed inside their handlers with customer.manage; detail viewing fail-closes with customer.view.
+  - Added scripts/test-customers-client-permissions-contract.js to guard the Customers frontend RBAC contract.
+  - Verification passed: node scripts/test-customers-client-permissions-contract.js, node scripts/test-required-fields-ui-contract.js, npm run build -w @smarttour/web, and git diff --check. scripts/test-customers-api.sh was attempted but stopped before customer assertions because its auth setup received 401 while creating roles.

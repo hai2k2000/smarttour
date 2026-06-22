@@ -96,7 +96,7 @@ const messageClass = {
 } as const;
 
 export default function CustomersClient() {
-  const { can, canAny } = usePermissions();
+  const { can, canAny, permissionsReady } = usePermissions();
   const canView = canAny(['customer.view', 'customer.manage']);
   const canManage = can('customer.manage');
   const [rows, setRows] = useState<Customer[]>([]);
@@ -142,10 +142,30 @@ export default function CustomersClient() {
   }, [filter, search]);
 
   useEffect(() => {
+    if (!permissionsReady) return;
+    if (!canView) {
+      setRows([]);
+      setDashboard(emptyDashboard);
+      setTypes([]);
+      setTags([]);
+      setCampaigns([]);
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [query]);
+  }, [query, permissionsReady, canView]);
 
   async function load() {
+    if (!permissionsReady) return;
+    if (!canView) {
+      setRows([]);
+      setDashboard(emptyDashboard);
+      setTypes([]);
+      setTags([]);
+      setCampaigns([]);
+      setLoading(false);
+      return;
+    }
     const requestId = listRequestRef.current + 1;
     listRequestRef.current = requestId;
     setLoading(true);
@@ -226,6 +246,10 @@ export default function CustomersClient() {
   }
 
   async function openDetail(id: string) {
+    if (!canView) {
+      setMessage({ type: 'error', text: 'B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n customer.view \u0111\u1ec3 xem chi ti\u1ebft kh\u00e1ch h\u00e0ng.' });
+      return;
+    }
     const requestId = detailRequestRef.current + 1;
     detailRequestRef.current = requestId;
     setDetailLoading(true);
@@ -248,6 +272,7 @@ export default function CustomersClient() {
   }
 
   async function uploadFiles(customerId: string, files: File[]) {
+    if (!canManage) throw new Error('B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n customer.manage \u0111\u1ec3 upload t\u00e0i li\u1ec7u kh\u00e1ch h\u00e0ng.');
     for (const file of files) {
       const body = new FormData();
       body.append('file', file);
@@ -270,6 +295,10 @@ export default function CustomersClient() {
   }
 
   async function removeFile(customerId: string, fileId: string) {
+    if (!canManage) {
+      setMessage({ type: 'error', text: 'B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n customer.manage \u0111\u1ec3 x\u00f3a t\u00e0i li\u1ec7u kh\u00e1ch h\u00e0ng.' });
+      return;
+    }
     const response = await fetch(`${API_URL}/api/customers/${customerId}/files/${fileId}`, { method: 'DELETE', headers: authHeaders() });
     if (!response.ok) {
       setMessage({ type: 'error', text: await responseMessage(response, 'Không xóa được tài liệu khách hàng') });
@@ -280,6 +309,10 @@ export default function CustomersClient() {
   }
 
   function openCreate() {
+    if (!canManage) {
+      setMessage({ type: 'error', text: 'B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n customer.manage \u0111\u1ec3 t\u1ea1o kh\u00e1ch h\u00e0ng.' });
+      return;
+    }
     setForm(createBlank());
     setFormErrors({});
     setCreateFiles([]);
@@ -387,10 +420,13 @@ export default function CustomersClient() {
           {message ? <span className={`statusPill ${messageClass[message.type]}`} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
           {!canManage ? <span className="permissionHint">Action quản lý đang bị vô hiệu vì thiếu quyền customer.manage.</span> : null}
           <button className="iconTextButton" disabled={!canManage || saving} title={disabledManageTitle} onClick={openCreate}><Plus size={16} /> Tạo khách hàng</button>
-          <button className="secondaryButton iconTextButton" disabled={loading} onClick={load}><RefreshCcw size={16} /> {loading ? 'Đang tải...' : 'Tải lại'}</button>
+          <button className="secondaryButton iconTextButton" disabled={!canView || loading} onClick={load}><RefreshCcw size={16} /> {loading ? 'Đang tải...' : 'Tải lại'}</button>
         </div>
       </header>
 
+      <PermissionNotice allowed={!permissionsReady || canView} label="xem v\u00e0 qu\u1ea3n l\u00fd kh\u00e1ch h\u00e0ng" />
+      {canView ? (
+        <>
       <section className="metrics customerMetrics">
         <Metric label="Tổng khách" value={dashboard.totalCustomers} />
         <Metric label="Mới hôm nay" value={dashboard.newToday} />
@@ -400,7 +436,6 @@ export default function CustomersClient() {
         <Metric label="Doanh thu" value={money(dashboard.totalRevenue)} />
         <Metric label="Công nợ" value={money(dashboard.totalDebt)} />
       </section>
-      <PermissionNotice allowed={canView} label="xem và quản lý khách hàng" />
 
       <section className="panel customerFilters">
         <label className="customerSearchFilter"><Search size={15} /> Tìm kiếm<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên, SĐT, email, mã khách" /></label>
@@ -551,6 +586,8 @@ export default function CustomersClient() {
             ) : null}
           </aside>
         </div>
+      ) : null}
+        </>
       ) : null}
     </section>
   );
