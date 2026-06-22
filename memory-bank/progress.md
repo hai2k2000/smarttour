@@ -2,6 +2,12 @@
 
 ## Done
 
+- Aligned file/upload smoke coverage with current API contracts:
+  - `smoke-files.sh` now uses an allowed generated text fixture, current FIT attachment endpoints, and finance documents that satisfy hardened tour-link rules.
+  - Re-ran the remaining admin-live smoke group with temporary admin credentials: `SMOKE_EXPORTS_OK`, `SMOKE_FILES_OK`, `SMOKE_OPERATIONS_BACKEND_OK`, `SMOKE_QUOTES_QUOTATIONS_OK`, and `SMOKE_UI_PAGES_OK`.
+  - Verified no temporary admin users/roles remained and healthcheck stayed green.
+
+
 - Aligned admin-live smoke scripts with current finance/tour workflow contracts:
   - `smoke-finance-cancellations.sh` and `smoke-finance-reports.sh` now create valid linked tours for tour-payment, supplier-payment, and invoice flows.
   - `smoke-business-workflows.sh` now adds the required tour-program itinerary day before booking creation and uses the current operation-voucher finance payment lifecycle.

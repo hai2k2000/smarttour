@@ -4,10 +4,14 @@ set -euo pipefail
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin password}"
-SOURCE_FILE="${SOURCE_FILE:-AGENTS.md}"
 OUT_DIR="${OUT_DIR:-/tmp/smarttour-files-smoke}"
+SOURCE_FILE="${SOURCE_FILE:-$OUT_DIR/source.txt}"
 
 mkdir -p "$OUT_DIR"
+if [[ ! -f "$SOURCE_FILE" ]]; then
+  printf 'SmartTour file smoke %s\n' "$(date +%s)" > "$SOURCE_FILE"
+fi
+source_basename="$(basename "$SOURCE_FILE")"
 response="$OUT_DIR/upload.json"
 download="$OUT_DIR/download"
 object_key=""
@@ -20,6 +24,9 @@ customer_file_id=""
 receipt_id=""
 payment_id=""
 invoice_id=""
+finance_customer_id=""
+finance_order_id=""
+finance_tour_id=""
 invoice_file_id=""
 receipt_import_id=""
 payment_import_id=""
@@ -37,7 +44,7 @@ token=$(awk '$6 == "smarttour.auth.token" { value=$7 } END { print value }' "$co
 test -n "$token"
 
 cleanup() {
-  if [[ -n "$receipt_id" || -n "$payment_id" || -n "$invoice_id" || -n "$receipt_import_id" || -n "$payment_import_id" ]]; then
+  if [[ -n "$receipt_id" || -n "$payment_id" || -n "$invoice_id" || -n "$receipt_import_id" || -n "$payment_import_id" || -n "$finance_customer_id" || -n "$finance_order_id" || -n "$finance_tour_id" ]]; then
     if [[ -n "$receipt_id" ]]; then
       curl -fsS -X DELETE \
         -H "Cookie: smarttour.auth.token=$token" \
@@ -64,6 +71,10 @@ DELETE FROM "FinancePayment" WHERE id = '$payment_import_id';
 DELETE FROM "FinanceInvoiceFile" WHERE "invoiceId" = '$invoice_id';
 DELETE FROM "FinanceInvoiceItem" WHERE "invoiceId" = '$invoice_id';
 DELETE FROM "FinanceInvoice" WHERE id = '$invoice_id';
+DELETE FROM "Tour" WHERE id = '$finance_tour_id';
+DELETE FROM "Order" WHERE id = '$finance_order_id';
+DELETE FROM "CustomerTimeline" WHERE "customerId" = '$finance_customer_id';
+DELETE FROM "Customer" WHERE id = '$finance_customer_id';
 SQL
   fi
   if [[ -n "$customer_id" ]]; then
@@ -103,6 +114,7 @@ SQL
       "$API_URL/files" >/dev/null || true
   fi
   rm -f "$response" "$download" "$receipt_import_csv" "$payment_import_csv" "$cookie_jar"
+  if [[ "$SOURCE_FILE" == "$OUT_DIR/source.txt" ]]; then rm -f "$SOURCE_FILE"; fi
 }
 trap cleanup EXIT
 
@@ -127,9 +139,9 @@ fit_file=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -F "file=@$SOURCE_FILE;type=text/plain" \
   -F 'step=PRICING' \
-  "$API_URL/fit-tours/$fit_tour_id/files")
-fit_file_id=$(jq -r '.id // empty' <<<"$fit_file")
-fit_file_url=$(jq -r '.fileUrl // empty' <<<"$fit_file")
+  "$API_URL/fit-tours/$fit_tour_id/attachments")
+fit_file_id=$(jq -r --arg name "$source_basename" '.attachments[]? | select(.step == "PRICING" and .fileName == $name) | .id' <<<"$fit_file" | head -n 1)
+fit_file_url=$(jq -r --arg name "$source_basename" '.attachments[]? | select(.step == "PRICING" and .fileName == $name) | .fileUrl' <<<"$fit_file" | head -n 1)
 test -n "$fit_file_id"
 test -n "$fit_file_url"
 
@@ -148,7 +160,7 @@ cmp -s "$SOURCE_FILE" "$download"
 
 curl -fsS -X DELETE \
   -H "Cookie: smarttour.auth.token=$token" \
-  "$API_URL/fit-tours/$fit_tour_id/files/$fit_file_id" >/dev/null
+  "$API_URL/fit-tours/$fit_tour_id/attachments/$fit_file_id" >/dev/null
 deleted_download=$(curl -sS -o /dev/null -w '%{http_code}' \
   -H "Cookie: smarttour.auth.token=$token" \
   "${API_URL%/api}$fit_file_url")
@@ -255,10 +267,32 @@ deleted_download=$(curl -sS -o /dev/null -w '%{http_code}' \
 test "$deleted_download" = "404"
 customer_id=""
 
+finance_customer=$(curl -fsS -X POST \
+  -H "Cookie: smarttour.auth.token=$token" \
+  -H 'Content-Type: application/json' \
+  --data "{\"code\":\"FIN-FILE-CUS-$smoke_id\",\"fullName\":\"Finance File Smoke Customer\",\"phone\":\"098${smoke_id//-/}\"}" \
+  "$API_URL/customers")
+finance_customer_id=$(jq -r '.id // empty' <<<"$finance_customer")
+test -n "$finance_customer_id"
+finance_order=$(curl -fsS -X POST \
+  -H "Cookie: smarttour.auth.token=$token" \
+  -H 'Content-Type: application/json' \
+  --data "{\"systemCode\":\"FIN-FILE-ORD-$smoke_id\",\"name\":\"Finance File Smoke Order\",\"customerId\":\"$finance_customer_id\",\"salesItems\":[{\"description\":\"Finance file smoke revenue\",\"quantity\":1,\"serviceCount\":1,\"unitPrice\":1}],\"operationItems\":[{\"serviceType\":\"OTHER\",\"quantity\":1,\"netPrice\":1}]}" \
+  "$API_URL/orders/single-services")
+finance_order_id=$(jq -r '.id // empty' <<<"$finance_order")
+test -n "$finance_order_id"
+finance_tour=$(curl -fsS -X POST \
+  -H "Cookie: smarttour.auth.token=$token" \
+  -H 'Content-Type: application/json' \
+  --data "{\"type\":\"FIT\",\"systemCode\":\"FIN-FILE-TOUR-$smoke_id\",\"orderId\":\"$finance_order_id\",\"tourCode\":\"FIN-FILE-T-$smoke_id\",\"name\":\"Finance File Smoke Tour\",\"startDate\":\"2026-08-01\",\"endDate\":\"2026-08-02\"}" \
+  "$API_URL/tours")
+finance_tour_id=$(jq -r '.id // empty' <<<"$finance_tour")
+test -n "$finance_tour_id"
+
 receipt=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -H 'Content-Type: application/json' \
-  --data '{"receiptName":"File Smoke Receipt","totalAmount":1,"receiptAmount":1}' \
+  --data "{\"receiptName\":\"File Smoke Receipt\",\"receiptType\":\"TOUR_PAYMENT\",\"customerId\":\"$finance_customer_id\",\"tourId\":\"$finance_tour_id\",\"totalAmount\":1,\"receiptAmount\":1}" \
   "$API_URL/finance/receipts")
 receipt_id=$(jq -r '.id // empty' <<<"$receipt")
 test -n "$receipt_id"
@@ -278,7 +312,7 @@ curl -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/finance/receipts/$r
 payment=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -H 'Content-Type: application/json' \
-  --data '{"voucherName":"File Smoke Payment","totalAmount":1,"paymentAmount":1}' \
+  --data '{"voucherName":"File Smoke Payment","voucherType":"OTHER","receiverName":"File Smoke Receiver","reason":"File smoke company expense","totalAmount":1,"paymentAmount":1}' \
   "$API_URL/finance/payments")
 payment_id=$(jq -r '.id // empty' <<<"$payment")
 test -n "$payment_id"
@@ -298,7 +332,7 @@ curl -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/finance/payments/$p
 invoice=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -H 'Content-Type: application/json' \
-  --data '{"customerName":"File Smoke Invoice","items":[{"itemName":"File Smoke Service","quantity":1,"unitPrice":1,"taxRate":10}]}' \
+  --data "{\"customerId\":\"$finance_customer_id\",\"customerName\":\"File Smoke Invoice\",\"tourId\":\"$finance_tour_id\",\"items\":[{\"itemName\":\"File Smoke Service\",\"quantity\":1,\"unitPrice\":1,\"taxRate\":10}]}" \
   "$API_URL/finance/invoices")
 invoice_id=$(jq -r '.id // empty' <<<"$invoice")
 test -n "$invoice_id"
@@ -319,7 +353,7 @@ test "$deleted_download" = "404"
 curl -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/finance/invoices/$invoice_id" | jq -e --arg id "$invoice_file_id" 'all(.files[]; .id != $id)' >/dev/null
 invoice_file_id=""
 
-printf 'receiptName,receiptType,paymentMethod,payerName,totalAmount,paidBefore,receiptAmount\nFile Smoke Imported Receipt,TOUR_PAYMENT,BANK_TRANSFER,CSV Smoke,3,1,2\n' > "$receipt_import_csv"
+printf 'receiptName,receiptType,paymentMethod,payerName,tourCode,totalAmount,paidBefore,receiptAmount\nFile Smoke Imported Receipt,TOUR_PAYMENT,BANK_TRANSFER,CSV Smoke,FIN-FILE-T-%s,3,1,2\n' "$smoke_id" > "$receipt_import_csv"
 receipt_import=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -F "file=@$receipt_import_csv;type=text/csv" \
@@ -328,7 +362,7 @@ jq -e '.type == "receipts" and .imported == 1' <<<"$receipt_import" >/dev/null
 receipt_import_id=$(jq -r '.rows[0].id // empty' <<<"$receipt_import")
 test -n "$receipt_import_id"
 
-printf 'voucherName,voucherType,paymentMethod,receiverName,totalAmount,paymentAmount\nFile Smoke Imported Payment,SUPPLIER_PAYMENT,BANK_TRANSFER,CSV Smoke,2,2\n' > "$payment_import_csv"
+printf 'voucherName,voucherType,paymentMethod,receiverName,totalAmount,paymentAmount\nFile Smoke Imported Payment,OTHER,BANK_TRANSFER,CSV Smoke,2,2\n' > "$payment_import_csv"
 payment_import=$(curl -fsS -X POST \
   -H "Cookie: smarttour.auth.token=$token" \
   -F "file=@$payment_import_csv;type=text/csv" \

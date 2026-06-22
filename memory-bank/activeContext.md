@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 admin-live file/upload smoke alignment:
+  - File smoke now uses a generated `.txt` fixture that matches the shared upload whitelist instead of relying on `AGENTS.md`.
+  - FIT tour attachment smoke now targets the current `/fit-tours/:id/attachments` endpoints and extracts uploaded files from the returned tour detail payload.
+  - Finance file smoke now creates a valid customer/order/tour for receipt and invoice attachments, while company expense payment/import paths use `OTHER` so they remain intentionally tour-independent.
+  - Fresh admin-live verification passed for exports, files, operations backend, quotes/quotations, and UI page reachability; temporary admin users/roles were cleaned up afterward.
+
+
 - Phase 3 admin-live smoke contract alignment:
   - Admin-live finance cancellation and finance report smokes now create valid linked tours before posting receipts, payments, and invoices, matching the hardened finance tour-link rules.
   - Business workflow smoke now creates the itinerary day required by booking validation before booking creation.
