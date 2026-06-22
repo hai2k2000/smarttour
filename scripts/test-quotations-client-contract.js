@@ -40,6 +40,33 @@ includes('function confirmQuotationAction', 'Quotation UI should define confirma
 includes('confirmQuotationAction(actionKey)', 'Quotation approve/convert action should confirm before POST.');
 includes('apiBase.includes(\'smarttour-api-1\')) return \'\';', 'Browser API base must use same-origin API for internal Docker host values.');
 
+
+const page = fs.readFileSync('apps/web/app/quotations/page.tsx', 'utf8');
+function pageIncludes(text, message) {
+  assert(page.includes(text), message || `Missing expected page source: ${text}`);
+}
+
+pageIncludes("import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';", 'Quotations page should use server permission helpers.');
+pageIncludes("apiGet<PermissionUser | null>(", 'Quotations page should read current session permissions before loading data.');
+pageIncludes("'/auth/me'", 'Quotations page should call auth session endpoint.');
+pageIncludes("const canViewQuotations = hasPermission(currentUser, 'quotation.view') || hasPermission(currentUser, 'quotation.manage');", 'Quotations page should calculate quotation view/manage access.');
+pageIncludes('canViewQuotations ? await Promise.all', 'Quotations page should not preload dashboard/list without quotation access.');
+pageIncludes('<ServerPermissionNotice allowed={canViewQuotations}', 'Quotations page should show a server permission notice when access is missing.');
+pageIncludes('{canViewQuotations ? (', 'Quotations page should hide quotation client content without access.');
+
+includes('const { can, canAny, permissionsReady } = usePermissions();', 'Quotations client should wait for permission readiness.');
+includes("const canViewQuotations = canAny(['quotation.view', 'quotation.manage']);", 'Quotations client should derive view/manage access once.');
+includes("const canManageQuotations = can('quotation.manage');", 'Quotations client should derive manage access once.');
+includes('if (!permissionsReady || !canViewQuotations) {', 'Quotations reload/detail handlers should fail closed before API calls without view access.');
+includes('setDashboard(emptyDashboard);', 'Quotations client should clear server-provided dashboard when view access is missing.');
+includes('setQuotations([]);', 'Quotations client should clear server-provided rows when view access is missing.');
+includes('if (!canManageQuotations) {', 'Quotations save and manage actions should fail closed without quotation.manage.');
+includes("if (actionKey === 'approve' && !canApproveQuotation) {", 'Quotation approve action should fail closed without quotation.approve.');
+includes('PermissionNotice allowed={!permissionsReady || canViewQuotations}', 'Quotations client should avoid permission flash while permissions are loading.');
+includes('{canViewQuotations ? (', 'Quotations client should hide dashboard/form/list content without view access.');
+includes('disabled={!canViewQuotations || loadingQuotationId === row.original.id}', 'Quotation edit buttons should be disabled without view access.');
+includes('disabled={!canViewQuotations || reloading}', 'Quotation reload button should be disabled without view access.');
+
 const dateHelper = source.match(/function dateInputValue\(value: unknown\) \{[\s\S]*?\n\}/)?.[0] || '';
 assert(dateHelper, 'dateInputValue helper is missing.');
 assert(!dateHelper.includes('toISOString().slice(0, 10)'), 'dateInputValue must not use toISOString because it can shift dates across timezones.');

@@ -1902,3 +1902,8 @@
   - CSV export now requires commission.view + commission.export; sync/reject/pay require commission.manage; approve requires commission.approve inside handlers as well as buttons.
   - Strengthened scripts/test-commission-reports-client-contract.js to guard the client RBAC contract.
   - Verification passed: node scripts/test-commission-reports-client-contract.js, bash scripts/test-commission-reports-security.sh, npm run build -w @smarttour/web, and git diff --check.
+- 2026-06-22 Completed Phase 3 quote/quotation frontend RBAC hardening:
+  - Legacy Quotations, Quote Tours, and Quote Combos now gate server-side initial data loads through `/auth/me` and hide protected client content when quote/quotation view access is missing.
+  - Client handlers now wait for permission readiness, clear stale SSR data when access is missing, and fail-close create/update/convert/approve actions before API calls.
+  - Quote Combos supplier catalogs are preloaded only for `quote.manage` users.
+  - Verification passed: `node scripts/test-quotations-client-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.

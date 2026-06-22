@@ -1,10 +1,12 @@
 import { ClipboardList, Users } from 'lucide-react';
 import { serverAuthHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 import QuotationsClient from './QuotationsClient';
 
 export const dynamic = 'force-dynamic';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const emptyDashboard = { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 };
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -17,24 +19,29 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function QuotationsPage() {
-  const [dashboard, quotations] = await Promise.all([
-    apiGet('/quotations/dashboard', { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 }),
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewQuotations = hasPermission(currentUser, 'quotation.view') || hasPermission(currentUser, 'quotation.manage');
+  const [dashboard, quotations] = canViewQuotations ? await Promise.all([
+    apiGet('/quotations/dashboard', emptyDashboard),
     apiGet('/quotations', []),
-  ]);
+  ]) : [emptyDashboard, []];
 
   return (
     <section className="workspace">
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Báo giá hợp nhất</p>
-          <h1>Công cụ báo giá</h1>
+          <p className="eyebrow">{'B\u00e1o gi\u00e1 h\u1ee3p nh\u1ea5t'}</p>
+          <h1>{'C\u00f4ng c\u1ee5 b\u00e1o gi\u00e1'}</h1>
         </div>
         <div className="pageHeaderActions">
-          <span className="statusPill"><ClipboardList size={14} /> Công cụ giá</span>
-          <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
+          <span className="statusPill"><ClipboardList size={14} /> {'C\u00f4ng c\u1ee5 gi\u00e1'}</span>
+          <span className="statusPill statusPillNeutral"><Users size={14} /> {'Nh\u00e2n s\u1ef1 v\u1eadn h\u00e0nh'}</span>
         </div>
       </header>
-      <QuotationsClient initialDashboard={dashboard} initialQuotations={quotations} />
+      <ServerPermissionNotice allowed={canViewQuotations} label={'xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1'} missingPermissions={['quotation.view']} />
+      {canViewQuotations ? (
+        <QuotationsClient initialDashboard={dashboard} initialQuotations={quotations} />
+      ) : null}
     </section>
   );
 }

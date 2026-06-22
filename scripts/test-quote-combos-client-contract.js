@@ -50,4 +50,30 @@ includes('setValue(`items.${row.index}.serviceName`, \'\')', 'Changing supplier 
 includes('setValue(`items.${row.index}.netPricePerService`, 0)', 'Changing supplier away from selected service must clear stale NET price.');
 includes('key={`${item.supplierId}:${item.id}`}', 'Service options need stable keys scoped by supplier.');
 
+
+const page = fs.readFileSync('apps/web/app/quotes/combos/page.tsx', 'utf8');
+function pageIncludes(text, message) {
+  assert(page.includes(text), message || `Missing expected page source: ${text}`);
+}
+pageIncludes("import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';", 'Quote combos page should use server permission helpers.');
+pageIncludes("apiGet<PermissionUser | null>(", 'Quote combos page should read current session permissions before loading data.');
+pageIncludes("'/auth/me'", 'Quote combos page should call auth session endpoint.');
+pageIncludes("const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');", 'Quote combos page should calculate quote view/manage access.');
+pageIncludes("const canManageQuotes = hasPermission(currentUser, 'quote.manage');", 'Quote combos page should calculate quote.manage access.');
+pageIncludes('canViewQuotes ? await apiGet', 'Quote combos page should not preload combo list without quote access.');
+pageIncludes('canManageQuotes ? await Promise.all', 'Quote combos page should not preload supplier catalogs without quote.manage.');
+pageIncludes('<ServerPermissionNotice allowed={canViewQuotes}', 'Quote combos page should show a server permission notice when access is missing.');
+pageIncludes('{canViewQuotes ? (', 'Quote combos page should hide quote combo client content without access.');
+
+includes('const { can, canAny, permissionsReady } = usePermissions();', 'Quote combos client should wait for permission readiness.');
+includes("const canViewQuotes = canAny(['quote.view', 'quote.manage']);", 'Quote combos client should derive view/manage access once.');
+includes("const canManageQuotes = can('quote.manage');", 'Quote combos client should derive manage access once.');
+includes('if (!permissionsReady || !canViewQuotes) {', 'Quote combos reload/detail handlers should fail closed before API calls without view access.');
+includes('setCombos([]);', 'Quote combos client should clear server-provided rows when view access is missing.');
+includes('if (!canManageQuotes) {', 'Quote combos save/order actions should fail closed without quote.manage.');
+includes('PermissionNotice allowed={!permissionsReady || canViewQuotes}', 'Quote combos client should avoid permission flash while permissions are loading.');
+includes('{canViewQuotes ? (', 'Quote combos client should hide list/form content without view access.');
+includes('disabled={!canViewQuotes || loadingComboId === row.original.id}', 'Quote combo edit buttons should be disabled without view access.');
+includes('disabled={!canViewQuotes || listLoading}', 'Quote combos reload button should be disabled without view access.');
+
 console.log('TEST_QUOTE_COMBOS_CLIENT_CONTRACT_OK');

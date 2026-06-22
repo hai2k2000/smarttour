@@ -1,6 +1,7 @@
 import { Calculator, Users } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import QuoteCombosClient from './QuoteCombosClient';
 
 export const dynamic = 'force-dynamic';
@@ -20,15 +21,18 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function QuoteCombosPage() {
-  const [combos, hotels, flights, landtours, attractions, transport, other] = await Promise.all([
-    apiGet('/quotes/combos', []),
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');
+  const canManageQuotes = hasPermission(currentUser, 'quote.manage');
+  const combos = canViewQuotes ? await apiGet('/quotes/combos', []) : [];
+  const [hotels, flights, landtours, attractions, transport, other] = canManageQuotes ? await Promise.all([
     apiGet<Supplier[]>('/suppliers/hotels', []),
     apiGet<Supplier[]>('/suppliers/flights', []),
     apiGet<Supplier[]>('/suppliers/landtour-suppliers', []),
     apiGet<Supplier[]>('/suppliers/attraction-tickets', []),
     apiGet<Supplier[]>('/suppliers/transport', []),
     apiGet<Supplier[]>('/suppliers/other', []),
-  ]);
+  ]) : [[], [], [], [], [], []];
   const suppliers = [...hotels, ...flights, ...landtours, ...attractions, ...transport, ...other];
 
   return (
@@ -51,7 +55,10 @@ export default async function QuoteCombosPage() {
           </div>
           <div className="user"><Calculator size={18} /> Báo giá combo <Users size={18} /> Nhân sự vận hành</div>
         </header>
-        <QuoteCombosClient initialCombos={combos} suppliers={suppliers} />
+        <ServerPermissionNotice allowed={canViewQuotes} label={'xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1 combo'} missingPermissions={['quote.view']} />
+        {canViewQuotes ? (
+          <QuoteCombosClient initialCombos={combos} suppliers={suppliers} />
+        ) : null}
       </section>
     </main>
   );

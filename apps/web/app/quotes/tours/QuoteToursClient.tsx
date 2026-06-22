@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { AlertCircle, Check, Copy, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
@@ -320,8 +320,8 @@ function buildPayload(data: QuoteForm) {
 }
 
 export default function QuoteToursClient({ initialQuotes }: { initialQuotes: QuoteSummary[] }) {
-  const { can, canAny } = usePermissions();
-  const [quotes, setQuotes] = useState(initialQuotes);
+  const { can, canAny, permissionsReady } = usePermissions();
+  const [quotes, setQuotes] = useState(() => normalizeQuoteList(initialQuotes));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
@@ -343,6 +343,9 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   const costItems = useFieldArray({ control, name: 'costItems' });
   const itineraries = useFieldArray({ control, name: 'itineraries' });
   const values = useWatch({ control });
+  const canViewQuotes = canAny(['quote.view', 'quote.manage']);
+  const canManageQuotes = can('quote.manage');
+  const canApproveQuote = can('quote.approve');
 
   const totals = useMemo(() => {
     const items = (values.costItems || []).map(normalizeCostItem);
@@ -415,17 +418,22 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
           id: 'actions',
           header: '',
           cell: ({ row }) => (
-            <button type="button" className="secondaryButton iconTextButton" disabled={loadingQuoteId === row.original.id} onClick={() => loadQuote(row.original.id)}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotes || loadingQuoteId === row.original.id} onClick={() => loadQuote(row.original.id)}>
               <Pencil size={15} /> {loadingQuoteId === row.original.id ? 'Đang tải' : 'Sửa'}
             </button>
           ),
         }),
       ];
-    }, [loadingQuoteId]),
+    }, [loadingQuoteId, canViewQuotes]),
     getCoreRowModel: getCoreRowModel(),
   });
 
   async function reload(showSuccess = true) {
+    if (!permissionsReady || !canViewQuotes) {
+      setQuotes([]);
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem b\u00e1o gi\u00e1 tour.');
+      return;
+    }
     setListLoading(true);
     setError('');
     try {
@@ -444,6 +452,10 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   async function loadQuote(id: string, showSuccess = true) {
+    if (!permissionsReady || !canViewQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem chi ti\u1ebft b\u00e1o gi\u00e1 tour.');
+      return;
+    }
     const previousEditingId = editingId;
     const switchingRecord = previousEditingId !== id;
     setLoadingQuoteId(id);
@@ -516,6 +528,10 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   async function onSubmit(data: QuoteForm) {
+    if (!canManageQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o ho\u1eb7c c\u1eadp nh\u1eadt b\u00e1o gi\u00e1 tour.');
+      return;
+    }
     setError('');
     setMessage('');
     const payload = buildPayload(data);
@@ -541,6 +557,14 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     const currentId = editingId;
     if (!currentId) {
       setError(`Cần mở một báo giá đã lưu trước khi ${actionLabels[path]}.`);
+      return;
+    }
+    if (path === 'approve' && !canApproveQuote) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n ch\u1ed1t b\u00e1o gi\u00e1 tour.');
+      return;
+    }
+    if (path !== 'approve' && !canManageQuotes) {
+      setError(`B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n ${actionLabels[path]}.`);
       return;
     }
     if (!confirmQuoteAction(path)) return;
@@ -572,6 +596,10 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   function openCreate() {
+    if (!canManageQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o b\u00e1o gi\u00e1 tour.');
+      return;
+    }
     setEditingId(null);
     setMessage('');
     setError('');
@@ -580,12 +608,24 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   const validationMessage = errors.quoteCode?.message || errors.tourCode?.message || errors.customerEmail?.message;
-  const canApproveQuote = can('quote.approve');
   const formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingQuoteId);
+
+  useEffect(() => {
+    if (!permissionsReady || canViewQuotes) return;
+    setQuotes([]);
+    setEditingId(null);
+    setQuery('');
+    setMessage('');
+    setError('');
+    setFormOpen(false);
+    reset(freshDefaultValues());
+  }, [permissionsReady, canViewQuotes, reset]);
 
   return (
     <div className="quotePage">
-      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem và quản lý báo giá tour" />
+      <PermissionNotice allowed={!permissionsReady || canViewQuotes} label="xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1 tour" />
+      {canViewQuotes ? (
+        <>
       {formOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalPanel modalPanelWide">
@@ -665,9 +705,9 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
               {error ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
 
               <div className="hotelFormActions">
-                <button type="submit" disabled={formBusy || !can('quote.manage')}><Save size={17} /> {editingId ? 'Lưu thay đổi' : 'Tạo báo giá'}</button>
+                <button type="submit" disabled={formBusy || !canManageQuotes}><Save size={17} /> {editingId ? 'Lưu thay đổi' : 'Tạo báo giá'}</button>
                 <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !canApproveQuote} onClick={() => action('approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang chốt' : 'Chốt báo giá'}</button>
-                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('convert')}><Copy size={17} /> {actionLoading === 'convert' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !canManageQuotes} onClick={() => action('convert')}><Copy size={17} /> {actionLoading === 'convert' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
               </div>
             </form>
@@ -682,8 +722,8 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
             <span>{listLoading ? 'Đang tải dữ liệu...' : `${filteredQuotes.length} báo giá`}</span>
           </div>
           <div className="quoteListActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
-            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Tạo báo giá</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotes || listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canManageQuotes} onClick={openCreate}><Plus size={16} /> Tạo báo giá</button>
             <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã báo giá, mã tour, người đặt, hành trình..." /></label>
           </div>
         </div>
@@ -701,6 +741,8 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
           </table>
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

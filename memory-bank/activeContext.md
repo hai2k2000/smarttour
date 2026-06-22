@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 quote/quotation frontend RBAC hardening:
+  - Legacy Quotations, Quote Tours, and Quote Combos server pages now read `/auth/me` before protected preloads, avoid loading quote data without view/manage access, and render server permission notices instead of protected client content when access is missing.
+  - The quote clients now wait for permission readiness, clear server-provided rows when view access is missing, hide dashboard/list/form content without view access, and fail-close view/manage/approve handlers before API calls.
+  - Quote Combos only preloads supplier catalogs for users with `quote.manage`, keeping supplier catalog data out of view-only sessions.
+
 - Phase 3 supplier page permission hardening:
   - Supplier overview server page now reads `/auth/me`, gates category/supplier content with `supplier.view`, and hides category/supplier create/edit/delete actions and modals unless the user has `supplier.manage`.
   - Added `scripts/test-suppliers-server-page-permissions-contract.js` to guard the supplier overview RBAC contract.

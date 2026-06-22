@@ -1,6 +1,7 @@
 import { Calculator, Users } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import QuoteToursClient from './QuoteToursClient';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,9 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function QuoteToursPage() {
-  const quotes = await apiGet('/quotes/tours', []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');
+  const quotes = canViewQuotes ? await apiGet('/quotes/tours', []) : [];
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -41,7 +44,10 @@ export default async function QuoteToursPage() {
           </div>
           <div className="user"><Calculator size={18} /> Báo giá tour <Users size={18} /> Nhân sự vận hành</div>
         </header>
-        <QuoteToursClient initialQuotes={quotes} />
+        <ServerPermissionNotice allowed={canViewQuotes} label={'xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1 tour'} missingPermissions={['quote.view']} />
+        {canViewQuotes ? (
+          <QuoteToursClient initialQuotes={quotes} />
+        ) : null}
       </section>
     </main>
   );

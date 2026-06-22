@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { AlertCircle, Check, Pencil, Plus, RefreshCcw, Save, Search, ShoppingCart, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, UseFormSetValue, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
@@ -222,8 +222,8 @@ function buildPayload(data: ComboForm, serviceOptions: ServiceOption[]) {
 }
 
 export default function QuoteCombosClient({ initialCombos, suppliers }: { initialCombos: ComboSummary[]; suppliers: Supplier[] }) {
-  const { can, canAny } = usePermissions();
-  const [combos, setCombos] = useState(initialCombos);
+  const { can, canAny, permissionsReady } = usePermissions();
+  const [combos, setCombos] = useState(() => normalizeComboList(initialCombos));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
@@ -245,6 +245,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   });
   const items = useFieldArray({ control, name: 'items' });
   const values = useWatch({ control });
+  const canViewQuotes = canAny(['quote.view', 'quote.manage']);
+  const canManageQuotes = can('quote.manage');
 
   const serviceOptions = useMemo(() => normalizeServiceOptions(suppliers), [suppliers]);
 
@@ -297,17 +299,22 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
           id: 'actions',
           header: '',
           cell: ({ row }) => (
-            <button type="button" className="secondaryButton iconTextButton" disabled={loadingComboId === row.original.id} onClick={() => loadCombo(row.original.id)}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotes || loadingComboId === row.original.id} onClick={() => loadCombo(row.original.id)}>
               <Pencil size={15} /> {loadingComboId === row.original.id ? 'Đang tải' : 'Sửa'}
             </button>
           ),
         }),
       ];
-    }, [loadingComboId]),
+    }, [loadingComboId, canViewQuotes]),
     getCoreRowModel: getCoreRowModel(),
   });
 
   async function reload(showSuccess = true) {
+    if (!permissionsReady || !canViewQuotes) {
+      setCombos([]);
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem b\u00e1o gi\u00e1 combo.');
+      return;
+    }
     setListLoading(true);
     setError('');
     try {
@@ -326,6 +333,10 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   async function loadCombo(id: string, showSuccess = true) {
+    if (!permissionsReady || !canViewQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem chi ti\u1ebft combo.');
+      return;
+    }
     const previousEditingId = editingId;
     const switchingRecord = previousEditingId !== id;
     setLoadingComboId(id);
@@ -372,6 +383,10 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   async function onSubmit(data: ComboForm) {
+    if (!canManageQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o ho\u1eb7c c\u1eadp nh\u1eadt b\u00e1o gi\u00e1 combo.');
+      return;
+    }
     setError('');
     setMessage('');
     const payload = buildPayload(data, serviceOptions);
@@ -398,6 +413,10 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   async function action(path: ComboAction) {
+    if (!canManageQuotes) {
+      setError(`B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n ${actionLabels[path]}.`);
+      return;
+    }
     const currentId = editingId;
     if (!currentId) {
       setError(`Cần mở một combo đã lưu trước khi ${actionLabels[path]}.`);
@@ -427,6 +446,10 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   }
 
   function openCreate() {
+    if (!canManageQuotes) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o b\u00e1o gi\u00e1 combo.');
+      return;
+    }
     setEditingId(null);
     setMessage('');
     setError('');
@@ -437,9 +460,22 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
   const validationMessage = errors.comboCode?.message || errors.comboType?.message || errors.profitPerPax?.message || errors.childPricePercent?.message;
   const formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingComboId);
 
+  useEffect(() => {
+    if (!permissionsReady || canViewQuotes) return;
+    setCombos([]);
+    setEditingId(null);
+    setQuery('');
+    setMessage('');
+    setError('');
+    setFormOpen(false);
+    reset(freshDefaultValues());
+  }, [permissionsReady, canViewQuotes, reset]);
+
   return (
     <div className="quotePage quoteComboPage">
-      <PermissionNotice allowed={canAny(['quote.view', 'quote.manage'])} label="xem và quản lý báo giá combo" />
+      <PermissionNotice allowed={!permissionsReady || canViewQuotes} label="xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1 combo" />
+      {canViewQuotes ? (
+        <>
       {formOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalPanel modalPanelWide">
@@ -486,9 +522,9 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
               {error ? <div className="quoteAlert quoteAlertError"><AlertCircle size={16} /> {error}</div> : null}
 
               <div className="hotelFormActions">
-                <button type="submit" disabled={formBusy || !can('quote.manage')}><Save size={17} /> {editingId ? 'Lưu báo giá' : 'Tạo báo giá'}</button>
-                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('create-order')}><ShoppingCart size={17} /> {actionLoading === 'create-order' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
-                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('create-quote')}><Check size={17} /> {actionLoading === 'create-quote' ? 'Đang chốt' : 'Chốt báo giá'}</button>
+                <button type="submit" disabled={formBusy || !canManageQuotes}><Save size={17} /> {editingId ? 'Lưu báo giá' : 'Tạo báo giá'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !canManageQuotes} onClick={() => action('create-order')}><ShoppingCart size={17} /> {actionLoading === 'create-order' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !canManageQuotes} onClick={() => action('create-quote')}><Check size={17} /> {actionLoading === 'create-quote' ? 'Đang chốt' : 'Chốt báo giá'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
               </div>
             </form>
@@ -503,8 +539,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
             <span>{listLoading ? 'Đang tải dữ liệu...' : `${filteredCombos.length} combo`}</span>
           </div>
           <div className="quoteListActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
-            <button type="button" className="secondaryButton iconTextButton" disabled={!can('quote.manage')} onClick={openCreate}><Plus size={16} /> Tạo báo giá combo</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotes || listLoading} onClick={() => reload()}><RefreshCcw size={16} /> Tải lại danh sách</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canManageQuotes} onClick={openCreate}><Plus size={16} /> Tạo báo giá combo</button>
             <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã combo, loại combo, trạng thái..." /></label>
           </div>
         </div>
@@ -522,6 +558,8 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
           </table>
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

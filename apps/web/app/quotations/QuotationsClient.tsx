@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { AlertCircle, Check, Copy, Link as LinkIcon, Pencil, Plus, RefreshCcw, Save, Search, Send, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../authFetch';
@@ -33,6 +33,8 @@ type QuotationSummary = {
 };
 
 type QuotationAction = 'submit' | 'approve' | 'smartlink-on' | 'smartlink-off' | 'convert';
+
+const emptyDashboard: Dashboard = { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 };
 
 const productTypes = ['FIT', 'GIT', 'LANDTOUR', 'COMBO', 'BOOKING', 'VISA', 'SERVICE'] as const;
 const statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONVERTED', 'CANCELLED'] as const;
@@ -495,15 +497,21 @@ function formErrorText(error: unknown): string {
 }
 
 export default function QuotationsClient({ initialDashboard, initialQuotations }: { initialDashboard: Dashboard; initialQuotations: QuotationSummary[] }) {
-  const { can, canAny } = usePermissions();
+  const { can, canAny, permissionsReady } = usePermissions();
   const [dashboard, setDashboard] = useState(() => {
     try {
       return normalizeDashboard(initialDashboard);
     } catch {
-      return { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 };
+      return emptyDashboard;
     }
   });
-  const [quotations, setQuotations] = useState(() => normalizeQuotationList(initialQuotations));
+  const [quotations, setQuotations] = useState(() => {
+    try {
+      return normalizeQuotationList(initialQuotations);
+    } catch {
+      return [];
+    }
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
@@ -527,7 +535,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   const validationError = formErrorText(errors);
   const currentStatus = normalizeStatus(values.status);
   const isSmartLinkEnabled = Boolean(values.smartLinkEnabled);
-  const canManage = can('quotation.manage');
+  const canViewQuotations = canAny(['quotation.view', 'quotation.manage']);
+  const canManageQuotations = can('quotation.manage');
   const canApproveQuotation = can('quotation.approve');
 
   const totals = useMemo(() => {
@@ -601,13 +610,13 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
           id: 'actions',
           header: '',
           cell: ({ row }) => (
-            <button type="button" className="secondaryButton iconTextButton" disabled={loadingQuotationId === row.original.id} onClick={() => loadQuotation(row.original.id)}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotations || loadingQuotationId === row.original.id} onClick={() => loadQuotation(row.original.id)}>
               <Pencil size={15} /> {loadingQuotationId === row.original.id ? 'Đang tải' : 'Sửa'}
             </button>
           ),
         }),
       ];
-    }, [loadingQuotationId]),
+    }, [loadingQuotationId, canViewQuotations]),
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -615,9 +624,26 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   const approveEnabled = Boolean(editingId) && currentStatus === 'PENDING_APPROVAL';
   const smartLinkEnabledForStatus = Boolean(editingId) && !['CONVERTED', 'CANCELLED'].includes(currentStatus);
   const convertEnabled = Boolean(editingId) && currentStatus === 'APPROVED';
-  const savingDisabled = isSubmitting || reloading || Boolean(actionLoading || loadingQuotationId) || !canManage || currentStatus === 'CONVERTED';
+  const savingDisabled = isSubmitting || reloading || Boolean(actionLoading || loadingQuotationId) || !canManageQuotations || currentStatus === 'CONVERTED';
+
+  useEffect(() => {
+    if (!permissionsReady || canViewQuotations) return;
+    setDashboard(emptyDashboard);
+    setQuotations([]);
+    setEditingId(null);
+    setQuery('');
+    setMessage('');
+    setError('');
+    reset(freshDefaultValues());
+  }, [permissionsReady, canViewQuotations, reset]);
 
   async function reload(showSuccess = true) {
+    if (!permissionsReady || !canViewQuotations) {
+      setDashboard(emptyDashboard);
+      setQuotations([]);
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem b\u00e1o gi\u00e1.');
+      return;
+    }
     setReloading(true);
     setError('');
     const failures: string[] = [];
@@ -663,6 +689,10 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   }
 
   async function loadQuotation(id: string, showSuccess = true) {
+    if (!permissionsReady || !canViewQuotations) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem chi ti\u1ebft b\u00e1o gi\u00e1.');
+      return;
+    }
     const previousEditingId = editingId;
     const switchingRecord = previousEditingId !== id;
     setLoadingQuotationId(id);
@@ -694,6 +724,10 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   }
 
   async function onSubmit(data: QuotationForm) {
+    if (!canManageQuotations) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o ho\u1eb7c c\u1eadp nh\u1eadt b\u00e1o gi\u00e1.');
+      return;
+    }
     setError('');
     setMessage('');
     let payload: ReturnType<typeof buildPayload>;
@@ -728,6 +762,14 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       return;
     }
     const label = actionLabels[actionKey];
+    if (actionKey === 'approve' && !canApproveQuotation) {
+      setError('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n duy\u1ec7t b\u00e1o gi\u00e1.');
+      return;
+    }
+    if (actionKey !== 'approve' && !canManageQuotations) {
+      setError(`B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n ${label}.`);
+      return;
+    }
     if (!confirmQuotationAction(actionKey)) return;
     setActionLoading(actionKey);
     setError('');
@@ -759,8 +801,10 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
 
   return (
     <div className="quotePage quotationPage">
-      <PermissionNotice allowed={canAny(['quotation.view', 'quotation.manage'])} label="xem và quản lý báo giá" />
+      <PermissionNotice allowed={!permissionsReady || canViewQuotations} label="xem v\u00e0 qu\u1ea3n l\u00fd b\u00e1o gi\u00e1" />
 
+      {canViewQuotations ? (
+        <>
       <section className="metrics">
         <article className="metric"><span>Tổng báo giá</span><strong>{dashboard.total}</strong></article>
         <article className="metric"><span>Tổng giá trị</span><strong>{money(dashboard.totalValue)}</strong></article>
@@ -946,10 +990,10 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
 
         <div className="hotelFormActions">
           <button type="submit" disabled={savingDisabled}><Save size={17} /> {isSubmitting ? 'Đang lưu' : editingId ? 'Cập nhật báo giá' : 'Tạo báo giá'}</button>
-          <button type="button" className="secondaryButton" disabled={!canManage || !submitEnabled || Boolean(actionLoading)} onClick={() => action('submit', 'submit')}><Send size={17} /> {actionLoading === 'submit' ? 'Đang gửi' : 'Gửi duyệt'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManageQuotations || !submitEnabled || Boolean(actionLoading)} onClick={() => action('submit', 'submit')}><Send size={17} /> {actionLoading === 'submit' ? 'Đang gửi' : 'Gửi duyệt'}</button>
           <button type="button" className="secondaryButton" disabled={!canApproveQuotation || !approveEnabled || Boolean(actionLoading)} onClick={() => action('approve', 'approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang duyệt' : 'Duyệt'}</button>
-          <button type="button" className="secondaryButton" disabled={!canManage || !smartLinkEnabledForStatus || Boolean(actionLoading)} onClick={() => action(isSmartLinkEnabled ? 'smartlink-off' : 'smartlink-on', 'smartlink', 'PATCH', { enabled: !isSmartLinkEnabled })}><LinkIcon size={17} /> {isSmartLinkEnabled ? 'Tắt SmartLink' : 'Bật SmartLink'}</button>
-          <button type="button" className="secondaryButton" disabled={!canManage || !convertEnabled || Boolean(actionLoading)} onClick={() => action('convert', 'convert')}><Copy size={17} /> Chuyển đơn</button>
+          <button type="button" className="secondaryButton" disabled={!canManageQuotations || !smartLinkEnabledForStatus || Boolean(actionLoading)} onClick={() => action(isSmartLinkEnabled ? 'smartlink-off' : 'smartlink-on', 'smartlink', 'PATCH', { enabled: !isSmartLinkEnabled })}><LinkIcon size={17} /> {isSmartLinkEnabled ? 'Tắt SmartLink' : 'Bật SmartLink'}</button>
+          <button type="button" className="secondaryButton" disabled={!canManageQuotations || !convertEnabled || Boolean(actionLoading)} onClick={() => action('convert', 'convert')}><Copy size={17} /> Chuyển đơn</button>
           <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
         </div>
       </form>
@@ -958,7 +1002,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
         <div className="sectionHeader quoteListHeader">
           <h2>Danh sách báo giá hợp nhất</h2>
           <div className="quoteListActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => reload()}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewQuotations || reloading} onClick={() => reload()}>
               <RefreshCcw size={15} /> {reloading ? 'Đang tải' : 'Tải lại'}
             </button>
             <label className="searchBox"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã báo giá, khách hàng, sản phẩm..." /></label>
@@ -981,6 +1025,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
           </table>
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }
