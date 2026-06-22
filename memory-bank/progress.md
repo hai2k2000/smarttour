@@ -1799,3 +1799,9 @@
   - Booking status changes to OPERATING now require a linked operation form that is already IN_PROGRESS or DONE, not just present and non-cancelled.
   - Regression coverage guards the pending-operation-form rejection and the valid in-progress transition path.
   - Verification passed: scripts/test-bookings-service.sh, scripts/test-bookings-controller-contract.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.
+
+- 2026-06-22 Completed Phase 2 action permission hardening:
+  - Orders lifecycle status, settlement, and unlock endpoints now require dedicated permissions instead of order.manage.
+  - Quote, legacy quotation, and commission approval endpoints now require dedicated approve permissions instead of broad manage permissions.
+  - Added migration 20260622153000_order_action_permissions to grant the new action permissions to super_admin and added regression coverage for the controller/API contracts.
+  - Verification passed: scripts/test-orders-controller-permissions.sh, scripts/test-orders-api.sh, node scripts/test-quotes-backend-contract.js, scripts/test-commission-reports-security.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.

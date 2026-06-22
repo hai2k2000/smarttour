@@ -59,7 +59,7 @@ export class QuotationsController {
   }
 
   @Post(':id/approve')
-  @RequirePermissions('quotation.manage')
+  @RequirePermissions('quotation.approve')
   approve(@Param('id') id: string, @Body() dto: QuotationActionDto, @Req() request?: { user?: RequestUser }) {
     return this.service.approve(id, dto, request?.user);
   }

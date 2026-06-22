@@ -41,7 +41,7 @@ export class OrdersController {
   }
 
   @Patch(':type/:id/status')
-  @RequirePermissions('order.manage')
+  @RequirePermissions('order.status.update')
   updateStatus(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateOrderStatusDto, @Req() request: { user?: RequestUser }) {
     return this.ordersService.updateStatus(type, id, dto.status, request.user);
   }
@@ -53,13 +53,13 @@ export class OrdersController {
   }
 
   @Post(':type/:id/settle')
-  @RequirePermissions('order.manage')
+  @RequirePermissions('order.settle')
   settle(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.ordersService.settle(type, id, request.user);
   }
 
   @Post(':type/:id/unlock')
-  @RequirePermissions('order.manage')
+  @RequirePermissions('order.unlock')
   unlock(@Param('type') type: string, @Param('id') id: string, @Body() dto: UnlockOrderDto, @Req() request: { user?: RequestUser }) {
     return this.ordersService.unlock(type, id, dto, request.user);
   }

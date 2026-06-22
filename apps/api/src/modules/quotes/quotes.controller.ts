@@ -42,7 +42,7 @@ export class QuotesController {
   }
 
   @Post('tours/:id/approve')
-  @RequirePermissions('quote.manage')
+  @RequirePermissions('quote.approve')
   approveTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto, @Req() request?: { user?: RequestUser }) {
     return this.quotesService.approveTourQuote(id, dto, request?.user);
   }

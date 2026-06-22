@@ -2189,3 +2189,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Booking OPERATING now requires the linked operation form to be IN_PROGRESS or DONE; PENDING forms still block operations and CANCELLED forms remain blocked.
   - Added booking service regression coverage proving pending operation forms reject OPERATING and in-progress operation forms allow the transition.
   - Verification passed: scripts/test-bookings-service.sh, scripts/test-bookings-controller-contract.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.
+
+- 2026-06-22 Phase 2 action permission hardening:
+  - Split high-risk lifecycle/action permissions away from broad manage permissions for Orders: status updates now require order.status.update, settlement requires order.settle, and unlock requires order.unlock.
+  - Split approval permissions for commercial/commission approvals: Tour Quote approve requires quote.approve, legacy Quotation approve requires quotation.approve, and Commission Report approve requires commission.approve.
+  - Added an RBAC migration granting the new action permissions to super_admin; operational/sales manage roles no longer implicitly receive these sensitive actions through order.manage, quote.manage, quotation.manage, or commission.manage.
+  - Strengthened controller/API/security contracts for order action permissions, quote/quotation approval decorators, and commission approve decorators.
+  - Verification passed: scripts/test-orders-controller-permissions.sh, scripts/test-orders-api.sh, node scripts/test-quotes-backend-contract.js, scripts/test-commission-reports-security.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.

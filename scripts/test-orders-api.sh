@@ -100,6 +100,7 @@ async function main() {
 
     const manageRoleCode = `${run}_order_manage`;
     const viewRoleCode = `${run}_order_view`;
+    const actionRoleCode = `${run}_order_action`;
     const noOrderRoleCode = `${run}_no_order`;
     await request('POST', '/auth/roles', {
       token: adminToken,
@@ -113,16 +114,23 @@ async function main() {
     });
     await request('POST', '/auth/roles', {
       token: adminToken,
+      body: { code: actionRoleCode, name: 'Order Action Branch', permissions: ['order.view', 'order.manage', 'order.status.update', 'order.settle', 'order.unlock', 'data.scope.branch'] },
+      status: 201,
+    });
+    await request('POST', '/auth/roles', {
+      token: adminToken,
       body: { code: noOrderRoleCode, name: 'No Order Permission', permissions: ['customer.view', 'data.scope.branch'] },
       status: 201,
     });
 
     const manageUsername = `${run}_manage`;
     const viewUsername = `${run}_view`;
+    const actionUsername = `${run}_action`;
     const noOrderUsername = `${run}_noperm`;
     for (const [username, name, roleCode] of [
       [manageUsername, 'Order Manager', manageRoleCode],
       [viewUsername, 'Order Viewer', viewRoleCode],
+      [actionUsername, 'Order Action User', actionRoleCode],
       [noOrderUsername, 'No Order User', noOrderRoleCode],
     ]) {
       await request('POST', '/auth/users', {
@@ -134,6 +142,7 @@ async function main() {
 
     const manageToken = await login(manageUsername);
     const viewToken = await login(viewUsername);
+    const actionToken = await login(actionUsername);
     const noOrderToken = await login(noOrderUsername);
 
     await request('GET', '/orders/single-services', { token: noOrderToken, status: 403 });
@@ -182,7 +191,7 @@ async function main() {
     await request('PUT', `/orders/single-services/${otherOrder.id}`, { token: manageToken, body: { name: 'Outside update blocked' }, status: 404 });
     await request('DELETE', `/orders/single-services/${otherOrder.id}`, { token: manageToken, status: 404 });
     await request('POST', `/orders/single-services/${otherOrder.id}/copy`, { token: manageToken, status: 404 });
-    await request('POST', `/orders/single-services/${otherOrder.id}/settle`, { token: manageToken, status: 404 });
+    await request('POST', `/orders/single-services/${otherOrder.id}/settle`, { token: actionToken, status: 404 });
 
     const emptyUpdated = await request('PUT', `/orders/single-services/${branchOrder.id}`, { token: manageToken, body: {} });
     assert(emptyUpdated.id === branchOrder.id && emptyUpdated.members[0].id === branchOrder.members[0].id, 'empty update payload should preserve order children');
@@ -199,15 +208,22 @@ async function main() {
     const afterRejectedStatusPayload = await request('GET', `/orders/single-services/${branchOrder.id}`, { token: viewToken });
     assert(afterRejectedStatusPayload.status === branchOrder.status, 'normal update endpoint should not mutate lifecycle status');
     await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: viewToken, body: { status: 'RUNNING' }, status: 403 });
-    const running = await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: manageToken, body: { status: 'RUNNING' } });
-    assert(running.status === 'RUNNING', 'order manager should update lifecycle status');
+    await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: manageToken, body: { status: 'RUNNING' }, status: 403 });
+    const running = await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: actionToken, body: { status: 'RUNNING' } });
+    assert(running.status === 'RUNNING', 'order action user should update lifecycle status');
 
     const copied = await request('POST', `/orders/single-services/${branchOrder.id}/copy`, { token: manageToken, status: 201 });
     assert(copied.id !== branchOrder.id && copied.members[0].id !== branchOrder.members[0].id, 'copy endpoint should create independent order children');
-    const settled = await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: manageToken, status: 201 });
+    await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: manageToken, status: 403 });
+    const settled = await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: actionToken, status: 201 });
     assert(settled.status === 'SETTLED' && settled.settledAt, 'settle endpoint should set settlement state');
-    const unlocked = await request('POST', `/orders/single-services/${branchOrder.id}/unlock`, {
+    await request('POST', `/orders/single-services/${branchOrder.id}/unlock`, {
       token: manageToken,
+      body: { actor: 'orders-api-test', reason: 'verify unlock permission' },
+      status: 403,
+    });
+    const unlocked = await request('POST', `/orders/single-services/${branchOrder.id}/unlock`, {
+      token: actionToken,
       body: { actor: 'orders-api-test', reason: 'verify unlock permission' },
       status: 201,
     });

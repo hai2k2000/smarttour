@@ -15,10 +15,10 @@ const expected = {
   create: ['POST', 'order.manage'],
   update: ['PUT', 'order.manage'],
   remove: ['DELETE', 'order.manage'],
-  updateStatus: ['PATCH', 'order.manage'],
+  updateStatus: ['PATCH', 'order.status.update'],
   copy: ['POST', 'order.manage'],
-  settle: ['POST', 'order.manage'],
-  unlock: ['POST', 'order.manage'],
+  settle: ['POST', 'order.settle'],
+  unlock: ['POST', 'order.unlock'],
 };
 
 const routes = {};

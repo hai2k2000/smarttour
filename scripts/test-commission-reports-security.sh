@@ -87,6 +87,11 @@ async function createEntry(prisma, run, suffix, branch, department, status = 'PE
 }
 
 async function main() {
+
+const fs = require('fs');
+const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/commission-reports/commission-reports.controller.ts', 'utf8');
+assert(controllerSource.includes("@RequirePermissions('commission.approve')"), 'commission approve endpoint should require commission.approve');
+
   const invalidGroupByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { groupBy: 'not-a-group' }));
   assert(invalidGroupByErrors.some((error) => error.property === 'groupBy'), 'query DTO should reject invalid groupBy');
   const invalidSortByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { sortBy: 'not-a-sort' }));

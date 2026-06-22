@@ -27,6 +27,7 @@ const quotationsClient = read('apps/web/app/quotations/QuotationsClient.tsx');
 for (const permission of [
   "@RequirePermissions('quote.view')",
   "@RequirePermissions('quote.manage')",
+  "@RequirePermissions('quote.approve')",
 ]) {
   includes(quotesController, permission, 'Quotes routes must keep explicit view/manage permissions.');
 }
@@ -34,6 +35,7 @@ for (const permission of [
 for (const permission of [
   "@RequirePermissions('quotation.view')",
   "@RequirePermissions('quotation.manage')",
+  "@RequirePermissions('quotation.approve')",
 ]) {
   includes(read('apps/api/src/modules/quotations/quotations.controller.ts'), permission, 'Quotation routes must keep explicit view/manage permissions.');
 }

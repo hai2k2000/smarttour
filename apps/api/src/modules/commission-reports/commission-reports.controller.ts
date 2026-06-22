@@ -45,7 +45,7 @@ export class CommissionReportsController {
   }
 
   @Post('approve')
-  @RequirePermissions('commission.manage')
+  @RequirePermissions('commission.approve')
   approve(@Body() dto: CommissionReportActionDto, @Req() request?: { user?: RequestUser }) {
     return this.service.approve(dto, request?.user);
   }
