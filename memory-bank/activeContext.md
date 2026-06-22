@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 browser smoke hardening follow-up:
+  - Browser smoke defaults now target the active SmartTour production domain `https://aitour.io.vn` instead of stale `quanly.dunientravel.com`, which resolves to a different host and old bundle.
+  - Browser page smoke now waits for rendered body text before asserting route content, avoiding false failures during Next hydration/data load.
+  - Interaction smoke was aligned with current Finance, Operations, Security, and global-search UI selectors, using stable test ids/classes where available.
+  - Operations UI smoke now targets the active domain, accepts the current confirmation dialogs for payment-request actions, resets/selects reconciliation rows deterministically, and mocks `/api/auth/me` for the view-only client-permission scenario.
+  - Verified with full browser route smoke, UI interaction smoke, and operations UI smoke using temporary admin users cleaned up afterward.
+
 - Phase 3 admin-live file/upload smoke alignment:
   - File smoke now uses a generated `.txt` fixture that matches the shared upload whitelist instead of relying on `AGENTS.md`.
   - FIT tour attachment smoke now targets the current `/fit-tours/:id/attachments` endpoints and extracts uploaded files from the returned tour detail payload.

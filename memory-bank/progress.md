@@ -1978,3 +1978,10 @@
   - Updated backend audit contracts to recognize valid shorthand Nest providers and the current tour-program detail contract that exposes booking count instead of booking rows.
   - Updated file upload core contract so `.env`/extensionless dotfiles are rejected by the upload whitelist.
   - Verification passed: `bash scripts/test-high-b-finance-audit.sh`, `bash scripts/test-operations-service-flows.sh`, `bash scripts/test-files-service-core.sh`, `bash scripts/test-backend-critical-flows.sh`.
+
+- Phase 3 browser smoke hardening follow-up:
+  - Browser smoke defaults now target the active SmartTour production domain `https://aitour.io.vn` instead of stale `quanly.dunientravel.com`, which resolves to a different host and old bundle.
+  - Browser page smoke now waits for rendered body text before asserting route content, avoiding false failures during Next hydration/data load.
+  - Interaction smoke was aligned with current Finance, Operations, Security, and global-search UI selectors, using stable test ids/classes where available.
+  - Operations UI smoke now targets the active domain, accepts the current confirmation dialogs for payment-request actions, resets/selects reconciliation rows deterministically, and mocks `/api/auth/me` for the view-only client-permission scenario.
+  - Verified with full browser route smoke, UI interaction smoke, and operations UI smoke using temporary admin users cleaned up afterward.

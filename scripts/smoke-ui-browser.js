@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs/promises');
 const path = require('path');
 
-const site = process.env.SITE_URL || 'https://quanly.dunientravel.com';
+const site = process.env.SITE_URL || 'https://aitour.io.vn';
 const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
 const password = process.env.ADMIN_PASSWORD;
 const outDir = process.env.OUT_DIR || '/tmp/smarttour-ui-browser-smoke';
@@ -104,9 +104,9 @@ function isBadConsole(message) {
       if (status !== 200) throw new Error(`${route} returned HTTP ${status}`);
       if (page.url().includes('/login')) throw new Error(`${route} redirected to login`);
       await page.locator('body').waitFor({ state: 'visible', timeout: 15000 });
+      await page.waitForFunction(() => document.body.innerText.trim().length >= 50, undefined, { timeout: 15000 });
       const title = await page.title();
       const bodyText = await page.locator('body').innerText({ timeout: 15000 });
-      if (bodyText.length < 50) throw new Error(`${route} rendered too little text`);
       if (/Application error|Internal Server Error|Unhandled Runtime Error|Cannot read properties|ReferenceError|TypeError/i.test(bodyText)) throw new Error(`${route} rendered an error signature`);
       await page.screenshot({ path: path.join(outDir, `${safeName(route)}.png`), fullPage: false });
       console.log(`200 BROWSER ${route} title=${JSON.stringify(title)} text=${bodyText.length}`);

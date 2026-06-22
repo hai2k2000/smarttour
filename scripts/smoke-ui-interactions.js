@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs/promises');
 const path = require('path');
 
-const site = process.env.SITE_URL || 'https://quanly.dunientravel.com';
+const site = process.env.SITE_URL || 'https://aitour.io.vn';
 const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
 const password = process.env.ADMIN_PASSWORD;
 const outDir = process.env.OUT_DIR || '/tmp/smarttour-ui-interactions-smoke';
@@ -90,7 +90,7 @@ async function clickIfVisible(locator) {
         await page.getByRole('button', { name: tab, exact: true }).click();
         await page.waitForTimeout(300);
       }
-      const search = page.getByPlaceholder(/Tên, SĐT, email, mã chứng từ, mã tour/i);
+      const search = page.locator('.financeFilters input').first();
       await search.fill('SMOKE-FIN');
       await page.waitForTimeout(500);
       await search.fill('');
@@ -99,10 +99,10 @@ async function clickIfVisible(locator) {
     await run('operations tabs and search', async () => {
       await page.goto(site + '/operations', { waitUntil: 'networkidle', timeout: 45000 });
       await visibleText(page, 'Vận hành tour');
-      await page.getByRole('button', { name: /Thanh toán NCC/i }).click();
+      await page.getByTestId('operations-tab-payments').click();
       await page.waitForTimeout(300);
-      await page.getByRole('button', { name: /Phiếu điều hành/i }).click();
-      const search = page.getByPlaceholder(/Booking, order, tour, mã yêu cầu/i);
+      await page.getByTestId('operations-tab-forms').click();
+      const search = page.getByTestId('operations-search');
       await search.fill('SMOKE-BIZ');
       await page.waitForTimeout(500);
       await search.fill('');
@@ -120,18 +120,19 @@ async function clickIfVisible(locator) {
 
     await run('security validation controls', async () => {
       await page.goto(site + '/security', { waitUntil: 'networkidle', timeout: 45000 });
-      await visibleText(page, 'Người dùng, vai trò và quyền');
+      await page.locator('.securityPage').waitFor({ state: 'visible', timeout: 15000 });
+      await page.locator('.pageHeaderActions button').nth(2).click();
       const current = page.locator('input[name="currentPassword"]').first();
       const next = page.locator('input[name="newPassword"]').first();
       await current.fill('wrong-password');
       await next.fill('short');
-      await page.getByRole('button', { name: /Đổi mật khẩu/i }).click();
+      await page.locator('.modalPanel button[type="submit"]').click();
       await page.waitForTimeout(500);
     });
 
     await run('global search and navigation links', async () => {
       await page.goto(site + '/', { waitUntil: 'networkidle', timeout: 45000 });
-      const globalSearch = page.getByPlaceholder(/Tìm module, đơn hàng, khách hàng/i);
+      const globalSearch = page.locator('.globalSearch input').first();
       await globalSearch.fill('finance');
       await page.waitForTimeout(300);
       await globalSearch.fill('');

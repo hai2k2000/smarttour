@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs/promises');
 const path = require('path');
 
-const site = process.env.SITE_URL || 'https://quanly.dunientravel.com';
+const site = process.env.SITE_URL || 'https://aitour.io.vn';
 const api = process.env.API_URL || `${site.replace(/\/+$/, '')}/api`;
 const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
 const password = process.env.ADMIN_PASSWORD || '';
@@ -278,6 +278,12 @@ async function waitDisabled(locator, label) {
   throw new Error(`${label} should be disabled`);
 }
 
+async function clickAndAcceptConfirm(page, locator) {
+  await Promise.all([
+    page.waitForEvent('dialog').then((dialog) => dialog.accept()),
+    locator.click(),
+  ]);
+}
 async function fillOperationFormModal(page, seed, booking, suffix, expectedAmount = '250001', actualAmount = '0') {
   const modal = page.getByTestId('operation-form-modal');
   await modal.locator('select[name="bookingId"]').selectOption(booking.id);
@@ -436,23 +442,23 @@ async function openPaymentRequest(page, code) {
     await runStep('submit and reject request', async () => {
       await openPaymentRequest(page, seed.rejectRequest.code);
       await waitEnabled(page.getByTestId('reconciliation-submit'), 'reject flow submit action');
-      await page.getByTestId('reconciliation-submit').click();
+      await clickAndAcceptConfirm(page, page.getByTestId('reconciliation-submit'));
       await waitForNotice(page, 'Gửi duyệt yêu cầu thanh toán thành công');
       await waitEnabled(page.getByTestId('reconciliation-reject'), 'reject flow reject action');
-      await page.getByTestId('reconciliation-reject').click();
+      await clickAndAcceptConfirm(page, page.getByTestId('reconciliation-reject'));
       await waitForNotice(page, 'Từ chối yêu cầu thanh toán thành công');
       await page.getByTestId('operation-reconciliation-panel').locator('span').filter({ hasText: 'Từ chối |' }).first().waitFor({ state: 'visible', timeout: 15000 });
     });
 
     await runStep('submit approve and create finance payment', async () => {
       await openPaymentRequest(page, seed.financeRequest.code);
-      await page.getByTestId('reconciliation-submit').click();
+      await clickAndAcceptConfirm(page, page.getByTestId('reconciliation-submit'));
       await waitForNotice(page, 'Gửi duyệt yêu cầu thanh toán thành công');
       await waitEnabled(page.getByTestId('reconciliation-approve'), 'approve flow approve action');
-      await page.getByTestId('reconciliation-approve').click();
+      await clickAndAcceptConfirm(page, page.getByTestId('reconciliation-approve'));
       await waitForNotice(page, 'Duyệt yêu cầu thanh toán thành công');
       await waitEnabled(page.getByTestId('reconciliation-create-finance'), 'approved request create finance action');
-      await page.getByTestId('reconciliation-create-finance').click();
+      await clickAndAcceptConfirm(page, page.getByTestId('reconciliation-create-finance'));
       await waitForNotice(page, 'Tạo phiếu chi tài chính thành công');
       await page.getByTestId('operation-reconciliation-panel').getByText('Phiếu chi tài chính', { exact: false }).first().waitFor({ state: 'visible', timeout: 15000 });
       await page.getByTestId('operation-reconciliation-panel').getByText('Chờ xử lý', { exact: false }).first().waitFor({ state: 'visible', timeout: 15000 });
@@ -485,6 +491,9 @@ async function openPaymentRequest(page, code) {
         ...user,
         permissions: ['operation.form.view', 'operation.payment-request.view', 'data.scope.all'],
       };
+      await page.route('**/api/auth/me', async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(viewOnlyUser) });
+      });
       await setStoredSession(page, token, viewOnlyUser);
       await page.goto(site + '/operations', { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.getByTestId('operations-page').waitFor({ state: 'visible', timeout: 15000 });
@@ -500,11 +509,17 @@ async function openPaymentRequest(page, code) {
       await waitDisabled(page.getByTestId('operation-payment-submit').first(), 'view-only submit payment action');
       await waitDisabled(page.getByTestId('operation-payment-approve').first(), 'view-only approve payment action');
       await waitDisabled(page.getByTestId('operation-payment-create-finance').first(), 'view-only create finance action');
-      await page.getByTestId('operation-payment-view-reconciliation').first().click();
-      await page.getByTestId('operation-reconciliation-panel').waitFor({ state: 'visible', timeout: 15000 });
+      const openPanelClose = page.getByTestId('operation-reconciliation-close');
+      if (await openPanelClose.count()) await openPanelClose.first().click().catch(() => {});
+      const viewOnlyPaymentRow = await paymentRow(page, seed.financeRequest.code);
+      await viewOnlyPaymentRow.getByTestId('operation-payment-view-reconciliation').click();
+      const viewOnlyPanel = page.getByTestId('operation-reconciliation-panel');
+      await viewOnlyPanel.waitFor({ state: 'visible', timeout: 15000 });
+      await viewOnlyPanel.getByText(seed.financeRequest.code, { exact: false }).waitFor({ state: 'visible', timeout: 15000 });
       await waitDisabled(page.getByTestId('reconciliation-submit'), 'view-only reconciliation submit action');
       await waitDisabled(page.getByTestId('reconciliation-approve'), 'view-only reconciliation approve action');
       await waitDisabled(page.getByTestId('reconciliation-create-finance'), 'view-only reconciliation create finance action');
+      await page.unroute('**/api/auth/me');
     });
 
     if (issues.length) {
