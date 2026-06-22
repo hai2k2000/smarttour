@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 supplier list readability hardening:
+  - Generic typed supplier lists now start with supplier name instead of a separate supplier-code-first column; supplier codes remain only as secondary traceability text under the name.
+  - Supplier client contract now guards the generic and hotel supplier name-first list convention.
+
 - Phase 1 remediation continued after business decisions:
   - Booking delete now uses retention-safe soft delete by setting `Booking.deletedAt`; list/detail/mutation/deleteGuard ignore soft-deleted rows, existing usage guards still block deletes for bookings with operation forms, vouchers, or allotment locks, and every soft delete writes an `AuditLog` entry with booking code/status metadata.
   - Browser auth bootstrap/login/change-password still set the HttpOnly `smarttour.auth.token` cookie, but public controller responses no longer expose `token` or `tokenType` in JSON.

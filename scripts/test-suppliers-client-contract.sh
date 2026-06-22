@@ -24,6 +24,11 @@ for source in [hotel, generic]:
     assert 'Quản lý loại nhà cung cấp' in source
     assert 'Công nợ' not in source, 'typed list must not expose fake debt values'
 
+assert "id: 'supplier'" in generic, 'generic supplier list must expose supplier name as the first column'
+assert "id: 'supplierCode'" not in generic, 'generic supplier list must not keep a separate supplier-code-first column'
+assert 'supplierPrimaryCell' in generic, 'generic supplier name column must keep supplier code only as secondary traceability text'
+assert hotel.index("id: 'hotel'") < hotel.index("id: 'project'"), 'hotel supplier list must keep hotel name as the first column'
+
 for field in ['search', 'status', 'province', 'market']:
     assert f"params.set('{field}'" in generic or 'Object.entries(nextFilters)' in generic
 for field in ['search', 'status', 'province', 'market', 'hotelProject', 'classHotel']:

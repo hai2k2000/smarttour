@@ -1842,3 +1842,8 @@
   - GIT and LandTour create actions no longer silently fallback invalid numeric inputs; they validate quantity, VAT, commission rate, and exchange rate before posting to the API.
   - Added `scripts/test-tour-pages-number-validation-contract.js` to guard against reintroducing invalid-number fallback behavior.
   - Verification passed: `node scripts/test-tour-pages-number-validation-contract.js`, `scripts/test-tour-type-apis.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 supplier list name-first cleanup:
+  - Generic supplier tables now use a name-first primary column and keep supplier code as secondary traceability text, matching the previously established table readability convention.
+  - Strengthened supplier client contract so generic supplier lists cannot regress to a separate code-first column, while hotel supplier lists remain name-first.
+  - Verification passed: `bash scripts/test-suppliers-client-contract.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.

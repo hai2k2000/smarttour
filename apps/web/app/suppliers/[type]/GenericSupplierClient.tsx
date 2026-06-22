@@ -504,14 +504,9 @@ export default function GenericSupplierClient({
     const helper = createColumnHelper<Supplier>();
     return [
       helper.display({
-        id: 'supplierCode',
-        header: 'Mã nhà cung cấp',
-        cell: ({ row }) => <span className="cellClamp" title={row.original.supplierCode || 'Chưa có mã'}>{row.original.supplierCode || 'Chưa có mã'}</span>,
-      }),
-      helper.display({
-        id: 'name',
-        header: 'Tên nhà cung cấp',
-        cell: ({ row }) => <strong className="cellClamp2" title={row.original.name}>{row.original.name}</strong>,
+        id: 'supplier',
+        header: 'T\u00ean nh\u00e0 cung c\u1ea5p',
+        cell: ({ row }) => <div className="supplierPrimaryCell"><strong className="cellClamp2" title={row.original.name}>{row.original.name}</strong><span title={row.original.supplierCode || 'Ch\u01b0a c\u00f3 m\u00e3'}>{row.original.supplierCode || 'Ch\u01b0a c\u00f3 m\u00e3'}</span></div>,
       }),
       helper.display({
         id: 'phone',
@@ -727,8 +722,8 @@ export default function GenericSupplierClient({
                 <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={11} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
-                  {isLoading ? <tr><td colSpan={11} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
+                  {!isLoading && suppliers.length === 0 ? <tr><td colSpan={10} className="tableEmptyState">Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.</td></tr> : null}
+                  {isLoading ? <tr><td colSpan={10} className="tableEmptyState">Đang tải danh sách nhà cung cấp...</td></tr> : null}
                 </tbody>
               </table>
             </div>
