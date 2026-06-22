@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
@@ -159,6 +159,7 @@ export class OrdersService {
   async update(typePath: string, id: string, dto: UpdateOrderDto, user?: RequestUser) {
     const current = await this.loadForEdit(typePath, id, user);
     const scopedDto = applyWriteDataScope(dto as ScopedOrderDto, user) as ScopedOrderDto;
+    if (scopedDto.status !== undefined) throw new BadRequestException('Order status must be changed through the status action endpoint');
     this.lifecycle.assertEditable(current);
     validateOrderDates(mergeOrderDateInput(current, scopedDto));
     try {

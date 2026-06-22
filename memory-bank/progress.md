@@ -1774,3 +1774,8 @@
   - Added npm overrides for transitive `multer@2.2.0` and `js-yaml@4.2.0` to clear upload/Swagger DoS audit findings without breaking Nest/Swagger major versions.
   - Updated `package-lock.json` with the patched resolved packages and verified `npm audit --omit=dev` now reports zero vulnerabilities.
   - Verification passed: `./scripts/security-audit.sh` and `docker compose build --no-cache api`.
+
+- 2026-06-22 Completed Phase 2 order update status guard:
+  - Orders normal update now rejects lifecycle `status` fields instead of silently bypassing action services.
+  - Regression coverage added in order service flows and Orders API contract; the API test now authenticates with the backend-issued session cookie.
+  - Verification passed: `scripts/test-order-service-flows.sh`, `scripts/test-orders-api.sh`, `npx prisma validate --schema prisma/schema.prisma`, and `git diff --check`.

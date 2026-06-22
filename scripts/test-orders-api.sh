@@ -55,7 +55,10 @@ async function main() {
       headers['Content-Type'] = 'application/json';
       body = JSON.stringify(options.body);
     }
-    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    if (options.token) {
+      if (String(options.token).includes('=')) headers.Cookie = options.token;
+      else headers.Authorization = `Bearer ${options.token}`;
+    }
     const response = await fetch(`${baseUrl}${path}`, { method, headers, body });
     const text = await response.text();
     let data;
@@ -69,12 +72,20 @@ async function main() {
     } else if (!response.ok) {
       throw new Error(`${method} ${path} failed ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
     }
+    if (data && typeof data === 'object' && !Array.isArray(data)) Object.defineProperty(data, '__headers', { value: response.headers });
     return data;
   }
 
+  function authCookie(headers) {
+    const setCookie = headers.get('set-cookie') || '';
+    const match = setCookie.match(/smarttour\.auth\.token=[^;]+/);
+    assert(match, 'auth response should set smarttour auth cookie');
+    return match[0];
+  }
+
   async function login(username) {
-    const data = await request('POST', '/auth/login', { body: { username, password } });
-    return data.token;
+    const result = await request('POST', '/auth/login', { body: { username, password } });
+    return authCookie(result.__headers);
   }
 
   try {
@@ -85,7 +96,7 @@ async function main() {
       body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Orders API Admin' },
       status: 201,
     });
-    const adminToken = bootstrap.token;
+    const adminToken = authCookie(bootstrap.__headers);
 
     const manageRoleCode = `${run}_order_manage`;
     const viewRoleCode = `${run}_order_view`;
@@ -180,6 +191,13 @@ async function main() {
       body: { startDate: '2026-12-10', endDate: '2026-12-09' },
       status: 400,
     });
+    await request('PUT', `/orders/single-services/${branchOrder.id}`, {
+      token: manageToken,
+      body: { status: 'CANCELLED' },
+      status: 400,
+    });
+    const afterRejectedStatusPayload = await request('GET', `/orders/single-services/${branchOrder.id}`, { token: viewToken });
+    assert(afterRejectedStatusPayload.status === branchOrder.status, 'normal update endpoint should not mutate lifecycle status');
     await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: viewToken, body: { status: 'RUNNING' }, status: 403 });
     const running = await request('PATCH', `/orders/single-services/${branchOrder.id}/status`, { token: manageToken, body: { status: 'RUNNING' } });
     assert(running.status === 'RUNNING', 'order manager should update lifecycle status');

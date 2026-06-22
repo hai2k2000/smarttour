@@ -229,6 +229,9 @@ async function main() {
   assert(createdSettled.status === 'SETTLED' && createdSettled.settledAt, 'create SETTLED should set settledAt');
 
   const partial = await service.update('single-services', created.id, { note: 'Partial update should not touch children' });
+  await rejects(() => service.update('single-services', created.id, { status: 'CANCELLED' }), 'normal update should reject status changes; use lifecycle action endpoint');
+  const afterRejectedStatusUpdate = await prisma.order.findUniqueOrThrow({ where: { id: created.id } });
+  assert(afterRejectedStatusUpdate.status === created.status, 'rejected normal update should not mutate order status');
   assert(partial.customerName === created.customerName && partial.customerPhone === created.customerPhone, 'partial update should preserve customer snapshot');
   assert(partial.salesItems[0].id === created.salesItems[0].id, 'partial update should preserve sales item id');
   assert(partial.operationItems[0].id === created.operationItems[0].id, 'partial update should preserve operation item id');
