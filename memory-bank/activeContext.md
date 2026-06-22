@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 hotel supplier required-field indicator cleanup:
+  - Hotel supplier form labels no longer embed manual `*` characters; required inputs now rely on the shared/global required-field indicator while keeping native `required` attributes and schema validation messages.
+  - Hotel supplier contracts were aligned with the global required-field UI contract so future form cleanup does not regress back to manual stars.
+  - During verification, a stale Prisma client was regenerated because the schema already contained `Booking.deletedAt` but the generated types had not caught up.
+
 - Phase 3 backend critical audit/logging hardening:
   - Backend critical flow verification now passes after aligning audit contracts with current FinanceModule shorthand providers and tour-program detail payload behavior.
   - File upload core contract now explicitly rejects extensionless dotfiles such as `.env`, matching the production whitelist.

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Standardized hotel supplier required-field indicators:
+  - Removed manual `*` markers from hotel supplier core field labels and dynamic service/allotment row labels.
+  - Updated hotel supplier contract coverage to require native `required` attributes, Vietnamese validation messages, and no legacy manual required stars.
+  - Regenerated the Prisma client on the VPS after TypeScript verification exposed stale generated Booking types for the existing `deletedAt` schema field.
+
 - Hardened Operations client permission readiness:
   - `OperationsClient` now waits for permission readiness before loading static booking/supplier catalogs or dashboard/forms/payment-request lists.
   - Operations protected UI is hidden without operation view access, reload/list paths fail closed, and create/reload actions stay disabled until permissions are ready.

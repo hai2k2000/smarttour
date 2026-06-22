@@ -245,8 +245,16 @@ assert "column.key === 'dayType'" in frontend and "column.key === 'status'" in f
 assert "{ key: 'phone', label: 'Điện thoại', type: 'tel' }" in frontend and "{ key: 'email', label: 'Email', type: 'email' }" in frontend, 'hotel contact rows must use phone/email input types'
 assert "{ key: 'note', label: 'Ghi chú', type: 'textarea' }" in frontend, 'hotel child row notes must use textarea inputs'
 assert 'Quỹ phòng được quản lý riêng' in frontend
-for required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm / dự án *']:
-    assert required_label in frontend, f'hotel frontend must mark required field: {required_label}'
+for required_field in [
+    '<label>Mã nhà cung cấp<input required',
+    '<label>Tên khách sạn<input required',
+    '<label>Số điện thoại<input required',
+    '<label>Hạng khách sạn<input required',
+    '<label>Dòng sản phẩm / dự án<input required',
+]:
+    assert required_field in frontend, f'hotel frontend must use native required field: {required_field}'
+for legacy_required_label in ['Mã nhà cung cấp *', 'Tên khách sạn *', 'Số điện thoại *', 'Hạng khách sạn *', 'Dòng sản phẩm / dự án *']:
+    assert legacy_required_label not in frontend, f'hotel frontend must use shared required indicator instead of manual star: {legacy_required_label}'
 assert 'const supplierPhonePattern = ' in frontend and 'requiredPhone' in frontend, 'hotel frontend must validate phone by business pattern'
 assert "min(1, 'Cần nhập mã nhà cung cấp')" in frontend, 'hotel frontend must show a clear required supplier code message'
 assert "min(1, 'Cần nhập tên khách sạn')" in frontend, 'hotel frontend must show a clear required hotel name message'
@@ -290,7 +298,7 @@ assert 'const nonNegativeMoney = ' in frontend and '999.999.999.999' in frontend
 assert 'function hasServiceRowData(' in frontend and 'services.filter(hasServiceRowData)' in frontend, 'hotel frontend must preserve partially filled service rows for validation'
 assert 'function hasAllotmentRowData(' in frontend and 'allotments.filter(hasAllotmentRowData)' in frontend, 'hotel frontend must preserve partially filled allotment rows for validation'
 assert 'maxSupplierAllotmentCutoffDays = 365' in frontend, 'hotel frontend must mirror the allotment cutoff upper bound'
-assert 'Tên hạng phòng *' in frontend and 'Tên quỹ phòng phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must require an allotment name for filled rows'
+assert 'Tên hạng phòng *' not in frontend and 'Tên hạng phòng' in frontend and 'Tên quỹ phòng phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must require an allotment name for filled rows without manual required stars'
 assert 'Ngày bắt đầu quỹ phòng không được sau ngày kết thúc quỹ phòng' in frontend, 'hotel frontend must validate allotment date ranges'
 assert 'quantityLock: z.coerce' not in frontend and 'syncAllotmentRow' not in frontend, 'hotel frontend must use lockedQty as the only editable lock quantity'
 assert 'Number(item.allotmentQty || item.quantityLock || 0)' not in frontend, 'hotel frontend must not lose valid zero values when mapping allotment quantities'
@@ -309,7 +317,7 @@ assert 'compactActionButton' in globals_css and '.hotelSupplierPage .hotelListTa
 assert '.fieldError' in globals_css and 'input[aria-invalid="true"]' in globals_css, 'hotel field-level validation must be visibly styled'
 assert 'cellClamp' in globals_css and 'cellClamp2' in globals_css and 'booking.tourProgram.name' in bookings_page, 'booking/tour list cells must clamp long display text'
 assert 'Mã dịch vụ không được trùng trong cùng nhà cung cấp' in frontend, 'hotel frontend must reject duplicate service sku values'
-assert 'Tên dịch vụ *' in frontend and 'Tên dịch vụ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must make serviceName required for filled rows'
+assert 'Tên dịch vụ *' not in frontend and 'Tên dịch vụ' in frontend and 'Tên dịch vụ phải có ít nhất 2 ký tự' in frontend, 'hotel frontend must make serviceName required for filled rows without manual required stars'
 for day_type, label in [
     ('ALL_DAYS', 'Tất cả các ngày'),
     ('WEEKDAY', 'Ngày thường'),
