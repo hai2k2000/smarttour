@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 server-rendered tour pages permission hardening:
+  - GIT Tour, LandTour, and Tour Programs pages now read `/auth/me` on the server, gate list/content with `tour.view`, and hide create/update/copy/delete itinerary/form actions unless the user has `tour.manage`.
+  - Added shared server-side permission helpers and `scripts/test-tour-server-pages-permissions-contract.js` to guard these server-rendered RBAC contracts.
+
+
 - Phase 3 FIT tour frontend permission hardening:
   - FIT tour client now mirrors backend RBAC with `tour.view` gating, `tour.manage` create/edit/wizard mutation guards, and `tour.export` export-button guards.
   - FIT tour wizard receives the manage-permission state so save, confirm, autosave, copy budget/operation, upload, and delete attachment actions fail closed before API calls when the user lacks manage permission.

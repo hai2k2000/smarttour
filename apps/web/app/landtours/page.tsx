@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -206,7 +207,10 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
   const status = String(searchParams?.status || '').trim().toUpperCase();
   const notice = String(searchParams?.notice || '').trim();
   const error = String(searchParams?.error || '').trim();
-  const tours = await apiGet<LandTour[]>(landToursPath(search, status), []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewTours = hasPermission(currentUser, 'tour.view');
+  const canManageTours = hasPermission(currentUser, 'tour.manage');
+  const tours = canViewTours ? await apiGet<LandTour[]>(landToursPath(search, status), []) : [];
   const summary = summarizeTours(tours);
 
   return (
@@ -217,7 +221,7 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
           <h1>LandTour / Combo d&#7883;ch v&#7909;</h1>
         </div>
         <div className="pageHeaderActions">
-          <a className="secondaryButton iconTextButton" href="#create-land-tour"><Plus size={16} /> Th&#234;m LandTour</a>
+          {canManageTours ? <a className="secondaryButton iconTextButton" href="#create-land-tour"><Plus size={16} /> Th&#234;m LandTour</a> : null}
           <span className="statusPill"><Boxes size={14} /> Combo</span>
           <span className="statusPill statusPillNeutral"><Users size={14} /> &#272;i&#7873;u h&#224;nh d&#7883;ch v&#7909;</span>
         </div>
@@ -226,6 +230,9 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
       {notice ? <div className="statusPill statusPillSuccess"><Save size={14} /> {notice}</div> : null}
       {error ? <div className="statusPill statusPillDanger"><AlertTriangle size={14} /> {error}</div> : null}
 
+      <ServerPermissionNotice allowed={canViewTours} label="xem LandTour" missingPermissions={['tour.view']} />
+      {canViewTours ? (
+      <>
       <section className="metrics landTourMetrics">
         <article className="metric"><span>T&#7893;ng LandTour</span><strong>{summary.total}</strong></article>
         <article className="metric metricTone-amber"><span>S&#7855;p kh&#7903;i h&#224;nh</span><strong>{summary.upcoming}</strong></article>
@@ -235,6 +242,7 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
         <article className="metric"><span>D&#242;ng &#273;i&#7873;u kho&#7843;n</span><strong>{summary.terms}</strong></article>
       </section>
 
+      {canManageTours ? (
       <section id="create-land-tour" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="&#272;&#243;ng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader">
           <h2><Plus size={18} /> T&#7841;o LandTour / Combo</h2><a className="secondaryButton iconButton" href="#" title="&#272;&#243;ng"><X size={16} /></a></div>
           <form action={createLandTour} className="formGrid landForm">
@@ -273,6 +281,7 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
             <button type="submit">T&#7841;o LandTour</button>
           </form>
         </div></section>
+      ) : null}
 
       <section className="panel listPanel">
         <div className="sectionHeader">
@@ -311,9 +320,13 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
                       <td><span className={`statusBadge ${statusClass(tour.paymentStatus)}`}>{viStatus(tour.paymentStatus)}</span></td>
                       <td>{tour._count?.services ?? 0} d&#7883;ch v&#7909; / <FileText size={12} /> {tour._count?.terms ?? 0} &#273;i&#7873;u kho&#7843;n</td>
                       <td className="actionsCell"><div className="rowActions">
-                        <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="C&#7853;p nh&#7853;t tr&#7841;ng th&#225;i"><Save size={14} /></a>
-                        <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao ch&#233;p d&#7883;ch v&#7909;"><Copy size={14} /></a>
-                        <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="X&#243;a LandTour"><Trash2 size={14} /></a>
+                        {canManageTours ? (
+                          <>
+                            <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="C&#7853;p nh&#7853;t tr&#7841;ng th&#225;i"><Save size={14} /></a>
+                            <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao ch&#233;p d&#7883;ch v&#7909;"><Copy size={14} /></a>
+                            <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="X&#243;a LandTour"><Trash2 size={14} /></a>
+                          </>
+                        ) : <span className="mutedText">Ch&#7881; xem</span>}
                       </div></td></tr>
                 ))}
               </tbody>
@@ -321,7 +334,7 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
           </div>
         )}
       </section>
-      {tours.map((tour) => (
+      {canManageTours ? tours.map((tour) => (
         <section id={`status-${tour.id}`} className="hashModal" key={`status-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="&#272;&#243;ng"></a>
           <div className="hashModalPanel">
@@ -335,8 +348,8 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
             </form>
           </div>
         </section>
-      ))}
-      {tours.map((tour) => (
+      )) : null}
+      {canManageTours ? tours.map((tour) => (
         <section id={`copy-${tour.id}`} className="hashModal" key={`copy-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="&#272;&#243;ng"></a>
           <div className="hashModalPanel">
@@ -352,8 +365,8 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
             </form>
           </div>
         </section>
-      ))}
-      {tours.map((tour) => (
+      )) : null}
+      {canManageTours ? tours.map((tour) => (
         <section id={`delete-${tour.id}`} className="hashModal" key={`delete-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="&#272;&#243;ng"></a>
           <div className="hashModalPanel">
@@ -366,7 +379,9 @@ export default async function LandToursPage({ searchParams }: LandToursPageProps
             </form>
           </div>
         </section>
-      ))}
+      )) : null}
+      </>
+      ) : null}
     </section>
   );
 }

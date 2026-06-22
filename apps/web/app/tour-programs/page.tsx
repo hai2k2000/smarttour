@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarDays, CheckCircle2, Map, Pencil, Plus, Route, Sa
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -276,9 +277,13 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
   const error = singleParam(params.error);
-  const tourProgramsResult = await apiGet<TourProgram[]>('/tour-programs', [], 'Tải danh sách tour mẫu');
+  const currentUserResult = await apiGet<PermissionUser | null>('/auth/me', null, 'T\u1ea3i quy\u1ec1n phi\u00ean \u0111\u0103ng nh\u1eadp');
+  const currentUser = currentUserResult.data;
+  const canViewTours = hasPermission(currentUser, 'tour.view');
+  const canManageTours = hasPermission(currentUser, 'tour.manage');
+  const tourProgramsResult = canViewTours ? await apiGet<TourProgram[]>('/tour-programs', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu') : { data: [] as TourProgram[] };
   const tourPrograms = tourProgramsResult.data;
-  const loadErrors = [tourProgramsResult.error].filter(Boolean);
+  const loadErrors = [currentUserResult.error, tourProgramsResult.error].filter(Boolean);
 
   return (
     <section className="workspace">
@@ -288,8 +293,8 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
           <h1>Tour mẫu và lịch trình</h1>
         </div>
         <div className="pageHeaderActions">
-          <a className="secondaryButton iconTextButton" href="#create-tour-program"><Plus size={16} /> Thêm tour mẫu</a>
-          <a className="secondaryButton iconTextButton" href="#create-itinerary-day"><CalendarDays size={16} /> Thêm ngày</a>
+          {canManageTours ? <a className="secondaryButton iconTextButton" href="#create-tour-program"><Plus size={16} /> Thêm tour mẫu</a> : null}
+          {canManageTours ? <a className="secondaryButton iconTextButton" href="#create-itinerary-day"><CalendarDays size={16} /> Thêm ngày</a> : null}
           <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
           <span className="statusPill statusPillNeutral">Lõi tour</span>
         </div>
@@ -303,6 +308,9 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
         </div>
       ) : null}
 
+      <ServerPermissionNotice allowed={canViewTours} label={'xem tour m\u1eabu'} missingPermissions={['tour.view']} />
+      {canViewTours ? (
+      <>
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sách tour mẫu</h2>
@@ -368,6 +376,8 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
                       <td><span className={tour._count?.bookings ? 'statusPill statusPillWarning' : 'statusPill statusPillNeutral'}>{tour._count?.bookings ?? 0} booking</span></td>
                       <td className="actionsCell">
                         <div className="tourProgramRowActions">
+                          {canManageTours ? (
+                            <>
                           {fullItinerary ? (
                             <span className="secondaryButton iconTextButton" title="Tour mẫu đã đủ số ngày lịch trình" aria-disabled="true">
                               <CalendarDays size={14} /> Đủ ngày
@@ -383,6 +393,9 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
                           <a className="dangerButton iconOnlyButton" href={`#delete-${tour.id}`} title="Xóa tour mẫu" aria-label={`Xóa ${tour.code}`}>
                             <Trash2 size={14} />
                           </a>
+                        
+                            </>
+                          ) : <span className="mutedText">Ch? xem</span>}
                         </div>
                       </td>
                     </tr>
@@ -394,6 +407,8 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
         )}
       </section>
 
+      {canManageTours ? (
+      <>
       <TourProgramModal id="create-tour-program" title="Tạo tour mẫu" icon={<Plus size={18} />}>
         <TourProgramForm action={createTourProgram} submitLabel="Tạo tour mẫu" />
       </TourProgramModal>
@@ -417,6 +432,10 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
       {tourPrograms.map((tour) => (
         <DeleteTourProgramModal tourProgram={tour} key={`delete-${tour.id}`} />
       ))}
+      </>
+      ) : null}
+      </>
+      ) : null}
     </section>
   );
 }

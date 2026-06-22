@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
 import { viStatus } from '../i18n';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -206,7 +207,10 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
   const status = String(searchParams?.status || '').trim().toUpperCase();
   const notice = String(searchParams?.notice || '').trim();
   const error = String(searchParams?.error || '').trim();
-  const tours = await apiGet<GitTour[]>(gitToursPath(search, status), []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewTours = hasPermission(currentUser, 'tour.view');
+  const canManageTours = hasPermission(currentUser, 'tour.manage');
+  const tours = canViewTours ? await apiGet<GitTour[]>(gitToursPath(search, status), []) : [];
   const summary = summarizeTours(tours);
 
   return (
@@ -217,7 +221,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
           <h1>Tour đoàn thiết kế riêng</h1>
         </div>
         <div className="pageHeaderActions">
-          <a className="secondaryButton iconTextButton" href="#create-git-tour"><Plus size={16} /> Thêm tour GIT</a>
+          {canManageTours ? <a className="secondaryButton iconTextButton" href="#create-git-tour"><Plus size={16} /> Thêm tour GIT</a> : null}
           <span className="statusPill"><BriefcaseBusiness size={14} /> GIT</span>
           <span className="statusPill statusPillNeutral"><Users size={14} /> Điều hành tour</span>
         </div>
@@ -226,6 +230,9 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
       {notice ? <div className="statusPill statusPillSuccess"><Save size={14} /> {notice}</div> : null}
       {error ? <div className="statusPill statusPillDanger"><AlertTriangle size={14} /> {error}</div> : null}
 
+      <ServerPermissionNotice allowed={canViewTours} label="xem tour GIT" missingPermissions={['tour.view']} />
+      {canViewTours ? (
+      <>
       <section className="metrics gitTourMetrics">
         <article className="metric"><span>Tổng tour GIT</span><strong>{summary.total}</strong></article>
         <article className="metric metricTone-amber"><span>Sắp khởi hành</span><strong>{summary.upcoming}</strong></article>
@@ -235,6 +242,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
         <article className="metric"><span>Dòng dịch vụ</span><strong>{summary.services}</strong></article>
       </section>
 
+      {canManageTours ? (
       <section id="create-git-tour" className="hashModal"><a href="#" className="hashModalBackdrop" aria-label="Đóng"></a><div className="hashModalPanel hashModalWide"><div className="hashModalHeader">
           <h2><Plus size={18} /> Tạo tour GIT</h2><a className="secondaryButton iconButton" href="#" title="Đóng"><X size={16} /></a></div>
           <form action={createGitTour} className="formGrid gitForm">
@@ -273,6 +281,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
             <button type="submit">Tạo tour GIT</button>
           </form>
         </div></section>
+      ) : null}
 
       <section className="panel listPanel">
         <div className="sectionHeader">
@@ -311,9 +320,14 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
                       <td>{tour.gitTour?.invoiceStatus ? viStatus(tour.gitTour.invoiceStatus) : '—'}</td>
                       <td><CircleDollarSign size={13} /> {tour._count?.revenues ?? 0} doanh thu / {tour._count?.services ?? 0} dịch vụ</td>
                       <td className="actionsCell"><div className="rowActions">
+                        {canManageTours ? (
+                          <>
                         <a className="secondaryButton iconButton" href={`#status-${tour.id}`} title="Cập nhật trạng thái"><Save size={14} /></a>
                         <a className="secondaryButton iconButton" href={`#copy-${tour.id}`} title="Sao chép dịch vụ"><Copy size={14} /></a>
                         <a className="dangerButton iconButton" href={`#delete-${tour.id}`} title="Xóa tour GIT"><Trash2 size={14} /></a>
+                      
+                          </>
+                        ) : <span className="mutedText">Ch? xem</span>}
                       </div></td></tr>
                 ))}
               </tbody>
@@ -321,7 +335,7 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
           </div>
         )}
       </section>
-      {tours.map((tour) => (
+      {canManageTours ? tours.map((tour) => (
         <section id={`status-${tour.id}`} className="hashModal" key={`status-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
           <div className="hashModalPanel">
@@ -336,8 +350,8 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
             </form>
           </div>
         </section>
-      ))}
-      {tours.map((tour) => (
+      )) : null}
+      {canManageTours ? tours.map((tour) => (
         <section id={`copy-${tour.id}`} className="hashModal" key={`copy-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
           <div className="hashModalPanel">
@@ -353,8 +367,8 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
             </form>
           </div>
         </section>
-      ))}
-      {tours.map((tour) => (
+      )) : null}
+      {canManageTours ? tours.map((tour) => (
         <section id={`delete-${tour.id}`} className="hashModal" key={`delete-${tour.id}`}>
           <a href="#" className="hashModalBackdrop" aria-label="Đóng"></a>
           <div className="hashModalPanel">
@@ -367,7 +381,9 @@ export default async function GitToursPage({ searchParams }: GitToursPageProps) 
             </form>
           </div>
         </section>
-      ))}
+      )) : null}
+      </>
+      ) : null}
     </section>
   );
 }
