@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 typed supplier page/client RBAC hardening:
+  - Hotel and typed supplier server pages now read `/auth/me` before protected preloads and avoid loading supplier rows without `supplier.view`.
+  - These pages render server permission notices and withhold protected supplier client workspaces when view access is missing.
+  - Hotel and generic supplier clients now wait for permission readiness, clear server-provided rows when view access is missing, and fail-close reload/filter controls before API calls.
+  - Hotel supplier required fields are visibly marked in the form, and typed supplier list contracts preserve the name-first column convention.
+
 - Phase 3 FIT tours page/server RBAC hardening:
   - FIT Tours page now reads `/auth/me` before protected preloads, avoids loading tour rows without `tour.view`, and avoids loading supplier catalogs without `tour.manage`.
   - FIT Tours page renders a server permission notice and withholds the client workspace when `tour.view` is missing.

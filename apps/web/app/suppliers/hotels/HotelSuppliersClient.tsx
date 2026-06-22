@@ -536,10 +536,12 @@ export default function HotelSuppliersClient({
   initialHotels: HotelSupplier[];
   initialError?: string;
 }) {
-  const { can } = usePermissions();
-  const canManage = can('supplier.manage');
-  const canView = can('supplier.view');
-  const [hotels, setHotels] = useState<HotelSupplier[]>(initialHotels);
+  const { can, permissionsReady } = usePermissions();
+  const canManageSuppliers = can('supplier.manage');
+  const canViewSuppliers = can('supplier.view');
+  const canManage = canManageSuppliers;
+  const canView = canViewSuppliers;
+  const [hotels, setHotels] = useState<HotelSupplier[]>(() => Array.isArray(initialHotels) ? initialHotels : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
   const [notice, setNotice] = useState<SupplierNotice | null>(initialError ? { type: 'error', text: initialError } : null);
@@ -566,10 +568,17 @@ export default function HotelSuppliersClient({
   const services = useFieldArray({ control, name: 'services' });
   const allotments = useFieldArray({ control, name: 'allotments' });
 
-  useEffect(() => setHotels(initialHotels), [initialHotels]);
   useEffect(() => {
-    if (canView) void loadInventory(defaultInventoryFilters);
-  }, [canView]);
+    if (!permissionsReady || !canViewSuppliers) {
+      setHotels([]);
+      setInventoryRows([]);
+      return;
+    }
+    setHotels(Array.isArray(initialHotels) ? initialHotels : []);
+  }, [initialHotels, permissionsReady, canViewSuppliers]);
+  useEffect(() => {
+    if (permissionsReady && canViewSuppliers) void loadInventory(defaultInventoryFilters);
+  }, [permissionsReady, canViewSuppliers]);
 
   const allotmentSummary = useMemo(() => hotels.flatMap((hotel) => hotel.allotments || []).reduce((acc, item) => {
     const total = numberValue(item.allotmentQty);
@@ -626,6 +635,10 @@ export default function HotelSuppliersClient({
   const table = useReactTable({ data: hotels, columns, getCoreRowModel: getCoreRowModel() });
 
   async function load(nextFilters = filters, emitSuccess = false) {
+    if (!permissionsReady || !canViewSuppliers) {
+      setHotels([]);
+      return false;
+    }
     const validationError = validateHotelFilters(nextFilters);
     if (validationError) {
       setListError(validationError);
@@ -652,6 +665,10 @@ export default function HotelSuppliersClient({
   }
 
   async function loadInventory(nextFilters = inventoryFilters, emitSuccess = false) {
+    if (!permissionsReady || !canViewSuppliers) {
+      setInventoryRows([]);
+      return false;
+    }
     const startDate = nextFilters.startDate.trim();
     const endDate = nextFilters.endDate.trim();
     if (startDate && endDate && startDate > endDate) {
@@ -944,8 +961,8 @@ export default function HotelSuppliersClient({
 
   return (
     <div className="hotelSupplierPage">
-      <PermissionNotice allowed={canView} label="xem nhà cung cấp khách sạn" missingPermissions={['supplier.view']} />
-      {canView ? (
+      <PermissionNotice allowed={!permissionsReady || canViewSuppliers} label="xem nhà cung cấp khách sạn" missingPermissions={['supplier.view']} />
+      {canViewSuppliers ? (
         <>
           <SupplierNoticeBanner notice={notice} />
 
@@ -959,14 +976,14 @@ export default function HotelSuppliersClient({
           <section className="panel allotmentInventoryPanel">
             <div className="sectionHeader">
               <div><h2>Tồn quỹ phòng theo ngày</h2><span>{isInventoryLoading ? 'Đang tải tồn quỹ...' : `${inventoryRows.length} dòng quỹ phòng`}</span></div>
-              <button type="button" className="secondaryButton iconButton" onClick={() => void loadInventory(inventoryFilters, true)} disabled={isInventoryLoading} title="Tải lại" aria-label="Tải lại tồn quỹ phòng"><RefreshCcw size={16} /></button>
+              <button type="button" className="secondaryButton iconButton" onClick={() => void loadInventory(inventoryFilters, true)} disabled={!canViewSuppliers || isInventoryLoading} title="Tải lại" aria-label="Tải lại tồn quỹ phòng"><RefreshCcw size={16} /></button>
             </div>
             <form className="supplierFilters supplierHotelFilters" onSubmit={submitInventoryFilters}>
               <label>Khách sạn<select value={inventoryFilters.supplierId} onChange={(event) => setInventoryFilters((current) => ({ ...current, supplierId: event.target.value }))}><option value="">Tất cả khách sạn</option>{hotels.map((hotel) => <option key={hotel.id} value={hotel.id}>{hotel.name}</option>)}</select></label>
               <label>Từ ngày<input type="date" value={inventoryFilters.startDate} onChange={(event) => setInventoryFilters((current) => ({ ...current, startDate: event.target.value }))} /></label>
               <label>Đến ngày<input type="date" value={inventoryFilters.endDate} onChange={(event) => setInventoryFilters((current) => ({ ...current, endDate: event.target.value }))} /></label>
-              <button type="submit" disabled={isInventoryLoading}><Search size={16} /> Lọc tồn quỹ</button>
-              <button type="button" className="secondaryButton iconButton" onClick={resetInventoryFilters} disabled={isInventoryLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc tồn quỹ"><RefreshCcw size={16} /></button>
+              <button type="submit" disabled={!canViewSuppliers || isInventoryLoading}><Search size={16} /> Lọc tồn quỹ</button>
+              <button type="button" className="secondaryButton iconButton" onClick={resetInventoryFilters} disabled={!canViewSuppliers || isInventoryLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc tồn quỹ"><RefreshCcw size={16} /></button>
             </form>
             <div className="fitTableWrap compactListTableWrap">
               <table className="fitTable hotelInventoryTable compactListTable">
@@ -1023,8 +1040,8 @@ export default function HotelSuppliersClient({
               <label>Thị trường<input value={filters.market} maxLength={hotelFilterMaxLengths.market} placeholder="Ví dụ: Nội địa" onChange={(event) => setFilters((current) => ({ ...current, market: event.target.value }))} /></label>
               <label>Dự án khách sạn<input value={filters.hotelProject} maxLength={hotelFilterMaxLengths.hotelProject} placeholder="Dòng sản phẩm hoặc dự án" onChange={(event) => setFilters((current) => ({ ...current, hotelProject: event.target.value }))} /></label>
               <label>Hạng khách sạn<input value={filters.classHotel} maxLength={hotelFilterMaxLengths.classHotel} placeholder="Ví dụ: 4 sao" onChange={(event) => setFilters((current) => ({ ...current, classHotel: event.target.value }))} /></label>
-              <button type="submit" disabled={isLoading}><Search size={16} /> Lọc danh sách</button>
-              <button type="button" className="secondaryButton iconButton" onClick={resetFilters} disabled={isLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc"><RefreshCcw size={16} /></button>
+              <button type="submit" disabled={!canViewSuppliers || isLoading}><Search size={16} /> Lọc danh sách</button>
+              <button type="button" className="secondaryButton iconButton" onClick={resetFilters} disabled={!canViewSuppliers || isLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc"><RefreshCcw size={16} /></button>
             </form>
           </section>
 
@@ -1033,7 +1050,7 @@ export default function HotelSuppliersClient({
               <div><h2>Danh sách nhà cung cấp khách sạn</h2><span>{isLoading ? 'Đang tải dữ liệu...' : `${hotels.length} nhà cung cấp`}</span></div>
               <div className="sectionActions">
                 <a className="secondaryButton iconTextButton" href="/suppliers">Quản lý loại nhà cung cấp</a>
-                <button type="button" className="secondaryButton iconButton" onClick={() => void load(filters, true)} disabled={isLoading} title="Tải lại" aria-label="Tải lại"><RefreshCcw size={16} /></button>
+                <button type="button" className="secondaryButton iconButton" onClick={() => void load(filters, true)} disabled={!canViewSuppliers || isLoading} title="Tải lại" aria-label="Tải lại"><RefreshCcw size={16} /></button>
                 <button type="button" className="iconTextButton" onClick={openCreate} disabled={!canManage}><Plus size={16} /> Thêm nhà cung cấp khách sạn</button>
               </div>
             </div>
@@ -1043,7 +1060,7 @@ export default function HotelSuppliersClient({
                 <tbody>
                   {isLoading ? <HotelListLoadingRows /> : null}
                   {!isLoading && listError ? (
-                    <tr><td colSpan={6} className="tableEmptyState"><div className="tableEmptyStateContent"><strong>Không tải được danh sách nhà cung cấp khách sạn.</strong><span>{listError}</span><button type="button" className="secondaryButton iconTextButton" onClick={() => void load(filters, true)}><RefreshCcw size={16} /> Tải lại</button></div></td></tr>
+                    <tr><td colSpan={6} className="tableEmptyState"><div className="tableEmptyStateContent"><strong>Không tải được danh sách nhà cung cấp khách sạn.</strong><span>{listError}</span><button type="button" className="secondaryButton iconTextButton" onClick={() => void load(filters, true)} disabled={!canViewSuppliers || isLoading}><RefreshCcw size={16} /> Tải lại</button></div></td></tr>
                   ) : null}
                   {!isLoading && !listError ? table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>) : null}
                   {!isLoading && !listError && hotels.length === 0 ? (
@@ -1062,16 +1079,16 @@ export default function HotelSuppliersClient({
                   <fieldset>
                     <legend>Thông tin khách sạn</legend>
                     <div className="hotelFormGrid">
-                      <label>Mã nhà cung cấp<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
-                      <label>Tên khách sạn<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
+                      <label>Mã nhà cung cấp *<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
+                      <label>Tên khách sạn *<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
                       <label>Mã số thuế<input aria-invalid={Boolean(errors.taxCode)} {...register('taxCode')} /><FieldError message={errors.taxCode?.message} /></label>
                       <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.builtYear)} {...register('builtYear')} /><FieldError message={errors.builtYear?.message} /></label>
-                      <label>Số điện thoại<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
+                      <label>Số điện thoại *<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
                       <label>Email<input type="email" placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.email)} {...register('email')} /><FieldError message={errors.email?.message} /></label>
                       <label>Quốc gia<input placeholder="Việt Nam" aria-invalid={Boolean(errors.country)} {...register('country')} /><FieldError message={errors.country?.message} /></label>
                       <label>Tỉnh/thành<input placeholder="Ví dụ: Hà Nội, Quảng Ninh" aria-invalid={Boolean(errors.province)} {...register('province')} /><FieldError message={errors.province?.message} /></label>
-                      <label>Hạng khách sạn<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." aria-invalid={Boolean(errors.classHotel)} {...register('classHotel')} /><FieldError message={errors.classHotel?.message} /></label>
-                      <label>Dòng sản phẩm / dự án<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" aria-invalid={Boolean(errors.hotelProject)} {...register('hotelProject')} /><FieldError message={errors.hotelProject?.message} /></label>
+                      <label>Hạng khách sạn *<input required placeholder="3 sao, 4 sao, khu nghỉ dưỡng..." aria-invalid={Boolean(errors.classHotel)} {...register('classHotel')} /><FieldError message={errors.classHotel?.message} /></label>
+                      <label>Dòng sản phẩm / dự án *<input required placeholder="Ví dụ: Hạ Long, nghỉ dưỡng biển" aria-invalid={Boolean(errors.hotelProject)} {...register('hotelProject')} /><FieldError message={errors.hotelProject?.message} /></label>
                       <label>Thị trường<input placeholder="Ví dụ: Nội địa, inbound" aria-invalid={Boolean(errors.market)} {...register('market')} /><FieldError message={errors.market?.message} /></label>
                       <label>Xếp hạng<input type="number" min="0" max="5" step="1" aria-invalid={Boolean(errors.rating)} {...register('rating')} /><FieldError message={errors.rating?.message} /></label>
                       <label>Trạng thái<select aria-invalid={Boolean(errors.status)} {...register('status')}>{supplierLifecycleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><FieldError message={errors.status?.message} /></label>

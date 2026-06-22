@@ -476,10 +476,12 @@ export default function GenericSupplierClient({
   initialError?: string;
 }) {
   const config = supplierConfigs[type];
-  const { can } = usePermissions();
-  const canManage = can('supplier.manage');
-  const canView = can('supplier.view');
-  const [suppliers, setSuppliers] = useState(initialSuppliers);
+  const { can, permissionsReady } = usePermissions();
+  const canManageSuppliers = can('supplier.manage');
+  const canViewSuppliers = can('supplier.view');
+  const canManage = canManageSuppliers;
+  const canView = canViewSuppliers;
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => Array.isArray(initialSuppliers) ? initialSuppliers : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
   const [notice, setNotice] = useState<SupplierNotice | null>(initialError ? { type: 'error', text: initialError } : null);
@@ -498,7 +500,13 @@ export default function GenericSupplierClient({
   const contacts = useFieldArray({ control, name: 'contacts' });
   const services = useFieldArray({ control, name: 'services' });
 
-  useEffect(() => setSuppliers(initialSuppliers), [initialSuppliers]);
+  useEffect(() => {
+    if (!permissionsReady || !canViewSuppliers) {
+      setSuppliers([]);
+      return;
+    }
+    setSuppliers(Array.isArray(initialSuppliers) ? initialSuppliers : []);
+  }, [initialSuppliers, permissionsReady, canViewSuppliers]);
 
   const columns = useMemo(() => {
     const helper = createColumnHelper<Supplier>();
@@ -543,6 +551,10 @@ export default function GenericSupplierClient({
   const table = useReactTable({ data: suppliers, columns, getCoreRowModel: getCoreRowModel() });
 
   async function load(nextFilters = filters, emitSuccess = false) {
+    if (!permissionsReady || !canViewSuppliers) {
+      setSuppliers([]);
+      return false;
+    }
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -684,8 +696,8 @@ export default function GenericSupplierClient({
 
   return (
     <div className="hotelSupplierPage">
-      <PermissionNotice allowed={canView} label="xem nhà cung cấp" missingPermissions={['supplier.view']} />
-      {canView ? (
+      <PermissionNotice allowed={!permissionsReady || canViewSuppliers} label="xem nhà cung cấp" missingPermissions={['supplier.view']} />
+      {canViewSuppliers ? (
         <>
           <SupplierNoticeBanner notice={notice} />
 
@@ -703,8 +715,8 @@ export default function GenericSupplierClient({
               </label>
               <label>Tỉnh/thành<input value={filters.province} onChange={(event) => setFilters((current) => ({ ...current, province: event.target.value }))} /></label>
               <label>Thị trường<input value={filters.market} onChange={(event) => setFilters((current) => ({ ...current, market: event.target.value }))} /></label>
-              <button type="submit" disabled={isLoading}><Search size={16} /> Lọc danh sách</button>
-              <button type="button" className="secondaryButton iconButton" onClick={resetFilters} disabled={isLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc"><RefreshCcw size={16} /></button>
+              <button type="submit" disabled={!canViewSuppliers || isLoading}><Search size={16} /> Lọc danh sách</button>
+              <button type="button" className="secondaryButton iconButton" onClick={resetFilters} disabled={!canViewSuppliers || isLoading} title="Xóa bộ lọc" aria-label="Xóa bộ lọc"><RefreshCcw size={16} /></button>
             </form>
           </section>
 
@@ -713,7 +725,7 @@ export default function GenericSupplierClient({
               <div><h2>Danh sách {config.shortTitle.toLowerCase()}</h2><span>{isLoading ? 'Đang tải dữ liệu...' : `${suppliers.length} nhà cung cấp`}</span></div>
               <div className="sectionActions">
                 <a className="secondaryButton iconTextButton" href="/suppliers">Quản lý loại nhà cung cấp</a>
-                <button type="button" className="secondaryButton iconButton" onClick={() => void load(filters, true)} disabled={isLoading} title="Tải lại" aria-label="Tải lại"><RefreshCcw size={16} /></button>
+                <button type="button" className="secondaryButton iconButton" onClick={() => void load(filters, true)} disabled={!canViewSuppliers || isLoading} title="Tải lại" aria-label="Tải lại"><RefreshCcw size={16} /></button>
                 <button type="button" className="iconTextButton" onClick={openCreate} disabled={!canManage}><Plus size={16} /> Thêm nhà cung cấp</button>
               </div>
             </div>

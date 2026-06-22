@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened typed supplier pages and clients:
+  - `/suppliers/hotels` and `/suppliers/[type]` now read the current session first, gate supplier preloads behind `supplier.view`, and show server-side permission notices instead of protected content when access is missing.
+  - Hotel and generic supplier clients wait for permission readiness, clear initial rows without view access, and disable reload/filter controls before protected API calls.
+  - Added `scripts/test-suppliers-typed-page-permissions-contract.js` and refreshed supplier contracts for name-first typed supplier tables and visible required hotel fields.
+
 - Hardened FIT Tours page/client RBAC:
   - Server page reads the current session first, gates FIT tour preloads behind `tour.view`, and gates supplier catalog preloads behind `tour.manage`.
   - Server page now renders a permission notice instead of protected FIT workspace content when view access is missing.

@@ -80,8 +80,11 @@ for label in [
     assert label in frontend, f'frontend typed supplier label must be fully Vietnamese: {label}'
 for stale_label in ['Nha cung cap', 'Huong dan vien', 'Gia KT', 'Gia NET', 'SHCB di', 'SHCB ve', 'Han coc', 'Gom xang', 'Ho boi', 'The HDV', 'Ben di', 'Quoc gia', 'Giá thuần (NET)', 'Số hiệu chuyến bay đi', 'Số hiệu chuyến bay về']:
     assert stale_label not in frontend, f'frontend typed supplier stale label remains: {stale_label}'
-for table_header in ["header: 'Mã nhà cung cấp'", "header: 'Tên nhà cung cấp'", "header: 'Điện thoại'", "header: 'Email'", "header: 'Tỉnh/thành'", "header: 'Thị trường'", "header: 'Xếp hạng'", "header: 'Số liên hệ'", "header: 'Số dịch vụ'", "header: 'Trạng thái'"]:
-    assert table_header in frontend, f'typed supplier list must expose {table_header}'
+assert "id: 'supplier'" in frontend, 'typed supplier list must use supplier name as the first column'
+assert "id: 'supplierCode'" not in frontend, 'typed supplier list must not keep a separate supplier-code-first column'
+assert 'supplierPrimaryCell' in frontend, 'typed supplier list must keep supplier code only as secondary traceability text'
+for table_token in ["id: 'phone'", "id: 'email'", "accessor('province'", "id: 'market'", "id: 'rating'", "id: 'contacts'", "id: 'services'", "accessor('status'"]:
+    assert table_token in frontend, f'typed supplier list must expose table token {table_token}'
 assert "return `${year}-${month}-${day}`" in frontend, 'typed supplier contact dates must normalize through UTC date parts instead of slicing unsafe values only'
 assert 'metadata: metadataRecord(item.metadata)' in frontend, 'typed supplier edit form must preserve service metadata safely'
 assert 'function supplierPayload(values: SupplierForm)' in frontend and 'metadataPayload(item.metadata)' in frontend, 'typed supplier form must serialize contacts/services/metadata through a stable payload helper'
