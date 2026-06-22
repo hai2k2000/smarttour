@@ -1911,3 +1911,7 @@
   - `/orders/[type]` now gates server-side initial order loads through `/auth/me` and hides protected client content when order view/manage access is missing.
   - Orders client now waits for permission readiness, clears stale SSR rows without view access, and fail-closes create/update/copy actions with `order.manage` before API calls while preserving dedicated status/settle/unlock permissions.
   - Verification passed: `bash scripts/test-orders-ui-auth-contract.sh`, `bash scripts/test-orders-controller-permissions.sh`, `bash scripts/test-orders-api.sh`, `node scripts/test-order-center-permissions-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+- 2026-06-22 Completed Phase 3 operation vouchers page/client RBAC hardening:
+  - Operation Vouchers now gates server-side initial voucher loads through `/auth/me` and hides protected client content when operation form view/manage access is missing.
+  - Client handlers now wait for permission readiness, clear stale SSR rows without view access, and fail-close reload/detail/create actions before API calls while preserving manage/payment permission gates.
+  - Verification passed: `node scripts/test-operation-vouchers-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `bash scripts/test-operation-vouchers-service.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.

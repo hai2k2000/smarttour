@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { CreditCard, Loader2, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { PermissionNotice, usePermissions } from '../usePermissions';
@@ -261,8 +261,8 @@ function buildPayload(data: VoucherForm) {
 }
 
 export default function OperationVouchersClient({ initialVouchers }: { initialVouchers: VoucherSummary[] }) {
-  const { can, canAny } = usePermissions();
-  const [vouchers, setVouchers] = useState(initialVouchers);
+  const { can, canAny, permissionsReady } = usePermissions();
+  const [vouchers, setVouchers] = useState(() => Array.isArray(initialVouchers) ? initialVouchers : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedVoucherSummary, setSelectedVoucherSummary] = useState<VoucherSummary | null>(null);
   const [query, setQuery] = useState('');
@@ -278,6 +278,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   const total = useMemo(() => (values.details || []).filter(hasDetailValue).reduce((sum, item) => sum + lineAmount(item), 0), [values.details]);
   const currentVoucher = selectedVoucherSummary || (editingId ? vouchers.find((item) => item.id === editingId) : null);
   const currentRemainAmount = numberOrZero(currentVoucher?.remainAmount);
+  const canViewVouchers = canAny(['operation.form.view', 'operation.form.manage']);
   const canManageVouchers = can('operation.form.manage');
   const canCreateVoucherPayment = can('operation.payment-request.create');
   const filtered = useMemo(() => {
@@ -303,17 +304,36 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
           id: 'actions',
           header: 'Thao tác',
           cell: ({ row }) => (
-            <button type="button" className="secondaryButton iconTextButton" disabled={loadingVoucherId === row.original.id} onClick={() => loadVoucher(row.original.id)}>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewVouchers || loadingVoucherId === row.original.id} onClick={() => loadVoucher(row.original.id)}>
               {loadingVoucherId === row.original.id ? <Loader2 size={15} /> : <Pencil size={15} />} {loadingVoucherId === row.original.id ? 'Đang tải' : 'Sửa'}
             </button>
           ),
         }),
       ];
-    }, [loadingVoucherId]),
+    }, [loadingVoucherId, canViewVouchers]),
     getCoreRowModel: getCoreRowModel(),
   });
 
+  useEffect(() => {
+    if (!permissionsReady || canViewVouchers) return;
+    setVouchers([]);
+    setEditingId(null);
+    setSelectedVoucherSummary(null);
+    setQuery('');
+    setStatusFilter('');
+    setMessage(null);
+    setFormOpen(false);
+    setLoadingVoucherId(null);
+    setPaying(false);
+    reset(newVoucherDefaults());
+  }, [permissionsReady, canViewVouchers, reset]);
+
   async function reload(announce = true, nextQuery = query, nextStatus = statusFilter) {
+    if (!permissionsReady || !canViewVouchers) {
+      setVouchers([]);
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem phi\u1ebfu \u0111i\u1ec1u h\u00e0nh.' });
+      return;
+    }
     setReloading(true);
     if (announce) setMessage({ kind: 'info', text: 'Đang tải lại danh sách phiếu điều hành...' });
     try {
@@ -337,6 +357,10 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   }
 
   async function loadVoucher(id: string, keepMessage = false) {
+    if (!permissionsReady || !canViewVouchers) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem chi ti\u1ebft phi\u1ebfu \u0111i\u1ec1u h\u00e0nh.' });
+      return;
+    }
     setEditingId(id);
     setSelectedVoucherSummary(vouchers.find((item) => item.id === id) || null);
     setFormOpen(true);
@@ -439,6 +463,10 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   }
 
   function openCreate() {
+    if (!canManageVouchers) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o phi\u1ebfu \u0111i\u1ec1u h\u00e0nh.' });
+      return;
+    }
     setEditingId(null);
     setSelectedVoucherSummary(null);
     setLoadingVoucherId(null);
@@ -452,7 +480,9 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
 
   return (
     <div className="orderPage">
-      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage'])} label={'xem phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5'} />
+      <PermissionNotice allowed={!permissionsReady || canViewVouchers} label={'xem phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5'} />
+      {canViewVouchers ? (
+        <>
       {formOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalPanel modalPanelWide">
@@ -539,9 +569,9 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
             <span>{reloading ? 'Đang tải dữ liệu...' : `${filtered.length} / ${vouchers.length} phiếu`}</span>
           </div>
           <div className="pageHeaderActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewVouchers || reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
             <button type="button" className="secondaryButton iconTextButton" disabled={!canManageVouchers || reloading} onClick={openCreate}><Plus size={16} /> Thêm mới</button>
-            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); void reload(false, query, event.target.value); }} disabled={reloading}>
+            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); void reload(false, query, event.target.value); }} disabled={!canViewVouchers || reloading}>
               <option value="">Tất cả trạng thái</option>
               <option value="PENDING">Chờ thanh toán</option>
               <option value="PARTIAL">Thanh toán một phần</option>
@@ -562,6 +592,8 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
           </table>
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

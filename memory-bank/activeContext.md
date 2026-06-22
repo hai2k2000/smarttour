@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 operation vouchers page/client RBAC hardening:
+  - Operation Vouchers page now reads `/auth/me` before loading voucher rows, avoids server-side voucher preloads without `operation.form.view`/`operation.form.manage`, and renders a server permission notice instead of protected client content when access is missing.
+  - Operation Vouchers client now waits for permission readiness, clears server-provided rows when view access is missing, hides list/form content without view access, and fail-closes reload/detail/create handlers before API calls.
+  - Existing `operation.form.manage` save gates and `operation.payment-request.create` payment gates remain in place.
+
 - Phase 3 order type page/client RBAC hardening:
   - `/orders/[type]` now reads `/auth/me` before loading order rows, avoids server-side order preloads without `order.view`/`order.manage`, and renders a server permission notice instead of protected client content when access is missing.
   - Orders client now waits for permission readiness, clears server-provided rows when view access is missing, hides list/form content without view access, and fail-closes create/update/copy handlers with `order.manage` before API calls.

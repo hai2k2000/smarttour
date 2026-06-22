@@ -1,5 +1,6 @@
 import { ClipboardList, Users } from 'lucide-react';
 import { serverAuthHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 import OperationVouchersClient from './OperationVouchersClient';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,9 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function OperationVouchersPage() {
-  const vouchers = await apiGet('/operation-vouchers', []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewVouchers = hasPermission(currentUser, 'operation.form.view') || hasPermission(currentUser, 'operation.form.manage');
+  const vouchers = canViewVouchers ? await apiGet('/operation-vouchers', []) : [];
 
   return (
     <section className="workspace">
@@ -31,7 +34,10 @@ export default async function OperationVouchersPage() {
           <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
-      <OperationVouchersClient initialVouchers={vouchers} />
+      <ServerPermissionNotice allowed={canViewVouchers} label={'xem phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5'} missingPermissions={['operation.form.view']} />
+      {canViewVouchers ? (
+        <OperationVouchersClient initialVouchers={vouchers} />
+      ) : null}
     </section>
   );
 }
