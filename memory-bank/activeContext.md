@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 Operations client permission-readiness hardening:
+  - Operations client now waits for `permissionsReady` before static catalog and list/dashboard loading, preventing pre-permission flashes and premature state resets.
+  - Operations reload/list paths fail closed when no operation view permission is available and clear protected dashboard/form/payment state.
+  - Protected filters, tabs, modals, and lists are withheld until the user has an operation view permission; the permission notice avoids flashing while permissions load.
+  - Current scan reports no remaining server pages with API preloads before `/auth/me` and no remaining `usePermissions` clients without readiness handling.
+
 - Phase 3 typed supplier page/client RBAC hardening:
   - Hotel and typed supplier server pages now read `/auth/me` before protected preloads and avoid loading supplier rows without `supplier.view`.
   - These pages render server permission notices and withhold protected supplier client workspaces when view access is missing.

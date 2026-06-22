@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened Operations client permission readiness:
+  - `OperationsClient` now waits for permission readiness before loading static booking/supplier catalogs or dashboard/forms/payment-request lists.
+  - Operations protected UI is hidden without operation view access, reload/list paths fail closed, and create/reload actions stay disabled until permissions are ready.
+  - Extended operations contract coverage and confirmed the repo-wide scans for server preloads and client permission readiness are clean.
+
 - Hardened typed supplier pages and clients:
   - `/suppliers/hotels` and `/suppliers/[type]` now read the current session first, gate supplier preloads behind `supplier.view`, and show server-side permission notices instead of protected content when access is missing.
   - Hotel and generic supplier clients wait for permission readiness, clear initial rows without view access, and disable reload/filter controls before protected API calls.

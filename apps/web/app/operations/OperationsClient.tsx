@@ -162,7 +162,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function OperationsClient() {
-  const { can, user } = usePermissions();
+  const { can, user, permissionsReady } = usePermissions();
   const [tab, setTab] = useState<OperationsTab>('forms');
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [forms, setForms] = useState<OperationForm[]>([]);
@@ -212,6 +212,7 @@ export default function OperationsClient() {
   const activeTab = operationTabs[tab];
   const canViewForms = can(operationTabs.forms.viewPermission);
   const canViewPayments = can(operationTabs.payments.viewPermission);
+  const canViewOperations = canViewForms || canViewPayments;
   const canCreateForm = can(operationTabs.forms.createPermission);
   const canCreatePaymentRequest = can(operationTabs.payments.createPermission);
   const canApprovePaymentRequest = can('operation.payment-request.approve');
@@ -232,12 +233,14 @@ export default function OperationsClient() {
   const listLoadKey = `${canViewForms}:${canViewPayments}:${formQuery}:${paymentQuery}`;
 
   useEffect(() => {
+    if (!permissionsReady) return;
     void loadStatic();
-  }, [staticLoadKey]);
+  }, [permissionsReady, staticLoadKey]);
 
   useEffect(() => {
+    if (!permissionsReady) return;
     void load();
-  }, [listLoadKey]);
+  }, [permissionsReady, listLoadKey]);
 
   useEffect(() => {
     if (tab === 'forms' && !canViewForms && canViewPayments) {
@@ -262,6 +265,12 @@ export default function OperationsClient() {
   }, [forms, selectedFormId]);
 
   async function loadStatic(emitNotice = true, force = false) {
+    if (!permissionsReady || (!canCreateForm && !canCreatePaymentRequest)) {
+      setBookings([]);
+      setSuppliers([]);
+      setCreateFormSupplierId('');
+      return [];
+    }
     const key = staticLoadKey;
     if (!force && staticLoadInFlight.current === key) return [];
     staticLoadInFlight.current = key;
@@ -269,14 +278,6 @@ export default function OperationsClient() {
     setIsLoadingStatic(true);
     const errors: string[] = [];
     try {
-      if (!canCreateForm && !canCreatePaymentRequest) {
-        if (sequence === staticLoadSeq.current) {
-          setBookings([]);
-          setSuppliers([]);
-          setCreateFormSupplierId('');
-        }
-        return errors;
-      }
       const [bookingResult, supplierResult] = await Promise.allSettled([
         fetchJson<unknown>('/api/bookings?take=500', 'danh sách booking'),
         fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
@@ -309,6 +310,15 @@ export default function OperationsClient() {
   }
 
   async function load(options: LoadOptions = {}) {
+    if (!permissionsReady || !canViewOperations) {
+      setDashboard(emptyDashboard);
+      setDashboardError('');
+      setHasLoadedDashboard(false);
+      setForms([]);
+      setRequests([]);
+      setDetailRequestId('');
+      return [];
+    }
     const emitNotice = options.emitNotice ?? true;
     const scope = normalizeLoadOptions(options);
     const key = `${listLoadKey}:${scope.dashboard}:${scope.forms}:${scope.requests}`;
@@ -374,7 +384,7 @@ export default function OperationsClient() {
   }
 
   async function reloadAll() {
-    if (reloadInFlight.current || isLoadingStatic || isLoadingList) return;
+    if (reloadInFlight.current || isLoadingStatic || isLoadingList || !permissionsReady || !canViewOperations) return;
     reloadInFlight.current = true;
     setIsReloading(true);
     setNotice(null);
@@ -523,13 +533,13 @@ export default function OperationsClient() {
           <button
             data-testid="operations-create-button"
             className="iconTextButton"
-            disabled={!canViewActiveTab || !canCreateActiveTab}
+            disabled={!permissionsReady || !canViewActiveTab || !canCreateActiveTab}
             title={!canViewActiveTab ? permissionDeniedTitle(activeTab.viewPermission) : !canCreateActiveTab ? permissionDeniedTitle(activeTab.createPermission) : activeTab.createLabel}
             onClick={openCreateModal}
           >
             <Plus size={16} /> {activeTab.createLabel}
           </button>
-          <button className="secondaryButton iconTextButton" disabled={isBusy} onClick={() => { void reloadAll(); }}>
+          <button className="secondaryButton iconTextButton" disabled={!permissionsReady || !canViewOperations || isBusy} onClick={() => { void reloadAll(); }}>
             <RefreshCcw size={16} /> {isBusy ? 'Đang tải...' : 'Tải lại'}
           </button>
         </div>
@@ -547,8 +557,10 @@ export default function OperationsClient() {
         ))}
       </section>
       {dashboardState ? <div data-testid="operations-dashboard-state" className={`operationsDashboardState ${dashboardStateClass(dashboardState.type)}`}>{dashboardState.text}</div> : null}
-      <PermissionNotice allowed={canViewForms || canViewPayments} label="xem vận hành tour" missingPermissions={missingOperationsViewPermissions} />
+      <PermissionNotice allowed={!permissionsReady || canViewOperations} label="xem vận hành tour" missingPermissions={missingOperationsViewPermissions} />
 
+      {canViewOperations ? (
+        <>
       <section className="panel operationsFilters">
         <label>
           <Search size={15} /> Tìm kiếm
@@ -675,6 +687,8 @@ export default function OperationsClient() {
           </OperationsTable>
         </section>
       )}
+        </>
+      ) : null}
     </section>
   );
 }
