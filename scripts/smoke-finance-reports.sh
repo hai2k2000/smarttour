@@ -24,6 +24,8 @@ DELETE FROM "FinanceInvoice" WHERE "invoiceCode" LIKE '${RUN_ID}%';
 DELETE FROM "FinanceReceiptOrder" WHERE "receiptId" IN (SELECT id FROM "FinanceReceipt" WHERE "receiptCode" LIKE '${RUN_ID}%');
 DELETE FROM "FinanceReceipt" WHERE "receiptCode" LIKE '${RUN_ID}%';
 DELETE FROM "FinancePayment" WHERE "voucherCode" LIKE '${RUN_ID}%';
+DELETE FROM "Tour" WHERE "systemCode" LIKE '${RUN_ID}%';
+DELETE FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "CustomerTimeline" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE code LIKE '${RUN_ID}%');
 DELETE FROM "Customer" WHERE code LIKE '${RUN_ID}%';
 DELETE FROM "SupplierContact" WHERE "supplierId" IN (SELECT id FROM "Supplier" WHERE "supplierCode" LIKE '${RUN_ID}%');
@@ -100,6 +102,24 @@ function contains(data, needle) {
     phone: '0930000000',
     email: 'fin-supplier-' + run.toLowerCase() + '@smarttour.local',
   });
+  const order = await request(token, 'POST', '/orders/single-services', {
+    systemCode: run + '-ORD',
+    name: 'Finance Smoke Order',
+    customerId: customer.id,
+    salesItems: [{ description: 'Finance smoke revenue', quantity: 1, serviceCount: 1, unitPrice: 1000000 }],
+    operationItems: [{ serviceType: 'OTHER', quantity: 1, netPrice: 400000 }],
+  });
+  const tour = await request(token, 'POST', '/tours', {
+    type: 'FIT',
+    systemCode: run + '-TOUR',
+    orderId: order.id,
+    tourCode: run + '-T',
+    name: 'Finance Smoke Tour',
+    branch: 'FIN-BR',
+    department: 'FIN-DEP',
+    startDate: '2026-08-10',
+    endDate: '2026-08-12',
+  });
 
   const receipt = await request(token, 'POST', '/finance/receipts', {
     receiptCode: run + '-RCPT',
@@ -108,6 +128,7 @@ function contains(data, needle) {
     paymentDate: '2026-08-10',
     paymentMethod: 'BANK_TRANSFER',
     customerId: customer.id,
+    tourId: tour.id,
     payerName: customer.fullName,
     payerPhone: customer.phone,
     reason: run + ' receipt',
@@ -128,6 +149,8 @@ function contains(data, needle) {
     paymentDate: '2026-08-11',
     paymentMethod: 'BANK_TRANSFER',
     supplierId: supplier.id,
+    orderId: order.id,
+    tourId: tour.id,
     receiverName: supplier.name,
     reason: run + ' payment',
     totalAmount: 400000,
@@ -144,6 +167,8 @@ function contains(data, needle) {
     customerId: customer.id,
     customerName: customer.fullName,
     customerPhone: customer.phone,
+    orderId: order.id,
+    tourId: tour.id,
     companyName: 'Finance Smoke Co',
     invoiceType: 'VAT',
     issuedDate: '2026-08-12',

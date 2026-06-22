@@ -38,6 +38,7 @@ DELETE FROM "FinanceReceipt" WHERE "reversalOfId" IN (SELECT id FROM "FinanceRec
 DELETE FROM "FinanceReceipt" WHERE "receiptCode" LIKE '${RUN_ID}%';
 DELETE FROM "FinancePayment" WHERE "reversalOfId" IN (SELECT id FROM "FinancePayment" WHERE "voucherCode" LIKE '${RUN_ID}%');
 DELETE FROM "FinancePayment" WHERE "voucherCode" LIKE '${RUN_ID}%';
+DELETE FROM "Tour" WHERE "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "CustomerTimeline" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE code LIKE '${RUN_ID}%');
 DELETE FROM "Customer" WHERE code LIKE '${RUN_ID}%';
@@ -101,11 +102,21 @@ async function rejects(fn, message) {
     salesItems: [{ description: 'Cancel smoke revenue', quantity: 1, serviceCount: 1, unitPrice: 1000000 }],
     operationItems: [{ serviceType: 'OTHER', quantity: 1, netPrice: 400000 }],
   });
+  const tour = await request(token, 'POST', '/tours', {
+    type: 'FIT',
+    systemCode: run + '-TOUR',
+    orderId: order.id,
+    tourCode: run + '-T',
+    name: 'Cancel Smoke Tour',
+    startDate: '2026-08-01',
+    endDate: '2026-08-02',
+  });
   const receipt = await request(token, 'POST', '/finance/receipts', {
     receiptCode: run + '-RCPT',
     receiptName: 'Cancel Smoke Receipt',
     receiptType: 'TOUR_PAYMENT',
     customerId: customer.id,
+    tourId: tour.id,
     totalAmount: 1000000,
     receiptAmount: 1000000,
     orders: [{ orderId: order.id, orderCode: order.systemCode, amount: 1000000 }],
@@ -137,6 +148,8 @@ async function rejects(fn, message) {
     invoiceCode: run + '-INV',
     customerId: customer.id,
     customerName: customer.fullName,
+    orderId: order.id,
+    tourId: tour.id,
     invoiceType: 'VAT',
     items: [{ itemName: 'Cancel smoke invoice', quantity: 1, unitPrice: 1000000, taxRate: 8 }],
   });

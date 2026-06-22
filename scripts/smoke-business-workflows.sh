@@ -10,6 +10,7 @@ RUN_ID="SMOKE-BIZ-$(date +%s)"
 cleanup() {
   docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour >/dev/null <<SQL || true
 DELETE FROM "OperationVoucherPayment" WHERE "voucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%');
+DELETE FROM "FinancePayment" WHERE "operationVoucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%');
 DELETE FROM "OperationVoucherDetail" WHERE "voucherId" IN (SELECT id FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%');
 DELETE FROM "OperationVoucher" WHERE "voucherCode" LIKE '${RUN_ID}%';
 DELETE FROM "SupplierLedgerEntry" WHERE "documentCode" LIKE '${RUN_ID}%';
@@ -22,6 +23,8 @@ DELETE FROM "OperationForm" WHERE notes LIKE '${RUN_ID}%';
 DELETE FROM "Booking" WHERE code LIKE '${RUN_ID}%';
 DELETE FROM "TourItineraryDay" WHERE "tourProgramId" IN (SELECT id FROM "TourProgram" WHERE code LIKE '${RUN_ID}%');
 DELETE FROM "TourProgram" WHERE code LIKE '${RUN_ID}%';
+DELETE FROM "Tour" WHERE "systemCode" LIKE '${RUN_ID}%';
+DELETE FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "CustomerTimeline" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE code LIKE '${RUN_ID}%');
 DELETE FROM "Customer" WHERE code LIKE '${RUN_ID}%';
 DELETE FROM "SupplierContact" WHERE "supplierId" IN (SELECT id FROM "Supplier" WHERE "supplierCode" LIKE '${RUN_ID}%');
@@ -96,6 +99,7 @@ async function route(token, path) {
   });
 
   const program = await request(token, 'POST', '/tour-programs', { code: run + '-TP', name: 'Business Smoke Program', route: 'HN', durationDays: 1 });
+  await request(token, 'POST', '/tour-programs/' + program.id + '/itinerary-days', { dayNumber: 1, title: 'Business smoke day 1', content: 'Business smoke itinerary day' });
   const booking = await request(token, 'POST', '/bookings', {
     code: run + '-BKG',
     tourProgramId: program.id,
@@ -124,9 +128,30 @@ async function route(token, path) {
   await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/submit', { actor: 'business-smoke' });
   await request(token, 'POST', '/operations/supplier-payment-requests/' + paymentRequest.id + '/approve', { actor: 'business-smoke' });
 
+  const voucherOrder = await request(token, 'POST', '/orders/single-services', {
+    systemCode: run + '-VCH-ORD',
+    name: 'Business Smoke Voucher Order',
+    customerId: customer.id,
+    salesItems: [{ description: 'Business smoke voucher service', quantity: 1, serviceCount: 1, unitPrice: 500000 }],
+    operationItems: [{ serviceType: 'MEAL', quantity: 1, netPrice: 500000 }],
+  });
+  const voucherTour = await request(token, 'POST', '/tours', {
+    type: 'FIT',
+    systemCode: run + '-VCH-TOUR',
+    orderId: voucherOrder.id,
+    tourCode: run + '-VCH-T',
+    name: 'Business Smoke Voucher Tour',
+    branch: 'SMOKE-BR',
+    department: 'SMOKE-DEP',
+    startDate: '2026-08-01',
+    endDate: '2026-08-01',
+  });
+
   const voucher = await request(token, 'POST', '/operation-vouchers', {
     voucherCode: run + '-VCH',
     bookingId: booking.id,
+    orderId: voucherOrder.id,
+    tourId: voucherTour.id,
     supplierId: supplier.id,
     supplierName: supplier.name,
     serviceType: 'MEAL',
@@ -136,7 +161,12 @@ async function route(token, path) {
     createdBy: 'business-smoke',
     details: [{ serviceName: 'Lunch', quantity: 2, unit: 'pax', netPrice: 250000, vat: 0 }],
   });
-  await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/payment', { paidAmount: 100000, paymentDate: '2026-07-26', note: run + ' partial payment' });
+  const voucherWithPayment = await request(token, 'POST', '/operation-vouchers/' + voucher.id + '/create-payment-voucher');
+  const financePayment = voucherWithPayment.financePayments?.[0];
+  if (!financePayment?.id) throw new Error('Operation voucher did not create a finance payment');
+  await request(token, 'POST', '/finance/payments/' + financePayment.id + '/approve', { actor: 'business-smoke' });
+  const paidVoucher = await request(token, 'GET', '/operation-vouchers/' + voucher.id);
+  if (paidVoucher.status !== 'PAID') throw new Error('Approved finance payment did not reconcile the operation voucher');
 
   await request(token, 'GET', '/operations/forms?search=' + encodeURIComponent(run));
   await request(token, 'GET', '/operations/supplier-payment-requests?search=' + encodeURIComponent(run));

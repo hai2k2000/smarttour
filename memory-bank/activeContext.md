@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 admin-live smoke contract alignment:
+  - Admin-live finance cancellation and finance report smokes now create valid linked tours before posting receipts, payments, and invoices, matching the hardened finance tour-link rules.
+  - Business workflow smoke now creates the itinerary day required by booking validation before booking creation.
+  - Operation voucher workflow smoke now follows the current payment lifecycle: create a linked order/tour, create a finance payment voucher from the operation voucher, approve the finance payment, and assert approval reconciles the operation voucher to PAID instead of recording a duplicate manual payment.
+  - Temporary admin smoke users now need RBAC relation-style permissions in the live DB; the latest verification seeded and cleaned a temporary role/user successfully with no leftovers.
+
+
 - Phase 3 customer file-validation test alignment:
   - Customer service regression now matches the shared file upload validator: dangerous extensions, invalid MIME types, declared-size mismatches, and oversized files are asserted as separate cases.
   - Deep service/API coverage was rerun for auth management, customers, bookings, orders, operation vouchers, commission reports, tour programs/type APIs, report query validation, security, and SmartLink audit.

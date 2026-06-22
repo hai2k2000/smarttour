@@ -2,6 +2,12 @@
 
 ## Done
 
+- Aligned admin-live smoke scripts with current finance/tour workflow contracts:
+  - `smoke-finance-cancellations.sh` and `smoke-finance-reports.sh` now create valid linked tours for tour-payment, supplier-payment, and invoice flows.
+  - `smoke-business-workflows.sh` now adds the required tour-program itinerary day before booking creation and uses the current operation-voucher finance payment lifecycle.
+  - Verified live with temporary admin credentials: `SMOKE_FINANCE_CANCELLATIONS_OK`, `SMOKE_FINANCE_REPORTS_OK`, and `SMOKE_BUSINESS_OK`; temporary admin users/roles were cleaned up afterward.
+
+
 - Refreshed customer service file-upload regression coverage:
   - Split customer file validation assertions into extension rejection, MIME rejection, size metadata mismatch, and actual oversized file cases to match the shared file service.
   - Re-ran the remaining deep service/API tests after the customer regression fix; no runtime application code changed in this pass.
