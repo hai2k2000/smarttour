@@ -2220,3 +2220,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the Finance client did not send an explicit backend `take` limit while finance list services support capped `take` queries.
   - Found the Cashflow table lacked an empty row, unlike receipts, payments, invoices, and debt tables.
   - Added contract coverage and updated the Finance client to send `take=100` and render a Cashflow empty state.
+
+- 2026-06-22 Phase 3 operation vouchers frontend permission/payment hardening:
+  - Found Operation Vouchers frontend actions did not render according to backend action permissions: create/update require `operation.form.manage`, and payment recording requires `operation.payment-request.create`.
+  - Found list reload did not send the backend-supported `take` limit and payment recording posted without a consequence-aware confirmation.
+  - Added a focused client contract and updated the client to show the permission notice, disable unauthorized create/save/payment controls, guard submit/payment handlers, send `take=100`, and confirm before recording supplier debt payment.

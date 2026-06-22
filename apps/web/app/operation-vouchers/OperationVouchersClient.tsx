@@ -6,6 +6,7 @@ import { CreditCard, Loader2, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X 
 import { useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { PermissionNotice, usePermissions } from '../usePermissions';
 
 type VoucherSummary = {
   id: string;
@@ -168,6 +169,11 @@ function messageClass(message: Message) {
   return 'statusPill statusPillNeutral';
 }
 
+function confirmVoucherPayment(amount: number) {
+  if (typeof window === 'undefined') return true;
+  return window.confirm(`X\u00e1c nh\u1eadn ghi nh\u1eadn thanh to\u00e1n ${money(amount)} cho phi\u1ebfu \u0111i\u1ec1u h\u00e0nh? H\u00e0nh \u0111\u1ed9ng n\u00e0y s\u1ebd c\u1eadp nh\u1eadt c\u00f4ng n\u1ee3 nh\u00e0 cung c\u1ea5p.`);
+}
+
 function mapVoucherToForm(voucher: any): VoucherForm {
   const details = Array.isArray(voucher?.details)
     ? voucher.details.map((item: any) => ({
@@ -255,6 +261,7 @@ function buildPayload(data: VoucherForm) {
 }
 
 export default function OperationVouchersClient({ initialVouchers }: { initialVouchers: VoucherSummary[] }) {
+  const { can, canAny } = usePermissions();
   const [vouchers, setVouchers] = useState(initialVouchers);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedVoucherSummary, setSelectedVoucherSummary] = useState<VoucherSummary | null>(null);
@@ -271,6 +278,8 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   const total = useMemo(() => (values.details || []).filter(hasDetailValue).reduce((sum, item) => sum + lineAmount(item), 0), [values.details]);
   const currentVoucher = selectedVoucherSummary || (editingId ? vouchers.find((item) => item.id === editingId) : null);
   const currentRemainAmount = numberOrZero(currentVoucher?.remainAmount);
+  const canManageVouchers = can('operation.form.manage');
+  const canCreateVoucherPayment = can('operation.payment-request.create');
   const filtered = useMemo(() => {
     const term = normalizeSearch(query.trim());
     return vouchers.filter((item) => {
@@ -309,6 +318,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
     if (announce) setMessage({ kind: 'info', text: 'Đang tải lại danh sách phiếu điều hành...' });
     try {
       const params = new URLSearchParams();
+      params.set('take', '100');
       if (cleanText(nextQuery)) params.set('search', cleanText(nextQuery));
       if (cleanText(nextStatus)) params.set('status', cleanText(nextStatus));
       const response = await fetch(`${browserApiBase()}/api/operation-vouchers${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' });
@@ -351,6 +361,10 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   }
 
   async function onSubmit(data: VoucherForm) {
+    if (!canManageVouchers) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n l\u01b0u phi\u1ebfu \u0111i\u1ec1u h\u00e0nh.' });
+      return;
+    }
     const detailError = validateDetails(data.details);
     if (detailError) {
       setMessage({ kind: 'error', text: detailError });
@@ -377,6 +391,10 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
   }
 
   async function addPayment() {
+    if (!canCreateVoucherPayment) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n ghi nh\u1eadn thanh to\u00e1n phi\u1ebfu \u0111i\u1ec1u h\u00e0nh.' });
+      return;
+    }
     if (!editingId) {
       setMessage({ kind: 'error', text: 'Chỉ có thể ghi nhận thanh toán sau khi mở một phiếu đã lưu.' });
       return;
@@ -390,6 +408,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
       setMessage({ kind: 'error', text: `Số tiền thanh toán không được vượt quá công nợ còn lại (${money(currentRemainAmount)}).` });
       return;
     }
+    if (!confirmVoucherPayment(amount)) return;
     setPaying(true);
     try {
       const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${editingId}/payment`, {
@@ -433,6 +452,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
 
   return (
     <div className="orderPage">
+      <PermissionNotice allowed={canAny(['operation.form.view', 'operation.form.manage'])} label={'xem phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5'} />
       {formOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalPanel modalPanelWide">
@@ -496,16 +516,16 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
                   </div>
                   <h2>Thanh toán</h2>
                   <div className="summaryRows">
-                    <div><span>Thanh toán thêm</span><input type="number" min={0} step="0.01" {...register('paymentAmount')} disabled={!editingId || paying} placeholder="Nhập số tiền" /></div>
+                    <div><span>Thanh toán thêm</span><input type="number" min={0} step="0.01" {...register('paymentAmount')} disabled={!canCreateVoucherPayment || !editingId || paying} placeholder="Nhập số tiền" /></div>
                   </div>
-                  <button type="button" className="secondaryButton iconTextButton" disabled={!editingId || paying || formBusy} onClick={addPayment}>
+                  <button type="button" className="secondaryButton iconTextButton" disabled={!canCreateVoucherPayment || !editingId || paying || formBusy} onClick={addPayment}>
                     {paying ? <Loader2 size={16} /> : <CreditCard size={16} />} {paying ? 'Đang ghi nhận' : 'Ghi nhận thanh toán'}
                   </button>
                 </aside>
               </section>
               {message ? <span className={messageClass(message)} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</span> : null}
               <div className="hotelFormActions">
-                <button type="submit" disabled={formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu phiếu'}</button>
+                <button type="submit" disabled={!canManageVouchers || formBusy}>{isSubmitting ? <Loader2 size={17} /> : <Save size={17} />} {isSubmitting ? 'Đang lưu' : 'Lưu phiếu'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm} disabled={isSubmitting}><X size={17} /> Đóng</button>
               </div>
             </form>
@@ -520,7 +540,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
           </div>
           <div className="pageHeaderActions">
             <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
-            <button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16} /> Thêm mới</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canManageVouchers || reloading} onClick={openCreate}><Plus size={16} /> Thêm mới</button>
             <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); void reload(false, query, event.target.value); }} disabled={reloading}>
               <option value="">Tất cả trạng thái</option>
               <option value="PENDING">Chờ thanh toán</option>
