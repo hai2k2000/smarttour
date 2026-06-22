@@ -2225,3 +2225,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Operation Vouchers frontend actions did not render according to backend action permissions: create/update require `operation.form.manage`, and payment recording requires `operation.payment-request.create`.
   - Found list reload did not send the backend-supported `take` limit and payment recording posted without a consequence-aware confirmation.
   - Added a focused client contract and updated the client to show the permission notice, disable unauthorized create/save/payment controls, guard submit/payment handlers, send `take=100`, and confirm before recording supplier debt payment.
+
+- 2026-06-22 Phase 3 operations workflow confirmation/list take hardening:
+  - Found OperationsClient list filters did not send an explicit backend `take` limit while Operations DTOs support capped list sizes.
+  - Found supplier payment request workflow actions and finance payment approval from the Operations screen could post immediately without a consequence-aware confirmation.
+  - Extended the Operations controller/client contract and updated the client to send `take=100`, confirm submit/approve/reject/create-finance-payment actions, and confirm finance payment approval before posting.

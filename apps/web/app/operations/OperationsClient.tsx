@@ -436,6 +436,7 @@ export default function OperationsClient() {
 
   async function requestAction(id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') {
     const label = actionLabels[action];
+    if (!confirmPaymentRequestAction(action, label)) return;
     const updated = await post<PaymentRequest>(`/api/operations/supplier-payment-requests/${id}/${action}`, { actor: actionActor(action) }, label, { dashboard: true, forms: false, requests: true });
     if (updated?.id) setDetailRequestId(updated.id);
   }
@@ -955,6 +956,22 @@ function ReconciliationPanel({
   );
 }
 
+function confirmPaymentRequestAction(action: 'submit' | 'approve' | 'reject' | 'create-finance-payment', label: string) {
+  if (typeof window === 'undefined') return true;
+  const consequences: Record<typeof action, string> = {
+    submit: 'Y\u00eau c\u1ea7u s\u1ebd chuy\u1ec3n sang tr\u1ea1ng th\u00e1i ch\u1edd duy\u1ec7t.',
+    approve: 'Y\u00eau c\u1ea7u s\u1ebd \u0111\u01b0\u1ee3c duy\u1ec7t \u0111\u1ec3 ti\u1ebfp t\u1ee5c t\u1ea1o phi\u1ebfu chi.',
+    reject: 'Y\u00eau c\u1ea7u s\u1ebd b\u1ecb t\u1eeb ch\u1ed1i v\u00e0 c\u1ea7n l\u1eadp l\u1ea1i n\u1ebfu ph\u00e1t sinh thanh to\u00e1n.',
+    'create-finance-payment': 'H\u1ec7 th\u1ed1ng s\u1ebd t\u1ea1o phi\u1ebfu chi t\u00e0i ch\u00ednh li\u00ean k\u1ebft y\u00eau c\u1ea7u n\u00e0y.',
+  };
+  return window.confirm(`${label}? ${consequences[action]}`);
+}
+
+function confirmFinancePaymentApproval() {
+  if (typeof window === 'undefined') return true;
+  return window.confirm('X\u00e1c nh\u1eadn duy\u1ec7t phi\u1ebfu chi t\u00e0i ch\u00ednh? H\u00e0nh \u0111\u1ed9ng n\u00e0y s\u1ebd ghi nh\u1eadn phi\u1ebfu chi v\u00e0o lu\u1ed3ng thanh to\u00e1n.');
+}
+
 function authHeaders() {
   return authJsonHeaders();
 }
@@ -1137,6 +1154,7 @@ function asRows<T>(value: unknown): T[] {
 
 function queryFrom(filter: FilterState) {
   const params = new URLSearchParams();
+  params.set('take', '100');
   if (filter.search.trim()) params.set('search', filter.search.trim());
   if (filter.status) params.set('status', filter.status);
   return params.toString();

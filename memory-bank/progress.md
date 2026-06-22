@@ -1832,3 +1832,8 @@
   - Operation Vouchers create/save controls now require `operation.form.manage`; payment input/action requires `operation.payment-request.create`; handlers also fail closed when permission is missing.
   - Reload now requests `take=100`, and recording a payment requires explicit confirmation before posting the money movement.
   - Verification passed: `node scripts/test-operation-vouchers-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 operations workflow confirmation/list take hardening:
+  - Operations list queries now include `take=100` for both operation forms and supplier payment requests.
+  - Supplier payment request submit/approve/reject/create-finance-payment actions and finance payment approval now require confirmation before posting.
+  - Verification passed: `scripts/test-operations-controller-contract.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
