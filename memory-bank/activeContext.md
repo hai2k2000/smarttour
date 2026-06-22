@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 quotation list payload hardening:
+  - Legacy quotation list API now uses a validated `ListQuotationsQueryDto` with bounded `take`, and the service applies a defensive default/cap before querying Prisma.
+  - `/quotations` SSR preload and client reload now request `?take=100` instead of loading the full quotation table.
+  - Quote/quotation backend and client contracts now guard against unbounded quotation list regressions.
+
 - Phase 3 active-domain cleanup follow-up:
   - Remaining executable smoke defaults and current runbooks were aligned to the active SmartTour production host `https://aitour.io.vn` instead of stale `https://quanly.dunientravel.com`.
   - Updated business, finance report, UI page, quotes/quotations, and deploy-preview defaults plus go-live/rollback/ops runbooks.

@@ -20,6 +20,8 @@ const quotesController = read('apps/api/src/modules/quotes/quotes.controller.ts'
 const quotesService = read('apps/api/src/modules/quotes/quotes.service.ts');
 const quoteListQueryDto = read('apps/api/src/modules/quotes/dto/list-quotes-query.dto.ts');
 const quotationsService = read('apps/api/src/modules/quotations/quotations.service.ts');
+const quotationsController = read('apps/api/src/modules/quotations/quotations.controller.ts');
+const quotationDto = read('apps/api/src/modules/quotations/dto/quotation.dto.ts');
 const validationFactory = read('apps/api/src/validation-exception.factory.ts');
 const quoteToursClient = read('apps/web/app/quotes/tours/QuoteToursClient.tsx');
 const quoteCombosClient = read('apps/web/app/quotes/combos/QuoteCombosClient.tsx');
@@ -47,8 +49,14 @@ for (const permission of [
   "@RequirePermissions('quotation.manage')",
   "@RequirePermissions('quotation.approve')",
 ]) {
-  includes(read('apps/api/src/modules/quotations/quotations.controller.ts'), permission, 'Quotation routes must keep explicit view/manage permissions.');
+  includes(quotationsController, permission, 'Quotation routes must keep explicit view/manage permissions.');
 }
+
+includes(quotationDto, 'class ListQuotationsQueryDto', 'Quotations list query DTO must exist.');
+includes(quotationDto, 'take?: number', 'Quotations list query DTO must accept bounded take.');
+includes(quotationDto, 'MAX_QUOTATIONS_TAKE', 'Quotations list query DTO must cap take.');
+includes(quotationsController, 'list(@Query() query: ListQuotationsQueryDto', 'Quotation list route must use the validated list query DTO.');
+includes(quotationsService, 'take: this.listTake(query.take)', 'Quotation list service must apply bounded take.');
 
 for (const label of [
   'quoteCode',

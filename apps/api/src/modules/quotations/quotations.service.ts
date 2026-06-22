@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { CreateQuotationDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
+import { CreateQuotationDto, DEFAULT_QUOTATIONS_TAKE, ListQuotationsQueryDto, MAX_QUOTATIONS_TAKE, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
 
 type QuotationItemInput = NonNullable<CreateQuotationDto['items']>[number];
 
@@ -35,7 +35,7 @@ export class QuotationsService {
     }, { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 });
   }
 
-  list(query: { search?: string; productType?: string; status?: QuotationStatus; salesOwner?: string; branch?: string; marketGroup?: string }, user?: RequestUser) {
+  list(query: ListQuotationsQueryDto, user?: RequestUser) {
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
     const where: Prisma.QuotationWhereInput = {
@@ -55,6 +55,7 @@ export class QuotationsService {
       where: branchDepartmentScopeWhere(where, user),
       include: { _count: { select: { items: true, logs: true } } },
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
+      take: this.listTake(query.take),
     });
   }
 
@@ -512,6 +513,12 @@ export class QuotationsService {
     const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) throw new BadRequestException('Tỷ giá báo giá phải lớn hơn 0');
     return number;
+  }
+
+  private listTake(value?: number) {
+    if (value === undefined || value === null) return DEFAULT_QUOTATIONS_TAKE;
+    if (!Number.isFinite(value)) return DEFAULT_QUOTATIONS_TAKE;
+    return Math.min(Math.max(1, Math.trunc(value)), MAX_QUOTATIONS_TAKE);
   }
 
   private positiveInput(value: unknown, label: string) {

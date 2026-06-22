@@ -1,7 +1,73 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { QuotationProductType, QuotationStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
+
+export const DEFAULT_QUOTATIONS_TAKE = 100;
+export const MAX_QUOTATIONS_TAKE = 200;
+
+const trimOptional = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  return trimmed || undefined;
+};
+
+const optionalNumber = ({ value }: { value: unknown }) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'string' && !value.trim()) return undefined;
+  return Number(value);
+};
+
+export class ListQuotationsQueryDto {
+  @ApiPropertyOptional({ maxLength: LIST_SEARCH_MAX_LENGTH, description: 'Tu khoa tim kiem bao gia hop nhat.' })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Tu khoa tim kiem bao gia phai la chuoi' })
+  @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `Tu khoa tim kiem bao gia khong duoc vuot qua ${LIST_SEARCH_MAX_LENGTH} ky tu` })
+  search?: string;
+
+  @ApiPropertyOptional({ enum: QuotationProductType })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsEnum(QuotationProductType, { message: 'Loai san pham bao gia khong hop le' })
+  productType?: QuotationProductType;
+
+  @ApiPropertyOptional({ enum: QuotationStatus })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsEnum(QuotationStatus, { message: 'Trang thai bao gia khong hop le' })
+  status?: QuotationStatus;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Nhan vien kinh doanh phai la chuoi' })
+  @MaxLength(120, { message: 'Nhan vien kinh doanh khong duoc vuot qua 120 ky tu' })
+  salesOwner?: string;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Chi nhanh phai la chuoi' })
+  @MaxLength(120, { message: 'Chi nhanh khong duoc vuot qua 120 ky tu' })
+  branch?: string;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsString({ message: 'Nhom thi truong phai la chuoi' })
+  @MaxLength(120, { message: 'Nhom thi truong khong duoc vuot qua 120 ky tu' })
+  marketGroup?: string;
+
+  @ApiPropertyOptional({ default: DEFAULT_QUOTATIONS_TAKE, minimum: 1, maximum: MAX_QUOTATIONS_TAKE })
+  @Transform(optionalNumber)
+  @IsOptional()
+  @IsInt({ message: 'So bao gia moi trang phai la so nguyen' })
+  @Min(1, { message: 'So bao gia moi trang phai lon hon 0' })
+  @Max(MAX_QUOTATIONS_TAKE, { message: `So bao gia moi trang khong duoc vuot qua ${MAX_QUOTATIONS_TAKE}` })
+  take?: number;
+}
 
 class QuotationItemDto {
   @ApiProperty() @IsString() @MinLength(2) serviceType!: string;

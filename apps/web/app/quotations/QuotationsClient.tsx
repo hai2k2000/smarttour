@@ -649,7 +649,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
     const failures: string[] = [];
     const [dashResult, listResult] = await Promise.allSettled([
       fetch(`${browserApiBase()}/api/quotations/dashboard`, { cache: 'no-store', headers: authHeaders() }),
-      fetch(`${browserApiBase()}/api/quotations`, { cache: 'no-store', headers: authHeaders() }),
+      fetch(`${browserApiBase()}/api/quotations?take=100`, { cache: 'no-store', headers: authHeaders() }),
     ]);
 
     if (dashResult.status === 'fulfilled') {

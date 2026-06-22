@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened legacy quotation list payloads:
+  - Added a validated bounded query DTO for `/api/quotations` and made the service apply a defensive `take` default/cap.
+  - Updated `/quotations` SSR preload and client reload to request `take=100`.
+  - Added contract assertions for the bounded quotation backend and web list calls.
+
 - Aligned file/upload smoke coverage with current API contracts:
   - `smoke-files.sh` now uses an allowed generated text fixture, current FIT attachment endpoints, and finance documents that satisfy hardened tour-link rules.
   - Re-ran the remaining admin-live smoke group with temporary admin credentials: `SMOKE_EXPORTS_OK`, `SMOKE_FILES_OK`, `SMOKE_OPERATIONS_BACKEND_OK`, `SMOKE_QUOTES_QUOTATIONS_OK`, and `SMOKE_UI_PAGES_OK`.

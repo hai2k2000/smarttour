@@ -24,7 +24,7 @@ export default async function QuotationsPage() {
   const canViewQuotations = hasPermission(currentUser, 'quotation.view') || hasPermission(currentUser, 'quotation.manage');
   const [dashboard, quotations] = canViewQuotations ? await Promise.all([
     apiGet('/quotations/dashboard', emptyDashboard),
-    apiGet('/quotations', []),
+    apiGet('/quotations?take=100', []),
   ]) : [emptyDashboard, []];
 
   return (

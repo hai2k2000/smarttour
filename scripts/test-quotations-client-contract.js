@@ -51,6 +51,7 @@ pageIncludes("apiGet<PermissionUser | null>(", 'Quotations page should read curr
 pageIncludes("'/auth/me'", 'Quotations page should call auth session endpoint.');
 pageIncludes("const canViewQuotations = hasPermission(currentUser, 'quotation.view') || hasPermission(currentUser, 'quotation.manage');", 'Quotations page should calculate quotation view/manage access.');
 pageIncludes('canViewQuotations ? await Promise.all', 'Quotations page should not preload dashboard/list without quotation access.');
+pageIncludes("apiGet('/quotations?take=100'", 'Quotations page should bound the SSR quotation list payload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewQuotations}', 'Quotations page should show a server permission notice when access is missing.');
 pageIncludes('{canViewQuotations ? (', 'Quotations page should hide quotation client content without access.');
 
@@ -66,6 +67,7 @@ includes('PermissionNotice allowed={!permissionsReady || canViewQuotations}', 'Q
 includes('{canViewQuotations ? (', 'Quotations client should hide dashboard/form/list content without view access.');
 includes('disabled={!canViewQuotations || loadingQuotationId === row.original.id}', 'Quotation edit buttons should be disabled without view access.');
 includes('disabled={!canViewQuotations || reloading}', 'Quotation reload button should be disabled without view access.');
+includes('/api/quotations?take=100', 'Quotation reload should request a bounded quotation list.');
 
 const dateHelper = source.match(/function dateInputValue\(value: unknown\) \{[\s\S]*?\n\}/)?.[0] || '';
 assert(dateHelper, 'dateInputValue helper is missing.');

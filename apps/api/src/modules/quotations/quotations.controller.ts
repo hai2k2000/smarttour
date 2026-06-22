@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } fr
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { Public, RequirePermissions } from '../auth/permissions.decorator';
-import { CreateQuotationDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
+import { CreateQuotationDto, ListQuotationsQueryDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
 import { QuotationsService } from './quotations.service';
 
 @ApiTags('quotations')
@@ -24,8 +24,8 @@ export class QuotationsController {
 
   @Get()
   @RequirePermissions('quotation.view')
-  list(@Query() query: Record<string, string>, @Req() request?: { user?: RequestUser }) {
-    return this.service.list(query as any, request?.user);
+  list(@Query() query: ListQuotationsQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.list(query, request?.user);
   }
 
   @Get(':id')
