@@ -1837,3 +1837,8 @@
   - Operations list queries now include `take=100` for both operation forms and supplier payment requests.
   - Supplier payment request submit/approve/reject/create-finance-payment actions and finance payment approval now require confirmation before posting.
   - Verification passed: `scripts/test-operations-controller-contract.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 GIT/LandTour numeric validation hardening:
+  - GIT and LandTour create actions no longer silently fallback invalid numeric inputs; they validate quantity, VAT, commission rate, and exchange rate before posting to the API.
+  - Added `scripts/test-tour-pages-number-validation-contract.js` to guard against reintroducing invalid-number fallback behavior.
+  - Verification passed: `node scripts/test-tour-pages-number-validation-contract.js`, `scripts/test-tour-type-apis.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.

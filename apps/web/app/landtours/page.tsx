@@ -52,11 +52,19 @@ function textField(formData: FormData, key: string) {
   return String(formData.get(key) || '').trim();
 }
 
-function numberField(formData: FormData, key: string, fallback = 0) {
+function numberField(formData: FormData, key: string, label: string, options: { min?: number; max?: number; fallback?: number } = {}) {
   const raw = textField(formData, key);
-  if (!raw) return fallback;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  if (!raw && options.fallback !== undefined) return options.fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`${label} ph\u1ea3i l\u00e0 s\u1ed1 h\u1ee3p l\u1ec7.`);
+  if (options.min !== undefined && value < options.min) throw new Error(`${label} kh\u00f4ng \u0111\u01b0\u1ee3c nh\u1ecf h\u01a1n ${options.min}.`);
+  if (options.max !== undefined && value > options.max) throw new Error(`${label} kh\u00f4ng \u0111\u01b0\u1ee3c l\u1edbn h\u01a1n ${options.max}.`);
+  return value;
+}
+
+function validationResult(error: unknown, label: string) {
+  const message = error instanceof Error ? error.message : 'D\u1eef li\u1ec7u kh\u00f4ng h\u1ee3p l\u1ec7.';
+  redirectWithState('error', `${label}: ${message}`);
 }
 
 function redirectWithState(type: 'notice' | 'error', message: string) {
@@ -65,14 +73,28 @@ function redirectWithState(type: 'notice' | 'error', message: string) {
 
 async function createLandTour(formData: FormData) {
   'use server';
+  let salesUnitPrice = 0;
+  let salesQuantity = 1;
+  let operationUnitPrice = 0;
+  let operationQuantity = 1;
+  let exchangeRate = 1;
+  let salesVat = 0;
+  let operationVat = 0;
+  try {
+    salesUnitPrice = numberField(formData, 'salesUnitPrice', '\u0110\u01a1n gi\u00e1 b\u00e1n', { min: 0 });
+    salesQuantity = numberField(formData, 'salesQuantity', 'S\u1ed1 l\u01b0\u1ee3ng b\u00e1n', { min: 1, fallback: 1 });
+    operationUnitPrice = numberField(formData, 'operationUnitPrice', 'Gi\u00e1 x\u00e1c nh\u1eadn', { min: 0 });
+    operationQuantity = numberField(formData, 'operationQuantity', 'S\u1ed1 l\u01b0\u1ee3ng \u0111i\u1ec1u h\u00e0nh', { min: 1, fallback: 1 });
+    exchangeRate = numberField(formData, 'exchangeRate', 'T\u1ef7 gi\u00e1', { min: 0.000001, fallback: 1 });
+    salesVat = numberField(formData, 'salesVat', 'VAT b\u00e1n', { min: 0, max: 100 });
+    operationVat = numberField(formData, 'operationVat', 'VAT \u0111i\u1ec1u h\u00e0nh', { min: 0, max: 100 });
+  } catch (error) {
+    validationResult(error, 'T\u1ea1o LandTour th\u1ea5t b\u1ea1i');
+  }
   const salesServiceType = textField(formData, 'salesServiceType');
   const salesDescription = textField(formData, 'salesDescription');
-  const salesUnitPrice = numberField(formData, 'salesUnitPrice');
-  const salesQuantity = numberField(formData, 'salesQuantity', 1);
   const operationServiceType = textField(formData, 'operationServiceType');
   const operationDescription = textField(formData, 'operationDescription');
-  const operationUnitPrice = numberField(formData, 'operationUnitPrice');
-  const operationQuantity = numberField(formData, 'operationQuantity', 1);
   const route = textField(formData, 'route');
   const payload: Record<string, unknown> = {
     systemCode: textField(formData, 'systemCode'),
@@ -90,7 +112,7 @@ async function createLandTour(formData: FormData) {
     guideName: textField(formData, 'guideName'),
     comboType: textField(formData, 'comboType'),
     exchangeRateCode: textField(formData, 'exchangeRateCode') || 'VND',
-    exchangeRate: numberField(formData, 'exchangeRate', 1),
+    exchangeRate,
     notes: textField(formData, 'notes'),
     termsVi: textField(formData, 'termsVi'),
     termsEn: textField(formData, 'termsEn'),
@@ -99,10 +121,10 @@ async function createLandTour(formData: FormData) {
     confirmationNote: textField(formData, 'confirmationNote'),
   };
   if (salesDescription || salesUnitPrice > 0 || salesServiceType) {
-    payload.salesServices = [{ serviceType: salesServiceType || 'LAND_SERVICE', description: salesDescription, quantity: salesQuantity, unitPrice: salesUnitPrice, vat: numberField(formData, 'salesVat') }];
+    payload.salesServices = [{ serviceType: salesServiceType || 'LAND_SERVICE', description: salesDescription, quantity: salesQuantity, unitPrice: salesUnitPrice, vat: salesVat }];
   }
   if (operationDescription || operationUnitPrice > 0 || operationServiceType) {
-    payload.operationServices = [{ serviceType: operationServiceType || 'LAND_SERVICE', description: operationDescription, quantity: operationQuantity, confirmedUnitPrice: operationUnitPrice, vat: numberField(formData, 'operationVat'), status: textField(formData, 'operationStatus') || 'WAITING' }];
+    payload.operationServices = [{ serviceType: operationServiceType || 'LAND_SERVICE', description: operationDescription, quantity: operationQuantity, confirmedUnitPrice: operationUnitPrice, vat: operationVat, status: textField(formData, 'operationStatus') || 'WAITING' }];
   }
   const response = await fetch(`${apiBase}/api/landtours`, { method: 'POST', headers: await serverAuthJsonHeaders(), body: JSON.stringify(payload) });
   if (!response.ok) redirectWithState('error', await apiErrorMessage(response));

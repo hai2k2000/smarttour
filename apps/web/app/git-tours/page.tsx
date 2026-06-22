@@ -51,11 +51,19 @@ function textField(formData: FormData, key: string) {
   return String(formData.get(key) || '').trim();
 }
 
-function numberField(formData: FormData, key: string, fallback = 0) {
+function numberField(formData: FormData, key: string, label: string, options: { min?: number; max?: number; fallback?: number } = {}) {
   const raw = textField(formData, key);
-  if (!raw) return fallback;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  if (!raw && options.fallback !== undefined) return options.fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`${label} ph\u1ea3i l\u00e0 s\u1ed1 h\u1ee3p l\u1ec7.`);
+  if (options.min !== undefined && value < options.min) throw new Error(`${label} kh\u00f4ng \u0111\u01b0\u1ee3c nh\u1ecf h\u01a1n ${options.min}.`);
+  if (options.max !== undefined && value > options.max) throw new Error(`${label} kh\u00f4ng \u0111\u01b0\u1ee3c l\u1edbn h\u01a1n ${options.max}.`);
+  return value;
+}
+
+function validationResult(error: unknown, label: string) {
+  const message = error instanceof Error ? error.message : 'D\u1eef li\u1ec7u kh\u00f4ng h\u1ee3p l\u1ec7.';
+  redirectWithState('error', `${label}: ${message}`);
 }
 
 function redirectWithState(type: 'notice' | 'error', message: string) {
@@ -64,12 +72,28 @@ function redirectWithState(type: 'notice' | 'error', message: string) {
 
 async function createGitTour(formData: FormData) {
   'use server';
+  let revenueUnitPrice = 0;
+  let revenueQuantity = 1;
+  let budgetUnitPrice = 0;
+  let budgetQuantity = 1;
+  let commissionRate = 0;
+  let exchangeRate = 1;
+  let revenueVat = 0;
+  let budgetVat = 0;
+  try {
+    revenueUnitPrice = numberField(formData, 'revenueUnitPrice', '\u0110\u01a1n gi\u00e1 doanh thu', { min: 0 });
+    revenueQuantity = numberField(formData, 'revenueQuantity', 'S\u1ed1 l\u01b0\u1ee3ng doanh thu', { min: 1, fallback: 1 });
+    budgetUnitPrice = numberField(formData, 'budgetUnitPrice', '\u0110\u01a1n gi\u00e1 d\u1ecbch v\u1ee5', { min: 0 });
+    budgetQuantity = numberField(formData, 'budgetQuantity', 'S\u1ed1 l\u01b0\u1ee3ng d\u1ecbch v\u1ee5', { min: 1, fallback: 1 });
+    commissionRate = numberField(formData, 'commissionRate', 'T\u1ef7 l\u1ec7 hoa h\u1ed3ng', { min: 0, max: 100 });
+    exchangeRate = numberField(formData, 'exchangeRate', 'T\u1ef7 gi\u00e1', { min: 0.000001, fallback: 1 });
+    revenueVat = numberField(formData, 'revenueVat', 'VAT doanh thu', { min: 0, max: 100 });
+    budgetVat = numberField(formData, 'budgetVat', 'VAT d\u1ecbch v\u1ee5', { min: 0, max: 100 });
+  } catch (error) {
+    validationResult(error, 'T\u1ea1o tour GIT th\u1ea5t b\u1ea1i');
+  }
   const revenueDescription = textField(formData, 'revenueDescription');
-  const revenueUnitPrice = numberField(formData, 'revenueUnitPrice');
-  const revenueQuantity = numberField(formData, 'revenueQuantity', 1);
   const budgetDescription = textField(formData, 'budgetDescription');
-  const budgetUnitPrice = numberField(formData, 'budgetUnitPrice');
-  const budgetQuantity = numberField(formData, 'budgetQuantity', 1);
   const budgetServiceType = textField(formData, 'budgetServiceType');
   const payload: Record<string, unknown> = {
     systemCode: textField(formData, 'systemCode'),
@@ -89,18 +113,18 @@ async function createGitTour(formData: FormData) {
     branch: textField(formData, 'branch'),
     department: textField(formData, 'department'),
     customerSource: textField(formData, 'customerSource'),
-    commissionRate: numberField(formData, 'commissionRate'),
+    commissionRate,
     invoiceStatus: textField(formData, 'invoiceStatus'),
     accountCode: textField(formData, 'accountCode'),
     exchangeRateCode: textField(formData, 'exchangeRateCode') || 'VND',
-    exchangeRate: numberField(formData, 'exchangeRate', 1),
+    exchangeRate,
     notes: textField(formData, 'notes'),
   };
   if (revenueDescription || revenueUnitPrice > 0) {
-    payload.revenues = [{ description: revenueDescription || 'Doanh thu tour', quantity: revenueQuantity, unitPrice: revenueUnitPrice, vat: numberField(formData, 'revenueVat') }];
+    payload.revenues = [{ description: revenueDescription || 'Doanh thu tour', quantity: revenueQuantity, unitPrice: revenueUnitPrice, vat: revenueVat }];
   }
   if (budgetDescription || budgetUnitPrice > 0 || budgetServiceType) {
-    payload.budgetServices = [{ serviceType: budgetServiceType || 'GIT_SERVICE', description: budgetDescription, quantity: budgetQuantity, unitPrice: budgetUnitPrice, vat: numberField(formData, 'budgetVat') }];
+    payload.budgetServices = [{ serviceType: budgetServiceType || 'GIT_SERVICE', description: budgetDescription, quantity: budgetQuantity, unitPrice: budgetUnitPrice, vat: budgetVat }];
   }
   const response = await fetch(`${apiBase}/api/git-tours`, { method: 'POST', headers: await serverAuthJsonHeaders(), body: JSON.stringify(payload) });
   if (!response.ok) redirectWithState('error', await apiErrorMessage(response));

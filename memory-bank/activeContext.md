@@ -2230,3 +2230,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found OperationsClient list filters did not send an explicit backend `take` limit while Operations DTOs support capped list sizes.
   - Found supplier payment request workflow actions and finance payment approval from the Operations screen could post immediately without a consequence-aware confirmation.
   - Extended the Operations controller/client contract and updated the client to send `take=100`, confirm submit/approve/reject/create-finance-payment actions, and confirm finance payment approval before posting.
+
+- 2026-06-22 Phase 3 GIT/LandTour numeric validation hardening:
+  - Found GIT and LandTour page server actions used a numeric helper that silently defaulted invalid numeric form input to 0 or 1.
+  - Added a focused frontend contract for numeric validation on quantities, VAT, commission rate, and exchange rate.
+  - Updated GIT/LandTour create actions so invalid numbers redirect with validation errors, quantities/exchange rates must be positive, and VAT/commission values stay in 0..100 instead of posting silently coerced data.
