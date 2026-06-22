@@ -59,7 +59,7 @@ export default async function SupplierTypePage({ params }: { params: Promise<{ t
   const canViewSuppliers = hasPermission(currentUser, 'supplier.view');
   const canManageSuppliers = hasPermission(currentUser, 'supplier.manage');
   void canManageSuppliers;
-  const result = config && canViewSuppliers ? await apiGet(`/suppliers/${type}`, [], `T\u1ea3i danh s\u00e1ch ${config.shortTitle.toLowerCase()}`) : { data: [], error: '' };
+  const result = config && canViewSuppliers ? await apiGet(`/suppliers/${type}?take=100`, [], `T\u1ea3i danh s\u00e1ch ${config.shortTitle.toLowerCase()}`) : { data: [], error: '' };
   const initialError = [currentUserResult.error, result.error].filter(Boolean).join('. ');
 
   if (!config) {

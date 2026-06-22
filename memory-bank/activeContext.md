@@ -2440,3 +2440,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated Quote Combos supplier catalog preloads to request `take=100` for hotels, flights, landtour suppliers, attraction tickets, transport, and other suppliers.
   - Strengthened supplier hotel/typed and Quote Combos contracts so catalog preloads and backend list boundaries cannot regress to unbounded payloads.
   - Verification passed: `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-quote-combos-client-contract.js`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 supplier SSR page payload hardening:
+  - Found `/suppliers/hotels` and `/suppliers/[type]` server pages still preloaded hotel/typed supplier lists without explicit `take=100`.
+  - Updated both supplier SSR pages to request bounded supplier lists and strengthened the supplier typed-page permissions contract to guard this.
+  - Verification passed: `node scripts/test-suppliers-typed-page-permissions-contract.js`, `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.

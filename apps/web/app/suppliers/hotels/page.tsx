@@ -42,7 +42,7 @@ export default async function HotelSuppliersPage() {
   const canViewSuppliers = hasPermission(currentUser, 'supplier.view');
   const canManageSuppliers = hasPermission(currentUser, 'supplier.manage');
   void canManageSuppliers;
-  const hotels = canViewSuppliers ? await apiGet('/suppliers/hotels', [], text.loadHotelsError) : { data: [] as never[] };
+  const hotels = canViewSuppliers ? await apiGet('/suppliers/hotels?take=100', [], text.loadHotelsError) : { data: [] as never[] };
   const initialError = [currentUserResult.error, hotels.error].filter(Boolean).join('. ');
 
   return (

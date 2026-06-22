@@ -25,6 +25,9 @@ for (const [name, source, importPath] of [
   includes(source, '{canViewSuppliers ? (', `${name} should hide protected client content without supplier.view.`);
 }
 
+includes(hotelPage, "apiGet('/suppliers/hotels?take=100'", 'Hotel supplier page should bound the SSR hotel list payload.');
+includes(typedPage, 'apiGet(`/suppliers/${type}?take=100`', 'Typed supplier page should bound the SSR typed supplier list payload.');
+
 for (const [name, source, rowSetter, busyName] of [
   ['hotel supplier client', hotelClient, 'setHotels([]);', 'isLoading'],
   ['typed supplier client', genericClient, 'setSuppliers([]);', 'isLoading'],

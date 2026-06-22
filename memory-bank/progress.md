@@ -2036,3 +2036,9 @@
   - `/quotes/combos` now preloads each supplier catalog with `take=100` instead of requesting unbounded hotel/typed supplier lists.
   - Expanded supplier hotel/typed and Quote Combos contracts to guard bounded catalog preload behavior.
   - Verification passed: `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-quote-combos-client-contract.js`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 supplier SSR page payload hardening:
+  - `/suppliers/hotels` now preloads `/suppliers/hotels?take=100`.
+  - `/suppliers/[type]` now preloads `/suppliers/${type}?take=100`.
+  - Expanded `scripts/test-suppliers-typed-page-permissions-contract.js` to guard bounded hotel/typed supplier page preloads.
+  - Verification passed: `node scripts/test-suppliers-typed-page-permissions-contract.js`, `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
