@@ -2414,3 +2414,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated `/tour-programs` and `/suppliers` server pages to request `take=100`, reducing SSR payload risk while keeping operational lists usable.
   - Strengthened Tour Programs and Suppliers contracts so DTOs, services, and server pages keep bounded list behavior.
   - Verification passed: `bash scripts/test-tour-programs-service.sh`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-suppliers-server-page-permissions-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 GIT/LandTour SSR payload hardening:
+  - Found GIT Tour and LandTour list APIs still had no bounded `take`, with LandTour previously producing multi-MB SSR HTML in page smoke.
+  - Added bounded `take` query support to GIT Tour and LandTour list endpoints, defaulting to 100 and capping at 200.
+  - Updated `/git-tours` and `/landtours` server page query builders to request `take=100` with existing search/status filters.
+  - Strengthened `scripts/test-tour-type-apis.sh` so GIT/LandTour DTOs, controllers, and pages keep bounded list behavior.
+  - Verification passed: `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

@@ -194,6 +194,8 @@ function assertGitToursControllerContract() {
   assert(!controllerSource.includes("@Query('status')"), 'GitToursController list should not accept raw status query values');
   assert(queryDtoSource.includes('class ListGitToursQueryDto') && queryDtoSource.includes('@IsEnum(TourStatus') && queryDtoSource.includes('Trạng thái tour GIT không hợp lệ'), 'ListGitToursQueryDto should validate TourStatus with Vietnamese message');
   assert(queryDtoSource.includes('trimSearch') && queryDtoSource.includes('normalizeStatus') && queryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'ListGitToursQueryDto should trim search/status and cap search length');
+  assert(queryDtoSource.includes('take?: number') && queryDtoSource.includes('MAX_GIT_TOURS_TAKE'), 'ListGitToursQueryDto should accept bounded take');
+  assert(controllerSource.includes('this.gitToursService.list(query, request?.user)'), 'GitToursController list should pass the full validated query to service');
 }
 
 
@@ -224,11 +226,13 @@ function assertLandToursControllerContract() {
   assert(!controllerSource.includes("@Query('status')"), 'LandToursController list should not accept raw status query values');
   assert(queryDtoSource.includes('class ListLandToursQueryDto') && queryDtoSource.includes('@IsEnum(TourStatus') && queryDtoSource.includes('Trạng thái LandTour không hợp lệ'), 'ListLandToursQueryDto should validate TourStatus with Vietnamese message');
   assert(queryDtoSource.includes('trimSearch') && queryDtoSource.includes('normalizeStatus') && queryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'ListLandToursQueryDto should trim search/status and cap search length');
+  assert(queryDtoSource.includes('take?: number') && queryDtoSource.includes('MAX_LANDTOURS_TAKE'), 'ListLandToursQueryDto should accept bounded take');
+  assert(controllerSource.includes('this.landToursService.list(query, request?.user)'), 'LandToursController list should pass the full validated query to service');
   for (const field of ['tour.systemCode', 'tour.tourCode', 'tour.route', 'tour.customers[0]?.name', 'tour.landTour?.comboType', 'tour.landTour?.guideName', 'tour._count?.services', 'tour._count?.terms', 'tour.workflowStep']) {
     assert(pageSource.includes(field), `LandTours frontend list should keep using response field ${field}`);
   }
   assert(pageSource.includes('type LandToursPageProps') && pageSource.includes('searchParams?.search') && pageSource.includes('searchParams?.status'), 'LandTours frontend should read search/status query params');
-  assert(pageSource.includes('function landToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)"), 'LandTours frontend should pass list search/status to backend query contract');
+  assert(pageSource.includes('function landToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)") && pageSource.includes("params.set('take', '100')"), 'LandTours frontend should pass bounded list search/status to backend query contract');
   assert(pageSource.includes('className="filterBar"') && pageSource.includes('name="search"') && pageSource.includes('name="status"'), 'LandTours frontend should expose search/status filters');
   assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'LandTours frontend should show backend paymentStatus');
   assert(pageSource.includes('paymentStatuses') && pageSource.includes('name="paymentStatus"') && pageSource.includes('updateLandTourWorkflow'), 'LandTours frontend should let users update paymentStatus with workflow/status together');
@@ -253,7 +257,7 @@ function assertGitToursFrontendContract() {
   const pageSource = fs.readFileSync('/workspace/apps/web/app/git-tours/page.tsx', 'utf8');
   const i18nSource = fs.readFileSync('/workspace/apps/web/app/i18n.ts', 'utf8');
   assert(pageSource.includes('type GitToursPageProps') && pageSource.includes('searchParams?.search') && pageSource.includes('searchParams?.status'), 'GIT tours page should read search/status query params');
-  assert(pageSource.includes('function gitToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)"), 'GIT tours page should pass list search/status to backend query contract');
+  assert(pageSource.includes('function gitToursPath') && pageSource.includes("params.set('search', keyword)") && pageSource.includes("params.set('status', normalizedStatus)") && pageSource.includes("params.set('take', '100')"), 'GIT tours page should pass bounded list search/status to backend query contract');
   assert(pageSource.includes('className="filterBar"') && pageSource.includes('name="search"') && pageSource.includes('name="status"'), 'GIT tours page should expose search/status filters');
   assert(pageSource.includes('workflowStep: string | null') && pageSource.includes('viStatus(tour.workflowStep)'), 'GIT tours page should show backend workflowStep');
   assert(pageSource.includes('paymentStatus: string') && pageSource.includes('viStatus(tour.paymentStatus)'), 'GIT tours page should show backend paymentStatus');

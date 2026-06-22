@@ -5,6 +5,7 @@ import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
+import { DEFAULT_GIT_TOURS_TAKE, ListGitToursQueryDto } from './dto/list-git-tours-query.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
 
 type Row = Record<string, unknown>;
@@ -28,9 +29,9 @@ const gitTourInclude = {
 export class GitToursService {
   constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
-  async list(search?: string, status?: string | TourStatus, user?: RequestUser) {
-    const tourStatus = this.toTourStatus(status);
-    const searchText = normalizeListSearch(search);
+  async list(query: ListGitToursQueryDto = {}, user?: RequestUser) {
+    const tourStatus = this.toTourStatus(query.status);
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.TourWhereInput = {
       type: TourType.GIT,
@@ -61,9 +62,14 @@ export class GitToursService {
         },
         _count: { select: { revenues: true, services: true, costs: true } },
       },
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
     return tours.map((tour) => this.withGitCustomerSnapshot(tour, false));
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_GIT_TOURS_TAKE;
   }
 
   async detail(id: string, user?: RequestUser) {

@@ -1,8 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TourStatus } from '@prisma/client';
-import { Transform } from 'class-transformer';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
+
+export const DEFAULT_LANDTOURS_TAKE = 100;
+export const MAX_LANDTOURS_TAKE = 200;
 
 const trimSearch = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
@@ -36,4 +39,17 @@ export class ListLandToursQueryDto {
   @IsOptional()
   @IsEnum(TourStatus, { message: 'Trạng thái LandTour không hợp lệ' })
   status?: TourStatus;
+
+  @ApiPropertyOptional({
+    example: DEFAULT_LANDTOURS_TAKE,
+    minimum: 1,
+    maximum: MAX_LANDTOURS_TAKE,
+    description: 'Số LandTour tối đa trả về cho danh sách.',
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'Số lượng LandTour cần tải phải là số nguyên' })
+  @Min(1, { message: 'Số lượng LandTour cần tải phải lớn hơn 0' })
+  @Max(MAX_LANDTOURS_TAKE, { message: `Số lượng LandTour cần tải không được vượt quá ${MAX_LANDTOURS_TAKE}` })
+  take?: number;
 }

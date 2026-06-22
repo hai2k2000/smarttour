@@ -16,7 +16,7 @@ export class LandToursController {
 
   @Get()
   list(@Query() query: ListLandToursQueryDto, @Req() request?: { user?: RequestUser }) {
-    return this.landToursService.list(query.search, query.status, request?.user);
+    return this.landToursService.list(query, request?.user);
   }
 
   @Get(':id')

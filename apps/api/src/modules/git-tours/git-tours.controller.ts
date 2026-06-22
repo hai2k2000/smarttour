@@ -16,7 +16,7 @@ export class GitToursController {
 
   @Get()
   list(@Query() query: ListGitToursQueryDto, @Req() request?: { user?: RequestUser }) {
-    return this.gitToursService.list(query.search, query.status, request?.user);
+    return this.gitToursService.list(query, request?.user);
   }
 
   @Get(':id')

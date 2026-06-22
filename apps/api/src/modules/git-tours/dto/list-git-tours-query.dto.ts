@@ -1,8 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TourStatus } from '@prisma/client';
-import { Transform } from 'class-transformer';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
+
+export const DEFAULT_GIT_TOURS_TAKE = 100;
+export const MAX_GIT_TOURS_TAKE = 200;
 
 const trimSearch = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
@@ -36,4 +39,17 @@ export class ListGitToursQueryDto {
   @IsOptional()
   @IsEnum(TourStatus, { message: 'Trạng thái tour GIT không hợp lệ' })
   status?: TourStatus;
+
+  @ApiPropertyOptional({
+    example: DEFAULT_GIT_TOURS_TAKE,
+    minimum: 1,
+    maximum: MAX_GIT_TOURS_TAKE,
+    description: 'Số tour GIT tối đa trả về cho danh sách.',
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'Số lượng tour GIT cần tải phải là số nguyên' })
+  @Min(1, { message: 'Số lượng tour GIT cần tải phải lớn hơn 0' })
+  @Max(MAX_GIT_TOURS_TAKE, { message: `Số lượng tour GIT cần tải không được vượt quá ${MAX_GIT_TOURS_TAKE}` })
+  take?: number;
 }

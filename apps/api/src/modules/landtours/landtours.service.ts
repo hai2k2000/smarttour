@@ -5,6 +5,7 @@ import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
+import { DEFAULT_LANDTOURS_TAKE, ListLandToursQueryDto } from './dto/list-landtours-query.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
 
 type Row = Record<string, unknown>;
@@ -29,9 +30,9 @@ const landTourInclude = {
 export class LandToursService {
   constructor(private readonly prisma: PrismaService, private readonly tourCore: TourCoreService) {}
 
-  async list(search?: string, status?: string | TourStatus, user?: RequestUser) {
-    const tourStatus = this.toTourStatus(status);
-    const searchText = normalizeListSearch(search);
+  async list(query: ListLandToursQueryDto = {}, user?: RequestUser) {
+    const tourStatus = this.toTourStatus(query.status);
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.TourWhereInput = {
       type: TourType.LANDTOUR,
@@ -63,9 +64,14 @@ export class LandToursService {
         guides: { orderBy: [{ guideType: 'asc' }, { name: 'asc' }] },
         _count: { select: { services: true, terms: true } },
       },
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
     });
     return tours.map((tour) => this.withLandGuideSnapshot(tour, false));
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_LANDTOURS_TAKE;
   }
 
   async detail(id: string, user?: RequestUser) {

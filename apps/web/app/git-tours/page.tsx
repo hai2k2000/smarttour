@@ -184,6 +184,7 @@ function gitToursPath(search?: string, status?: string) {
   const params = new URLSearchParams();
   const keyword = String(search || '').trim().replace(/\s+/g, ' ');
   const normalizedStatus = String(status || '').trim().toUpperCase();
+  params.set('take', '100');
   if (keyword) params.set('search', keyword);
   if (tourStatuses.includes(normalizedStatus)) params.set('status', normalizedStatus);
   const query = params.toString();
