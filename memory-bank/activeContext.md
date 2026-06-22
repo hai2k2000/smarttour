@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 supplier page permission hardening:
+  - Supplier overview server page now reads `/auth/me`, gates category/supplier content with `supplier.view`, and hides category/supplier create/edit/delete actions and modals unless the user has `supplier.manage`.
+  - Added `scripts/test-suppliers-server-page-permissions-contract.js` to guard the supplier overview RBAC contract.
+
+
 - Phase 3 booking page permission hardening:
   - Booking server page now reads `/auth/me`, gates booking list/content with `booking.view`, and hides create/edit/status/delete actions and modals unless the user has `booking.manage`.
   - Added `scripts/test-bookings-server-page-permissions-contract.js` to guard the booking page RBAC contract.

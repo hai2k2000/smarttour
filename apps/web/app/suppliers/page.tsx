@@ -2,6 +2,7 @@ import { AlertTriangle, Building2, CheckCircle2, FolderPlus, Pencil, Plus, Save,
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -237,15 +238,23 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
   const error = singleParam(params.error);
-  const [categoriesResult, allCategoriesResult, suppliersResult] = await Promise.all([
-    apiGet<SupplierCategory[]>('/supplier-categories?includeEmpty=false', [], 'Tải danh sách loại nhà cung cấp đang dùng'),
-    apiGet<SupplierCategory[]>('/supplier-categories', [], 'Tải danh sách đầy đủ loại nhà cung cấp'),
-    apiGet<Supplier[]>('/suppliers', [], 'Tải danh sách nhà cung cấp'),
-  ]);
+  const currentUserResult = await apiGet<PermissionUser | null>('/auth/me', null, 'T\u1ea3i quy\u1ec1n phi\u00ean \u0111\u0103ng nh\u1eadp');
+  const currentUser = currentUserResult.data;
+  const canViewSuppliers = hasPermission(currentUser, 'supplier.view');
+  const canManageSuppliers = hasPermission(currentUser, 'supplier.manage');
+  const [categoriesResult, allCategoriesResult, suppliersResult] = canViewSuppliers ? await Promise.all([
+    apiGet<SupplierCategory[]>('/supplier-categories?includeEmpty=false', [], 'T\u1ea3i danh s\u00e1ch lo\u1ea1i nh\u00e0 cung c\u1ea5p \u0111ang d\u00f9ng'),
+    apiGet<SupplierCategory[]>('/supplier-categories', [], 'T\u1ea3i danh s\u00e1ch \u0111\u1ea7y \u0111\u1ee7 lo\u1ea1i nh\u00e0 cung c\u1ea5p'),
+    apiGet<Supplier[]>('/suppliers', [], 'T\u1ea3i danh s\u00e1ch nh\u00e0 cung c\u1ea5p'),
+  ]) : [
+    { data: [] as SupplierCategory[] },
+    { data: [] as SupplierCategory[] },
+    { data: [] as Supplier[] },
+  ];
   const categories = categoriesResult.data;
   const allCategories = allCategoriesResult.data;
   const suppliers = suppliersResult.data;
-  const loadErrors = [categoriesResult.error, allCategoriesResult.error, suppliersResult.error].filter(Boolean);
+  const loadErrors = [currentUserResult.error, categoriesResult.error, allCategoriesResult.error, suppliersResult.error].filter(Boolean);
 
   return (
     <section className="workspace suppliersPage">
@@ -268,11 +277,14 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
         </div>
       ) : null}
 
+      <ServerPermissionNotice allowed={canViewSuppliers} label={'xem nh\u00e0 cung c\u1ea5p'} missingPermissions={['supplier.view']} />
+      {canViewSuppliers ? (
+      <>
       <section className="contentGrid suppliersGrid">
         <div className="panel supplierCategoryPanel">
           <div className="sectionHeader">
             <h2><FolderPlus size={18} /> Loại nhà cung cấp</h2>
-            <a className="iconTextButton secondaryButton" href={`#${createCategoryModalId}`}><Plus size={14} /> Thêm loại nhà cung cấp</a>
+            {canManageSuppliers ? <a className="iconTextButton secondaryButton" href={`#${createCategoryModalId}`}><Plus size={14} /> Thêm loại nhà cung cấp</a> : null}
           </div>
           <div className="supplierCategoryList">
             {categories.map((category) => (
@@ -281,7 +293,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                   <strong>{supplierCategoryLabel(category.name)}</strong>
                   <span>{category._count?.suppliers ?? 0} nhà cung cấp đang gắn</span>
                 </div>
-                <a className="secondaryButton iconOnlyButton" href={`#${editCategoryModalId(category.id)}`} title={`Sửa loại ${supplierCategoryLabel(category.name)}`} aria-label={`Sửa loại ${supplierCategoryLabel(category.name)}`}><Pencil size={14} /></a>
+                {canManageSuppliers ? <a className="secondaryButton iconOnlyButton" href={`#${editCategoryModalId(category.id)}`} title={`Sửa loại ${supplierCategoryLabel(category.name)}`} aria-label={`Sửa loại ${supplierCategoryLabel(category.name)}`}><Pencil size={14} /></a> : null}
               </div>
             ))}
             {categories.length === 0 ? <div className="tableEmptyState">Chưa có loại nhà cung cấp.</div> : null}
@@ -294,7 +306,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
               <h2><Building2 size={18} /> Danh sách nhà cung cấp</h2>
               <p className="mutedText">Quản lý thông tin liên hệ, chính sách giá và ghi chú công nợ của từng nhà cung cấp.</p>
             </div>
-            <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a>
+            {canManageSuppliers ? <a className="iconTextButton" href={`#${createSupplierModalId}`}><Plus size={14} /> Thêm nhà cung cấp</a> : null}
           </div>
 
           <section className="panel listPanel supplierListPanel">
@@ -338,12 +350,17 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                       </td>
                       <td className="actionsCell">
                         <div className="rowActions">
+                          {canManageSuppliers ? (
+                          <>
                           <a className="secondaryButton iconOnlyButton" href={`#${editSupplierModalId(supplier.id)}`} title="Sửa nhà cung cấp">
                             <Pencil size={14} />
                           </a>
                           <a className="dangerButton iconOnlyButton" href={`#${deleteSupplierModalId(supplier.id)}`} title="Xóa nhà cung cấp">
                             <Trash2 size={14} />
                           </a>
+
+                          </>
+                          ) : <span className="mutedText">{'Ch\u1ec9 xem'}</span>}
                         </div>
                       </td>
                     </tr>
@@ -360,6 +377,8 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
         </div>
       </section>
 
+      {canManageSuppliers ? (
+      <>
       <CategoryModal id={createCategoryModalId} title="Thêm loại nhà cung cấp" action={createCategory} submitLabel="Tạo loại" />
       {categories.map((category) => (
         <CategoryModal
@@ -386,6 +405,10 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
       {suppliers.map((supplier) => (
         <DeleteSupplierModal key={`delete-${supplier.id}`} supplier={supplier} />
       ))}
+      </>
+      ) : null}
+      </>
+      ) : null}
     </section>
   );
 }

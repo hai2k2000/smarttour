@@ -1870,3 +1870,5 @@
 - Phase 3 server-rendered tour page RBAC hardening completed: GIT Tour, LandTour, and Tour Programs now gate content with `tour.view`, hide mutation/action forms behind `tour.manage`, and are covered by `scripts/test-tour-server-pages-permissions-contract.js`.
 
 - Phase 3 booking page RBAC hardening completed: the server-rendered booking page now gates content with `booking.view`, hides mutation/status/delete forms behind `booking.manage`, and is covered by `scripts/test-bookings-server-page-permissions-contract.js`.
+
+- Phase 3 supplier overview RBAC hardening completed: the server-rendered supplier page now gates content with `supplier.view`, hides mutation forms behind `supplier.manage`, and is covered by `scripts/test-suppliers-server-page-permissions-contract.js`.
