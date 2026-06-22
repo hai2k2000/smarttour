@@ -1935,3 +1935,9 @@
   - Tour Guides now gates server-side initial guide loads through `/auth/me` and hides protected client content when `guide.view` is missing.
   - Client handlers now wait for permission readiness, clear stale SSR rows without view access, and fail-close reload/detail actions before API calls while preserving `guide.manage` save/create gates.
   - Verification passed: `node scripts/test-tour-guides-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `bash scripts/test-tour-guides-api.sh`, `bash scripts/test-high-a-data-access.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 backend/data-scope verification hardening follow-up:
+  - Updated API/data-scope/customer and smoke verification scripts to use the HttpOnly `smarttour.auth.token` cookie instead of stale `token`/`accessToken` JSON response fields, while asserting public auth responses stay token-free.
+  - Added accounting `commission.approve` to RBAC contracts and a production migration so accounting can pass the dedicated commission approval guard without broadening unrelated operation/sales permissions.
+  - Applied migration `20260622165000_accounting_commission_approve_permission` on the VPS database.
+  - Verification passed: `scripts/test-customers-api.sh`, `scripts/test-data-scope-api-flows.sh`, `node scripts/test-role-permission-contract.js`, `bash scripts/verify-data-scope.sh`.

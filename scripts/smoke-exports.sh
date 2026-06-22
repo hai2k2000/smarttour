@@ -15,10 +15,13 @@ if [[ -z "$token" ]]; then
     echo "Set AUTH_TOKEN or ADMIN_PASSWORD to run export smoke" >&2
     exit 1
   fi
-  token=$(curl -fsS -X POST "$API_URL/auth/login" \
+  cookie_jar="$(mktemp)"
+  trap 'rm -f "$cookie_jar"' EXIT
+  login_body=$(curl -fsS -c "$cookie_jar" -X POST "$API_URL/auth/login" \
     -H 'Content-Type: application/json' \
-    --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" \
-    | node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync(0,"utf8")); process.stdout.write(d.token || d.accessToken || "")')
+    --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+  node -e 'const d=JSON.parse(process.argv[1] || "{}"); if (d.token !== undefined || d.accessToken !== undefined) process.exit(1)' "$login_body"
+  token=$(awk '$6 == "smarttour.auth.token" { value=$7 } END { print value }' "$cookie_jar")
 fi
 
 test -n "$token"
@@ -37,7 +40,7 @@ exports=(
   "order-center:/order-center/export"
 )
 
-fit_tour_id=$(curl -fsS -H "Authorization: Bearer $token" "$API_URL/fit-tours" \
+fit_tour_id=$(curl -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/fit-tours" \
   | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0,"utf8")); const rows=Array.isArray(data)?data:(data.rows||[]); process.stdout.write(rows[0]?.id||"")')
 if [[ -n "$fit_tour_id" ]]; then
   exports+=("fit-tour:/fit-tours/$fit_tour_id/export")
@@ -49,7 +52,7 @@ for item in "${exports[@]}"; do
   name="${item%%:*}"
   path="${item#*:}"
   file="$OUT_DIR/$name.csv"
-  code=$(curl -fsS -o "$file" -w '%{http_code}' -H "Authorization: Bearer $token" "$API_URL$path")
+  code=$(curl -fsS -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
   if [[ "$code" != "200" ]]; then
     echo "FAIL_EXPORT $name http=$code"
     exit 1

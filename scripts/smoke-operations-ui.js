@@ -21,6 +21,15 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function sessionCookie(response, label = 'auth response') {
+  const setCookies = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+  const cookie = setCookies.find((value) => value.startsWith('smarttour.auth.token='));
+  if (!cookie) throw new Error(`${label} did not set smarttour.auth.token cookie`);
+  return cookie.split(';')[0].slice('smarttour.auth.token='.length);
+}
+
 function safeName(name) {
   return name.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'step';
 }
@@ -37,7 +46,7 @@ function isBadConsole(message) {
 async function request(token, method, urlPath, body, ok = [200, 201]) {
   const response = await fetch(api + urlPath, {
     method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Cookie: `smarttour.auth.token=${token}` },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
@@ -64,11 +73,13 @@ async function getSession() {
     body: JSON.stringify({ email: username, username, password }),
   });
   const data = await response.json().catch(() => ({}));
-  const token = data.token || data.accessToken;
-  if (!response.ok || !token || !data.user) {
+  if (!response.ok || !data.user) {
     throw new Error(`Login failed: ${response.status} ${JSON.stringify(data).slice(0, 500)}`);
   }
-  return { token, user: data.user };
+  if (data.token !== undefined || data.accessToken !== undefined) {
+    throw new Error('Login response should not expose token JSON');
+  }
+  return { token: sessionCookie(response, 'login'), user: data.user };
 }
 
 function addDays(days) {

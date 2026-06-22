@@ -177,21 +177,30 @@ const noBranchToken = process.env.NOBRANCH_TOKEN;
 const viewToken = process.env.VIEW_TOKEN;
 const requestCreateToken = process.env.REQUEST_CREATE_TOKEN;
 const rolePassword = process.env.ROLE_PASSWORD || 'OpsSmoke123!26';
+
+function sessionCookie(response, label = 'auth response') {
+  const setCookies = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+  const cookie = setCookies.find((value) => value.startsWith('smarttour.auth.token='));
+  if (!cookie) throw new Error(label + ' did not set smarttour.auth.token cookie');
+  return cookie.split(';')[0].slice('smarttour.auth.token='.length);
+}
 const denied = [401, 403];
 
 async function login(identifier, password) {
   if (!password) return adminToken;
   const response = await fetch(api + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: identifier, username: identifier, password }) });
   const data = await response.json().catch(() => ({}));
-  const token = data.token || data.accessToken;
-  if (!response.ok || !token) throw new Error('Login failed for ' + identifier + ': ' + response.status + ' ' + JSON.stringify(data));
-  return token;
+  if (!response.ok) throw new Error('Login failed for ' + identifier + ': ' + response.status + ' ' + JSON.stringify(data));
+  if (data.token !== undefined || data.accessToken !== undefined) throw new Error('Login response should not expose token JSON for ' + identifier);
+  return sessionCookie(response, 'login for ' + identifier);
 }
 
 async function request(token, method, path, body, ok = [200, 201]) {
   const response = await fetch(api + path, {
     method,
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    headers: { 'Content-Type': 'application/json', Cookie: 'smarttour.auth.token=' + token },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();

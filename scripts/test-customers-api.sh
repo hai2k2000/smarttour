@@ -39,6 +39,15 @@ function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
+function sessionCookie(response, label = 'auth response') {
+  const setCookies = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+  const cookie = setCookies.find((value) => value.startsWith('smarttour.auth.token='));
+  assert(cookie, `${label} should set smarttour.auth.token cookie`);
+  return cookie.split(';')[0].slice('smarttour.auth.token='.length);
+}
+
 async function main() {
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api');
@@ -59,7 +68,7 @@ async function main() {
     } else if (options.form) {
       body = options.form;
     }
-    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    if (options.token) headers.Cookie = `smarttour.auth.token=${options.token}`;
     const response = await fetch(`${baseUrl}${path}`, { method, headers, body });
     const contentType = response.headers.get('content-type') || '';
     let data = null;
@@ -77,19 +86,21 @@ async function main() {
   }
 
   async function login(username) {
-    const { data } = await request('POST', '/auth/login', { body: { username, password } });
-    return data.token;
+    const { response, data } = await request('POST', '/auth/login', { body: { username, password } });
+    assert(data.token === undefined && data.tokenType === undefined, 'login response should not expose token JSON');
+    return sessionCookie(response, 'login');
   }
 
   try {
     await request('GET', '/customers', { status: 401 });
 
     const adminUsername = `${run}_admin`;
-    const { data: bootstrap } = await request('POST', '/auth/bootstrap', {
+    const { response: bootstrapResponse, data: bootstrap } = await request('POST', '/auth/bootstrap', {
       body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'API Admin' },
       status: 201,
     });
-    const adminToken = bootstrap.token;
+    assert(bootstrap.token === undefined && bootstrap.tokenType === undefined, 'bootstrap response should not expose token JSON');
+    const adminToken = sessionCookie(bootstrapResponse, 'bootstrap');
 
     const manageRoleCode = `${run}_customer_manage`;
     const viewRoleCode = `${run}_customer_view`;

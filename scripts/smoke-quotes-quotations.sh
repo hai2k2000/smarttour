@@ -150,9 +150,13 @@ function authHeaders(token) {
 }
 
 function authCredential(response, data) {
+  if (data?.token !== undefined || data?.accessToken !== undefined) {
+    throw new Error('Auth response should not expose token JSON');
+  }
   const setCookie = response.headers.get('set-cookie') || '';
   const cookie = setCookie.match(/smarttour\.auth\.token=[^;]+/)?.[0];
-  return cookie || data?.token || data?.accessToken;
+  if (!cookie) throw new Error('Auth response did not set smarttour.auth.token cookie');
+  return cookie;
 }
 
 async function request(token, method, path, body, ok = [200, 201]) {

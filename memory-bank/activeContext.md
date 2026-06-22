@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 backend/data-scope verification hardening follow-up:
+  - Data-scope static and module audits are clean, but full verification exposed stale smoke/regression scripts that still expected public auth token JSON after the HttpOnly cookie-session hardening.
+  - API/data-scope/customer and production smoke scripts now authenticate through the `smarttour.auth.token` cookie and assert login/bootstrap responses do not expose token JSON.
+  - RBAC smoke uncovered accounting could view/manage commission reports but lacked the dedicated `commission.approve` permission required by the approve endpoint; a migration now grants accounting `commission.approve` and the role contract guards it.
+  - `verify-data-scope.sh` now passes through route/data-scope/API/module/RBAC checks; ADMIN_PASSWORD-dependent admin workflow smokes remain skipped when the env var is not provided.
+
 - Phase 3 Operations client permission-readiness hardening:
   - Operations client now waits for `permissionsReady` before static catalog and list/dashboard loading, preventing pre-permission flashes and premature state resets.
   - Operations reload/list paths fail closed when no operation view permission is available and clear protected dashboard/form/payment state.

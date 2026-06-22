@@ -9,12 +9,14 @@ OUT_DIR="${OUT_DIR:-/tmp/smarttour-ui-smoke}"
 
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.html
+cookie_jar="$(mktemp)"
+trap 'rm -f "$cookie_jar"' EXIT
 
-token=$(curl -fsS -X POST "$API_URL/auth/login" \
+login_body=$(curl -fsS -c "$cookie_jar" -X POST "$API_URL/auth/login" \
   -H 'Content-Type: application/json' \
-  --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" \
-  | node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync(0,"utf8")); process.stdout.write(d.token || d.accessToken || "")')
-
+  --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+node -e 'const d=JSON.parse(process.argv[1] || "{}"); if (d.token !== undefined || d.accessToken !== undefined) process.exit(1)' "$login_body"
+token=$(awk '$6 == "smarttour.auth.token" { value=$7 } END { print value }' "$cookie_jar")
 test -n "$token"
 
 paths=(

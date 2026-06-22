@@ -201,6 +201,7 @@ requirePermissions(roles, 'accounting', [
   'finance.debt.adjust',
   'commission.view',
   'commission.manage',
+  'commission.approve',
   'commission.export',
   'report.view',
   'report.export',

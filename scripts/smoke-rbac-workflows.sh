@@ -51,6 +51,7 @@ WITH required(role_code, permission) AS (
     ('accounting', 'finance.cashflow.view'),
     ('accounting', 'finance.debt.view'),
     ('accounting', 'commission.manage'),
+    ('accounting', 'commission.approve'),
     ('accounting', 'commission.export'),
     ('accounting', 'report.view'),
     ('accounting', 'report.export'),
