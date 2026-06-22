@@ -167,6 +167,13 @@ async function main() {
   const convertCandidate = await quotations.create(quotationPayload(`${run}-QCONVERT`, 'BR-A', 'DEP-A'), allUser);
   await quotations.submit(convertCandidate.id, { actor: 'submitter' }, allUser);
   await quotations.approve(convertCandidate.id, { actor: 'approver' }, allUser);
+  await rejects(
+    () => quotations.update(convertCandidate.id, { route: 'Tampered approved route', items: [{ serviceType: 'HOTEL', serviceName: 'Tampered Hotel', quantity: 1, nightCount: 1, paxCount: 1, netPrice: 999 }] }, allUser),
+    'approved quotation update should be rejected instead of silently changing approved commercial terms',
+  );
+  const approvedAfterRejectedUpdate = await quotations.detail(convertCandidate.id, allUser);
+  assert.equal(approvedAfterRejectedUpdate.route, 'Ha Noi - Da Nang', 'rejected approved quotation update should not mutate route');
+  assert.equal(Number(approvedAfterRejectedUpdate.items[0].netPrice), 100, 'rejected approved quotation update should not mutate items');
   const [convertedOnce, convertedTwice] = await Promise.all([
     quotations.convert(convertCandidate.id, { actor: 'converter-1' }, allUser),
     quotations.convert(convertCandidate.id, { actor: 'converter-2' }, allUser),

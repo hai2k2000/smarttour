@@ -1789,3 +1789,8 @@
   - Operation form `updateForm` no longer mutates lifecycle status; status updates are routed through `changeFormStatus` and `POST /operations/forms/:id/status`.
   - The action service validates transitions, blocks cancellation through the generic status route, and writes STATUS audit entries.
   - Verification passed: `scripts/test-operations-service-flows.sh`, `scripts/test-operations-controller-contract.sh`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.
+
+- 2026-06-22 Completed Phase 2 quotation approved immutability:
+  - Legacy quotations in `APPROVED` status are no longer editable through normal update; material edits must happen before approval or through a future revision workflow.
+  - Regression coverage now guards approved quotation immutability and conversion idempotency remains covered.
+  - Verification passed: `scripts/test-high-a-data-access.sh`, `bash scripts/smoke-quotes-quotations.sh`, `node scripts/test-quotations-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.

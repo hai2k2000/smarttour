@@ -2177,3 +2177,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Operation form normal updates now reject lifecycle `status` fields; status changes go through the dedicated `POST /operations/forms/:id/status` action route or the existing cancel action.
   - Added `OperationsService.changeFormStatus()` with current-to-next transition guards and audit logging, while keeping cancel reason handling in `cancelForm()`.
   - Verification passed: `scripts/test-operations-service-flows.sh`, `scripts/test-operations-controller-contract.sh`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.
+
+- 2026-06-22 Phase 2 quotation approved immutability:
+  - Legacy quotation updates now reject approved quotations instead of silently changing approved commercial terms; converted quotations were already blocked.
+  - Added High-A regression coverage proving approved quotation updates are rejected and stored route/item values remain unchanged.
+  - Updated the quote/quotation smoke helper to authenticate through the current HttpOnly cookie contract while keeping token fallback compatibility.
+  - Verification passed: `scripts/test-high-a-data-access.sh`, `bash scripts/smoke-quotes-quotations.sh`, `node scripts/test-quotations-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.

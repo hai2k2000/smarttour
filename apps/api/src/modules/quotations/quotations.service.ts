@@ -414,7 +414,7 @@ export class QuotationsService {
   }
 
   private assertEditable(status: QuotationStatus) {
-    this.assertStatus(status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'edit');
+    this.assertStatus(status, ['DRAFT', 'PENDING_APPROVAL', 'REJECTED', 'EXPIRED'], 'edit');
   }
 
   private assertDeletable(status: QuotationStatus) {

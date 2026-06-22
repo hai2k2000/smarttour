@@ -144,9 +144,19 @@ function includesJson(data, text) {
   return JSON.stringify(data).includes(text);
 }
 
+function authHeaders(token) {
+  if (!token) return {};
+  return String(token).includes('=') ? { Cookie: token } : { Authorization: `Bearer ${token}` };
+}
+
+function authCredential(response, data) {
+  const setCookie = response.headers.get('set-cookie') || '';
+  const cookie = setCookie.match(/smarttour\.auth\.token=[^;]+/)?.[0];
+  return cookie || data?.token || data?.accessToken;
+}
+
 async function request(token, method, path, body, ok = [200, 201]) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = { 'Content-Type': 'application/json', ...authHeaders(token) };
   const response = await fetch(api + path, {
     method,
     headers,
@@ -163,7 +173,7 @@ async function request(token, method, path, body, ok = [200, 201]) {
 }
 
 async function page(token, route, ok = [200, 307]) {
-  const response = await fetch(site + route, { headers: token ? { Cookie: `smarttour.auth.token=${token}` } : {} });
+  const response = await fetch(site + route, { headers: authHeaders(token) });
   if (!ok.includes(response.status)) throw new Error(`PAGE ${route} -> ${response.status}`);
   console.log(`${response.status} PAGE ${route}`);
 }
@@ -175,8 +185,9 @@ async function login(identifier, password) {
     body: JSON.stringify({ username: identifier, email: identifier, password }),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.token) throw new Error(`Login failed for ${identifier}: ${response.status} ${JSON.stringify(data)}`);
-  return data.token;
+  const credential = authCredential(response, data);
+  if (!response.ok || !credential) throw new Error(`Login failed for ${identifier}: ${response.status} ${JSON.stringify(data)}`);
+  return credential;
 }
 
 async function adminToken() {
@@ -190,7 +201,8 @@ async function adminToken() {
       body: JSON.stringify({ bootstrapKey, email, username, password: rolePassword, name: 'Quote Smoke Admin' }),
     });
     const data = await response.json().catch(() => ({}));
-    if (response.ok && data.token) return data.token;
+    const credential = authCredential(response, data);
+    if (response.ok && credential) return credential;
     if (!process.env.ADMIN_PASSWORD) throw new Error(`Bootstrap admin failed: ${response.status} ${JSON.stringify(data)}`);
   }
   const username = process.env.ADMIN_USERNAME || 'admin';
