@@ -17,7 +17,7 @@ export class TourProgramsController {
   @Get()
   @ApiOperation({ summary: 'Danh sách tour mẫu', description: 'Hỗ trợ tìm kiếm theo mã, tên hoặc tuyến điểm.' })
   list(@Query() query: ListTourProgramsQueryDto) {
-    return this.tourProgramsService.list(query.search);
+    return this.tourProgramsService.list(query);
   }
 
   @Get(':id')

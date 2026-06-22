@@ -1,6 +1,9 @@
 import { SupplierStatus } from '@prisma/client';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+
+export const DEFAULT_SUPPLIERS_TAKE = 100;
+export const MAX_SUPPLIERS_TAKE = 200;
 
 const trimOptional = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
@@ -56,6 +59,13 @@ export class SupplierListQueryDto {
   @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
   @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
   market?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'Số lượng nhà cung cấp cần tải phải là số nguyên' })
+  @Min(1, { message: 'Số lượng nhà cung cấp cần tải phải lớn hơn 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `Số lượng nhà cung cấp cần tải không được vượt quá ${MAX_SUPPLIERS_TAKE}` })
+  take?: number;
 }
 
 export class HotelSupplierListQueryDto {

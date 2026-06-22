@@ -283,7 +283,7 @@ export default async function TourProgramsPage({ searchParams }: TourProgramsPag
   const currentUser = currentUserResult.data;
   const canViewTours = hasPermission(currentUser, 'tour.view');
   const canManageTours = hasPermission(currentUser, 'tour.manage');
-  const tourProgramsResult = canViewTours ? await apiGet<TourProgram[]>('/tour-programs', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu') : { data: [] as TourProgram[] };
+  const tourProgramsResult = canViewTours ? await apiGet<TourProgram[]>('/tour-programs?take=100', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu') : { data: [] as TourProgram[] };
   const tourPrograms = tourProgramsResult.data;
   const loadErrors = [currentUserResult.error, tourProgramsResult.error].filter(Boolean);
 

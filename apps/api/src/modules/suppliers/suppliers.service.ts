@@ -8,7 +8,7 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
-import { SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
+import { DEFAULT_SUPPLIERS_TAKE, SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
@@ -171,8 +171,13 @@ export class SuppliersService {
     return this.prisma.supplier.findMany({
       where,
       include: this.supplierListInclude(),
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_SUPPLIERS_TAKE;
   }
 
   async getSupplier(id: string) {

@@ -2407,3 +2407,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found an unused root `apps/web/app/LoginClient.tsx` that duplicated the real `/login/LoginClient.tsx` but lacked the canonical safe redirect handling.
   - Removed the stale root login client and updated the auth cookie/session contract so `/login/LoginClient.tsx` is the only login client and must keep `safeNextPath`.
   - Verification passed: `bash scripts/test-auth-cookie-session.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 SSR list payload hardening:
+  - Found production page smoke returning very large SSR HTML for Tour Programs and Suppliers because the pages loaded unbounded master-data lists.
+  - Added bounded `take` query support to Tour Programs and common Suppliers list endpoints, defaulting to 100 and capping at 200.
+  - Updated `/tour-programs` and `/suppliers` server pages to request `take=100`, reducing SSR payload risk while keeping operational lists usable.
+  - Strengthened Tour Programs and Suppliers contracts so DTOs, services, and server pages keep bounded list behavior.
+  - Verification passed: `bash scripts/test-tour-programs-service.sh`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-suppliers-server-page-permissions-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

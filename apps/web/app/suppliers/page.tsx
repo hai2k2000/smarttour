@@ -246,7 +246,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const [categoriesResult, allCategoriesResult, suppliersResult] = canViewSuppliers ? await Promise.all([
     apiGet<SupplierCategory[]>('/supplier-categories?includeEmpty=false', [], 'T\u1ea3i danh s\u00e1ch lo\u1ea1i nh\u00e0 cung c\u1ea5p \u0111ang d\u00f9ng'),
     apiGet<SupplierCategory[]>('/supplier-categories', [], 'T\u1ea3i danh s\u00e1ch \u0111\u1ea7y \u0111\u1ee7 lo\u1ea1i nh\u00e0 cung c\u1ea5p'),
-    apiGet<Supplier[]>('/suppliers', [], 'T\u1ea3i danh s\u00e1ch nh\u00e0 cung c\u1ea5p'),
+    apiGet<Supplier[]>('/suppliers?take=100', [], 'T\u1ea3i danh s\u00e1ch nh\u00e0 cung c\u1ea5p'),
   ]) : [
     { data: [] as SupplierCategory[] },
     { data: [] as SupplierCategory[] },

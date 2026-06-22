@@ -15,6 +15,7 @@ import {
   TOUR_PROGRAM_NAME_MAX_LENGTH,
   TOUR_PROGRAM_ROUTE_MAX_LENGTH,
 } from './dto/create-tour-program.dto';
+import { DEFAULT_TOUR_PROGRAMS_TAKE, ListTourProgramsQueryDto } from './dto/list-tour-programs-query.dto';
 import { UpdateItineraryDayDto } from './dto/update-itinerary-day.dto';
 import { UpdateTourProgramDto } from './dto/update-tour-program.dto';
 
@@ -50,8 +51,9 @@ export class TourProgramsService {
     } satisfies Prisma.TourProgramSelect;
   }
 
-  list(search?: string) {
-    const searchText = normalizeListSearch(search);
+  list(input: ListTourProgramsQueryDto | string = {}) {
+    const query = this.listQuery(input);
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.TourProgramWhereInput = contains
       ? {
@@ -66,8 +68,17 @@ export class TourProgramsService {
     return this.prisma.tourProgram.findMany({
       where,
       select: this.listSelect(),
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }],
     });
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_TOUR_PROGRAMS_TAKE;
+  }
+
+  private listQuery(input: ListTourProgramsQueryDto | string): ListTourProgramsQueryDto {
+    return typeof input === 'string' ? { search: input } : input;
   }
 
   async detail(id: string) {

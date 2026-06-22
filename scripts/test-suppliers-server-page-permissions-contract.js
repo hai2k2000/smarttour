@@ -11,6 +11,7 @@ function includes(token, message) {
 
 includes("import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';", 'Suppliers page should use server permission helpers.');
 includes("apiGet<PermissionUser | null>('/auth/me'", 'Suppliers page should read current session permissions.');
+includes("apiGet<Supplier[]>('/suppliers?take=100'", 'Suppliers page should bound the SSR supplier list payload.');
 includes("const canViewSuppliers = hasPermission(currentUser, 'supplier.view');", 'Suppliers page should calculate supplier.view permission.');
 includes("const canManageSuppliers = hasPermission(currentUser, 'supplier.manage');", 'Suppliers page should calculate supplier.manage permission.');
 includes('const [categoriesResult, allCategoriesResult, suppliersResult] = canViewSuppliers ? await Promise.all', 'Suppliers page should not load supplier data without supplier.view.');

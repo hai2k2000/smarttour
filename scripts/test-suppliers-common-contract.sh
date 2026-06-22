@@ -17,8 +17,9 @@ assert 'list(@Query() query: SupplierListQueryDto)' in controller and 'listSuppl
 
 assert 'list(@Query() query: SupplierCategoryListQueryDto)' in controller
 assert 'list(@Query() query: SupplierListQueryDto)' in controller
-for field in ['search?: string', 'categoryId?: string', 'status?: SupplierStatus', 'province?: string', 'market?: string']:
+for field in ['search?: string', 'categoryId?: string', 'status?: SupplierStatus', 'province?: string', 'market?: string', 'take?: number']:
     assert field in query_dto, f'common supplier query is missing {field}'
+assert 'MAX_SUPPLIERS_TAKE' in query_dto, 'common supplier query must cap take to avoid unbounded SSR payloads'
 assert "@IsUUID('4', { message: 'Mã loại nhà cung cấp không hợp lệ' })" in query_dto
 assert "@IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không hợp lệ' })" in query_dto
 assert 'includeEmpty?: boolean' in query_dto and '@IsBoolean' in query_dto
@@ -70,6 +71,7 @@ for field in [
 for field in ['supplierCode', 'name', 'taxCode', 'contactPerson', 'phone', 'email']:
     assert f'{{ {field}: contains }}' in service, f'common supplier search must include {field}'
 assert 'deletedAt: null' in service and 'include: this.supplierListInclude()' in service
+assert 'take: this.listTake(query.take)' in service, 'common supplier list must apply bounded take'
 assert 'category: true' in service and 'supplierServices: { where: { deletedAt: null }' in service
 assert "this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: null } })" in service
 assert "this.prisma.supplierAllotment.count({ where: { supplierId: id } })" in service

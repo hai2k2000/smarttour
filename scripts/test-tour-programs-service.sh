@@ -158,7 +158,10 @@ async function main() {
   assert(authGuardSource.includes('getAllAndOverride<string[]>'), 'permission guard should let method permissions override controller permissions');
   assert(controllerSource.includes('list(@Query() query: ListTourProgramsQueryDto)'), 'tour programs list should use a structured query DTO');
   assert(listQueryDtoSource.includes('LIST_SEARCH_MAX_LENGTH'), 'list query DTO should reuse the shared search limit');
+  assert(listQueryDtoSource.includes('take?: number'), 'list query DTO should accept a bounded take parameter');
+  assert(listQueryDtoSource.includes('MAX_TOUR_PROGRAMS_TAKE'), 'list query DTO should cap take to avoid unbounded SSR payloads');
   assert(listQueryDtoSource.includes('Tìm theo mã, tên hoặc tuyến điểm tour mẫu'), 'list query Swagger contract should document searchable fields');
+  assert(controllerSource.includes('this.tourProgramsService.list(query)'), 'controller list should pass the full validated query to the service');
   assert(controllerSource.includes('Cập nhật một phần tour mẫu'), 'update Swagger contract should document PATCH semantics');
   assert(controllerSource.includes('không được tạo độc lập'), 'create itinerary Swagger contract should document tour program ownership');
   assert(controllerSource.includes('danh sách itineraryDays đã sắp xếp theo số ngày'), 'detail Swagger contract should document itineraryDays response');
@@ -199,6 +202,7 @@ async function main() {
   assert(serviceSource.includes('Không thể thay đổi cấu trúc lịch trình vì chương trình tour đang có'), 'itinerary structural changes should be blocked when bookings exist');
   assert(serviceSource.includes('itineraryDays: { orderBy: { dayNumber:'), 'list should include itineraryDays ordered by dayNumber for frontend preview');
   assert(serviceSource.includes('_count: { select: { bookings: true } }'), 'list/detail should expose booking count for frontend guards');
+  assert(serviceSource.includes('take: this.listTake(query.take)'), 'list should apply bounded take to avoid oversized SSR payloads');
   assert(serviceSource.includes("orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }]"), 'list should keep newest-updated ordering with code tie-breaker');
   assert(!serviceSource.includes('bookings: { orderBy: { startDate:'), 'detail should not return booking list when frontend only needs booking count');
   assert(webPageSource.includes('const MAX_DURATION_DAYS = 60'), 'frontend should use the API durationDays max');
@@ -211,7 +215,7 @@ async function main() {
   assert(webPageSource.includes('disabled={itineraryIsFull(tour)}'), 'frontend should disable full itinerary options');
   assert(webPageSource.includes('function tourProgramDeleteReason'), 'frontend should build delete block reasons without zero-count noise');
   assert(webPageSource.includes('Tour mẫu này đang có {blockReason}'), 'frontend delete confirmation should use a clear Vietnamese block reason');
-  assert(webPageSource.includes("apiGet<TourProgram[]>('/tour-programs'"), 'frontend list should use GET /tour-programs');
+  assert(webPageSource.includes("apiGet<TourProgram[]>('/tour-programs?take=100'"), 'frontend list should use bounded GET /tour-programs?take=100');
   assert(webPageSource.includes('`/tour-programs/${encodeURIComponent(id)}`'), 'frontend detail/update/remove should use /tour-programs/:id');
   assert(webPageSource.includes('`/tour-programs/${encodeURIComponent(tourProgramId)}/itinerary-days`'), 'frontend create itinerary day should use nested tour-program route');
   assert((controllerSources.match(/@Controller\('tour-programs'\)/g) ?? []).length === 1, 'tour-programs controller prefix should be unique');
@@ -299,8 +303,8 @@ async function main() {
 
   const controllerCalls = [];
   const controller = new TourProgramsController({
-    list: (search) => {
-      controllerCalls.push(['list', search]);
+    list: (query) => {
+      controllerCalls.push(['list', query]);
       return [{ id: 'list-result' }];
     },
     detail: (id) => {
@@ -324,8 +328,8 @@ async function main() {
       return { id: 'created-day', tourProgramId: id, ...dto };
     },
   });
-  assert((await controller.list({ search: 'Hạ Long' }))[0].id === 'list-result', 'controller list should return service result');
-  assert(controllerCalls[0][1] === 'Hạ Long', 'controller list should pass validated search to service');
+  assert((await controller.list({ search: 'Hạ Long', take: 25 }))[0].id === 'list-result', 'controller list should return service result');
+  assert(controllerCalls[0][1].search === 'Hạ Long' && controllerCalls[0][1].take === 25, 'controller list should pass the validated query to service');
   assert((await controller.detail('program-id')).id === 'program-id', 'controller detail should return service result');
   assert((await controller.create({ code: 'TP-CTRL', name: 'Controller', durationDays: 1 })).id === 'created-program', 'controller create should return service result');
   assert((await controller.update('program-id', { name: 'Updated' })).name === 'Updated', 'controller update should return service result');

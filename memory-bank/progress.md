@@ -2007,3 +2007,9 @@
   - Removed unused `apps/web/app/LoginClient.tsx`, leaving `/login/LoginClient.tsx` as the canonical login client with `safeNextPath` redirect sanitization.
   - Updated `scripts/test-auth-cookie-session.sh` to fail if the stale root login client returns and to assert the canonical login client keeps safe next-path handling.
   - Verification passed: `bash scripts/test-auth-cookie-session.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 SSR list payload hardening:
+  - Tour Programs and common Suppliers list APIs now accept bounded `take`, default to 100 rows, and cap requests at 200 rows.
+  - `/tour-programs` and `/suppliers` server pages now request `take=100` instead of embedding unbounded master-data lists into SSR HTML.
+  - Expanded Tour Programs and Suppliers contracts to guard bounded list DTO/service/page behavior.
+  - Verification passed: `bash scripts/test-tour-programs-service.sh`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-suppliers-server-page-permissions-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
