@@ -30,8 +30,8 @@ assert 'idempotent: true' in service and 'idempotent: false' in service, 'repeat
 assert "status: { in: ['LOCKED', 'CONFIRMED'] }" in service, 'active allocations must protect inventory replacement and overrides'
 assert 'allocationSummary' in service and 'activeAllocationCount' in service, 'inventory response must expose allocation summaries'
 assert 'return this.allotmentInventoryById(tx, updated.id)' in service, 'override response must include the newly written audit log'
-assert "item.status === 'STOP_SELL' ? 'STOP_SELL'" in service, 'explicit stop-sell must take priority over computed cutoff status'
-assert "if (/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return this.parseDateOnly" in service, 'hotel child date-only values must be calendar validated'
+assert "const computedStatus = item.status === 'STOP_SELL'" in service and "? 'STOP_SELL'" in service and "!isSellable" in service, 'explicit stop-sell and sold-out inventory must take priority over computed cutoff status'
+assert "if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text)) return this.parseDateOnly(text, fieldName)" in service, 'hotel child date-only values must be calendar validated'
 actor = "return this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || this.optionalText(dtoActor) || null;"
 assert actor in service, 'authenticated actor must take precedence over payload actor'
 

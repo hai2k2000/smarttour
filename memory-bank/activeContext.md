@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 hotel allotment dashboard contract cleanup:
+  - Hotel allotment dashboard status bucketing now uses an explicit sellable predicate (`ACTIVE` with positive remaining quantity) before COD-lock classification, keeping active/COD/stop-sell buckets mutually exclusive and easier to audit.
+  - Hotel supplier/allotment contracts and Playwright UI tests were aligned with the shared required-field indicator convention and current date-only validation helper.
+  - Verification covered hotel allotment contract, full hotel supplier suite, backend/data-scope/finance/UI contract groups, API TypeScript, Prisma validation, API Docker deploy, and healthcheck.
+
 - Phase 3 hotel supplier required-field indicator cleanup:
   - Hotel supplier form labels no longer embed manual `*` characters; required inputs now rely on the shared/global required-field indicator while keeping native `required` attributes and schema validation messages.
   - Hotel supplier contracts were aligned with the global required-field UI contract so future form cleanup does not regress back to manual stars.

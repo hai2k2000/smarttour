@@ -630,11 +630,11 @@ async function loadMockedList(page) {
       await visibleText(dialog, 'Cần nhập dòng sản phẩm hoặc dự án khách sạn');
       assert(state.calls.createPayloads.length === 0, 'invalid create form must not call API');
 
-      await dialog.getByLabel('Mã nhà cung cấp *').fill('HOT-NEW');
-      await dialog.getByLabel('Tên khách sạn *').fill('Khách sạn Test Mới');
-      await dialog.getByLabel('Số điện thoại *').fill('0900000000');
-      await dialog.getByLabel('Hạng khách sạn *').fill('5 sao');
-      await dialog.getByLabel('Dòng sản phẩm / dự án *').fill('Dự án Test');
+      await dialog.getByLabel('Mã nhà cung cấp').fill('HOT-NEW');
+      await dialog.getByLabel('Tên khách sạn').fill('Khách sạn Test Mới');
+      await dialog.getByLabel('Số điện thoại').fill('0900000000');
+      await dialog.getByLabel('Hạng khách sạn').fill('5 sao');
+      await dialog.getByLabel('Dòng sản phẩm / dự án').fill('Dự án Test');
       await dialog.getByLabel('Tỉnh/thành').fill('Đà Nẵng');
 
       const contactRow = contactSection.locator('tbody tr').first();
@@ -672,9 +672,9 @@ async function loadMockedList(page) {
       const oldRow = page.locator('table.hotelListTable tbody tr', { hasText: 'Khách sạn Hồ Gươm' }).first();
       await oldRow.getByRole('button', { name: 'Sửa khách sạn' }).click();
       const dialog = await selectDialog(page, 'Cập nhật nhà cung cấp khách sạn');
-      assert(await dialog.getByLabel('Tên khách sạn *').inputValue() === 'Khách sạn Hồ Gươm', 'edit form must load old name');
-      assert(await dialog.getByLabel('Số điện thoại *').inputValue() === '0901234567', 'edit form must load old phone');
-      assert(await dialog.getByLabel('Dòng sản phẩm / dự án *').inputValue() === 'Dự án Hồ Gươm', 'edit form must load old hotel profile');
+      assert(await dialog.getByLabel('Tên khách sạn').inputValue() === 'Khách sạn Hồ Gươm', 'edit form must load old name');
+      assert(await dialog.getByLabel('Số điện thoại').inputValue() === '0901234567', 'edit form must load old phone');
+      assert(await dialog.getByLabel('Dòng sản phẩm / dự án').inputValue() === 'Dự án Hồ Gươm', 'edit form must load old hotel profile');
       assert(await dynamicSection(dialog, 'Người liên hệ').locator('tbody tr').first().locator('input').nth(0).inputValue() === 'Nguyễn Lan', 'edit form must load old contact rows');
       assert(await dynamicSection(dialog, 'Dịch vụ khách sạn').locator('tbody tr').first().locator('input').nth(1).inputValue() === 'Phòng tiêu chuẩn', 'edit form must load old service rows');
       assert(await dynamicSection(dialog, 'Người liên hệ').locator('tbody tr').first().locator('input').nth(2).inputValue() === '1990-01-02', 'date-only mapping must preserve the source calendar date across timezones');

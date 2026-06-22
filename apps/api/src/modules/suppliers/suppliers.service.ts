@@ -604,14 +604,18 @@ export class SuppliersService {
         acc.allotmentQty += metrics.allotmentQty;
         acc.bookedQty += metrics.bookedQty;
         acc.lockedQty += metrics.lockedQty;
-        acc.remainingQty += metrics.remainingQty;
+        const remainingQty = metrics.remainingQty;
+        acc.remainingQty += remainingQty;
         acc.revenue += metrics.bookedQty * Number(item.sellingPricePerDay || 0);
-        const isCodLocked = item.status === 'ACTIVE' && Boolean(item.startDate && item.startDate <= codLockUntil);
-        const computedStatus = item.status === 'STOP_SELL' || metrics.remainingQty <= 0
+        const isSellable = item.status === 'ACTIVE' && remainingQty > 0;
+        const isCodLocked = isSellable && Boolean(item.startDate && item.startDate <= codLockUntil);
+        const computedStatus = item.status === 'STOP_SELL'
           ? 'STOP_SELL'
-          : isCodLocked
-            ? 'COD_LOCKED'
-            : 'ACTIVE';
+          : !isSellable
+            ? 'STOP_SELL'
+            : isCodLocked
+              ? 'COD_LOCKED'
+              : 'ACTIVE';
         acc.activeAllotments += computedStatus === 'ACTIVE' ? 1 : 0;
         acc.stopSellAllotments += computedStatus === 'STOP_SELL' ? 1 : 0;
         acc.codLockedAllotments += computedStatus === 'COD_LOCKED' ? 1 : 0;

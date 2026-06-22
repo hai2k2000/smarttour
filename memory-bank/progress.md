@@ -2,6 +2,11 @@
 
 ## Done
 
+- Cleaned hotel allotment dashboard status bucketing:
+  - Made the dashboard derive status buckets from explicit sellable state so stop-sell or sold-out inventory cannot be counted as active/COD-locked.
+  - Refreshed hotel supplier UI and allotment contracts after the required-field indicator cleanup, including Playwright label lookups without manual `*` markers.
+  - Re-ran the full hotel supplier suite plus focused backend, RBAC, finance audit, supplier, quote, and UI contracts before redeploying the API.
+
 - Standardized hotel supplier required-field indicators:
   - Removed manual `*` markers from hotel supplier core field labels and dynamic service/allotment row labels.
   - Updated hotel supplier contract coverage to require native `required` attributes, Vietnamese validation messages, and no legacy manual required stars.
