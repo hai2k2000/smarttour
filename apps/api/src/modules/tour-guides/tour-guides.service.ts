@@ -4,11 +4,12 @@ import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { normalizeListSearch } from '../list-search';
-import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
+import { CreateTourGuideDto, DEFAULT_TOUR_GUIDES_TAKE, ListTourGuidesQueryDto, MAX_TOUR_GUIDES_TAKE, UpdateTourGuideDto } from './dto/tour-guide.dto';
 
 const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 const GUIDE_SCHEDULE_STATUSES = ['AVAILABLE', 'BUSY', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'] as const;
 const VIETNAM_TIMEZONE_OFFSET_MINUTES = 7 * 60;
+const TOUR_GUIDES_SEARCH_SCAN_MULTIPLIER = 5;
 type ScheduleLinkContext = {
   orders: Map<string, { id: string; status: OrderStatus; startDate: Date | null; endDate: Date | null }>;
   tours: Map<string, { id: string; status: TourStatus; startDate: Date | null; endDate: Date | null }>;
@@ -18,9 +19,10 @@ type ScheduleLinkContext = {
 export class TourGuidesService {
   constructor(private readonly prisma: PrismaService, private readonly filesService: FilesService) {}
 
-  async list(search?: string, status?: string, user?: RequestUser) {
-    const normalizedStatus = status ? this.normalizeGuideStatus(status) : undefined;
-    const searchText = normalizeListSearch(search);
+  async list(query: ListTourGuidesQueryDto, user?: RequestUser) {
+    const normalizedStatus = query.status ? this.normalizeGuideStatus(query.status) : undefined;
+    const searchText = normalizeListSearch(query.search);
+    const take = this.listTake(query.take);
     const rows = await this.prisma.guideProfile.findMany({
       where: this.guideScopeWhere({
         deletedAt: null,
@@ -28,10 +30,11 @@ export class TourGuidesService {
       }, user),
       include: { _count: { select: { cards: true, documents: true, costServices: true, schedules: true } } },
       orderBy: [{ updatedAt: 'desc' }, { guideCode: 'asc' }],
+      take: searchText ? this.searchScanTake(take) : take,
     });
     if (!searchText) return rows;
     const needle = this.normalizeSearchText(searchText);
-    return rows.filter((item) => this.guideSearchValues(item).some((value) => this.normalizeSearchText(value).includes(needle)));
+    return rows.filter((item) => this.guideSearchValues(item).some((value) => this.normalizeSearchText(value).includes(needle))).slice(0, take);
   }
 
   async detail(id: string, user?: RequestUser) {
@@ -372,6 +375,16 @@ export class TourGuidesService {
     if (orderStatus === 'CANCELLED' || tourStatus === 'CANCELLED') return 'CANCELLED';
     if (orderStatus === 'COMPLETED' || orderStatus === 'SETTLED' || tourStatus === 'COMPLETED' || tourStatus === 'SETTLED') return 'COMPLETED';
     return requested;
+  }
+
+  private listTake(value?: number) {
+    if (value === undefined || value === null) return DEFAULT_TOUR_GUIDES_TAKE;
+    if (!Number.isFinite(value)) return DEFAULT_TOUR_GUIDES_TAKE;
+    return Math.min(Math.max(1, Math.trunc(value)), MAX_TOUR_GUIDES_TAKE);
+  }
+
+  private searchScanTake(take: number) {
+    return Math.min(MAX_TOUR_GUIDES_TAKE * TOUR_GUIDES_SEARCH_SCAN_MULTIPLIER, Math.max(take, take * TOUR_GUIDES_SEARCH_SCAN_MULTIPLIER));
   }
 
   private guideSearchValues(item: { guideCode: string; fullName: string; phone: string | null; email: string | null; guideType: string | null; languages: string[]; markets: string[]; skills: string[]; status: string }) {

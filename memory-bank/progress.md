@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened tour-guide list payloads:
+  - Added a validated bounded query DTO for `/api/tour-guides` and made the service apply a defensive default/cap.
+  - Preserved Vietnamese accent-insensitive guide search with a bounded scan before filtering/slicing results.
+  - Updated `/tour-guides` SSR preload and client reload to request `take=100`, with contract coverage for the backend and web list calls.
+
 - Hardened legacy quotation list payloads:
   - Added a validated bounded query DTO for `/api/quotations` and made the service apply a defensive `take` default/cap.
   - Updated `/quotations` SSR preload and client reload to request `take=100`.

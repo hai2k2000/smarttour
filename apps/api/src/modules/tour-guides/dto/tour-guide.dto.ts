@@ -1,9 +1,12 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsDateString, IsEmail, IsIn, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
 
 const GUIDE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 const GUIDE_SCHEDULE_STATUSES = ['AVAILABLE', 'BUSY', 'CONFIRMED', 'OPERATING', 'COMPLETED', 'CANCELLED'] as const;
+export const DEFAULT_TOUR_GUIDES_TAKE = 100;
+export const MAX_TOUR_GUIDES_TAKE = 200;
 
 function Trimmed() {
   return Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -15,6 +18,14 @@ function EmptyToUndefined() {
 
 function EmptyNumberToUndefined() {
   return Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : value));
+}
+
+function OptionalNumber() {
+  return Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && !value.trim()) return undefined;
+    return Number(value);
+  });
 }
 
 function CompactStringArray() {
@@ -32,6 +43,31 @@ function CompactRows(keys: string[]) {
       });
     });
   });
+}
+
+export class ListTourGuidesQueryDto {
+  @ApiPropertyOptional({ maxLength: LIST_SEARCH_MAX_LENGTH })
+  @EmptyToUndefined()
+  @Trimmed()
+  @IsOptional()
+  @IsString({ message: 'Từ khóa tìm kiếm hướng dẫn viên phải là chuỗi' })
+  @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `Từ khóa tìm kiếm hướng dẫn viên không được vượt quá ${LIST_SEARCH_MAX_LENGTH} ký tự` })
+  search?: string;
+
+  @ApiPropertyOptional({ enum: GUIDE_STATUSES })
+  @EmptyToUndefined()
+  @Trimmed()
+  @IsOptional()
+  @IsIn(GUIDE_STATUSES, { message: 'Trạng thái hướng dẫn viên không hợp lệ' })
+  status?: string;
+
+  @ApiPropertyOptional({ default: DEFAULT_TOUR_GUIDES_TAKE, minimum: 1, maximum: MAX_TOUR_GUIDES_TAKE })
+  @OptionalNumber()
+  @IsOptional()
+  @IsInt({ message: 'Số hướng dẫn viên mỗi trang phải là số nguyên' })
+  @Min(1, { message: 'Số hướng dẫn viên mỗi trang phải lớn hơn 0' })
+  @Max(MAX_TOUR_GUIDES_TAKE, { message: `Số hướng dẫn viên mỗi trang không được vượt quá ${MAX_TOUR_GUIDES_TAKE}` })
+  take?: number;
 }
 
 class GuideCardDto {

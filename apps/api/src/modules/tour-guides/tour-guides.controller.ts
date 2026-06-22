@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { CreateTourGuideDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
+import { CreateTourGuideDto, ListTourGuidesQueryDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 import { TourGuidesService } from './tour-guides.service';
 
 @ApiTags('tour-guides')
@@ -13,8 +13,8 @@ export class TourGuidesController {
   constructor(private readonly service: TourGuidesService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
-    return this.service.list(search, status, request?.user);
+  list(@Query() query: ListTourGuidesQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.list(query, request?.user);
   }
 
   @Get(':id')

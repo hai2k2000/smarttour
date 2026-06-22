@@ -1,6 +1,9 @@
 const fs = require('fs');
 
 const source = fs.readFileSync('apps/web/app/tour-guides/TourGuidesClient.tsx', 'utf8');
+const controller = fs.readFileSync('apps/api/src/modules/tour-guides/tour-guides.controller.ts', 'utf8');
+const service = fs.readFileSync('apps/api/src/modules/tour-guides/tour-guides.service.ts', 'utf8');
+const dto = fs.readFileSync('apps/api/src/modules/tour-guides/dto/tour-guide.dto.ts', 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -33,6 +36,7 @@ pageIncludes("apiGet<PermissionUser | null>(", 'Tour guides page should read cur
 pageIncludes("'/auth/me'", 'Tour guides page should call auth session endpoint.');
 pageIncludes("const canViewGuides = hasPermission(currentUser, 'guide.view');", 'Tour guides page should calculate guide.view access.');
 pageIncludes('canViewGuides ? await apiGet', 'Tour guides page should not preload guides without guide.view.');
+pageIncludes("apiGet('/tour-guides?take=100'", 'Tour guides page should bound the SSR guide list payload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewGuides}', 'Tour guides page should show server permission notice when access is missing.');
 pageIncludes('{canViewGuides ? (', 'Tour guides page should hide protected client content without access.');
 
@@ -41,5 +45,13 @@ includes('if (!permissionsReady || !canViewGuides) {', 'Tour guides reload/detai
 includes('setGuides([]);', 'Tour guides client should clear server-provided rows when view access is missing.');
 includes('PermissionNotice allowed={!permissionsReady || canViewGuides}', 'Tour guides client should avoid permission flash while permissions load.');
 includes('disabled={!canViewGuides || reloading}', 'Tour guides reload button should be disabled without view access.');
+includes("params.set('take', '100');", 'Tour guides reload should request a bounded guide list.');
+
+assert(dto.includes('class ListTourGuidesQueryDto'), 'Tour guide list query DTO must exist.');
+assert(dto.includes('take?: number'), 'Tour guide list query DTO must accept bounded take.');
+assert(dto.includes('MAX_TOUR_GUIDES_TAKE'), 'Tour guide list query DTO must cap take.');
+assert(controller.includes('list(@Query() query: ListTourGuidesQueryDto'), 'Tour guide list route must use the validated list query DTO.');
+assert(service.includes('this.listTake(query.take)'), 'Tour guide list service must apply bounded take.');
+assert(service.includes('searchScanTake'), 'Tour guide search must use a bounded scan before accent-insensitive filtering.');
 
 console.log('TEST_TOUR_GUIDES_CLIENT_CONTRACT_OK');

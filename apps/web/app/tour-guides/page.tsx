@@ -21,7 +21,7 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 export default async function TourHDVsPage() {
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewGuides = hasPermission(currentUser, 'guide.view');
-  const guides = canViewGuides ? await apiGet('/tour-guides', []) : [];
+  const guides = canViewGuides ? await apiGet('/tour-guides?take=100', []) : [];
 
   return (
     <section className="workspace">

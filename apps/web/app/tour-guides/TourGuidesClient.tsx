@@ -90,6 +90,7 @@ function browserApiBase() {
 
 function tourGuidesPath(search?: string, status?: string) {
   const params = new URLSearchParams();
+  params.set('take', '100');
   const keyword = cleanText(search).replace(/\s+/g, ' ');
   const normalizedStatus = cleanText(status).toUpperCase();
   if (keyword) params.set('search', keyword);
