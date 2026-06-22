@@ -17,8 +17,8 @@ function assert(condition, label) {
 
 assert(source.includes("import { authHeaders, authJsonHeaders } from '../../authFetch';"), 'Orders UI should import auth fetch helpers');
 
-assert(source.includes("import { usePermissions } from '../../usePermissions';"), 'Orders UI should read permissions for sensitive action rendering.');
-assert(source.includes('const { can } = usePermissions();'), 'Orders UI should use permission helper.');
+assert(source.includes("import { PermissionNotice, usePermissions } from '../../usePermissions';"), 'Orders UI should read permissions for sensitive action rendering.');
+assert(source.includes('const { can, permissionsReady } = usePermissions();'), 'Orders UI should use permission helper and wait for readiness.');
 assert(source.includes("const canChangeStatus = can('order.status.update');"), 'Orders UI status changes should require order.status.update.');
 assert(source.includes("can('order.settle')"), 'Orders UI settlement action should require order.settle.');
 assert(source.includes("can('order.unlock')"), 'Orders UI unlock action should require order.unlock.');
@@ -63,6 +63,33 @@ for (const [token, label] of [
 ]) {
   assert(source.includes(token), label);
 }
+
+
+const page = fs.readFileSync('apps/web/app/orders/[type]/page.tsx', 'utf8');
+function pageIncludes(token, label) {
+  assert(page.includes(token), label);
+}
+
+pageIncludes("import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';", 'Orders page should use server permission helpers.');
+pageIncludes("apiGet<PermissionUser | null>(", 'Orders page should read current session permissions before loading order data.');
+pageIncludes("'/auth/me'", 'Orders page should call auth session endpoint.');
+pageIncludes("const canViewOrders = hasPermission(currentUser, 'order.view') || hasPermission(currentUser, 'order.manage');", 'Orders page should calculate order view/manage access.');
+pageIncludes('canViewOrders ? await apiGet', 'Orders page should not preload orders without order access.');
+pageIncludes('<ServerPermissionNotice allowed={canViewOrders}', 'Orders page should show server permission notice when access is missing.');
+pageIncludes('{canViewOrders ? (', 'Orders page should hide orders client content without access.');
+
+assert(source.includes("import { PermissionNotice, usePermissions } from '../../usePermissions';"), 'Orders UI should import PermissionNotice and permissions hook.');
+assert(source.includes('const { can, permissionsReady } = usePermissions();'), 'Orders UI should wait for permission readiness.');
+assert(source.includes("const canViewOrders = can('order.view') || can('order.manage');"), 'Orders UI should derive order view/manage access.');
+assert(source.includes("const canManageOrders = can('order.manage');"), 'Orders UI should derive order.manage access.');
+assert(source.includes('if (!permissionsReady || !canViewOrders) {'), 'Orders UI reload/load handlers should fail closed before API calls without view access.');
+assert(source.includes('setOrders([]);'), 'Orders UI should clear server-provided rows when view access is missing.');
+assert(source.includes('if (!canManageOrders) {'), 'Orders UI create/save/copy handlers should fail closed without order.manage.');
+assert(source.includes('PermissionNotice allowed={!permissionsReady || canViewOrders}'), 'Orders UI should avoid permission flash while permissions load.');
+assert(source.includes('{canViewOrders ? ('), 'Orders UI should hide list/form content without view access.');
+assert(source.includes('disabled={!canViewOrders}'), 'Orders UI edit buttons should be disabled without view access.');
+assert(source.includes('disabled={!canManageOrders} onClick={openCreate}'), 'Orders UI create button should be disabled without order.manage.');
+assert(source.includes('disabled={!canUseOrderAction || !canManageOrders} onClick={() => action(\'copy\')}'), 'Orders UI copy action should be disabled without order.manage.');
 
 console.log('TEST_ORDERS_UI_AUTH_CONTRACT_OK');
 TESTNODE

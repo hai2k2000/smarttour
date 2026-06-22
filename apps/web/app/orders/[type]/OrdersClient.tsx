@@ -3,12 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Copy, Lock, LockOpen, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
 import { viStatus } from '../../i18n';
-import { usePermissions } from '../../usePermissions';
+import { PermissionNotice, usePermissions } from '../../usePermissions';
 import type { OrderConfig, OrderRouteType } from '../order-config';
 
 type RowColumn = [string, string, ('text' | 'number' | 'date' | 'datetime-local' | 'textarea' | 'status' | 'passengerType' | 'language')?];
@@ -261,7 +261,7 @@ function buildPayload(data: OrderForm) {
 }
 
 export default function OrdersClient({ type, config, initialOrders }: { type: OrderRouteType; config: OrderConfig; initialOrders: OrderSummary[] }) {
-  const { can } = usePermissions();
+  const { can, permissionsReady } = usePermissions();
   const [orders, setOrders] = useState(initialOrders);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [originalStatus, setOriginalStatus] = useState('');
@@ -292,8 +292,10 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     return orders.filter((item) => [item.systemCode, item.tourCode, item.name, item.customerName, item.customerPhone].filter(Boolean).some((value) => String(value).toLowerCase().includes(term)));
   }, [orders, query]);
   const currentStatus = String(values.status || '');
+  const canViewOrders = can('order.view') || can('order.manage');
+  const canManageOrders = can('order.manage');
   const canChangeStatus = can('order.status.update');
-  const canEdit = !isSubmitting && !['SETTLED', 'CANCELLED'].includes(currentStatus);
+  const canEdit = canManageOrders && !isSubmitting && !['SETTLED', 'CANCELLED'].includes(currentStatus);
   const canUseOrderAction = Boolean(editingId) && !isSubmitting;
   const canSettle = canUseOrderAction && can('order.settle') && !['SETTLED', 'CANCELLED'].includes(currentStatus);
   const canUnlock = canUseOrderAction && can('order.unlock') && currentStatus === 'SETTLED';
@@ -311,18 +313,38 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
         helper.display({ id: 'cost', header: 'Phần chi', cell: ({ row }) => <span>Tổng: {money(row.original.totalCost)}<br />Còn chi: {money(row.original.remainingCost)}</span> }),
         helper.accessor('profit', { header: 'Lợi nhuận', cell: (info) => money(info.getValue()) }),
         helper.accessor('status', { header: 'Trạng thái', cell: (info) => <span className={statusClass(info.getValue())}>{viStatus(info.getValue())}</span> }),
-        helper.display({ id: 'actions', header: 'Thao tác', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" onClick={() => loadOrder(row.original.id)}><Pencil size={15} /> Sửa</button> }),
+        helper.display({ id: 'actions', header: 'Thao tác', cell: ({ row }) => <button type="button" className="secondaryButton iconTextButton" disabled={!canViewOrders} onClick={() => loadOrder(row.original.id)}><Pencil size={15} /> Sửa</button> }),
       ];
-    }, [config.nameLabel]),
+    }, [config.nameLabel, canViewOrders]),
     getCoreRowModel: getCoreRowModel(),
   });
   const orderListColumnCount = table.getVisibleLeafColumns().length;
+  useEffect(() => {
+    if (!permissionsReady || canViewOrders) return;
+    setOrders([]);
+    setEditingId(null);
+    setOriginalStatus('');
+    setActiveStep(0);
+    setQuery('');
+    setMessage('');
+    setFormOpen(false);
+    reset(makeDefaultValues());
+  }, [permissionsReady, canViewOrders, reset]);
   async function reload(search = '') {
+    if (!permissionsReady || !canViewOrders) {
+      setOrders([]);
+      setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem \u0111\u01a1n h\u00e0ng.');
+      return;
+    }
     const suffix = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
     const response = await fetch(`${browserApiBase()}/api/orders/${type}${suffix}`, { cache: 'no-store', headers: authHeaders() });
     if (response.ok) setOrders(await response.json());
   }
   async function loadOrder(id: string) {
+    if (!permissionsReady || !canViewOrders) {
+      setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem chi ti\u1ebft \u0111\u01a1n h\u00e0ng.');
+      return;
+    }
     setMessage('');
     const response = await fetch(`${browserApiBase()}/api/orders/${type}/${id}`, { cache: 'no-store', headers: authHeaders() });
     if (!response.ok) {
@@ -337,6 +359,10 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     reset(mapOrderToForm(order));
   }
   async function onSubmit(data: OrderForm) {
+    if (!canManageOrders) {
+      setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o ho\u1eb7c c\u1eadp nh\u1eadt \u0111\u01a1n h\u00e0ng.');
+      return;
+    }
     if (data.endDate && data.startDate && new Date(data.endDate) < new Date(data.startDate)) {
       setMessage('Ngày về không được trước ngày đi.');
       return;
@@ -371,6 +397,10 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     return response.json();
   }
   async function action(path: 'copy' | 'settle') {
+    if (path === 'copy' && !canManageOrders) {
+      setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n sao ch\u00e9p \u0111\u01a1n h\u00e0ng.');
+      return;
+    }
     if (!editingId) return;
     if (path === 'settle' && !confirmSensitiveOrderAction(path)) return;
     const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/${path}`, { method: 'POST', headers: authHeaders() });
@@ -399,9 +429,12 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     await reload(query);
   }
   function closeForm() { setEditingId(null); setOriginalStatus(''); setFormOpen(false); setMessage(''); reset(makeDefaultValues()); }
-  function openCreate() { setEditingId(null); setOriginalStatus(''); setActiveStep(0); setMessage(''); reset(makeDefaultValues()); setFormOpen(true); }
+  function openCreate() { if (!canManageOrders) { setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o \u0111\u01a1n h\u00e0ng.'); return; } setEditingId(null); setOriginalStatus(''); setActiveStep(0); setMessage(''); reset(makeDefaultValues()); setFormOpen(true); }
   return (
     <div className="orderPage">
+      <PermissionNotice allowed={!permissionsReady || canViewOrders} label="xem v\u00e0 qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng" />
+      {canViewOrders ? (
+        <>
       {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide tourWorkflowModal"><form onSubmit={handleSubmit(onSubmit)} className="orderForm">
         <section className="fitToolbar">
           <div className="fitSteps" role="tablist" aria-label="Các bước tạo đơn">
@@ -469,9 +502,11 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
             <div className="summaryRows"><div><span>Tổng thu</span><strong>{money(totals.revenue)}</strong></div><div><span>Đã thu</span><strong>{money(values.paidAmount)}</strong></div><div><span>Còn thu</span><strong>{money(totals.remainRevenue)}</strong></div><div><span>Tổng chi</span><strong>{money(totals.cost)}</strong></div><div><span>Đã chi</span><strong>{money(values.paidCost)}</strong></div><div><span>Còn chi</span><strong>{money(totals.remainCost)}</strong></div><div><span>Lợi nhuận</span><strong>{money(totals.profit)}</strong></div><div><span>Số chỗ còn</span><strong>{totals.seatsLeft}</strong></div></div>
           </aside>
         </section>
-        <div className="hotelFormActions"><button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}>Trước</button><button type="button" className="secondaryButton" disabled={activeStep >= lastStep} onClick={() => setActiveStep((step) => Math.min(lastStep, step + 1))}>Tiếp</button><button type="submit" disabled={!canEdit}><Save size={17}/> Lưu</button><button type="button" className="secondaryButton" disabled={!canUseOrderAction} onClick={() => action('copy')}><Copy size={17}/> Sao chép</button><button type="button" className="secondaryButton" disabled={!canSettle} onClick={() => action('settle')}><Lock size={17}/> Chốt quyết toán</button><button type="button" className="secondaryButton" disabled={!canUnlock} onClick={unlockSettlement}><LockOpen size={17}/> Mở khóa</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
+        <div className="hotelFormActions"><button type="button" className="secondaryButton" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}>Trước</button><button type="button" className="secondaryButton" disabled={activeStep >= lastStep} onClick={() => setActiveStep((step) => Math.min(lastStep, step + 1))}>Tiếp</button><button type="submit" disabled={!canEdit}><Save size={17}/> Lưu</button><button type="button" className="secondaryButton" disabled={!canUseOrderAction || !canManageOrders} onClick={() => action('copy')}><Copy size={17}/> Sao chép</button><button type="button" className="secondaryButton" disabled={!canSettle} onClick={() => action('settle')}><Lock size={17}/> Chốt quyết toán</button><button type="button" className="secondaryButton" disabled={!canUnlock} onClick={unlockSettlement}><LockOpen size={17}/> Mở khóa</button><button type="button" className="dangerButton" onClick={closeForm}><X size={17}/> Đóng</button></div>
       </form></div></div> : null}
-      <section className="panel listPanel"><div className="sectionHeader orderListHeader"><h2>Danh sách {config.shortTitle}</h2><button type="button" className="secondaryButton iconTextButton" onClick={openCreate}><Plus size={16}/> Thêm mới</button><label className="searchBox"><Search size={16}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Tìm mã, tên, số điện thoại..." /></label></div><div className="fitTableWrap compactListTableWrap"><table className="fitTable orderListTable compactListTable"><thead>{table.getHeaderGroups().map((group)=><tr key={group.id}>{group.headers.map((header)=><th key={header.id}>{flexRender(header.column.columnDef.header,header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row)=><tr key={row.id}>{row.getVisibleCells().map((cell)=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}{table.getRowModel().rows.length === 0 ? <tr><td colSpan={orderListColumnCount} className="orderListEmptyCell"><div className="tableEmptyState">Không có đơn hàng phù hợp.</div></td></tr> : null}</tbody></table></div></section>
+      <section className="panel listPanel"><div className="sectionHeader orderListHeader"><h2>Danh sách {config.shortTitle}</h2><button type="button" className="secondaryButton iconTextButton" disabled={!canManageOrders} onClick={openCreate}><Plus size={16}/> Thêm mới</button><label className="searchBox"><Search size={16}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Tìm mã, tên, số điện thoại..." /></label></div><div className="fitTableWrap compactListTableWrap"><table className="fitTable orderListTable compactListTable"><thead>{table.getHeaderGroups().map((group)=><tr key={group.id}>{group.headers.map((header)=><th key={header.id}>{flexRender(header.column.columnDef.header,header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row)=><tr key={row.id}>{row.getVisibleCells().map((cell)=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}{table.getRowModel().rows.length === 0 ? <tr><td colSpan={orderListColumnCount} className="orderListEmptyCell"><div className="tableEmptyState">Không có đơn hàng phù hợp.</div></td></tr> : null}</tbody></table></div></section>
+        </>
+      ) : null}
     </div>
   );
 }

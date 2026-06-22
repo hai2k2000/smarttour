@@ -1,6 +1,7 @@
 import { ArrowLeft, CircleAlert, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import { isOrderRouteType, orderConfigs } from '../order-config';
 import OrdersClient from './OrdersClient';
 
@@ -47,7 +48,9 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: s
 
   const type = rawType;
   const config = orderConfigs[type];
-  const orders = await apiGet(`/orders/${type}`, []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewOrders = hasPermission(currentUser, 'order.view') || hasPermission(currentUser, 'order.manage');
+  const orders = canViewOrders ? await apiGet(`/orders/${type}`, []) : [];
 
   return (
     <section className="workspace orderWorkspace">
@@ -61,7 +64,10 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: s
           <Link className="secondaryButton" href="/order-center">Trung tâm đơn hàng</Link>
         </div>
       </header>
-      <OrdersClient type={type} config={config} initialOrders={orders} />
+      <ServerPermissionNotice allowed={canViewOrders} label={'xem v\u00e0 qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng'} missingPermissions={['order.view']} />
+      {canViewOrders ? (
+        <OrdersClient type={type} config={config} initialOrders={orders} />
+      ) : null}
     </section>
   );
 }

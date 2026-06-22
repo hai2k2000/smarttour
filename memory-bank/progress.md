@@ -1907,3 +1907,7 @@
   - Client handlers now wait for permission readiness, clear stale SSR data when access is missing, and fail-close create/update/convert/approve actions before API calls.
   - Quote Combos supplier catalogs are preloaded only for `quote.manage` users.
   - Verification passed: `node scripts/test-quotations-client-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-quotes-backend-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+- 2026-06-22 Completed Phase 3 order type page/client RBAC hardening:
+  - `/orders/[type]` now gates server-side initial order loads through `/auth/me` and hides protected client content when order view/manage access is missing.
+  - Orders client now waits for permission readiness, clears stale SSR rows without view access, and fail-closes create/update/copy actions with `order.manage` before API calls while preserving dedicated status/settle/unlock permissions.
+  - Verification passed: `bash scripts/test-orders-ui-auth-contract.sh`, `bash scripts/test-orders-controller-permissions.sh`, `bash scripts/test-orders-api.sh`, `node scripts/test-order-center-permissions-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
