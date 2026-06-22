@@ -24,7 +24,7 @@ export default async function OrderCenterPage() {
   const canExportOrders = hasPermission(currentUser, 'order.export');
   const [dashboard, orders] = canViewOrders ? await Promise.all([
     apiGet('/order-center/dashboard', emptyDashboard),
-    apiGet('/order-center', []),
+    apiGet('/order-center?compact=true&take=100', []),
   ]) : [emptyDashboard, []];
 
   return (

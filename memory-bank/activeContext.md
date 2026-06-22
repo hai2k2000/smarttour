@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 order-center list payload hardening:
+  - `/order-center` SSR preload now requests `/order-center?compact=true&take=100`, so the first render does not load full order-center rows.
+  - Order Center client reload now keeps dashboard filters separate from list filters and always requests compact bounded list rows with `compact=true&take=100`.
+  - Order Center permission contract now guards the bounded/compact SSR and client list calls.
+
 - Phase 3 orders list payload hardening:
   - `/api/orders/:type` now uses a validated `ListOrdersQueryDto` with bounded `take`; `OrdersService.list()` applies a defensive default/cap while keeping old string-search service callers compatible.
   - `/orders/[type]` SSR preload and client reload now request `?take=100` instead of loading all orders of a type.

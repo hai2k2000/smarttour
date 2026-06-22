@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened Order Center list payloads:
+  - Updated `/order-center` SSR preload to request compact bounded rows with `compact=true&take=100`.
+  - Updated Order Center client reload to keep dashboard queries separate while always bounding/compacting the list request.
+  - Added contract assertions for the bounded/compact Order Center SSR and client list calls.
+
 - Hardened typed order list payloads:
   - Added a validated bounded query DTO for `/api/orders/:type` and made the service apply a defensive `take` default/cap.
   - Preserved existing service test callers that pass search as a string while routing controller requests through the DTO.

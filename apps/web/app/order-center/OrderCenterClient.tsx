@@ -71,6 +71,12 @@ function qs(filters: Filters) {
   Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
   return params.toString();
 }
+function listQs(filters: Filters) {
+  const params = new URLSearchParams(qs(filters));
+  params.set('compact', 'true');
+  params.set('take', '100');
+  return params.toString();
+}
 
 export default function OrderCenterClient({
   initialDashboard,
@@ -109,11 +115,12 @@ export default function OrderCenterClient({
   async function load(nextFilters = filters) {
     setLoading(true);
     setMessage('Đang tải dữ liệu trung tâm đơn hàng...');
-    const query = qs(nextFilters);
+    const dashboardQuery = qs(nextFilters);
+    const orderListQuery = listQs(nextFilters);
     try {
       const [dashboardResponse, ordersResponse] = await Promise.all([
-        fetch(`${browserApiBase()}/api/order-center/dashboard${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() }),
-        fetch(`${browserApiBase()}/api/order-center${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() }),
+        fetch(`${browserApiBase()}/api/order-center/dashboard${dashboardQuery ? `?${dashboardQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }),
+        fetch(`${browserApiBase()}/api/order-center?${orderListQuery}`, { cache: 'no-store', headers: authHeaders() }),
       ]);
       if (!dashboardResponse.ok || !ordersResponse.ok) {
         throw new Error(await responseMessage(!ordersResponse.ok ? ordersResponse : dashboardResponse, 'Không tải được dữ liệu trung tâm đơn hàng'));
