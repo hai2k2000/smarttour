@@ -2,7 +2,7 @@
 set -euo pipefail
 
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
-SITE_URL="${SITE_URL:-https://quanly.dunientravel.com}"
+SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@smarttour.local}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin password}"
 RUN_ID="SMOKE-FIN-$(date +%s)"

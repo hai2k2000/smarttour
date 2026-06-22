@@ -3,7 +3,7 @@
 ## Current Services
 
 - Repo: `/opt/smarttour`
-- Domain: `https://quanly.dunientravel.com`
+- Domain: `https://aitour.io.vn`
 - Web: `smarttour-web-preview`, host port `3001`
 - API: `smarttour-api-1`, host port `4000`
 - Postgres: `smarttour-postgres-1`, host port `5433`
@@ -98,7 +98,7 @@ cd /opt/smarttour
 npm run build --workspace @smarttour/web
 docker compose build web
 docker rm -f smarttour-web-preview || true
-docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com -p 127.0.0.1:3001:3000 smarttour-web:latest
+docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_URL=https://aitour.io.vn -p 127.0.0.1:3001:3000 smarttour-web:latest
 ```
 
 ## Verification
@@ -156,4 +156,4 @@ scripts/deploy-preview.sh
 - API host port `4000` is bound to `127.0.0.1`.
 - Postgres host port `5433` is bound to `127.0.0.1`.
 - Redis host port `6380` is bound to `127.0.0.1`.
-- Public traffic should enter through nginx on `443` for `https://quanly.dunientravel.com`.
+- Public traffic should enter through nginx on `443` for `https://aitour.io.vn`.

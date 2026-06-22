@@ -42,7 +42,7 @@ npm run verify:deploy
 
 - Confirm public ports are only SSH `24700`, HTTP `80`, HTTPS `443`.
 - Confirm SmartTour web/API/Postgres/Redis are localhost-bound.
-- Confirm domain `https://quanly.dunientravel.com` serves web and `/api`.
+- Confirm domain `https://aitour.io.vn` serves web and `/api`.
 
 ## 7. Monitoring
 

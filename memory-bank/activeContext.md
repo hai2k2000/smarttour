@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 active-domain cleanup follow-up:
+  - Remaining executable smoke defaults and current runbooks were aligned to the active SmartTour production host `https://aitour.io.vn` instead of stale `https://quanly.dunientravel.com`.
+  - Updated business, finance report, UI page, quotes/quotations, and deploy-preview defaults plus go-live/rollback/ops runbooks.
+  - UI page smoke no longer treats Next internal redirect/notFound payload markers as runtime error signatures; browser smoke remains the runtime route safety net.
+  - Verification passed for bash syntax, stale-domain grep, business smoke, finance report smoke, UI page smoke, and quotes/quotations smoke with temporary admin cleanup.
+
 - Phase 3 browser smoke hardening follow-up:
   - Browser smoke defaults now target the active SmartTour production domain `https://aitour.io.vn` instead of stale `quanly.dunientravel.com`, which resolves to a different host and old bundle.
   - Browser page smoke now waits for rendered body text before asserting route content, avoiding false failures during Next hydration/data load.

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "${REPO_DIR:-/opt/smarttour}"
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://quanly.dunientravel.com}"
+export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://aitour.io.vn}"
 
 echo "BUILD_API"
 npm run build --workspace @smarttour/api

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
-SITE_URL="${SITE_URL:-https://quanly.dunientravel.com}"
+SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 RUN_ID="${RUN_ID:-SMOKE-QUOTE-$(date +%s)}"
 RUN_ID_LOWER="$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
 RUN_ID_SAFE="$(printf '%s' "$RUN_ID_LOWER" | tr -c 'a-z0-9_' '_')"
@@ -124,7 +124,7 @@ function loadDotEnv() {
 loadDotEnv();
 
 const api = process.env.API_URL || 'http://127.0.0.1:4000/api';
-const site = process.env.SITE_URL || 'https://quanly.dunientravel.com';
+const site = process.env.SITE_URL || 'https://aitour.io.vn';
 const run = process.env.RUN_ID || `SMOKE-QUOTE-${Date.now()}`;
 const lowerRun = run.toLowerCase();
 const rolePassword = process.env.ROLE_PASSWORD || 'QuoteSmoke123!26';

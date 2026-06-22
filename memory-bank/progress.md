@@ -1985,3 +1985,9 @@
   - Interaction smoke was aligned with current Finance, Operations, Security, and global-search UI selectors, using stable test ids/classes where available.
   - Operations UI smoke now targets the active domain, accepts the current confirmation dialogs for payment-request actions, resets/selects reconciliation rows deterministically, and mocks `/api/auth/me` for the view-only client-permission scenario.
   - Verified with full browser route smoke, UI interaction smoke, and operations UI smoke using temporary admin users cleaned up afterward.
+
+- Phase 3 active-domain cleanup follow-up:
+  - Remaining executable smoke defaults and current runbooks were aligned to the active SmartTour production host `https://aitour.io.vn` instead of stale `https://quanly.dunientravel.com`.
+  - Updated business, finance report, UI page, quotes/quotations, and deploy-preview defaults plus go-live/rollback/ops runbooks.
+  - UI page smoke no longer treats Next internal redirect/notFound payload markers as runtime error signatures; browser smoke remains the runtime route safety net.
+  - Verification passed for bash syntax, stale-domain grep, business smoke, finance report smoke, UI page smoke, and quotes/quotations smoke with temporary admin cleanup.

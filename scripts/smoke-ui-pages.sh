@@ -2,7 +2,7 @@
 set -euo pipefail
 
 API_URL="${API_URL:-http://127.0.0.1:4000/api}"
-SITE_URL="${SITE_URL:-https://quanly.dunientravel.com}"
+SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@smarttour.local}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin password}"
 OUT_DIR="${OUT_DIR:-/tmp/smarttour-ui-smoke}"
@@ -63,7 +63,7 @@ for path in "${paths[@]}"; do
     failures=$((failures + 1))
     continue
   fi
-  if grep -Eiq 'Application error|Internal Server Error|Unhandled Runtime Error|NEXT_NOT_FOUND|NEXT_REDIRECT|Cannot read properties|TypeError:|ReferenceError:' "$file"; then
+  if grep -Eiq 'Application error|Internal Server Error|Unhandled Runtime Error|Cannot read properties|TypeError:|ReferenceError:' "$file"; then
     echo "FAIL ERROR_SIGNATURE $path"
     failures=$((failures + 1))
     continue

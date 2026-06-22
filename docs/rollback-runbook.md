@@ -20,7 +20,7 @@ cd /opt/smarttour
 git switch main
 git pull --ff-only || true
 git checkout GOOD_COMMIT
-NEXT_PUBLIC_API_URL=https://quanly.dunientravel.com scripts/deploy-preview.sh
+NEXT_PUBLIC_API_URL=https://aitour.io.vn scripts/deploy-preview.sh
 ```
 
 ## 3. Database Restore
