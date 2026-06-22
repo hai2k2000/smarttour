@@ -48,7 +48,7 @@ type BookingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
+const apiBase = serverApiBase();
 const moneyFormatter = new Intl.NumberFormat('vi-VN');
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const bookingCodeMinLength = 2;
@@ -74,6 +74,15 @@ const bookingStatusWorkflow: Record<BookingStatus, readonly BookingStatus[]> = {
   CANCELLED: ['CANCELLED'],
 };
 const bookingPageSize = 50;
+
+function serverApiBase() {
+  const internalApiBase = process.env.SMARTTOUR_SERVER_API_URL?.trim();
+  if (internalApiBase) return internalApiBase.replace(/\/+$/, '');
+
+  const publicApiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  if (process.env.NODE_ENV === 'production') return 'http://api:4000';
+  return publicApiBase;
+}
 
 function isBookingStatus(value: string): value is BookingStatus {
   return validBookingStatuses.has(value);

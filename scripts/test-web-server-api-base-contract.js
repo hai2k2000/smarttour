@@ -16,11 +16,15 @@ function assert(condition, message) {
 
 const workspaceData = read('apps/web/app/workspace/workspace-data.ts');
 const proxy = read('apps/web/proxy.ts');
+const tourProgramsPage = read('apps/web/app/tour-programs/page.tsx');
+const bookingsPage = read('apps/web/app/bookings/page.tsx');
 const dockerCompose = read('docker-compose.yml');
 
 for (const [label, source] of [
   ['workspace-data', workspaceData],
   ['proxy', proxy],
+  ['tour-programs page', tourProgramsPage],
+  ['bookings page', bookingsPage],
 ]) {
   assert(source.includes('SMARTTOUR_SERVER_API_URL'), `${label} must support a private server API URL override`);
   assert(source.includes('http://api:4000'), `${label} must use Docker internal API in production`);
@@ -43,6 +47,13 @@ assert(
   !proxy.includes('const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL'),
   'proxy must not validate sessions through public NEXT_PUBLIC_API_URL directly',
 );
+for (const [label, source] of [
+  ['tour-programs page', tourProgramsPage],
+  ['bookings page', bookingsPage],
+]) {
+  assert(source.includes('const apiBase = serverApiBase();'), `${label} must use serverApiBase() for SSR requests and mutations`);
+  assert(!source.includes("NEXT_PUBLIC_API_URL || 'http://localhost:4000'"), `${label} must not fall back to localhost for SSR API calls`);
+}
 assert(
   dockerCompose.includes('SMARTTOUR_SERVER_API_URL: ${SMARTTOUR_SERVER_API_URL:-http://api:4000}'),
   'docker-compose web service must provide internal API URL at runtime',

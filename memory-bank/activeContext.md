@@ -2390,3 +2390,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Commission Reports client loaded commission data before permission readiness and still rendered metrics/list content when commission.view was missing.
   - Found CSV export was a direct window.location action without checking commission.export, and sync/reject/pay handlers relied mainly on disabled controls.
   - Strengthened the Commission Reports client contract and updated the client to wait for permissions, hide data without commission.view, hide/fail-close CSV export without commission.export, and fail-close sync/reject/pay/approve handlers by their backend permissions.
+
+- 2026-06-22 Phase 3 server API base hardening:
+  - Found the server-rendered Tour Programs and Bookings pages still fell back to `http://localhost:4000` when `NEXT_PUBLIC_API_URL` was missing.
+  - Updated both pages to use the server-side API base contract: prefer `SMARTTOUR_SERVER_API_URL`, default production SSR to Docker internal `http://api:4000`, and keep public API env only for development fallback.
+  - Strengthened `scripts/test-web-server-api-base-contract.js` so Tour Programs and Bookings cannot regress to localhost/public-only SSR API calls.
+  - Verification passed: `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, `docker compose config --quiet`, and `git diff --check`.

@@ -1991,3 +1991,8 @@
   - Updated business, finance report, UI page, quotes/quotations, and deploy-preview defaults plus go-live/rollback/ops runbooks.
   - UI page smoke no longer treats Next internal redirect/notFound payload markers as runtime error signatures; browser smoke remains the runtime route safety net.
   - Verification passed for bash syntax, stale-domain grep, business smoke, finance report smoke, UI page smoke, and quotes/quotations smoke with temporary admin cleanup.
+
+- 2026-06-22 Completed Phase 3 server API base hardening:
+  - Tour Programs and Bookings server-rendered pages now use `SMARTTOUR_SERVER_API_URL`/Docker internal `http://api:4000` for SSR requests and mutations instead of falling back to `localhost:4000`.
+  - Expanded `scripts/test-web-server-api-base-contract.js` to cover these pages and prevent public-only/localhost SSR API regressions.
+  - Verification passed: `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, `docker compose config --quiet`, and `git diff --check`.

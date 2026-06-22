@@ -45,12 +45,21 @@ type ItineraryDayPayload = {
   description: string;
 };
 
-const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
+const apiBase = serverApiBase();
 const MAX_CODE_LENGTH = 50;
 const MAX_NAME_LENGTH = 250;
 const MAX_DURATION_DAYS = 60;
 const MAX_ROUTE_LENGTH = 250;
 const MAX_DESCRIPTION_LENGTH = 2000;
+
+function serverApiBase() {
+  const internalApiBase = process.env.SMARTTOUR_SERVER_API_URL?.trim();
+  if (internalApiBase) return internalApiBase.replace(/\/+$/, '');
+
+  const publicApiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  if (process.env.NODE_ENV === 'production') return 'http://api:4000';
+  return publicApiBase;
+}
 
 async function responseError(response: Response) {
   try {
