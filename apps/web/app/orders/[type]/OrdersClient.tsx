@@ -35,11 +35,11 @@ type OrderSummary = {
 };
 
 const rowId = { id: z.string().default('') };
-const salesSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), description: z.string().default(''), quantity: z.coerce.number().default(1), serviceCount: z.coerce.number().default(1), unitPrice: z.coerce.number().default(0), vat: z.coerce.number().default(0), note: z.string().default('') });
-const operationSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), bookingCode: z.string().default(''), serviceDate: z.string().default(''), quantity: z.coerce.number().default(1), netPrice: z.coerce.number().default(0), vat: z.coerce.number().default(0), status: z.string().default('WAITING'), note: z.string().default('') });
+const salesSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), description: z.string().default(''), quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), serviceCount: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3t kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), unitPrice: z.coerce.number().min(0, '\u0110\u01a1n gi\u00e1 kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), vat: z.coerce.number().min(0, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), note: z.string().default('') });
+const operationSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), bookingCode: z.string().default(''), serviceDate: z.string().default(''), quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), netPrice: z.coerce.number().min(0, 'Gi\u00e1 NET kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), vat: z.coerce.number().min(0, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), status: z.string().default('WAITING'), note: z.string().default('') });
 const memberSchema = z.object({ ...rowId, fullName: z.string().default(''), gender: z.string().default(''), birthday: z.string().default(''), phone: z.string().default(''), email: z.string().default(''), identityNumber: z.string().default(''), issuedDate: z.string().default(''), nationality: z.string().default(''), passengerType: z.string().default('ADULT'), note: z.string().default('') });
-const itinerarySchema = z.object({ ...rowId, dayNo: z.coerce.number().default(1), title: z.string().default(''), content: z.string().default(''), period: z.string().default(''), destination: z.string().default(''), meals: z.string().default(''), hotel: z.string().default(''), restaurant: z.string().default(''), services: z.string().default(''), note: z.string().default('') });
-const handoverSchema = z.object({ ...rowId, itemName: z.string().default(''), quantity: z.coerce.number().default(1), note: z.string().default('') });
+const itinerarySchema = z.object({ ...rowId, dayNo: z.coerce.number().min(1, 'Ng\u00e0y l\u1ecbch tr\u00ecnh ph\u1ea3i t\u1eeb 1').default(1), title: z.string().default(''), content: z.string().default(''), period: z.string().default(''), destination: z.string().default(''), meals: z.string().default(''), hotel: z.string().default(''), restaurant: z.string().default(''), services: z.string().default(''), note: z.string().default('') });
+const handoverSchema = z.object({ ...rowId, itemName: z.string().default(''), quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), note: z.string().default('') });
 const surveySchema = z.object({ ...rowId, question: z.string().default(''), note: z.string().default('') });
 const termSchema = z.object({ ...rowId, language: z.string().default('VN'), terms: z.string().default(''), notes: z.string().default('') });
 const guideSchema = z.object({ ...rowId, guideName: z.string().default(''), phone: z.string().default(''), language: z.string().default(''), note: z.string().default('') });
@@ -70,23 +70,23 @@ const orderSchema = z.object({
   agencyName: z.string().default(''),
   collaborator: z.string().default(''),
   operatorOwner: z.string().default(''),
-  adultQty: z.coerce.number().default(0),
-  childQty: z.coerce.number().default(0),
-  infantQty: z.coerce.number().default(0),
-  quantity: z.coerce.number().default(1),
+  adultQty: z.coerce.number().min(0, 'S\u1ed1 ng\u01b0\u1eddi l\u1edbn kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  childQty: z.coerce.number().min(0, 'S\u1ed1 tr\u1ebb em kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  infantQty: z.coerce.number().min(0, 'S\u1ed1 em b\u00e9 kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1),
   roomClass: z.string().default(''),
   servicePackage: z.string().default(''),
   transportType: z.string().default(''),
   pickupPoint: z.string().default(''),
   dropoffPoint: z.string().default(''),
-  seatTotal: z.coerce.number().default(0),
-  seatHeld: z.coerce.number().default(0),
-  seatSold: z.coerce.number().default(0),
+  seatTotal: z.coerce.number().min(0, 'T\u1ed5ng ch\u1ed7 kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  seatHeld: z.coerce.number().min(0, 'S\u1ed1 ch\u1ed7 gi\u1eef kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  seatSold: z.coerce.number().min(0, 'S\u1ed1 ch\u1ed7 b\u00e1n kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
   allowOverbooking: z.boolean().default(false),
   receiveDeadline: z.string().default(''),
   closeDeadline: z.string().default(''),
-  paidAmount: z.coerce.number().default(0),
-  paidCost: z.coerce.number().default(0),
+  paidAmount: z.coerce.number().min(0, 'S\u1ed1 ti\u1ec1n \u0111\u00e3 thu kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  paidCost: z.coerce.number().min(0, 'S\u1ed1 ti\u1ec1n \u0111\u00e3 chi kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
   commission: z.coerce.number().default(0),
   note: z.string().default(''),
   handoverRequest: z.string().default('1. Gọi làm quen khách và tạo nhóm Zalo.\n2. Cập nhật điều hành trong nhóm.\n3. Hỗ trợ khách trong hành trình.\n4. Báo cáo phát sinh.'),
@@ -426,7 +426,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
               <div className="sectionHeader"><h2>{config.steps[activeStep] || 'Thông tin đơn hàng'}</h2><span>{config.shortTitle}</span></div>
               <div className="orderFormSections">
                 {activeStep === 0 ? <fieldset><legend>Số lượng / giá trị</legend><div className="quoteFormGrid">
-                  <label>Người lớn<input type="number" {...register('adultQty')} /></label><label>Trẻ em<input type="number" {...register('childQty')} /></label><label>Em bé<input type="number" {...register('infantQty')} /></label><label>Số lượng<input type="number" {...register('quantity')} /></label><label>Tổng chỗ<input type="number" {...register('seatTotal')} /></label><label>Đã giữ<input type="number" {...register('seatHeld')} /></label><label>Đã bán<input type="number" {...register('seatSold')} /></label><label>Đã thu<input type="number" {...register('paidAmount')} /></label><label>Đã chi<input type="number" {...register('paidCost')} /></label><label>Hoa hồng<input type="number" {...register('commission')} /></label>
+                  <label>Người lớn<input type="number" min={0} {...register('adultQty')} /></label><label>Trẻ em<input type="number" min={0} {...register('childQty')} /></label><label>Em bé<input type="number" min={0} {...register('infantQty')} /></label><label>Số lượng<input type="number" min={0} {...register('quantity')} /></label><label>Tổng chỗ<input type="number" min={0} {...register('seatTotal')} /></label><label>Đã giữ<input type="number" min={0} {...register('seatHeld')} /></label><label>Đã bán<input type="number" min={0} {...register('seatSold')} /></label><label>Đã thu<input type="number" min={0} {...register('paidAmount')} /></label><label>Đã chi<input type="number" min={0} {...register('paidCost')} /></label><label>Hoa hồng<input type="number" {...register('commission')} /></label>
                 </div></fieldset> : null}
                 {activeStep === 1 ? <>
                   <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
@@ -481,11 +481,17 @@ function Rows<T extends ArrayName>({ title, name, register, fieldArray, columns,
   return <section className="fitTableBlock"><div className="sectionHeader"><h2>{title}</h2><button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16}/> Thêm dòng</button></div><div className="fitTableWrap"><table className="fitTable orderDynamicTable"><thead>{table.getHeaderGroups().map((group)=><tr key={group.id}>{group.headers.map((header)=><th key={header.id}>{flexRender(header.column.columnDef.header,header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row)=><tr key={row.id}>{row.getVisibleCells().map((cell)=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}</tbody></table></div></section>;
 }
 
+function numberInputProps(name: ArrayName, fieldKey: string) {
+  if (fieldKey === 'dayNo') return { min: 1, step: 1 };
+  return { min: 0, step: '0.01' };
+}
+
 function Cell<T extends ArrayName>({ name, index, fieldKey, type, register }: { name: T; index: number; fieldKey: string; type?: RowColumn[2]; register: UseFormRegister<OrderForm> }) {
   const field = `${name}.${index}.${fieldKey}`;
   if (type === 'textarea') return <textarea rows={2} {...register(field as any)} />;
   if (type === 'status') return <select {...register(field as any)}><option value="WAITING">{viStatus('WAITING')}</option><option value="REQUESTED">{viStatus('REQUESTED')}</option><option value="CONFIRMED">{viStatus('CONFIRMED')}</option><option value="OPERATING">{viStatus('OPERATING')}</option><option value="COMPLETED">{viStatus('COMPLETED')}</option><option value="CANCELLED">{viStatus('CANCELLED')}</option></select>;
   if (type === 'passengerType') return <select {...register(field as any)}><option value="ADULT">Người lớn</option><option value="CHILD">Trẻ em</option><option value="INFANT">Em bé</option></select>;
   if (type === 'language') return <select {...register(field as any)}><option value="VN">Tiếng Việt</option><option value="EN">Tiếng Anh</option></select>;
+  if (type === 'number') return <input type="number" {...numberInputProps(name, fieldKey)} {...register(field as any)} />;
   return <input type={type || 'text'} {...register(field as any)} />;
 }

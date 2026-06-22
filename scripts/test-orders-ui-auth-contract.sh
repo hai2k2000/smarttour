@@ -46,5 +46,23 @@ for (const [token, label] of [
 
 assert(!source.includes('body: JSON.stringify(payload) }),'), 'Orders UI must not send raw payload in normal create/update mutation.');
 
+for (const [token, label] of [
+  ["quantity: z.coerce.number().min(0", 'sales quantity should reject negative values before API submission'],
+  ["serviceCount: z.coerce.number().min(0", 'sales service count should reject negative values before API submission'],
+  ["unitPrice: z.coerce.number().min(0", 'sales unit price should reject negative values before API submission'],
+  ["netPrice: z.coerce.number().min(0", 'operation net price should reject negative values before API submission'],
+  ["dayNo: z.coerce.number().min(1", 'itinerary day number should match backend minimum'],
+  ["adultQty: z.coerce.number().min(0", 'adult quantity should reject negative values before API submission'],
+  ["paidAmount: z.coerce.number().min(0", 'paid amount should reject negative values before API submission'],
+  ["paidCost: z.coerce.number().min(0", 'paid cost should reject negative values before API submission'],
+  ["function numberInputProps(name: ArrayName, fieldKey: string)", 'dynamic numeric inputs should centralize backend min constraints'],
+  ["if (fieldKey === 'dayNo') return { min: 1, step: 1 };", 'day number input should expose min 1'],
+  ["if (type === 'number') return <input type=\"number\" {...numberInputProps(name, fieldKey)}", 'dynamic numeric inputs should expose min values'],
+  ["<input type=\"number\" min={0} {...register('adultQty')}", 'root numeric passenger inputs should expose non-negative minimums'],
+  ["<input type=\"number\" min={0} {...register('paidAmount')}", 'root paid amount input should expose non-negative minimum'],
+]) {
+  assert(source.includes(token), label);
+}
+
 console.log('TEST_ORDERS_UI_AUTH_CONTRACT_OK');
 TESTNODE

@@ -1852,3 +1852,9 @@
   - Operation voucher frontend validation now matches backend bounds for service detail quantity, NET price, VAT percentage, and payment amount input constraints.
   - Strengthened `scripts/test-operation-vouchers-client-contract.js` so the UI cannot regress to accepting zero quantity, negative prices, VAT over 100%, or negative payment input.
   - Verification passed: `node scripts/test-operation-vouchers-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 orders numeric validation hardening:
+  - Orders frontend validation now matches backend minimum bounds for sales items, operation items, itinerary days, handover quantities, passenger/seat counts, and paid receipt/cost snapshots.
+  - Dynamic order table number inputs now expose min constraints, including day number minimum 1, while root passenger/seat/paid amount inputs expose non-negative minimums.
+  - Strengthened `scripts/test-orders-ui-auth-contract.sh` to guard these frontend/backend validation boundaries.
+  - Verification passed: `bash scripts/test-orders-ui-auth-contract.sh`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
