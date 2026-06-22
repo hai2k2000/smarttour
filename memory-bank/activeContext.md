@@ -2292,3 +2292,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Customers client started list fetches before permission readiness and still rendered filters/metrics/list while customer.view was missing.
   - Found create/detail/file handlers relied mostly on disabled controls instead of failing closed by permission inside the handler.
   - Added a focused Customers client permissions contract and updated the client to wait for permissions, hide customer data without customer.view, and guard create/detail/upload/delete handlers.
+
+- 2026-06-22 Phase 3 commission reports client RBAC hardening:
+  - Found Commission Reports client loaded commission data before permission readiness and still rendered metrics/list content when commission.view was missing.
+  - Found CSV export was a direct window.location action without checking commission.export, and sync/reject/pay handlers relied mainly on disabled controls.
+  - Strengthened the Commission Reports client contract and updated the client to wait for permissions, hide data without commission.view, hide/fail-close CSV export without commission.export, and fail-close sync/reject/pay/approve handlers by their backend permissions.

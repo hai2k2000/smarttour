@@ -1896,3 +1896,9 @@
   - Create customer and customer file upload/delete actions now fail closed inside their handlers with customer.manage; detail viewing fail-closes with customer.view.
   - Added scripts/test-customers-client-permissions-contract.js to guard the Customers frontend RBAC contract.
   - Verification passed: node scripts/test-customers-client-permissions-contract.js, node scripts/test-required-fields-ui-contract.js, npm run build -w @smarttour/web, and git diff --check. scripts/test-customers-api.sh was attempted but stopped before customer assertions because its auth setup received 401 while creating roles.
+
+- 2026-06-22 Completed Phase 3 commission reports client RBAC hardening:
+  - Commission Reports now waits for permissions before loading, clears commission data when commission.view is unavailable, and hides metrics/filter/list content behind commission.view.
+  - CSV export now requires commission.view + commission.export; sync/reject/pay require commission.manage; approve requires commission.approve inside handlers as well as buttons.
+  - Strengthened scripts/test-commission-reports-client-contract.js to guard the client RBAC contract.
+  - Verification passed: node scripts/test-commission-reports-client-contract.js, bash scripts/test-commission-reports-security.sh, npm run build -w @smarttour/web, and git diff --check.

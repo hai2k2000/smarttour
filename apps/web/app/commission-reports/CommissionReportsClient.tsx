@@ -53,7 +53,7 @@ function confirmCommissionAction(action: string) {
 }
 
 export default function CommissionReportsClient() {
-  const { can, canAny } = usePermissions();
+  const { can, permissionsReady } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
   const [summary, setSummary] = useState<Summary>(emptySummary);
   const [grouping, setGrouping] = useState<{ key: string; revenue: number; profit: number; commission: number; bookingCount: number }[]>([]);
@@ -63,6 +63,9 @@ export default function CommissionReportsClient() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
 
+  const canViewCommission = can('commission.view');
+  const canManageCommission = can('commission.manage');
+  const canExportCommission = canViewCommission && can('commission.export');
   const canApproveCommission = can('commission.approve');
 
   const query = useMemo(() => {
@@ -73,10 +76,28 @@ export default function CommissionReportsClient() {
   }, [filter]);
 
   useEffect(() => {
+    if (!permissionsReady) return;
+    if (!canViewCommission) {
+      setRows([]);
+      setSummary(emptySummary);
+      setGrouping([]);
+      setLoadError('');
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [query]);
+  }, [query, permissionsReady, canViewCommission]);
 
   async function load() {
+    if (!permissionsReady) return;
+    if (!canViewCommission) {
+      setRows([]);
+      setSummary(emptySummary);
+      setGrouping([]);
+      setLoadError('');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError('');
     try {
@@ -100,6 +121,14 @@ export default function CommissionReportsClient() {
 
   async function action(path: string, id: string) {
     setMessage('');
+    if (path === 'approve' && !canApproveCommission) {
+      setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n duy\u1ec7t hoa h\u1ed3ng.');
+      return;
+    }
+    if ((path === 'reject' || path === 'pay') && !canManageCommission) {
+      setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n qu\u1ea3n l\u00fd hoa h\u1ed3ng.');
+      return;
+    }
     if (!confirmCommissionAction(path)) return;
     const payload: Record<string, unknown> = { id, actor: 'accounting' };
     if (path === 'pay') payload.voucherNo = `PC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
@@ -115,6 +144,10 @@ export default function CommissionReportsClient() {
 
   async function sync() {
     setMessage('');
+    if (!canManageCommission) {
+      setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n \u0111\u1ed3ng b\u1ed9 hoa h\u1ed3ng.');
+      return;
+    }
     const response = await fetch(`${API_URL}/api/commission-reports/sync`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -123,6 +156,14 @@ export default function CommissionReportsClient() {
     }
     setMessage('\u0110\u00e3 \u0111\u1ed3ng b\u1ed9 b\u00e1o c\u00e1o hoa h\u1ed3ng');
     await load();
+  }
+
+  function exportCsv() {
+    if (!canExportCommission) {
+      setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n xu\u1ea5t CSV hoa h\u1ed3ng.');
+      return;
+    }
+    window.location.href = `${API_URL}/api/commission-reports/export?${query}`;
   }
 
   return (
@@ -135,10 +176,15 @@ export default function CommissionReportsClient() {
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
           <button className="secondaryButton iconTextButton" disabled={!can('commission.manage') || loading} onClick={sync}><RefreshCcw size={16} /> Đồng bộ đơn hàng</button>
-          <button className="secondaryButton iconTextButton" onClick={() => { window.location.href = `${API_URL}/api/commission-reports/export?${query}`; }}><Download size={16} /> CSV</button>
+          {canExportCommission ? (
+            <button className="secondaryButton iconTextButton" onClick={exportCsv}><Download size={16} /> CSV</button>
+          ) : null}
         </div>
       </header>
 
+      <PermissionNotice allowed={!permissionsReady || canViewCommission} label="xem b\u00e1o c\u00e1o hoa h\u1ed3ng" />
+      {canViewCommission ? (
+        <>
       <section className="metrics commissionMetrics">
         <Metric label="Tổng hoa hồng" value={money(summary.totalCommission)} />
         <Metric label="Đã duyệt" value={money(summary.approvedCommission)} />
@@ -147,7 +193,6 @@ export default function CommissionReportsClient() {
         <Metric label="Chưa chi" value={money(summary.unpaidCommission)} />
         <Metric label="Booking" value={summary.bookingCount} />
       </section>
-      <PermissionNotice allowed={canAny(['commission.view', 'commission.manage'])} label="xem báo cáo hoa hồng" />
 
       <section className="panel commissionFilters">
         <label><Search size={15} /> Tìm kiếm<input value={filter.search} onChange={(event) => setFilter({ ...filter, search: event.target.value })} placeholder="Mã đơn, tour, khách, sales" /></label>
@@ -184,8 +229,8 @@ export default function CommissionReportsClient() {
                     <td className="commissionActions">
                       <button className="secondaryButton iconButton" onClick={() => setSelected(row)}><Eye size={16} /></button>
                       <button className="secondaryButton iconButton" disabled={!canApproveCommission} onClick={() => action('approve', row.id)}><CheckCircle2 size={16} /></button>
-                      <button className="secondaryButton iconButton" disabled={!can('commission.manage')} onClick={() => action('reject', row.id)}><XCircle size={16} /></button>
-                      <button className="secondaryButton iconButton" disabled={!can('commission.manage')} onClick={() => action('pay', row.id)}><WalletCards size={16} /></button>
+                      <button className="secondaryButton iconButton" disabled={!canManageCommission} onClick={() => action('reject', row.id)}><XCircle size={16} /></button>
+                      <button className="secondaryButton iconButton" disabled={!canManageCommission} onClick={() => action('pay', row.id)}><WalletCards size={16} /></button>
                     </td>
                   </tr>
                 ))}
@@ -216,6 +261,8 @@ export default function CommissionReportsClient() {
           )}
         </aside>
       </section>
+        </>
+      ) : null}
     </section>
   );
 }
