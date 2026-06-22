@@ -75,7 +75,10 @@ fi
 
 assert_contains apps/web/app/authFetch.ts "credentials: ['\\\"]include['\\\"]" "authFetch should send credentials: include"
 assert_contains apps/web/app/login/LoginClient.tsx "credentials: ['\\\"]include['\\\"]" "login page should include credentials"
-assert_contains apps/web/app/LoginClient.tsx "credentials: ['\\\"]include['\\\"]" "root login client should include credentials"
+assert_contains apps/web/app/login/LoginClient.tsx "safeNextPath" "login page should sanitize next redirects"
+if [ -f apps/web/app/LoginClient.tsx ]; then
+  fail "stale root LoginClient.tsx must not exist; /login/LoginClient.tsx is the canonical login client"
+fi
 assert_contains apps/web/app/AppShell.tsx "credentials: ['\\\"]include['\\\"]" "logout should include credentials"
 if grep -q "keepalive: true" apps/web/app/AppShell.tsx; then
   fail "logout must wait for backend Set-Cookie/revoke response instead of fire-and-forget keepalive"

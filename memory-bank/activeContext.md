@@ -2402,3 +2402,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added shared `apps/web/app/serverApiBase.ts` and moved server pages to `serverApiBase()` so SSR requests prefer `SMARTTOUR_SERVER_API_URL`, default production to Docker internal `http://api:4000`, and keep public API env only inside the shared helper.
   - Expanded `scripts/test-web-server-api-base-contract.js` to cover every server page with SSR API fetches and prevent direct `NEXT_PUBLIC_API_URL` reads in page code.
   - Verification passed: `node scripts/test-web-server-api-base-contract.js`, grep for direct page-level `NEXT_PUBLIC_API_URL` reads, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 auth stale login cleanup:
+  - Found an unused root `apps/web/app/LoginClient.tsx` that duplicated the real `/login/LoginClient.tsx` but lacked the canonical safe redirect handling.
+  - Removed the stale root login client and updated the auth cookie/session contract so `/login/LoginClient.tsx` is the only login client and must keep `safeNextPath`.
+  - Verification passed: `bash scripts/test-auth-cookie-session.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.

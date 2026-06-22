@@ -2002,3 +2002,8 @@
   - Covered FIT/GIT/LandTour, Operations vouchers, Order Center, Orders, Quote/Quotation, Reports, Suppliers, Tour Guides, Tour Programs, and Bookings so page code no longer reads `NEXT_PUBLIC_API_URL` directly.
   - Expanded `scripts/test-web-server-api-base-contract.js` to guard the complete SSR page list.
   - Verification passed: `node scripts/test-web-server-api-base-contract.js`, grep for direct page-level `NEXT_PUBLIC_API_URL` reads, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 auth stale login cleanup:
+  - Removed unused `apps/web/app/LoginClient.tsx`, leaving `/login/LoginClient.tsx` as the canonical login client with `safeNextPath` redirect sanitization.
+  - Updated `scripts/test-auth-cookie-session.sh` to fail if the stale root login client returns and to assert the canonical login client keeps safe next-path handling.
+  - Verification passed: `bash scripts/test-auth-cookie-session.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
