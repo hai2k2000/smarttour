@@ -336,7 +336,10 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
       setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem \u0111\u01a1n h\u00e0ng.');
       return;
     }
-    const suffix = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+    const params = new URLSearchParams();
+    params.set('take', '100');
+    if (search.trim()) params.set('search', search.trim());
+    const suffix = `?${params.toString()}`;
     const response = await fetch(`${browserApiBase()}/api/orders/${type}${suffix}`, { cache: 'no-store', headers: authHeaders() });
     if (response.ok) setOrders(await response.json());
   }

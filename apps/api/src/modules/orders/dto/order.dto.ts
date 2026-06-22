@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { OrderCostStatus, OrderServiceStatus, OrderStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
 
 const ID_MAX = 80;
 const CODE_MAX = 80;
@@ -11,6 +12,24 @@ const MEDIUM_TEXT_MAX = 500;
 const LONG_TEXT_MAX = 5000;
 const PHONE_MAX = 40;
 const EMAIL_MAX = 160;
+export const DEFAULT_ORDERS_TAKE = 100;
+export const MAX_ORDERS_TAKE = 200;
+
+export class ListOrdersQueryDto {
+  @ApiPropertyOptional({ maxLength: LIST_SEARCH_MAX_LENGTH })
+  @IsOptional()
+  @IsString({ message: 'Từ khóa tìm kiếm đơn hàng phải là chuỗi' })
+  @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `Từ khóa tìm kiếm đơn hàng không được vượt quá ${LIST_SEARCH_MAX_LENGTH} ký tự` })
+  search?: string;
+
+  @ApiPropertyOptional({ default: DEFAULT_ORDERS_TAKE, minimum: 1, maximum: MAX_ORDERS_TAKE })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'Số đơn hàng mỗi trang phải là số nguyên' })
+  @Min(1, { message: 'Số đơn hàng mỗi trang phải lớn hơn 0' })
+  @Max(MAX_ORDERS_TAKE, { message: `Số đơn hàng mỗi trang không được vượt quá ${MAX_ORDERS_TAKE}` })
+  take?: number;
+}
 
 class OrderGuideDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(ID_MAX) id?: string;

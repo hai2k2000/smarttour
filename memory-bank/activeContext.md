@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 orders list payload hardening:
+  - `/api/orders/:type` now uses a validated `ListOrdersQueryDto` with bounded `take`; `OrdersService.list()` applies a defensive default/cap while keeping old string-search service callers compatible.
+  - `/orders/[type]` SSR preload and client reload now request `?take=100` instead of loading all orders of a type.
+  - Orders UI/backend contract coverage now guards DTO/controller/service bounded list behavior and the bounded SSR/client list calls.
+
 - Phase 3 tour-guide list payload hardening:
   - `/api/tour-guides` now uses a validated `ListTourGuidesQueryDto` with bounded `take`, and list responses apply a defensive default/cap.
   - Tour-guide search keeps the existing Vietnamese accent-insensitive behavior by using a bounded search scan before in-memory matching and slicing to the requested list size.

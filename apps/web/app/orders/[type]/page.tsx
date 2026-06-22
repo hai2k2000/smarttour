@@ -51,7 +51,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: s
   const config = orderConfigs[type];
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewOrders = hasPermission(currentUser, 'order.view') || hasPermission(currentUser, 'order.manage');
-  const orders = canViewOrders ? await apiGet(`/orders/${type}`, []) : [];
+  const orders = canViewOrders ? await apiGet(`/orders/${type}?take=100`, []) : [];
 
   return (
     <section className="workspace orderWorkspace">

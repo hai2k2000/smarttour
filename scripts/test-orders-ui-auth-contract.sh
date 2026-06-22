@@ -10,6 +10,9 @@ const fs = require('fs');
 
 const file = 'apps/web/app/orders/[type]/OrdersClient.tsx';
 const source = fs.readFileSync(file, 'utf8');
+const controller = fs.readFileSync('apps/api/src/modules/orders/orders.controller.ts', 'utf8');
+const service = fs.readFileSync('apps/api/src/modules/orders/orders.service.ts', 'utf8');
+const dto = fs.readFileSync('apps/api/src/modules/orders/dto/order.dto.ts', 'utf8');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -75,6 +78,7 @@ pageIncludes("apiGet<PermissionUser | null>(", 'Orders page should read current 
 pageIncludes("'/auth/me'", 'Orders page should call auth session endpoint.');
 pageIncludes("const canViewOrders = hasPermission(currentUser, 'order.view') || hasPermission(currentUser, 'order.manage');", 'Orders page should calculate order view/manage access.');
 pageIncludes('canViewOrders ? await apiGet', 'Orders page should not preload orders without order access.');
+pageIncludes('`/orders/${type}?take=100`', 'Orders page should bound the SSR order list payload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewOrders}', 'Orders page should show server permission notice when access is missing.');
 pageIncludes('{canViewOrders ? (', 'Orders page should hide orders client content without access.');
 
@@ -90,6 +94,13 @@ assert(source.includes('{canViewOrders ? ('), 'Orders UI should hide list/form c
 assert(source.includes('disabled={!canViewOrders}'), 'Orders UI edit buttons should be disabled without view access.');
 assert(source.includes('disabled={!canManageOrders} onClick={openCreate}'), 'Orders UI create button should be disabled without order.manage.');
 assert(source.includes('disabled={!canUseOrderAction || !canManageOrders} onClick={() => action(\'copy\')}'), 'Orders UI copy action should be disabled without order.manage.');
+assert(source.includes("params.set('take', '100');"), 'Orders UI reload should request a bounded order list.');
+
+assert(dto.includes('class ListOrdersQueryDto'), 'Orders list query DTO must exist.');
+assert(dto.includes('take?: number'), 'Orders list query DTO must accept bounded take.');
+assert(dto.includes('MAX_ORDERS_TAKE'), 'Orders list query DTO must cap take.');
+assert(controller.includes('list(@Param(\'type\') type: string, @Query() query: ListOrdersQueryDto'), 'Orders list route must use the validated list query DTO.');
+assert(service.includes('take: this.listTake(query.take)'), 'Orders list service must apply bounded take.');
 
 console.log('TEST_ORDERS_UI_AUTH_CONTRACT_OK');
 TESTNODE

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } fr
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
-import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto, UpdateOrderStatusDto } from './dto/order.dto';
+import { CreateOrderDto, ListOrdersQueryDto, UnlockOrderDto, UpdateOrderDto, UpdateOrderStatusDto } from './dto/order.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
@@ -12,8 +12,8 @@ export class OrdersController {
 
   @Get(':type')
   @RequirePermissions('order.view')
-  list(@Param('type') type: string, @Query('search') search: string | undefined, @Req() request: { user?: RequestUser }) {
-    return this.ordersService.list(type, search, request.user);
+  list(@Param('type') type: string, @Query() query: ListOrdersQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.ordersService.list(type, query, request.user);
   }
 
   @Get(':type/:id')

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened typed order list payloads:
+  - Added a validated bounded query DTO for `/api/orders/:type` and made the service apply a defensive `take` default/cap.
+  - Preserved existing service test callers that pass search as a string while routing controller requests through the DTO.
+  - Updated `/orders/[type]` SSR preload and client reload to request `take=100`, with contract coverage for the backend and web list calls.
+
 - Hardened tour-guide list payloads:
   - Added a validated bounded query DTO for `/api/tour-guides` and made the service apply a defensive default/cap.
   - Preserved Vietnamese accent-insensitive guide search with a bounded scan before filtering/slicing results.

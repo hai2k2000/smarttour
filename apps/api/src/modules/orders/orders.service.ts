@@ -3,7 +3,7 @@ import { OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { CreateOrderDto, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
+import { CreateOrderDto, DEFAULT_ORDERS_TAKE, ListOrdersQueryDto, MAX_ORDERS_TAKE, UnlockOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { OrderAllotmentService } from './order-allotment-sync';
 import { calculateOrderTotals } from './order-calculator';
 import { OrderChildrenSyncService } from './order-children-sync';
@@ -78,9 +78,10 @@ export class OrdersService {
     } satisfies Prisma.OrderSelect;
   }
 
-  list(typePath: string, search?: string, user?: RequestUser) {
+  list(typePath: string, queryOrSearch?: string | ListOrdersQueryDto, user?: RequestUser) {
     const type = this.resolveType(typePath);
-    const searchText = normalizeListSearch(search);
+    const query = typeof queryOrSearch === 'string' ? { search: queryOrSearch } : (queryOrSearch ?? {});
+    const searchText = normalizeListSearch(query.search);
     const where: Prisma.OrderWhereInput = {
       type,
       deletedAt: null,
@@ -100,6 +101,7 @@ export class OrdersService {
       where: branchDepartmentScopeWhere(where, user),
       select: this.listSelect(),
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
+      take: this.listTake(query.take),
     });
   }
 
@@ -128,6 +130,12 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
+  }
+
+  private listTake(value?: number) {
+    if (value === undefined || value === null) return DEFAULT_ORDERS_TAKE;
+    if (!Number.isFinite(value)) return DEFAULT_ORDERS_TAKE;
+    return Math.min(Math.max(1, Math.trunc(value)), MAX_ORDERS_TAKE);
   }
 
   async create(typePath: string, dto: CreateOrderDto, user?: RequestUser) {
