@@ -2196,3 +2196,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added an RBAC migration granting the new action permissions to super_admin; operational/sales manage roles no longer implicitly receive these sensitive actions through order.manage, quote.manage, quotation.manage, or commission.manage.
   - Strengthened controller/API/security contracts for order action permissions, quote/quotation approval decorators, and commission approve decorators.
   - Verification passed: scripts/test-orders-controller-permissions.sh, scripts/test-orders-api.sh, node scripts/test-quotes-backend-contract.js, scripts/test-commission-reports-security.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.
+
+- 2026-06-22 Phase 3 frontend lifecycle contract alignment:
+  - Updated Orders UI so normal save strips root lifecycle status from PUT payloads; changed statuses now go through PATCH /orders/:type/:id/status.
+  - Orders UI now renders sensitive lifecycle actions with the dedicated Phase 2 permissions: order.status.update, order.settle, and order.unlock.
+  - Tour Quote save payload no longer spreads the whole form object, preventing lifecycle/status fields from leaking into normal PUT payloads.
+  - Tour Quote and legacy Quotation approve buttons now use quote.approve and quotation.approve instead of broad manage permissions.
+  - Verification passed: scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.

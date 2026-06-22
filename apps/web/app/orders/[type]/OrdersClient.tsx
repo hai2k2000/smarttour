@@ -8,6 +8,7 @@ import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormR
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../../authFetch';
 import { viStatus } from '../../i18n';
+import { usePermissions } from '../../usePermissions';
 import type { OrderConfig, OrderRouteType } from '../order-config';
 
 type RowColumn = [string, string, ('text' | 'number' | 'date' | 'datetime-local' | 'textarea' | 'status' | 'passengerType' | 'language')?];
@@ -231,6 +232,12 @@ function mapOrderToForm(order: any): OrderForm {
   };
 }
 
+function stripLifecycleStatusForUpdate(payload: Record<string, unknown>) {
+  const copy = { ...payload };
+  delete copy.status;
+  return copy;
+}
+
 function buildPayload(data: OrderForm) {
   return cleanRow({
     ...data,
@@ -246,8 +253,10 @@ function buildPayload(data: OrderForm) {
 }
 
 export default function OrdersClient({ type, config, initialOrders }: { type: OrderRouteType; config: OrderConfig; initialOrders: OrderSummary[] }) {
+  const { can } = usePermissions();
   const [orders, setOrders] = useState(initialOrders);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [originalStatus, setOriginalStatus] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
@@ -275,10 +284,11 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     return orders.filter((item) => [item.systemCode, item.tourCode, item.name, item.customerName, item.customerPhone].filter(Boolean).some((value) => String(value).toLowerCase().includes(term)));
   }, [orders, query]);
   const currentStatus = String(values.status || '');
+  const canChangeStatus = can('order.status.update');
   const canEdit = !isSubmitting && !['SETTLED', 'CANCELLED'].includes(currentStatus);
   const canUseOrderAction = Boolean(editingId) && !isSubmitting;
-  const canSettle = canUseOrderAction && !['SETTLED', 'CANCELLED'].includes(currentStatus);
-  const canUnlock = canUseOrderAction && currentStatus === 'SETTLED';
+  const canSettle = canUseOrderAction && can('order.settle') && !['SETTLED', 'CANCELLED'].includes(currentStatus);
+  const canUnlock = canUseOrderAction && can('order.unlock') && currentStatus === 'SETTLED';
   const lastStep = Math.max(0, config.steps.length - 1);
   const table = useReactTable({
     data: filtered,
@@ -313,6 +323,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     }
     const order = await response.json();
     setEditingId(id);
+    setOriginalStatus(String(order.status || ''));
     setActiveStep(0);
     setFormOpen(true);
     reset(mapOrderToForm(order));
@@ -323,17 +334,33 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
       return;
     }
     const payload = buildPayload(data);
-    const response = await fetch(`${browserApiBase()}/api/orders/${type}${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
+    const requestedStatus = String(data.status || '');
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: authJsonHeaders(), body: JSON.stringify(editingId ? stripLifecycleStatusForUpdate(payload) : payload) });
     if (!response.ok) {
       setMessage(`Không lưu được đơn hàng: ${await apiMessage(response)}`);
       return;
     }
-    const saved = await response.json();
-    setMessage(editingId ? 'Đã cập nhật đơn hàng.' : 'Đã tạo đơn hàng.');
+    let saved = await response.json();
+    if (editingId && requestedStatus && requestedStatus !== originalStatus) {
+      try {
+        saved = await updateOrderStatus(requestedStatus);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Kh\u00f4ng \u0111\u1ed5i \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i.');
+        return;
+      }
+    }
+    setMessage(editingId ? '\u0110\u00e3 c\u1eadp nh\u1eadt \u0111\u01a1n h\u00e0ng.' : '\u0110\u00e3 t\u1ea1o \u0111\u01a1n h\u00e0ng.');
     setEditingId(saved.id || null);
+    setOriginalStatus(String(saved.status || requestedStatus || ''));
     reset(mapOrderToForm(saved));
     setFormOpen(false);
     await reload(query);
+  }
+  async function updateOrderStatus(status: string) {
+    if (!editingId) throw new Error('Kh\u00f4ng \u0111\u1ed5i \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i: thi\u1ebfu ID \u0111\u01a1n h\u00e0ng.');
+    const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/status`, { method: 'PATCH', headers: authJsonHeaders(), body: JSON.stringify({ status }) });
+    if (!response.ok) throw new Error(`Kh\u00f4ng \u0111\u1ed5i \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i: ${await apiMessage(response)}`);
+    return response.json();
   }
   async function action(path: 'copy' | 'settle') {
     if (!editingId) return;
@@ -345,6 +372,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     const updated = await response.json();
     setMessage(path === 'copy' ? 'Đã sao chép đơn hàng.' : 'Đã chốt quyết toán.');
     if (path === 'copy') setEditingId(updated.id);
+    setOriginalStatus(String(updated.status || ''));
     reset(mapOrderToForm(updated));
     await reload(query);
   }
@@ -360,8 +388,8 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     reset(mapOrderToForm(updated));
     await reload(query);
   }
-  function closeForm() { setEditingId(null); setFormOpen(false); setMessage(''); reset(makeDefaultValues()); }
-  function openCreate() { setEditingId(null); setActiveStep(0); setMessage(''); reset(makeDefaultValues()); setFormOpen(true); }
+  function closeForm() { setEditingId(null); setOriginalStatus(''); setFormOpen(false); setMessage(''); reset(makeDefaultValues()); }
+  function openCreate() { setEditingId(null); setOriginalStatus(''); setActiveStep(0); setMessage(''); reset(makeDefaultValues()); setFormOpen(true); }
   return (
     <div className="orderPage">
       {formOpen ? <div className="modalOverlay" role="dialog" aria-modal="true"><div className="modalPanel modalPanelWide tourWorkflowModal"><form onSubmit={handleSubmit(onSubmit)} className="orderForm">
@@ -393,7 +421,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
                 {activeStep === 1 ? <>
                   <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
                     <label>Mã hệ thống<input required {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input required {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
-                    <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
+                    <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select disabled={Boolean(editingId) && !canChangeStatus} {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
                   </div></fieldset>
                   <fieldset><legend>Khách hàng</legend><div className="quoteFormGrid">
                     <label>Họ tên khách<input {...register('customerName')} /></label><label>Loại khách<input {...register('customerType')} /></label><label>Số điện thoại<input {...register('customerPhone')} /></label><label>Email<input type="email" {...register('customerEmail')} /></label><label>Địa chỉ<input {...register('customerAddress')} /></label><label>Đại lý<input {...register('agencyName')} /></label><label>Cộng tác viên<input {...register('collaborator')} /></label><label>Nhân viên điều hành<input {...register('operatorOwner')} /></label>

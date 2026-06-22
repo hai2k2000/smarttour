@@ -30,6 +30,10 @@ includes('Lịch trình tour', 'Itinerary section title must be localized.');
 includes('Tạo báo giá', 'Create action label must be explicit.');
 includes('Tìm mã báo giá, mã tour, người đặt, hành trình...', 'Search placeholder must describe searchable fields.');
 
+excludes('    ...data,', 'Quote tour save payload must not spread full form data because lifecycle status must not be sent through PUT.');
+includes('quoteCode: text(data.quoteCode),', 'Quote tour payload must explicitly map quoteCode.');
+includes('costItems,\n    itineraries,', 'Quote tour payload must explicitly include child rows after scalar fields.');
+
 includes('API không trả về danh sách chi phí của báo giá tour hợp lệ.', 'loadQuote must reject missing costItems instead of silently falling back.');
 includes('API không trả về lịch trình của báo giá tour hợp lệ.', 'loadQuote must reject missing itineraries instead of silently falling back.');
 includes('Đang tải chi tiết báo giá tour', 'Detail loading state must be visible.');
@@ -37,6 +41,8 @@ includes('Đang tải lại danh sách báo giá tour', 'List reload loading sta
 
 includes('const currentId = editingId;', 'Action handler must capture the current editing id before async reload/load.');
 includes('formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingQuoteId)', 'Form actions must be disabled while list/detail actions are loading.');
+includes("const canApproveQuote = can('quote.approve');", 'Quote tour approve button must use quote.approve permission.');
+includes('!canApproveQuote', 'Quote tour approve button must be disabled without quote.approve.');
 includes('apiBase.includes(\'smarttour-api-1\')) return \'\';', 'Browser API base must use same-origin API for internal Docker host values.');
 
 const dateHelper = source.match(/function dateInputValue\(value: unknown\) \{[\s\S]*?\n\}/)?.[0] || '';

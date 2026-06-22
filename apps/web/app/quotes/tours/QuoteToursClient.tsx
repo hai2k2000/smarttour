@@ -280,7 +280,6 @@ function buildPayload(data: QuoteForm) {
   const costItems = data.costItems.map((item) => normalizeCostItem(item)).filter(hasCostContent);
   const itineraries = data.itineraries.map((item, index) => normalizeItinerary(item, index)).filter(hasItineraryContent);
   return {
-    ...data,
     quoteCode: text(data.quoteCode),
     tourCode: text(data.tourCode),
     tourName: text(data.tourName),
@@ -572,6 +571,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
   }
 
   const validationMessage = errors.quoteCode?.message || errors.tourCode?.message || errors.customerEmail?.message;
+  const canApproveQuote = can('quote.approve');
   const formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingQuoteId);
 
   return (
@@ -657,7 +657,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
 
               <div className="hotelFormActions">
                 <button type="submit" disabled={formBusy || !can('quote.manage')}><Save size={17} /> {editingId ? 'Lưu thay đổi' : 'Tạo báo giá'}</button>
-                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang chốt' : 'Chốt báo giá'}</button>
+                <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !canApproveQuote} onClick={() => action('approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang chốt' : 'Chốt báo giá'}</button>
                 <button type="button" className="secondaryButton" disabled={!editingId || formBusy || !can('quote.manage')} onClick={() => action('convert')}><Copy size={17} /> {actionLoading === 'convert' ? 'Đang tạo đơn' : 'Tạo đơn hàng'}</button>
                 <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
               </div>

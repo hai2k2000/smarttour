@@ -1805,3 +1805,9 @@
   - Quote, legacy quotation, and commission approval endpoints now require dedicated approve permissions instead of broad manage permissions.
   - Added migration 20260622153000_order_action_permissions to grant the new action permissions to super_admin and added regression coverage for the controller/API contracts.
   - Verification passed: scripts/test-orders-controller-permissions.sh, scripts/test-orders-api.sh, node scripts/test-quotes-backend-contract.js, scripts/test-commission-reports-security.sh, npx prisma validate --schema prisma/schema.prisma, git diff --check, and API Docker build.
+
+- 2026-06-22 Completed Phase 3 frontend lifecycle contract alignment:
+  - Orders UI now sends normal edits without lifecycle status and calls the dedicated status endpoint only when status changes.
+  - Orders settlement/unlock/status controls and quote/quotation approval controls now honor the dedicated action permissions introduced in Phase 2.
+  - Tour Quote update payloads are explicitly whitelisted instead of spreading full form data into PUT requests.
+  - Verification passed: scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.

@@ -519,6 +519,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
   const currentStatus = normalizeStatus(values.status);
   const isSmartLinkEnabled = Boolean(values.smartLinkEnabled);
   const canManage = can('quotation.manage');
+  const canApproveQuotation = can('quotation.approve');
 
   const totals = useMemo(() => {
     const rows = (values.items || []).map(normalizeItem).filter(hasItemContent);
@@ -936,7 +937,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
         <div className="hotelFormActions">
           <button type="submit" disabled={savingDisabled}><Save size={17} /> {isSubmitting ? 'Đang lưu' : editingId ? 'Cập nhật báo giá' : 'Tạo báo giá'}</button>
           <button type="button" className="secondaryButton" disabled={!canManage || !submitEnabled || Boolean(actionLoading)} onClick={() => action('submit', 'submit')}><Send size={17} /> {actionLoading === 'submit' ? 'Đang gửi' : 'Gửi duyệt'}</button>
-          <button type="button" className="secondaryButton" disabled={!canManage || !approveEnabled || Boolean(actionLoading)} onClick={() => action('approve', 'approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang duyệt' : 'Duyệt'}</button>
+          <button type="button" className="secondaryButton" disabled={!canApproveQuotation || !approveEnabled || Boolean(actionLoading)} onClick={() => action('approve', 'approve')}><Check size={17} /> {actionLoading === 'approve' ? 'Đang duyệt' : 'Duyệt'}</button>
           <button type="button" className="secondaryButton" disabled={!canManage || !smartLinkEnabledForStatus || Boolean(actionLoading)} onClick={() => action(isSmartLinkEnabled ? 'smartlink-off' : 'smartlink-on', 'smartlink', 'PATCH', { enabled: !isSmartLinkEnabled })}><LinkIcon size={17} /> {isSmartLinkEnabled ? 'Tắt SmartLink' : 'Bật SmartLink'}</button>
           <button type="button" className="secondaryButton" disabled={!canManage || !convertEnabled || Boolean(actionLoading)} onClick={() => action('convert', 'convert')}><Copy size={17} /> Chuyển đơn</button>
           <button type="button" className="dangerButton" onClick={closeForm}><X size={17} /> Đóng</button>
