@@ -104,9 +104,11 @@ async function main() {
   assert.equal(normalizedUpload.mimeType, 'text/plain');
   assert.match(normalizedUpload.objectKey, /^supplier-files\/\d{4}\/\d{2}\/[0-9a-f-]+-bao-cao\.txt$/);
 
-  const extensionlessUpload = await service.upload({ ...file, originalname: '.env', mimetype: 'application/octet-stream' }, 'supplier files');
-  assert.match(extensionlessUpload.objectKey, /^supplier-files\/\d{4}\/\d{2}\/[0-9a-f-]+-env$/);
-  assert.deepEqual(await service.remove(extensionlessUpload.objectKey), { deleted: true, objectKey: extensionlessUpload.objectKey });
+  await assert.rejects(
+    () => service.upload({ ...file, originalname: '.env', mimetype: 'application/octet-stream' }, 'supplier files'),
+    BadRequestException,
+    'extensionless dotfiles should be rejected',
+  );
 
   await assert.rejects(
     () => service.upload({ ...file, originalname: 'unsafe.svg', mimetype: 'image/svg+xml' }, 'files'),

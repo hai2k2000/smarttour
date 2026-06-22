@@ -75,6 +75,15 @@ function hasVietnameseText(text) {
 async function main() {
   const prisma = new PrismaService();
   await prisma.$connect();
+  await prisma.user.create({
+    data: {
+      id: 'test-user',
+      username: 'operations-service-test-user',
+      email: 'operations-service-test-user@smarttour.local',
+      name: 'Operations Service Test User',
+      passwordHash: 'not-used-in-service-test',
+    },
+  });
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "CodeSequence_scope_prefix_year_month_branch_expr_key"
     ON "CodeSequence"("scope", "prefix", "year", COALESCE("month", 0), COALESCE("branch", ''))`);
   const service = new OperationsService(prisma);

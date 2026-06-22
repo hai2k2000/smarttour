@@ -63,8 +63,11 @@ for (const [file, tokens] of routeChecks) {
 }
 
 const financeModule = read(path.join(root, 'apps/api/src/modules/finance/finance.module.ts'));
+function moduleRegistersProvider(source, serviceName) {
+  return source.includes(`provide: ${serviceName}`) || new RegExp(String.raw`providers:\s*\[[^\]]*\b${serviceName}\b`, 's').test(source);
+}
 for (const serviceName of ['FinanceReceiptService', 'FinancePaymentService', 'FinanceInvoiceService', 'FinanceLedgerService', 'FinanceCashflowService']) {
-  if (!financeModule.includes(`provide: ${serviceName}`)) failures.push(`FinanceModule missing domain provider ${serviceName}`);
+  if (!moduleRegistersProvider(financeModule, serviceName)) failures.push(`FinanceModule missing domain provider ${serviceName}`);
 }
 
 if (failures.length) {

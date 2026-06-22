@@ -1941,3 +1941,9 @@
   - Added accounting `commission.approve` to RBAC contracts and a production migration so accounting can pass the dedicated commission approval guard without broadening unrelated operation/sales permissions.
   - Applied migration `20260622165000_accounting_commission_approve_permission` on the VPS database.
   - Verification passed: `scripts/test-customers-api.sh`, `scripts/test-data-scope-api-flows.sh`, `node scripts/test-role-permission-contract.js`, `bash scripts/verify-data-scope.sh`.
+
+- 2026-06-22 Completed Phase 3 backend critical audit/logging hardening:
+  - Fixed OperationsService audit logging so operation and supplier-payment-request audit rows keep `request.user.id` as `AuditLog.actorId`, matching the finance audit traceability contract.
+  - Updated backend audit contracts to recognize valid shorthand Nest providers and the current tour-program detail contract that exposes booking count instead of booking rows.
+  - Updated file upload core contract so `.env`/extensionless dotfiles are rejected by the upload whitelist.
+  - Verification passed: `bash scripts/test-high-b-finance-audit.sh`, `bash scripts/test-operations-service-flows.sh`, `bash scripts/test-files-service-core.sh`, `bash scripts/test-backend-critical-flows.sh`.

@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 backend critical audit/logging hardening:
+  - Backend critical flow verification now passes after aligning audit contracts with current FinanceModule shorthand providers and tour-program detail payload behavior.
+  - File upload core contract now explicitly rejects extensionless dotfiles such as `.env`, matching the production whitelist.
+  - Operations audit logging now records `request.user.id` directly on AuditLog rows instead of dropping actorId when a lookup is not performed, preserving traceability for operation forms and supplier payment request actions.
+
 - Phase 3 backend/data-scope verification hardening follow-up:
   - Data-scope static and module audits are clean, but full verification exposed stale smoke/regression scripts that still expected public auth token JSON after the HttpOnly cookie-session hardening.
   - API/data-scope/customer and production smoke scripts now authenticate through the `smarttour.auth.token` cookie and assert login/bootstrap responses do not expose token JSON.

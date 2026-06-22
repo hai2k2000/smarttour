@@ -84,7 +84,7 @@ const checks = [
     file: 'apps/api/src/modules/finance/finance.service.ts',
     sectionStart: 'async cashflow(query',
     sectionEnd: 'async exportReceipts',
-    must: ['financeCashflowEntry.findMany({ where, orderBy:'],
+    must: ['financeCashflowEntry.findMany({ where, orderBy,'],
     forbidden: ['include:', 'order: true', 'supplier: true', 'customer: true'],
   },
   {
@@ -119,8 +119,8 @@ const checks = [
     file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
     sectionStart: 'async detail',
     sectionEnd: 'async create',
-    must: ['bookings: { orderBy: { startDate: \'desc\' }, select: { id: true, code: true, customerName: true } }'],
-    forbidden: ['bookings: { orderBy: { startDate: \'desc\' } }'],
+    must: ['_count: { select: { bookings: true } }'],
+    forbidden: ['bookings: {'],
   },
   {
     file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts',

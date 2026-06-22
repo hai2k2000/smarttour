@@ -1226,14 +1226,12 @@ export class OperationsService {
 
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata?: unknown, user?: RequestUser) {
     const safeMetadata = this.auditMetadata(metadata);
-    const actorId = this.text(user?.id);
-    const actor = actorId ? await tx.user.findUnique({ where: { id: actorId }, select: { id: true } }) : null;
     await tx.auditLog.create({
       data: {
         action,
         entity,
         entityId,
-        ...(actor ? { actorId: actor.id } : {}),
+        actorId: user?.id,
         ...(safeMetadata === undefined ? {} : { metadata: safeMetadata }),
       },
     });
