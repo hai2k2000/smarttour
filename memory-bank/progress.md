@@ -1822,3 +1822,8 @@
   - Commission Reports list now sends an explicit `take=100`, checks list API failures, shows loading/error/empty states, and handles sync API failures instead of silently reloading stale data.
   - Added contract coverage in `scripts/test-commission-reports-client-contract.js` for the new list UX and API-contract behavior.
   - Verification passed: `node scripts/test-commission-reports-client-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 finance list take/empty-state hardening:
+  - Finance list queries now include `take=100`, aligning the frontend with backend list limits across receipt, payment, invoice, cashflow, and debt loads.
+  - Cashflow now renders an empty table row when no approved cashflow entries match the filters.
+  - Verification passed: `scripts/test-finance-client-contract.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.

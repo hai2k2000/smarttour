@@ -2215,3 +2215,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found Commission Reports client loaded list data without checking failed API responses, without a reload loading state, without a visible list-load error, without an empty table state, and without an explicit backend `take` limit.
   - Added frontend contract coverage for loading/error/empty-state handling, explicit `take=100`, and sync failure handling.
   - Updated the Commission Reports client to handle failed list/sync responses, clear stale rows on load failure, render loading/error/empty states, and disable sync during reload.
+
+- 2026-06-22 Phase 3 finance list take/empty-state hardening:
+  - Found the Finance client did not send an explicit backend `take` limit while finance list services support capped `take` queries.
+  - Found the Cashflow table lacked an empty row, unlike receipts, payments, invoices, and debt tables.
+  - Added contract coverage and updated the Finance client to send `take=100` and render a Cashflow empty state.
