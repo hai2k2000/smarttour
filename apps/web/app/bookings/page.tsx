@@ -404,7 +404,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
   const canViewBookings = hasPermission(currentUser, 'booking.view');
   const canManageBookings = hasPermission(currentUser, 'booking.manage');
   const [tourProgramsResult, bookingsResult] = canViewBookings ? await Promise.all([
-    apiGet<TourProgram[]>('/tour-programs', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu'),
+    apiGet<TourProgram[]>('/tour-programs?take=100', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu'),
     apiGet<Booking[]>(`/bookings?skip=${skip}&take=${bookingPageSize + 1}`, [], 'T\u1ea3i danh s\u00e1ch booking'),
   ]) : [
     { data: [] as TourProgram[] },

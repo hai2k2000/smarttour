@@ -2428,3 +2428,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated FIT controller/service to pass and apply the validated query object, and updated `/fit-tours` SSR/client reload paths to request `take=100`.
   - Strengthened FIT root/client contracts so bounded list behavior and the new controller/service boundary cannot regress.
   - Verification passed: `bash scripts/test-fit-tour-root-contract.sh`, `node scripts/test-fit-tours-client-contract.js`, `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 bookings SSR tour-program preload hardening:
+  - Found `/bookings` still preloaded tour-program master data without an explicit `take=100`, even though Tour Programs already supports bounded list queries.
+  - Updated the bookings server page to request `/tour-programs?take=100` and strengthened the bookings server-page contract to guard the bounded master-list preload.
+  - Verification passed: `node scripts/test-bookings-server-page-permissions-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.

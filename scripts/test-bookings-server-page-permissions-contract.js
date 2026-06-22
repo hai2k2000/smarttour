@@ -14,6 +14,7 @@ includes("apiGet<PermissionUser | null>('/auth/me'", 'Bookings page should read 
 includes("const canViewBookings = hasPermission(currentUser, 'booking.view');", 'Bookings page should calculate booking.view permission.');
 includes("const canManageBookings = hasPermission(currentUser, 'booking.manage');", 'Bookings page should calculate booking.manage permission.');
 includes("const [tourProgramsResult, bookingsResult] = canViewBookings ? await Promise.all", 'Bookings page should not load booking data without booking.view.');
+includes("apiGet<TourProgram[]>('/tour-programs?take=100'", 'Bookings page should bound the tour-program master list payload.');
 includes('<ServerPermissionNotice allowed={canViewBookings}', 'Bookings page should show permission notice when booking.view is missing.');
 includes('{canViewBookings ? (', 'Bookings content should be hidden without booking.view.');
 includes('{canManageBookings ? (', 'Booking create/edit/status/delete modals should be hidden without booking.manage.');

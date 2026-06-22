@@ -2025,3 +2025,8 @@
   - `/fit-tours` server preload and client reload now include `take=100` while preserving search/workflow filters.
   - Expanded FIT root/client contracts to guard bounded list DTO/controller/service/page behavior.
   - Verification passed: `bash scripts/test-fit-tour-root-contract.sh`, `node scripts/test-fit-tours-client-contract.js`, `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 bookings SSR tour-program preload hardening:
+  - `/bookings` now preloads tour-program master data with `/tour-programs?take=100` instead of relying on an implicit/default list size.
+  - Expanded `scripts/test-bookings-server-page-permissions-contract.js` to guard the bounded tour-program preload.
+  - Verification passed: `node scripts/test-bookings-server-page-permissions-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
