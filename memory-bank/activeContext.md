@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 FIT tours page/server RBAC hardening:
+  - FIT Tours page now reads `/auth/me` before protected preloads, avoids loading tour rows without `tour.view`, and avoids loading supplier catalogs without `tour.manage`.
+  - FIT Tours page renders a server permission notice and withholds the client workspace when `tour.view` is missing.
+  - FIT Tours client now waits for permission readiness, clears server-provided rows when view access is missing, and disables reload/search controls without `tour.view`.
+
 - Phase 3 tour guides page/client RBAC hardening:
   - Tour Guides page now reads `/auth/me` before loading guide rows, avoids server-side guide preloads without `guide.view`, and renders a server permission notice instead of protected client content when access is missing.
   - Tour Guides client now waits for permission readiness, clears server-provided rows when view access is missing, and fail-closes reload/detail handlers before API calls while preserving `guide.manage` mutation gates.

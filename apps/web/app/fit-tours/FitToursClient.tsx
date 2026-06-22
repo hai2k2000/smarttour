@@ -137,11 +137,11 @@ function savedMessage(summary: FitTourSummary, reason: SaveReason, existed: bool
 }
 
 export default function FitToursClient({ suppliers, tours, initialError = '' }: { suppliers: Supplier[]; tours: FitTourSummary[]; initialError?: string }) {
-  const { can } = usePermissions();
+  const { can, permissionsReady } = usePermissions();
   const canViewTours = can('tour.view');
   const canManageTours = can('tour.manage');
   const canExportTours = can('tour.export');
-  const [rows, setRows] = useState<FitTourSummary[]>(tours);
+  const [rows, setRows] = useState<FitTourSummary[]>(() => Array.isArray(tours) ? tours : []);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTourId, setSelectedTourId] = useState('');
   const [listBusy, setListBusy] = useState(false);
@@ -151,8 +151,12 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
   const [wizardDirty, setWizardDirty] = useState(false);
 
   useEffect(() => {
-    setRows(tours);
-  }, [tours]);
+    if (!permissionsReady || !canViewTours) {
+      setRows([]);
+      return;
+    }
+    setRows(Array.isArray(tours) ? tours : []);
+  }, [tours, permissionsReady, canViewTours]);
 
   async function reloadTours(message = 'Đã tải lại danh sách tour FIT.') {
     const normalizedSearch = search.trim().replace(/\s+/g, ' ');
@@ -255,14 +259,14 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
 
   return (
     <>
-      <PermissionNotice allowed={canViewTours} label="xem tour FIT" missingPermissions={['tour.view']} />
+      <PermissionNotice allowed={!permissionsReady || canViewTours} label="xem tour FIT" missingPermissions={['tour.view']} />
       {canViewTours ? (
       <>
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sách tour FIT</h2>
           <div className="sectionActions">
-            <button type="button" className="secondaryButton iconTextButton" onClick={() => void reloadTours()} disabled={listBusy}>
+            <button type="button" className="secondaryButton iconTextButton" onClick={() => void reloadTours()} disabled={!canViewTours || listBusy}>
               <RefreshCw size={16} /> {listBusy ? 'Đang tải' : 'Tải lại'}
             </button>
             <button type="button" className="secondaryButton iconTextButton" onClick={openCreate} disabled={!canManageTours || listBusy}><Plus size={16} /> Tạo tour FIT</button>

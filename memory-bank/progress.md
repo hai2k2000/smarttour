@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened FIT Tours page/client RBAC:
+  - Server page reads the current session first, gates FIT tour preloads behind `tour.view`, and gates supplier catalog preloads behind `tour.manage`.
+  - Server page now renders a permission notice instead of protected FIT workspace content when view access is missing.
+  - Client waits for permission readiness, clears any server-provided rows without view access, and fail-closes reload/search controls before API calls.
+  - Strengthened FIT contracts to guard server preload gating and the current wizard mutation-disabled contract.
+
 - Continued Phase 1 remediation from the saved review plan:
   - Booking delete has been converted from hard delete to soft delete with `Booking.deletedAt`, active-row filters on list/detail/mutations/deleteGuard, retained dependency guards, and `AuditLog` tracing for soft-delete actions.
   - Auth bootstrap/login/change-password public responses no longer return `token` or `tokenType`; controllers still issue the existing HttpOnly auth cookie for browser sessions.
