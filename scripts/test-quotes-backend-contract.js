@@ -18,6 +18,7 @@ function excludes(source, needle, message) {
 
 const quotesController = read('apps/api/src/modules/quotes/quotes.controller.ts');
 const quotesService = read('apps/api/src/modules/quotes/quotes.service.ts');
+const quoteListQueryDto = read('apps/api/src/modules/quotes/dto/list-quotes-query.dto.ts');
 const quotationsService = read('apps/api/src/modules/quotations/quotations.service.ts');
 const validationFactory = read('apps/api/src/validation-exception.factory.ts');
 const quoteToursClient = read('apps/web/app/quotes/tours/QuoteToursClient.tsx');
@@ -31,6 +32,15 @@ for (const permission of [
 ]) {
   includes(quotesController, permission, 'Quotes routes must keep explicit view/manage permissions.');
 }
+
+includes(quoteListQueryDto, 'class ListQuotesQueryDto', 'Quotes list query DTO must exist.');
+includes(quoteListQueryDto, 'take?: number', 'Quotes list query DTO must accept bounded take.');
+includes(quoteListQueryDto, 'MAX_QUOTES_TAKE', 'Quotes list query DTO must cap take.');
+includes(quotesController, 'listTours(@Query() query: ListQuotesQueryDto', 'Quote tour list route must use the validated list query DTO.');
+includes(quotesController, 'this.quotesService.listTourQuotes(query, request?.user)', 'Quote tour controller must pass the full validated list query.');
+includes(quotesController, 'listCombos(@Query() query: ListQuotesQueryDto', 'Quote combo list route must use the validated list query DTO.');
+includes(quotesController, 'this.quotesService.listComboQuotes(query)', 'Quote combo controller must pass the full validated list query.');
+includes(quotesService, 'take: this.listTake(query.take)', 'Quotes list services must apply bounded take.');
 
 for (const permission of [
   "@RequirePermissions('quotation.view')",

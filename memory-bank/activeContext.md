@@ -2445,3 +2445,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `/suppliers/hotels` and `/suppliers/[type]` server pages still preloaded hotel/typed supplier lists without explicit `take=100`.
   - Updated both supplier SSR pages to request bounded supplier lists and strengthened the supplier typed-page permissions contract to guard this.
   - Verification passed: `node scripts/test-suppliers-typed-page-permissions-contract.js`, `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 quote list payload hardening:
+  - Found Quote Tours and Quote Combos list APIs/controllers still accepted raw search values and returned unbounded list payloads.
+  - Added `ListQuotesQueryDto` with bounded `take`, defaulting to 100 and capping at 200, then applied it to tour quote and combo quote list services.
+  - Updated `/quotes/tours` and `/quotes/combos` SSR preloads plus client reloads to request `take=100`.
+  - Strengthened backend and client contracts so quote list DTO/controller/service/page/client boundaries cannot regress to unbounded payloads.
+  - Verification passed: `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

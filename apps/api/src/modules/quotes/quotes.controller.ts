@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@ne
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { ListQuotesQueryDto } from './dto/list-quotes-query.dto';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
 import { QuotesService } from './quotes.service';
@@ -13,8 +14,8 @@ export class QuotesController {
 
   @Get('tours')
   @RequirePermissions('quote.view')
-  listTours(@Query('search') search?: string, @Req() request?: { user?: RequestUser }) {
-    return this.quotesService.listTourQuotes(search, request?.user);
+  listTours(@Query() query: ListQuotesQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.listTourQuotes(query, request?.user);
   }
 
   @Get('tours/:id')
@@ -61,8 +62,8 @@ export class QuotesController {
 
   @Get('combos')
   @RequirePermissions('quote.view')
-  listCombos(@Query('search') search?: string) {
-    return this.quotesService.listComboQuotes(search);
+  listCombos(@Query() query: ListQuotesQueryDto) {
+    return this.quotesService.listComboQuotes(query);
   }
 
   @Get('combos/:id')

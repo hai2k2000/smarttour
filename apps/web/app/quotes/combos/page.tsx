@@ -25,7 +25,7 @@ export default async function QuoteCombosPage() {
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');
   const canManageQuotes = hasPermission(currentUser, 'quote.manage');
-  const combos = canViewQuotes ? await apiGet('/quotes/combos', []) : [];
+  const combos = canViewQuotes ? await apiGet('/quotes/combos?take=100', []) : [];
   const [hotels, flights, landtours, attractions, transport, other] = canManageQuotes ? await Promise.all([
     apiGet<Supplier[]>('/suppliers/hotels?take=100', []),
     apiGet<Supplier[]>('/suppliers/flights?take=100', []),

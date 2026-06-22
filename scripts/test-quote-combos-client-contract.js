@@ -61,6 +61,7 @@ pageIncludes("'/auth/me'", 'Quote combos page should call auth session endpoint.
 pageIncludes("const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');", 'Quote combos page should calculate quote view/manage access.');
 pageIncludes("const canManageQuotes = hasPermission(currentUser, 'quote.manage');", 'Quote combos page should calculate quote.manage access.');
 pageIncludes('canViewQuotes ? await apiGet', 'Quote combos page should not preload combo list without quote access.');
+pageIncludes("apiGet('/quotes/combos?take=100'", 'Quote combos page should bound the SSR combo list payload.');
 pageIncludes('canManageQuotes ? await Promise.all', 'Quote combos page should not preload supplier catalogs without quote.manage.');
 for (const supplierPath of [
   '/suppliers/hotels?take=100',
@@ -85,5 +86,6 @@ includes('PermissionNotice allowed={!permissionsReady || canViewQuotes}', 'Quote
 includes('{canViewQuotes ? (', 'Quote combos client should hide list/form content without view access.');
 includes('disabled={!canViewQuotes || loadingComboId === row.original.id}', 'Quote combo edit buttons should be disabled without view access.');
 includes('disabled={!canViewQuotes || listLoading}', 'Quote combos reload button should be disabled without view access.');
+includes('/api/quotes/combos?take=100', 'Quote combos reload should request a bounded combo list.');
 
 console.log('TEST_QUOTE_COMBOS_CLIENT_CONTRACT_OK');

@@ -2042,3 +2042,9 @@
   - `/suppliers/[type]` now preloads `/suppliers/${type}?take=100`.
   - Expanded `scripts/test-suppliers-typed-page-permissions-contract.js` to guard bounded hotel/typed supplier page preloads.
   - Verification passed: `node scripts/test-suppliers-typed-page-permissions-contract.js`, `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 quote list payload hardening:
+  - Quote Tours and Quote Combos list APIs now use `ListQuotesQueryDto`, accept bounded `take`, default to 100 rows, and cap at 200 rows.
+  - `/quotes/tours` and `/quotes/combos` server preloads and client reloads now include `take=100`.
+  - Expanded backend and client quote contracts to guard bounded list behavior.
+  - Verification passed: `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

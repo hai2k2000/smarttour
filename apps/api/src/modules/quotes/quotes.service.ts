@@ -3,6 +3,7 @@ import { Prisma, QuoteComboStatus, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
+import { DEFAULT_QUOTES_TAKE, ListQuotesQueryDto } from './dto/list-quotes-query.dto';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
 import { CreateQuoteTourDto, QuoteApprovalDto, UpdateQuoteTourDto } from './dto/quote-tour.dto';
 
@@ -14,8 +15,8 @@ type ComboItemInput = NonNullable<CreateQuoteComboDto['items']>[number];
 export class QuotesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listTourQuotes(search?: string, user?: RequestUser) {
-    const searchText = normalizeListSearch(search);
+  listTourQuotes(query: ListQuotesQueryDto = {}, user?: RequestUser) {
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.tourQuote.findMany({
       where: this.tourQuoteScopeWhere(contains
@@ -30,8 +31,13 @@ export class QuotesService {
           }
         : {}, user),
       include: { _count: { select: { costItems: true, itineraries: true } } },
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
     });
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_QUOTES_TAKE;
   }
 
   async getTourQuote(id: string, user?: RequestUser) {
@@ -147,8 +153,8 @@ export class QuotesService {
     return this.prisma.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' } });
   }
 
-  listComboQuotes(search?: string) {
-    const searchText = normalizeListSearch(search);
+  listComboQuotes(query: ListQuotesQueryDto = {}) {
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.quoteCombo.findMany({
       where: contains
@@ -160,6 +166,7 @@ export class QuotesService {
           }
         : {},
       include: { _count: { select: { items: true } } },
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { comboCode: 'asc' }],
     });
   }

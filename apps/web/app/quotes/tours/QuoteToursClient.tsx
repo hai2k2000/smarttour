@@ -437,7 +437,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     setListLoading(true);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours`, { cache: 'no-store', headers: authHeaders() });
+      const response = await fetch(`${browserApiBase()}/api/quotes/tours?take=100`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được danh sách báo giá tour.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho danh sách báo giá tour.');

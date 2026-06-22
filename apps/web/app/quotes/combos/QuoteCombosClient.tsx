@@ -318,7 +318,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     setListLoading(true);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos`, { cache: 'no-store', headers: authHeaders() });
+      const response = await fetch(`${browserApiBase()}/api/quotes/combos?take=100`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được danh sách combo.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho danh sách combo.');

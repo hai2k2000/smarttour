@@ -68,6 +68,7 @@ pageIncludes("apiGet<PermissionUser | null>(", 'Quote tours page should read cur
 pageIncludes("'/auth/me'", 'Quote tours page should call auth session endpoint.');
 pageIncludes("const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');", 'Quote tours page should calculate quote view/manage access.');
 pageIncludes('canViewQuotes ? await apiGet', 'Quote tours page should not preload quote tour data without quote access.');
+pageIncludes("apiGet('/quotes/tours?take=100'", 'Quote tours page should bound the SSR quote list payload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewQuotes}', 'Quote tours page should show a server permission notice when access is missing.');
 pageIncludes('{canViewQuotes ? (', 'Quote tours page should hide quote tour client content without access.');
 
@@ -82,5 +83,6 @@ includes('PermissionNotice allowed={!permissionsReady || canViewQuotes}', 'Quote
 includes('{canViewQuotes ? (', 'Quote tours client should hide list/form content without view access.');
 includes('disabled={!canViewQuotes || loadingQuoteId === row.original.id}', 'Quote tour edit buttons should be disabled without view access.');
 includes('disabled={!canViewQuotes || listLoading}', 'Quote tours reload button should be disabled without view access.');
+includes('/api/quotes/tours?take=100', 'Quote tours reload should request a bounded quote list.');
 
 console.log('TEST_QUOTE_TOURS_CLIENT_CONTRACT_OK');

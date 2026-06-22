@@ -22,7 +22,7 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 export default async function QuoteToursPage() {
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewQuotes = hasPermission(currentUser, 'quote.view') || hasPermission(currentUser, 'quote.manage');
-  const quotes = canViewQuotes ? await apiGet('/quotes/tours', []) : [];
+  const quotes = canViewQuotes ? await apiGet('/quotes/tours?take=100', []) : [];
   return (
     <main className="shell">
       <aside className="sidebar">
