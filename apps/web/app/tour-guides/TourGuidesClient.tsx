@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Loader2, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { authHeaders, authJsonHeaders } from '../authFetch';
@@ -373,10 +373,10 @@ function buildPayload(data: GuideForm) {
 }
 
 export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSummary[] }) {
-  const { can } = usePermissions();
+  const { can, permissionsReady } = usePermissions();
   const canViewGuides = can('guide.view');
   const canManageGuides = can('guide.manage');
-  const [guides, setGuides] = useState(initialHDVs);
+  const [guides, setGuides] = useState(() => Array.isArray(initialHDVs) ? initialHDVs : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -422,7 +422,24 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     getCoreRowModel: getCoreRowModel(),
   });
 
+  useEffect(() => {
+    if (!permissionsReady || canViewGuides) return;
+    setGuides([]);
+    setEditingId(null);
+    setQuery('');
+    setStatusFilter('');
+    setMessage(null);
+    setFormOpen(false);
+    setLoadingGuideId(null);
+    reset(newGuideDefaults());
+  }, [permissionsReady, canViewGuides, reset]);
+
   async function reload(announce = true) {
+    if (!permissionsReady || !canViewGuides) {
+      setGuides([]);
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem h\u01b0\u1edbng d\u1eabn vi\u00ean.' });
+      return;
+    }
     setReloading(true);
     if (announce) setMessage({ kind: 'info', text: 'Đang tải lại danh sách hướng dẫn viên...' });
     try {
@@ -440,6 +457,10 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
   }
 
   async function loadGuide(id: string) {
+    if (!permissionsReady || !canViewGuides) {
+      setMessage({ kind: 'error', text: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem h\u1ed3 s\u01a1 h\u01b0\u1edbng d\u1eabn vi\u00ean.' });
+      return;
+    }
     setEditingId(id);
     setFormOpen(true);
     setLoadingGuideId(id);
@@ -510,7 +531,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
 
   return (
     <div className="orderPage">
-      <PermissionNotice allowed={canViewGuides} label="xem h\u01b0\u1edbng d\u1eabn vi\u00ean" missingPermissions={['guide.view']} />
+      <PermissionNotice allowed={!permissionsReady || canViewGuides} label="xem h\u01b0\u1edbng d\u1eabn vi\u00ean" missingPermissions={['guide.view']} />
       {canViewGuides ? (
         <>
       {formOpen ? (
@@ -601,7 +622,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
             <span>{reloading ? 'Đang tải dữ liệu...' : `${filtered.length} / ${guides.length} hướng dẫn viên`}</span>
           </div>
           <div className="pageHeaderActions">
-            <button type="button" className="secondaryButton iconTextButton" disabled={reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
+            <button type="button" className="secondaryButton iconTextButton" disabled={!canViewGuides || reloading} onClick={() => void reload()}><RefreshCcw size={16} /> {reloading ? 'Đang tải' : 'Tải lại'}</button>
             <button type="button" className="secondaryButton iconTextButton" disabled={!canManageGuides || reloading} onClick={openCreate}><Plus size={16} /> {'Th\u00eam m\u1edbi'}</button>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Lọc trạng thái hướng dẫn viên">
               <option value="">Tất cả trạng thái</option>

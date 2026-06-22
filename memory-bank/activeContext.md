@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 tour guides page/client RBAC hardening:
+  - Tour Guides page now reads `/auth/me` before loading guide rows, avoids server-side guide preloads without `guide.view`, and renders a server permission notice instead of protected client content when access is missing.
+  - Tour Guides client now waits for permission readiness, clears server-provided rows when view access is missing, and fail-closes reload/detail handlers before API calls while preserving `guide.manage` mutation gates.
+
 - Phase 3 operation vouchers page/client RBAC hardening:
   - Operation Vouchers page now reads `/auth/me` before loading voucher rows, avoids server-side voucher preloads without `operation.form.view`/`operation.form.manage`, and renders a server permission notice instead of protected client content when access is missing.
   - Operation Vouchers client now waits for permission readiness, clears server-provided rows when view access is missing, hides list/form content without view access, and fail-closes reload/detail/create handlers before API calls.

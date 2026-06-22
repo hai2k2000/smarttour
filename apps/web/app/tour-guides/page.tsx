@@ -1,5 +1,6 @@
 import { UserCheck, Users } from 'lucide-react';
 import { serverAuthHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 import TourGuidesClient from './TourGuidesClient';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,9 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function TourHDVsPage() {
-  const guides = await apiGet('/tour-guides', []);
+  const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
+  const canViewGuides = hasPermission(currentUser, 'guide.view');
+  const guides = canViewGuides ? await apiGet('/tour-guides', []) : [];
 
   return (
     <section className="workspace">
@@ -31,7 +34,10 @@ export default async function TourHDVsPage() {
           <span className="statusPill statusPillNeutral"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
-      <TourGuidesClient initialHDVs={guides} />
+      <ServerPermissionNotice allowed={canViewGuides} label={'xem h\u01b0\u1edbng d\u1eabn vi\u00ean'} missingPermissions={['guide.view']} />
+      {canViewGuides ? (
+        <TourGuidesClient initialHDVs={guides} />
+      ) : null}
     </section>
   );
 }
