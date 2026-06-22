@@ -24,6 +24,9 @@ assert(source.includes("can('order.settle')"), 'Orders UI settlement action shou
 assert(source.includes("can('order.unlock')"), 'Orders UI unlock action should require order.unlock.');
 assert(source.includes('disabled={Boolean(editingId) && !canChangeStatus}'), 'Orders UI should disable status select for users without status action permission while editing.');
 
+assert(source.includes('function confirmSensitiveOrderAction'), 'Orders UI should define confirmation helper for irreversible order actions.');
+assert(source.includes("confirmSensitiveOrderAction(path)"), 'Orders settle action should confirm before POST.');
+assert(source.includes("confirmSensitiveOrderAction('unlock')"), 'Orders unlock action should confirm before POST.');
 for (const [token, label] of [
   ["headers: authHeaders()", 'read/copy/settle requests should send auth headers'],
   ["headers: authJsonHeaders()", 'json mutations should send auth json headers'],

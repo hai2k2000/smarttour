@@ -33,6 +33,9 @@ for (const field of ['username', 'email', 'name', 'password', 'status', 'branch'
 for (const helper of ['validateRoleCodes', 'validateDataScope', 'updateAuthSession', 'loadError', 'actionError']) {
   assert(new RegExp(`function\\s+${helper}\\b`).test(source), `Security UI should keep ${helper} helper`);
 }
+for (const permission of ['order.status.update', 'order.settle', 'order.unlock', 'quote.approve', 'quotation.approve', 'commission.approve']) {
+  assert(source.includes(permission), `Security UI permission catalog should include action permission ${permission}`);
+}
 for (const permission of ['auth.user.manage', 'auth.role.manage', 'data.scope.all', 'data.scope.branch', 'data.scope.department']) {
   assert(source.includes(permission), `Security UI permission catalog should include ${permission}`);
 }

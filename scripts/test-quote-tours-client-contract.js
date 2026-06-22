@@ -43,6 +43,8 @@ includes('const currentId = editingId;', 'Action handler must capture the curren
 includes('formBusy = isSubmitting || listLoading || Boolean(actionLoading || loadingQuoteId)', 'Form actions must be disabled while list/detail actions are loading.');
 includes("const canApproveQuote = can('quote.approve');", 'Quote tour approve button must use quote.approve permission.');
 includes('!canApproveQuote', 'Quote tour approve button must be disabled without quote.approve.');
+includes('function confirmQuoteAction', 'Quote tour UI should define confirmation helper for approve/convert actions.');
+includes('confirmQuoteAction(path)', 'Quote tour approve/convert action should confirm before POST.');
 includes('apiBase.includes(\'smarttour-api-1\')) return \'\';', 'Browser API base must use same-origin API for internal Docker host values.');
 
 const dateHelper = source.match(/function dateInputValue\(value: unknown\) \{[\s\S]*?\n\}/)?.[0] || '';

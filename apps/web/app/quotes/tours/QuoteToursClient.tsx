@@ -276,6 +276,14 @@ function statusText(status: string) {
   return statusLabels[status] || status || 'Không rõ';
 }
 
+function confirmQuoteAction(action: keyof typeof actionLabels) {
+  if (typeof window === 'undefined') return true;
+  const message = action === 'approve'
+    ? 'X\u00e1c nh\u1eadn ch\u1ed1t b\u00e1o gi\u00e1 tour? Sau khi ch\u1ed1t, th\u00f4ng tin gi\u00e1 s\u1ebd tr\u1edf th\u00e0nh c\u01a1 s\u1edf \u0111\u1ec3 t\u1ea1o \u0111\u01a1n h\u00e0ng.'
+    : 'X\u00e1c nh\u1eadn t\u1ea1o \u0111\u01a1n h\u00e0ng t\u1eeb b\u00e1o gi\u00e1 tour n\u00e0y?';
+  return window.confirm(message);
+}
+
 function buildPayload(data: QuoteForm) {
   const costItems = data.costItems.map((item) => normalizeCostItem(item)).filter(hasCostContent);
   const itineraries = data.itineraries.map((item, index) => normalizeItinerary(item, index)).filter(hasItineraryContent);
@@ -535,6 +543,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
       setError(`Cần mở một báo giá đã lưu trước khi ${actionLabels[path]}.`);
       return;
     }
+    if (!confirmQuoteAction(path)) return;
     setActionLoading(path);
     setError('');
     try {

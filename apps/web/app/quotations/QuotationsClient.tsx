@@ -424,6 +424,15 @@ function normalizeQuotationForm(data: unknown): QuotationForm {
   };
 }
 
+function confirmQuotationAction(action: QuotationAction) {
+  if (typeof window === 'undefined') return true;
+  if (action !== 'approve' && action !== 'convert') return true;
+  const message = action === 'approve'
+    ? 'X\u00e1c nh\u1eadn duy\u1ec7t b\u00e1o gi\u00e1? Sau khi duy\u1ec7t, c\u00e1c \u0111i\u1ec1u kho\u1ea3n th\u01b0\u01a1ng m\u1ea1i s\u1ebd kh\u00f4ng \u0111\u01b0\u1ee3c s\u1eeda tr\u1ef1c ti\u1ebfp.'
+    : 'X\u00e1c nh\u1eadn chuy\u1ec3n b\u00e1o gi\u00e1 th\u00e0nh \u0111\u01a1n h\u00e0ng?';
+  return window.confirm(message);
+}
+
 function buildPayload(data: QuotationForm) {
   const normalizedItems = data.items.map(normalizeItem);
   const touchedItems = normalizedItems.filter(hasItemContent);
@@ -719,6 +728,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       return;
     }
     const label = actionLabels[actionKey];
+    if (!confirmQuotationAction(actionKey)) return;
     setActionLoading(actionKey);
     setError('');
     setMessage('');

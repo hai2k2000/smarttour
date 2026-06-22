@@ -1811,3 +1811,9 @@
   - Orders settlement/unlock/status controls and quote/quotation approval controls now honor the dedicated action permissions introduced in Phase 2.
   - Tour Quote update payloads are explicitly whitelisted instead of spreading full form data into PUT requests.
   - Verification passed: scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Completed Phase 3 frontend RBAC catalog and action confirmation hardening:
+  - Security role editing now exposes and labels the dedicated action permissions introduced in Phase 2.
+  - Commission approval UI now honors commission.approve, and sensitive order/quote/quotation/commission actions require user confirmation before posting.
+  - Added regression coverage for commission client permissions/confirmations and strengthened existing frontend contracts.
+  - Verification passed: node scripts/test-role-permission-contract.js, scripts/test-security-ui-contract.sh, node scripts/test-commission-reports-client-contract.js, scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, npm run build -w @smarttour/web, and git diff --check.

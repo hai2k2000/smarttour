@@ -46,6 +46,12 @@ type Row = {
 
 const emptySummary: Summary = { totalCommission: 0, approvedCommission: 0, pendingCommission: 0, paidCommission: 0, unpaidCommission: 0, revenue: 0, profit: 0, bookingCount: 0, conversionRate: 0 };
 
+function confirmCommissionAction(action: string) {
+  if (typeof window === 'undefined') return true;
+  const labels: Record<string, string> = { approve: 'duy\u1ec7t hoa h\u1ed3ng', reject: 't\u1eeb ch\u1ed1i hoa h\u1ed3ng', pay: 'ghi nh\u1eadn chi hoa h\u1ed3ng' };
+  return window.confirm(`X\u00e1c nh\u1eadn ${labels[action] || 'c\u1eadp nh\u1eadt hoa h\u1ed3ng'}? H\u00e0nh \u0111\u1ed9ng n\u00e0y s\u1ebd \u0111\u01b0\u1ee3c l\u01b0u v\u00e0o l\u1ecbch s\u1eed hoa h\u1ed3ng.`);
+}
+
 export default function CommissionReportsClient() {
   const { can, canAny } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
@@ -54,6 +60,8 @@ export default function CommissionReportsClient() {
   const [selected, setSelected] = useState<Row | null>(null);
   const [filter, setFilter] = useState({ search: '', status: '', paymentStatus: '', productType: '', employee: '', department: '', branch: '', market: '', groupBy: 'salesOwner' });
   const [message, setMessage] = useState('');
+
+  const canApproveCommission = can('commission.approve');
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -75,6 +83,7 @@ export default function CommissionReportsClient() {
 
   async function action(path: string, id: string) {
     setMessage('');
+    if (!confirmCommissionAction(path)) return;
     const payload: Record<string, unknown> = { id, actor: 'accounting' };
     if (path === 'pay') payload.voucherNo = `PC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
     const response = await fetch(`${API_URL}/api/commission-reports/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
@@ -147,7 +156,7 @@ export default function CommissionReportsClient() {
                     <td><span className="statusPill">{viStatus(row.status)}</span><span>{viStatus(row.paymentStatus)}</span></td>
                     <td className="commissionActions">
                       <button className="secondaryButton iconButton" onClick={() => setSelected(row)}><Eye size={16} /></button>
-                      <button className="secondaryButton iconButton" disabled={!can('commission.manage')} onClick={() => action('approve', row.id)}><CheckCircle2 size={16} /></button>
+                      <button className="secondaryButton iconButton" disabled={!canApproveCommission} onClick={() => action('approve', row.id)}><CheckCircle2 size={16} /></button>
                       <button className="secondaryButton iconButton" disabled={!can('commission.manage')} onClick={() => action('reject', row.id)}><XCircle size={16} /></button>
                       <button className="secondaryButton iconButton" disabled={!can('commission.manage')} onClick={() => action('pay', row.id)}><WalletCards size={16} /></button>
                     </td>

@@ -2203,3 +2203,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Tour Quote save payload no longer spreads the whole form object, preventing lifecycle/status fields from leaking into normal PUT payloads.
   - Tour Quote and legacy Quotation approve buttons now use quote.approve and quotation.approve instead of broad manage permissions.
   - Verification passed: scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Phase 3 frontend RBAC catalog and action confirmation hardening:
+  - Added the Phase 2 action permissions to the Security role editor catalog and Vietnamese permission labels: order.status.update, order.settle, order.unlock, quote.approve, quotation.approve, and commission.approve.
+  - Commission report approve controls now use commission.approve instead of broad commission.manage, matching the backend route permission.
+  - Added confirmation prompts before high-impact frontend actions: order settlement/unlock, Tour Quote approve/convert, legacy Quotation approve/convert, and commission approve/reject/pay.
+  - Added a Commission Reports client contract and strengthened Security/Orders/Quote/Quotation frontend contracts to guard these behaviors.
+  - Verification passed: node scripts/test-role-permission-contract.js, scripts/test-security-ui-contract.sh, node scripts/test-commission-reports-client-contract.js, scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, npm run build -w @smarttour/web, and git diff --check.

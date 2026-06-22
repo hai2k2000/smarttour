@@ -238,6 +238,14 @@ function stripLifecycleStatusForUpdate(payload: Record<string, unknown>) {
   return copy;
 }
 
+function confirmSensitiveOrderAction(action: 'settle' | 'unlock') {
+  if (typeof window === 'undefined') return true;
+  const message = action === 'settle'
+    ? 'X\u00e1c nh\u1eadn ch\u1ed1t quy\u1ebft to\u00e1n \u0111\u01a1n h\u00e0ng? Sau khi ch\u1ed1t, \u0111\u01a1n h\u00e0ng s\u1ebd b\u1ecb kh\u00f3a kh\u1ecfi c\u00e1c thay \u0111\u1ed5i th\u01b0\u1eddng.'
+    : 'X\u00e1c nh\u1eadn m\u1edf kh\u00f3a quy\u1ebft to\u00e1n \u0111\u01a1n h\u00e0ng? H\u00e0nh \u0111\u1ed9ng n\u00e0y s\u1ebd \u0111\u01b0\u1ee3c ghi nh\u1eadn trong l\u1ecbch s\u1eed.';
+  return window.confirm(message);
+}
+
 function buildPayload(data: OrderForm) {
   return cleanRow({
     ...data,
@@ -364,6 +372,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   }
   async function action(path: 'copy' | 'settle') {
     if (!editingId) return;
+    if (path === 'settle' && !confirmSensitiveOrderAction(path)) return;
     const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/${path}`, { method: 'POST', headers: authHeaders() });
     if (!response.ok) {
       setMessage(`Không thể ${path === 'copy' ? 'sao chép' : 'chốt quyết toán'}: ${await apiMessage(response)}`);
@@ -378,6 +387,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
   }
   async function unlockSettlement() {
     if (!editingId) return;
+    if (!confirmSensitiveOrderAction('unlock')) return;
     const response = await fetch(`${browserApiBase()}/api/orders/${type}/${editingId}/unlock`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify({ actor: 'Operator', reason: 'Mở khóa từ màn hình đơn hàng' }) });
     if (!response.ok) {
       setMessage(`Không mở khóa được: ${await apiMessage(response)}`);
