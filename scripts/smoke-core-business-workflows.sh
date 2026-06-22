@@ -372,8 +372,10 @@ async function createOrder(type, suffix, customer, extra = {}) {
   const landOrder = await createOrder('landtours', 'LAND-ORDER', customer);
   assert(landOrder.type === 'LANDTOUR', 'LandTour order type mismatch');
   mark('CREATE_LANDTOUR_ORDER_OK');
-  const updatedFitOrder = await request('PUT', `/orders/fit-tours/${fitOrder.id}`, { paidAmount: 250000, paidCost: 100000, status: 'RUNNING' });
-  assert(money(updatedFitOrder.paidAmount) === 250000 && updatedFitOrder.status === 'RUNNING', 'order financial/status update failed');
+  const updatedFitOrder = await request('PUT', `/orders/fit-tours/${fitOrder.id}`, { paidAmount: 250000, paidCost: 100000 });
+  assert(money(updatedFitOrder.paidAmount) === 250000, 'order financial update failed');
+  const runningFitOrder = await request('PATCH', `/orders/fit-tours/${fitOrder.id}/status`, { status: 'RUNNING' });
+  assert(runningFitOrder.status === 'RUNNING', 'order status action update failed');
   const copiedFitOrder = await request('POST', `/orders/fit-tours/${fitOrder.id}/copy`);
   assert(copiedFitOrder.id !== fitOrder.id && copiedFitOrder.systemCode.startsWith(fitOrder.systemCode), 'order copy failed');
   const settledFitOrder = await request('POST', `/orders/fit-tours/${fitOrder.id}/settle`);

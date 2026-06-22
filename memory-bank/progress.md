@@ -2,6 +2,11 @@
 
 ## Done
 
+- Aligned core workflow smoke with order lifecycle permissions:
+  - Updated `smoke-core-business-workflows.sh` so order paid values are edited separately from status transitions.
+  - Verified the corrected smoke against the live API and continued non-admin smoke coverage across reports, UX/export, suppliers, and TourKit imports.
+  - Admin-password live smokes remain gated by `ADMIN_PASSWORD`; no runtime application code changed in this pass.
+
 - Cleaned hotel allotment dashboard status bucketing:
   - Made the dashboard derive status buckets from explicit sellable state so stop-sell or sold-out inventory cannot be counted as active/COD-locked.
   - Refreshed hotel supplier UI and allotment contracts after the required-field indicator cleanup, including Playwright label lookups without manual `*` markers.

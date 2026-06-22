@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 core workflow smoke alignment:
+  - Core business workflow smoke now follows the hardened order lifecycle boundary: financial edits stay on `PUT /orders/:type/:id`, while status changes use `PATCH /orders/:type/:id/status`.
+  - This keeps the smoke aligned with the backend guard that blocks status mutations through ordinary order updates.
+  - Non-admin smoke coverage was rerun for core workflows, reports, UX/export, suppliers, and TourKit import flows; admin-live smokes still require `ADMIN_PASSWORD` and were not run in this environment.
+
 - Phase 3 hotel allotment dashboard contract cleanup:
   - Hotel allotment dashboard status bucketing now uses an explicit sellable predicate (`ACTIVE` with positive remaining quantity) before COD-lock classification, keeping active/COD/stop-sell buckets mutually exclusive and easier to audit.
   - Hotel supplier/allotment contracts and Playwright UI tests were aligned with the shared required-field indicator convention and current date-only validation helper.
