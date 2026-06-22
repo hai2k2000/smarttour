@@ -60,11 +60,14 @@ export default function CommissionReportsClient() {
   const [selected, setSelected] = useState<Row | null>(null);
   const [filter, setFilter] = useState({ search: '', status: '', paymentStatus: '', productType: '', employee: '', department: '', branch: '', market: '', groupBy: 'salesOwner' });
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const canApproveCommission = can('commission.approve');
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
+    params.set('take', '100');
     Object.entries(filter).forEach(([key, value]) => value && params.set(key, value));
     return params.toString();
   }, [filter]);
@@ -74,11 +77,25 @@ export default function CommissionReportsClient() {
   }, [query]);
 
   async function load() {
-    const response = await fetch(`${API_URL}/api/commission-reports?${query}`, { cache: 'no-store', headers: authHeaders() });
-    const data = await response.json();
-    setRows(data.rows || []);
-    setSummary(data.summary || emptySummary);
-    setGrouping(data.grouping || []);
+    setLoading(true);
+    setLoadError('');
+    try {
+      const response = await fetch(`${API_URL}/api/commission-reports?${query}`, { cache: 'no-store', headers: authHeaders() });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.message === 'string' ? data.message : 'Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o hoa h\u1ed3ng');
+      }
+      setRows(Array.isArray(data.rows) ? data.rows : []);
+      setSummary(data.summary || emptySummary);
+      setGrouping(Array.isArray(data.grouping) ? data.grouping : []);
+    } catch (error) {
+      setRows([]);
+      setSummary(emptySummary);
+      setGrouping([]);
+      setLoadError(error instanceof Error ? error.message : 'Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o hoa h\u1ed3ng');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function action(path: string, id: string) {
@@ -97,7 +114,14 @@ export default function CommissionReportsClient() {
   }
 
   async function sync() {
-    await fetch(`${API_URL}/api/commission-reports/sync`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+    setMessage('');
+    const response = await fetch(`${API_URL}/api/commission-reports/sync`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setMessage(data.message || 'Kh\u00f4ng \u0111\u1ed3ng b\u1ed9 \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o hoa h\u1ed3ng');
+      return;
+    }
+    setMessage('\u0110\u00e3 \u0111\u1ed3ng b\u1ed9 b\u00e1o c\u00e1o hoa h\u1ed3ng');
     await load();
   }
 
@@ -110,7 +134,7 @@ export default function CommissionReportsClient() {
         </div>
         <div className="pageHeaderActions">
           {message ? <span className="statusPill statusPillNeutral">{message}</span> : null}
-          <button className="secondaryButton iconTextButton" disabled={!can('commission.manage')} onClick={sync}><RefreshCcw size={16} /> Đồng bộ đơn hàng</button>
+          <button className="secondaryButton iconTextButton" disabled={!can('commission.manage') || loading} onClick={sync}><RefreshCcw size={16} /> Đồng bộ đơn hàng</button>
           <button className="secondaryButton iconTextButton" onClick={() => { window.location.href = `${API_URL}/api/commission-reports/export?${query}`; }}><Download size={16} /> CSV</button>
         </div>
       </header>
@@ -138,12 +162,15 @@ export default function CommissionReportsClient() {
 
       <section className="contentGrid commissionGrid">
         <section className="panel">
-          <div className="sectionHeader"><h2>Danh sách hoa hồng</h2><span>{rows.length} dòng</span></div>
+          <div className="sectionHeader"><h2>{'Danh s\u00e1ch hoa h\u1ed3ng'}</h2><span>{loading ? '\u0110ang t\u1ea3i' : `${rows.length} d\u00f2ng`}</span></div>
+          {loadError ? <p className="formError">{loadError}</p> : null}
           <div className="fitTableWrap compactListTableWrap">
             <table className="commissionTable compactListTable">
               <thead><tr><th>Đơn hàng</th><th>Khách</th><th>Sales</th><th>Cột mốc</th><th>Doanh thu</th><th>Lợi nhuận</th><th>%</th><th>Hoa hồng</th><th>Trạng thái</th><th></th></tr></thead>
               <tbody>
-                {rows.map((row) => (
+                {loading ? <tr><td colSpan={10}>{'\u0110ang t\u1ea3i d\u1eef li\u1ec7u...'}</td></tr> : null}
+                {!loading && rows.length === 0 ? <tr><td colSpan={10}>{loadError ? 'Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111\u1ec3 hi\u1ec3n th\u1ecb' : 'Ch\u01b0a c\u00f3 d\u1eef li\u1ec7u hoa h\u1ed3ng'}</td></tr> : null}
+                {!loading && rows.map((row) => (
                   <tr key={row.id}>
                     <td><strong>{commissionOrderTitle(row)}</strong><span>{commissionOrderSubtitle(row)}</span></td>
                     <td>{row.customerName || '-'}</td>

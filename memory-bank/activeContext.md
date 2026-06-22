@@ -2210,3 +2210,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added confirmation prompts before high-impact frontend actions: order settlement/unlock, Tour Quote approve/convert, legacy Quotation approve/convert, and commission approve/reject/pay.
   - Added a Commission Reports client contract and strengthened Security/Orders/Quote/Quotation frontend contracts to guard these behaviors.
   - Verification passed: node scripts/test-role-permission-contract.js, scripts/test-security-ui-contract.sh, node scripts/test-commission-reports-client-contract.js, scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Phase 3 commission reports list UX hardening:
+  - Found Commission Reports client loaded list data without checking failed API responses, without a reload loading state, without a visible list-load error, without an empty table state, and without an explicit backend `take` limit.
+  - Added frontend contract coverage for loading/error/empty-state handling, explicit `take=100`, and sync failure handling.
+  - Updated the Commission Reports client to handle failed list/sync responses, clear stale rows on load failure, render loading/error/empty states, and disable sync during reload.

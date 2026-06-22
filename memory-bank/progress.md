@@ -1817,3 +1817,8 @@
   - Commission approval UI now honors commission.approve, and sensitive order/quote/quotation/commission actions require user confirmation before posting.
   - Added regression coverage for commission client permissions/confirmations and strengthened existing frontend contracts.
   - Verification passed: node scripts/test-role-permission-contract.js, scripts/test-security-ui-contract.sh, node scripts/test-commission-reports-client-contract.js, scripts/test-orders-ui-auth-contract.sh, node scripts/test-quote-tours-client-contract.js, node scripts/test-quotations-client-contract.js, node scripts/test-quotes-backend-contract.js, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Completed Phase 3 commission reports list UX hardening:
+  - Commission Reports list now sends an explicit `take=100`, checks list API failures, shows loading/error/empty states, and handles sync API failures instead of silently reloading stale data.
+  - Added contract coverage in `scripts/test-commission-reports-client-contract.js` for the new list UX and API-contract behavior.
+  - Verification passed: `node scripts/test-commission-reports-client-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
