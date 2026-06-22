@@ -19,13 +19,17 @@ assert "@Get('hotels/:id')" in controller and 'getHotelSupplier(id)' in controll
 assert "@Post('hotels')" in controller and "@Put('hotels/:id')" in controller
 
 assert 'class HotelSupplierListQueryDto' in query_dto
-for field in ['search?: string', 'province?: string', 'hotelProject?: string', 'classHotel?: string', 'status?: SupplierStatus', 'market?: string']:
-    assert field in query_dto, f'hotel supplier query is missing {field}'
+hotel_query_block = query_dto.split('export class HotelSupplierListQueryDto', 1)[1].split('export class TypedSupplierListQueryDto', 1)[0]
+for field in ['search?: string', 'province?: string', 'hotelProject?: string', 'classHotel?: string', 'status?: SupplierStatus', 'market?: string', 'take?: number']:
+    assert field in hotel_query_block, f'hotel supplier query is missing {field}'
+assert 'MAX_SUPPLIERS_TAKE' in hotel_query_block, 'hotel supplier query must cap take to avoid unbounded SSR payloads'
 assert 'class AllotmentInventoryQueryDto' in query_dto
 assert "@IsUUID('4', { message: 'Mã nhà cung cấp không hợp lệ' })" in query_dto
 
 assert 'const hotelProject = this.optionalLabel(query.hotelProject)' in service
 assert 'const classHotel = this.optionalLabel(query.classHotel)' in service
+hotel_list_block = service.split('async listHotelSuppliers', 1)[1].split('async getHotelSupplier', 1)[0]
+assert 'take: this.listTake(query.take)' in hotel_list_block, 'hotel supplier list must apply bounded take'
 assert 'hotelProfile: {' in service and 'is: {' in service, 'hotel list must require a hotel profile'
 for search_fragment in [
     '{ supplierCode: contains }',

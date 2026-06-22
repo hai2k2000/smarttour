@@ -8,7 +8,7 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
-import { DEFAULT_SUPPLIERS_TAKE, SupplierCategoryListQueryDto, SupplierListQueryDto } from './dto/supplier-query.dto';
+import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
@@ -320,7 +320,7 @@ export class SuppliersService {
     });
   }
 
-  async listTypedSuppliers(type: string, query: { search?: string; province?: string; status?: SupplierStatus; market?: string }) {
+  async listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}) {
     const typedRoute = this.getTypedRoute(type);
     const categoryNames = supplierTypeCategoryNames(typedRoute);
     const searchText = normalizeListSearch(query.search);
@@ -360,6 +360,7 @@ export class SuppliersService {
     return this.prisma.supplier.findMany({
       where,
       include: this.genericListInclude(),
+      take: this.listTake(query.take),
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { name: 'asc' }],
     });
   }
@@ -434,14 +435,7 @@ export class SuppliersService {
     return this.deleteSupplierRecord(id);
   }
 
-  async listHotelSuppliers(query: {
-    search?: string;
-    province?: string;
-    hotelProject?: string;
-    classHotel?: string;
-    status?: SupplierStatus;
-    market?: string;
-  }) {
+  async listHotelSuppliers(query: HotelSupplierListQueryDto = {}) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const province = this.optionalLabel(query.province);
@@ -498,6 +492,7 @@ export class SuppliersService {
     return this.prisma.supplier.findMany({
       where,
       include: this.hotelListInclude(),
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
   }

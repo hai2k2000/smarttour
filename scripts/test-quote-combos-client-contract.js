@@ -62,6 +62,16 @@ pageIncludes("const canViewQuotes = hasPermission(currentUser, 'quote.view') || 
 pageIncludes("const canManageQuotes = hasPermission(currentUser, 'quote.manage');", 'Quote combos page should calculate quote.manage access.');
 pageIncludes('canViewQuotes ? await apiGet', 'Quote combos page should not preload combo list without quote access.');
 pageIncludes('canManageQuotes ? await Promise.all', 'Quote combos page should not preload supplier catalogs without quote.manage.');
+for (const supplierPath of [
+  '/suppliers/hotels?take=100',
+  '/suppliers/flights?take=100',
+  '/suppliers/landtour-suppliers?take=100',
+  '/suppliers/attraction-tickets?take=100',
+  '/suppliers/transport?take=100',
+  '/suppliers/other?take=100',
+]) {
+  pageIncludes(`'${supplierPath}'`, `Quote combos supplier preload should be bounded: ${supplierPath}`);
+}
 pageIncludes('<ServerPermissionNotice allowed={canViewQuotes}', 'Quote combos page should show a server permission notice when access is missing.');
 pageIncludes('{canViewQuotes ? (', 'Quote combos page should hide quote combo client content without access.');
 

@@ -103,6 +103,13 @@ export class HotelSupplierListQueryDto {
   @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
   @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
   market?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'So luong nha cung cap khach san can tai phai la so nguyen' })
+  @Min(1, { message: 'So luong nha cung cap khach san can tai phai lon hon 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap khach san can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
+  take?: number;
 }
 
 export class TypedSupplierListQueryDto {
@@ -128,6 +135,13 @@ export class TypedSupplierListQueryDto {
   @IsString({ message: 'Thị trường phải là chuỗi ký tự' })
   @MaxLength(120, { message: 'Thị trường không được vượt quá 120 ký tự' })
   market?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'So luong nha cung cap chuyen biet can tai phai la so nguyen' })
+  @Min(1, { message: 'So luong nha cung cap chuyen biet can tai phai lon hon 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap chuyen biet can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
+  take?: number;
 }
 
 export class AllotmentInventoryQueryDto {

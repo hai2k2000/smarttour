@@ -2030,3 +2030,9 @@
   - `/bookings` now preloads tour-program master data with `/tour-programs?take=100` instead of relying on an implicit/default list size.
   - Expanded `scripts/test-bookings-server-page-permissions-contract.js` to guard the bounded tour-program preload.
   - Verification passed: `node scripts/test-bookings-server-page-permissions-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 quote combo supplier catalog payload hardening:
+  - Hotel and typed supplier list APIs now accept bounded `take`, default to 100 rows, and cap at 200 rows through the existing supplier list limit helper.
+  - `/quotes/combos` now preloads each supplier catalog with `take=100` instead of requesting unbounded hotel/typed supplier lists.
+  - Expanded supplier hotel/typed and Quote Combos contracts to guard bounded catalog preload behavior.
+  - Verification passed: `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-quote-combos-client-contract.js`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

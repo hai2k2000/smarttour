@@ -27,12 +27,12 @@ export default async function QuoteCombosPage() {
   const canManageQuotes = hasPermission(currentUser, 'quote.manage');
   const combos = canViewQuotes ? await apiGet('/quotes/combos', []) : [];
   const [hotels, flights, landtours, attractions, transport, other] = canManageQuotes ? await Promise.all([
-    apiGet<Supplier[]>('/suppliers/hotels', []),
-    apiGet<Supplier[]>('/suppliers/flights', []),
-    apiGet<Supplier[]>('/suppliers/landtour-suppliers', []),
-    apiGet<Supplier[]>('/suppliers/attraction-tickets', []),
-    apiGet<Supplier[]>('/suppliers/transport', []),
-    apiGet<Supplier[]>('/suppliers/other', []),
+    apiGet<Supplier[]>('/suppliers/hotels?take=100', []),
+    apiGet<Supplier[]>('/suppliers/flights?take=100', []),
+    apiGet<Supplier[]>('/suppliers/landtour-suppliers?take=100', []),
+    apiGet<Supplier[]>('/suppliers/attraction-tickets?take=100', []),
+    apiGet<Supplier[]>('/suppliers/transport?take=100', []),
+    apiGet<Supplier[]>('/suppliers/other?take=100', []),
   ]) : [[], [], [], [], [], []];
   const suppliers = [...hotels, ...flights, ...landtours, ...attractions, ...transport, ...other];
 

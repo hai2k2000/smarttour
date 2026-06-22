@@ -2433,3 +2433,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `/bookings` still preloaded tour-program master data without an explicit `take=100`, even though Tour Programs already supports bounded list queries.
   - Updated the bookings server page to request `/tour-programs?take=100` and strengthened the bookings server-page contract to guard the bounded master-list preload.
   - Verification passed: `node scripts/test-bookings-server-page-permissions-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 quote combo supplier catalog payload hardening:
+  - Found Quote Combos SSR preloaded six supplier catalogs without explicit `take=100`, while hotel and typed supplier list DTOs/services did not accept/apply bounded `take`.
+  - Added bounded `take` support to hotel and typed supplier list queries/services, sharing the existing default/cap of 100/200.
+  - Updated Quote Combos supplier catalog preloads to request `take=100` for hotels, flights, landtour suppliers, attraction tickets, transport, and other suppliers.
+  - Strengthened supplier hotel/typed and Quote Combos contracts so catalog preloads and backend list boundaries cannot regress to unbounded payloads.
+  - Verification passed: `bash scripts/test-suppliers-hotel-contract.sh`, `bash scripts/test-suppliers-typed-contract.sh`, `node scripts/test-quote-combos-client-contract.js`, `bash scripts/test-suppliers-common-contract.sh`, `node scripts/test-quotes-backend-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
