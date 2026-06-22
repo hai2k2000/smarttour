@@ -6,6 +6,7 @@ import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateFitTourDto, FIT_TOUR_DATE_PATTERN, FIT_TOUR_STEP_FIELDS } from './dto/create-fit-tour.dto';
+import { DEFAULT_FIT_TOURS_TAKE, ListFitToursQueryDto } from './dto/list-fit-tours-query.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FIT_DEFAULT_SURVEY_QUESTIONS } from './fit-tour-defaults';
 import { FitTourLegacyCompatService } from './fit-tour-legacy-compat.service';
@@ -117,9 +118,9 @@ export class FitToursService {
     private readonly filesService: FilesService,
   ) {}
 
-  async list(search?: string, status?: string, user?: RequestUser) {
-    const workflowStatus = this.toWorkflowStatus(status);
-    const searchText = normalizeListSearch(search);
+  async list(query: ListFitToursQueryDto = {}, user?: RequestUser) {
+    const workflowStatus = this.toWorkflowStatus(query.status);
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.FitTourWhereInput = {
       ...(workflowStatus ? { workflowStatus } : {}),
@@ -144,6 +145,7 @@ export class FitToursService {
     const rows = await this.prisma.fitTour.findMany({
       where: this.fitTourScopeWhere(where, user),
       select: fitTourListSelect,
+      take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { quoteCode: 'asc' }],
     });
     return rows.map((row) => {
@@ -151,6 +153,10 @@ export class FitToursService {
       const { tour: _tour, ...listRow } = snapshot;
       return listRow;
     });
+  }
+
+  private listTake(take?: number) {
+    return take ?? DEFAULT_FIT_TOURS_TAKE;
   }
 
   async detail(id: string, user?: RequestUser) {

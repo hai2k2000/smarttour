@@ -2019,3 +2019,9 @@
   - `/git-tours` and `/landtours` server pages now include `take=100` in their list query builders while preserving search/status filters.
   - Expanded `scripts/test-tour-type-apis.sh` to guard bounded list DTO/controller/page behavior for both tour types.
   - Verification passed: `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 FIT Tour SSR/client payload hardening:
+  - FIT Tour list API now uses `ListFitToursQueryDto`, accepts bounded `take`, defaults to 100 rows, and caps requests at 200 rows.
+  - `/fit-tours` server preload and client reload now include `take=100` while preserving search/workflow filters.
+  - Expanded FIT root/client contracts to guard bounded list DTO/controller/service/page behavior.
+  - Verification passed: `bash scripts/test-fit-tour-root-contract.sh`, `node scripts/test-fit-tours-client-contract.js`, `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

@@ -168,6 +168,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
     setListMessage('Đang tải danh sách tour FIT...');
     try {
       const params = new URLSearchParams();
+      params.set('take', '100');
       if (normalizedSearch) params.set('search', normalizedSearch);
       if (workflowFilter) params.set('status', workflowFilter);
       const query = params.size ? `?${params.toString()}` : '';

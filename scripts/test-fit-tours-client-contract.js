@@ -43,6 +43,7 @@ pageIncludes("'/auth/me'", 'FIT tours page should call auth session endpoint.');
 pageIncludes("const canViewTours = hasPermission(currentUser, 'tour.view');", 'FIT tours page should calculate tour.view access.');
 pageIncludes("const canManageTours = hasPermission(currentUser, 'tour.manage');", 'FIT tours page should calculate tour.manage access.');
 pageIncludes('canViewTours ? await apiGet', 'FIT tours page should not preload tour rows without tour.view.');
+pageIncludes("'/fit-tours?take=100'", 'FIT tours page should request a bounded initial tour list.');
 pageIncludes('canManageTours ? await apiGet', 'FIT tours page should not preload suppliers without tour.manage.');
 pageIncludes('<ServerPermissionNotice allowed={canViewTours}', 'FIT tours page should show server permission notice when access is missing.');
 pageIncludes('{canViewTours ? (', 'FIT tours page should hide protected client content without access.');
@@ -50,6 +51,7 @@ pageIncludes('{canViewTours ? (', 'FIT tours page should hide protected client c
 includes(clientSource, 'const { can, permissionsReady } = usePermissions();', 'FIT tours client should wait for permission readiness.');
 includes(clientSource, 'if (!permissionsReady || !canViewTours) {', 'FIT tours reload handler should fail closed before API calls without view access.');
 includes(clientSource, 'setRows([]);', 'FIT tours client should clear server-provided rows when view access is missing.');
+includes(clientSource, "params.set('take', '100');", 'FIT tours reload should request a bounded list from the backend.');
 includes(clientSource, 'PermissionNotice allowed={!permissionsReady || canViewTours}', 'FIT tours client should avoid permission flash while permissions load.');
 includes(clientSource, 'disabled={!canViewTours || listBusy}', 'FIT tours reload/search controls should be disabled without view access.');
 

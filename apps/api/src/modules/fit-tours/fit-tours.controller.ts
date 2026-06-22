@@ -6,6 +6,7 @@ import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
 import { FitTourAttachmentUploadDto, FitTourCopyOperationDto, FitTourCopySourceDto, FitTourExportDto } from './dto/fit-tour-action.dto';
+import { ListFitToursQueryDto } from './dto/list-fit-tours-query.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitToursService } from './fit-tours.service';
 
@@ -16,8 +17,8 @@ export class FitToursController {
   constructor(private readonly fitToursService: FitToursService) {}
 
   @Get()
-  list(@Query('search') search?: string, @Query('status') status?: string, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.list(search, status, request?.user);
+  list(@Query() query: ListFitToursQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.fitToursService.list(query, request?.user);
   }
 
   @Post('import')

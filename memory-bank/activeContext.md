@@ -2421,3 +2421,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated `/git-tours` and `/landtours` server page query builders to request `take=100` with existing search/status filters.
   - Strengthened `scripts/test-tour-type-apis.sh` so GIT/LandTour DTOs, controllers, and pages keep bounded list behavior.
   - Verification passed: `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 FIT Tour SSR/client payload hardening:
+  - Found FIT Tour list API still accepted raw `search/status` query values and had no bounded `take`, while the SSR page and client reload could request the full FIT list.
+  - Added `ListFitToursQueryDto` with trimmed search, normalized workflow status, default `take=100`, and cap `take=200`.
+  - Updated FIT controller/service to pass and apply the validated query object, and updated `/fit-tours` SSR/client reload paths to request `take=100`.
+  - Strengthened FIT root/client contracts so bounded list behavior and the new controller/service boundary cannot regress.
+  - Verification passed: `bash scripts/test-fit-tour-root-contract.sh`, `node scripts/test-fit-tours-client-contract.js`, `bash scripts/test-tour-type-apis.sh`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.

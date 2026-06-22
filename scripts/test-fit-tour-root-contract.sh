@@ -97,6 +97,7 @@ function assertLegacyCompatBoundary() {
   const fs = require('fs');
   const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.service.ts', 'utf8');
   const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'utf8');
+  const listDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/list-fit-tours-query.dto.ts', 'utf8');
   const createDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/create-fit-tour.dto.ts', 'utf8');
   const actionDtoSource = fs.readFileSync('/workspace/apps/api/src/modules/fit-tours/dto/fit-tour-action.dto.ts', 'utf8');
   const fitWizardSource = fs.readFileSync('/workspace/apps/web/app/fit-tours/FitTourWizard.tsx', 'utf8');
@@ -106,6 +107,9 @@ function assertLegacyCompatBoundary() {
   const schemaSource = fs.readFileSync('/workspace/prisma/schema.prisma', 'utf8');
   const migrationNotes = fs.readFileSync('/workspace/docs/tour-migration-notes.md', 'utf8');
   assert(!serviceSource.includes('new Date(text)'), 'FIT service date parsing should avoid direct new Date(text) timezone parsing');
+  assert(listDtoSource.includes('class ListFitToursQueryDto') && listDtoSource.includes('take?: number') && listDtoSource.includes('MAX_FIT_TOURS_TAKE'), 'FIT list query DTO should accept bounded take');
+  assert(controllerSource.includes('list(@Query() query: ListFitToursQueryDto') && controllerSource.includes('this.fitToursService.list(query, request?.user)'), 'FIT controller should pass the full validated list query to service');
+  assert(serviceSource.includes('ListFitToursQueryDto') && serviceSource.includes('take: this.listTake(query.take)'), 'FIT list service should apply bounded take from the validated query');
   assert(!serviceSource.includes('tx.tour.create') && !serviceSource.includes('tx.tour.update'), 'FitToursService should delegate Tour root create/update to TourCoreService');
   assert(serviceSource.includes('tourCore.createRoot') && serviceSource.includes('tourCore.updateRoot'), 'FitToursService should use TourCoreService root helpers');
   assert(serviceSource.includes('logFitTourAction') && serviceSource.includes('tourCore.logAction') && serviceSource.includes("module: 'fit-tours'"), 'FIT create/update/copy/upload logs should use standardized TourCoreService.logAction format');
@@ -553,7 +557,7 @@ async function main() {
   assert(rootSourcedDetail.tourName === 'FIT Root Contract Source', 'FIT detail should expose Tour root name over stale legacy value');
   assert(rootSourcedDetail.customerName === 'FIT Root Customer', 'FIT detail should expose TourCustomer name over stale legacy value');
   assert(rootSourcedDetail.startDate.toISOString().startsWith('2026-08-01'), 'FIT detail should expose Tour root startDate over stale legacy value');
-  const rootSourcedList = await fitTours.list('FIT Root Contract Source');
+  const rootSourcedList = await fitTours.list({ search: 'FIT Root Contract Source' });
   const rootSourcedListRow = rootSourcedList.find((row) => row.id === source.id);
   assert(rootSourcedListRow, 'FIT list should search by common Tour root name');
   assert(rootSourcedListRow.tourName === 'FIT Root Contract Source', 'FIT list should expose Tour root name over stale legacy value');
