@@ -2172,3 +2172,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added an explicit current-to-next Order status transition matrix by order type, replacing the previous target-only status allowlist.
   - The first guarded invalid transition is `DRAFT -> COMPLETED`; valid operational correction flows already covered by hotel/allotment tests remain allowed.
   - Verification passed: `scripts/test-order-service-flows.sh` and `scripts/test-orders-api.sh`.
+
+- 2026-06-22 Phase 2 operation form status action guard:
+  - Operation form normal updates now reject lifecycle `status` fields; status changes go through the dedicated `POST /operations/forms/:id/status` action route or the existing cancel action.
+  - Added `OperationsService.changeFormStatus()` with current-to-next transition guards and audit logging, while keeping cancel reason handling in `cancelForm()`.
+  - Verification passed: `scripts/test-operations-service-flows.sh`, `scripts/test-operations-controller-contract.sh`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.

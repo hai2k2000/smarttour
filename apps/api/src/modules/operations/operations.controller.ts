@@ -46,6 +46,12 @@ export class OperationsController {
     return this.operationsService.updateForm(id, dto, request?.user);
   }
 
+  @Post('forms/:id/status')
+  @RequirePermissions('operation.form.manage')
+  updateFormStatus(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+    return this.operationsService.changeFormStatus(id, dto?.status, dto, request?.user);
+  }
+
   @Delete('forms/:id')
   @RequirePermissions('operation.form.manage')
   @ApiOperation({ summary: 'Legacy alias for POST /operations/forms/{id}/cancel', deprecated: true })

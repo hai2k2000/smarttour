@@ -1784,3 +1784,8 @@
   - Order lifecycle status changes now validate the current status and target status per order type instead of only checking whether the target status exists for that type.
   - Added regression coverage proving draft orders cannot jump directly to completed and that invalid transitions leave the stored status unchanged.
   - Verification passed: `scripts/test-order-service-flows.sh` and `scripts/test-orders-api.sh`.
+
+- 2026-06-22 Completed Phase 2 operation form status action guard:
+  - Operation form `updateForm` no longer mutates lifecycle status; status updates are routed through `changeFormStatus` and `POST /operations/forms/:id/status`.
+  - The action service validates transitions, blocks cancellation through the generic status route, and writes STATUS audit entries.
+  - Verification passed: `scripts/test-operations-service-flows.sh`, `scripts/test-operations-controller-contract.sh`, `npx prisma validate --schema prisma/schema.prisma`, `git diff --check`, and API Docker build.

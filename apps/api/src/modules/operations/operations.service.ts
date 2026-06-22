@@ -272,6 +272,7 @@ export class OperationsService {
 
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
+    if (dto.status !== undefined) throw new BadRequestException('D\u00f9ng action endpoint \u0111\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
     const current = await this.formDetail(id, user);
     const bookingId = this.text(dto.bookingId) ?? current.bookingId;
     const links = await this.resolveBookingOrderTour({
@@ -290,13 +291,26 @@ export class OperationsService {
           ...(dto.bookingId !== undefined ? { bookingId } : {}),
           ...(dto.orderId !== undefined || dto.bookingId !== undefined ? { orderId: links.orderId } : {}),
           ...(dto.tourId !== undefined || dto.bookingId !== undefined ? { tourId: links.tourId } : {}),
-          ...(dto.status !== undefined ? { status: this.operationStatus(dto.status, OperationStatus.PENDING) } : {}),
           ...(dto.notes !== undefined ? { notes: this.text(dto.notes) } : {}),
         },
       });
       if (dto.services !== undefined || dto.tasks !== undefined || dto.costs !== undefined) await this.replaceFormChildren(tx, id, dto);
       await this.audit(tx, 'UPDATE', 'OperationForm', id, { actor, changedFields: Object.keys(dto), payload: this.auditPayload(dto) }, user);
       return tx.operationForm.findUniqueOrThrow({ where: { id }, include: this.formDetailInclude() });
+    });
+  }
+
+  async changeFormStatus(id: string, status: unknown, dto: AnyRecord = {}, user?: RequestUser) {
+    const actor = this.userActor(user, dto.actor);
+    const targetStatus = this.operationStatus(status, OperationStatus.PENDING);
+    if (targetStatus === OperationStatus.CANCELLED) throw new BadRequestException('D\u00f9ng action endpoint h\u1ee7y \u0111\u1ec3 h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+    const current = await this.formDetail(id, user);
+    this.assertOperationFormTransition(current.status, targetStatus);
+    if (current.status === targetStatus) return current;
+    return this.prisma.$transaction(async (tx) => {
+      const form = await tx.operationForm.update({ where: { id }, data: { status: targetStatus }, include: this.formDetailInclude() });
+      await this.audit(tx, 'STATUS', 'OperationForm', id, { actor, from: current.status, to: targetStatus, payload: this.auditPayload(dto) }, user);
+      return form;
     });
   }
 
@@ -787,6 +801,17 @@ export class OperationsService {
       const activeDuplicate = cost.paymentItems.find((paymentItem) => paymentItem.requestId !== currentRequestId && paymentItem.request.status !== SupplierPaymentStatus.REJECTED);
       if (activeDuplicate) throw new BadRequestException('Chi phí điều hành đã có yêu cầu thanh toán nhà cung cấp');
     }
+  }
+
+  private assertOperationFormTransition(current: OperationStatus, target: OperationStatus) {
+    const allowed: Record<OperationStatus, ReadonlySet<OperationStatus>> = {
+      [OperationStatus.PENDING]: new Set([OperationStatus.PENDING, OperationStatus.IN_PROGRESS, OperationStatus.DONE, OperationStatus.PROBLEM]),
+      [OperationStatus.IN_PROGRESS]: new Set([OperationStatus.IN_PROGRESS, OperationStatus.PENDING, OperationStatus.DONE, OperationStatus.PROBLEM]),
+      [OperationStatus.PROBLEM]: new Set([OperationStatus.PROBLEM, OperationStatus.IN_PROGRESS, OperationStatus.DONE]),
+      [OperationStatus.DONE]: new Set([OperationStatus.DONE]),
+      [OperationStatus.CANCELLED]: new Set([OperationStatus.CANCELLED]),
+    };
+    if (!allowed[current]?.has(target)) throw new BadRequestException('Chuy\u1ec3n tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh kh\u00f4ng h\u1ee3p l\u1ec7');
   }
 
   private formServices(dto: AnyRecord): ParsedOperationService[] {

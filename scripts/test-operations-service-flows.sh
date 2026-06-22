@@ -269,22 +269,24 @@ async function main() {
   const orderOnlyForm = await service.createForm(formPayload(orderOnlyBooking, supplierA, supplierServiceA, 'ORDER-ONLY'));
   assert(orderOnlyForm.orderId === orderOnly.id && orderOnlyForm.tourId === null, 'resolve booking/order/tour should allow booking with order but no tour');
   await rejectsMessage(() => service.updateForm(orderOnlyForm.id, { tourId: resolveTour.id, actor: 'resolve-mismatch' }), 'Tour đã chọn không thuộc đơn hàng của booking đã chọn', 'resolve booking/order/tour should reject mismatched tour on update');
-  await service.updateForm(resolvedForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
-  await service.updateForm(orderOnlyForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(resolvedForm.id, 'DONE', { actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(orderOnlyForm.id, 'DONE', { actor: 'dashboard-cleanup' });
 
   const updatedFormA = await service.updateForm(formA.id, {
     actor: 'updater-a',
-    status: 'IN_PROGRESS',
     notes: 'Phiếu đã cập nhật',
     tasks: [{ title: 'Task mới', dueDate: yesterday.toISOString(), status: 'IN_PROGRESS', notes: 'Đã phân công' }],
   });
-  assert(updatedFormA.status === 'IN_PROGRESS' && updatedFormA.notes === 'Phiếu đã cập nhật', 'update form should persist status and notes');
+  assert(updatedFormA.status === 'PENDING' && updatedFormA.notes, 'normal update should persist notes without changing lifecycle status');
+  await rejectsMessage(() => service.updateForm(formA.id, { status: 'IN_PROGRESS', actor: 'status-bypass' }), 'action endpoint', 'normal update should reject operation form status changes');
+  const startedFormA = await service.changeFormStatus(formA.id, 'IN_PROGRESS', { actor: 'updater-a' });
+  assert(startedFormA.status === 'IN_PROGRESS', 'status action should move operation form to in progress');
   assert(updatedFormA.tasks.length === 1 && updatedFormA.tasks[0].title === 'Task mới', 'update form should replace tasks when provided');
   assert(updatedFormA.services.length === 1 && updatedFormA.services[0].id === originalFormAServiceId, 'partial update should not replace services when services payload is omitted');
   assert(updatedFormA.costs.length === 1 && updatedFormA.costs[0].id === originalFormACostId, 'partial update should not replace costs when costs payload is omitted');
   const updatedFormATaskId = updatedFormA.tasks[0].id;
   await rejectsMessage(() => service.updateForm(formA.id, { costs: [{ serviceId: formB.services[0].id, costName: 'Chi phí sai dịch vụ', expectedAmount: 100, actualAmount: 80 }] }), 'Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành', 'update form should reject cost linked to another form service');
-  await rejectsMessage(() => service.updateForm(formA.id, { status: 'SAI' }), 'Trạng thái phiếu điều hành không hợp lệ', 'invalid operation status should be Vietnamese');
+  await rejectsMessage(() => service.changeFormStatus(formA.id, 'SAI', { actor: 'bad-status' }), 'kh', 'invalid operation status should be Vietnamese');
   const auditAt = new Date('2026-01-02T03:04:05.000Z');
   const noteOnlyUpdatedFormA = await service.updateForm(formA.id, { actor: 'audit-json', notes: 'Audit JSON', auditAt, ignoredUndefined: undefined });
   assert(noteOnlyUpdatedFormA.services.length === 1 && noteOnlyUpdatedFormA.services[0].id === originalFormAServiceId, 'note-only update should keep existing services');
@@ -321,7 +323,7 @@ async function main() {
   const scopeBookingB = await makeBooking('SCOPE-B', customerB, orderB, tourB);
   const scopeFormB = await service.createForm(formPayload(scopeBookingB, supplierB, supplierServiceB, 'SCOPE-B'));
   await rejectsMessage(() => service.createPaymentRequest({ actor: 'bad-scope', items: [{ supplierId: supplierB.id, costId: scopeFormB.costs[0].id, amount: 100 }] }, branchAUser), 'Không tìm thấy chi phí điều hành', 'branch scoped user cannot request payment for another branch cost');
-  await service.updateForm(scopeFormB.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(scopeFormB.id, 'DONE', { actor: 'dashboard-cleanup' });
 
   const updatedRequest = await service.updatePaymentRequest(request.id, {
     actor: 'payment-updater',
@@ -358,8 +360,8 @@ async function main() {
   assert(defaultCodeCollisionRequest.code !== defaultCodeRequest.code && /^YCTT-\d{6}-\d{6}$/.test(defaultCodeCollisionRequest.code), 'generated payment request code should skip existing request codes');
   await service.deletePaymentRequest(defaultCodeCollisionRequest.id, branchAUser);
   await service.deletePaymentRequest(defaultCodeRequest.id, branchAUser);
-  await service.updateForm(defaultCodeCollisionForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
-  await service.updateForm(defaultCodeForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(defaultCodeCollisionForm.id, 'DONE', { actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(defaultCodeForm.id, 'DONE', { actor: 'dashboard-cleanup' });
 
   const deleteBooking = await makeBooking('DELETE', customerA, orderA, tourA);
   const deleteForm = await service.createForm(formPayload(deleteBooking, supplierA, supplierServiceA, 'DELETE'));
@@ -367,7 +369,7 @@ async function main() {
   const deletedRequest = await service.deletePaymentRequest(deleteRequest.id, branchAUser);
   assert(deletedRequest.id === deleteRequest.id, 'delete payment request should delete draft request');
   assert((await service.listPaymentRequests({ search: deleteRequest.code })).length === 0, 'deleted payment request should not be listed');
-  await service.updateForm(deleteForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(deleteForm.id, 'DONE', { actor: 'dashboard-cleanup' });
 
   const rejectBooking = await makeBooking('REJECT', customerA, orderA, tourA);
   const rejectForm = await service.createForm(formPayload(rejectBooking, supplierA, supplierServiceA, 'REJECT'));
@@ -378,7 +380,7 @@ async function main() {
   assert(submittedReject.status === 'REQUESTED', 'submit payment request should move draft to requested');
   const rejected = await service.rejectPaymentRequest(rejectRequest.id, { actor: 'approver', note: 'Thiếu chứng từ' });
   assert(rejected.status === 'REJECTED' && rejected.approvedBy === 'approver', 'reject payment request should move requested to rejected');
-  await service.updateForm(rejectForm.id, { status: 'DONE', actor: 'dashboard-cleanup' });
+  await service.changeFormStatus(rejectForm.id, 'DONE', { actor: 'dashboard-cleanup' });
 
   const submitted = await service.submitPaymentRequest(request.id, { actor: 'submitter-a' });
   assert(submitted.status === 'REQUESTED' && submitted.requestedBy === 'submitter-a', 'submit payment request should update actor');

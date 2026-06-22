@@ -20,6 +20,7 @@ const requiredPermissions = [
   ["createForm", "operation.form.manage"],
   ["form", "operation.form.view"],
   ["updateForm", "operation.form.manage"],
+  ["updateFormStatus", "operation.form.manage"],
   ["cancelFormLegacy", "operation.form.manage"],
   ["paymentRequests", "operation.payment-request.view"],
   ["createPaymentRequest", "operation.payment-request.create"],
@@ -42,6 +43,8 @@ if (!dto.includes('replace(/\\s+/g') || !dto.includes('toUpperCase()')) failures
 if (!controller.includes("@Post('forms/:id/cancel')") || !controller.includes('route ch\\u00ednh th\\u1ee9c') && !controller.includes('route ch?nh th?c') || !controller.includes('cancelForm(@Param')) failures.push('POST cancel route must be documented as official');
 if (!controller.includes("@Delete('forms/:id')") || !controller.includes('deprecated: true') || !controller.includes('cancelFormLegacy')) failures.push('DELETE cancel route must be a deprecated legacy alias');
 if (controller.lastIndexOf("@RequirePermissions('operation.form.manage')", controller.indexOf('cancelForm(@Param')) === -1) failures.push('POST cancel route must require operation.form.manage');
+if (!controller.includes("@Post('forms/:id/status')") || !controller.includes('updateFormStatus(@Param')) failures.push('operation form status changes must use a dedicated action route');
+if (!service.includes('async changeFormStatus(') || !service.includes('Operation form status must be changed through') && !service.includes('action endpoint')) failures.push('operation form status changes must be blocked in normal update and routed through action service');
 if (!client.includes("/api/operations/forms/${id}/cancel") || !client.includes("/api/operations/supplier-payment-requests/${id}/${action}")) failures.push('OperationsClient endpoint contract changed unexpectedly');
 for (const english of [
   'At least one supplier payment item is required',
