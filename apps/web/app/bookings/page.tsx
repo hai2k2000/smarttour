@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { viStatus } from '../i18n';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -396,14 +397,21 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
   const error = singleParam(params.error);
   const page = pageParam(params.page);
   const skip = (page - 1) * bookingPageSize;
-  const [tourProgramsResult, bookingsResult] = await Promise.all([
-    apiGet<TourProgram[]>('/tour-programs', [], 'Tải danh sách tour mẫu'),
-    apiGet<Booking[]>(`/bookings?skip=${skip}&take=${bookingPageSize + 1}`, [], 'Tải danh sách booking'),
-  ]);
+  const currentUserResult = await apiGet<PermissionUser | null>('/auth/me', null, 'T\u1ea3i quy\u1ec1n phi\u00ean \u0111\u0103ng nh\u1eadp');
+  const currentUser = currentUserResult.data;
+  const canViewBookings = hasPermission(currentUser, 'booking.view');
+  const canManageBookings = hasPermission(currentUser, 'booking.manage');
+  const [tourProgramsResult, bookingsResult] = canViewBookings ? await Promise.all([
+    apiGet<TourProgram[]>('/tour-programs', [], 'T\u1ea3i danh s\u00e1ch tour m\u1eabu'),
+    apiGet<Booking[]>(`/bookings?skip=${skip}&take=${bookingPageSize + 1}`, [], 'T\u1ea3i danh s\u00e1ch booking'),
+  ]) : [
+    { data: [] as TourProgram[] },
+    { data: [] as Booking[] },
+  ];
   const tourPrograms = tourProgramsResult.data;
   const hasNextPage = bookingsResult.data.length > bookingPageSize;
   const bookings = bookingsResult.data.slice(0, bookingPageSize);
-  const loadErrors = [tourProgramsResult.error, bookingsResult.error].filter(Boolean);
+  const loadErrors = [currentUserResult.error, tourProgramsResult.error, bookingsResult.error].filter(Boolean);
 
   return (
     <section className="workspace">
@@ -413,7 +421,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
           <h1>Booking tour</h1>
         </div>
         <div className="pageHeaderActions">
-          <a className="secondaryButton iconTextButton" href="#create-booking"><Plus size={16} /> Thêm booking</a>
+          {canManageBookings ? <a className="secondaryButton iconTextButton" href="#create-booking"><Plus size={16} /> Thêm booking</a> : null}
           <span className="statusPill"><Users size={14} /> Nhân sự vận hành</span>
         </div>
       </header>
@@ -426,6 +434,9 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
         </div>
       ) : null}
 
+      <ServerPermissionNotice allowed={canViewBookings} label={'xem booking'} missingPermissions={['booking.view']} />
+      {canViewBookings ? (
+      <>
       <section className="panel listPanel">
         <div className="sectionHeader">
           <h2>Danh sách booking</h2>
@@ -470,6 +481,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
                   <td>{operationBadge(booking)}</td>
                   <td className="actionsCell">
                     <div className="rowActions">
+                      {canManageBookings ? (
+                        <>
                       <a className="secondaryButton iconOnlyButton" href={`#status-${booking.id}`} title="Cập nhật trạng thái" aria-label={`Cập nhật trạng thái ${booking.code}`}>
                         <ClipboardCheck size={14} />
                       </a>
@@ -485,6 +498,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
                       <a className="dangerButton iconOnlyButton" href={`#delete-${booking.id}`} title="Xóa booking" aria-label={`Xóa ${booking.code}`}>
                         <Trash2 size={14} />
                       </a>
+                        </>
+                      ) : <span className="mutedText">{'Ch\u1ec9 xem'}</span>}
                     </div>
                   </td>
                 </tr>
@@ -505,6 +520,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
         ) : null}
       </section>
 
+      {canManageBookings ? (
+      <>
       <BookingModal id="create-booking" title="Tạo booking" icon={<Plus size={18} />}>
         <BookingForm tourPrograms={tourPrograms} action={createBooking} submitLabel="Tạo booking" />
       </BookingModal>
@@ -519,6 +536,10 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
       {bookings.map((booking) => (
         <DeleteBookingModal booking={booking} key={`delete-${booking.id}`} />
       ))}
+      </>
+      ) : null}
+      </>
+      ) : null}
     </section>
   );
 }

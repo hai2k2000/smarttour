@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 booking page permission hardening:
+  - Booking server page now reads `/auth/me`, gates booking list/content with `booking.view`, and hides create/edit/status/delete actions and modals unless the user has `booking.manage`.
+  - Added `scripts/test-bookings-server-page-permissions-contract.js` to guard the booking page RBAC contract.
+
+
 - Phase 3 server-rendered tour pages permission hardening:
   - GIT Tour, LandTour, and Tour Programs pages now read `/auth/me` on the server, gate list/content with `tour.view`, and hide create/update/copy/delete itinerary/form actions unless the user has `tour.manage`.
   - Added shared server-side permission helpers and `scripts/test-tour-server-pages-permissions-contract.js` to guard these server-rendered RBAC contracts.
