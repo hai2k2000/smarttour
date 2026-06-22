@@ -27,10 +27,10 @@ type Message = { kind: 'success' | 'error' | 'info'; text: string };
 const detailSchema = z.object({
   sku: z.string().default(''),
   serviceName: z.string().default(''),
-  quantity: z.coerce.number().default(1),
+  quantity: z.coerce.number().min(0.01, 'S\u1ed1 l\u01b0\u1ee3ng ph\u1ea3i l\u1edbn h\u01a1n 0').default(1),
   unit: z.string().default(''),
-  netPrice: z.coerce.number().default(0),
-  vat: z.coerce.number().default(0),
+  netPrice: z.coerce.number().min(0, 'Gi\u00e1 NET kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
+  vat: z.coerce.number().min(0, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').max(100, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c v\u01b0\u1ee3t qu\u00e1 100%').default(0),
   note: z.string().default(''),
 });
 
@@ -48,7 +48,7 @@ const voucherSchema = z.object({
   note: z.string().default(''),
   createdBy: z.string().default('Operator'),
   details: z.array(detailSchema).default([]),
-  paymentAmount: z.coerce.number().default(0),
+  paymentAmount: z.coerce.number().min(0, 'S\u1ed1 ti\u1ec1n thanh to\u00e1n kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0),
 });
 
 type VoucherForm = z.infer<typeof voucherSchema>;
@@ -493,10 +493,10 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
                               <td>{index + 1}</td>
                               <td><input {...register(`details.${index}.sku`)} disabled={formBusy} /></td>
                               <td><input {...register(`details.${index}.serviceName`)} disabled={formBusy} /></td>
-                              <td><input type="number" min={0} step="0.01" {...register(`details.${index}.quantity`)} disabled={formBusy} /></td>
+                              <td><input type="number" min={0.01} step="0.01" {...register(`details.${index}.quantity`)} disabled={formBusy} /></td>
                               <td><input {...register(`details.${index}.unit`)} disabled={formBusy} /></td>
                               <td><input type="number" min={0} step="0.01" {...register(`details.${index}.netPrice`)} disabled={formBusy} /></td>
-                              <td><input type="number" min={0} step="0.01" {...register(`details.${index}.vat`)} disabled={formBusy} /></td>
+                              <td><input type="number" min={0} max={100} step="0.01" {...register(`details.${index}.vat`)} disabled={formBusy} /></td>
                               <td>{money(lineAmount(values.details?.[index] || {}))}</td>
                               <td><input {...register(`details.${index}.note`)} disabled={formBusy} /></td>
                               <td><button type="button" className="dangerButton iconButton" disabled={formBusy} onClick={() => detailArray.remove(index)}><Trash2 size={15} /></button></td>
@@ -516,7 +516,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
                   </div>
                   <h2>Thanh toán</h2>
                   <div className="summaryRows">
-                    <div><span>Thanh toán thêm</span><input type="number" min={0} step="0.01" {...register('paymentAmount')} disabled={!canCreateVoucherPayment || !editingId || paying} placeholder="Nhập số tiền" /></div>
+                    <div><span>Thanh toán thêm</span><input type="number" min={0.01} step="0.01" {...register('paymentAmount')} disabled={!canCreateVoucherPayment || !editingId || paying} placeholder="Nhập số tiền" /></div>
                   </div>
                   <button type="button" className="secondaryButton iconTextButton" disabled={!canCreateVoucherPayment || !editingId || paying || formBusy} onClick={addPayment}>
                     {paying ? <Loader2 size={16} /> : <CreditCard size={16} />} {paying ? 'Đang ghi nhận' : 'Ghi nhận thanh toán'}

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 operation voucher numeric validation hardening:
+  - Operation voucher detail rows now mirror backend numeric bounds in the web form: quantity must be positive, NET price non-negative, VAT 0..100, and payment input cannot be negative.
+  - Operation voucher client contract now guards these frontend/backend validation boundaries.
+
 - Phase 3 supplier list readability hardening:
   - Generic typed supplier lists now start with supplier name instead of a separate supplier-code-first column; supplier codes remain only as secondary traceability text under the name.
   - Supplier client contract now guards the generic and hotel supplier name-first list convention.

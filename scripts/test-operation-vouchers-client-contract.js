@@ -20,4 +20,13 @@ includes('confirmVoucherPayment(amount)', 'Payment action should confirm before 
 includes('disabled={!canManageVouchers || formBusy}', 'Save button should be disabled without manage permission.');
 includes('disabled={!canManageVouchers || reloading}', 'Create button should be disabled without manage permission.');
 includes('disabled={!canCreateVoucherPayment || !editingId || paying || formBusy}', 'Payment button should be disabled without payment permission.');
+includes('quantity: z.coerce.number().min(0.01', 'Detail quantity should match backend positive-number validation.');
+includes('netPrice: z.coerce.number().min(0', 'Detail net price should reject negative values before API submission.');
+includes('vat: z.coerce.number().min(0', 'Detail VAT should reject negative values before API submission.');
+includes('.max(100', 'Detail VAT should reject values above 100 percent before API submission.');
+includes('paymentAmount: z.coerce.number().min(0', 'Payment amount field should reject negative values while addPayment enforces positive payments.');
+includes('type="number" min={0.01} step="0.01" {...register(`details.${index}.quantity`)}', 'Quantity input should expose a positive minimum.');
+includes('type="number" min={0} step="0.01" {...register(`details.${index}.netPrice`)}', 'Net price input should expose a non-negative minimum.');
+includes('type="number" min={0} max={100} step="0.01" {...register(`details.${index}.vat`)}', 'VAT input should expose backend 0-100 range.');
+includes("type=\"number\" min={0.01} step=\"0.01\" {...register('paymentAmount')}", 'Payment input should expose a positive minimum.');
 console.log('TEST_OPERATION_VOUCHERS_CLIENT_CONTRACT_OK');

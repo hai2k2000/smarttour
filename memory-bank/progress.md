@@ -1847,3 +1847,8 @@
   - Generic supplier tables now use a name-first primary column and keep supplier code as secondary traceability text, matching the previously established table readability convention.
   - Strengthened supplier client contract so generic supplier lists cannot regress to a separate code-first column, while hotel supplier lists remain name-first.
   - Verification passed: `bash scripts/test-suppliers-client-contract.sh`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 operation voucher numeric validation hardening:
+  - Operation voucher frontend validation now matches backend bounds for service detail quantity, NET price, VAT percentage, and payment amount input constraints.
+  - Strengthened `scripts/test-operation-vouchers-client-contract.js` so the UI cannot regress to accepting zero quantity, negative prices, VAT over 100%, or negative payment input.
+  - Verification passed: `node scripts/test-operation-vouchers-client-contract.js`, `node scripts/test-required-fields-ui-contract.js`, `npm run build -w @smarttour/web`, and `git diff --check`.
