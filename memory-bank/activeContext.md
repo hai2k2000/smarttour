@@ -2282,3 +2282,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the server-rendered Order Center page fetched dashboard/order data before checking order.view, allowing unauthorized data preload into the page payload.
   - Found the Order Center export control only disabled via client permission state instead of being server-driven and fail-closed by the page permission contract.
   - Added a focused Order Center permissions contract and updated the page/client so order content requires order.view and CSV export requires order.export.
+
+- 2026-06-22 Phase 3 workspace data permission hardening:
+  - Found Workspace and CEO Overview server data helpers fetched reports, finance, order-center, operations, quotations, receipts, and payments before checking the current user's permissions.
+  - Added a focused workspace data permissions contract and changed workspace-data to read /auth/me first, then only call each protected API group when the matching backend permission is present.
+  - This keeps workspace summary pages fail-closed and prevents unauthorized dashboard/order/finance data preloads through the workspace route family.

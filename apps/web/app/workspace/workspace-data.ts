@@ -1,4 +1,5 @@
 import { serverAuthHeaders } from '../serverAuth';
+import { hasPermission } from '../serverPermissions';
 
 const apiBase = serverApiBase();
 
@@ -21,6 +22,7 @@ export type WorkspaceUser = {
   department?: string | null;
   dataScope?: string;
   roles?: Array<{ code?: string; name?: string }>;
+  permissions?: string[] | null;
 };
 
 export type WorkspaceSummary = {
@@ -235,16 +237,23 @@ async function apiGet<T>(path: string, fallback: T, label: string, errors: strin
 export async function getWorkspaceData(): Promise<WorkspaceData> {
   const errors: string[] = [];
   const headers = await serverAuthHeaders();
-  const [user, overview, finance, orderDashboard, orders, operations, quotations, receiptsData, paymentsData] = await Promise.all([
-    apiGet<WorkspaceUser | null>('/api/auth/me', null, 'Thông tin người dùng', errors, headers),
-    apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tổng quan vận hành', errors, headers),
-    apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate', emptyFinance, 'Báo cáo tài chính', errors, headers),
-    apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tổng hợp đơn hàng', errors, headers),
-    apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sách đơn hàng', errors, headers),
-    apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Điều hành tour', errors, headers),
-    apiGet<WorkspaceQuotationDashboard>('/api/quotations/dashboard', emptyQuotations, 'Báo giá', errors, headers),
-    apiGet<{ rows?: WorkspaceReceipt[] }>('/api/finance/receipts', { rows: [] }, 'Phiếu thu', errors, headers),
-    apiGet<{ rows?: WorkspacePayment[] }>('/api/finance/payments', { rows: [] }, 'Phiếu chi', errors, headers),
+  const user = await apiGet<WorkspaceUser | null>('/api/auth/me', null, 'Thong tin nguoi dung', errors, headers);
+  const canViewReports = hasPermission(user, 'report.view');
+  const canViewFinanceReports = canViewReports && hasPermission(user, 'finance.cashflow.view');
+  const canViewOrders = hasPermission(user, 'order.view');
+  const canViewOperations = hasPermission(user, 'operation.form.view');
+  const canViewQuotations = hasPermission(user, 'quotation.view');
+  const canViewReceipts = hasPermission(user, 'finance.receipt.view');
+  const canViewPayments = hasPermission(user, 'finance.payment.view');
+  const [overview, finance, orderDashboard, orders, operations, quotations, receiptsData, paymentsData] = await Promise.all([
+    canViewReports ? apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tong quan van hanh', errors, headers) : emptyOverview,
+    canViewFinanceReports ? apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate', emptyFinance, 'Bao cao tai chinh', errors, headers) : emptyFinance,
+    canViewOrders ? apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tong hop don hang', errors, headers) : emptyOrderDashboard,
+    canViewOrders ? apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sach don hang', errors, headers) : [],
+    canViewOperations ? apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Dieu hanh tour', errors, headers) : emptyOperations,
+    canViewQuotations ? apiGet<WorkspaceQuotationDashboard>('/api/quotations/dashboard', emptyQuotations, 'Bao gia', errors, headers) : emptyQuotations,
+    canViewReceipts ? apiGet<{ rows?: WorkspaceReceipt[] }>('/api/finance/receipts', { rows: [] }, 'Phieu thu', errors, headers) : { rows: [] },
+    canViewPayments ? apiGet<{ rows?: WorkspacePayment[] }>('/api/finance/payments', { rows: [] }, 'Phieu chi', errors, headers) : { rows: [] },
   ]);
 
   return {
@@ -264,13 +273,17 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
 export async function getWorkspaceOverviewData(): Promise<WorkspaceOverviewData> {
   const errors: string[] = [];
   const headers = await serverAuthHeaders();
+  const user = await apiGet<WorkspaceUser | null>('/api/auth/me', null, 'Thong tin nguoi dung', errors, headers);
+  const canViewReports = hasPermission(user, 'report.view');
+  const canViewOrders = hasPermission(user, 'order.view');
+  const canViewOperations = hasPermission(user, 'operation.form.view');
   const [overview, productReport, marketReport, orderDashboard, orders, operations] = await Promise.all([
-    apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tổng quan vận hành', errors, headers),
-    apiGet<WorkspaceReportData>('/api/reports/revenue/by-type?dateField=createdAt', emptyReport, 'Doanh số theo dòng sản phẩm', errors, headers),
-    apiGet<WorkspaceReportData>('/api/reports/revenue/by-market?dateField=createdAt', emptyReport, 'Phân tích thị trường địa lý', errors, headers),
-    apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tổng hợp đơn hàng', errors, headers),
-    apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sách đơn hàng', errors, headers),
-    apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Điều hành tour', errors, headers),
+    canViewReports ? apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tong quan van hanh', errors, headers) : emptyOverview,
+    canViewReports ? apiGet<WorkspaceReportData>('/api/reports/revenue/by-type?dateField=createdAt', emptyReport, 'Doanh so theo dong san pham', errors, headers) : emptyReport,
+    canViewReports ? apiGet<WorkspaceReportData>('/api/reports/revenue/by-market?dateField=createdAt', emptyReport, 'Phan tich thi truong dia ly', errors, headers) : emptyReport,
+    canViewOrders ? apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tong hop don hang', errors, headers) : emptyOrderDashboard,
+    canViewOrders ? apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sach don hang', errors, headers) : [],
+    canViewOperations ? apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Dieu hanh tour', errors, headers) : emptyOperations,
   ]);
   const productSales = productReport.rows || overview.byType || [];
   return {

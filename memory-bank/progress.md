@@ -1884,3 +1884,9 @@
   - Order Center client now receives canExportOrders from the server page, hides the CSV export button without order.export, and fail-closes the export handler.
   - Added scripts/test-order-center-permissions-contract.js to guard the Order Center RBAC contract.
   - Verification passed: node scripts/test-order-center-permissions-contract.js, bash scripts/test-orders-ui-auth-contract.sh, npm run build -w @smarttour/web, and git diff --check.
+
+- 2026-06-22 Completed Phase 3 workspace data permission hardening:
+  - Workspace data now reads /auth/me before protected dashboard fetches and gates report, finance, order, operation, quotation, receipt, and payment data by their backend permissions.
+  - Workspace Overview now gates report/product/market/order/operation data before calling the underlying APIs.
+  - Added scripts/test-workspace-data-permissions-contract.js to guard the workspace data RBAC contract.
+  - Verification passed: node scripts/test-workspace-data-permissions-contract.js, bash scripts/test-workspace-pages-contract.sh, node scripts/test-web-server-api-base-contract.js, npm run build -w @smarttour/web, and git diff --check.
