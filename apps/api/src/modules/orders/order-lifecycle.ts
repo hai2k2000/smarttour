@@ -5,13 +5,33 @@ import { OrderAllotmentService } from './order-allotment-sync';
 
 type SettledOrder = { id: string; settledAt: Date | null; status?: OrderStatus | string | null };
 type LifecycleOrder = SettledOrder & { type: OrderType };
-const ORDER_STATUS_TARGETS: Record<OrderType, ReadonlySet<OrderStatus>> = {
-  FIT_TOUR: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
-  GIT_COMBO: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
-  LANDTOUR: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
-  HOTEL_BOOKING: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
-  SINGLE_SERVICE: new Set(['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
-  FLIGHT_ORDER: new Set(['DRAFT', 'UPCOMING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+type OrderStatusTransitionMap = Record<OrderStatus, ReadonlySet<OrderStatus>>;
+
+const STANDARD_ORDER_STATUS_TRANSITIONS: OrderStatusTransitionMap = {
+  DRAFT: new Set(['DRAFT', 'UPCOMING', 'CANCELLED']),
+  UPCOMING: new Set(['UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  RUNNING: new Set(['RUNNING', 'UPCOMING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  COMPLETED: new Set(['COMPLETED', 'UPCOMING', 'RUNNING', 'CANCELLED', 'SETTLED']),
+  CANCELLED: new Set(['CANCELLED', 'UPCOMING']),
+  SETTLED: new Set(['SETTLED']),
+};
+
+const FLIGHT_ORDER_STATUS_TRANSITIONS: OrderStatusTransitionMap = {
+  DRAFT: new Set(['DRAFT', 'UPCOMING', 'CANCELLED']),
+  UPCOMING: new Set(['UPCOMING', 'COMPLETED', 'CANCELLED', 'SETTLED']),
+  RUNNING: new Set(['UPCOMING', 'COMPLETED', 'CANCELLED']),
+  COMPLETED: new Set(['COMPLETED', 'UPCOMING', 'CANCELLED', 'SETTLED']),
+  CANCELLED: new Set(['CANCELLED', 'UPCOMING']),
+  SETTLED: new Set(['SETTLED']),
+};
+
+const ORDER_STATUS_TRANSITIONS: Record<OrderType, OrderStatusTransitionMap> = {
+  FIT_TOUR: STANDARD_ORDER_STATUS_TRANSITIONS,
+  GIT_COMBO: STANDARD_ORDER_STATUS_TRANSITIONS,
+  LANDTOUR: STANDARD_ORDER_STATUS_TRANSITIONS,
+  HOTEL_BOOKING: STANDARD_ORDER_STATUS_TRANSITIONS,
+  SINGLE_SERVICE: STANDARD_ORDER_STATUS_TRANSITIONS,
+  FLIGHT_ORDER: FLIGHT_ORDER_STATUS_TRANSITIONS,
 };
 
 @Injectable()
@@ -81,8 +101,9 @@ export async function unlockSettledOrder(tx: Prisma.TransactionClient, order: Li
 }
 
 export function assertValidStatusTarget(order: LifecycleOrder, status: OrderStatus) {
-  const allowed = ORDER_STATUS_TARGETS[order.type];
-  if (!allowed?.has(status)) throw new BadRequestException(`Status ${status} is not valid for ${order.type}`);
+  const current = order.status as OrderStatus;
+  const allowed = ORDER_STATUS_TRANSITIONS[order.type]?.[current];
+  if (!allowed?.has(status)) throw new BadRequestException(`Cannot change order status from ${current} to ${status} for ${order.type}`);
 }
 
 function text(value?: string | null) {

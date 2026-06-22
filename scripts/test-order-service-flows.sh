@@ -294,6 +294,18 @@ async function main() {
   const statusUnlocked = await service.unlock('single-services', copied.id, { actor: 'order-test', reason: 'test status unlock' });
   assert(statusUnlocked.status === 'COMPLETED' && !statusUnlocked.settledAt, 'unlock should clear status-settled orders');
 
+  const draftOrder = await service.create('single-services', {
+    systemCode: run + '-DRAFT-STATUS',
+    name: 'Draft Status Guard',
+    customerId: customer.id,
+    status: 'DRAFT',
+  });
+  await rejects(() => service.updateStatus('single-services', draftOrder.id, 'COMPLETED'), 'draft orders should reject direct transition to completed');
+  const afterInvalidDraftTransition = await prisma.order.findUniqueOrThrow({ where: { id: draftOrder.id } });
+  assert(afterInvalidDraftTransition.status === 'DRAFT', 'invalid draft transition should not mutate status');
+  const draftUpcoming = await service.updateStatus('single-services', draftOrder.id, 'UPCOMING');
+  assert(draftUpcoming.status === 'UPCOMING', 'draft orders should allow transition to upcoming');
+
   const flight = await service.create('flight-orders', {
     systemCode: run + '-FLIGHT-STATUS',
     name: 'Flight Status Guard',

@@ -2167,3 +2167,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Started Phase 2 by blocking normal Order update payloads from mutating lifecycle `status`; status changes must go through the dedicated status action endpoint.
   - Added service and API regressions proving `PUT /orders/:type/:id` rejects `status` and leaves the existing status unchanged, while the lifecycle endpoint remains available.
   - Updated the Orders API regression to use the current HttpOnly cookie auth contract after Phase 1 removed public token JSON from login/bootstrap responses.
+
+- 2026-06-22 Phase 2 order status transition matrix:
+  - Added an explicit current-to-next Order status transition matrix by order type, replacing the previous target-only status allowlist.
+  - The first guarded invalid transition is `DRAFT -> COMPLETED`; valid operational correction flows already covered by hotel/allotment tests remain allowed.
+  - Verification passed: `scripts/test-order-service-flows.sh` and `scripts/test-orders-api.sh`.

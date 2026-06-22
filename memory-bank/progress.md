@@ -1779,3 +1779,8 @@
   - Orders normal update now rejects lifecycle `status` fields instead of silently bypassing action services.
   - Regression coverage added in order service flows and Orders API contract; the API test now authenticates with the backend-issued session cookie.
   - Verification passed: `scripts/test-order-service-flows.sh`, `scripts/test-orders-api.sh`, `npx prisma validate --schema prisma/schema.prisma`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 2 order status transition matrix:
+  - Order lifecycle status changes now validate the current status and target status per order type instead of only checking whether the target status exists for that type.
+  - Added regression coverage proving draft orders cannot jump directly to completed and that invalid transitions leave the stored status unchanged.
+  - Verification passed: `scripts/test-order-service-flows.sh` and `scripts/test-orders-api.sh`.
