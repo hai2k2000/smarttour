@@ -1,11 +1,12 @@
 import { ClipboardList, Users } from 'lucide-react';
 import { serverAuthHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 import QuotationsClient from './QuotationsClient';
 
 export const dynamic = 'force-dynamic';
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 const emptyDashboard = { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 };
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {

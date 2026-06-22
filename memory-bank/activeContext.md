@@ -2396,3 +2396,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated both pages to use the server-side API base contract: prefer `SMARTTOUR_SERVER_API_URL`, default production SSR to Docker internal `http://api:4000`, and keep public API env only for development fallback.
   - Strengthened `scripts/test-web-server-api-base-contract.js` so Tour Programs and Bookings cannot regress to localhost/public-only SSR API calls.
   - Verification passed: `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, `docker compose config --quiet`, and `git diff --check`.
+
+- 2026-06-22 Phase 3 broad server API base hardening:
+  - Found the same SSR API-base drift across other server-rendered pages: FIT/GIT/LandTour, Operations vouchers, Order Center, Orders, Quote/Quotation, Reports, Suppliers, Tour Guides, Tour Programs, and Bookings.
+  - Added shared `apps/web/app/serverApiBase.ts` and moved server pages to `serverApiBase()` so SSR requests prefer `SMARTTOUR_SERVER_API_URL`, default production to Docker internal `http://api:4000`, and keep public API env only inside the shared helper.
+  - Expanded `scripts/test-web-server-api-base-contract.js` to cover every server page with SSR API fetches and prevent direct `NEXT_PUBLIC_API_URL` reads in page code.
+  - Verification passed: `node scripts/test-web-server-api-base-contract.js`, grep for direct page-level `NEXT_PUBLIC_API_URL` reads, `npm run build -w @smarttour/web`, and `git diff --check`.

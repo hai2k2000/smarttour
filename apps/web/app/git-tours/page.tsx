@@ -2,6 +2,7 @@ import { AlertTriangle, BriefcaseBusiness, CircleDollarSign, Copy, GitBranch, Pl
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { viStatus } from '../i18n';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
@@ -23,7 +24,7 @@ type GitTour = {
   _count?: { revenues: number; services: number; costs: number };
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 const gitWorkflowSteps = ['GIT_INFO', 'GIT_COSTING', 'GIT_OPERATION', 'GIT_HANDOVER', 'GIT_SURVEY', 'GIT_COMPLETED'];

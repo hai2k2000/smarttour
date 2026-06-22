@@ -1996,3 +1996,9 @@
   - Tour Programs and Bookings server-rendered pages now use `SMARTTOUR_SERVER_API_URL`/Docker internal `http://api:4000` for SSR requests and mutations instead of falling back to `localhost:4000`.
   - Expanded `scripts/test-web-server-api-base-contract.js` to cover these pages and prevent public-only/localhost SSR API regressions.
   - Verification passed: `node scripts/test-web-server-api-base-contract.js`, `npm run build -w @smarttour/web`, `docker compose config --quiet`, and `git diff --check`.
+
+- 2026-06-22 Completed Phase 3 broad server API base hardening:
+  - Added shared `apps/web/app/serverApiBase.ts` and moved all server-rendered pages with SSR API fetches to `serverApiBase()`.
+  - Covered FIT/GIT/LandTour, Operations vouchers, Order Center, Orders, Quote/Quotation, Reports, Suppliers, Tour Guides, Tour Programs, and Bookings so page code no longer reads `NEXT_PUBLIC_API_URL` directly.
+  - Expanded `scripts/test-web-server-api-base-contract.js` to guard the complete SSR page list.
+  - Verification passed: `node scripts/test-web-server-api-base-contract.js`, grep for direct page-level `NEXT_PUBLIC_API_URL` reads, `npm run build -w @smarttour/web`, and `git diff --check`.

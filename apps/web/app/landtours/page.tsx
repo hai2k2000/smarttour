@@ -2,6 +2,7 @@ import { AlertTriangle, Boxes, Copy, FileText, GitBranch, Plus, Route, Save, Tra
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { viStatus } from '../i18n';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
@@ -24,7 +25,7 @@ type LandTour = {
   _count?: { services: number; terms: number };
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 const dateFormatter = new Intl.DateTimeFormat('vi-VN');
 const tourStatuses = ['DRAFT', 'UPCOMING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'SETTLED'];
 const paymentStatuses = ['UNPAID', 'PARTIAL', 'PAID'];

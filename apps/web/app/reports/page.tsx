@@ -1,10 +1,11 @@
 import { serverAuthHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 import ReportsClient from './ReportsClient';
 
 export const dynamic = 'force-dynamic';
 
-const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+const apiBase = serverApiBase();
 const defaultOverviewPath = '/reports/overview?dateField=createdAt';
 const defaultRevenuePath = '/reports/revenue/by-created-date?dateField=createdAt';
 

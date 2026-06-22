@@ -19,12 +19,28 @@ const proxy = read('apps/web/proxy.ts');
 const tourProgramsPage = read('apps/web/app/tour-programs/page.tsx');
 const bookingsPage = read('apps/web/app/bookings/page.tsx');
 const dockerCompose = read('docker-compose.yml');
+const serverPagesWithApiFetches = [
+  'apps/web/app/bookings/page.tsx',
+  'apps/web/app/fit-tours/page.tsx',
+  'apps/web/app/git-tours/page.tsx',
+  'apps/web/app/landtours/page.tsx',
+  'apps/web/app/operation-vouchers/page.tsx',
+  'apps/web/app/order-center/page.tsx',
+  'apps/web/app/orders/[type]/page.tsx',
+  'apps/web/app/quotations/page.tsx',
+  'apps/web/app/quotes/combos/page.tsx',
+  'apps/web/app/quotes/tours/page.tsx',
+  'apps/web/app/reports/page.tsx',
+  'apps/web/app/suppliers/[type]/page.tsx',
+  'apps/web/app/suppliers/hotels/page.tsx',
+  'apps/web/app/suppliers/page.tsx',
+  'apps/web/app/tour-guides/page.tsx',
+  'apps/web/app/tour-programs/page.tsx',
+];
 
 for (const [label, source] of [
   ['workspace-data', workspaceData],
   ['proxy', proxy],
-  ['tour-programs page', tourProgramsPage],
-  ['bookings page', bookingsPage],
 ]) {
   assert(source.includes('SMARTTOUR_SERVER_API_URL'), `${label} must support a private server API URL override`);
   assert(source.includes('http://api:4000'), `${label} must use Docker internal API in production`);
@@ -53,6 +69,13 @@ for (const [label, source] of [
 ]) {
   assert(source.includes('const apiBase = serverApiBase();'), `${label} must use serverApiBase() for SSR requests and mutations`);
   assert(!source.includes("NEXT_PUBLIC_API_URL || 'http://localhost:4000'"), `${label} must not fall back to localhost for SSR API calls`);
+}
+for (const relativePath of serverPagesWithApiFetches) {
+  const source = read(relativePath);
+  assert(source.includes('serverApiBase'), `${relativePath} must import or define serverApiBase for SSR API calls`);
+  assert(source.includes('const apiBase = serverApiBase();'), `${relativePath} must call serverApiBase() for SSR API calls`);
+  assert(!source.includes('process.env.NEXT_PUBLIC_API_URL'), `${relativePath} must not read NEXT_PUBLIC_API_URL directly in SSR code`);
+  assert(!source.includes("NEXT_PUBLIC_API_URL || ''"), `${relativePath} must not use empty public API fallback in SSR code`);
 }
 assert(
   dockerCompose.includes('SMARTTOUR_SERVER_API_URL: ${SMARTTOUR_SERVER_API_URL:-http://api:4000}'),

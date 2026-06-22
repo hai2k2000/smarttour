@@ -2,6 +2,7 @@ import { AlertTriangle, Building2, CheckCircle2, FolderPlus, Pencil, Plus, Save,
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ type SuppliersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+const apiBase = serverApiBase();
 const createCategoryModalId = 'suppliers-create-category';
 const editCategoryModalId = (id: string) => `suppliers-edit-category-${id}`;
 const createSupplierModalId = 'suppliers-create-supplier';

@@ -1,12 +1,13 @@
 import { Building2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { serverApiBase } from '../../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import HotelSuppliersClient from './HotelSuppliersClient';
 
 export const dynamic = 'force-dynamic';
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 const text = {
   loadFallback: 'Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c d\u1eef li\u1ec7u',
   authError: 'T\u1ea3i quy\u1ec1n phi\u00ean \u0111\u0103ng nh\u1eadp th\u1ea5t b\u1ea1i',

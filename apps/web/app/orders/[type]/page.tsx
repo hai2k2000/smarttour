@@ -1,13 +1,14 @@
 import { ArrowLeft, CircleAlert, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { serverApiBase } from '../../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import { isOrderRouteType, orderConfigs } from '../order-config';
 import OrdersClient from './OrdersClient';
 
 export const dynamic = 'force-dynamic';
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {

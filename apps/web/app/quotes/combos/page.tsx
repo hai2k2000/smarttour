@@ -1,6 +1,7 @@
 import { Calculator, Users } from 'lucide-react';
 import Link from 'next/link';
 import { serverAuthHeaders } from '../../serverAuth';
+import { serverApiBase } from '../../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import QuoteCombosClient from './QuoteCombosClient';
 
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 type Supplier = { id: string; name: string; supplierServices?: { id: string; serviceName: string; netPrice: string }[] };
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+const apiBase = serverApiBase();
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {

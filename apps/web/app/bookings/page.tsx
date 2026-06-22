@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { viStatus } from '../i18n';
 import { serverAuthHeaders, serverAuthJsonHeaders } from '../serverAuth';
+import { serverApiBase } from '../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../serverPermissions';
 
 export const dynamic = 'force-dynamic';
@@ -75,14 +76,6 @@ const bookingStatusWorkflow: Record<BookingStatus, readonly BookingStatus[]> = {
 };
 const bookingPageSize = 50;
 
-function serverApiBase() {
-  const internalApiBase = process.env.SMARTTOUR_SERVER_API_URL?.trim();
-  if (internalApiBase) return internalApiBase.replace(/\/+$/, '');
-
-  const publicApiBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-  if (process.env.NODE_ENV === 'production') return 'http://api:4000';
-  return publicApiBase;
-}
 
 function isBookingStatus(value: string): value is BookingStatus {
   return validBookingStatuses.has(value);
