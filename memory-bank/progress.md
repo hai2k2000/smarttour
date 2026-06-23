@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Phase 4 runtime smoke coverage:
+  - Upgraded `scripts/smoke-swagger-action-status.js` so it reads `scripts/test-action-endpoint-status-contract.js`, resolves controller routes from source, and validates every guarded action endpoint in OpenAPI.
+  - Added parser coverage for multi-controller files such as suppliers, preventing smoke false positives from using the wrong controller prefix.
+  - Added `scripts/smoke-error-response-shape.js` plus `scripts/test-error-response-smoke-contract.js` to verify live 401 and validation 400 response shape, correlation IDs, stable codes, path/method/timestamp fields, and no obvious secret/token leakage.
+  - Verified with Phase 4 contracts, OpenAPI action smoke, error response smoke, Docker API build/deploy, and production healthcheck.
+
 - Hardened Auth session action status codes and OpenAPI smoke coverage:
   - Added Auth login, logout, and change-password to `scripts/test-action-endpoint-status-contract.js`.
   - Added explicit `@HttpCode(200)` to those Auth session endpoints while leaving create/bootstrap resource semantics untouched.

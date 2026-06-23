@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 runtime smoke coverage hardening:
+  - Upgraded `scripts/smoke-swagger-action-status.js` to derive expected OpenAPI routes from `scripts/test-action-endpoint-status-contract.js` instead of a narrow manual route list.
+  - The Swagger action smoke now parses controller prefixes and method decorators, including files with multiple controller classes, and validates all guarded action endpoints expose `200` and not `201` in `/docs-json`.
+  - Added `scripts/smoke-error-response-shape.js` and `scripts/test-error-response-smoke-contract.js` to validate runtime 401 and validation 400 error responses include the standardized fields and `x-correlation-id`.
+  - Verification covered the full Phase 4 contract set, both runtime smokes, Docker API build/deploy, and production healthcheck.
+
 - Phase 4 auth action/OpenAPI status hardening:
   - Extended the action status-code contract to cover Auth session actions: login, logout, and change-password.
   - Added explicit `@HttpCode(200)` to those endpoints so Swagger/runtime docs no longer expose Nest default `201` for session actions.

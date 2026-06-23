@@ -9,9 +9,18 @@ for (const token of [
   'application/json',
   'setTimeout',
   'Unexpected docs response',
+  'test-action-endpoint-status-contract.js',
+  'parseExpectedActions',
+  'parseControllerMethods',
+  '@Controller',
+  'routeFromDecorators',
   'JSON.parse',
 ]) {
   if (!source.includes(token)) failures.push(`smoke-swagger-action-status.js missing ${token}`);
+}
+
+if (source.includes('const expectedActionResponses = [')) {
+  failures.push('smoke-swagger-action-status.js must derive expected routes from the source action status contract instead of a manual route list');
 }
 
 if (!source.includes("process.exit(1)")) {
