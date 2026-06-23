@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened Operations supplier catalog payload:
+  - Updated Operations static catalog loading to request `/api/suppliers?take=100` while preserving the generic supplier source required by operation forms/payment requests.
+  - Strengthened the Operations contract so supplier catalog loading cannot regress to an implicit unbounded/default request or hotel-only supplier source.
+
 - Hardened FIT supplier catalog preload:
   - Updated `/fit-tours` SSR supplier preload to request `/suppliers?take=100` for manage users.
   - Added FIT contract coverage so supplier catalog preloads stay explicitly bounded.

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 Operations supplier catalog payload hardening:
+  - Operations static preload now requests the generic supplier catalog with `/api/suppliers?take=100` instead of relying on the implicit backend default.
+  - Operations controller/client contract now guards that Operations keeps using the generic supplier source with an explicit bounded `take`.
+
 - Phase 3 FIT supplier catalog preload hardening:
   - `/fit-tours` SSR supplier catalog preload now requests `/suppliers?take=100` for manage users, matching the supplier backend list cap explicitly.
   - FIT tours client contract now guards the bounded supplier catalog preload alongside the existing bounded FIT tour list preload.

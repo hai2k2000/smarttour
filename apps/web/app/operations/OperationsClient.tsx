@@ -280,7 +280,7 @@ export default function OperationsClient() {
     try {
       const [bookingResult, supplierResult] = await Promise.allSettled([
         fetchJson<unknown>('/api/bookings?take=500', 'danh sách booking'),
-        fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp'),
+        fetchJson<unknown>('/api/suppliers?take=100', 'danh sách nhà cung cấp'),
       ]);
       if (sequence !== staticLoadSeq.current) return errors;
 

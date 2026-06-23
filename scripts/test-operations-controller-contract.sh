@@ -130,7 +130,7 @@ if (service.includes("await this.audit(tx, status, 'SupplierPaymentRequest'")) f
 if (!service.includes("status === SupplierPaymentStatus.REQUESTED ? 'SUBMIT' : 'REJECT'")) failures.push('payment request submit/reject audit actions must be SUBMIT/REJECT');
 if (!service.includes('private auditMetadata(metadata: unknown)') || !service.includes('private toAuditJson(value: unknown)')) failures.push('operations audit metadata must be normalized before storing JSON');
 if (!suppliersService.includes('private supplierListInclude()') || !suppliersService.includes("supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }")) failures.push('generic supplier list must include supplierServices for OperationsClient');
-if (!client.includes("fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp')") || client.includes('/api/suppliers/hotels')) failures.push('OperationsClient must load the generic supplier source, not hotel-only suppliers');
+if (!client.includes("fetchJson<unknown>('/api/suppliers?take=100', 'danh sách nhà cung cấp')") || client.includes("fetchJson<unknown>('/api/suppliers', 'danh sách nhà cung cấp')") || client.includes('/api/suppliers/hotels')) failures.push('OperationsClient must load the generic supplier source with an explicit bounded take, not hotel-only suppliers');
 for (const copy of ['Vận hành tour và thanh toán nhà cung cấp', 'Công việc quá hạn', 'Nhà cung cấp chờ xác nhận', 'Yêu cầu thanh toán nhà cung cấp', 'Tour lỗ hoặc âm lợi nhuận']) {
   if (!client.includes(copy)) failures.push('OperationsClient missing normalized Vietnamese copy: ' + copy);
 }
