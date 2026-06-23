@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened report overview charts:
+  - Overview `byType` and `byMonth` chart rows now use scoped database order `groupBy` aggregates instead of capped display orders.
+  - Overview metrics no longer load capped order rows for summary/count/chart calculations.
+  - Strengthened report query validation coverage so these overview charts cannot regress to bounded-row `groupOrders(orders, ...)`.
+
 - Hardened hybrid finance report monthly cashflow chart:
   - `cashflowByMonth` now uses scoped database `groupBy` over cashflow payment date and entry type instead of capped cashflow display rows.
   - Cashflow row payloads remain bounded, while monthly chart totals reflect the aggregated matching dataset.

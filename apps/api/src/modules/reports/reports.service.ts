@@ -99,20 +99,21 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(query: ReportQuery, user?: RequestUser) {
-    const [orders, summary, counts, totalCustomers, supplierDebtCount] = await Promise.all([
-      this.orders(query, user),
+    const [summary, counts, totalCustomers, supplierDebtCount, byType, byMonth] = await Promise.all([
       this.orderSummaryFromDb(query, user),
       this.orderOverviewCountsFromDb(query, user),
       this.orderCustomerCountFromDb(query, user),
       this.supplierDebtCountFromDb(query, user),
+      this.orderOverviewByTypeFromDb(query, user),
+      this.orderOverviewByMonthFromDb(query, user),
     ]);
     return {
       ...summary,
       ...counts,
       totalCustomers,
       supplierDebtCount,
-      byType: this.groupOrders(orders, 'by-type').rows,
-      byMonth: this.groupOrders(orders, 'by-created-date', 'month').rows,
+      byType,
+      byMonth,
     };
   }
 
@@ -366,6 +367,94 @@ export class ReportsService {
       _sum: { debitAmount: true, creditAmount: true },
     });
     return groups.filter((row) => Number(row._sum.creditAmount ?? 0) - Number(row._sum.debitAmount ?? 0) !== 0).length;
+  }
+
+  private async orderOverviewByTypeFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const groups = await this.prisma.order.groupBy({
+      by: ['type'],
+      where: branchDepartmentScopeWhere(this.orderWhere(query), user),
+      _count: { _all: true },
+      _sum: this.orderMetricSums(),
+    });
+    return groups
+      .map((row) => this.orderMetricRow(String(row.type || 'Khác'), String(row.type || 'Khác'), this.groupCount(row), row._sum || {}))
+      .sort((left, right) => right.revenue - left.revenue);
+  }
+
+  private async orderOverviewByMonthFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const groups = await this.prisma.order.groupBy({
+      by: ['createdAt'],
+      where: branchDepartmentScopeWhere(this.orderWhere(query), user),
+      _count: { _all: true },
+      _sum: this.orderMetricSums(),
+    });
+    const months = new Map<string, MetricRow>();
+    for (const row of groups) {
+      const key = row.createdAt ? row.createdAt.toISOString().slice(0, 7) : 'NO_DATE';
+      const current = months.get(key) || this.emptyRow(key, key);
+      const metric = this.orderMetricRow(key, key, this.groupCount(row), row._sum || {});
+      current.orderCount += metric.orderCount;
+      current.customerCount += metric.customerCount;
+      current.revenue += metric.revenue;
+      current.paidAmount += metric.paidAmount;
+      current.remainingRevenue += metric.remainingRevenue;
+      current.cost += metric.cost;
+      current.paidCost += metric.paidCost;
+      current.remainingCost += metric.remainingCost;
+      current.profit += metric.profit;
+      current.commission += metric.commission;
+      current.marginRate = current.revenue ? (current.profit / current.revenue) * 100 : 0;
+      months.set(key, current);
+    }
+    return [...months.values()].sort((left, right) => right.key.localeCompare(left.key));
+  }
+
+  private orderMetricSums(): Prisma.OrderSumAggregateInputType {
+    return {
+      totalRevenue: true,
+      paidAmount: true,
+      remainingRevenue: true,
+      totalCost: true,
+      paidCost: true,
+      remainingCost: true,
+      profit: true,
+      commission: true,
+    };
+  }
+
+  private groupCount(row: { _count?: true | { _all?: number | null } }) {
+    return typeof row._count === 'object' ? Number(row._count._all || 0) : 0;
+  }
+
+  private orderMetricRow(key: string, label: string, orderCount: number, sums: {
+    totalRevenue?: Prisma.Decimal | number | null;
+    paidAmount?: Prisma.Decimal | number | null;
+    remainingRevenue?: Prisma.Decimal | number | null;
+    totalCost?: Prisma.Decimal | number | null;
+    paidCost?: Prisma.Decimal | number | null;
+    remainingCost?: Prisma.Decimal | number | null;
+    profit?: Prisma.Decimal | number | null;
+    commission?: Prisma.Decimal | number | null;
+  }): MetricRow {
+    const revenue = Number(sums.totalRevenue ?? 0);
+    const profit = Number(sums.profit ?? 0);
+    return {
+      key,
+      label,
+      orderCount,
+      customerCount: orderCount,
+      revenue,
+      paidAmount: Number(sums.paidAmount ?? 0),
+      remainingRevenue: Number(sums.remainingRevenue ?? 0),
+      cost: Number(sums.totalCost ?? 0),
+      paidCost: Number(sums.paidCost ?? 0),
+      remainingCost: Number(sums.remainingCost ?? 0),
+      profit,
+      commission: Number(sums.commission ?? 0),
+      marginRate: revenue ? (profit / revenue) * 100 : 0,
+    };
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {

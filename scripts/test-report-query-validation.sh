@@ -42,9 +42,14 @@ async function main() {
     assert(block.includes('orderOverviewCountsFromDb(query, user)'), 'overview counts must use database count helper');
     assert(block.includes('orderCustomerCountFromDb(query, user)'), 'overview totalCustomers must use database customer count helper');
     assert(block.includes('supplierDebtCountFromDb(query, user)'), 'overview supplierDebtCount must use database supplier debt count helper');
+    assert(block.includes('orderOverviewByTypeFromDb(query, user)'), 'overview byType must use database grouped helper');
+    assert(block.includes('orderOverviewByMonthFromDb(query, user)'), 'overview byMonth must use database grouped helper');
+    assert(!block.includes('this.orders(query, user)'), 'overview must not load capped order rows for summary or charts');
     assert(!block.includes('totalOrders: orders.length'), 'overview totalOrders must not depend on bounded order rows');
     assert(!block.includes('totalCustomers: this.uniqueCount(orders.map('), 'overview totalCustomers must not depend on bounded order rows');
     assert(!block.includes('supplierDebtCount: supplierDebt.rows.length'), 'overview supplierDebtCount must not depend on capped supplier debt rows');
+    assert(!block.includes("byType: this.groupOrders(orders, 'by-type').rows"), 'overview byType must not depend on capped order rows');
+    assert(!block.includes("byMonth: this.groupOrders(orders, 'by-created-date', 'month').rows"), 'overview byMonth must not depend on capped order rows');
     assert(!block.includes('orders.filter((order) => Number(order.remainingRevenue) > 0).length'), 'overview unpaidOrders must not depend on bounded order rows');
     assert(!block.includes('orders.filter((order) => Number(order.remainingCost) > 0).length'), 'overview unpaidCostOrders must not depend on bounded order rows');
     assert(!block.includes('orders.filter((order) => order.settledAt).length'), 'overview settledOrders must not depend on bounded order rows');
@@ -112,6 +117,17 @@ async function main() {
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1600);
     assert(block.includes('supplierLedgerEntry.groupBy({'), 'supplierDebtCountFromDb must group suppliers in the database');
     assert(block.includes('_sum:'), 'supplierDebtCountFromDb must sum supplier ledger balances in the database');
+  }
+  for (const [helper, byField] of [
+    ['orderOverviewByTypeFromDb', "by: ['type']"],
+    ['orderOverviewByMonthFromDb', "by: ['createdAt']"],
+  ]) {
+    const start = reportsServiceSource.indexOf('private async ' + helper + '(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2200);
+    assert(block.includes('order.groupBy({'), `${helper} must group orders in the database`);
+    assert(block.includes(byField), `${helper} must group by the expected overview field`);
+    assert(block.includes('_sum:'), `${helper} must sum financial fields in the database`);
+    assert(block.includes('_count: { _all: true }'), `${helper} must count grouped orders in the database`);
   }
   for (const helper of ['customerDebtSummaryFromDb', 'supplierDebtSummaryFromDb']) {
     const start = reportsServiceSource.indexOf('private async ' + helper + '(');

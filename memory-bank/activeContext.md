@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 report overview chart accuracy hardening:
+  - Report overview `byType` and `byMonth` now use scoped database order groupBy helpers instead of deriving chart rows from the capped 1000-order display list.
+  - Overview no longer loads capped order rows for summary/count/chart metrics; grouped chart rows are generated from database `_count` and `_sum` aggregates.
+  - Report query validation contract now guards overview charts against regressing to `groupOrders(orders, ...)` bounded-row calculations.
+
 - Phase 3 finance report cashflow chart accuracy hardening:
   - Hybrid finance report `cashflowByMonth` now uses scoped database cashflow `groupBy` by payment date and entry type instead of deriving the chart from capped cashflow display rows.
   - The finance report keeps bounded cashflow row payloads, while monthly cashflow chart values are based on aggregated matching cashflow data.
