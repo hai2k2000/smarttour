@@ -61,6 +61,24 @@ async function main() {
     assert(block.includes('orderSummaryFromDb(query, user)'), `${method} summary must use database aggregate helper`);
     assert(!block.includes('summary(orders)'), `${method} summary must not depend on bounded order rows`);
   }
+  {
+    const start = reportsServiceSource.indexOf('async businessSummary(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes("orderGroupedRowsFromDb(query, 'by-type', user)"), 'businessSummary revenueByType must use database grouped rows');
+    assert(block.includes("orderGroupedRowsFromDb(query, 'by-branch', user)"), 'businessSummary revenueByBranch must use database grouped rows');
+    assert(block.includes("orderGroupedRowsFromDb(query, 'by-employee', user)"), 'businessSummary profitByEmployee must use database grouped rows');
+    assert(!block.includes("this.groupOrders(orders, 'by-type').rows"), 'businessSummary revenueByType must not depend on capped order rows');
+    assert(!block.includes("this.groupOrders(orders, 'by-branch').rows"), 'businessSummary revenueByBranch must not depend on capped order rows');
+    assert(!block.includes("this.groupOrders(orders, 'by-employee').rows"), 'businessSummary profitByEmployee must not depend on capped order rows');
+  }
+  {
+    const start = reportsServiceSource.indexOf('async employeePerformance(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes("orderGroupedRowsFromDb(query, 'by-employee', user)"), 'employeePerformance rows must use database grouped rows');
+    assert(!block.includes("this.groupOrders(orders, 'by-employee').rows"), 'employeePerformance rows must not depend on capped order rows');
+  }
   for (const method of ['revenue', 'profit']) {
     const start = reportsServiceSource.indexOf('async ' + method + '(');
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
@@ -104,6 +122,10 @@ async function main() {
     assert(!block.includes('paymentCount: paymentRows.length'), 'finance report paymentCount must not depend on capped payment rows');
     assert(!block.includes('...grouped.summary'), 'finance report order financial summary must not depend on capped grouped order rows');
     assert(!block.includes('orderCount: orderRows.length'), 'finance report orderCount must not depend on capped order rows');
+    assert(block.includes('paidAmount: financeSummary.totalReceipt'), 'finance report paidAmount must use approved receipt/cashflow evidence');
+    assert(block.includes('paidCost: financeSummary.totalPayment'), 'finance report paidCost must use approved payment/cashflow evidence');
+    assert(block.includes('remainingRevenue: Math.max(orderSummary.totalRevenue - financeSummary.totalReceipt, 0)'), 'finance report remainingRevenue must not use imported order paid snapshots');
+    assert(block.includes('remainingCost: Math.max(orderSummary.totalCost - financeSummary.totalPayment, 0)'), 'finance report remainingCost must not use imported order paid snapshots');
   }
   {
     const start = reportsServiceSource.indexOf('private async orderSummaryFromDb(');
@@ -149,6 +171,16 @@ async function main() {
     assert(block.includes(byField), `${helper} must group by the expected overview field`);
     assert(block.includes('_sum:'), `${helper} must sum financial fields in the database`);
     assert(block.includes('_count: { _all: true }'), `${helper} must count grouped orders in the database`);
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async orderGroupedRowsFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 4200);
+    assert(block.includes('order.groupBy({'), 'orderGroupedRowsFromDb must group orders in the database');
+    assert(block.includes('_sum: this.orderMetricSums()'), 'orderGroupedRowsFromDb must sum financial fields in the database');
+    assert(block.includes('_count: { _all: true }'), 'orderGroupedRowsFromDb must count grouped orders in the database');
+    assert(block.includes("if (groupBy === 'by-employee')"), 'orderGroupedRowsFromDb must support employee grouping');
+    assert(block.includes("if (groupBy === 'by-branch')"), 'orderGroupedRowsFromDb must support branch grouping');
+    assert(block.includes("if (groupBy === 'by-type')"), 'orderGroupedRowsFromDb must support type grouping');
   }
   for (const helper of ['customerDebtSummaryFromDb', 'supplierDebtSummaryFromDb']) {
     const start = reportsServiceSource.indexOf('private async ' + helper + '(');
@@ -226,6 +258,7 @@ async function main() {
       findMany: async () => { orderCalls += 1; return []; },
       aggregate: async () => ({ _sum: {} }),
       count: async () => 0,
+      groupBy: async () => [],
     },
     tour: { findMany: async () => { tourCalls += 1; return []; } },
     customerLedgerEntry: {
@@ -276,6 +309,7 @@ async function main() {
       findMany: async () => [],
       aggregate: async () => ({ _sum: {} }),
       count: async () => 0,
+      groupBy: async () => [],
     },
     customerLedgerEntry: {
       findMany: async () => [],

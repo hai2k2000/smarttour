@@ -118,15 +118,18 @@ export class ReportsService {
   }
 
   async businessSummary(query: ReportQuery, user?: RequestUser) {
-    const [orders, summary] = await Promise.all([
+    const [orders, summary, revenueByType, revenueByBranch, profitByEmployee] = await Promise.all([
       this.orders(query, user),
       this.orderSummaryFromDb(query, user),
+      this.orderGroupedRowsFromDb(query, 'by-type', user),
+      this.orderGroupedRowsFromDb(query, 'by-branch', user),
+      this.orderGroupedRowsFromDb(query, 'by-employee', user),
     ]);
     return {
       summary,
-      revenueByType: this.groupOrders(orders, 'by-type').rows,
-      revenueByBranch: this.groupOrders(orders, 'by-branch').rows,
-      profitByEmployee: this.groupOrders(orders, 'by-employee').rows,
+      revenueByType,
+      revenueByBranch,
+      profitByEmployee,
       recentOrders: orders.slice(0, 100),
     };
   }
@@ -175,6 +178,10 @@ export class ReportsService {
     const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
     const summary = {
       ...orderSummary,
+      paidAmount: financeSummary.totalReceipt,
+      remainingRevenue: Math.max(orderSummary.totalRevenue - financeSummary.totalReceipt, 0),
+      paidCost: financeSummary.totalPayment,
+      remainingCost: Math.max(orderSummary.totalCost - financeSummary.totalPayment, 0),
       totalReceipt: financeSummary.totalReceipt,
       totalPayment: financeSummary.totalPayment,
       netCashflow: financeSummary.netCashflow,
@@ -252,18 +259,18 @@ export class ReportsService {
   }
 
   async employeePerformance(query: ReportQuery, user?: RequestUser) {
-    const [orders, summary] = await Promise.all([
-      this.orders(query, user),
+    const [rows, summary] = await Promise.all([
+      this.orderGroupedRowsFromDb(query, 'by-employee', user),
       this.orderSummaryFromDb(query, user),
     ]);
-    const rows = this.groupOrders(orders, 'by-employee').rows.map((row) => ({
+    const employeeRows = rows.map((row) => ({
       ...row,
       averageOrderValue: row.orderCount ? row.revenue / row.orderCount : 0,
       profitAfterCommission: row.profit - row.commission,
       commission: row.commission,
       paidRatio: row.revenue ? (row.paidAmount / row.revenue) * 100 : 0,
     }));
-    return { summary, rows };
+    return { summary, rows: employeeRows };
   }
 
   async exportCsv(report: string, query: ReportQuery, user?: RequestUser) {
@@ -457,6 +464,61 @@ export class ReportsService {
       commission: Number(sums.commission ?? 0),
       marginRate: revenue ? (profit / revenue) * 100 : 0,
     };
+  }
+
+  private async orderGroupedRowsFromDb(query: ReportQuery, groupBy: 'by-type' | 'by-branch' | 'by-employee', user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const where = branchDepartmentScopeWhere(this.orderWhere(query), user);
+    if (groupBy === 'by-type') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['type'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      return groups
+        .map((row) => this.orderMetricRow(String(row.type || 'Khác'), String(row.type || 'Khác'), this.groupCount(row), row._sum || {}))
+        .sort((left, right) => right.revenue - left.revenue);
+    }
+    if (groupBy === 'by-branch') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['branch'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      return groups
+        .map((row) => this.orderMetricRow(String(row.branch || 'Chưa gắn chi nhánh'), String(row.branch || 'Chưa gắn chi nhánh'), this.groupCount(row), row._sum || {}))
+        .sort((left, right) => right.revenue - left.revenue);
+    }
+    if (groupBy === 'by-employee') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['operatorOwner', 'createdBy'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      const employeeRows = new Map<string, MetricRow>();
+      for (const row of groups) {
+        const key = String(row.operatorOwner || row.createdBy || 'Chưa gắn nhân viên');
+        const current = employeeRows.get(key) || this.emptyRow(key, key);
+        const metric = this.orderMetricRow(key, key, this.groupCount(row), row._sum || {});
+        current.orderCount += metric.orderCount;
+        current.customerCount += metric.customerCount;
+        current.revenue += metric.revenue;
+        current.paidAmount += metric.paidAmount;
+        current.remainingRevenue += metric.remainingRevenue;
+        current.cost += metric.cost;
+        current.paidCost += metric.paidCost;
+        current.remainingCost += metric.remainingCost;
+        current.profit += metric.profit;
+        current.commission += metric.commission;
+        current.marginRate = current.revenue ? (current.profit / current.revenue) * 100 : 0;
+        employeeRows.set(key, current);
+      }
+      return [...employeeRows.values()].sort((left, right) => right.revenue - left.revenue);
+    }
+    return [];
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {

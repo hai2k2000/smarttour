@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 business/employee grouped report accuracy hardening:
+  - Business summary `revenueByType`, `revenueByBranch`, and `profitByEmployee` now use scoped database order `groupBy` helpers instead of grouping the capped 1000-order display list.
+  - Employee performance rows now use database grouped employee aggregates, while preserving average order value, after-commission profit, and paid-ratio calculations.
+  - Finance report summary now overrides paid/remaining order snapshot fields with approved finance evidence totals, so TourKit imported paid snapshots do not inflate `paidAmount` or `paidCost`.
+  - Report query validation contract and business-rules smoke now guard these paths.
+
 - Phase 3 reports debt row accuracy/payload hardening:
   - Customer-debt and supplier-debt report rows now use scoped database ledger `groupBy` helpers for grouped balances instead of grouping the capped 1000-entry ledger payload in Node.
   - Report debt rows keep the existing UI/export shape for customer/supplier names, order/voucher counts, and display codes, while `debitTotal`, `creditTotal`, and `balance` come from full matching ledger aggregates.

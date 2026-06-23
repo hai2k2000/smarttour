@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened business and employee grouped report rows:
+  - Business summary grouped rows for type, branch, and employee now come from scoped database order `groupBy` aggregates instead of capped order rows.
+  - Employee performance rows now use database grouped employee aggregates and keep derived average/order paid-ratio fields.
+  - Finance report paid/remaining summary fields now use approved finance evidence totals instead of imported order paid snapshots.
+  - Strengthened report query validation and reran the reports business-rules smoke covering TourKit snapshot handling.
+
 - Hardened reports debt grouped row accuracy:
   - Customer-debt and supplier-debt report rows now calculate grouped balances with scoped database ledger `groupBy` queries instead of capped ledger-entry payload reductions.
   - Rows still expose the fields used by reports/workspace/finance views, with exact grouped balances and bounded display code enrichment.
