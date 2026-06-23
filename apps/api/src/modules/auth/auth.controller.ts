@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthCookieResponse, clearAuthCookie, setAuthCookie } from './auth-cookie';
 import { AuthService } from './auth.service';
 import { AuthTokenHeaders, tokenFromHeaders } from './auth-token';
+import { BootstrapAuthDto, ChangePasswordDto, CreateAuthRoleDto, CreateAuthUserDto, LoginAuthDto, UpdateAuthRoleDto, UpdateAuthUserDto } from './dto/auth.dto';
 import { Public, RequirePermissions } from './permissions.decorator';
 
 type AuthRequest = {
@@ -30,7 +31,7 @@ export class AuthController {
   @Post('bootstrap')
   @Public()
   async bootstrap(
-    @Body() dto: Record<string, unknown>,
+    @Body() dto: BootstrapAuthDto,
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Ip() ip: string,
     @Res({ passthrough: true }) response: AuthCookieResponse,
@@ -43,7 +44,7 @@ export class AuthController {
   @Post('login')
   @Public()
   async login(
-    @Body() dto: Record<string, unknown>,
+    @Body() dto: LoginAuthDto,
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Ip() ip: string,
     @Res({ passthrough: true }) response: AuthCookieResponse,
@@ -71,7 +72,7 @@ export class AuthController {
   @Post('change-password')
   async changePassword(
     @Req() request: AuthRequest,
-    @Body() dto: Record<string, unknown>,
+    @Body() dto: ChangePasswordDto,
     @Ip() ip: string,
     @Res({ passthrough: true }) response: AuthCookieResponse,
   ) {
@@ -88,13 +89,13 @@ export class AuthController {
 
   @Post('users')
   @RequirePermissions('auth.user.manage')
-  createUser(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+  createUser(@Body() dto: CreateAuthUserDto, @Req() request: AuthRequest) {
     return this.service.createUser(dto, request.user);
   }
 
   @Put('users/:id')
   @RequirePermissions('auth.user.manage')
-  updateUser(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+  updateUser(@Param('id') id: string, @Body() dto: UpdateAuthUserDto, @Req() request: AuthRequest) {
     return this.service.updateUser(id, dto, request.user);
   }
 
@@ -106,13 +107,13 @@ export class AuthController {
 
   @Post('roles')
   @RequirePermissions('auth.role.manage')
-  createRole(@Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+  createRole(@Body() dto: CreateAuthRoleDto, @Req() request: AuthRequest) {
     return this.service.createRole(dto, request.user);
   }
 
   @Put('roles/:id')
   @RequirePermissions('auth.role.manage')
-  updateRole(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: AuthRequest) {
+  updateRole(@Param('id') id: string, @Body() dto: UpdateAuthRoleDto, @Req() request: AuthRequest) {
     return this.service.updateRole(id, dto, request.user);
   }
 

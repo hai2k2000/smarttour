@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Auth DTO hardening:
+  - Added explicit Auth controller DTO classes for bootstrap, login, change-password, user management, and role management request bodies.
+  - Auth controller no longer exposes high-risk `Record<string, unknown>` body signatures while AuthService keeps its existing normalization, audit, scope, and password-policy behavior.
+  - Added a source contract guarding Auth DTO usage and validation primitives for strings, arrays, role/user statuses, password lengths, and email fields.
+  - Verification covered the new Auth DTO contract, Auth controller permission contract, Auth cookie/session contract, Auth session and service flow scripts, and the API build.
+
 - Phase 4 action endpoint status-code hardening:
   - Added a source contract that requires high-risk workflow/action endpoints to declare explicit `@HttpCode(200)` instead of relying on Nest defaults, especially POST action routes that otherwise return 201.
   - Standardized action/status endpoints across bookings, operations, suppliers, orders, quotes, quotations, commission reports, and finance approve/reject/cancel flows.

@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Auth controller DTO contracts for Phase 4:
+  - Added `apps/api/src/modules/auth/dto/auth.dto.ts` and `scripts/test-auth-dto-contract.js`.
+  - Replaced Auth controller `Record<string, unknown>` request bodies with explicit DTO classes for login/bootstrap/session password change and user/role management.
+  - Preserved existing AuthService validation, scope enforcement, auditing, and session behavior.
+  - Verified with Auth DTO/controller/cookie/session/service contracts and the API build.
+
 - Started Phase 4 action endpoint status-code hardening:
   - Added `scripts/test-action-endpoint-status-contract.js` to guard explicit `@HttpCode(200)` on action/status endpoints.
   - Added explicit 200 responses to action endpoints in bookings, operations, suppliers, orders, quotes, quotations, commission reports, and finance workflow controllers.
