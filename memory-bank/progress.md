@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Phase 4 commission sync workflow safety:
+  - Limited `CommissionReportsService.syncFromOrders()` updates to existing commission entries that remain `PENDING` and `UNPAID`.
+  - Preserved approved/partial/paid/rejected/revoked commission entries during order resync so paid amounts, remaining amounts, and audit workflow state are not overwritten.
+  - Extended `scripts/test-commission-reports-security.sh` to prove pending unpaid rows still resync while approved partially paid rows stay unchanged.
+  - Verified with the commission security regression red/green and Docker API build.
+
 - Hardened Phase 4 Docker build reproducibility:
   - Replaced `npm install` with `npm ci` in both API and Web production Dockerfiles.
   - Added `scripts/test-dockerfile-npm-ci-contract.js` so Dockerfiles must stay lockfile-driven and cannot regress to `npm install`.

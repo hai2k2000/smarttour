@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 commission sync workflow hardening:
+  - `CommissionReportsService.syncFromOrders()` now only updates existing commission entries that are still `PENDING` and `UNPAID`.
+  - Approved, partially paid, paid, rejected, or revoked commission entries are no longer overwritten by order resync, preventing financial/audit drift after workflow actions.
+  - Extended `scripts/test-commission-reports-security.sh` with a regression case that verifies pending/unpaid rows can resync while approved/partial rows keep their commission, paid, and remaining amounts.
+  - Verification covered the red/green commission security regression and Docker API build.
+
 - Phase 4 Docker build reproducibility hardening:
   - Switched API and Web production Docker dependency installs from `npm install` to `npm ci`.
   - Added `scripts/test-dockerfile-npm-ci-contract.js` to keep production Dockerfiles lockfile-driven and prevent regressions back to non-reproducible installs.

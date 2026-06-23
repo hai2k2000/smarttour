@@ -243,6 +243,9 @@ export class CommissionReportsService {
         formula: `${basis} x ${rate}%`,
       };
       if (existing) {
+        if (existing.status !== CommissionStatus.PENDING || existing.paymentStatus !== CommissionPaymentStatus.UNPAID) {
+          continue;
+        }
         await this.prisma.commissionEntry.update({ where: { id: existing.id }, data });
         updated += 1;
       } else {

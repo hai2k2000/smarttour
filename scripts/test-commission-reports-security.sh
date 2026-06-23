@@ -191,11 +191,74 @@ for (const helper of ['summaryFromDb', 'groupingFromDb']) {
       commission: 100,
     },
   });
+  const pendingSyncOrder = await prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-SYNC-PENDING`,
+      name: 'Pending commission sync order',
+      branch: 'BR-A',
+      department: 'DEP-A',
+      totalRevenue: 1000,
+      profit: 300,
+      commission: 160,
+    },
+  });
+  await prisma.commissionEntry.create({
+    data: {
+      orderId: pendingSyncOrder.id,
+      orderCode: pendingSyncOrder.systemCode,
+      orderType: pendingSyncOrder.type,
+      branch: 'BR-A',
+      department: 'DEP-A',
+      commissionAmount: 100,
+      paidAmount: 0,
+      remainingAmount: 100,
+      status: 'PENDING',
+      paymentStatus: 'UNPAID',
+    },
+  });
+  const approvedSyncOrder = await prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-SYNC-APPROVED`,
+      name: 'Approved commission sync order',
+      branch: 'BR-A',
+      department: 'DEP-A',
+      totalRevenue: 1000,
+      profit: 300,
+      commission: 150,
+    },
+  });
+  const protectedEntry = await prisma.commissionEntry.create({
+    data: {
+      orderId: approvedSyncOrder.id,
+      orderCode: approvedSyncOrder.systemCode,
+      orderType: approvedSyncOrder.type,
+      branch: 'BR-A',
+      department: 'DEP-A',
+      commissionAmount: 100,
+      paidAmount: 40,
+      remainingAmount: 60,
+      status: 'APPROVED',
+      paymentStatus: 'PARTIAL',
+    },
+  });
   await service.list({}, user);
   assert(await prisma.commissionEntry.count({ where: { orderId: outOfScopeActiveOrder.id } }) === 0, 'scoped report query should not sync reports outside data scope');
   assert(await prisma.commissionEntry.count({ where: { orderId: inScopeActiveOrder.id } }) === 0, 'GET report query should not sync or write in-scope reports');
   await service.syncFromOrders(user);
   assert(await prisma.commissionEntry.count({ where: { orderId: inScopeActiveOrder.id } }) === 1, 'explicit sync should create scoped commission reports');
+  const pendingSyncedEntry = await prisma.commissionEntry.findUniqueOrThrow({ where: { orderId: pendingSyncOrder.id } });
+  assert(Number(pendingSyncedEntry.commissionAmount) === 160 && Number(pendingSyncedEntry.remainingAmount) === 160, 'sync should update pending unpaid commission amounts');
+  const protectedSyncedEntry = await prisma.commissionEntry.findUniqueOrThrow({ where: { id: protectedEntry.id } });
+  assert(
+    Number(protectedSyncedEntry.commissionAmount) === 100
+      && Number(protectedSyncedEntry.paidAmount) === 40
+      && Number(protectedSyncedEntry.remainingAmount) === 60
+      && protectedSyncedEntry.status === 'APPROVED'
+      && protectedSyncedEntry.paymentStatus === 'PARTIAL',
+    'sync should not overwrite approved or partially paid commission entries',
+  );
 
   await rejects(() => service.approve({ id: outOfScope.id, actor: 'client-spoof' }, user), 'approve should reject report outside data scope');
   const approvedPending = await service.approve({ id: pending.id, actor: 'client-spoof' }, user);
