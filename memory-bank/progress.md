@@ -2,6 +2,13 @@
 
 ## Done
 
+- Completed another Phase 4 action/DTO/healthcheck pass:
+  - Extended `scripts/test-action-endpoint-status-contract.js` to guard operation-voucher payment actions, tour close, FIT export/confirm/copy actions, and GIT/Land copy-services actions.
+  - Added explicit `@HttpCode(200)` to those action/export endpoints, keeping create/import/upload resource endpoints on their default create semantics.
+  - Added `QuotationSmartLinkDto` plus `scripts/test-quotations-smartlink-dto-contract.js`; `QuotationsController.smartLink` no longer uses raw `@Body('enabled')`.
+  - Added `scripts/test-healthcheck-log-filter-contract.js` and filtered expected structured 4xx `request_failed` logs in `scripts/healthcheck.sh` so validation/RBAC smoke runs do not fail healthcheck while 5xx/error logs still surface.
+  - Verified with Phase 4 contracts, Docker API build/deploy, data-scope verification, Swagger action-status smoke, and production healthcheck.
+
 - Hardened Files controller DTO contracts:
   - Added `FileUploadBodyDto` and `FileObjectKeyQueryDto` for upload scope, download key, and delete key inputs.
   - Replaced raw `@Body('scope')` and `@Query('key')` usage in `FilesController`.

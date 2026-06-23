@@ -127,3 +127,10 @@ export class QuotationActionDto {
   @ApiPropertyOptional() @IsOptional() @IsString() actor?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() note?: string;
 }
+
+export class QuotationSmartLinkDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { Public, RequirePermissions } from '../auth/permissions.decorator';
-import { CreateQuotationDto, ListQuotationsQueryDto, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
+import { CreateQuotationDto, ListQuotationsQueryDto, QuotationActionDto, QuotationSmartLinkDto, UpdateQuotationDto } from './dto/quotation.dto';
 import { QuotationsService } from './quotations.service';
 
 @ApiTags('quotations')
@@ -76,8 +76,8 @@ export class QuotationsController {
   @Patch(':id/smartlink')
   @HttpCode(200)
   @RequirePermissions('quotation.manage')
-  smartLink(@Param('id') id: string, @Body('enabled') enabled?: boolean, @Req() request?: { user?: RequestUser }) {
-    return this.service.smartLink(id, enabled ?? true, request?.user);
+  smartLink(@Param('id') id: string, @Body() dto: QuotationSmartLinkDto, @Req() request?: { user?: RequestUser }) {
+    return this.service.smartLink(id, dto.enabled ?? true, request?.user);
   }
 
   @Post(':id/convert')

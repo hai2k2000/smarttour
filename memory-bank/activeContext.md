@@ -20,6 +20,14 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 action/DTO/healthcheck completion:
+  - Extended the action status-code contract to cover operation-voucher payment actions, tour close, FIT export/confirm/copy actions, and GIT/Land copy-services actions.
+  - Added explicit `@HttpCode(200)` to those action/export endpoints so Swagger/runtime docs no longer expose Nest default `201` for non-create workflows.
+  - Added `QuotationSmartLinkDto` and updated `QuotationsController.smartLink` to use an explicit body DTO instead of raw `@Body('enabled')`.
+  - Added `scripts/test-quotations-smartlink-dto-contract.js` and `scripts/test-healthcheck-log-filter-contract.js`.
+  - Updated `scripts/healthcheck.sh` log scanning to ignore expected structured 4xx `request_failed` entries from validation/RBAC smoke flows while still catching 5xx/error signatures.
+  - Verification covered Phase 4 contracts, Docker API build/deploy, data-scope verification, Swagger action-status smoke, and production healthcheck.
+
 - Phase 4 Files controller contract hardening:
   - Added `FileUploadBodyDto` and `FileObjectKeyQueryDto` for file upload scope, download key, and delete key inputs.
   - `FilesController` no longer uses raw `@Body('scope')`, raw `@Query('key')`, or `response: any`; file download response is typed with Node `ServerResponse`.

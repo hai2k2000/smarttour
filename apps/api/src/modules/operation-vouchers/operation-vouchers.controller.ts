@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -40,12 +40,14 @@ export class OperationVouchersController {
   }
 
   @Post(':id/payment')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.create')
   addPayment(@Param('id') id: string, @Body() dto: AddOperationVoucherPaymentDto, @Req() request?: { user?: RequestUser }) {
     return this.service.addPayment(id, dto, request?.user);
   }
 
   @Post(':id/create-payment-voucher')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve')
   createPaymentVoucher(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.service.createPaymentVoucher(id, request?.user);

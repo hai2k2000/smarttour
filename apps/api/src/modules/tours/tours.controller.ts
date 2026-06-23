@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -49,6 +49,7 @@ export class ToursController {
   }
 
   @Post(':id/close')
+  @HttpCode(200)
   @RequirePermissions('tour.manage')
   close(@Param('id') id: string, @Body() dto: CloseTourDto, @Req() request?: { user?: RequestUser }) {
     return this.toursService.close(id, dto, request?.user);

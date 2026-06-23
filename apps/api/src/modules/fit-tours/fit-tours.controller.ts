@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -28,6 +28,7 @@ export class FitToursController {
   }
 
   @Post('export')
+  @HttpCode(200)
   @RequirePermissions('tour.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
@@ -80,6 +81,7 @@ export class FitToursController {
   }
 
   @Post(':id/steps/:step/confirm')
+  @HttpCode(200)
   @RequirePermissions('tour.manage')
   confirmStep(@Param('id') id: string, @Param('step') step: string, @Body() dto: UpdateFitTourDto, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.confirmStep(id, step, dto, request?.user);
@@ -104,12 +106,14 @@ export class FitToursController {
   }
 
   @Post(':id/copy-budget')
+  @HttpCode(200)
   @RequirePermissions('tour.manage')
   copyBudget(@Param('id') id: string, @Body() dto: FitTourCopySourceDto, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.copyBudget(id, dto.sourceTourId, request?.user);
   }
 
   @Post(':id/copy-operation')
+  @HttpCode(200)
   @RequirePermissions('tour.manage')
   copyOperation(@Param('id') id: string, @Body() dto: FitTourCopyOperationDto = {}, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.copyOperation(id, dto.sourceTourId, request?.user);

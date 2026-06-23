@@ -16,6 +16,12 @@ const expectedActions = [
   ['apps/api/src/modules/finance/finance.controller.ts', 'approveInvoice'],
   ['apps/api/src/modules/finance/finance.controller.ts', 'rejectInvoice'],
   ['apps/api/src/modules/finance/finance.controller.ts', 'cancelInvoice'],
+  ['apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'export'],
+  ['apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'confirmStep'],
+  ['apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'copyBudget'],
+  ['apps/api/src/modules/fit-tours/fit-tours.controller.ts', 'copyOperation'],
+  ['apps/api/src/modules/git-tours/git-tours.controller.ts', 'copyServices'],
+  ['apps/api/src/modules/landtours/landtours.controller.ts', 'copyServices'],
   ['apps/api/src/modules/operations/operations.controller.ts', 'updateFormStatus'],
   ['apps/api/src/modules/operations/operations.controller.ts', 'cancelFormLegacy'],
   ['apps/api/src/modules/operations/operations.controller.ts', 'cancelForm'],
@@ -23,6 +29,8 @@ const expectedActions = [
   ['apps/api/src/modules/operations/operations.controller.ts', 'approvePaymentRequest'],
   ['apps/api/src/modules/operations/operations.controller.ts', 'rejectPaymentRequest'],
   ['apps/api/src/modules/operations/operations.controller.ts', 'createFinancePaymentForRequest'],
+  ['apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts', 'addPayment'],
+  ['apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts', 'createPaymentVoucher'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'updateStatus'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'copy'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'settle'],
@@ -44,6 +52,7 @@ const expectedActions = [
   ['apps/api/src/modules/suppliers/suppliers.controller.ts', 'releaseAllotment'],
   ['apps/api/src/modules/suppliers/suppliers.controller.ts', 'updateTypedStatus'],
   ['apps/api/src/modules/suppliers/suppliers.controller.ts', 'updateStatus'],
+  ['apps/api/src/modules/tours/tours.controller.ts', 'close'],
 ];
 
 const decoratorPattern = /^\s*@/;

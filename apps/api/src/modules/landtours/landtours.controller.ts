@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -49,6 +49,7 @@ export class LandToursController {
   }
 
   @Post(':id/copy-services')
+  @HttpCode(200)
   @RequirePermissions('tour.manage')
   copyServices(@Param('id') id: string, @Body() dto: LandTourCopyServicesDto = {}, @Req() request?: { user?: RequestUser }) {
     return this.landToursService.copyServices(id, dto.sourceTourId, request?.user);

@@ -56,6 +56,7 @@ recent_logs_for_scan() {
   local name="$1"
   docker logs --since "${LOG_WINDOW:-10m}" "$name" 2>&1 \
     | grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
+    | grep -Ev '"event":"request_failed".*"statusCode":4[0-9][0-9]' \
     || true
 }
 
