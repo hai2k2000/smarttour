@@ -2,6 +2,11 @@
 
 ## Done
 
+- Corrected the Phase 4 review remediation conclusion:
+  - Updated `docs/code-review-2026-06-13.md` so the final conclusion matches the 2026-06-23 remediation status table.
+  - The doc now separates completed code-review remediation from remaining production readiness/manual validation tracked in `docs/production-readiness-tracker.md`.
+  - Verified the closure with `npm run verify:deploy` using a temporary smoke admin account, then confirmed that account was removed.
+
 - Closed the Phase 4 review remediation status loop:
   - Re-ran the remaining Medium/Low regression coverage for SmartLink legacy tokens, runtime CORS origin validation, report query DTO validation, and Docker `npm ci` reproducibility.
   - Updated `docs/code-review-2026-06-13.md` with a 2026-06-23 remediation status table for every High/Medium/Low finding.

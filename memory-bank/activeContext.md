@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 review remediation documentation consistency:
+  - Fixed the stale conclusion in `docs/code-review-2026-06-13.md` so it no longer contradicts the 2026-06-23 remediation status table.
+  - The review doc now preserves the original 2026-06-13 findings while stating that all High/Medium/Low findings have remediation evidence, with production/manual readiness tracked separately.
+  - Ran `npm run verify:deploy` on the VPS with a temporary smoke admin account because the local `.env` has no real `ADMIN_PASSWORD`; the account was cleaned up after the run and the full deploy verification passed.
+
 - Phase 4 review remediation status closure:
   - Re-verified the remaining Medium/Low review items after the High fixes: SmartLink legacy audit/backfill guard, runtime CORS origin validation, report query DTO validation, and Docker `npm ci` reproducibility.
   - Updated `docs/code-review-2026-06-13.md` with a 2026-06-23 remediation status table mapping every High/Medium/Low finding to its fix evidence and regression commands.

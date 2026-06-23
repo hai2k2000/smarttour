@@ -34,6 +34,8 @@
 | Medium | Runtime CORS origin validation | Đã xử lý | `apps/api/src/config/runtime-env.ts`; `bash scripts/test-auth-guard-behavior.sh` verifies explicit frontend origins, invalid URL rejection, wildcard rejection, and `NEXT_PUBLIC_API_URL` exclusion |
 | Low | Docker production dependency reproducibility | Đã xử lý | Commit `897d849`; `node scripts/test-dockerfile-npm-ci-contract.js` verifies API/Web Dockerfiles use `npm ci` |
 
+Final remediation verification on 2026-06-23: `npm run verify:deploy` passed on the VPS using a temporary smoke admin account that was removed after the run.
+
 ## Kết quả kiểm chứng
 
 | Lệnh | Kết quả | Ghi chú |
@@ -47,6 +49,6 @@
 
 ## Kết luận
 
-- Không phát hiện lỗi Critical mới.
-- Còn 4 lỗi High liên quan workflow quotation, commission sync, QuoteCombo data scope và đối soát operation payment.
-- Chưa nên chuyển thẳng sang test/deploy cho tới khi các lỗi High trên được xử lý và có regression test tương ứng.
+- Review gốc ngày 2026-06-13 không phát hiện lỗi Critical mới.
+- Tính đến 2026-06-23, toàn bộ finding High/Medium/Low trong bảng trên đã có remediation và regression evidence tương ứng.
+- Các bước còn lại trước production thuộc nhóm readiness/manual validation, được theo dõi riêng trong `docs/production-readiness-tracker.md`.
