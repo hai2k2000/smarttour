@@ -2,6 +2,12 @@
 
 ## Done
 
+- Extracted the Phase 4 reports CSV helper:
+  - Moved pure report CSV escaping/BOM formatting into `apps/api/src/modules/reports/report-csv.ts`.
+  - Updated `ReportsService.exportCsv()` to delegate to `toReportCsv`, reducing low-level helper code inside the oversized reports service without changing export behavior.
+  - Added `scripts/test-reports-csv-helper-contract.js` to guard the extraction and the absence of private CSV helper methods on `ReportsService`.
+  - Verified with the CSV helper contract, reports finance hybrid contract, report query validation, reports business-rules smoke, Docker API build/deploy, error/OpenAPI/correlation runtime smokes, and production healthcheck.
+
 - Hardened Phase 4 correlation runtime smoke coverage:
   - Added `scripts/smoke-correlation-id.sh` plus `scripts/test-correlation-id-smoke-contract.js`.
   - Verified live `x-correlation-id` behavior for safe, unsafe, and missing incoming IDs.

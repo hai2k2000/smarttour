@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { ReportQueryDto } from './dto/report-query.dto';
+import { toReportCsv } from './report-csv';
 
 type ReportQuery = ReportQueryDto;
 type TourFinanceRow = Prisma.TourGetPayload<{
@@ -274,12 +275,12 @@ export class ReportsService {
 
   async exportCsv(report: string, query: ReportQuery, user?: RequestUser) {
     const reportKey = this.normalizeExportReport(report);
-    if (reportKey === 'customer-debt') return this.toCsv((await this.customerDebt(query, user)).rows);
-    if (reportKey === 'supplier-debt') return this.toCsv((await this.supplierDebt(query, user)).rows);
-    if (reportKey === 'finance') return this.toCsv((await this.finance(query, user)).rows || []);
-    if (reportKey === 'employees') return this.toCsv((await this.employeePerformance(query, user)).rows);
-    if (reportKey === 'profit') return this.toCsv((await this.profit(query, user)).rows);
-    return this.toCsv((await this.revenue(query.groupBy || 'by-created-date', query, user)).rows);
+    if (reportKey === 'customer-debt') return toReportCsv((await this.customerDebt(query, user)).rows);
+    if (reportKey === 'supplier-debt') return toReportCsv((await this.supplierDebt(query, user)).rows);
+    if (reportKey === 'finance') return toReportCsv((await this.finance(query, user)).rows || []);
+    if (reportKey === 'employees') return toReportCsv((await this.employeePerformance(query, user)).rows);
+    if (reportKey === 'profit') return toReportCsv((await this.profit(query, user)).rows);
+    return toReportCsv((await this.revenue(query.groupBy || 'by-created-date', query, user)).rows);
   }
 
   private async orders(query: ReportQuery, user?: RequestUser) {
@@ -1959,18 +1960,4 @@ export class ReportsService {
     return date;
   }
 
-  private toCsv(rows: any[]) {
-    if (!rows.length) return '\uFEFF';
-    const headers = Object.keys(rows[0]);
-    return `\uFEFF${[
-      headers.join(','),
-      ...rows.map((row) => headers.map((header) => this.csv(row[header])).join(',')),
-    ].join('\r\n')}`;
-  }
-
-  private csv(value: unknown) {
-    if (value instanceof Date) return value.toISOString();
-    const text = String(value ?? '');
-    return `"${text.replaceAll('"', '""')}"`;
-  }
 }

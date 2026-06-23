@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 reports CSV helper extraction:
+  - Extracted pure report CSV formatting from `ReportsService` into `apps/api/src/modules/reports/report-csv.ts`.
+  - `ReportsService.exportCsv()` now delegates to `toReportCsv`, keeping report business orchestration separate from low-level CSV escaping/BOM formatting.
+  - Added `scripts/test-reports-csv-helper-contract.js` to guard the helper extraction and prevent the private CSV methods from returning to the oversized service.
+  - Verification covered the CSV helper contract, reports finance hybrid contract, report query validation, reports business-rules smoke, Docker API build/deploy, error/OpenAPI/correlation runtime smokes, and production healthcheck.
+
 - Phase 4 correlation runtime smoke hardening:
   - Added `scripts/smoke-correlation-id.sh` and `scripts/test-correlation-id-smoke-contract.js`.
   - The smoke verifies safe incoming `x-correlation-id` values are echoed, unsafe values are replaced, missing values are generated, and the request log contains the correlation ID without sensitive field names.
