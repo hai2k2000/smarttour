@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 Order Center dashboard payload hardening:
+  - Order Center dashboard now calculates counts and revenue/cost/profit sums with database `count`/`aggregate` queries instead of loading every matching order into Node.
+  - Order Center contract now guards against dashboard regressions back to `findMany`/in-memory `reduce` payloads.
+
 - Phase 3 Operations supplier catalog payload hardening:
   - Operations static preload now requests the generic supplier catalog with `/api/suppliers?take=100` instead of relying on the implicit backend default.
   - Operations controller/client contract now guards that Operations keeps using the generic supplier source with an explicit bounded `take`.

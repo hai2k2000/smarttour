@@ -2,6 +2,7 @@ const fs = require('fs');
 
 const page = fs.readFileSync('apps/web/app/order-center/page.tsx', 'utf8');
 const client = fs.readFileSync('apps/web/app/order-center/OrderCenterClient.tsx', 'utf8');
+const service = fs.readFileSync('apps/api/src/modules/order-center/order-center.service.ts', 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -27,5 +28,13 @@ includes(client, 'if (!canExportOrders) {', 'Order Center export should fail clo
 includes(client, '{canExportOrders ? (', 'Order Center export button should be hidden without order.export.');
 includes(client, "params.set('compact', 'true');", 'Order Center client reload should request compact list rows.');
 includes(client, "params.set('take', '100');", 'Order Center client reload should request a bounded order list.');
+
+const dashboardStart = service.indexOf('async dashboard(');
+const listStart = service.indexOf('async list(', dashboardStart);
+const dashboardBlock = dashboardStart === -1 || listStart === -1 ? '' : service.slice(dashboardStart, listStart);
+includes(dashboardBlock, 'this.prisma.order.count', 'Order Center dashboard should count in the database instead of loading every order.');
+includes(dashboardBlock, 'this.prisma.order.aggregate', 'Order Center dashboard should sum revenue/cost/profit in the database.');
+assert(!dashboardBlock.includes('findMany'), 'Order Center dashboard must not load all matching orders with findMany.');
+assert(!dashboardBlock.includes('.reduce('), 'Order Center dashboard must not reduce all matching orders in Node.');
 
 console.log('TEST_ORDER_CENTER_PERMISSIONS_CONTRACT_OK');

@@ -41,26 +41,34 @@ export class OrderCenterService {
 
   async dashboard(query: OrderCenterQuery, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.where(query), user);
-    const orders = await this.prisma.order.findMany({ where });
     const now = new Date();
     const next30 = new Date(now);
     next30.setDate(next30.getDate() + 30);
-    return orders.reduce(
-      (acc, order) => {
-        acc.total += 1;
-        if (order.startDate && order.startDate >= now && order.startDate <= next30) acc.upcoming += 1;
-        if (order.status === 'RUNNING') acc.running += 1;
-        if (order.status === 'COMPLETED' || order.status === 'SETTLED') acc.completed += 1;
-        if (order.status === 'CANCELLED') acc.cancelled += 1;
-        if (Number(order.remainingRevenue) > 0) acc.unpaid += 1;
-        if (Number(order.remainingCost) > 0) acc.unpaidCost += 1;
-        acc.revenue += Number(order.totalRevenue);
-        acc.cost += Number(order.totalCost);
-        acc.profit += Number(order.profit);
-        return acc;
-      },
-      { total: 0, upcoming: 0, running: 0, completed: 0, cancelled: 0, unpaid: 0, unpaidCost: 0, revenue: 0, cost: 0, profit: 0 },
-    );
+    const [total, upcoming, running, completed, cancelled, unpaid, unpaidCost, totals] = await Promise.all([
+      this.prisma.order.count({ where }),
+      this.prisma.order.count({ where: this.andWhere(where, { startDate: { gte: now, lte: next30 } }) }),
+      this.prisma.order.count({ where: this.andWhere(where, { status: OrderStatus.RUNNING }) }),
+      this.prisma.order.count({ where: this.andWhere(where, { status: { in: [OrderStatus.COMPLETED, OrderStatus.SETTLED] } }) }),
+      this.prisma.order.count({ where: this.andWhere(where, { status: OrderStatus.CANCELLED }) }),
+      this.prisma.order.count({ where: this.andWhere(where, { remainingRevenue: { gt: 0 } }) }),
+      this.prisma.order.count({ where: this.andWhere(where, { remainingCost: { gt: 0 } }) }),
+      this.prisma.order.aggregate({
+        where,
+        _sum: { totalRevenue: true, totalCost: true, profit: true },
+      }),
+    ]);
+    return {
+      total,
+      upcoming,
+      running,
+      completed,
+      cancelled,
+      unpaid,
+      unpaidCost,
+      revenue: Number(totals._sum.totalRevenue ?? 0),
+      cost: Number(totals._sum.totalCost ?? 0),
+      profit: Number(totals._sum.profit ?? 0),
+    };
   }
 
   async list(query: OrderCenterQuery, user?: RequestUser) {
@@ -211,6 +219,10 @@ export class OrderCenterService {
 
   private isCompact(value: string | boolean | undefined) {
     return value === true || value === 'true' || value === '1';
+  }
+
+  private andWhere(where: Prisma.OrderWhereInput, extra: Prisma.OrderWhereInput): Prisma.OrderWhereInput {
+    return { AND: [where, extra] };
   }
 
   private csv(value: unknown) {

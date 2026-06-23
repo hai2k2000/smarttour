@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened Order Center dashboard payload:
+  - Replaced the dashboard's full-order `findMany`/in-memory reduction with scoped database `count` and `_sum` aggregate queries.
+  - Strengthened the Order Center contract so dashboard metrics cannot regress to loading all matching orders into the API process.
+
 - Hardened Operations supplier catalog payload:
   - Updated Operations static catalog loading to request `/api/suppliers?take=100` while preserving the generic supplier source required by operation forms/payment requests.
   - Strengthened the Operations contract so supplier catalog loading cannot regress to an implicit unbounded/default request or hotel-only supplier source.
