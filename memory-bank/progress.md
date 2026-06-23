@@ -1,5 +1,10 @@
 # Progress
 
+- Normalized the live file smoke command:
+  - Added `npm run smoke:files` for `scripts/smoke-files.sh`.
+  - Added `smoke:files` to `smoke:all` so deploy verification covers file upload/download/delete flows alongside other live smoke suites.
+  - Added `scripts/test-smoke-files-command-contract.js`, `npm run test:smoke-files-command`, and CI coverage to keep package scripts aligned with the production readiness tracker.
+
 - Hardened production security audit SSH permission coverage:
   - Added live checks for `/`, `/root/.ssh`, and `/root/.ssh/authorized_keys` ownership/mode to `scripts/security-audit.sh`.
   - Made `scripts/install-security-hardening.sh` normalize those permissions before reloading SSH hardening.

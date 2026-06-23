@@ -146,3 +146,4 @@ Smoke commands are normalized in `package.json`:
 - `npm run smoke:all`
 - `npm run smoke:files`
 - `npm run verify:deploy`
+- `scripts/test-smoke-files-command-contract.js`

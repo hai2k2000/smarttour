@@ -27,6 +27,7 @@
     "test:quotations:client": "node scripts/test-quotations-client-contract.js",
     "smoke:suppliers": "scripts/smoke-suppliers.sh",
     "smoke:finance": "scripts/smoke-finance-reports.sh",
+    "smoke:files": "scripts/smoke-files.sh",
     "smoke:reports": "scripts/smoke-reports-business-rules.sh",
     "smoke:exports": "scripts/smoke-exports.sh",
     "smoke:ui": "scripts/smoke-ui-pages.sh",
@@ -45,7 +46,7 @@
     "test:required-fields-ui": "node scripts/test-required-fields-ui-contract.js",
     "test:localized-dropdowns": "node scripts/test-localized-dropdowns-contract.js",
     "smoke:data-scope": "scripts/verify-data-scope.sh",
-    "smoke:all": "npm run smoke:rbac && npm run smoke:business && npm run smoke:operations && npm run smoke:suppliers && npm run smoke:finance && npm run smoke:reports && npm run smoke:exports && npm run smoke:ui && npm run smoke:ui:browser && npm run smoke:ui:interactions",
+    "smoke:all": "npm run smoke:rbac && npm run smoke:business && npm run smoke:operations && npm run smoke:suppliers && npm run smoke:finance && npm run smoke:files && npm run smoke:reports && npm run smoke:exports && npm run smoke:ui && npm run smoke:ui:browser && npm run smoke:ui:interactions",
     "ops:health": "scripts/healthcheck.sh",
     "ops:security": "scripts/security-audit.sh",
     "ops:backup": "scripts/backup-postgres.sh",
@@ -61,7 +62,8 @@
     "ops:smartlink:backfill": "scripts/smartlink-legacy-audit.sh --mode=backfill",
     "test:observability-alerting": "node scripts/test-observability-alerting-contract.js",
     "test:backup-offsite": "node scripts/test-backup-offsite-contract.js",
-    "test:security-audit": "node scripts/test-security-audit-contract.js"
+    "test:security-audit": "node scripts/test-security-audit-contract.js",
+    "test:smoke-files-command": "node scripts/test-smoke-files-command-contract.js"
   },
   "devDependencies": {
     "playwright": "^1.60.0",

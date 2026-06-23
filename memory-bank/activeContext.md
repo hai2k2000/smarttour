@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- File smoke command normalization:
+  - Added `smoke:files` to `package.json` for `scripts/smoke-files.sh` and wired it into `smoke:all`, matching the production readiness tracker.
+  - Added `scripts/test-smoke-files-command-contract.js`, exposed `npm run test:smoke-files-command`, and wired the contract into `SmartTour CI`.
+  - Updated `docs/production-readiness-tracker.md` so the normalized smoke command list is guarded by the new contract.
+
 - Production security audit hardening:
   - Hardened `scripts/security-audit.sh` to check `/` mode, `/root/.ssh` mode/owner, and `/root/.ssh/authorized_keys` mode/owner with explicit `OK_ROOT_MODE` and `OK_SSH_PERMS` output.
   - Updated `scripts/install-security-hardening.sh` to normalize `/`, `/root/.ssh`, and `authorized_keys` permissions before validating/reloading SSH hardening.
