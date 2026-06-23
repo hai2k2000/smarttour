@@ -83,8 +83,8 @@ async function main() {
     const start = reportsServiceSource.indexOf('async finance(');
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
     const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
-    assert(block.includes('financeSummaryFromDb(query, orderIds, user)'), 'finance report summary must use database summary helper');
-    assert(block.includes('financeCashflowByMonthFromDb(query, orderIds, user)'), 'finance report cashflowByMonth must use database grouped helper');
+    assert(block.includes('financeSummaryFromDb(query, user)'), 'finance report summary must use database summary helper');
+    assert(block.includes('financeCashflowByMonthFromDb(query, user)'), 'finance report cashflowByMonth must use database grouped helper');
     assert(!block.includes('cashflowSummary(cashflowRows)'), 'finance report cashflow totals must not depend on capped cashflow rows');
     assert(!block.includes('cashflowByMonth(cashflowRows)'), 'finance report cashflowByMonth must not depend on capped cashflow rows');
     assert(!block.includes('receiptCount: receiptRows.length'), 'finance report receiptCount must not depend on capped receipt rows');
@@ -142,6 +142,17 @@ async function main() {
     assert(block.includes('financePayment.count({'), 'financeSummaryFromDb must count payments in the database');
     assert(block.includes('financeCashflowEntry.groupBy({'), 'financeSummaryFromDb must group cashflow totals in the database');
     assert(block.includes('_sum: { amount: true }'), 'financeSummaryFromDb must sum cashflow amounts in the database');
+  }
+  for (const [helper, relationSnippet] of [
+    ['financeReceiptWhere', 'orders: { some: { order: { is: orderFilter } } }'],
+    ['financePaymentWhere', 'order: { is: orderFilter }'],
+    ['financeCashflowWhere', 'order: { is: orderFilter }'],
+  ]) {
+    const start = reportsServiceSource.indexOf('private ' + helper + '(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2400);
+    assert(block.includes('this.financeOrderRelationFilter(query)'), `${helper} must derive document scope from order filters`);
+    assert(block.includes(relationSnippet), `${helper} must apply order filters through the finance document order relation`);
+    assert(!block.includes('orderIds.length ?'), `${helper} must not scope finance documents through capped orderIds`);
   }
   {
     const start = reportsServiceSource.indexOf('private async financeCashflowByMonthFromDb(');
@@ -221,6 +232,44 @@ async function main() {
   assert.equal(supplierDebtCalls, 2, 'valid hybrid finance report and export must query supplier debt exactly twice');
   assert.equal(historyCalls, 0, 'invalid supplier history filters must be rejected before querying Prisma');
   assert.equal(financeDocumentCalls, 6, 'valid hybrid finance report and export must query receipt, payment, and cashflow rows twice');
+
+  const capturedFinanceWhere = {};
+  const captureService = new ReportsService({
+    order: { findMany: async () => [] },
+    customerLedgerEntry: {
+      findMany: async () => [],
+      groupBy: async () => [],
+    },
+    supplierLedgerEntry: {
+      findMany: async () => [],
+      groupBy: async () => [],
+    },
+    financeReceipt: {
+      findMany: async (args) => { capturedFinanceWhere.receiptRows = args.where; return []; },
+      count: async (args) => { capturedFinanceWhere.receiptCount = args.where; return 0; },
+    },
+    financePayment: {
+      findMany: async (args) => { capturedFinanceWhere.paymentRows = args.where; return []; },
+      count: async (args) => { capturedFinanceWhere.paymentCount = args.where; return 0; },
+    },
+    financeCashflowEntry: {
+      findMany: async (args) => { capturedFinanceWhere.cashflowRows = args.where; return []; },
+      groupBy: async (args) => { capturedFinanceWhere.cashflowGroup = args.where; return []; },
+    },
+  });
+  await captureService.finance({ type: 'HOTEL_BOOKING', status: 'SETTLED', paymentStatus: 'UNPAID', costStatus: 'PENDING' });
+  const receiptWhereJson = JSON.stringify(capturedFinanceWhere.receiptCount);
+  const paymentWhereJson = JSON.stringify(capturedFinanceWhere.paymentCount);
+  const cashflowWhereJson = JSON.stringify(capturedFinanceWhere.cashflowGroup);
+  assert(receiptWhereJson.includes('"orders":{"some":{"order":{"is":'), 'finance receipt summary must require matching linked order when order filters are present');
+  assert(paymentWhereJson.includes('"order":{"is":'), 'finance payment summary must require matching linked order when order filters are present');
+  assert(cashflowWhereJson.includes('"order":{"is":'), 'finance cashflow summary must require matching linked order when order filters are present');
+  for (const whereJson of [receiptWhereJson, paymentWhereJson, cashflowWhereJson]) {
+    assert(whereJson.includes('"type":"HOTEL_BOOKING"'), 'finance document filters must preserve order type');
+    assert(whereJson.includes('"status":"SETTLED"'), 'finance document filters must preserve order status');
+    assert(whereJson.includes('"paymentStatus":"UNPAID"'), 'finance document filters must preserve order payment status');
+    assert(whereJson.includes('"costStatus":"PENDING"'), 'finance document filters must preserve order cost status');
+  }
 
   console.log('TEST_REPORT_QUERY_VALIDATION_OK');
 }

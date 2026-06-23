@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened hybrid finance report order-filter correctness:
+  - Receipt, payment, and cashflow report queries now apply order-only filters through linked order relations instead of relying on `orderIds` from capped display orders.
+  - Finance summaries and cashflow charts keep database count/groupBy behavior while respecting filters such as order type, order status, payment status, and cost status.
+  - Strengthened report query validation coverage with captured Prisma `where` assertions so finance document filters cannot regress to capped-order scoping.
+
 - Hardened report overview charts:
   - Overview `byType` and `byMonth` chart rows now use scoped database order `groupBy` aggregates instead of capped display orders.
   - Overview metrics no longer load capped order rows for summary/count/chart calculations.

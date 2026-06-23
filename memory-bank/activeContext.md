@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance report order-filter correctness hardening:
+  - Hybrid finance report receipt, payment, and cashflow queries now apply order-only filters (`type`, `status`, `paymentStatus`, `costStatus`, settled/order facets) through their linked order relation.
+  - Finance document summaries and cashflow charts no longer depend on `orderIds` from the capped 1000-order display list, preventing filtered finance totals from mixing unrelated orders or missing older matching orders.
+  - Report query validation contract now captures the generated finance document `where` clauses and guards against regressing to capped `orderIds` scoping.
+
 - Phase 3 report overview chart accuracy hardening:
   - Report overview `byType` and `byMonth` now use scoped database order groupBy helpers instead of deriving chart rows from the capped 1000-order display list.
   - Overview no longer loads capped order rows for summary/count/chart metrics; grouped chart rows are generated from database `_count` and `_sum` aggregates.
