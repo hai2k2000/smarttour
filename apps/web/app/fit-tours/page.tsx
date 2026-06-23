@@ -54,7 +54,7 @@ export default async function FitToursPage() {
   const canViewTours = hasPermission(currentUser, 'tour.view');
   const canManageTours = hasPermission(currentUser, 'tour.manage');
   const [suppliersResult, toursResult] = await Promise.all([
-    canManageTours ? await apiGet<Supplier[]>('/suppliers', [], 'T\u1ea3i danh s\u00e1ch nh\u00e0 cung c\u1ea5p th\u1ea5t b\u1ea1i') : { data: [] as Supplier[] },
+    canManageTours ? await apiGet<Supplier[]>('/suppliers?take=100', [], 'T\u1ea3i danh s\u00e1ch nh\u00e0 cung c\u1ea5p th\u1ea5t b\u1ea1i') : { data: [] as Supplier[] },
     canViewTours ? await apiGet<FitTourSummary[]>('/fit-tours?take=100', [], 'T\u1ea3i danh s\u00e1ch tour FIT th\u1ea5t b\u1ea1i') : { data: [] as FitTourSummary[] },
   ]);
   const initialError = [currentUserResult.error, suppliersResult.error, toursResult.error].filter(Boolean).join('. ');

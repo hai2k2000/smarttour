@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 FIT supplier catalog preload hardening:
+  - `/fit-tours` SSR supplier catalog preload now requests `/suppliers?take=100` for manage users, matching the supplier backend list cap explicitly.
+  - FIT tours client contract now guards the bounded supplier catalog preload alongside the existing bounded FIT tour list preload.
+
 - Phase 3 operation-voucher SSR payload hardening:
   - `/operation-vouchers` SSR preload now requests `/operation-vouchers?take=100`, matching the already bounded client reload and backend list DTO.
   - Operation voucher client contract now guards the bounded SSR voucher list preload.

@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened FIT supplier catalog preload:
+  - Updated `/fit-tours` SSR supplier preload to request `/suppliers?take=100` for manage users.
+  - Added FIT contract coverage so supplier catalog preloads stay explicitly bounded.
+
 - Hardened operation-voucher SSR list payload:
   - Updated `/operation-vouchers` SSR preload to request `take=100`, aligning the first render with the already bounded client reload/backend list behavior.
   - Added contract coverage so the page cannot regress to an unbounded operation-voucher preload.

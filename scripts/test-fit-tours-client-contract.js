@@ -45,6 +45,7 @@ pageIncludes("const canManageTours = hasPermission(currentUser, 'tour.manage');"
 pageIncludes('canViewTours ? await apiGet', 'FIT tours page should not preload tour rows without tour.view.');
 pageIncludes("'/fit-tours?take=100'", 'FIT tours page should request a bounded initial tour list.');
 pageIncludes('canManageTours ? await apiGet', 'FIT tours page should not preload suppliers without tour.manage.');
+pageIncludes("'/suppliers?take=100'", 'FIT tours page should request a bounded supplier catalog preload.');
 pageIncludes('<ServerPermissionNotice allowed={canViewTours}', 'FIT tours page should show server permission notice when access is missing.');
 pageIncludes('{canViewTours ? (', 'FIT tours page should hide protected client content without access.');
 
