@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
+import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
@@ -102,10 +104,14 @@ export class CustomersController {
 
   @Get('export')
   @RequirePermissions('customer.view')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-customers.csv"')
-  export(@Query() query: CustomerListQueryDto, @Req() request: { user?: RequestUser }) {
-    return this.service.exportCsv(query as Record<string, string>, request.user);
+  async export(@Query() query: CustomerListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.service.exportCsv(query as Record<string, string>, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-customers.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('customers', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-customers.csv');
+    return csv;
   }
 
   @Post(':id/files')
@@ -225,5 +231,11 @@ export class CustomersController {
   @RequirePermissions('customer.view')
   opportunities(@Param('id') id: string, @Query() query: CustomerActivityQueryDto, @Req() request: { user?: RequestUser }) {
     return this.service.opportunities(id, request.user, query as Record<string, string>);
+  }
+
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

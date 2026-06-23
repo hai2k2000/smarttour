@@ -1,5 +1,14 @@
 # Progress
 
+
+- Completed remaining native XLSX export coverage:
+  - Moved the dependency-free XLSX helper to common API code and added CSV-to-XLSX conversion for existing export outputs.
+  - Added `format=xlsx` support for Finance invoices/cashflow, Reports, Commission Reports, Order Center, Customers, and FIT tour export while keeping CSV as the default.
+  - Added `scripts/test-native-xlsx-export-contract.js` and expanded `scripts/smoke-exports.sh` for workbook MIME/ZIP magic checks across the remaining export families.
+  - Added retry handling to `scripts/smoke-exports.sh` after repeated API restart-window curl resets during deploy verification.
+  - Verified with native/finance XLSX contracts, finance helper and service flows, query DTO contract, `npm audit --omit=dev`, Docker API build/deploy, expanded export smoke, finance XLSX import endpoint smoke, and production healthcheck.
+  - Updated production readiness Import/Export Files status to `ready-for-manual` for Excel/business validation.
+
 ## Done
 
 - Hardened Finance XLSX import/export readiness:

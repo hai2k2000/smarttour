@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Header, HttpCode, Param, ParseEnumPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseEnumPipe, Post, Query, Req, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { CommissionReportActionDto, CommissionReportGroupBy, CommissionReportsQueryDto, PayCommissionReportDto } from './dto/commission-report.dto';
@@ -32,10 +34,14 @@ export class CommissionReportsController {
 
   @Get('export')
   @RequirePermissions('commission.view', 'commission.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-commission-report.csv"')
-  export(@Query() query: CommissionReportsQueryDto, @Req() request?: { user?: RequestUser }) {
-    return this.service.exportCsv(query, request?.user);
+  async export(@Query() query: CommissionReportsQueryDto, @Req() request: { user?: RequestUser } | undefined, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.service.exportCsv(query, request?.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-commission-report.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('commission-report', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-commission-report.csv');
+    return csv;
   }
 
   @Post('sync')
@@ -76,5 +82,11 @@ export class CommissionReportsController {
   @Get(':id')
   detail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.service.detail(id, request?.user);
+  }
+
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

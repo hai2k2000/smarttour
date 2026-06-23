@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { parseXlsxRows } from './finance-xlsx';
+import { parseXlsxRows } from '../../common/xlsx-workbook';
 
 export type FinanceImportRecord = Record<string, unknown>;
 export type FinanceImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };

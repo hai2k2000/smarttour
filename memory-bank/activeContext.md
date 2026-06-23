@@ -20,6 +20,15 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+
+- Production readiness native XLSX export completion:
+  - Promoted the XLSX helper into `apps/api/src/common/xlsx-workbook.ts` and added CSV-to-XLSX workbook conversion without external workbook dependencies.
+  - Added `format=xlsx` support for the remaining CSV export families: Finance invoices/cashflow, Reports, Commission Reports, Order Center, Customers, and FIT tour export.
+  - Extended `scripts/smoke-exports.sh` and added `scripts/test-native-xlsx-export-contract.js` so native XLSX export coverage checks MIME type and ZIP magic across the export set.
+  - Hardened `scripts/smoke-exports.sh` with curl retry handling so API restart windows do not false-fail export verification.
+  - Verification passed with native/finance XLSX contracts, finance helper and service flows, query DTO contract, `npm audit --omit=dev`, Docker API build/deploy, expanded export smoke, finance XLSX import endpoint smoke, and production healthcheck.
+  - `docs/production-readiness-tracker.md` now marks Import/Export Files as `ready-for-manual`, pending business Excel validation of real files.
+
 - Production readiness import/export XLSX hardening:
   - Added dependency-free native XLSX workbook support for Finance receipt/payment import and export.
   - CSV remains the default export format; `/finance/receipts/export?format=xlsx` and `/finance/payments/export?format=xlsx` return workbook responses with XLSX MIME type and ZIP magic.

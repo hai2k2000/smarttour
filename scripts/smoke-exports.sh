@@ -9,6 +9,17 @@ OUT_DIR="${OUT_DIR:-/tmp/smarttour-export-smoke}"
 
 mkdir -p "$OUT_DIR"
 
+curl_with_retry() {
+  local attempt
+  for attempt in {1..20}; do
+    if curl "$@"; then
+      return 0
+    fi
+    sleep 1
+  done
+  curl "$@"
+}
+
 token="$AUTH_TOKEN"
 if [[ -z "$token" ]]; then
   if [[ -z "$ADMIN_PASSWORD" ]]; then
@@ -17,7 +28,7 @@ if [[ -z "$token" ]]; then
   fi
   cookie_jar="$(mktemp)"
   trap 'rm -f "$cookie_jar"' EXIT
-  login_body=$(curl -fsS -c "$cookie_jar" -X POST "$API_URL/auth/login" \
+  login_body=$(curl_with_retry -fsS -c "$cookie_jar" -X POST "$API_URL/auth/login" \
     -H 'Content-Type: application/json' \
     --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
   node -e 'const d=JSON.parse(process.argv[1] || "{}"); if (d.token !== undefined || d.accessToken !== undefined) process.exit(1)' "$login_body"
@@ -31,6 +42,7 @@ exports=(
   "finance-payments:/finance/payments/export"
   "finance-invoices:/finance/invoices/export"
   "finance-cashflow:/finance/cashflow/export"
+  "customers:/customers/export"
   "report-customer-debt:/reports/export/customer-debt"
   "report-supplier-debt:/reports/export/supplier-debt"
   "report-finance:/reports/export/finance"
@@ -40,7 +52,7 @@ exports=(
   "order-center:/order-center/export"
 )
 
-fit_tour_id=$(curl -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/fit-tours" \
+fit_tour_id=$(curl_with_retry -fsS -H "Cookie: smarttour.auth.token=$token" "$API_URL/fit-tours" \
   | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0,"utf8")); const rows=Array.isArray(data)?data:(data.rows||[]); process.stdout.write(rows[0]?.id||"")')
 if [[ -n "$fit_tour_id" ]]; then
   exports+=("fit-tour:/fit-tours/$fit_tour_id/export")
@@ -52,7 +64,7 @@ for item in "${exports[@]}"; do
   name="${item%%:*}"
   path="${item#*:}"
   file="$OUT_DIR/$name.csv"
-  code=$(curl -fsS -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
+  code=$(curl_with_retry -fsS -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
   if [[ "$code" != "200" ]]; then
     echo "FAIL_EXPORT $name http=$code"
     exit 1
@@ -91,14 +103,28 @@ done
 xlsx_exports=(
   "finance-receipts-xlsx:/finance/receipts/export?format=xlsx"
   "finance-payments-xlsx:/finance/payments/export?format=xlsx"
+  "finance-invoices-xlsx:/finance/invoices/export?format=xlsx"
+  "finance-cashflow-xlsx:/finance/cashflow/export?format=xlsx"
+  "customers-xlsx:/customers/export?format=xlsx"
+  "report-customer-debt-xlsx:/reports/export/customer-debt?format=xlsx"
+  "report-supplier-debt-xlsx:/reports/export/supplier-debt?format=xlsx"
+  "report-finance-xlsx:/reports/export/finance?format=xlsx"
+  "report-employees-xlsx:/reports/export/employees?format=xlsx"
+  "report-profit-xlsx:/reports/export/profit?format=xlsx"
+  "commission-report-xlsx:/commission-reports/export?format=xlsx"
+  "order-center-xlsx:/order-center/export?format=xlsx"
 )
+
+if [[ -n "${fit_tour_id:-}" ]]; then
+  xlsx_exports+=("fit-tour-xlsx:/fit-tours/$fit_tour_id/export?format=xlsx")
+fi
 
 for item in "${xlsx_exports[@]}"; do
   name="${item%%:*}"
   path="${item#*:}"
   file="$OUT_DIR/$name.xlsx"
   headers="$OUT_DIR/$name.headers"
-  code=$(curl -fsS -D "$headers" -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
+  code=$(curl_with_retry -fsS -D "$headers" -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
   if [[ "$code" != "200" ]]; then
     echo "FAIL_EXPORT_XLSX $name http=$code"
     exit 1

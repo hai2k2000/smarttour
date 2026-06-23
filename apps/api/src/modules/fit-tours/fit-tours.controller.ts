@@ -1,11 +1,13 @@
-import { Body, Controller, Delete, Get, Header, HttpCode, Param, Patch, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateFitTourDto } from './dto/create-fit-tour.dto';
-import { FitTourAttachmentUploadDto, FitTourCopyOperationDto, FitTourCopySourceDto, FitTourExportDto } from './dto/fit-tour-action.dto';
+import { FitTourAttachmentUploadDto, FitTourCopyOperationDto, FitTourCopySourceDto, FitTourExportDto, FitTourExportQueryDto } from './dto/fit-tour-action.dto';
 import { ListFitToursQueryDto } from './dto/list-fit-tours-query.dto';
 import { UpdateFitTourDto } from './dto/update-fit-tour.dto';
 import { FitToursService } from './fit-tours.service';
@@ -30,18 +32,26 @@ export class FitToursController {
   @Post('export')
   @HttpCode(200)
   @RequirePermissions('tour.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
-  export(@Body() dto: FitTourExportDto, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.exportCsv(dto.id, request?.user);
+  async export(@Body() dto: FitTourExportDto, @Req() request: { user?: RequestUser } | undefined, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.fitToursService.exportCsv(dto.id, request?.user);
+    if (dto.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-fit-tour.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('fit-tour', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-fit-tour.csv');
+    return csv;
   }
 
   @Get(':id/export')
   @RequirePermissions('tour.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-fit-tour.csv"')
-  exportById(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
-    return this.fitToursService.exportCsv(id, request?.user);
+  async exportById(@Param('id') id: string, @Query() query: FitTourExportQueryDto, @Req() request: { user?: RequestUser } | undefined, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.fitToursService.exportCsv(id, request?.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-fit-tour.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('fit-tour', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-fit-tour.csv');
+    return csv;
   }
 
   @Get(':id')
@@ -117,5 +127,11 @@ export class FitToursController {
   @RequirePermissions('tour.manage')
   copyOperation(@Param('id') id: string, @Body() dto: FitTourCopyOperationDto = {}, @Req() request?: { user?: RequestUser }) {
     return this.fitToursService.copyOperation(id, dto.sourceTourId, request?.user);
+  }
+
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

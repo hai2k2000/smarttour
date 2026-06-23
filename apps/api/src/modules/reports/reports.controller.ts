@@ -1,5 +1,7 @@
-import { Controller, ForbiddenException, Get, Header, Param, Query, Req } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Param, Query, Req, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { RequestUser, userPermissions } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { DebtReportQueryDto, FinanceReportQueryDto, OrderReportQueryDto, ReportQueryDto } from './dto/report-query.dto';
@@ -73,11 +75,15 @@ export class ReportsController {
 
   @Get('export/:report')
   @RequirePermissions('report.view', 'report.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-report.csv"')
-  export(@Param('report') report: string, @Query() query: ReportQueryDto, @Req() request?: { user?: RequestUser }) {
+  async export(@Param('report') report: string, @Query() query: ReportQueryDto, @Req() request: { user?: RequestUser } | undefined, @Res({ passthrough: true }) response: ServerResponse) {
     this.assertSensitiveExportPermission(report, request?.user);
-    return this.service.exportCsv(report, query, request?.user);
+    const csv = await this.service.exportCsv(report, query, request?.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, `smarttour-report-${report}.xlsx`);
+      return new StreamableFile(csvToXlsxWorkbook(`report-${report}`, csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-report.csv');
+    return csv;
   }
 
   private assertSensitiveExportPermission(report: string, user?: RequestUser) {
@@ -89,5 +95,11 @@ export class ReportsController {
     if (!required) return;
     const permissions = userPermissions(user);
     if (!permissions.has('*') && !permissions.has(required)) throw new ForbiddenException('Thiếu quyền xem báo cáo tài chính');
+  }
+
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

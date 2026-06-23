@@ -1,8 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FitTourWorkflowStatus } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
-export class FitTourExportDto {
+export class FitTourExportQueryDto {
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
+}
+
+export class FitTourExportDto extends FitTourExportQueryDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)

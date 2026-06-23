@@ -37,6 +37,12 @@ export class BaseReportQueryDto {
   @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `search must not exceed ${LIST_SEARCH_MAX_LENGTH} characters` })
   search?: string;
 
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
+
   @ApiPropertyOptional({ enum: REPORT_GROUPS })
   @Transform(trimOptional)
   @IsOptional()

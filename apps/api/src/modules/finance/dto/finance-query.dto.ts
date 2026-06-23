@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class FinanceQueryDto {
   [key: string]: string | undefined;
@@ -101,6 +101,6 @@ export class FinanceQueryDto {
 
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['csv', 'xlsx'])
   format?: string;
 }

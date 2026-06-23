@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, Param, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -51,7 +52,7 @@ export class FinanceController {
   @RequirePermissions('finance.receipt.export')
   async exportReceipts(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
     if (query.format === 'xlsx') {
-      this.setExportHeaders(response, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'smarttour-finance-receipts.xlsx');
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-finance-receipts.xlsx');
       return new StreamableFile(await this.receiptsService.exportXlsx(query as Record<string, string>, request.user));
     }
     this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-receipts.csv');
@@ -146,7 +147,7 @@ export class FinanceController {
   @RequirePermissions('finance.payment.export')
   async exportPayments(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
     if (query.format === 'xlsx') {
-      this.setExportHeaders(response, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'smarttour-finance-payments.xlsx');
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-finance-payments.xlsx');
       return new StreamableFile(await this.paymentsService.exportXlsx(query as Record<string, string>, request.user));
     }
     this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-payments.csv');
@@ -239,10 +240,14 @@ export class FinanceController {
 
   @Get('invoices/export')
   @RequirePermissions('finance.invoice.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-finance-invoices.csv"')
-  exportInvoices(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
-    return this.invoicesService.export(query as Record<string, string>, request.user);
+  async exportInvoices(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.invoicesService.export(query as Record<string, string>, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-finance-invoices.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('finance-invoices', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-invoices.csv');
+    return csv;
   }
 
   @Get('invoices/:id')
@@ -336,10 +341,14 @@ export class FinanceController {
 
   @Get('cashflow/export')
   @RequirePermissions('finance.cashflow.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-finance-cashflow.csv"')
-  exportCashflow(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
-    return this.cashflowService.export(query as Record<string, string>, request.user);
+  async exportCashflow(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.cashflowService.export(query as Record<string, string>, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-finance-cashflow.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('finance-cashflow', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-cashflow.csv');
+    return csv;
   }
 
   private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {

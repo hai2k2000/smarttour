@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CommissionPaymentStatus, CommissionStatus, OrderType } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDateString, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
 
 const MAX_COMMISSION_ACTION_IDS = 100;
@@ -52,6 +52,12 @@ export class CommissionReportsQueryDto {
   @IsString({ message: 'search must be a string' })
   @MaxLength(LIST_SEARCH_MAX_LENGTH, { message: `search must not exceed ${LIST_SEARCH_MAX_LENGTH} characters` })
   search?: string;
+
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
 
   @ApiPropertyOptional({ enum: CommissionStatus })
   @Transform(normalizeEnum)

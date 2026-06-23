@@ -11,7 +11,7 @@ import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanD
 import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
 import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
-import { toXlsxWorkbook } from './finance-xlsx';
+import { toXlsxWorkbook } from '../../common/xlsx-workbook';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };

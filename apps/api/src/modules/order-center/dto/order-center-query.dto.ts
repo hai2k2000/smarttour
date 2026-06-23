@@ -1,9 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderStatus, OrderType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class OrderCenterQueryDto {
   [key: string]: string | number | boolean | undefined;
+
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
