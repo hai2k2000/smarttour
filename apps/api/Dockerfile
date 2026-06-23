@@ -2,7 +2,7 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package*.json apps/api/
-RUN npm install
+RUN npm ci
 
 FROM deps AS build
 COPY . .

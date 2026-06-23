@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Docker build reproducibility hardening:
+  - Switched API and Web production Docker dependency installs from `npm install` to `npm ci`.
+  - Added `scripts/test-dockerfile-npm-ci-contract.js` to keep production Dockerfiles lockfile-driven and prevent regressions back to non-reproducible installs.
+  - Verified the contract red/green, then built both API and Web Docker images successfully with `npm ci`.
+
 - Phase 4 reports CSV helper extraction:
   - Extracted pure report CSV formatting from `ReportsService` into `apps/api/src/modules/reports/report-csv.ts`.
   - `ReportsService.exportCsv()` now delegates to `toReportCsv`, keeping report business orchestration separate from low-level CSV escaping/BOM formatting.

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened Phase 4 Docker build reproducibility:
+  - Replaced `npm install` with `npm ci` in both API and Web production Dockerfiles.
+  - Added `scripts/test-dockerfile-npm-ci-contract.js` so Dockerfiles must stay lockfile-driven and cannot regress to `npm install`.
+  - Verified the contract red/green and rebuilt both API and Web Docker images successfully with `npm ci`.
+
 - Extracted the Phase 4 reports CSV helper:
   - Moved pure report CSV escaping/BOM formatting into `apps/api/src/modules/reports/report-csv.ts`.
   - Updated `ReportsService.exportCsv()` to delegate to `toReportCsv`, reducing low-level helper code inside the oversized reports service without changing export behavior.
