@@ -2,6 +2,12 @@
 
 ## Done
 
+- Added safe structured logging and correlation IDs for Phase 4:
+  - Added `apps/api/src/correlation-id.middleware.ts` and `apps/api/src/request-logging.interceptor.ts`, registered globally in `main.ts`.
+  - Responses now carry `x-correlation-id`, and API request logs are structured without request body/header/credential data.
+  - Added `scripts/test-logging-correlation-contract.js` to guard registration and no-sensitive-field logging behavior.
+  - Verified with the logging/correlation contract and Docker API build.
+
 - Standardized API error response shape for Phase 4:
   - Added `apps/api/src/http-error-response.filter.ts` and registered it globally in `main.ts`.
   - Extended `validation-exception.factory.ts` with `messages` and `code: VALIDATION_ERROR` while preserving the existing `message` field.

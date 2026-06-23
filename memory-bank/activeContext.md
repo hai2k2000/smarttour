@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 logging/correlation hardening:
+  - Added correlation ID middleware that accepts a safe `x-correlation-id` value or generates a UUID, stores it on the request, and mirrors it on the response header.
+  - Added a global request logging interceptor that emits structured JSON log entries for completion/failure with event, correlationId, method, path, statusCode, durationMs, and errorName only.
+  - The logging interceptor does not read or log request bodies, request headers, credentials, cookies, passwords, tokens, or secrets.
+  - Verification covered the logging/correlation source contract and Docker API build.
+
 - Phase 4 error response standardization:
   - Added a global `HttpErrorResponseFilter` so API `HttpException` responses include stable `statusCode`, `message`, `messages`, `error`, `code`, `path`, `method`, and `timestamp` fields.
   - Validation exceptions now include `messages` and `code: VALIDATION_ERROR` while preserving the existing `message` payload for compatibility.

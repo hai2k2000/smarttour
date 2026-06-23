@@ -4,7 +4,9 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertSecureRuntimeConfig, configuredCorsOrigins, smartTourEnvironment } from './config/runtime-env';
+import { createCorrelationIdMiddleware } from './correlation-id.middleware';
 import { HttpErrorResponseFilter } from './http-error-response.filter';
+import { RequestLoggingInterceptor } from './request-logging.interceptor';
 import { validationExceptionFactory } from './validation-exception.factory';
 
 async function bootstrap() {
@@ -12,11 +14,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const corsOrigins = configuredCorsOrigins();
   app.setGlobalPrefix('api');
+  app.use(createCorrelationIdMiddleware());
   app.enableCors({
     credentials: true,
     origin: corsOrigins.length ? corsOrigins : smartTourEnvironment() === 'development',
   });
   app.useGlobalFilters(new HttpErrorResponseFilter());
+  app.useGlobalInterceptors(new RequestLoggingInterceptor());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
 
   const config = new DocumentBuilder()
