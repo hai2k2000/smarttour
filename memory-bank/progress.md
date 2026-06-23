@@ -1,5 +1,11 @@
 # Progress
 
+- Hardened production security audit SSH permission coverage:
+  - Added live checks for `/`, `/root/.ssh`, and `/root/.ssh/authorized_keys` ownership/mode to `scripts/security-audit.sh`.
+  - Made `scripts/install-security-hardening.sh` normalize those permissions before reloading SSH hardening.
+  - Added `scripts/test-security-audit-contract.js`, `npm run test:security-audit`, and CI coverage.
+  - Updated the security runbook and production readiness tracker with the new `OK_ROOT_MODE`/`OK_SSH_PERMS` evidence.
+
 - Hardened backup/restore offsite sync operations:
   - Added non-interactive SCP and bounded SSH timeout settings to PostgreSQL backup sync and full disaster archive sync paths.
   - Documented both off-VPS backup targets in the operations reinstall runbook and `/etc/default/smarttour-ops` template.

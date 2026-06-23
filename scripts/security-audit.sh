@@ -59,6 +59,30 @@ else
   failures=$((failures + 1))
 fi
 
+root_mode="$(stat -c '%a %U:%G' /)"
+if [[ "$root_mode" == "755 root:root" ]]; then
+  echo "OK_ROOT_MODE /=755 root:root"
+else
+  echo "FAIL_ROOT_MODE /=$root_mode expected=755 root:root"
+  failures=$((failures + 1))
+fi
+
+root_ssh_mode="$(stat -c '%a %U:%G' /root/.ssh)"
+if [[ "$root_ssh_mode" == "700 root:root" ]]; then
+  echo "OK_SSH_PERMS /root/.ssh=700 root:root"
+else
+  echo "FAIL_SSH_PERMS /root/.ssh=$root_ssh_mode expected=700 root:root"
+  failures=$((failures + 1))
+fi
+
+authorized_keys_mode="$(stat -c '%a %U:%G' /root/.ssh/authorized_keys)"
+if [[ "$authorized_keys_mode" == "600 root:root" ]]; then
+  echo "OK_SSH_PERMS authorized_keys=600 root:root"
+else
+  echo "FAIL_SSH_PERMS authorized_keys=$authorized_keys_mode expected=600 root:root"
+  failures=$((failures + 1))
+fi
+
 if grep -Eq 'listen 80 default_server' deploy/nginx/default.conf \
   && grep -Eq 'ssl_reject_handshake on' deploy/nginx/default.conf; then
   echo "OK_NGINX unknown hosts rejected"

@@ -74,6 +74,7 @@ jobs:
           node scripts/test-prisma-index-contract.js
           node scripts/test-observability-alerting-contract.js
           node scripts/test-backup-offsite-contract.js
+          node scripts/test-security-audit-contract.js
 
       - name: Typecheck API
         run: npm run lint --workspace @smarttour/api

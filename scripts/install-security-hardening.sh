@@ -15,6 +15,11 @@ if [[ ! -s /root/.ssh/authorized_keys ]]; then
   exit 1
 fi
 
+chmod 755 /
+chmod 700 /root/.ssh
+chmod 600 /root/.ssh/authorized_keys
+chown -R root:root /root/.ssh
+
 install -d -m 0755 /etc/ssh/sshd_config.d
 install -m 0644 "$SSH_SOURCE" "$SSH_TARGET"
 

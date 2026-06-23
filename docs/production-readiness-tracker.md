@@ -119,6 +119,7 @@ Status: `ready-for-manual`
 Automated audit:
 
 - `scripts/security-audit.sh`
+- `scripts/test-security-audit-contract.js`
 
 Completed hardening:
 
@@ -132,6 +133,9 @@ Completed hardening:
 - API port `4000` is bound to `127.0.0.1`.
 - Web preview port `3001` is bound to `127.0.0.1`.
 - Public traffic enters through nginx on HTTPS.
+- The security audit now checks `OK_ROOT_MODE` and `OK_SSH_PERMS` for `/`,
+  `/root/.ssh`, and `/root/.ssh/authorized_keys`; the hardening installer
+  normalizes those permissions after OS reinstall.
 
 ## 10. Technical Cleanup
 

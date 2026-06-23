@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production security audit hardening:
+  - Hardened `scripts/security-audit.sh` to check `/` mode, `/root/.ssh` mode/owner, and `/root/.ssh/authorized_keys` mode/owner with explicit `OK_ROOT_MODE` and `OK_SSH_PERMS` output.
+  - Updated `scripts/install-security-hardening.sh` to normalize `/`, `/root/.ssh`, and `authorized_keys` permissions before validating/reloading SSH hardening.
+  - Added `scripts/test-security-audit-contract.js`, exposed `npm run test:security-audit`, and wired the contract into `SmartTour CI`.
+  - Updated `docs/security-hardening-runbook.md` and `docs/production-readiness-tracker.md` so OS reinstall/security checks include SSH permission verification.
+
 - Backup/restore offsite hardening:
   - Hardened `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` remote SCP paths with `BatchMode=yes`, configurable connect timeout, server-alive interval, and server-alive count max.
   - Added PostgreSQL dump and full disaster archive remote sync settings to the `/etc/default/smarttour-ops` template in `scripts/install-ops-schedule.sh`.

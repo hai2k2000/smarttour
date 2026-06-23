@@ -17,12 +17,27 @@ Install the root SSH public key before running hardening.
 
 ```bash
 cd /opt/smarttour
+chmod 755 /
+chmod 700 /root/.ssh
+chmod 600 /root/.ssh/authorized_keys
+chown -R root:root /root/.ssh
 chmod +x scripts/install-security-hardening.sh scripts/install-ops-schedule.sh
 scripts/install-security-hardening.sh
 scripts/install-ops-schedule.sh
 ```
 
 Open a second SSH session with the configured key before closing the first session.
+
+Validate the security audit source contract and the live host audit:
+
+```bash
+cd /opt/smarttour
+npm run test:security-audit
+npm run ops:security
+```
+
+The live audit must include `OK_ROOT_MODE` and `OK_SSH_PERMS` lines for `/`,
+`/root/.ssh`, and `/root/.ssh/authorized_keys`.
 
 ## Daily host report
 
