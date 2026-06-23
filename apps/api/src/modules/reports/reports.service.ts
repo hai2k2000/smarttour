@@ -147,10 +147,11 @@ export class ReportsService {
     this.assertFinanceQuery(query);
     const orders = await this.orders(this.financeOrderQuery(query), user);
     const orderIds = orders.map((order) => order.id);
-    const [receiptRows, paymentRows, cashflowRows, customerDebtReport, supplierDebtReport] = await Promise.all([
+    const [receiptRows, paymentRows, cashflowRows, financeSummary, customerDebtReport, supplierDebtReport] = await Promise.all([
       this.financeReceiptRows(query, orderIds, user),
       this.financePaymentRows(query, orderIds, user),
       this.financeCashflowRows(query, orderIds, user),
+      this.financeSummaryFromDb(query, orderIds, user),
       this.customerDebt({ ...query, dateField: 'documentDate' }, user),
       this.supplierDebt({ ...query, dateField: 'documentDate' }, user),
     ]);
@@ -159,14 +160,13 @@ export class ReportsService {
     const orphanPaymentRows = this.orphanPaymentRows(paymentRows);
     const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
     const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
-    const cashflowSummary = this.cashflowSummary(cashflowRows);
     const summary = {
       ...grouped.summary,
-      totalReceipt: cashflowSummary.totalReceipt,
-      totalPayment: cashflowSummary.totalPayment,
-      netCashflow: cashflowSummary.netCashflow,
-      receiptCount: receiptRows.length,
-      paymentCount: paymentRows.length,
+      totalReceipt: financeSummary.totalReceipt,
+      totalPayment: financeSummary.totalPayment,
+      netCashflow: financeSummary.netCashflow,
+      receiptCount: financeSummary.receiptCount,
+      paymentCount: financeSummary.paymentCount,
       customerDebtBalance: Number(customerDebtReport.summary?.balance || customerDebtReport.summary?.remainingRevenue || 0),
       supplierDebtBalance: Number(supplierDebtReport.summary?.balance || supplierDebtReport.summary?.remainingAmount || 0),
       issueCount: reconciliationRows.length,
@@ -353,6 +353,15 @@ export class ReportsService {
   }
 
   private async financeReceiptRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    return this.prisma.financeReceipt.findMany({
+      where: this.financeReceiptWhere(query, orderIds, user),
+      include: { customer: true, orders: true },
+      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { receiptCode: 'asc' }],
+      take: 300,
+    });
+  }
+
+  private financeReceiptWhere(query: ReportQuery, orderIds: string[], user?: RequestUser): Prisma.FinanceReceiptWhereInput {
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
     const searchOr: Prisma.FinanceReceiptWhereInput[] = contains
@@ -373,7 +382,7 @@ export class ReportsService {
           ...(orderIds.length ? [{ orders: { some: { orderId: { in: orderIds } } } }] : []),
         ]
       : [];
-    const where = branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({
+    return branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({
       deletedAt: null,
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
@@ -381,15 +390,18 @@ export class ReportsService {
       ...(searchOr.length ? { OR: searchOr } : {}),
       ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
     }, user);
-    return this.prisma.financeReceipt.findMany({
-      where,
-      include: { customer: true, orders: true },
-      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { receiptCode: 'asc' }],
+  }
+
+  private async financePaymentRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    return this.prisma.financePayment.findMany({
+      where: this.financePaymentWhere(query, orderIds, user),
+      include: { supplier: true, order: true, tour: true, operationVoucher: true },
+      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { voucherCode: 'asc' }],
       take: 300,
     });
   }
 
-  private async financePaymentRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+  private financePaymentWhere(query: ReportQuery, orderIds: string[], user?: RequestUser): Prisma.FinancePaymentWhereInput {
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
     const searchOr: Prisma.FinancePaymentWhereInput[] = contains
@@ -413,7 +425,7 @@ export class ReportsService {
           ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
         ]
       : [];
-    const where = branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({
+    return branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({
       deletedAt: null,
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
@@ -421,15 +433,18 @@ export class ReportsService {
       ...(searchOr.length ? { OR: searchOr } : {}),
       ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
     }, user);
-    return this.prisma.financePayment.findMany({
-      where,
-      include: { supplier: true, order: true, tour: true, operationVoucher: true },
-      orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { voucherCode: 'asc' }],
-      take: 300,
-    });
   }
 
   private async financeCashflowRows(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    return this.prisma.financeCashflowEntry.findMany({
+      where: this.financeCashflowWhere(query, orderIds, user),
+      include: { order: true, tour: true, customer: true, supplier: true },
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+      take: 1000,
+    });
+  }
+
+  private financeCashflowWhere(query: ReportQuery, orderIds: string[], user?: RequestUser): Prisma.FinanceCashflowEntryWhereInput {
     const search = normalizeListSearch(query.search);
     const contains = search ? containsSearch(search) : undefined;
     const searchOr: Prisma.FinanceCashflowEntryWhereInput[] = contains
@@ -449,19 +464,32 @@ export class ReportsService {
           ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
         ]
       : [];
-    const where = branchDepartmentScopeWhere<Prisma.FinanceCashflowEntryWhereInput>({
+    return branchDepartmentScopeWhere<Prisma.FinanceCashflowEntryWhereInput>({
       ...(query.branch ? { branch: { contains: query.branch, mode: 'insensitive' } } : {}),
       ...(query.department ? { department: { contains: query.department, mode: 'insensitive' } } : {}),
       ...(query.employee ? { staff: { contains: query.employee, mode: 'insensitive' } } : {}),
       ...(searchOr.length ? { OR: searchOr } : {}),
       ...this.dateRange('paymentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
     }, user);
-    return this.prisma.financeCashflowEntry.findMany({
-      where,
-      include: { order: true, tour: true, customer: true, supplier: true },
-      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
-      take: 1000,
-    });
+  }
+
+  private async financeSummaryFromDb(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    const [receiptCount, paymentCount, cashflowGroups] = await Promise.all([
+      this.prisma.financeReceipt.count({ where: this.financeReceiptWhere(query, orderIds, user) }),
+      this.prisma.financePayment.count({ where: this.financePaymentWhere(query, orderIds, user) }),
+      this.prisma.financeCashflowEntry.groupBy({
+        by: ['entryType'],
+        where: this.financeCashflowWhere(query, orderIds, user),
+        _sum: { amount: true },
+      }),
+    ]);
+    const totalReceipt = cashflowGroups
+      .filter((row) => row.entryType === 'RECEIPT')
+      .reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    const totalPayment = cashflowGroups
+      .filter((row) => row.entryType === 'PAYMENT')
+      .reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    return { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment, receiptCount, paymentCount };
   }
 
   private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[], cashflowRows: FinanceCashflowReportRow[]) {
@@ -714,12 +742,6 @@ export class ReportsService {
       issues: ['Phiếu chi chưa gắn đơn/tour để đối soát chi phí'],
     }));
     return [...orderIssues, ...receiptIssues, ...paymentIssues].slice(0, 300);
-  }
-
-  private cashflowSummary(rows: FinanceCashflowReportRow[]) {
-    const totalReceipt = rows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
-    const totalPayment = rows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
-    return { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment };
   }
 
   private cashflowByMonth(rows: FinanceCashflowReportRow[]) {

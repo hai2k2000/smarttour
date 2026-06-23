@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance report summary accuracy hardening:
+  - Hybrid finance report receipt/payment counts and cashflow totals now use scoped database count/groupBy helpers instead of deriving totals from capped receipt/payment/cashflow display rows.
+  - Finance report rows remain bounded for payload safety, while summary totals are calculated from the full scoped matching dataset.
+  - Report query validation contract now guards finance report summaries against regressing to capped-row `cashflowSummary(cashflowRows)` or `receiptRows.length`/`paymentRows.length`.
+
 - Phase 3 finance debt row payload hardening:
   - Finance customer-debt and supplier-debt grouped `rows` now use scoped database ledger groupBy helpers instead of loading all matching ledger entries into `summaryEntries`.
   - The detailed `entries` list remains bounded by `take`, while grouped rows are sorted by balance and capped to the requested list size.

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened hybrid finance report summaries:
+  - Receipt/payment counts and cashflow totals now use scoped database `count` and cashflow `groupBy` queries instead of capped report display rows.
+  - Finance report row payloads stay bounded, but summary totals now reflect the full scoped matching dataset.
+  - Strengthened report query validation coverage so finance summaries cannot regress to `cashflowSummary(cashflowRows)` or capped row counts.
+
 - Hardened finance debt grouped row payloads:
   - Customer and supplier debt grouped rows now use scoped database ledger `groupBy` helpers instead of loading every matching ledger entry into the API process.
   - The detailed ledger `entries` payload stays bounded by `take`, and grouped rows are capped after balance sorting.

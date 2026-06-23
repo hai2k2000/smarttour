@@ -63,6 +63,15 @@ async function main() {
     assert(!block.includes(oldSummary), `${method} summary must not depend on capped debt rows`);
   }
   {
+    const start = reportsServiceSource.indexOf('async finance(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes('financeSummaryFromDb(query, orderIds, user)'), 'finance report summary must use database summary helper');
+    assert(!block.includes('cashflowSummary(cashflowRows)'), 'finance report cashflow totals must not depend on capped cashflow rows');
+    assert(!block.includes('receiptCount: receiptRows.length'), 'finance report receiptCount must not depend on capped receipt rows');
+    assert(!block.includes('paymentCount: paymentRows.length'), 'finance report paymentCount must not depend on capped payment rows');
+  }
+  {
     const start = reportsServiceSource.indexOf('private async orderSummaryFromDb(');
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
     assert(block.includes('aggregate({'), 'orderSummaryFromDb must aggregate order totals in the database');
@@ -81,6 +90,14 @@ async function main() {
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1800);
     assert(block.includes('.groupBy({'), `${helper} must group ledger balances in the database`);
     assert(block.includes('_sum:'), `${helper} must sum ledger fields in the database`);
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async financeSummaryFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2200);
+    assert(block.includes('financeReceipt.count({'), 'financeSummaryFromDb must count receipts in the database');
+    assert(block.includes('financePayment.count({'), 'financeSummaryFromDb must count payments in the database');
+    assert(block.includes('financeCashflowEntry.groupBy({'), 'financeSummaryFromDb must group cashflow totals in the database');
+    assert(block.includes('_sum: { amount: true }'), 'financeSummaryFromDb must sum cashflow amounts in the database');
   }
   assert(reportsClient.includes('financeFilterKeys'), 'reports browser must filter hybrid finance query keys');
   assert(reportsClient.includes('financeDateFields'), 'reports browser must expose finance date fields');
@@ -122,9 +139,18 @@ async function main() {
       findMany: async () => { supplierDebtCalls += 1; return []; },
       groupBy: async () => [],
     },
-    financeReceipt: { findMany: async () => { financeDocumentCalls += 1; return []; } },
-    financePayment: { findMany: async () => { financeDocumentCalls += 1; return []; } },
-    financeCashflowEntry: { findMany: async () => { financeDocumentCalls += 1; return []; } },
+    financeReceipt: {
+      findMany: async () => { financeDocumentCalls += 1; return []; },
+      count: async () => 0,
+    },
+    financePayment: {
+      findMany: async () => { financeDocumentCalls += 1; return []; },
+      count: async () => 0,
+    },
+    financeCashflowEntry: {
+      findMany: async () => { financeDocumentCalls += 1; return []; },
+      groupBy: async () => [],
+    },
     operationVoucher: { findMany: async () => { historyCalls += 1; return []; } },
   });
 
