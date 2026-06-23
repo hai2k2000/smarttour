@@ -23,16 +23,31 @@ export class QuotationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async dashboard(user?: RequestUser) {
-    const quotes = await this.prisma.quotation.findMany({ where: branchDepartmentScopeWhere({}, user) });
-    return quotes.reduce((acc, quote) => {
-      acc.total += 1;
-      acc.totalValue += Number(quote.totalSelling);
-      if (quote.status === 'PENDING_APPROVAL') acc.pending += 1;
-      if (quote.status === 'APPROVED') acc.approved += 1;
-      if (quote.status === 'CONVERTED') acc.converted += 1;
-      if (quote.status === 'EXPIRED' || (quote.expiredDate && quote.expiredDate < new Date() && quote.status !== 'CONVERTED')) acc.expired += 1;
-      return acc;
-    }, { total: 0, totalValue: 0, pending: 0, approved: 0, converted: 0, expired: 0 });
+    const where = branchDepartmentScopeWhere({}, user);
+    const now = new Date();
+    const [total, pending, approved, converted, expired, totals] = await Promise.all([
+      this.prisma.quotation.count({ where }),
+      this.prisma.quotation.count({ where: this.andWhere(where, { status: 'PENDING_APPROVAL' }) }),
+      this.prisma.quotation.count({ where: this.andWhere(where, { status: 'APPROVED' }) }),
+      this.prisma.quotation.count({ where: this.andWhere(where, { status: 'CONVERTED' }) }),
+      this.prisma.quotation.count({
+        where: this.andWhere(where, {
+          OR: [
+            { status: 'EXPIRED' },
+            { expiredDate: { lt: now }, status: { not: 'CONVERTED' } },
+          ],
+        }),
+      }),
+      this.prisma.quotation.aggregate({ where, _sum: { totalSelling: true } }),
+    ]);
+    return {
+      total,
+      totalValue: Number(totals._sum.totalSelling ?? 0),
+      pending,
+      approved,
+      converted,
+      expired,
+    };
   }
 
   list(query: ListQuotationsQueryDto, user?: RequestUser) {
@@ -513,6 +528,10 @@ export class QuotationsService {
     const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) throw new BadRequestException('Tỷ giá báo giá phải lớn hơn 0');
     return number;
+  }
+
+  private andWhere(where: Prisma.QuotationWhereInput, extra: Prisma.QuotationWhereInput): Prisma.QuotationWhereInput {
+    return { AND: [where, extra] };
   }
 
   private listTake(value?: number) {

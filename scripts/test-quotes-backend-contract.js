@@ -57,6 +57,13 @@ includes(quotationDto, 'take?: number', 'Quotations list query DTO must accept b
 includes(quotationDto, 'MAX_QUOTATIONS_TAKE', 'Quotations list query DTO must cap take.');
 includes(quotationsController, 'list(@Query() query: ListQuotationsQueryDto', 'Quotation list route must use the validated list query DTO.');
 includes(quotationsService, 'take: this.listTake(query.take)', 'Quotation list service must apply bounded take.');
+const quotationDashboardStart = quotationsService.indexOf('async dashboard(');
+const quotationListStart = quotationsService.indexOf('list(query: ListQuotationsQueryDto', quotationDashboardStart);
+const quotationDashboardBlock = quotationDashboardStart === -1 || quotationListStart === -1 ? '' : quotationsService.slice(quotationDashboardStart, quotationListStart);
+includes(quotationDashboardBlock, 'this.prisma.quotation.count', 'Quotation dashboard should count in the database instead of loading every quotation.');
+includes(quotationDashboardBlock, 'this.prisma.quotation.aggregate', 'Quotation dashboard should sum quotation value in the database.');
+excludes(quotationDashboardBlock, 'findMany', 'Quotation dashboard must not load all matching quotations with findMany.');
+excludes(quotationDashboardBlock, '.reduce(', 'Quotation dashboard must not reduce all matching quotations in Node.');
 
 for (const label of [
   'quoteCode',

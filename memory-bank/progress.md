@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened quotation dashboard payload:
+  - Replaced the legacy quotation dashboard's full-quotation `findMany`/in-memory reduction with scoped database `count` and `_sum` aggregate queries.
+  - Strengthened quote backend coverage so quotation dashboard metrics cannot regress to loading all matching quotations into the API process.
+
 - Hardened Order Center dashboard payload:
   - Replaced the dashboard's full-order `findMany`/in-memory reduction with scoped database `count` and `_sum` aggregate queries.
   - Strengthened the Order Center contract so dashboard metrics cannot regress to loading all matching orders into the API process.

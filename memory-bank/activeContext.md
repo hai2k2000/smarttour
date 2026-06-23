@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 quotation dashboard payload hardening:
+  - Legacy quotation dashboard now calculates counts and total selling value with database `count`/`aggregate` queries instead of loading every matching quotation into Node.
+  - Quote backend contract now guards against dashboard regressions back to `findMany`/in-memory `reduce` payloads.
+
 - Phase 3 Order Center dashboard payload hardening:
   - Order Center dashboard now calculates counts and revenue/cost/profit sums with database `count`/`aggregate` queries instead of loading every matching order into Node.
   - Order Center contract now guards against dashboard regressions back to `findMany`/in-memory `reduce` payloads.
