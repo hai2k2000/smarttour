@@ -13,11 +13,21 @@ failures=0
 notify_failure() {
   local message="$1"
   if [[ -n "${HEALTHCHECK_WEBHOOK_URL:-}" ]]; then
-    curl -fsS -X POST "$HEALTHCHECK_WEBHOOK_URL" \
+    local webhook_connect_timeout="${HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT:-5}"
+    local webhook_max_time="${HEALTHCHECK_WEBHOOK_MAX_TIME:-10}"
+    local webhook_retries="${HEALTHCHECK_WEBHOOK_RETRIES:-2}"
+    local payload
+    payload="$(SMARTTOUR_ALERT_HOST="$(hostname)" SMARTTOUR_ALERT_MESSAGE="$message" node -e 'process.stdout.write(JSON.stringify({ event: "smarttour_healthcheck_failed", host: process.env.SMARTTOUR_ALERT_HOST, message: process.env.SMARTTOUR_ALERT_MESSAGE }))')"
+    curl -fsS \
+      --connect-timeout "$webhook_connect_timeout" \
+      --max-time "$webhook_max_time" \
+      --retry "$webhook_retries" \
+      -X POST "$HEALTHCHECK_WEBHOOK_URL" \
       -H 'Content-Type: application/json' \
-      --data "{\"text\":\"$message\"}" >/dev/null || true
+      --data "$payload" >/dev/null || true
   fi
 }
+
 
 check_http() {
   local name="$1"

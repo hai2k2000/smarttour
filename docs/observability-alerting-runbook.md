@@ -1,0 +1,55 @@
+# Observability Alerting Runbook
+
+SmartTour healthcheck can send a webhook when `scripts/healthcheck.sh` detects
+one or more failures. Configure the target in `/etc/default/smarttour-ops` so
+systemd timers and manual operator runs use the same settings.
+
+## Required Setting
+
+```bash
+HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
+```
+
+Use a destination controlled by the operations team, such as a chat webhook,
+incident webhook, or monitoring gateway. Do not commit the real URL to Git.
+
+## Timeout and Retry Settings
+
+The webhook call must never block the healthcheck indefinitely. Defaults are
+safe for cron/systemd timer execution:
+
+```bash
+HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
+HEALTHCHECK_WEBHOOK_MAX_TIME=10
+HEALTHCHECK_WEBHOOK_RETRIES=2
+```
+
+Increase these values only if the alert provider has documented slow responses.
+
+## Apply Configuration
+
+```bash
+sudo install -m 600 /etc/default/smarttour-ops /etc/default/smarttour-ops.bak.$(date +%Y%m%d%H%M%S)
+sudoedit /etc/default/smarttour-ops
+sudo systemctl restart smarttour-healthcheck.timer
+sudo systemctl list-timers --all 'smarttour-healthcheck*'
+```
+
+## Test Alert Delivery
+
+Run a local failure probe with an intentionally impossible API URL:
+
+```bash
+cd /opt/smarttour
+API_URL=http://127.0.0.1:1/api scripts/healthcheck.sh || true
+```
+
+Confirm the alert destination receives an event named
+`smarttour_healthcheck_failed` with the VPS host and failure count. Then run the
+normal healthcheck again:
+
+```bash
+scripts/healthcheck.sh
+```
+
+The normal run should print `HEALTHCHECK_OK` and should not send a failure alert.

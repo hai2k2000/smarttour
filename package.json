@@ -58,7 +58,8 @@
     "test:fit-wizard": "scripts/test-fit-wizard-ui-contract.sh",
     "verify:toolchain": "scripts/verify-toolchain-docker.sh",
     "ops:smartlink:audit": "scripts/smartlink-legacy-audit.sh --mode=audit",
-    "ops:smartlink:backfill": "scripts/smartlink-legacy-audit.sh --mode=backfill"
+    "ops:smartlink:backfill": "scripts/smartlink-legacy-audit.sh --mode=backfill",
+    "test:observability-alerting": "node scripts/test-observability-alerting-contract.js"
   },
   "devDependencies": {
     "playwright": "^1.60.0",

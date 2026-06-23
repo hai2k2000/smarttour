@@ -93,18 +93,18 @@ Manual owner task: configure the GitHub `production` environment approval gate a
 
 ## 8. Observability
 
-Status: `done`
+Status: `ready-for-manual`
 
-Health script:
+Health tooling:
 
 - `scripts/healthcheck.sh`
 - `/etc/cron.d/smarttour-healthcheck`
+- `HEALTHCHECK_WEBHOOK_URL` for webhook alerts
+- `docs/observability-alerting-runbook.md`
 
-Open decision: external alerting target for failures.
+Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
 
-Tooling is ready:
-
-- `HEALTHCHECK_WEBHOOK_URL` for webhook alerts.
+Manual owner task: choose the external alert destination and configure `HEALTHCHECK_WEBHOOK_URL` plus timeout/retry settings in `/etc/default/smarttour-ops`.
 
 ## 9. Production Security
 

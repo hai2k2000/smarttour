@@ -72,6 +72,7 @@ jobs:
           node scripts/test-files-controller-contract.js
           node scripts/test-reports-csv-helper-contract.js
           node scripts/test-prisma-index-contract.js
+          node scripts/test-observability-alerting-contract.js
 
       - name: Typecheck API
         run: npm run lint --workspace @smarttour/api

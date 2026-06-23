@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Observability alerting hardening:
+  - Hardened `scripts/healthcheck.sh` webhook failure notification with JSON-escaped structured `smarttour_healthcheck_failed` payloads, configurable connect timeout, max time, and retry count.
+  - Added `docs/observability-alerting-runbook.md` for configuring `HEALTHCHECK_WEBHOOK_URL` and validating alert delivery through `/etc/default/smarttour-ops`.
+  - Added `scripts/test-observability-alerting-contract.js` and wired it into `SmartTour CI` so alerting behavior stays guarded.
+  - `docs/production-readiness-tracker.md` now marks Observability as `ready-for-manual` pending the external alert destination choice.
+  - Verified webhook failure handling with an unreachable local webhook and normal `scripts/healthcheck.sh`.
+
 
 - CI/CD GitHub Actions wiring:
   - Added `SmartTour CI` workflow for pull requests and pushes to `main`, `fix/**`, and `feature/**` branches.

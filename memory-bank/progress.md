@@ -1,5 +1,11 @@
 # Progress
 
+- Hardened healthcheck webhook alerting:
+  - Added bounded timeout/retry controls and a JSON-escaped structured `smarttour_healthcheck_failed` webhook payload to `scripts/healthcheck.sh`.
+  - Added `docs/observability-alerting-runbook.md` and `scripts/test-observability-alerting-contract.js`.
+  - Wired the observability alerting contract into `SmartTour CI` and updated production readiness Observability status to `ready-for-manual` until an external alert target is configured.
+  - Verified webhook failure handling with an unreachable local webhook and normal `scripts/healthcheck.sh`.
+
 
 - Wired GitHub Actions CI/CD scaffolding:
   - Added `SmartTour CI` for PR/push verification with lockfile install, audit, source contracts, typechecks, and API/Web Docker builds.

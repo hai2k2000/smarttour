@@ -40,6 +40,7 @@ for (const command of [
   'node scripts/test-native-xlsx-export-contract.js',
   'node scripts/test-finance-xlsx-contract.js',
   'node scripts/test-query-dto-contract.js',
+  'node scripts/test-observability-alerting-contract.js',
   'npm run lint --workspace @smarttour/api',
   'npm run lint --workspace @smarttour/web',
   'docker compose build api web',
