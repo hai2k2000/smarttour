@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance debt row payload hardening:
+  - Finance customer-debt and supplier-debt grouped `rows` now use scoped database ledger groupBy helpers instead of loading all matching ledger entries into `summaryEntries`.
+  - The detailed `entries` list remains bounded by `take`, while grouped rows are sorted by balance and capped to the requested list size.
+  - Finance helper contract now guards debt endpoints against regressing to full-ledger row loads for grouped debt rows.
+
 - Phase 3 reports debt summary accuracy/payload hardening:
   - Reports customer-debt and supplier-debt summaries now use scoped database ledger groupBy helpers instead of deriving totals from the capped 1000-entry report rows.
   - Report query validation contract now guards debt report summaries against regressing to capped-row summary helpers.

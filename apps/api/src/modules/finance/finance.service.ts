@@ -555,12 +555,12 @@ export class FinanceService {
     }, user);
     const include = { customer: true, order: true, receipt: true, invoice: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
-    const [entries, summaryEntries, summary] = await Promise.all([
+    const [entries, rows, summary] = await Promise.all([
       this.prisma.customerLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
-      this.prisma.customerLedgerEntry.findMany({ where, include, orderBy }),
+      this.customerDebtRowsFromDb(where, this.take(query.take)),
       this.customerLedgerSummaryFromDb(where),
     ]);
-    return { rows: this.customerDebtRows(summaryEntries), entries, summary };
+    return { rows, entries, summary };
   }
 
   async supplierDebt(query: Record<string, string>, user?: RequestUser) {
@@ -574,12 +574,12 @@ export class FinanceService {
     }, user);
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
-    const [entries, summaryEntries, summary] = await Promise.all([
+    const [entries, rows, summary] = await Promise.all([
       this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
-      this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy }),
+      this.supplierDebtRowsFromDb(where, this.take(query.take)),
       this.supplierLedgerSummaryFromDb(where),
     ]);
-    return { rows: this.supplierDebtRows(summaryEntries), entries, summary };
+    return { rows, entries, summary };
   }
 
   async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
@@ -1252,6 +1252,76 @@ export class FinanceService {
     return { debit: payable, credit: paid, balance: payable - paid, count: total._count._all };
   }
 
+  private async customerDebtRowsFromDb(where: Prisma.CustomerLedgerEntryWhereInput, take: number) {
+    const grouped = await this.prisma.customerLedgerEntry.groupBy({
+      by: ['customerId'],
+      where,
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const rows = grouped
+      .map((row) => {
+        const debitTotal = Number(row._sum.debitAmount ?? 0);
+        const creditTotal = Number(row._sum.creditAmount ?? 0);
+        return { customerId: row.customerId, debitTotal, creditTotal, balance: debitTotal - creditTotal };
+      })
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance)
+      .slice(0, take);
+    const customers = await this.prisma.customer.findMany({
+      where: { id: { in: rows.map((row) => row.customerId) } },
+      select: { id: true, code: true, fullName: true, phone: true },
+    });
+    const customersById = new Map(customers.map((customer) => [customer.id, customer]));
+    return rows.map((row) => {
+      const customer = customersById.get(row.customerId);
+      return {
+        id: row.customerId,
+        code: customer?.code || '',
+        name: customer?.fullName || '',
+        phone: customer?.phone || '',
+        debitTotal: row.debitTotal,
+        creditTotal: row.creditTotal,
+        balance: row.balance,
+        aging: this.balanceAging(row.balance),
+      };
+    });
+  }
+
+  private async supplierDebtRowsFromDb(where: Prisma.SupplierLedgerEntryWhereInput, take: number) {
+    const grouped = await this.prisma.supplierLedgerEntry.groupBy({
+      by: ['supplierId'],
+      where,
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const rows = grouped
+      .map((row) => {
+        const creditTotal = Number(row._sum.debitAmount ?? 0);
+        const debitTotal = Number(row._sum.creditAmount ?? 0);
+        return { supplierId: row.supplierId, debitTotal, creditTotal, balance: debitTotal - creditTotal };
+      })
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance)
+      .slice(0, take);
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: rows.map((row) => row.supplierId) }, deletedAt: null },
+      select: { id: true, supplierCode: true, name: true, phone: true },
+    });
+    const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+    return rows.map((row) => {
+      const supplier = suppliersById.get(row.supplierId);
+      return {
+        id: row.supplierId,
+        code: supplier?.supplierCode || '',
+        name: supplier?.name || '',
+        phone: supplier?.phone || undefined,
+        debitTotal: row.debitTotal,
+        creditTotal: row.creditTotal,
+        balance: row.balance,
+        aging: this.balanceAging(row.balance),
+      };
+    });
+  }
+
   private customerDebtRows(entries: Array<{ customerId: string; customer: { fullName: string; phone: string; code: string }; debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal; dueDate: Date | null; documentDate: Date | null; createdAt: Date }>) {
     const grouped = new Map<string, { id: string; code: string; name: string; phone: string; debitTotal: number; creditTotal: number; entries: typeof entries }>();
     for (const entry of entries) {
@@ -1310,6 +1380,10 @@ export class FinanceService {
     }
     if (settlements > 0) aging.current -= settlements;
     return { ...aging, overdueTotal: aging.overdue1To30 + aging.overdue31To60 + aging.overdue61To90 + aging.overdueOver90 };
+  }
+
+  private balanceAging(balance: number) {
+    return { current: balance, overdue1To30: 0, overdue31To60: 0, overdue61To90: 0, overdueOver90: 0, overdueTotal: 0 };
   }
 
   private take(value?: string) {

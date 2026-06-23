@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened finance debt grouped row payloads:
+  - Customer and supplier debt grouped rows now use scoped database ledger `groupBy` helpers instead of loading every matching ledger entry into the API process.
+  - The detailed ledger `entries` payload stays bounded by `take`, and grouped rows are capped after balance sorting.
+  - Strengthened finance helper contracts so debt rows cannot regress to full-ledger `summaryEntries` loads.
+
 - Hardened reports debt summary accuracy:
   - Customer-debt and supplier-debt report summaries now use scoped database ledger groupBy helpers instead of deriving totals from capped report rows.
   - Strengthened report query validation coverage so debt summaries cannot regress to capped-row summary helpers.

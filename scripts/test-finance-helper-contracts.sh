@@ -87,11 +87,23 @@ for (const [method, summaryHelper, oldSummary] of [
   const block = start === -1 ? '' : service.slice(start, next === -1 ? service.length : next);
   if (!block.includes(summaryHelper + '(where)')) failures.push(method + ' must use aggregate/count ledger summary helper: ' + summaryHelper);
   if (block.includes(oldSummary)) failures.push(method + ' must not summarize debt from full ledger rows');
+  if (block.includes('summaryEntries')) failures.push(method + ' must not load all matching ledger rows for grouped debt rows');
 }
 for (const helper of ['customerLedgerSummaryFromDb', 'supplierLedgerSummaryFromDb']) {
   const start = service.indexOf('private async ' + helper + '(');
   const block = start === -1 ? '' : service.slice(start, start + 1200);
   if (!block.includes('.aggregate({') || !block.includes('_count: { _all: true }')) failures.push(helper + ' must use database aggregate and count');
+}
+for (const [helper, model] of [
+  ['customerDebtRowsFromDb', 'customerLedgerEntry'],
+  ['supplierDebtRowsFromDb', 'supplierLedgerEntry'],
+]) {
+  const start = service.indexOf('private async ' + helper + '(');
+  const block = start === -1 ? '' : service.slice(start, start + 2200);
+  if (start === -1) failures.push('missing grouped debt row helper: ' + helper);
+  if (!block.includes(model + '.groupBy({') || !block.includes('_sum: { debitAmount: true, creditAmount: true }')) {
+    failures.push(helper + ' must use database groupBy debit/credit sums');
+  }
 }
 {
   const start = service.indexOf('async cashflow(');
