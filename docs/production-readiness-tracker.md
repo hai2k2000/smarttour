@@ -78,13 +78,18 @@ Tooling is ready:
 
 ## 7. CI/CD and Deploy Standardization
 
-Status: `done`
+Status: `ready-for-manual`
 
-Deploy script:
+Deploy tooling:
 
 - `scripts/deploy-preview.sh`
+- `scripts/deploy-production.sh`
+- `.github/workflows/smarttour-ci.yml`
+- `.github/workflows/deploy-production.yml`
 
-Open decision: whether to wire this into GitHub Actions.
+Completed implementation: GitHub Actions now has PR/push CI for lockfile install, audit, source contracts, typechecks, and API/Web Docker builds. Production deploy is available only through manual `workflow_dispatch` and runs the server-side `scripts/deploy-production.sh` over SSH.
+
+Manual owner task: configure the GitHub `production` environment approval gate and required secrets documented in `docs/github-actions-runbook.md`.
 
 ## 8. Observability
 

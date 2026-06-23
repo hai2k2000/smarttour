@@ -21,6 +21,14 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 ## Latest Session Notes
 
 
+- CI/CD GitHub Actions wiring:
+  - Added `SmartTour CI` workflow for pull requests and pushes to `main`, `fix/**`, and `feature/**` branches.
+  - CI uses Node 22, `npm ci`, Prisma generation, production dependency audit, source contracts, API/Web typechecks, and API/Web Docker image builds with CI-only Compose env values.
+  - Added manual-only `SmartTour Production Deploy` workflow using SSH secrets and the existing server-side `scripts/deploy-production.sh`; it does not deploy on push or pull request.
+  - Added `docs/github-actions-runbook.md` and `scripts/test-github-actions-contract.js` to guard workflow safety and document required GitHub secrets/environment approval.
+  - `docs/production-readiness-tracker.md` now marks CI/CD and Deploy Standardization as `ready-for-manual` pending GitHub secrets and production environment configuration.
+
+
 - Production readiness native XLSX export completion:
   - Promoted the XLSX helper into `apps/api/src/common/xlsx-workbook.ts` and added CSV-to-XLSX workbook conversion without external workbook dependencies.
   - Added `format=xlsx` support for the remaining CSV export families: Finance invoices/cashflow, Reports, Commission Reports, Order Center, Customers, and FIT tour export.

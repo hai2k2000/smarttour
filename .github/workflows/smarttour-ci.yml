@@ -1,0 +1,83 @@
+name: SmartTour CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'fix/**'
+      - 'feature/**'
+
+concurrency:
+  group: smarttour-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_API_URL: https://aitour.io.vn
+      SMARTTOUR_SERVER_API_URL: http://api:4000
+      POSTGRES_PASSWORD: smarttour_ci_postgres
+      MINIO_ACCESS_KEY: smarttour_ci_minio
+      MINIO_SECRET_KEY: smarttour_ci_minio_secret
+      MINIO_BUCKET: smarttour
+      SMARTTOUR_ENV: production
+      SMARTTOUR_AUTH_ENFORCE: 'true'
+      SMARTTOUR_BOOTSTRAP_KEY: smarttour-ci-bootstrap
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare Compose environment
+        run: |
+          cat > .env <<'ENV'
+          POSTGRES_PASSWORD=smarttour_ci_postgres
+          MINIO_ACCESS_KEY=smarttour_ci_minio
+          MINIO_SECRET_KEY=smarttour_ci_minio_secret
+          MINIO_BUCKET=smarttour
+          NEXT_PUBLIC_API_URL=https://aitour.io.vn
+          SMARTTOUR_SERVER_API_URL=http://api:4000
+          SMARTTOUR_ENV=production
+          SMARTTOUR_AUTH_ENFORCE=true
+          SMARTTOUR_BOOTSTRAP_KEY=smarttour-ci-bootstrap
+          ENV
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev
+
+      - name: Source contracts
+        run: |
+          node scripts/test-github-actions-contract.js
+          node scripts/test-dockerfile-npm-ci-contract.js
+          node scripts/test-native-xlsx-export-contract.js
+          node scripts/test-finance-xlsx-contract.js
+          node scripts/test-query-dto-contract.js
+          node scripts/test-action-endpoint-status-contract.js
+          node scripts/test-error-response-contract.js
+          node scripts/test-logging-correlation-contract.js
+          node scripts/test-files-controller-contract.js
+          node scripts/test-reports-csv-helper-contract.js
+          node scripts/test-prisma-index-contract.js
+
+      - name: Typecheck API
+        run: npm run lint --workspace @smarttour/api
+
+      - name: Typecheck Web
+        run: npm run lint --workspace @smarttour/web
+
+      - name: Build production images
+        run: docker compose build api web

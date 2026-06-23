@@ -1,0 +1,60 @@
+name: SmartTour Production Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Git branch to deploy on the VPS
+        required: true
+        default: main
+      repo_dir:
+        description: Absolute project path on the VPS
+        required: true
+        default: /opt/smarttour
+      site_url:
+        description: Public site URL for healthcheck
+        required: true
+        default: https://aitour.io.vn
+      api_url:
+        description: Public API URL for healthcheck
+        required: true
+        default: https://aitour.io.vn/api
+
+concurrency:
+  group: smarttour-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_HOST: ${{ secrets.SMARTTOUR_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SMARTTOUR_SSH_PORT }}
+          SSH_USER: ${{ secrets.SMARTTOUR_SSH_USER }}
+          SSH_KEY: ${{ secrets.SMARTTOUR_SSH_KEY }}
+        run: |
+          test -n "$SSH_HOST"
+          test -n "$SSH_PORT"
+          test -n "$SSH_USER"
+          test -n "$SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/smarttour_deploy_key
+          chmod 600 ~/.ssh/smarttour_deploy_key
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        env:
+          SSH_HOST: ${{ secrets.SMARTTOUR_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SMARTTOUR_SSH_PORT }}
+          SSH_USER: ${{ secrets.SMARTTOUR_SSH_USER }}
+          BRANCH: ${{ inputs.branch }}
+          REPO_DIR: ${{ inputs.repo_dir }}
+          SITE_URL: ${{ inputs.site_url }}
+          API_URL: ${{ inputs.api_url }}
+        run: |
+          ssh -i ~/.ssh/smarttour_deploy_key -p "$SSH_PORT" -o IdentitiesOnly=yes "$SSH_USER@$SSH_HOST" \
+            "cd '$REPO_DIR' && BRANCH='$BRANCH' SITE_URL='$SITE_URL' API_URL='$API_URL' RUN_GIT_PULL=true scripts/deploy-production.sh"

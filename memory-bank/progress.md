@@ -1,6 +1,13 @@
 # Progress
 
 
+- Wired GitHub Actions CI/CD scaffolding:
+  - Added `SmartTour CI` for PR/push verification with lockfile install, audit, source contracts, typechecks, and API/Web Docker builds.
+  - Added manual-only `SmartTour Production Deploy` workflow that uses SSH secrets and delegates deploy execution to `scripts/deploy-production.sh` on the VPS.
+  - Added `docs/github-actions-runbook.md` and `scripts/test-github-actions-contract.js` so workflow triggers, deploy safety, secrets, and runbook coverage are guarded.
+  - Updated production readiness CI/CD status to `ready-for-manual` until GitHub production environment approvals and secrets are configured.
+
+
 - Completed remaining native XLSX export coverage:
   - Moved the dependency-free XLSX helper to common API code and added CSV-to-XLSX conversion for existing export outputs.
   - Added `format=xlsx` support for Finance invoices/cashflow, Reports, Commission Reports, Order Center, Customers, and FIT tour export while keeping CSV as the default.
