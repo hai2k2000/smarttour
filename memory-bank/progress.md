@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened finance cashflow summary payload:
+  - Replaced cashflow summary full-row loads with scoped database `groupBy` amount sums by entry type and payment method.
+  - Strengthened finance helper contracts so cashflow summaries cannot regress to loading all matching cashflow rows into the API process.
+
 - Hardened finance list summary payloads:
   - Replaced receipt, payment, and invoice summary full-row loads with scoped database `count` and `_sum` aggregate helpers.
   - Strengthened finance helper contracts so list summaries cannot regress to loading all matching finance rows into the API process.

@@ -78,6 +78,18 @@ for (const helper of ['receiptSummaryFromDb', 'paymentSummaryFromDb', 'invoiceSu
   const block = start === -1 ? '' : service.slice(start, start + 1200);
   if (!block.includes('.count({') || !block.includes('.aggregate({')) failures.push(helper + ' must use database count and aggregate');
 }
+{
+  const start = service.indexOf('async cashflow(');
+  const next = service.indexOf('\n  async ', start + 1);
+  const block = start === -1 ? '' : service.slice(start, next === -1 ? service.length : next);
+  if (!block.includes('cashflowSummaryFromDb(where)')) failures.push('cashflow must use aggregate/groupBy summary helper');
+  if (block.includes('summaryRows') || block.includes('findMany({ where })') || block.includes('.reduce(')) failures.push('cashflow must not load all matching cashflow rows for summary');
+}
+{
+  const start = service.indexOf('private async cashflowSummaryFromDb(');
+  const block = start === -1 ? '' : service.slice(start, start + 1600);
+  if (!block.includes('.groupBy({') || !block.includes('_sum: { amount: true }')) failures.push('cashflowSummaryFromDb must use database groupBy amount sums');
+}
 if (failures.length) {
   console.error('FAIL_FINANCE_HELPER_CONTRACTS');
   failures.forEach((failure) => console.error(failure));

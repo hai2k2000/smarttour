@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance cashflow summary payload hardening:
+  - Finance cashflow summaries now use scoped database `groupBy` amount sums by entry type and payment method instead of loading every matching cashflow row into Node.
+  - Finance helper contract now guards against `summaryRows`/full-row cashflow summary regressions while preserving bounded cashflow list rows.
+
 - Phase 3 finance list summary payload hardening:
   - Finance receipt, payment, and invoice list summaries now use scoped database `count`/`aggregate` helpers instead of loading every matching finance row into Node.
   - Finance helper contract now guards against `summaryRows`/full-row summary regressions while preserving the existing bounded list rows.

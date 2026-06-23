@@ -517,20 +517,11 @@ export class FinanceService {
   async cashflow(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
     const orderBy = [{ paymentDate: 'desc' as const }, { createdAt: 'desc' as const }];
-    const [rows, summaryRows] = await Promise.all([
+    const [rows, summary] = await Promise.all([
       this.prisma.financeCashflowEntry.findMany({ where, orderBy, take: this.take(query.take) }),
-      this.prisma.financeCashflowEntry.findMany({ where }),
+      this.cashflowSummaryFromDb(where),
     ]);
-    const totalReceipt = summaryRows.filter((row) => row.entryType === 'RECEIPT').reduce((sum, row) => sum + Number(row.amount), 0);
-    const totalPayment = summaryRows.filter((row) => row.entryType === 'PAYMENT').reduce((sum, row) => sum + Number(row.amount), 0);
-    const byMethod = summaryRows.reduce((map, row) => {
-      const current = map.get(row.paymentMethod) || { method: row.paymentMethod, receipt: 0, payment: 0 };
-      if (row.entryType === 'RECEIPT') current.receipt += Number(row.amount);
-      else current.payment += Number(row.amount);
-      map.set(row.paymentMethod, current);
-      return map;
-    }, new Map<string, { method: string; receipt: number; payment: number }>());
-    return { rows, summary: { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment, byMethod: Array.from(byMethod.values()) } };
+    return { rows, summary };
   }
 
   async exportReceipts(query: Record<string, string>, user?: RequestUser) {
@@ -976,6 +967,35 @@ export class FinanceService {
       pending,
       approved,
       rejected,
+    };
+  }
+
+  private async cashflowSummaryFromDb(where: Prisma.FinanceCashflowEntryWhereInput) {
+    const groups = await this.prisma.financeCashflowEntry.groupBy({
+      by: ['entryType', 'paymentMethod'],
+      where,
+      _sum: { amount: true },
+    });
+    const byMethodMap = new Map<string, { method: string; receipt: number; payment: number }>();
+    let totalReceipt = 0;
+    let totalPayment = 0;
+    for (const group of groups) {
+      const amount = Number(group._sum.amount ?? 0);
+      const current = byMethodMap.get(group.paymentMethod) || { method: group.paymentMethod, receipt: 0, payment: 0 };
+      if (group.entryType === FinanceCashflowEntryType.RECEIPT) {
+        totalReceipt += amount;
+        current.receipt += amount;
+      } else {
+        totalPayment += amount;
+        current.payment += amount;
+      }
+      byMethodMap.set(group.paymentMethod, current);
+    }
+    return {
+      totalReceipt,
+      totalPayment,
+      netCashflow: totalReceipt - totalPayment,
+      byMethod: Array.from(byMethodMap.values()),
     };
   }
 
