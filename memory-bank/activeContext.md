@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 review remediation status closure:
+  - Re-verified the remaining Medium/Low review items after the High fixes: SmartLink legacy audit/backfill guard, runtime CORS origin validation, report query DTO validation, and Docker `npm ci` reproducibility.
+  - Updated `docs/code-review-2026-06-13.md` with a 2026-06-23 remediation status table mapping every High/Medium/Low finding to its fix evidence and regression commands.
+  - Verification covered `scripts/test-smartlink-legacy-audit.sh`, `scripts/test-auth-guard-behavior.sh`, `scripts/test-report-query-validation.sh`, and `scripts/test-dockerfile-npm-ci-contract.js`.
+
 - Phase 4 QuoteCombo data-scope hardening:
   - Added `branch` and `department` fields plus indexes to `QuoteCombo`, with migration `20260623192000_quote_combo_data_scope` backfilling from creator user metadata when possible.
   - QuoteCombo controller routes now pass `request.user` into list/detail/write/action service calls.

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Closed the Phase 4 review remediation status loop:
+  - Re-ran the remaining Medium/Low regression coverage for SmartLink legacy tokens, runtime CORS origin validation, report query DTO validation, and Docker `npm ci` reproducibility.
+  - Updated `docs/code-review-2026-06-13.md` with a 2026-06-23 remediation status table for every High/Medium/Low finding.
+  - Verification passed: `bash scripts/test-smartlink-legacy-audit.sh`, `bash scripts/test-auth-guard-behavior.sh`, `bash scripts/test-report-query-validation.sh`, and `node scripts/test-dockerfile-npm-ci-contract.js`.
+
 - Hardened Phase 4 QuoteCombo data scope:
   - Added `branch` and `department` ownership fields plus indexes to `QuoteCombo`, with migration `20260623192000_quote_combo_data_scope`.
   - Passed `request.user` through QuoteCombo controller routes and applied branch/department scope in list/detail/write/action service paths.

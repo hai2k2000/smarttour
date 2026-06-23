@@ -21,6 +21,19 @@
 | Medium | `apps/api/src/config/runtime-env.ts:13-19,32-60` | `normalizeOrigin()` trả nguyên chuỗi nếu parse URL thất bại; production chỉ kiểm tra danh sách không rỗng. `NEXT_PUBLIC_API_URL` cũng được coi là browser CORS origin. | Env sai cú pháp vẫn qua startup nhưng toàn bộ request cross-origin hợp lệ có thể bị chặn. | Reject origin không phải URL `http/https`, không chứa credentials/path không hợp lệ. Production nên yêu cầu origin frontend chuyên biệt; thêm test env sai và wildcard. |
 | Low | `apps/web/Dockerfile:3-5` | Image production dùng `npm install` thay vì `npm ci`. | Build không fail-fast khi manifest lệch lockfile và kém tái lập. | Copy đủ workspace manifests rồi dùng `npm ci` cho cả API/Web Dockerfile. |
 
+## Trạng thái remediation - 2026-06-23
+
+| Mức độ | Vấn đề | Trạng thái | Bằng chứng |
+|---|---|---|---|
+| High | Quotation workflow trust boundary | Đã xử lý | Commit `b9aefb2`; `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quotations-smartlink-dto-contract.js`, `node scripts/test-quotations-client-contract.js`, `bash scripts/smoke-quotes-quotations.sh` |
+| High | Commission sync workflow safety | Đã xử lý | Commit `25c5913`; `bash scripts/test-commission-reports-security.sh` |
+| High | QuoteCombo data scope | Đã xử lý | Commit `322dba3`; `node scripts/test-quotes-backend-contract.js`, `bash scripts/smoke-quotes-quotations.sh` |
+| High | Operation Voucher payment reconciliation | Đã xử lý | `bash scripts/test-operation-vouchers-service.sh` verifies server-authoritative `FinancePayment.paymentAmount` usage and unique `OperationVoucherPayment.paymentVoucherId` |
+| Medium | Report query DTO/filter validation | Đã xử lý | `bash scripts/test-report-query-validation.sh` verifies Order/Finance/Debt query DTO compatibility checks and rejects mismatched `type`/`dateField` values |
+| Medium | SmartLink legacy token migration guard | Đã xử lý | `scripts/smartlink-legacy-audit.js`, `scripts/smartlink-legacy-audit.sh`, `docs/smartlink-legacy-migration.md`, `scripts/deploy-production.sh` guard, and `bash scripts/test-smartlink-legacy-audit.sh` |
+| Medium | Runtime CORS origin validation | Đã xử lý | `apps/api/src/config/runtime-env.ts`; `bash scripts/test-auth-guard-behavior.sh` verifies explicit frontend origins, invalid URL rejection, wildcard rejection, and `NEXT_PUBLIC_API_URL` exclusion |
+| Low | Docker production dependency reproducibility | Đã xử lý | Commit `897d849`; `node scripts/test-dockerfile-npm-ci-contract.js` verifies API/Web Dockerfiles use `npm ci` |
+
 ## Kết quả kiểm chứng
 
 | Lệnh | Kết quả | Ghi chú |
