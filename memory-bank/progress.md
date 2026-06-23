@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened finance list summary payloads:
+  - Replaced receipt, payment, and invoice summary full-row loads with scoped database `count` and `_sum` aggregate helpers.
+  - Strengthened finance helper contracts so list summaries cannot regress to loading all matching finance rows into the API process.
+
 - Hardened quotation dashboard payload:
   - Replaced the legacy quotation dashboard's full-quotation `findMany`/in-memory reduction with scoped database `count` and `_sum` aggregate queries.
   - Strengthened quote backend coverage so quotation dashboard metrics cannot regress to loading all matching quotations into the API process.

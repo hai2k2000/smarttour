@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance list summary payload hardening:
+  - Finance receipt, payment, and invoice list summaries now use scoped database `count`/`aggregate` helpers instead of loading every matching finance row into Node.
+  - Finance helper contract now guards against `summaryRows`/full-row summary regressions while preserving the existing bounded list rows.
+
 - Phase 3 quotation dashboard payload hardening:
   - Legacy quotation dashboard now calculates counts and total selling value with database `count`/`aggregate` queries instead of loading every matching quotation into Node.
   - Quote backend contract now guards against dashboard regressions back to `findMany`/in-memory `reduce` payloads.

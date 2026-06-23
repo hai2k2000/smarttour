@@ -11,7 +11,6 @@ import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanD
 import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
 import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
-import { invoiceSummary, paymentSummary, receiptSummary } from './finance-rules';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -46,14 +45,16 @@ export class FinanceService {
 
   async listReceipts(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
-    const rows = await this.prisma.financeReceipt.findMany({
-      where,
-      include: { orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } } },
-      orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
-      take: this.take(query.take),
-    });
-    const summaryRows = await this.prisma.financeReceipt.findMany({ where });
-    return { rows, summary: receiptSummary(summaryRows) };
+    const [rows, summary] = await Promise.all([
+      this.prisma.financeReceipt.findMany({
+        where,
+        include: { orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } } },
+        orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
+        take: this.take(query.take),
+      }),
+      this.receiptSummaryFromDb(where),
+    ]);
+    return { rows, summary };
   }
 
   async receiptDetail(id: string, user?: RequestUser) {
@@ -228,17 +229,19 @@ export class FinanceService {
 
   async listPayments(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
-    const rows = await this.prisma.financePayment.findMany({
-      where,
-      include: {
-        operationVoucher: { select: { voucherCode: true, status: true } },
-        supplierPaymentRequests: { select: { code: true, status: true } },
-      },
-      orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
-      take: this.take(query.take),
-    });
-    const summaryRows = await this.prisma.financePayment.findMany({ where });
-    return { rows, summary: paymentSummary(summaryRows) };
+    const [rows, summary] = await Promise.all([
+      this.prisma.financePayment.findMany({
+        where,
+        include: {
+          operationVoucher: { select: { voucherCode: true, status: true } },
+          supplierPaymentRequests: { select: { code: true, status: true } },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
+        take: this.take(query.take),
+      }),
+      this.paymentSummaryFromDb(where),
+    ]);
+    return { rows, summary };
   }
 
   async paymentDetail(id: string, user?: RequestUser) {
@@ -372,9 +375,11 @@ export class FinanceService {
 
   async listInvoices(query: Record<string, string>, user?: RequestUser) {
     const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
-    const rows = await this.prisma.financeInvoice.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) });
-    const summaryRows = await this.prisma.financeInvoice.findMany({ where });
-    return { rows, summary: invoiceSummary(summaryRows) };
+    const [rows, summary] = await Promise.all([
+      this.prisma.financeInvoice.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) }),
+      this.invoiceSummaryFromDb(where),
+    ]);
+    return { rows, summary };
   }
 
   async invoiceDetail(id: string, user?: RequestUser) {
@@ -921,6 +926,57 @@ export class FinanceService {
       await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinancePayment', id, { actor, status, note: this.text(dto.note) }, user);
       return payment;
     });
+  }
+
+  private async receiptSummaryFromDb(where: Prisma.FinanceReceiptWhereInput) {
+    const [count, total, draft, deposit, approved] = await Promise.all([
+      this.prisma.financeReceipt.count({ where }),
+      this.prisma.financeReceipt.aggregate({ where, _sum: { receiptAmount: true } }),
+      this.prisma.financeReceipt.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.DRAFT }] } }),
+      this.prisma.financeReceipt.count({ where: { AND: [where, { receiptType: 'DEPOSIT' }] } }),
+      this.prisma.financeReceipt.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.APPROVED }] } }),
+    ]);
+    return {
+      count,
+      totalAmount: Number(total._sum.receiptAmount ?? 0),
+      draft,
+      deposit,
+      approved,
+    };
+  }
+
+  private async paymentSummaryFromDb(where: Prisma.FinancePaymentWhereInput) {
+    const [count, total, draft, approved, rejected] = await Promise.all([
+      this.prisma.financePayment.count({ where }),
+      this.prisma.financePayment.aggregate({ where, _sum: { paymentAmount: true } }),
+      this.prisma.financePayment.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.DRAFT }] } }),
+      this.prisma.financePayment.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.APPROVED }] } }),
+      this.prisma.financePayment.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.REJECTED }] } }),
+    ]);
+    return {
+      count,
+      totalAmount: Number(total._sum.paymentAmount ?? 0),
+      draft,
+      approved,
+      rejected,
+    };
+  }
+
+  private async invoiceSummaryFromDb(where: Prisma.FinanceInvoiceWhereInput) {
+    const [count, total, pending, approved, rejected] = await Promise.all([
+      this.prisma.financeInvoice.count({ where }),
+      this.prisma.financeInvoice.aggregate({ where, _sum: { totalAfterTax: true } }),
+      this.prisma.financeInvoice.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.PENDING }] } }),
+      this.prisma.financeInvoice.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.APPROVED }] } }),
+      this.prisma.financeInvoice.count({ where: { AND: [where, { approvalStatus: FinanceApprovalStatus.REJECTED }] } }),
+    ]);
+    return {
+      count,
+      totalAmount: Number(total._sum.totalAfterTax ?? 0),
+      pending,
+      approved,
+      rejected,
+    };
   }
 
   private receiptWhere(query: Record<string, string>): Prisma.FinanceReceiptWhereInput {

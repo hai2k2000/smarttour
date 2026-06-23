@@ -62,6 +62,22 @@ if (!service.includes("assertImportCodesAvailable('receipts', rows, 'receiptCode
     !service.includes("assertImportCodesAvailable('payments', rows, 'voucherCode', tx)")) {
   failures.push('finance imports must check duplicate codes inside the transaction');
 }
+for (const [method, summaryHelper] of [
+  ['listReceipts', 'receiptSummaryFromDb'],
+  ['listPayments', 'paymentSummaryFromDb'],
+  ['listInvoices', 'invoiceSummaryFromDb'],
+]) {
+  const start = service.indexOf('async ' + method + '(');
+  const next = service.indexOf('\n  async ', start + 1);
+  const block = start === -1 ? '' : service.slice(start, next === -1 ? service.length : next);
+  if (!block.includes(summaryHelper + '(')) failures.push(method + ' must use aggregate/count summary helper: ' + summaryHelper);
+  if (block.includes('summaryRows') || block.includes('findMany({ where })')) failures.push(method + ' must not load all matching finance rows for summary');
+}
+for (const helper of ['receiptSummaryFromDb', 'paymentSummaryFromDb', 'invoiceSummaryFromDb']) {
+  const start = service.indexOf('private async ' + helper + '(');
+  const block = start === -1 ? '' : service.slice(start, start + 1200);
+  if (!block.includes('.count({') || !block.includes('.aggregate({')) failures.push(helper + ' must use database count and aggregate');
+}
 if (failures.length) {
   console.error('FAIL_FINANCE_HELPER_CONTRACTS');
   failures.forEach((failure) => console.error(failure));
