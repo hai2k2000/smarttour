@@ -23,6 +23,11 @@ API_URL=https://aitour.io.vn/api
 BACKUP_MAX_AGE_HOURS=30
 KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
+# Set these to send healthcheck failure alerts to an external destination.
+# HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
+# HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
+# HEALTHCHECK_WEBHOOK_MAX_TIME=10
+# HEALTHCHECK_WEBHOOK_RETRIES=2
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22

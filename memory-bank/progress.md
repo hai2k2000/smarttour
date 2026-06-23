@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened observability ops environment template:
+  - Added contract coverage requiring `HEALTHCHECK_WEBHOOK_*` settings in the `/etc/default/smarttour-ops` template.
+  - Added commented webhook URL, connect timeout, max time, and retry settings to `scripts/install-ops-schedule.sh`.
+  - Updated observability docs and tracker so alert configuration remains visible after reinstall/setup.
+
 - Hardened operations schedule documentation:
   - Replaced stale cron references in production readiness tracking with the actual systemd timers installed by `scripts/install-ops-schedule.sh`.
   - Added explicit timer names to backup/reinstall and security runbooks.

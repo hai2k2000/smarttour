@@ -17,6 +17,7 @@ function exists(file, message) {
 }
 
 const healthcheck = read('scripts/healthcheck.sh');
+const installOpsSchedule = read('scripts/install-ops-schedule.sh');
 includes(healthcheck, 'HEALTHCHECK_WEBHOOK_URL', 'Healthcheck must support a webhook alert target.');
 includes(healthcheck, 'HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT', 'Webhook alerting must have a configurable connect timeout.');
 includes(healthcheck, 'HEALTHCHECK_WEBHOOK_MAX_TIME', 'Webhook alerting must have a configurable total timeout.');
@@ -29,6 +30,15 @@ includes(healthcheck, 'JSON.stringify', 'Webhook payload must be JSON-escaped by
 includes(healthcheck, 'SMARTTOUR_ALERT_HOST="$(hostname)"', 'Webhook payload must include the host.');
 includes(healthcheck, 'notify_failure "SmartTour healthcheck failed', 'Healthcheck must notify only after aggregated failures.');
 excludes(healthcheck, '--data "{\"text\":\"$message\"}"', 'Webhook payload must not be an ad-hoc text-only JSON string.');
+
+for (const text of [
+  '# HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour',
+  '# HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5',
+  '# HEALTHCHECK_WEBHOOK_MAX_TIME=10',
+  '# HEALTHCHECK_WEBHOOK_RETRIES=2',
+]) {
+  includes(installOpsSchedule, text, `Ops env template must document ${text}.`);
+}
 
 const packageJson = JSON.parse(read('package.json'));
 if (packageJson.scripts['test:observability-alerting'] !== 'node scripts/test-observability-alerting-contract.js') {

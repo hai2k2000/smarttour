@@ -7,6 +7,7 @@ systemd timers and manual operator runs use the same settings.
 ## Required Setting
 
 ```bash
+# /etc/default/smarttour-ops
 HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
 ```
 
@@ -19,6 +20,7 @@ The webhook call must never block the healthcheck indefinitely. Defaults are
 safe for cron/systemd timer execution:
 
 ```bash
+# /etc/default/smarttour-ops
 HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
 HEALTHCHECK_WEBHOOK_MAX_TIME=10
 HEALTHCHECK_WEBHOOK_RETRIES=2

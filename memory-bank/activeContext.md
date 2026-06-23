@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Observability ops env template hardening:
+  - Extended `scripts/test-observability-alerting-contract.js` so the `/etc/default/smarttour-ops` template must document `HEALTHCHECK_WEBHOOK_URL`, connect timeout, max time, and retry settings.
+  - Updated `scripts/install-ops-schedule.sh` to include commented `HEALTHCHECK_WEBHOOK_*` settings when it creates `/etc/default/smarttour-ops`.
+  - Updated the observability runbook and production readiness tracker so alerting configuration is discoverable after OS reinstall or schedule refresh.
+
 - Operations schedule docs hardening:
   - Removed stale `/etc/cron.d/smarttour-*` references from production readiness tracking and aligned the docs with systemd timers installed by `scripts/install-ops-schedule.sh`.
   - Updated backup/reinstall and security runbooks to name `smarttour-healthcheck.timer`, `smarttour-nginx-host-report.timer`, `smarttour-postgres-backup.timer`, `smarttour-disaster-backup.timer`, and `smarttour-restore-drill.timer`.
