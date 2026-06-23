@@ -90,7 +90,30 @@ async function main() {
 
 const fs = require('fs');
 const controllerSource = fs.readFileSync('/workspace/apps/api/src/modules/commission-reports/commission-reports.controller.ts', 'utf8');
+const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/commission-reports/commission-reports.service.ts', 'utf8');
 assert(controllerSource.includes("@RequirePermissions('commission.approve')"), 'commission approve endpoint should require commission.approve');
+for (const [method, helper] of [
+  ['list', 'summaryFromDb(where)'],
+  ['summary', 'summaryFromDb(where)'],
+]) {
+  const start = serviceSource.indexOf('async ' + method + '(');
+  const next = serviceSource.indexOf('\n  async ', start + 1);
+  const block = start === -1 ? '' : serviceSource.slice(start, next === -1 ? serviceSource.length : next);
+  assert(block.includes(helper), `${method} should use aggregate commission summary helper`);
+  assert(!block.includes('summaryRows') && !block.includes('findMany({ where') && !block.includes('summaryFromRows'), `${method} should not load all commission rows for summary`);
+}
+{
+  const start = serviceSource.indexOf('async grouping(');
+  const next = serviceSource.indexOf('\n  private ', start + 1);
+  const block = start === -1 ? '' : serviceSource.slice(start, next === -1 ? serviceSource.length : next);
+  assert(block.includes('groupingFromDb(groupBy, where)'), 'grouping should use database groupBy helper');
+  assert(!block.includes('findMany({ where') && !block.includes('groupingFromRows'), 'grouping should not load all commission rows for grouping');
+}
+for (const helper of ['summaryFromDb', 'groupingFromDb']) {
+  const start = serviceSource.indexOf('private async ' + helper + '(');
+  const block = start === -1 ? '' : serviceSource.slice(start, start + 1800);
+  assert(block.includes('aggregate({') || block.includes('groupBy({'), `${helper} should aggregate in the database`);
+}
 
   const invalidGroupByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { groupBy: 'not-a-group' }));
   assert(invalidGroupByErrors.some((error) => error.property === 'groupBy'), 'query DTO should reject invalid groupBy');

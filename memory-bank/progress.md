@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened commission report summary/grouping payloads:
+  - Replaced commission report list/summary/grouping full-row loads with scoped database `aggregate` and `groupBy` helpers.
+  - Strengthened commission report contracts so summary and grouping cannot regress to loading all matching commission entries into the API process.
+
 - Hardened finance cashflow summary payload:
   - Replaced cashflow summary full-row loads with scoped database `groupBy` amount sums by entry type and payment method.
   - Strengthened finance helper contracts so cashflow summaries cannot regress to loading all matching cashflow rows into the API process.

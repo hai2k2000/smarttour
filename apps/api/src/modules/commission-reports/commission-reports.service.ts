@@ -24,67 +24,90 @@ export class CommissionReportsService {
 
   async list(query: CommissionReportsQueryInput, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.where(query), user);
-    const [rows, summaryRows] = await Promise.all([
+    const [rows, summary, grouping] = await Promise.all([
       this.prisma.commissionEntry.findMany({
         where,
         orderBy: this.orderBy(query.sortBy),
         include: this.listInclude(),
         take: this.take(query.take),
       }),
-      this.prisma.commissionEntry.findMany({ where }),
+      this.summaryFromDb(where),
+      this.groupingFromDb(query.groupBy || 'salesOwner', where),
     ]);
-    return { rows, summary: this.summaryFromRows(summaryRows), grouping: this.groupingFromRows(summaryRows, query.groupBy || 'salesOwner') };
+    return { rows, summary, grouping };
   }
 
   async summary(query: CommissionReportsQueryInput, user?: RequestUser) {
-    const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
-    return this.summaryFromRows(rows);
+    const where = branchDepartmentScopeWhere(this.where(query), user);
+    return this.summaryFromDb(where);
   }
 
-  private summaryFromRows(rows: Array<Prisma.CommissionEntryGetPayload<{}>>) {
-    const totalCommission = this.sum(rows, 'commissionAmount');
-    const approvedCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.APPROVED), 'commissionAmount');
-    const pendingCommission = this.sum(rows.filter((row) => row.status === CommissionStatus.PENDING), 'commissionAmount');
-    const paidCommission = this.sum(rows, 'paidAmount');
+  private async summaryFromDb(where: Prisma.CommissionEntryWhereInput) {
+    const [total, approved, pending] = await Promise.all([
+      this.prisma.commissionEntry.aggregate({
+        where,
+        _count: { _all: true },
+        _sum: { commissionAmount: true, paidAmount: true, revenue: true, profit: true },
+      }),
+      this.prisma.commissionEntry.aggregate({
+        where: { AND: [where, { status: CommissionStatus.APPROVED }] },
+        _count: { _all: true },
+        _sum: { commissionAmount: true },
+      }),
+      this.prisma.commissionEntry.aggregate({
+        where: { AND: [where, { status: CommissionStatus.PENDING }] },
+        _sum: { commissionAmount: true },
+      }),
+    ]);
+    const totalCommission = Number(total._sum.commissionAmount ?? 0);
+    const approvedCommission = Number(approved._sum.commissionAmount ?? 0);
+    const pendingCommission = Number(pending._sum.commissionAmount ?? 0);
+    const paidCommission = Number(total._sum.paidAmount ?? 0);
     const unpaidCommission = Math.max(totalCommission - paidCommission, 0);
-    const revenue = this.sum(rows, 'revenue');
-    const profit = this.sum(rows, 'profit');
+    const bookingCount = total._count._all;
     return {
       totalCommission,
       approvedCommission,
       pendingCommission,
       paidCommission,
       unpaidCommission,
-      revenue,
-      profit,
-      bookingCount: rows.length,
-      conversionRate: rows.length ? Math.round((rows.filter((row) => row.status === CommissionStatus.APPROVED).length / rows.length) * 10000) / 100 : 0,
+      revenue: Number(total._sum.revenue ?? 0),
+      profit: Number(total._sum.profit ?? 0),
+      bookingCount,
+      conversionRate: bookingCount ? Math.round((approved._count._all / bookingCount) * 10000) / 100 : 0,
     };
   }
 
   async grouping(groupBy: string, query: CommissionReportsQueryInput, user?: RequestUser) {
-    const rows = await this.prisma.commissionEntry.findMany({ where: branchDepartmentScopeWhere(this.where(query), user) });
-    return this.groupingFromRows(rows, groupBy);
+    const where = branchDepartmentScopeWhere(this.where(query), user);
+    return this.groupingFromDb(groupBy, where);
   }
 
-  private groupingFromRows(rows: Array<Prisma.CommissionEntryGetPayload<{}>>, groupBy: string) {
-    const keyFor = (row: (typeof rows)[number]) => {
-      if (groupBy === 'department') return row.department || 'Chua co phong ban';
-      if (groupBy === 'branch') return row.branch || 'Chua co chi nhanh';
-      if (groupBy === 'market') return row.marketGroup || 'Chua co thi truong';
-      if (groupBy === 'team') return row.team || row.department || 'Chua co nhom';
-      return row.salesOwner || 'Chua gan sales';
-    };
+  private async groupingFromDb(groupBy: string, where: Prisma.CommissionEntryWhereInput) {
+    const field = this.groupingField(groupBy);
+    const groups = groupBy === 'team'
+      ? await this.prisma.commissionEntry.groupBy({
+          by: ['team', 'department'],
+          where,
+          _count: { _all: true },
+          _sum: { revenue: true, profit: true, commissionAmount: true, paidAmount: true, remainingAmount: true },
+        })
+      : await this.prisma.commissionEntry.groupBy({
+          by: [field],
+          where,
+          _count: { _all: true },
+          _sum: { revenue: true, profit: true, commissionAmount: true, paidAmount: true, remainingAmount: true },
+        });
     const map = new Map<string, { key: string; revenue: number; profit: number; commission: number; bookingCount: number; paid: number; unpaid: number }>();
-    for (const row of rows) {
-      const key = keyFor(row);
+    for (const row of groups) {
+      const key = this.groupingKey(row, groupBy, field);
       const current = map.get(key) || { key, revenue: 0, profit: 0, commission: 0, bookingCount: 0, paid: 0, unpaid: 0 };
-      current.revenue += Number(row.revenue);
-      current.profit += Number(row.profit);
-      current.commission += Number(row.commissionAmount);
-      current.paid += Number(row.paidAmount);
-      current.unpaid += Number(row.remainingAmount);
-      current.bookingCount += 1;
+      current.revenue += Number(row._sum.revenue ?? 0);
+      current.profit += Number(row._sum.profit ?? 0);
+      current.commission += Number(row._sum.commissionAmount ?? 0);
+      current.paid += Number(row._sum.paidAmount ?? 0);
+      current.unpaid += Number(row._sum.remainingAmount ?? 0);
+      current.bookingCount += row._count._all;
       map.set(key, current);
     }
     return Array.from(map.values()).sort((a, b) => b.commission - a.commission);
@@ -304,16 +327,27 @@ export class CommissionReportsService {
     return { milestoneDate: 'desc' };
   }
 
+  private groupingField(groupBy: string): 'department' | 'branch' | 'marketGroup' | 'salesOwner' {
+    if (groupBy === 'department') return 'department';
+    if (groupBy === 'branch') return 'branch';
+    if (groupBy === 'market') return 'marketGroup';
+    return 'salesOwner';
+  }
+
+  private groupingKey(row: AnyRecord, groupBy: string, field: 'department' | 'branch' | 'marketGroup' | 'salesOwner') {
+    if (groupBy === 'department') return String(row.department || 'Chua co phong ban');
+    if (groupBy === 'branch') return String(row.branch || 'Chua co chi nhanh');
+    if (groupBy === 'market') return String(row.marketGroup || 'Chua co thi truong');
+    if (groupBy === 'team') return String(row.team || row.department || 'Chua co nhom');
+    return String(row[field] || 'Chua gan sales');
+  }
+
   private ids(dto: CommissionReportActionInput) {
     const ids = Array.isArray(dto.ids) ? dto.ids.map((id) => this.text(id)).filter((id): id is string => !!id) : [];
     const single = this.text(dto.id);
     const result = [...new Set(single ? [single] : ids)].sort();
     if (!result.length) throw new BadRequestException('id or ids is required');
     return result;
-  }
-
-  private sum<T extends AnyRecord>(rows: T[], field: keyof T) {
-    return rows.reduce((total, row) => total + Number(row[field] ?? 0), 0);
   }
 
   private take(value: unknown) {
