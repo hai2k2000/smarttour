@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened report overview customer and supplier-debt counts:
+  - Overview `totalCustomers` now uses scoped database order grouping for the existing phone/email/name/order-id identity rules instead of capped display orders.
+  - Overview `supplierDebtCount` now uses scoped supplier ledger groupBy balance sums instead of capped supplier-debt rows.
+  - Strengthened report query validation coverage so these overview counts cannot regress to bounded-row calculations.
+
 - Hardened hybrid finance report summaries:
   - Receipt/payment counts and cashflow totals now use scoped database `count` and cashflow `groupBy` queries instead of capped report display rows.
   - Finance report row payloads stay bounded, but summary totals now reflect the full scoped matching dataset.

@@ -99,17 +99,18 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(query: ReportQuery, user?: RequestUser) {
-    const [orders, summary, counts, supplierDebt] = await Promise.all([
+    const [orders, summary, counts, totalCustomers, supplierDebtCount] = await Promise.all([
       this.orders(query, user),
       this.orderSummaryFromDb(query, user),
       this.orderOverviewCountsFromDb(query, user),
-      this.supplierDebt(query, user),
+      this.orderCustomerCountFromDb(query, user),
+      this.supplierDebtCountFromDb(query, user),
     ]);
     return {
       ...summary,
       ...counts,
-      totalCustomers: this.uniqueCount(orders.map((order) => order.customerPhone || order.customerEmail || order.customerName || order.id)),
-      supplierDebtCount: supplierDebt.rows.length,
+      totalCustomers,
+      supplierDebtCount,
       byType: this.groupOrders(orders, 'by-type').rows,
       byMonth: this.groupOrders(orders, 'by-created-date', 'month').rows,
     };
@@ -325,6 +326,36 @@ export class ReportsService {
       unpaidCostOrders,
       settledOrders,
     };
+  }
+
+  private async orderCustomerCountFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const where = branchDepartmentScopeWhere(this.orderWhere(query), user);
+    const noPhone: Prisma.OrderWhereInput = { OR: [{ customerPhone: null }, { customerPhone: '' }] };
+    const noEmail: Prisma.OrderWhereInput = { OR: [{ customerEmail: null }, { customerEmail: '' }] };
+    const noName: Prisma.OrderWhereInput = { OR: [{ customerName: null }, { customerName: '' }] };
+    const [phoneRows, emailRows, nameRows, anonymousOrders] = await Promise.all([
+      this.prisma.order.groupBy({ by: ['customerPhone'], where: { AND: [where, { customerPhone: { not: null } }] } }),
+      this.prisma.order.groupBy({ by: ['customerEmail'], where: { AND: [where, noPhone, { customerEmail: { not: null } }] } }),
+      this.prisma.order.groupBy({ by: ['customerName'], where: { AND: [where, noPhone, noEmail, { customerName: { not: null } }] } }),
+      this.prisma.order.count({ where: { AND: [where, noPhone, noEmail, noName] } }),
+    ]);
+    return (
+      phoneRows.filter((row) => this.nonEmpty(row.customerPhone)).length +
+      emailRows.filter((row) => this.nonEmpty(row.customerEmail)).length +
+      nameRows.filter((row) => this.nonEmpty(row.customerName)).length +
+      anonymousOrders
+    );
+  }
+
+  private async supplierDebtCountFromDb(query: ReportQuery, user?: RequestUser) {
+    const where = branchDepartmentScopeWhere(this.supplierDebtWhere(query), user);
+    const groups = await this.prisma.supplierLedgerEntry.groupBy({
+      by: ['supplierId'],
+      where,
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    return groups.filter((row) => Number(row._sum.creditAmount ?? 0) - Number(row._sum.debitAmount ?? 0) !== 0).length;
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {
@@ -1438,8 +1469,8 @@ export class ReportsService {
     return { key: label, label };
   }
 
-  private uniqueCount(values: string[]) {
-    return new Set(values.filter(Boolean)).size;
+  private nonEmpty(value: string | null | undefined) {
+    return Boolean(String(value || '').trim());
   }
 
   private sum(rows: any[], field: string) {

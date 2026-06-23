@@ -40,7 +40,11 @@ async function main() {
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
     const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
     assert(block.includes('orderOverviewCountsFromDb(query, user)'), 'overview counts must use database count helper');
+    assert(block.includes('orderCustomerCountFromDb(query, user)'), 'overview totalCustomers must use database customer count helper');
+    assert(block.includes('supplierDebtCountFromDb(query, user)'), 'overview supplierDebtCount must use database supplier debt count helper');
     assert(!block.includes('totalOrders: orders.length'), 'overview totalOrders must not depend on bounded order rows');
+    assert(!block.includes('totalCustomers: this.uniqueCount(orders.map('), 'overview totalCustomers must not depend on bounded order rows');
+    assert(!block.includes('supplierDebtCount: supplierDebt.rows.length'), 'overview supplierDebtCount must not depend on capped supplier debt rows');
     assert(!block.includes('orders.filter((order) => Number(order.remainingRevenue) > 0).length'), 'overview unpaidOrders must not depend on bounded order rows');
     assert(!block.includes('orders.filter((order) => Number(order.remainingCost) > 0).length'), 'overview unpaidCostOrders must not depend on bounded order rows');
     assert(!block.includes('orders.filter((order) => order.settledAt).length'), 'overview settledOrders must not depend on bounded order rows');
@@ -84,6 +88,20 @@ async function main() {
     assert(block.includes('remainingRevenue: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid revenue in the database');
     assert(block.includes('remainingCost: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid costs in the database');
     assert(block.includes('settledAt: { not: null }'), 'orderOverviewCountsFromDb must count settled orders in the database');
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async orderCustomerCountFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2600);
+    assert(block.includes('order.groupBy({'), 'orderCustomerCountFromDb must count customer identifiers in the database');
+    assert(block.includes('customerPhone: { not: null }'), 'orderCustomerCountFromDb must count phone identities in the database');
+    assert(block.includes('customerEmail: { not: null }'), 'orderCustomerCountFromDb must count email identities in the database');
+    assert(block.includes('customerName: { not: null }'), 'orderCustomerCountFromDb must count name identities in the database');
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async supplierDebtCountFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1600);
+    assert(block.includes('supplierLedgerEntry.groupBy({'), 'supplierDebtCountFromDb must group suppliers in the database');
+    assert(block.includes('_sum:'), 'supplierDebtCountFromDb must sum supplier ledger balances in the database');
   }
   for (const helper of ['customerDebtSummaryFromDb', 'supplierDebtSummaryFromDb']) {
     const start = reportsServiceSource.indexOf('private async ' + helper + '(');

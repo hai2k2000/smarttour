@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 report overview count accuracy hardening follow-up:
+  - Report overview `totalCustomers` now uses scoped database order grouping for phone/email/name/anonymous order identities instead of deriving from the capped 1000-row order list.
+  - Report overview `supplierDebtCount` now uses scoped supplier ledger groupBy sums instead of `supplierDebt.rows.length`, so the count is not capped by display rows.
+  - Report query validation contract now guards these overview metrics against regressing to bounded-row calculations.
+
 - Phase 3 finance report summary accuracy hardening:
   - Hybrid finance report receipt/payment counts and cashflow totals now use scoped database count/groupBy helpers instead of deriving totals from capped receipt/payment/cashflow display rows.
   - Finance report rows remain bounded for payload safety, while summary totals are calculated from the full scoped matching dataset.
