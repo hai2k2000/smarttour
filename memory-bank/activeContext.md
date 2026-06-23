@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Customers DTO hardening:
+  - Added explicit Customers body DTO classes for type/tag/campaign config writes, bulk tag/update, import rows, customer create/update, merge/transfer-owner, comments, care tasks, call logs, and opportunities.
+  - Customers controller no longer exposes `Record<string, unknown>` request bodies; nested customer contacts/tasks/comments/calls/opportunities/import rows remain passed through to existing CustomersService validators.
+  - Added a source contract guarding DTO usage plus customer status, common customer kind, care-task status, boolean, array, and scalar validation primitives.
+  - Verification covered the new Customers DTO contract, Customers service flow script, Customers API flow script, and the API build.
+
 - Phase 4 Finance DTO hardening:
   - Added explicit Finance body DTO classes for receipt/payment/invoice create-update, CSV import payloads, approve/reject/cancel action payloads, and customer/supplier debt adjustments.
   - Finance controller no longer exposes `Record<string, unknown>` request bodies; flexible amount/date/nested row parsing remains in FinanceService so existing frontend/import workflows keep their current formats.

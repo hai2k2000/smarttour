@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Customers controller DTO contracts for Phase 4:
+  - Added `apps/api/src/modules/customers/dto/customer-body.dto.ts` and `scripts/test-customers-dto-contract.js`.
+  - Replaced Customers controller `Record<string, unknown>` request bodies across config, bulk, import, customer profile, merge/owner, comment, care, call, and opportunity endpoints.
+  - Preserved existing CustomersService validation for required create fields, nested rows, data-scope writes, imports, merge side effects, and linked business data.
+  - Verified with Customers DTO contract, Customers service flows, Customers API flows, and the API build.
+
 - Hardened Finance controller DTO contracts for Phase 4:
   - Added `apps/api/src/modules/finance/dto/finance-body.dto.ts` and `scripts/test-finance-dto-contract.js`.
   - Replaced Finance controller `Record<string, unknown>` request bodies for receipt/payment/invoice writes, imports, workflow actions, and debt adjustments.

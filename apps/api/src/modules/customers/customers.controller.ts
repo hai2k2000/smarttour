@@ -4,6 +4,22 @@ import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { fileUploadInterceptorOptions } from '../files/files.service';
+import {
+  CustomerBodyDto,
+  CustomerBulkTagDto,
+  CustomerBulkUpdateDto,
+  CustomerCallLogDto,
+  CustomerCampaignBodyDto,
+  CustomerCareTaskDto,
+  CustomerCareTaskUpdateDto,
+  CustomerCommentDto,
+  CustomerImportRowsDto,
+  CustomerMergeDto,
+  CustomerOpportunityDto,
+  CustomerTagBodyDto,
+  CustomerTransferOwnerDto,
+  CustomerTypeBodyDto,
+} from './dto/customer-body.dto';
 import { CustomersService } from './customers.service';
 
 @ApiTags('customers')
@@ -31,13 +47,13 @@ export class CustomersController {
 
   @Post('types')
   @RequirePermissions('customer.manage')
-  createType(@Body() dto: Record<string, unknown>) {
+  createType(@Body() dto: CustomerTypeBodyDto) {
     return this.service.createType(dto);
   }
 
   @Patch('types/:id')
   @RequirePermissions('customer.manage')
-  updateType(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
+  updateType(@Param('id') id: string, @Body() dto: CustomerTypeBodyDto) {
     return this.service.updateType(id, dto);
   }
 
@@ -49,19 +65,19 @@ export class CustomersController {
 
   @Post('tags')
   @RequirePermissions('customer.manage')
-  createTag(@Body() dto: Record<string, unknown>) {
+  createTag(@Body() dto: CustomerTagBodyDto) {
     return this.service.createTag(dto);
   }
 
   @Post('bulk-tag')
   @RequirePermissions('customer.manage')
-  bulkTag(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  bulkTag(@Body() dto: CustomerBulkTagDto, @Req() request: { user?: RequestUser }) {
     return this.service.bulkTag(dto, request.user);
   }
 
   @Post('bulk-update')
   @RequirePermissions('customer.manage')
-  bulkUpdate(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  bulkUpdate(@Body() dto: CustomerBulkUpdateDto, @Req() request: { user?: RequestUser }) {
     return this.service.bulkUpdate(dto, request.user);
   }
 
@@ -73,13 +89,13 @@ export class CustomersController {
 
   @Post('campaigns')
   @RequirePermissions('customer.manage')
-  createCampaign(@Body() dto: Record<string, unknown>) {
+  createCampaign(@Body() dto: CustomerCampaignBodyDto) {
     return this.service.createCampaign(dto);
   }
 
   @Post('import')
   @RequirePermissions('customer.manage')
-  importRows(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  importRows(@Body() dto: CustomerImportRowsDto, @Req() request: { user?: RequestUser }) {
     return this.service.importRows(dto, request.user);
   }
 
@@ -116,13 +132,13 @@ export class CustomersController {
 
   @Post()
   @RequirePermissions('customer.manage')
-  create(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  create(@Body() dto: CustomerBodyDto, @Req() request: { user?: RequestUser }) {
     return this.service.create(dto, request.user);
   }
 
   @Put(':id')
   @RequirePermissions('customer.manage')
-  update(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  update(@Param('id') id: string, @Body() dto: CustomerBodyDto, @Req() request: { user?: RequestUser }) {
     return this.service.update(id, dto, request.user);
   }
 
@@ -134,43 +150,43 @@ export class CustomersController {
 
   @Post(':id/merge')
   @RequirePermissions('customer.manage')
-  merge(@Param('id') targetId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  merge(@Param('id') targetId: string, @Body() dto: CustomerMergeDto, @Req() request: { user?: RequestUser }) {
     return this.service.merge(targetId, dto, request.user);
   }
 
   @Post(':id/transfer-owner')
   @RequirePermissions('customer.manage')
-  transferOwner(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  transferOwner(@Param('id') id: string, @Body() dto: CustomerTransferOwnerDto, @Req() request: { user?: RequestUser }) {
     return this.service.transferOwner(id, dto, request.user);
   }
 
   @Post(':id/comments')
   @RequirePermissions('customer.manage')
-  addComment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  addComment(@Param('id') id: string, @Body() dto: CustomerCommentDto, @Req() request: { user?: RequestUser }) {
     return this.service.addComment(id, dto, request.user);
   }
 
   @Post(':id/care-tasks')
   @RequirePermissions('customer.manage')
-  addCareTask(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  addCareTask(@Param('id') id: string, @Body() dto: CustomerCareTaskDto, @Req() request: { user?: RequestUser }) {
     return this.service.addCareTask(id, dto, request.user);
   }
 
   @Post(':id/call-logs')
   @RequirePermissions('customer.manage')
-  addCallLog(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  addCallLog(@Param('id') id: string, @Body() dto: CustomerCallLogDto, @Req() request: { user?: RequestUser }) {
     return this.service.addCallLog(id, dto, request.user);
   }
 
   @Post(':id/opportunities')
   @RequirePermissions('customer.manage')
-  addOpportunity(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  addOpportunity(@Param('id') id: string, @Body() dto: CustomerOpportunityDto, @Req() request: { user?: RequestUser }) {
     return this.service.addOpportunity(id, dto, request.user);
   }
 
   @Patch(':id/care-tasks/:taskId')
   @RequirePermissions('customer.manage')
-  updateCareTask(@Param('id') id: string, @Param('taskId') taskId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  updateCareTask(@Param('id') id: string, @Param('taskId') taskId: string, @Body() dto: CustomerCareTaskUpdateDto, @Req() request: { user?: RequestUser }) {
     return this.service.updateCareTask(id, taskId, dto, request.user);
   }
 
