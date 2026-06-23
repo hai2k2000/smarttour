@@ -52,6 +52,16 @@ async function main() {
     assert(block.includes('orderSummaryFromDb(query, user)'), `${method} summary must use database aggregate helper`);
     assert(!block.includes('summary(orders)'), `${method} summary must not depend on bounded order rows`);
   }
+  for (const [method, helper, oldSummary] of [
+    ['customerDebt', 'customerDebtSummaryFromDb(where)', 'customerDebtSummary(rows)'],
+    ['supplierDebt', 'supplierDebtSummaryFromDb(where)', 'supplierDebtSummary(rows)'],
+  ]) {
+    const start = reportsServiceSource.indexOf('async ' + method + '(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes(helper), `${method} summary must use database grouped summary helper`);
+    assert(!block.includes(oldSummary), `${method} summary must not depend on capped debt rows`);
+  }
   {
     const start = reportsServiceSource.indexOf('private async orderSummaryFromDb(');
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
@@ -65,6 +75,12 @@ async function main() {
     assert(block.includes('remainingRevenue: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid revenue in the database');
     assert(block.includes('remainingCost: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid costs in the database');
     assert(block.includes('settledAt: { not: null }'), 'orderOverviewCountsFromDb must count settled orders in the database');
+  }
+  for (const helper of ['customerDebtSummaryFromDb', 'supplierDebtSummaryFromDb']) {
+    const start = reportsServiceSource.indexOf('private async ' + helper + '(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1800);
+    assert(block.includes('.groupBy({'), `${helper} must group ledger balances in the database`);
+    assert(block.includes('_sum:'), `${helper} must sum ledger fields in the database`);
   }
   assert(reportsClient.includes('financeFilterKeys'), 'reports browser must filter hybrid finance query keys');
   assert(reportsClient.includes('financeDateFields'), 'reports browser must expose finance date fields');
@@ -98,8 +114,14 @@ async function main() {
   const service = new ReportsService({
     order: { findMany: async () => { orderCalls += 1; return []; } },
     tour: { findMany: async () => { tourCalls += 1; return []; } },
-    customerLedgerEntry: { findMany: async () => { debtCalls += 1; return []; } },
-    supplierLedgerEntry: { findMany: async () => { supplierDebtCalls += 1; return []; } },
+    customerLedgerEntry: {
+      findMany: async () => { debtCalls += 1; return []; },
+      groupBy: async () => [],
+    },
+    supplierLedgerEntry: {
+      findMany: async () => { supplierDebtCalls += 1; return []; },
+      groupBy: async () => [],
+    },
     financeReceipt: { findMany: async () => { financeDocumentCalls += 1; return []; } },
     financePayment: { findMany: async () => { financeDocumentCalls += 1; return []; } },
     financeCashflowEntry: { findMany: async () => { financeDocumentCalls += 1; return []; } },

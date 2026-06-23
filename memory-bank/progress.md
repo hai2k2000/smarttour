@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened reports debt summary accuracy:
+  - Customer-debt and supplier-debt report summaries now use scoped database ledger groupBy helpers instead of deriving totals from capped report rows.
+  - Strengthened report query validation coverage so debt summaries cannot regress to capped-row summary helpers.
+
 - Hardened customer debt summary accuracy:
   - Customer profile debt totals now use scoped database order aggregates instead of reducing the capped related-order row set.
   - Strengthened customer service coverage so debt summaries cannot regress to bounded-row reductions.

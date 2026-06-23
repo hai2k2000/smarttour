@@ -200,30 +200,32 @@ export class ReportsService {
 
   async customerDebt(query: ReportQuery, user?: RequestUser) {
     this.assertDebtQuery(query);
+    const where = branchDepartmentScopeWhere(this.customerDebtWhere(query), user);
     const entries = await this.prisma.customerLedgerEntry.findMany({
-      where: branchDepartmentScopeWhere(this.customerDebtWhere(query), user),
+      where,
       include: { customer: true, order: true, tour: true, receipt: true, invoice: true },
       orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
       take: 1000,
     });
     const rows = this.customerDebtRows(entries);
     return {
-      summary: this.customerDebtSummary(rows),
+      summary: await this.customerDebtSummaryFromDb(where),
       rows,
     };
   }
 
   async supplierDebt(query: ReportQuery, user?: RequestUser) {
     this.assertDebtQuery(query);
+    const where = branchDepartmentScopeWhere(this.supplierDebtWhere(query), user);
     const entries = await this.prisma.supplierLedgerEntry.findMany({
-      where: branchDepartmentScopeWhere(this.supplierDebtWhere(query), user),
+      where,
       include: { supplier: { include: { category: true } }, order: true, tour: true, operationVoucher: true, payment: true },
       orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
       take: 1000,
     });
     const rows = this.supplierDebtRows(entries);
     return {
-      summary: this.supplierDebtSummary(rows),
+      summary: await this.supplierDebtSummaryFromDb(where),
       rows,
     };
   }
@@ -1065,6 +1067,52 @@ export class ReportsService {
     };
   }
 
+  private async customerDebtSummaryFromDb(where: Prisma.CustomerLedgerEntryWhereInput) {
+    const groups = await this.prisma.customerLedgerEntry.groupBy({
+      by: ['customerId'],
+      where,
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const activeCustomerIds = new Set<string>();
+    const summary = groups.reduce(
+      (total, row) => {
+        const revenue = Number(row._sum.debitAmount ?? 0);
+        const paidAmount = Number(row._sum.creditAmount ?? 0);
+        const balance = revenue - paidAmount;
+        if (balance === 0) return total;
+        if (row.customerId) activeCustomerIds.add(row.customerId);
+        total.totalRevenue += revenue;
+        total.paidAmount += paidAmount;
+        total.remainingRevenue += balance;
+        return total;
+      },
+      { totalRevenue: 0, paidAmount: 0, remainingRevenue: 0 },
+    );
+    const scopedWhere = activeCustomerIds.size ? { AND: [where, { customerId: { in: [...activeCustomerIds] } }] } : { AND: [where, { id: '__NO_ACTIVE_CUSTOMER_DEBT__' }] };
+    const [orderIds, tourIds] = await Promise.all([
+      this.prisma.customerLedgerEntry.groupBy({ by: ['orderId'], where: { AND: [scopedWhere, { orderId: { not: null } }] } }),
+      this.prisma.customerLedgerEntry.groupBy({ by: ['tourId'], where: { AND: [scopedWhere, { tourId: { not: null } }] } }),
+    ]);
+    const orderKeys = new Set<string>();
+    for (const row of orderIds) if (row.orderId) orderKeys.add(row.orderId);
+    for (const row of tourIds) if (row.tourId) orderKeys.add(row.tourId);
+    return {
+      ...summary,
+      totalCost: 0,
+      paidCost: 0,
+      remainingCost: 0,
+      profit: 0,
+      commission: 0,
+      marginRate: 0,
+      debit: summary.totalRevenue,
+      credit: summary.paidAmount,
+      balance: summary.remainingRevenue,
+      count: activeCustomerIds.size,
+      orderCount: orderKeys.size,
+      customerCount: activeCustomerIds.size,
+    };
+  }
+
   private supplierDebtSummary(rows: any[]) {
     const totalPurchase = this.sum(rows, 'totalPurchase');
     const paidAmount = this.sum(rows, 'paidAmount');
@@ -1088,6 +1136,56 @@ export class ReportsService {
       count: rows.length,
       orderCount: this.sum(rows, 'orderCount'),
       voucherCount: this.sum(rows, 'voucherCount'),
+    };
+  }
+
+  private async supplierDebtSummaryFromDb(where: Prisma.SupplierLedgerEntryWhereInput) {
+    const groups = await this.prisma.supplierLedgerEntry.groupBy({
+      by: ['supplierId'],
+      where,
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const activeSupplierIds = new Set<string>();
+    const summary = groups.reduce(
+      (total, row) => {
+        const paidAmount = Number(row._sum.debitAmount ?? 0);
+        const totalPurchase = Number(row._sum.creditAmount ?? 0);
+        const remainingAmount = totalPurchase - paidAmount;
+        if (remainingAmount === 0) return total;
+        if (row.supplierId) activeSupplierIds.add(row.supplierId);
+        total.totalPurchase += totalPurchase;
+        total.paidAmount += paidAmount;
+        total.remainingAmount += remainingAmount;
+        return total;
+      },
+      { totalPurchase: 0, paidAmount: 0, remainingAmount: 0 },
+    );
+    const scopedWhere = activeSupplierIds.size ? { AND: [where, { supplierId: { in: [...activeSupplierIds] } }] } : { AND: [where, { id: '__NO_ACTIVE_SUPPLIER_DEBT__' }] };
+    const [orderIds, tourIds, voucherIds] = await Promise.all([
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['orderId'], where: { AND: [scopedWhere, { orderId: { not: null } }] } }),
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['tourId'], where: { AND: [scopedWhere, { tourId: { not: null } }] } }),
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['operationVoucherId'], where: { AND: [scopedWhere, { operationVoucherId: { not: null } }] } }),
+    ]);
+    const orderKeys = new Set<string>();
+    for (const row of orderIds) if (row.orderId) orderKeys.add(row.orderId);
+    for (const row of tourIds) if (row.tourId) orderKeys.add(row.tourId);
+    return {
+      supplierCount: activeSupplierIds.size,
+      ...summary,
+      totalRevenue: 0,
+      remainingRevenue: 0,
+      totalCost: summary.totalPurchase,
+      paidCost: summary.paidAmount,
+      remainingCost: summary.remainingAmount,
+      profit: -summary.remainingAmount,
+      commission: 0,
+      marginRate: 0,
+      debit: summary.totalPurchase,
+      credit: summary.paidAmount,
+      balance: summary.remainingAmount,
+      count: activeSupplierIds.size,
+      orderCount: orderKeys.size,
+      voucherCount: voucherIds.filter((row) => row.operationVoucherId).length,
     };
   }
 

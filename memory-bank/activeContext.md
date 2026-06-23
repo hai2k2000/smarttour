@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 reports debt summary accuracy/payload hardening:
+  - Reports customer-debt and supplier-debt summaries now use scoped database ledger groupBy helpers instead of deriving totals from the capped 1000-entry report rows.
+  - Report query validation contract now guards debt report summaries against regressing to capped-row summary helpers.
+
 - Phase 3 customer debt summary accuracy/payload hardening:
   - Customer profile debt totals now use scoped database order aggregates instead of reducing the bounded 100-row related order list.
   - Customer service contract now guards debts against bounded-row reductions while preserving the existing recent-order rows payload.
