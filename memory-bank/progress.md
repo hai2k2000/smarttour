@@ -2,6 +2,13 @@
 
 ## Done
 
+- Hardened Auth session action status codes and OpenAPI smoke coverage:
+  - Added Auth login, logout, and change-password to `scripts/test-action-endpoint-status-contract.js`.
+  - Added explicit `@HttpCode(200)` to those Auth session endpoints while leaving create/bootstrap resource semantics untouched.
+  - Added reusable `scripts/smoke-swagger-action-status.js` and `scripts/test-swagger-action-status-smoke-contract.js`; the smoke validates action endpoints expose `200` and not `201` in `/docs-json`.
+  - Made the Swagger smoke retry and validate JSON content-type/status before parsing so deploy restart windows are handled cleanly.
+  - Verified with source contracts, Docker API build/deploy, Swagger smoke, data-scope verification, and production healthcheck.
+
 - Completed another Phase 4 action/DTO/healthcheck pass:
   - Extended `scripts/test-action-endpoint-status-contract.js` to guard operation-voucher payment actions, tour close, FIT export/confirm/copy actions, and GIT/Land copy-services actions.
   - Added explicit `@HttpCode(200)` to those action/export endpoints, keeping create/import/upload resource endpoints on their default create semantics.

@@ -1,6 +1,9 @@
 const fs = require('fs');
 
 const expectedActions = [
+  ['apps/api/src/modules/auth/auth.controller.ts', 'login'],
+  ['apps/api/src/modules/auth/auth.controller.ts', 'logout'],
+  ['apps/api/src/modules/auth/auth.controller.ts', 'changePassword'],
   ['apps/api/src/modules/bookings/bookings.controller.ts', 'updateStatus'],
   ['apps/api/src/modules/commission-reports/commission-reports.controller.ts', 'sync'],
   ['apps/api/src/modules/commission-reports/commission-reports.controller.ts', 'approve'],

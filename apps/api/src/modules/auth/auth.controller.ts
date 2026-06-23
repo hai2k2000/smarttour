@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Ip, Param, Post, Put, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Ip, Param, Post, Put, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthCookieResponse, clearAuthCookie, setAuthCookie } from './auth-cookie';
 import { AuthService } from './auth.service';
@@ -42,6 +42,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @HttpCode(200)
   @Public()
   async login(
     @Body() dto: LoginAuthDto,
@@ -55,6 +56,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @HttpCode(200)
   @Public()
   async logout(@Req() request: AuthRequest, @Res({ passthrough: true }) response: AuthCookieResponse) {
     try {
@@ -70,6 +72,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @HttpCode(200)
   async changePassword(
     @Req() request: AuthRequest,
     @Body() dto: ChangePasswordDto,

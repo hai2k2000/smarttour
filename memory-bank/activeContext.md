@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 auth action/OpenAPI status hardening:
+  - Extended the action status-code contract to cover Auth session actions: login, logout, and change-password.
+  - Added explicit `@HttpCode(200)` to those endpoints so Swagger/runtime docs no longer expose Nest default `201` for session actions.
+  - Added reusable `scripts/smoke-swagger-action-status.js` plus `scripts/test-swagger-action-status-smoke-contract.js` so OpenAPI action status smoke can be rerun after deploys.
+  - The Swagger smoke script now retries and validates HTTP status/content-type before parsing JSON, avoiding false failures during API restart windows.
+  - Verification covered source contracts, Docker API build/deploy, Swagger action-status smoke, data-scope verification, and production healthcheck.
+
 - Phase 4 action/DTO/healthcheck completion:
   - Extended the action status-code contract to cover operation-voucher payment actions, tour close, FIT export/confirm/copy actions, and GIT/Land copy-services actions.
   - Added explicit `@HttpCode(200)` to those action/export endpoints so Swagger/runtime docs no longer expose Nest default `201` for non-create workflows.
