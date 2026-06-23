@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Operations schedule docs hardening:
+  - Removed stale `/etc/cron.d/smarttour-*` references from production readiness tracking and aligned the docs with systemd timers installed by `scripts/install-ops-schedule.sh`.
+  - Updated backup/reinstall and security runbooks to name `smarttour-healthcheck.timer`, `smarttour-nginx-host-report.timer`, `smarttour-postgres-backup.timer`, `smarttour-disaster-backup.timer`, and `smarttour-restore-drill.timer`.
+  - Added `scripts/test-ops-schedule-docs-contract.js`, exposed `npm run test:ops-schedule-docs`, and wired the contract into `SmartTour CI`.
+
 - File smoke command normalization:
   - Added `smoke:files` to `package.json` for `scripts/smoke-files.sh` and wired it into `smoke:all`, matching the production readiness tracker.
   - Added `scripts/test-smoke-files-command-contract.js`, exposed `npm run test:smoke-files-command`, and wired the contract into `SmartTour CI`.

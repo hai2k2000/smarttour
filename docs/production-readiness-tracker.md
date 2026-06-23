@@ -67,7 +67,10 @@ Automated backup and restore drill:
 
 - `scripts/backup-postgres.sh`
 - `scripts/restore-drill-postgres.sh`
-- `/etc/cron.d/smarttour-postgres-backup`
+- `scripts/install-ops-schedule.sh`
+- `smarttour-postgres-backup.timer`
+- `smarttour-disaster-backup.timer`
+- `smarttour-restore-drill.timer`
 
 Open decision: choose off-VPS backup storage target.
 
@@ -104,7 +107,10 @@ Status: `ready-for-manual`
 Health tooling:
 
 - `scripts/healthcheck.sh`
-- `/etc/cron.d/smarttour-healthcheck`
+- `scripts/install-ops-schedule.sh`
+- `smarttour-healthcheck.timer`
+- `smarttour-nginx-host-report.timer`
+- `systemctl list-timers --all`
 - `HEALTHCHECK_WEBHOOK_URL` for webhook alerts
 - `docs/observability-alerting-runbook.md`
 

@@ -4,10 +4,11 @@
 
 The production VPS uses systemd timers:
 
-- Health check: every 10 minutes.
-- PostgreSQL backup: daily at 02:15, with up to 5 minutes random delay.
-- Full disaster backup: Sunday at 03:30, with up to 10 minutes random delay.
-- PostgreSQL restore drill: Sunday at 05:00, with up to 10 minutes random delay.
+- `smarttour-healthcheck.timer`: every 10 minutes.
+- `smarttour-nginx-host-report.timer`: daily host/security log report.
+- `smarttour-postgres-backup.timer`: daily at 02:15, with up to 5 minutes random delay.
+- `smarttour-disaster-backup.timer`: Sunday at 03:30, with up to 10 minutes random delay.
+- `smarttour-restore-drill.timer`: Sunday at 05:00, with up to 10 minutes random delay.
 
 Install or refresh the schedule:
 

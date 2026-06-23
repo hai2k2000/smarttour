@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened operations schedule documentation:
+  - Replaced stale cron references in production readiness tracking with the actual systemd timers installed by `scripts/install-ops-schedule.sh`.
+  - Added explicit timer names to backup/reinstall and security runbooks.
+  - Added `scripts/test-ops-schedule-docs-contract.js`, `npm run test:ops-schedule-docs`, and CI coverage.
+
 - Normalized the live file smoke command:
   - Added `npm run smoke:files` for `scripts/smoke-files.sh`.
   - Added `smoke:files` to `smoke:all` so deploy verification covers file upload/download/delete flows alongside other live smoke suites.

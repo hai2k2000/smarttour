@@ -54,6 +54,21 @@ cd /opt/smarttour
 scripts/nginx-host-report.sh
 ```
 
+The report is installed by the operations schedule as
+`smarttour-nginx-host-report.timer`. The full timer set should include:
+
+- `smarttour-healthcheck.timer`
+- `smarttour-nginx-host-report.timer`
+- `smarttour-postgres-backup.timer`
+- `smarttour-disaster-backup.timer`
+- `smarttour-restore-drill.timer`
+
+Inspect timers after reinstall:
+
+```bash
+systemctl list-timers --all 'smarttour-*'
+```
+
 ## CDN/WAF follow-up
 
 The next major layer is to put `aitour.io.vn` behind a CDN/WAF. After CDN activation,
