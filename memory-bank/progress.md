@@ -2,6 +2,13 @@
 
 ## Done
 
+- Hardened Phase 4 database indexes for high-volume paths:
+  - Added `scripts/test-prisma-index-contract.js` to require composite indexes that match current list/search/report query patterns.
+  - Added and deployed migration `20260623170000_phase4_performance_indexes`.
+  - Covered active order/booking/voucher lists, finance documents and cashflow, customer CRM/profile rows, customer/supplier ledgers, operation forms/tasks/costs/payment requests, suppliers, quotations, and tour quotes.
+  - Verified with the index contract, Prisma schema validation, and Prisma migration deploy.
+  - Deferred oversized service splits and generated API client work because Phase 4 requires protected behavior before refactors, and DTO contracts are still stabilizing beyond the currently hardened controllers.
+
 - Added safe structured logging and correlation IDs for Phase 4:
   - Added `apps/api/src/correlation-id.middleware.ts` and `apps/api/src/request-logging.interceptor.ts`, registered globally in `main.ts`.
   - Responses now carry `x-correlation-id`, and API request logs are structured without request body/header/credential data.

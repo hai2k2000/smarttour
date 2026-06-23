@@ -425,6 +425,8 @@ model TourQuote {
 
   @@index([status])
   @@index([departureDate])
+  @@index([updatedAt], map: "idx_tour_quote_updated")
+  @@index([status, updatedAt], map: "idx_tour_quote_status_updated")
 }
 
 model QuoteCostItem {
@@ -550,6 +552,8 @@ model Quotation {
   @@index([expiredDate])
   @@index([salesOwner])
   @@index([branch])
+  @@index([updatedAt], map: "idx_quotation_updated")
+  @@index([productType, status, updatedAt], map: "idx_quotation_product_status_updated")
 }
 
 model QuotationItem {
@@ -685,6 +689,9 @@ model Order {
   @@index([startDate])
   @@index([customerPhone])
   @@index([customerId])
+  @@index([deletedAt, updatedAt], map: "idx_order_deleted_updated")
+  @@index([deletedAt, startDate], map: "idx_order_deleted_start")
+  @@index([deletedAt, status], map: "idx_order_deleted_status")
 }
 
 model CommissionRule {
@@ -839,6 +846,9 @@ model FinanceReceipt {
   @@index([customerId])
   @@index([tourId])
   @@index([reversalOfId])
+  @@index([deletedAt, updatedAt], map: "idx_fin_receipt_deleted_updated")
+  @@index([deletedAt, paymentDate], map: "idx_fin_receipt_deleted_payment")
+  @@index([deletedAt, approvalStatus], map: "idx_fin_receipt_deleted_status")
 }
 
 model FinanceReceiptOrder {
@@ -923,6 +933,9 @@ model FinancePayment {
   @@index([branch])
   @@index([assignedStaff])
   @@index([reversalOfId])
+  @@index([deletedAt, updatedAt], map: "idx_fin_payment_deleted_updated")
+  @@index([deletedAt, paymentDate], map: "idx_fin_payment_deleted_payment")
+  @@index([deletedAt, approvalStatus], map: "idx_fin_payment_deleted_status")
 }
 
 model FinanceInvoice {
@@ -1000,6 +1013,9 @@ model FinanceInvoice {
   @@index([receiptId])
   @@index([customerId])
   @@index([reversalOfId])
+  @@index([deletedAt, updatedAt], map: "idx_fin_invoice_deleted_updated")
+  @@index([deletedAt, issuedDate], map: "idx_fin_invoice_deleted_issued")
+  @@index([deletedAt, approvalStatus], map: "idx_fin_invoice_deleted_status")
 }
 
 model FinanceInvoiceItem {
@@ -1069,6 +1085,9 @@ model FinanceCashflowEntry {
   @@index([tourId])
   @@index([supplierId])
   @@index([customerId])
+  @@index([paymentDate, createdAt], map: "idx_cashflow_payment_created")
+  @@index([entryType, paymentDate], map: "idx_cashflow_type_payment")
+  @@index([branch, department, paymentDate], map: "idx_cashflow_scope_payment")
 }
 
 model CustomerLedgerEntry {
@@ -1111,6 +1130,9 @@ model CustomerLedgerEntry {
   @@index([receiptId])
   @@index([invoiceId])
   @@index([reversedEntryId])
+  @@index([documentDate, createdAt], map: "idx_customer_ledger_doc_created")
+  @@index([branch, department, documentDate], map: "idx_customer_ledger_scope_doc")
+  @@index([customerId, documentDate, createdAt], map: "idx_customer_ledger_customer_doc_created")
 }
 
 model SupplierLedgerEntry {
@@ -1153,6 +1175,9 @@ model SupplierLedgerEntry {
   @@index([operationVoucherId])
   @@index([paymentId])
   @@index([reversedEntryId])
+  @@index([documentDate, createdAt], map: "idx_supplier_ledger_doc_created")
+  @@index([branch, department, documentDate], map: "idx_supplier_ledger_scope_doc")
+  @@index([supplierId, documentDate, createdAt], map: "idx_supplier_ledger_supplier_doc_created")
 }
 
 model CodeSequence {
@@ -1343,6 +1368,10 @@ model OperationVoucher {
   @@index([supplierId])
   @@index([bookingId])
   @@index([orderId])
+  @@index([deletedAt, updatedAt], map: "idx_operation_voucher_deleted_updated")
+  @@index([deletedAt, serviceDate], map: "idx_operation_voucher_deleted_service")
+  @@index([deletedAt, status, serviceDate], map: "idx_operation_voucher_deleted_status_service")
+  @@index([supplierId, serviceDate], map: "idx_operation_voucher_supplier_service")
 }
 
 model OperationVoucherDetail {
@@ -1551,6 +1580,8 @@ model Supplier {
   @@index([status])
   @@index([province])
   @@index([deletedAt])
+  @@index([deletedAt, updatedAt], map: "idx_supplier_deleted_updated")
+  @@index([status, deletedAt, updatedAt], map: "idx_supplier_status_deleted_updated")
 }
 
 model HotelSupplier {
@@ -1818,6 +1849,9 @@ model Customer {
   @@index([market])
   @@index([campaignId])
   @@index([createdAt])
+  @@index([status, createdAt], map: "idx_customer_status_created")
+  @@index([branch, department, status, createdAt], map: "idx_customer_scope_status_created")
+  @@index([owner, createdAt], map: "idx_customer_owner_created")
 }
 
 model CustomerFile {
@@ -1887,6 +1921,8 @@ model CustomerCareTask {
 
   @@index([status])
   @@index([scheduledAt])
+  @@index([customerId, scheduledAt], map: "idx_customer_care_customer_scheduled")
+  @@index([customerId, status, scheduledAt], map: "idx_customer_care_customer_status_scheduled")
 }
 
 model CustomerComment {
@@ -1899,6 +1935,8 @@ model CustomerComment {
   mentions   String[]
   createdBy  String?
   createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt], map: "idx_customer_comment_customer_created")
 }
 
 model CustomerCallLog {
@@ -1911,6 +1949,8 @@ model CustomerCallLog {
   note        String?
   externalRef String?
   createdAt   DateTime @default(now())
+
+  @@index([customerId, calledAt], map: "idx_customer_call_customer_called")
 }
 
 model CustomerOpportunity {
@@ -1930,6 +1970,8 @@ model CustomerOpportunity {
 
   @@index([stage])
   @@index([owner])
+  @@index([customerId, createdAt], map: "idx_customer_opportunity_customer_created")
+  @@index([customerId, stage], map: "idx_customer_opportunity_customer_stage")
 }
 
 model TourProgram {
@@ -1992,6 +2034,8 @@ model Booking {
   @@index([status, startDate])
   @@index([tourProgramId, startDate])
   @@index([deletedAt])
+  @@index([deletedAt, startDate, code], map: "idx_booking_deleted_start_code")
+  @@index([deletedAt, status, startDate], map: "idx_booking_deleted_status_start")
 }
 
 model Tour {
@@ -2558,6 +2602,8 @@ model OperationForm {
 
   @@index([orderId])
   @@index([tourId])
+  @@index([status, updatedAt], map: "idx_operation_form_status_updated")
+  @@index([updatedAt, createdAt], map: "idx_operation_form_updated_created")
 }
 
 model OperationService {
@@ -2579,6 +2625,8 @@ model OperationService {
   costs              OperationCost[]
 
   @@index([supplierServiceId])
+  @@index([operationFormId], map: "idx_operation_service_form")
+  @@index([operationFormId, confirmationStatus], map: "idx_operation_service_form_confirm")
 }
 
 model OperationTask {
@@ -2590,6 +2638,10 @@ model OperationTask {
   dueDate         DateTime?
   status          OperationStatus @default(PENDING)
   notes           String?
+
+  @@index([operationFormId], map: "idx_operation_task_form")
+  @@index([operationFormId, status, dueDate], map: "idx_operation_task_form_status_due")
+  @@index([status, dueDate], map: "idx_operation_task_status_due")
 }
 
 model OperationCost {
@@ -2605,6 +2657,9 @@ model OperationCost {
   invoiceNo       String?
   notes           String?
   paymentItems    SupplierPaymentItem[]
+
+  @@index([operationFormId], map: "idx_operation_cost_form")
+  @@index([serviceId], map: "idx_operation_cost_service")
 }
 
 model SupplierPaymentRequest {
@@ -2619,6 +2674,8 @@ model SupplierPaymentRequest {
   items       SupplierPaymentItem[]
 
   @@index([financePaymentId])
+  @@index([status, requestedAt], map: "idx_supplier_payment_request_status_requested")
+  @@index([requestedAt, code], map: "idx_supplier_payment_request_requested_code")
 }
 
 model SupplierPaymentItem {
@@ -2631,6 +2688,10 @@ model SupplierPaymentItem {
   cost       OperationCost?         @relation(fields: [costId], references: [id])
   amount     Decimal                @default(0)
   notes      String?
+
+  @@index([requestId], map: "idx_supplier_payment_item_request")
+  @@index([supplierId], map: "idx_supplier_payment_item_supplier")
+  @@index([costId], map: "idx_supplier_payment_item_cost")
 }
 
 model AuditLog {

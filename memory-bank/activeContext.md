@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 performance index hardening:
+  - Added `scripts/test-prisma-index-contract.js` to guard composite Prisma indexes for high-volume list/search/report paths.
+  - Added migration `20260623170000_phase4_performance_indexes` and deployed it on the VPS database.
+  - Index coverage now targets active order/booking/voucher lists, finance receipt/payment/invoice/cashflow lists and reports, customer CRM/profile rows, debt ledger grouping/list rows, operation forms/tasks/costs/payment requests, suppliers, quotations, and legacy tour quotes.
+  - Verification covered the index contract, Prisma schema validation, and successful Prisma migration deploy.
+  - Oversized service splits and generated API client work are deferred for now: the Phase 4 plan only permits service splitting where behavior is already strongly protected, and DTO contracts are still stabilizing across modules.
+
 - Phase 4 logging/correlation hardening:
   - Added correlation ID middleware that accepts a safe `x-correlation-id` value or generates a UUID, stores it on the request, and mirrors it on the response header.
   - Added a global request logging interceptor that emits structured JSON log entries for completion/failure with event, correlationId, method, path, statusCode, durationMs, and errorName only.
