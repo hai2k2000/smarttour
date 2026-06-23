@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, ParseEnumPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Param, ParseEnumPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -39,30 +39,35 @@ export class CommissionReportsController {
   }
 
   @Post('sync')
+  @HttpCode(200)
   @RequirePermissions('commission.manage')
   sync(@Req() request?: { user?: RequestUser }) {
     return this.service.syncFromOrders(request?.user);
   }
 
   @Post('approve')
+  @HttpCode(200)
   @RequirePermissions('commission.approve')
   approve(@Body() dto: CommissionReportActionDto, @Req() request?: { user?: RequestUser }) {
     return this.service.approve(dto, request?.user);
   }
 
   @Post('reject')
+  @HttpCode(200)
   @RequirePermissions('commission.manage')
   reject(@Body() dto: CommissionReportActionDto, @Req() request?: { user?: RequestUser }) {
     return this.service.reject(dto, request?.user);
   }
 
   @Post('revoke')
+  @HttpCode(200)
   @RequirePermissions('commission.manage')
   revoke(@Body() dto: CommissionReportActionDto, @Req() request?: { user?: RequestUser }) {
     return this.service.revoke(dto, request?.user);
   }
 
   @Post('pay')
+  @HttpCode(200)
   @RequirePermissions('commission.manage')
   pay(@Body() dto: PayCommissionReportDto, @Req() request?: { user?: RequestUser }) {
     return this.service.pay(dto, request?.user);

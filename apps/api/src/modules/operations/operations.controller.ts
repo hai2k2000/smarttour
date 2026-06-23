@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -47,12 +47,14 @@ export class OperationsController {
   }
 
   @Post('forms/:id/status')
+  @HttpCode(200)
   @RequirePermissions('operation.form.manage')
   updateFormStatus(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.changeFormStatus(id, dto?.status, dto, request?.user);
   }
 
   @Delete('forms/:id')
+  @HttpCode(200)
   @RequirePermissions('operation.form.manage')
   @ApiOperation({ summary: 'Legacy alias for POST /operations/forms/{id}/cancel', deprecated: true })
   cancelFormLegacy(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
@@ -60,6 +62,7 @@ export class OperationsController {
   }
 
   @Post('forms/:id/cancel')
+  @HttpCode(200)
   @RequirePermissions('operation.form.manage')
   @ApiOperation({ summary: 'H\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh. \u0110\u00e2y l\u00e0 route ch\u00ednh th\u1ee9c; DELETE /operations/forms/{id} ch\u1ec9 gi\u1eef \u0111\u1ec3 t\u01b0\u01a1ng th\u00edch.' })
   cancelForm(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
@@ -97,24 +100,28 @@ export class OperationsController {
   }
 
   @Post('supplier-payment-requests/:id/submit')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.create')
   submitPaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.submitPaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/approve')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve')
   approvePaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.approvePaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/reject')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve')
   rejectPaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.rejectPaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/create-finance-payment')
+  @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve', 'finance.payment.create')
   createFinancePaymentForRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.createFinancePaymentForRequest(id, dto, request?.user);

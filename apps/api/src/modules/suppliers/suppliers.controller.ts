@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -88,24 +88,28 @@ export class SuppliersController {
   }
 
   @Patch('hotel-allotments/:id/override')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   overrideAllotment(@Param('id') id: string, @Body() dto: OverrideAllotmentDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.overrideAllotment(id, dto, request.user);
   }
 
   @Post('hotel-allotments/:id/lock')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   lockAllotment(@Param('id') id: string, @Body() dto: LockAllotmentDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.lockAllotment(id, dto, request.user);
   }
 
   @Post('hotel-allotment-allocations/:id/confirm')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   confirmAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.confirmAllotmentAllocation(id, dto, request.user);
   }
 
   @Post('hotel-allotment-allocations/:id/release')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.releaseAllotmentAllocation(id, dto, request.user);
@@ -135,6 +139,7 @@ export class SuppliersController {
   }
 
   @Patch(':type/:id/status')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   updateTypedStatus(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
     return this.suppliersService.updateTypedSupplierStatus(type, id, dto.status);
@@ -178,6 +183,7 @@ export class SuppliersController {
   }
 
   @Patch(':id/status')
+  @HttpCode(200)
   @RequirePermissions('supplier.manage')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
     return this.suppliersService.updateSupplierStatus(id, dto.status);

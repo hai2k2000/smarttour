@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 action endpoint status-code hardening:
+  - Added a source contract that requires high-risk workflow/action endpoints to declare explicit `@HttpCode(200)` instead of relying on Nest defaults, especially POST action routes that otherwise return 201.
+  - Standardized action/status endpoints across bookings, operations, suppliers, orders, quotes, quotations, commission reports, and finance approve/reject/cancel flows.
+  - Refreshed the Operations controller contract after Phase 3 supplier-service deterministic ordering moved from an inline `{ createdAt: 'asc' }` include to `SUPPLIER_SERVICE_ORDER_BY`.
+  - Verification covered the new status-code contract, operations/suppliers/finance/bookings/quotes controller contracts, and the API build.
+
 - Phase 3 final verification hardening:
   - Data-scope verification now tracks the current bounded list signatures for tour guides and tour programs, and module-flow tests call GIT/Land/FIT list services through their DTO query contracts.
   - Added an idempotent system-role restore migration so empty/drifted databases regain the baseline `super_admin`, `sales`, `operation`, and `accounting` roles plus current RBAC/data-scope permissions.

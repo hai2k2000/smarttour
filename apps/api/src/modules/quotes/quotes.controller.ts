@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -43,18 +43,21 @@ export class QuotesController {
   }
 
   @Post('tours/:id/approve')
+  @HttpCode(200)
   @RequirePermissions('quote.approve')
   approveTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto, @Req() request?: { user?: RequestUser }) {
     return this.quotesService.approveTourQuote(id, dto, request?.user);
   }
 
   @Post('tours/:id/reject')
+  @HttpCode(200)
   @RequirePermissions('quote.manage')
   rejectTour(@Param('id') id: string, @Body() dto: QuoteApprovalDto, @Req() request?: { user?: RequestUser }) {
     return this.quotesService.rejectTourQuote(id, dto, request?.user);
   }
 
   @Post('tours/:id/convert')
+  @HttpCode(200)
   @RequirePermissions('quote.manage')
   convertTour(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.quotesService.convertTourQuote(id, request?.user);
@@ -91,18 +94,21 @@ export class QuotesController {
   }
 
   @Post('combos/:id/create-quote')
+  @HttpCode(200)
   @RequirePermissions('quote.manage')
   createQuoteFromCombo(@Param('id') id: string) {
     return this.quotesService.createQuoteFromCombo(id);
   }
 
   @Post('combos/:id/create-order')
+  @HttpCode(200)
   @RequirePermissions('quote.manage')
   createOrderFromCombo(@Param('id') id: string) {
     return this.quotesService.createOrderFromCombo(id);
   }
 
   @Post('combos/:id/recalculate')
+  @HttpCode(200)
   @RequirePermissions('quote.manage')
   recalculateCombo(@Param('id') id: string) {
     return this.quotesService.recalculateCombo(id);

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -46,6 +46,7 @@ export class BookingsController {
   }
 
   @Patch(':id/status')
+  @HttpCode(200)
   @RequirePermissions('booking.manage')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateBookingStatusDto, @Req() request?: { user?: RequestUser }) {
     return this.bookingsService.updateStatus(id, dto.status, request?.user);

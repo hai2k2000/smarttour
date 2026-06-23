@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, Param, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -96,18 +96,21 @@ export class FinanceController {
   }
 
   @Post('receipts/:id/approve')
+  @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
   approveReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.approve(id, dto, request.user);
   }
 
   @Post('receipts/:id/reject')
+  @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
   rejectReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.reject(id, dto, request.user);
   }
 
   @Post('receipts/:id/cancel')
+  @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
   cancelReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.cancel(id, dto, request.user);
@@ -185,18 +188,21 @@ export class FinanceController {
   }
 
   @Post('payments/:id/approve')
+  @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
   approvePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.approve(id, dto, request.user);
   }
 
   @Post('payments/:id/reject')
+  @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
   rejectPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.reject(id, dto, request.user);
   }
 
   @Post('payments/:id/cancel')
+  @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
   cancelPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.cancel(id, dto, request.user);
@@ -261,18 +267,21 @@ export class FinanceController {
   }
 
   @Post('invoices/:id/approve')
+  @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
   approveInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.approve(id, dto, request.user);
   }
 
   @Post('invoices/:id/reject')
+  @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
   rejectInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.reject(id, dto, request.user);
   }
 
   @Post('invoices/:id/cancel')
+  @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
   cancelInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.cancel(id, dto, request.user);

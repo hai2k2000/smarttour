@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -41,24 +41,28 @@ export class OrdersController {
   }
 
   @Patch(':type/:id/status')
+  @HttpCode(200)
   @RequirePermissions('order.status.update')
   updateStatus(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateOrderStatusDto, @Req() request: { user?: RequestUser }) {
     return this.ordersService.updateStatus(type, id, dto.status, request.user);
   }
 
   @Post(':type/:id/copy')
+  @HttpCode(200)
   @RequirePermissions('order.manage')
   copy(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.ordersService.copy(type, id, request.user);
   }
 
   @Post(':type/:id/settle')
+  @HttpCode(200)
   @RequirePermissions('order.settle')
   settle(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.ordersService.settle(type, id, request.user);
   }
 
   @Post(':type/:id/unlock')
+  @HttpCode(200)
   @RequirePermissions('order.unlock')
   unlock(@Param('type') type: string, @Param('id') id: string, @Body() dto: UnlockOrderDto, @Req() request: { user?: RequestUser }) {
     return this.ordersService.unlock(type, id, dto, request.user);

@@ -2,6 +2,12 @@
 
 ## Done
 
+- Started Phase 4 action endpoint status-code hardening:
+  - Added `scripts/test-action-endpoint-status-contract.js` to guard explicit `@HttpCode(200)` on action/status endpoints.
+  - Added explicit 200 responses to action endpoints in bookings, operations, suppliers, orders, quotes, quotations, commission reports, and finance workflow controllers.
+  - Updated the Operations controller contract to recognize the existing `SUPPLIER_SERVICE_ORDER_BY` deterministic supplier-service ordering.
+  - Verified with focused controller contracts and the API build.
+
 - Completed Phase 3 final verification hardening:
   - Updated data-scope audit/module-flow fixtures after bounded DTO list signatures replaced older string-search service calls.
   - Added migration `20260623140000_restore_system_roles` to restore baseline system roles and RBAC/data-scope permissions when a database has drifted to empty roles after earlier migrations.
