@@ -133,15 +133,24 @@ export class ReportsService {
   async revenue(groupBy: string, query: ReportQuery, user?: RequestUser) {
     this.assertOrderQuery(query);
     const group = this.normalizeGroup(groupBy);
-    const orders = await this.orders({ ...query, dateField: this.dateFieldFromGroup(group, query.dateField) }, user);
-    return this.groupOrders(orders, group);
+    const scopedQuery = { ...query, dateField: this.dateFieldFromGroup(group, query.dateField) };
+    const [orders, summary] = await Promise.all([
+      this.orders(scopedQuery, user),
+      this.orderSummaryFromDb(scopedQuery, user),
+    ]);
+    return { ...this.groupOrders(orders, group), summary };
   }
 
   async profit(query: ReportQuery, user?: RequestUser) {
     this.assertOrderQuery(query);
     const groupBy = this.normalizeGroup(query.groupBy || 'by-employee');
-    const result = this.groupOrders(await this.orders({ ...query, dateField: this.dateFieldFromGroup(groupBy, query.dateField) }, user), groupBy);
-    return { ...result, rows: result.rows.map((row) => ({ ...row, profitAfterCommission: row.profit - row.commission })) };
+    const scopedQuery = { ...query, dateField: this.dateFieldFromGroup(groupBy, query.dateField) };
+    const [orders, summary] = await Promise.all([
+      this.orders(scopedQuery, user),
+      this.orderSummaryFromDb(scopedQuery, user),
+    ]);
+    const result = this.groupOrders(orders, groupBy);
+    return { ...result, summary, rows: result.rows.map((row) => ({ ...row, profitAfterCommission: row.profit - row.commission })) };
   }
 
   async finance(query: ReportQuery, user?: RequestUser) {

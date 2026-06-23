@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened revenue/profit report summaries:
+  - Revenue and profit endpoints now return summary totals from scoped database order aggregates instead of the capped `groupOrders()` order list.
+  - Group rows stay bounded for payload safety, while summary totals use the full matching dataset with the same normalized group date field.
+  - Strengthened report query validation coverage so these summaries cannot regress to capped-row group summaries.
+
 - Hardened report overview customer and supplier-debt counts:
   - Overview `totalCustomers` now uses scoped database order grouping for the existing phone/email/name/order-id identity rules instead of capped display orders.
   - Overview `supplierDebtCount` now uses scoped supplier ledger groupBy balance sums instead of capped supplier-debt rows.

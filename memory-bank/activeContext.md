@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 revenue/profit report summary accuracy hardening:
+  - Revenue and profit report endpoint summaries now use scoped database order aggregates instead of keeping the `groupOrders()` summary derived from capped display orders.
+  - Grouped rows remain bounded display data, while summary totals reflect the full scoped matching dataset with the same normalized date field used by the group.
+  - Report query validation contract now guards revenue/profit summaries against regressing to capped-row `groupOrders()` summaries.
+
 - Phase 3 report overview count accuracy hardening follow-up:
   - Report overview `totalCustomers` now uses scoped database order grouping for phone/email/name/anonymous order identities instead of deriving from the capped 1000-row order list.
   - Report overview `supplierDebtCount` now uses scoped supplier ledger groupBy sums instead of `supplierDebt.rows.length`, so the count is not capped by display rows.

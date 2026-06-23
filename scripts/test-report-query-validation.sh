@@ -56,6 +56,14 @@ async function main() {
     assert(block.includes('orderSummaryFromDb(query, user)'), `${method} summary must use database aggregate helper`);
     assert(!block.includes('summary(orders)'), `${method} summary must not depend on bounded order rows`);
   }
+  for (const method of ['revenue', 'profit']) {
+    const start = reportsServiceSource.indexOf('async ' + method + '(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes('orderSummaryFromDb(scopedQuery, user)'), `${method} summary must use database aggregate helper`);
+    assert(!block.includes('return this.groupOrders(orders, group)'), `${method} must not return capped-row summary from groupOrders`);
+    assert(!block.includes('summary: result.summary'), `${method} must not keep capped-row summary from groupOrders`);
+  }
   for (const [method, helper, oldSummary] of [
     ['customerDebt', 'customerDebtSummaryFromDb(where)', 'customerDebtSummary(rows)'],
     ['supplierDebt', 'supplierDebtSummaryFromDb(where)', 'supplierDebtSummary(rows)'],
