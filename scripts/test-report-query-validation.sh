@@ -84,17 +84,27 @@ async function main() {
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
     const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
     assert(block.includes('financeSummaryFromDb(query, user)'), 'finance report summary must use database summary helper');
+    assert(block.includes('orderSummaryFromDb(this.financeOrderQuery(query), user)'), 'finance report order financial summary must use database order aggregate helper');
+    assert(block.includes('orderCountFromDb(this.financeOrderQuery(query), user)'), 'finance report orderCount must use database order count helper');
     assert(block.includes('financeCashflowByMonthFromDb(query, user)'), 'finance report cashflowByMonth must use database grouped helper');
     assert(!block.includes('cashflowSummary(cashflowRows)'), 'finance report cashflow totals must not depend on capped cashflow rows');
     assert(!block.includes('cashflowByMonth(cashflowRows)'), 'finance report cashflowByMonth must not depend on capped cashflow rows');
     assert(!block.includes('receiptCount: receiptRows.length'), 'finance report receiptCount must not depend on capped receipt rows');
     assert(!block.includes('paymentCount: paymentRows.length'), 'finance report paymentCount must not depend on capped payment rows');
+    assert(!block.includes('...grouped.summary'), 'finance report order financial summary must not depend on capped grouped order rows');
+    assert(!block.includes('orderCount: orderRows.length'), 'finance report orderCount must not depend on capped order rows');
   }
   {
     const start = reportsServiceSource.indexOf('private async orderSummaryFromDb(');
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
     assert(block.includes('aggregate({'), 'orderSummaryFromDb must aggregate order totals in the database');
     assert(block.includes('_sum:'), 'orderSummaryFromDb must sum financial fields in the database');
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async orderCountFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1000);
+    assert(block.includes('order.count({'), 'orderCountFromDb must count matching orders in the database');
+    assert(block.includes('branchDepartmentScopeWhere(this.orderWhere(query), user)'), 'orderCountFromDb must apply the same scoped order filters');
   }
   {
     const start = reportsServiceSource.indexOf('private async orderOverviewCountsFromDb(');
@@ -191,7 +201,11 @@ async function main() {
   let financeDocumentCalls = 0;
   let historyCalls = 0;
   const service = new ReportsService({
-    order: { findMany: async () => { orderCalls += 1; return []; } },
+    order: {
+      findMany: async () => { orderCalls += 1; return []; },
+      aggregate: async () => ({ _sum: {} }),
+      count: async () => 0,
+    },
     tour: { findMany: async () => { tourCalls += 1; return []; } },
     customerLedgerEntry: {
       findMany: async () => { debtCalls += 1; return []; },
@@ -235,7 +249,11 @@ async function main() {
 
   const capturedFinanceWhere = {};
   const captureService = new ReportsService({
-    order: { findMany: async () => [] },
+    order: {
+      findMany: async () => [],
+      aggregate: async () => ({ _sum: {} }),
+      count: async () => 0,
+    },
     customerLedgerEntry: {
       findMany: async () => [],
       groupBy: async () => [],

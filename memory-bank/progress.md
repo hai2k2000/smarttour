@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened hybrid finance report order summary accuracy:
+  - Replaced finance summary order financial totals from capped grouped display rows with scoped database order aggregates.
+  - Replaced finance summary `orderCount` from `orderRows.length` with a scoped database count.
+  - Strengthened report query validation coverage so finance summary order metrics cannot regress to capped `grouped.summary` or `orderRows.length`.
+
 - Hardened hybrid finance report order-filter correctness:
   - Receipt, payment, and cashflow report queries now apply order-only filters through linked order relations instead of relying on `orderIds` from capped display orders.
   - Finance summaries and cashflow charts keep database count/groupBy behavior while respecting filters such as order type, order status, payment status, and cost status.

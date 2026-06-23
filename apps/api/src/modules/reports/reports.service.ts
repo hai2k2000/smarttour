@@ -156,8 +156,10 @@ export class ReportsService {
 
   async finance(query: ReportQuery, user?: RequestUser) {
     this.assertFinanceQuery(query);
-    const orders = await this.orders(this.financeOrderQuery(query), user);
-    const [receiptRows, paymentRows, cashflowRows, financeSummary, cashflowByMonth, customerDebtReport, supplierDebtReport] = await Promise.all([
+    const [orders, orderSummary, orderCount, receiptRows, paymentRows, cashflowRows, financeSummary, cashflowByMonth, customerDebtReport, supplierDebtReport] = await Promise.all([
+      this.orders(this.financeOrderQuery(query), user),
+      this.orderSummaryFromDb(this.financeOrderQuery(query), user),
+      this.orderCountFromDb(this.financeOrderQuery(query), user),
       this.financeReceiptRows(query, user),
       this.financePaymentRows(query, user),
       this.financeCashflowRows(query, user),
@@ -172,7 +174,7 @@ export class ReportsService {
     const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
     const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
     const summary = {
-      ...grouped.summary,
+      ...orderSummary,
       totalReceipt: financeSummary.totalReceipt,
       totalPayment: financeSummary.totalPayment,
       netCashflow: financeSummary.netCashflow,
@@ -181,7 +183,7 @@ export class ReportsService {
       customerDebtBalance: Number(customerDebtReport.summary?.balance || customerDebtReport.summary?.remainingRevenue || 0),
       supplierDebtBalance: Number(supplierDebtReport.summary?.balance || supplierDebtReport.summary?.remainingAmount || 0),
       issueCount: reconciliationRows.length,
-      orderCount: orderRows.length,
+      orderCount,
     };
     return {
       summary,
@@ -319,6 +321,13 @@ export class ReportsService {
       commissionRevenue: totalRevenue,
       marginRate: totalRevenue ? (profit / totalRevenue) * 100 : 0,
     };
+  }
+
+  private async orderCountFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    return this.prisma.order.count({
+      where: branchDepartmentScopeWhere(this.orderWhere(query), user),
+    });
   }
 
   private async orderOverviewCountsFromDb(query: ReportQuery, user?: RequestUser) {

@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance report order-summary accuracy hardening:
+  - Hybrid finance report order financial metrics (`totalRevenue`, paid/remaining amounts, cost, profit, commission, margin) now use scoped database order aggregates instead of the capped finance `orderRows` display list.
+  - Finance report `summary.orderCount` now uses a scoped database count instead of `orderRows.length`, so it is not capped at the 1000-row order preload.
+  - Report query validation contract now guards finance summaries against regressing to `...grouped.summary` or `orderCount: orderRows.length`.
+
 - Phase 3 finance report order-filter correctness hardening:
   - Hybrid finance report receipt, payment, and cashflow queries now apply order-only filters (`type`, `status`, `paymentStatus`, `costStatus`, settled/order facets) through their linked order relation.
   - Finance document summaries and cashflow charts no longer depend on `orderIds` from the capped 1000-order display list, preventing filtered finance totals from mixing unrelated orders or missing older matching orders.
