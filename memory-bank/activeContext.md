@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 correlation runtime smoke hardening:
+  - Added `scripts/smoke-correlation-id.sh` and `scripts/test-correlation-id-smoke-contract.js`.
+  - The smoke verifies safe incoming `x-correlation-id` values are echoed, unsafe values are replaced, missing values are generated, and the request log contains the correlation ID without sensitive field names.
+  - The log probe uses `/auth/login` validation failure because guard-level `/auth/me` responses confirm middleware/header behavior but do not pass through the request logging interceptor.
+  - The smoke retries `/auth/me` probes so it remains stable immediately after `docker compose up -d api`.
+  - Verification covered the full Phase 4 contract set, correlation/error/OpenAPI runtime smokes, Docker API build/deploy, and production healthcheck.
+
 - Phase 4 runtime smoke coverage hardening:
   - Upgraded `scripts/smoke-swagger-action-status.js` to derive expected OpenAPI routes from `scripts/test-action-endpoint-status-contract.js` instead of a narrow manual route list.
   - The Swagger action smoke now parses controller prefixes and method decorators, including files with multiple controller classes, and validates all guarded action endpoints expose `200` and not `201` in `/docs-json`.

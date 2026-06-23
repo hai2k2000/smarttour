@@ -2,6 +2,13 @@
 
 ## Done
 
+- Hardened Phase 4 correlation runtime smoke coverage:
+  - Added `scripts/smoke-correlation-id.sh` plus `scripts/test-correlation-id-smoke-contract.js`.
+  - Verified live `x-correlation-id` behavior for safe, unsafe, and missing incoming IDs.
+  - Verified a validation failure request writes a structured `request_failed` log line with the safe correlation ID and without sensitive field names.
+  - Added retry handling for the smoke's `/auth/me` probes so deploy restart windows do not create false 502 failures.
+  - Verified with Phase 4 contracts, correlation/error/OpenAPI runtime smokes, Docker API build/deploy, and production healthcheck.
+
 - Hardened Phase 4 runtime smoke coverage:
   - Upgraded `scripts/smoke-swagger-action-status.js` so it reads `scripts/test-action-endpoint-status-contract.js`, resolves controller routes from source, and validates every guarded action endpoint in OpenAPI.
   - Added parser coverage for multi-controller files such as suppliers, preventing smoke false positives from using the wrong controller prefix.
