@@ -10,6 +10,21 @@ ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 
 cd "$REPO_DIR"
 
+validate_branch_name() {
+  local value="$1"
+  if [[ -z "$value" ]] \
+    || [[ ! "$value" =~ ^[A-Za-z0-9._/-]+$ ]] \
+    || [[ "$value" == /* ]] \
+    || [[ "$value" == *..* ]] \
+    || [[ "$value" == *.lock ]] \
+    || [[ "$value" == *//* ]]; then
+    echo "DEPLOY_ABORT invalid branch name: $value"
+    exit 1
+  fi
+}
+
+validate_branch_name "$BRANCH"
+
 if [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --quiet; then
   echo "DEPLOY_ABORT dirty worktree. Commit/push changes first, or set ALLOW_DIRTY=true for an emergency deploy."
   git status --short

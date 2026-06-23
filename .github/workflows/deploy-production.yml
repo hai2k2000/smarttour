@@ -30,6 +30,26 @@ jobs:
     timeout-minutes: 30
     environment: production
     steps:
+      - name: Validate dispatch inputs
+        env:
+          BRANCH: ${{ inputs.branch }}
+          REPO_DIR: ${{ inputs.repo_dir }}
+          SITE_URL: ${{ inputs.site_url }}
+          API_URL: ${{ inputs.api_url }}
+        run: |
+          [[ -n "$BRANCH" ]]
+          [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$BRANCH" != /* ]]
+          [[ "$BRANCH" != *..* ]]
+          [[ "$BRANCH" != *.lock ]]
+          [[ "$BRANCH" != *//* ]]
+          [[ "$REPO_DIR" == /* ]]
+          [[ "$REPO_DIR" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$REPO_DIR" != *..* ]]
+          [[ "$REPO_DIR" != *//* ]]
+          [[ "$SITE_URL" =~ ^https://[A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%-]+$ ]]
+          [[ "$API_URL" =~ ^https://[A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%-]+$ ]]
+
       - name: Configure SSH
         env:
           SSH_HOST: ${{ secrets.SMARTTOUR_SSH_HOST }}

@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production deploy input validation:
+  - Added workflow validation for manual dispatch branch, repo path, site URL, and API URL before SSH starts.
+  - Added server-side branch validation in `scripts/deploy-production.sh` before git commands run.
+  - Extended the GitHub Actions contract/runbook and production readiness tracker with the validated-input deploy behavior.
+
 - Hardened GitHub production deploy SSH behavior:
   - Added bounded `ssh-keyscan` and non-interactive SSH timeout/server-alive options to the manual production deploy workflow.
   - Extended the GitHub Actions contract and runbook so deploy SSH cannot regress to prompt-prone or long-hanging defaults.

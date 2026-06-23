@@ -64,6 +64,18 @@ includes(deploy, 'ssh-keyscan', 'Deploy workflow must populate known_hosts befor
 includes(deploy, 'ssh-keyscan -T 10', 'Deploy workflow must bound ssh-keyscan connection time.');
 includes(deploy, 'scripts/deploy-production.sh', 'Deploy workflow must call the server-side production deploy script.');
 includes(deploy, 'BRANCH=', 'Deploy workflow must pass an explicit branch to the deploy script.');
+includes(deploy, 'name: Validate dispatch inputs', 'Deploy workflow must validate manual dispatch inputs before SSH.');
+for (const validation of [
+  '[[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]',
+  '[[ "$BRANCH" != /* ]]',
+  '[[ "$BRANCH" != *..* ]]',
+  '[[ "$REPO_DIR" == /* ]]',
+  '[[ "$REPO_DIR" =~ ^[A-Za-z0-9._/-]+$ ]]',
+  '[[ "$SITE_URL" =~ ^https://[A-Za-z0-9._~:/?#\\[\\]@!$&()*+,;=%-]+$ ]]',
+  '[[ "$API_URL" =~ ^https://[A-Za-z0-9._~:/?#\\[\\]@!$&()*+,;=%-]+$ ]]',
+]) {
+  includes(deploy, validation, `Deploy workflow must validate input with ${validation}.`);
+}
 for (const option of [
   '-o BatchMode=yes',
   '-o ConnectTimeout=10',
@@ -73,6 +85,14 @@ for (const option of [
   includes(deploy, option, `Deploy workflow SSH command must include ${option}.`);
 }
 excludes(deploy, 'ALLOW_DIRTY=true', 'Deploy workflow must not allow dirty production deploys.');
+
+const deployScript = read('scripts/deploy-production.sh');
+includes(deployScript, 'validate_branch_name()', 'Server-side production deploy must validate BRANCH.');
+includes(deployScript, 'DEPLOY_ABORT invalid branch name', 'Server-side production deploy must abort on invalid branch names.');
+includes(deployScript, '[[ ! "$value" =~ ^[A-Za-z0-9._/-]+$ ]]', 'Server-side branch validation must reject unsafe git ref characters.');
+includes(deployScript, '[[ "$value" == /* ]]', 'Server-side branch validation must reject absolute ref paths.');
+includes(deployScript, '[[ "$value" == *..* ]]', 'Server-side branch validation must reject parent traversal.');
+includes(deployScript, 'validate_branch_name "$BRANCH"', 'Server-side deploy must validate BRANCH before git fetch/checkout/pull.');
 
 
 const runbookText = read(runbook);
@@ -89,6 +109,11 @@ for (const text of [
   'ConnectTimeout=10',
   'ServerAliveInterval=15',
   'ServerAliveCountMax=2',
+  'manual dispatch inputs are validated',
+  'Branch names may',
+  'contain only letters, numbers, dot, underscore, slash, and hyphen',
+  'URLs must start',
+  'with `https://`',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

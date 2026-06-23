@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production deploy input validation hardening:
+  - Added a `Validate dispatch inputs` step to `.github/workflows/deploy-production.yml` so branch, repo path, site URL, and API URL are allowlist-checked before SSH starts.
+  - Added server-side `BRANCH` validation in `scripts/deploy-production.sh` before git fetch/checkout/pull.
+  - Extended `scripts/test-github-actions-contract.js` and `docs/github-actions-runbook.md` so unsafe deploy inputs cannot regress silently.
+
 - GitHub production deploy SSH hardening:
   - Hardened `.github/workflows/deploy-production.yml` so `ssh-keyscan` uses a bounded timeout and the deploy SSH command uses `BatchMode=yes`, `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
   - Extended `scripts/test-github-actions-contract.js` to guard the bounded/non-interactive SSH options and updated `docs/github-actions-runbook.md`.

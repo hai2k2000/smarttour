@@ -18,6 +18,10 @@ configured project directory. The server-side deploy script still performs the
 Git fast-forward pull, SmartLink legacy guard, Docker build/up, and healthcheck.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
+The manual dispatch inputs are validated before SSH starts. Branch names may
+contain only letters, numbers, dot, underscore, slash, and hyphen; they cannot
+start with `/`, contain `..`, contain `//`, or end with `.lock`. URLs must start
+with `https://`.
 
 Required GitHub environment or repository secrets:
 
