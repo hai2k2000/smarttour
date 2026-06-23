@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened revenue/profit grouped report rows:
+  - Revenue and profit rows now use scoped database order `groupBy` aggregates instead of capped order-list grouping.
+  - The shared order grouped-row helper now covers all supported report groups, including date fields, agency, department, market, employee, branch, and type.
+  - Strengthened report query validation and reran reports business-rules smoke across every revenue group key.
+
 - Hardened business and employee grouped report rows:
   - Business summary grouped rows for type, branch, and employee now come from scoped database order `groupBy` aggregates instead of capped order rows.
   - Employee performance rows now use database grouped employee aggregates and keep derived average/order paid-ratio fields.

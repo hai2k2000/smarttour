@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 revenue/profit grouped row accuracy hardening:
+  - Revenue and profit report grouped rows now use scoped database order `groupBy` aggregates instead of grouping the capped 1000-order display list.
+  - The shared order grouped-row helper now supports date, employee, agency, branch, department, market, and type groups; date groups are aggregated from DB grouped date rows into day keys.
+  - Report query validation and reports business-rules smoke now guard revenue/profit grouped rows across all supported group keys.
+
 - Phase 3 business/employee grouped report accuracy hardening:
   - Business summary `revenueByType`, `revenueByBranch`, and `profitByEmployee` now use scoped database order `groupBy` helpers instead of grouping the capped 1000-order display list.
   - Employee performance rows now use database grouped employee aggregates, while preserving average order value, after-commission profit, and paid-ratio calculations.

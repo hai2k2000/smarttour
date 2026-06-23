@@ -138,23 +138,22 @@ export class ReportsService {
     this.assertOrderQuery(query);
     const group = this.normalizeGroup(groupBy);
     const scopedQuery = { ...query, dateField: this.dateFieldFromGroup(group, query.dateField) };
-    const [orders, summary] = await Promise.all([
-      this.orders(scopedQuery, user),
+    const [rows, summary] = await Promise.all([
+      this.orderGroupedRowsFromDb(scopedQuery, group, user),
       this.orderSummaryFromDb(scopedQuery, user),
     ]);
-    return { ...this.groupOrders(orders, group), summary };
+    return { summary, rows };
   }
 
   async profit(query: ReportQuery, user?: RequestUser) {
     this.assertOrderQuery(query);
     const groupBy = this.normalizeGroup(query.groupBy || 'by-employee');
     const scopedQuery = { ...query, dateField: this.dateFieldFromGroup(groupBy, query.dateField) };
-    const [orders, summary] = await Promise.all([
-      this.orders(scopedQuery, user),
+    const [rows, summary] = await Promise.all([
+      this.orderGroupedRowsFromDb(scopedQuery, groupBy, user),
       this.orderSummaryFromDb(scopedQuery, user),
     ]);
-    const result = this.groupOrders(orders, groupBy);
-    return { ...result, summary, rows: result.rows.map((row) => ({ ...row, profitAfterCommission: row.profit - row.commission })) };
+    return { summary, rows: rows.map((row) => ({ ...row, profitAfterCommission: row.profit - row.commission })) };
   }
 
   async finance(query: ReportQuery, user?: RequestUser) {
@@ -466,9 +465,13 @@ export class ReportsService {
     };
   }
 
-  private async orderGroupedRowsFromDb(query: ReportQuery, groupBy: 'by-type' | 'by-branch' | 'by-employee', user?: RequestUser) {
+  private async orderGroupedRowsFromDb(query: ReportQuery, groupBy: ReportGroupKey, user?: RequestUser) {
     this.assertOrderQuery(query);
     const where = branchDepartmentScopeWhere(this.orderWhere(query), user);
+    if (groupBy === 'by-created-date') return this.orderDateGroupedRowsFromDb(where, 'createdAt');
+    if (groupBy === 'by-checkin-date') return this.orderDateGroupedRowsFromDb(where, 'startDate');
+    if (groupBy === 'by-checkout-date') return this.orderDateGroupedRowsFromDb(where, 'endDate');
+    if (groupBy === 'by-approved-date') return this.orderDateGroupedRowsFromDb(where, 'settledAt');
     if (groupBy === 'by-type') {
       const groups = await this.prisma.order.groupBy({
         by: ['type'],
@@ -489,6 +492,39 @@ export class ReportsService {
       });
       return groups
         .map((row) => this.orderMetricRow(String(row.branch || 'Chưa gắn chi nhánh'), String(row.branch || 'Chưa gắn chi nhánh'), this.groupCount(row), row._sum || {}))
+        .sort((left, right) => right.revenue - left.revenue);
+    }
+    if (groupBy === 'by-agency') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['agencyName'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      return groups
+        .map((row) => this.orderMetricRow(String(row.agencyName || 'Khách trực tiếp'), String(row.agencyName || 'Khách trực tiếp'), this.groupCount(row), row._sum || {}))
+        .sort((left, right) => right.revenue - left.revenue);
+    }
+    if (groupBy === 'by-department') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['department'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      return groups
+        .map((row) => this.orderMetricRow(String(row.department || 'Chưa gắn phòng ban'), String(row.department || 'Chưa gắn phòng ban'), this.groupCount(row), row._sum || {}))
+        .sort((left, right) => right.revenue - left.revenue);
+    }
+    if (groupBy === 'by-market') {
+      const groups = await this.prisma.order.groupBy({
+        by: ['marketGroup'],
+        where,
+        _count: { _all: true },
+        _sum: this.orderMetricSums(),
+      });
+      return groups
+        .map((row) => this.orderMetricRow(String(row.marketGroup || 'Chưa gắn thị trường'), String(row.marketGroup || 'Chưa gắn thị trường'), this.groupCount(row), row._sum || {}))
         .sort((left, right) => right.revenue - left.revenue);
     }
     if (groupBy === 'by-employee') {
@@ -519,6 +555,35 @@ export class ReportsService {
       return [...employeeRows.values()].sort((left, right) => right.revenue - left.revenue);
     }
     return [];
+  }
+
+  private async orderDateGroupedRowsFromDb(where: Prisma.OrderWhereInput, field: 'createdAt' | 'startDate' | 'endDate' | 'settledAt') {
+    const groups = await this.prisma.order.groupBy({
+      by: [field],
+      where,
+      _count: { _all: true },
+      _sum: this.orderMetricSums(),
+    });
+    const rows = new Map<string, MetricRow>();
+    for (const row of groups) {
+      const value = row[field] as Date | null;
+      const key = value ? value.toISOString().slice(0, 10) : 'NO_DATE';
+      const current = rows.get(key) || this.emptyRow(key, key);
+      const metric = this.orderMetricRow(key, key, this.groupCount(row), row._sum || {});
+      current.orderCount += metric.orderCount;
+      current.customerCount += metric.customerCount;
+      current.revenue += metric.revenue;
+      current.paidAmount += metric.paidAmount;
+      current.remainingRevenue += metric.remainingRevenue;
+      current.cost += metric.cost;
+      current.paidCost += metric.paidCost;
+      current.remainingCost += metric.remainingCost;
+      current.profit += metric.profit;
+      current.commission += metric.commission;
+      current.marginRate = current.revenue ? (current.profit / current.revenue) * 100 : 0;
+      rows.set(key, current);
+    }
+    return [...rows.values()].sort((left, right) => right.key.localeCompare(left.key));
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {

@@ -84,6 +84,9 @@ async function main() {
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
     const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
     assert(block.includes('orderSummaryFromDb(scopedQuery, user)'), `${method} summary must use database aggregate helper`);
+    assert(block.includes('orderGroupedRowsFromDb(scopedQuery, group'), `${method} rows must use database grouped row helper`);
+    assert(!block.includes('this.orders(scopedQuery, user)'), `${method} rows must not load capped orders before grouping`);
+    assert(!block.includes('this.groupOrders(orders, group'), `${method} rows must not depend on capped order rows`);
     assert(!block.includes('return this.groupOrders(orders, group)'), `${method} must not return capped-row summary from groupOrders`);
     assert(!block.includes('summary: result.summary'), `${method} must not keep capped-row summary from groupOrders`);
   }
@@ -174,13 +177,16 @@ async function main() {
   }
   {
     const start = reportsServiceSource.indexOf('private async orderGroupedRowsFromDb(');
-    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 4200);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 7600);
     assert(block.includes('order.groupBy({'), 'orderGroupedRowsFromDb must group orders in the database');
     assert(block.includes('_sum: this.orderMetricSums()'), 'orderGroupedRowsFromDb must sum financial fields in the database');
     assert(block.includes('_count: { _all: true }'), 'orderGroupedRowsFromDb must count grouped orders in the database');
     assert(block.includes("if (groupBy === 'by-employee')"), 'orderGroupedRowsFromDb must support employee grouping');
     assert(block.includes("if (groupBy === 'by-branch')"), 'orderGroupedRowsFromDb must support branch grouping');
     assert(block.includes("if (groupBy === 'by-type')"), 'orderGroupedRowsFromDb must support type grouping');
+    for (const group of ['by-created-date', 'by-checkin-date', 'by-checkout-date', 'by-approved-date', 'by-agency', 'by-department', 'by-market']) {
+      assert(block.includes(`groupBy === '${group}'`), `orderGroupedRowsFromDb must support ${group}`);
+    }
   }
   for (const helper of ['customerDebtSummaryFromDb', 'supplierDebtSummaryFromDb']) {
     const start = reportsServiceSource.indexOf('private async ' + helper + '(');
