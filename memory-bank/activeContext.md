@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Backup/restore offsite hardening:
+  - Hardened `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` remote SCP paths with `BatchMode=yes`, configurable connect timeout, server-alive interval, and server-alive count max.
+  - Added PostgreSQL dump and full disaster archive remote sync settings to the `/etc/default/smarttour-ops` template in `scripts/install-ops-schedule.sh`.
+  - Updated `docs/operations-backup-reinstall.md` with off-VPS sync variables, key permission checks, `npm run ops:backup-sync`, and `npm run test:backup-offsite`.
+  - Added `scripts/test-backup-offsite-contract.js`, exposed `npm run test:backup-offsite`, and wired the contract into `SmartTour CI`.
+  - `docs/production-readiness-tracker.md` now marks Backup/Restore Operations as `ready-for-manual` pending selection/configuration of the external backup destination.
+
 - Observability alerting hardening:
   - Hardened `scripts/healthcheck.sh` webhook failure notification with JSON-escaped structured `smarttour_healthcheck_failed` payloads, configurable connect timeout, max time, and retry count.
   - Added `docs/observability-alerting-runbook.md` for configuring `HEALTHCHECK_WEBHOOK_URL` and validating alert delivery through `/etc/default/smarttour-ops`.

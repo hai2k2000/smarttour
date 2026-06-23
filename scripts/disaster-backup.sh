@@ -10,6 +10,9 @@ POSTGRES_DB="${POSTGRES_DB:-smarttour}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
+REMOTE_CONNECT_TIMEOUT="${DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"
+REMOTE_SERVER_ALIVE_INTERVAL="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"
+REMOTE_SERVER_ALIVE_COUNT_MAX="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"
 LOCK_FILE="${DISASTER_BACKUP_LOCK_FILE:-/run/lock/smarttour-disaster-backup.lock}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -170,7 +173,7 @@ for old_archive in "${old_archives[@]}"; do
 done
 
 if [[ -n "$REMOTE_TARGET" ]]; then
-  scp_args=(-P "$REMOTE_PORT")
+  scp_args=(-P "$REMOTE_PORT" -o BatchMode=yes -o ConnectTimeout="$REMOTE_CONNECT_TIMEOUT" -o ServerAliveInterval="$REMOTE_SERVER_ALIVE_INTERVAL" -o ServerAliveCountMax="$REMOTE_SERVER_ALIVE_COUNT_MAX")
   if [[ -n "$REMOTE_KEY" ]]; then
     scp_args+=(-i "$REMOTE_KEY")
   fi

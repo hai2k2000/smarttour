@@ -1,5 +1,11 @@
 # Progress
 
+- Hardened backup/restore offsite sync operations:
+  - Added non-interactive SCP and bounded SSH timeout settings to PostgreSQL backup sync and full disaster archive sync paths.
+  - Documented both off-VPS backup targets in the operations reinstall runbook and `/etc/default/smarttour-ops` template.
+  - Added `scripts/test-backup-offsite-contract.js`, `npm run test:backup-offsite`, and CI coverage so backup sync hardening stays guarded.
+  - Updated production readiness Backup/Restore Operations to `ready-for-manual` until the external storage target is chosen and manually validated.
+
 - Hardened healthcheck webhook alerting:
   - Added bounded timeout/retry controls and a JSON-escaped structured `smarttour_healthcheck_failed` webhook payload to `scripts/healthcheck.sh`.
   - Added `docs/observability-alerting-runbook.md` and `scripts/test-observability-alerting-contract.js`.

@@ -61,7 +61,7 @@ Manual owner task: open exports in Excel and confirm encoding, money, and date f
 
 ## 6. Backup/Restore Operations
 
-Status: `done`
+Status: `ready-for-manual`
 
 Automated backup and restore drill:
 
@@ -75,6 +75,12 @@ Tooling is ready:
 
 - `scripts/sync-latest-backup.sh`
 - `npm run ops:backup-sync`
+- `scripts/disaster-backup.sh`
+- `npm run test:backup-offsite`
+
+The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
+Manual owner task: choose and configure the off-VPS backup storage target,
+then run `npm run ops:backup-sync` and one disaster archive sync.
 
 ## 7. CI/CD and Deploy Standardization
 

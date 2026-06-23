@@ -23,10 +23,20 @@ API_URL=https://aitour.io.vn/api
 BACKUP_MAX_AGE_HOURS=30
 KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
+# Set these to sync daily PostgreSQL dumps to another machine.
+# BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
+# BACKUP_REMOTE_PORT=22
+# BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
+# BACKUP_REMOTE_CONNECT_TIMEOUT=10
+# BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
+# BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 # Set these to sync full disaster archives to another machine.
 # DISASTER_BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour
 # DISASTER_BACKUP_REMOTE_PORT=22
 # DISASTER_BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
+# DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10
+# DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
+# DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 EOF
   chmod 600 "$OPS_ENV"
 fi

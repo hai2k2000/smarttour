@@ -61,15 +61,52 @@ archived, then starts it again. A trap restarts the stack if archiving fails.
 ## Off-Server Copy
 
 A backup left only on the VPS is not a disaster backup. Configure a second
-machine or object-storage gateway in `/etc/default/smarttour-ops`:
+machine or object-storage gateway in `/etc/default/smarttour-ops`.
+
+Daily PostgreSQL dump sync:
+
+```bash
+BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
+BACKUP_REMOTE_PORT=22
+BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
+BACKUP_REMOTE_CONNECT_TIMEOUT=10
+BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
+BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
+```
+
+Full disaster archive sync:
 
 ```bash
 DISASTER_BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour
 DISASTER_BACKUP_REMOTE_PORT=22
 DISASTER_BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
+DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10
+DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
+DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 ```
 
-The remote key must be dedicated to backup upload and mode `600`.
+The remote key must be dedicated to backup upload and mode `600`:
+
+```bash
+chmod 600 /root/.ssh/id_ed25519_backup
+```
+
+Both sync scripts use `BatchMode=yes` and bounded SSH timeouts so a broken
+remote destination fails the scheduled job instead of hanging indefinitely.
+
+Validate the source contract after changing backup sync settings or scripts:
+
+```bash
+cd /opt/smarttour
+npm run test:backup-offsite
+```
+
+Run the daily dump sync manually after configuring a destination:
+
+```bash
+cd /opt/smarttour
+npm run ops:backup-sync
+```
 
 Until an always-on backup destination exists, download each full archive to
 the administrator workstation:
