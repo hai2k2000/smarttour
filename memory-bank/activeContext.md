@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance CSV export completeness hardening:
+  - Finance receipt, payment, invoice, and cashflow CSV exports now query matching scoped rows directly instead of exporting from capped list payloads (`take: 1000`/`2000`).
+  - Export filters and branch/department scope continue to reuse the same where builders as list endpoints, while list endpoints remain bounded for UI payload safety.
+  - Finance helper contracts now guard export methods against regressing to capped list/cashflow payload reuse.
+
 - Phase 3 revenue/profit grouped row accuracy hardening:
   - Revenue and profit report grouped rows now use scoped database order `groupBy` aggregates instead of grouping the capped 1000-order display list.
   - The shared order grouped-row helper now supports date, employee, agency, branch, department, market, and type groups; date groups are aggregated from DB grouped date rows into day keys.

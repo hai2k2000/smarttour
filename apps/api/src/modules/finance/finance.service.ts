@@ -525,22 +525,38 @@ export class FinanceService {
   }
 
   async exportReceipts(query: Record<string, string>, user?: RequestUser) {
-    const { rows } = await this.listReceipts({ ...query, take: '1000' }, user);
+    const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
+    const rows = await this.prisma.financeReceipt.findMany({
+      where,
+      orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
+    });
     return this.csv(rows, ['receiptCode', 'tourId', 'receiptName', 'receiptType', 'paymentDate', 'paymentMethod', 'payerName', 'payerPhone', 'totalAmount', 'paidBefore', 'receiptAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
   }
 
   async exportPayments(query: Record<string, string>, user?: RequestUser) {
-    const { rows } = await this.listPayments({ ...query, take: '1000' }, user);
+    const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
+    const rows = await this.prisma.financePayment.findMany({
+      where,
+      orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
+    });
     return this.csv(rows, ['voucherCode', 'tourId', 'voucherName', 'voucherType', 'paymentDate', 'paymentMethod', 'receiverName', 'receiverPhone', 'totalAmount', 'paymentAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
   }
 
   async exportInvoices(query: Record<string, string>, user?: RequestUser) {
-    const { rows } = await this.listInvoices({ ...query, take: '1000' }, user);
+    const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
+    const rows = await this.prisma.financeInvoice.findMany({
+      where,
+      orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }],
+    });
     return this.csv(rows, ['invoiceCode', 'invoiceNumber', 'customerName', 'taxCode', 'companyName', 'tourCode', 'tourName', 'issuedDate', 'totalBeforeTax', 'totalTax', 'totalAfterTax', 'invoiceType', 'taxAuthorityCode', 'approvalStatus']);
   }
 
   async exportCashflow(query: Record<string, string>, user?: RequestUser) {
-    const { rows } = await this.cashflow({ ...query, take: '2000' }, user);
+    const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
+    const rows = await this.prisma.financeCashflowEntry.findMany({
+      where,
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+    });
     return this.csv(rows, ['sourceType', 'entryType', 'amount', 'paymentMethod', 'paymentDate', 'branch', 'department', 'staff', 'orderId', 'tourId', 'supplierId', 'customerId', 'note']);
   }
 

@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened finance CSV export completeness:
+  - Finance receipt, payment, invoice, and cashflow exports now query all matching scoped rows directly instead of reusing capped list payloads.
+  - Preserved the existing filters, sort order, and data-scope behavior for exported rows.
+  - Strengthened finance helper contracts so CSV exports cannot regress to `take: 1000`/`2000` list-based truncation.
+
 - Hardened revenue/profit grouped report rows:
   - Revenue and profit rows now use scoped database order `groupBy` aggregates instead of capped order-list grouping.
   - The shared order grouped-row helper now covers all supported report groups, including date fields, agency, department, market, employee, branch, and type.

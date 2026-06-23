@@ -117,6 +117,23 @@ for (const [helper, model] of [
   const block = start === -1 ? '' : service.slice(start, start + 1600);
   if (!block.includes('.groupBy({') || !block.includes('_sum: { amount: true }')) failures.push('cashflowSummaryFromDb must use database groupBy amount sums');
 }
+for (const [method, model, whereHelper] of [
+  ['exportReceipts', 'financeReceipt', 'receiptWhere(query)'],
+  ['exportPayments', 'financePayment', 'paymentWhere(query)'],
+  ['exportInvoices', 'financeInvoice', 'invoiceWhere(query)'],
+  ['exportCashflow', 'financeCashflowEntry', 'cashflowWhere(query)'],
+]) {
+  const start = service.indexOf('async ' + method + '(');
+  const next = service.indexOf('\n  async ', start + 1);
+  const block = start === -1 ? '' : service.slice(start, next === -1 ? service.length : next);
+  if (start === -1) failures.push('missing finance export method: ' + method);
+  if (block.includes("take: '1000'") || block.includes("take: '2000'") || block.includes('this.list') || block.includes('this.cashflow(')) {
+    failures.push(method + ' must not export from capped list payloads');
+  }
+  if (!block.includes('this.prisma.' + model + '.findMany({') || !block.includes(whereHelper)) {
+    failures.push(method + ' must query matching rows directly for CSV export');
+  }
+}
 if (failures.length) {
   console.error('FAIL_FINANCE_HELPER_CONTRACTS');
   failures.forEach((failure) => console.error(failure));
