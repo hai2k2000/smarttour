@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Files controller contract hardening:
+  - Added `FileUploadBodyDto` and `FileObjectKeyQueryDto` for file upload scope, download key, and delete key inputs.
+  - `FilesController` no longer uses raw `@Body('scope')`, raw `@Query('key')`, or `response: any`; file download response is typed with Node `ServerResponse`.
+  - Added `scripts/test-files-controller-contract.js` to guard the Files controller DTO and response typing contract.
+  - Verification covered the new Files controller contract and Docker API build.
+
 - Phase 4 query/controller contract hardening:
   - Added explicit `ListToursQueryDto` and `CloseTourDto`; `ToursController` now uses DTOs for list query and close action body instead of raw `@Query('...')` parameters or inline body types.
   - Added explicit query DTOs for Customers, Finance, and Order Center list/export/dashboard/debt/cashflow/activity endpoints, removing the remaining controller-level `@Query() Record<string, string>` usage.

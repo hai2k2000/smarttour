@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Files controller DTO contracts:
+  - Added `FileUploadBodyDto` and `FileObjectKeyQueryDto` for upload scope, download key, and delete key inputs.
+  - Replaced raw `@Body('scope')` and `@Query('key')` usage in `FilesController`.
+  - Replaced `response: any` with Node `ServerResponse` for file downloads without adding Express type dependencies.
+  - Added `scripts/test-files-controller-contract.js`; verified with the contract and Docker API build.
+
 - Hardened remaining Phase 4 controller query/body contracts:
   - Added `ListToursQueryDto` and `CloseTourDto`; Tours list and close endpoints no longer use raw query parameters or inline body types.
   - Added Customers, Finance, and Order Center query DTOs and updated those controllers to remove the remaining `@Query() Record<string, string>` signatures.

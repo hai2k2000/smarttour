@@ -1,8 +1,10 @@
 import { BadRequestException, Body, Controller, Delete, Get, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { ServerResponse } from 'node:http';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { FileObjectKeyQueryDto, FileUploadBodyDto } from './dto/file-query.dto';
 import { fileUploadInterceptorOptions, FilesService } from './files.service';
 
 @ApiTags('files')
@@ -16,17 +18,17 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   upload(
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
-    @Body('scope') scope: string | undefined,
+    @Body() dto: FileUploadBodyDto,
     @Req() request: { user?: { id?: string } },
   ) {
     if (!file) throw new BadRequestException('Cần chọn file để tải lên');
-    return this.filesService.upload(file, scope, request.user?.id);
+    return this.filesService.upload(file, dto.scope, request.user?.id);
   }
 
   @Get('download')
   @RequirePermissions('file.view')
-  async download(@Query('key') key: string | undefined, @Req() request: { user?: RequestUser }, @Res() response: any) {
-    const file = await this.filesService.downloadAuthorized(key, request.user);
+  async download(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }, @Res() response: ServerResponse) {
+    const file = await this.filesService.downloadAuthorized(query.key, request.user);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.size));
     response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
@@ -35,7 +37,7 @@ export class FilesController {
 
   @Delete()
   @RequirePermissions('file.manage')
-  remove(@Query('key') key: string | undefined, @Req() request: { user?: RequestUser }) {
-    return this.filesService.removeAuthorized(key, request.user);
+  remove(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.filesService.removeAuthorized(query.key, request.user);
   }
 }
