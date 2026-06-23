@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened report overview count accuracy:
+  - Overview counts for total orders, unpaid revenue orders, unpaid cost orders, and settled orders now use scoped database counts instead of the capped display row set.
+  - Strengthened report query validation coverage so overview counts cannot regress to `orders.length` or bounded-row filters.
+
 - Hardened order report summary accuracy:
   - Business summary and employee performance report totals now use scoped database order aggregates instead of summing the capped display row set.
   - Strengthened report query validation coverage so these summaries cannot regress to `summary(orders)` from bounded report rows.

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 report overview count accuracy hardening:
+  - Report overview total order, unpaid revenue order, unpaid cost order, and settled order counts now use scoped database count queries instead of counting the bounded 1000-row display list.
+  - Report query validation contract now guards overview counts against regressing to `orders.length` or bounded-row filters.
+
 - Phase 3 order report summary accuracy/payload hardening:
   - Business summary and employee performance report summaries now use scoped database order aggregates instead of summing the bounded 1000-row display list.
   - Report query validation contract now guards these summary paths against regressing to `summary(orders)` from capped order rows.

@@ -35,6 +35,16 @@ async function assertBadRequest(action, label) {
 async function main() {
   const reportsClient = fs.readFileSync('/workspace/apps/web/app/reports/ReportsClient.tsx', 'utf8');
   const reportsServiceSource = fs.readFileSync('/workspace/apps/api/src/modules/reports/reports.service.ts', 'utf8');
+  {
+    const start = reportsServiceSource.indexOf('async overview(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes('orderOverviewCountsFromDb(query, user)'), 'overview counts must use database count helper');
+    assert(!block.includes('totalOrders: orders.length'), 'overview totalOrders must not depend on bounded order rows');
+    assert(!block.includes('orders.filter((order) => Number(order.remainingRevenue) > 0).length'), 'overview unpaidOrders must not depend on bounded order rows');
+    assert(!block.includes('orders.filter((order) => Number(order.remainingCost) > 0).length'), 'overview unpaidCostOrders must not depend on bounded order rows');
+    assert(!block.includes('orders.filter((order) => order.settledAt).length'), 'overview settledOrders must not depend on bounded order rows');
+  }
   for (const method of ['businessSummary', 'employeePerformance']) {
     const start = reportsServiceSource.indexOf('async ' + method + '(');
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
@@ -47,6 +57,14 @@ async function main() {
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
     assert(block.includes('aggregate({'), 'orderSummaryFromDb must aggregate order totals in the database');
     assert(block.includes('_sum:'), 'orderSummaryFromDb must sum financial fields in the database');
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async orderOverviewCountsFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
+    assert(block.includes('count({'), 'orderOverviewCountsFromDb must count overview metrics in the database');
+    assert(block.includes('remainingRevenue: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid revenue in the database');
+    assert(block.includes('remainingCost: { gt: 0 }'), 'orderOverviewCountsFromDb must count unpaid costs in the database');
+    assert(block.includes('settledAt: { not: null }'), 'orderOverviewCountsFromDb must count settled orders in the database');
   }
   assert(reportsClient.includes('financeFilterKeys'), 'reports browser must filter hybrid finance query keys');
   assert(reportsClient.includes('financeDateFields'), 'reports browser must expose finance date fields');

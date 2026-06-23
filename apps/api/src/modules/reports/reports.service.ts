@@ -99,17 +99,17 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(query: ReportQuery, user?: RequestUser) {
-    const orders = await this.orders(query, user);
-    const summary = this.summary(orders);
-    const supplierDebt = await this.supplierDebt(query, user);
+    const [orders, summary, counts, supplierDebt] = await Promise.all([
+      this.orders(query, user),
+      this.orderSummaryFromDb(query, user),
+      this.orderOverviewCountsFromDb(query, user),
+      this.supplierDebt(query, user),
+    ]);
     return {
       ...summary,
-      totalOrders: orders.length,
+      ...counts,
       totalCustomers: this.uniqueCount(orders.map((order) => order.customerPhone || order.customerEmail || order.customerName || order.id)),
       supplierDebtCount: supplierDebt.rows.length,
-      unpaidOrders: orders.filter((order) => Number(order.remainingRevenue) > 0).length,
-      unpaidCostOrders: orders.filter((order) => Number(order.remainingCost) > 0).length,
-      settledOrders: orders.filter((order) => order.settledAt).length,
       byType: this.groupOrders(orders, 'by-type').rows,
       byMonth: this.groupOrders(orders, 'by-created-date', 'month').rows,
     };
@@ -305,6 +305,23 @@ export class ReportsService {
       commission: Number(total._sum.commission ?? 0),
       commissionRevenue: totalRevenue,
       marginRate: totalRevenue ? (profit / totalRevenue) * 100 : 0,
+    };
+  }
+
+  private async orderOverviewCountsFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const where = branchDepartmentScopeWhere(this.orderWhere(query), user);
+    const [totalOrders, unpaidOrders, unpaidCostOrders, settledOrders] = await Promise.all([
+      this.prisma.order.count({ where }),
+      this.prisma.order.count({ where: { AND: [where, { remainingRevenue: { gt: 0 } }] } }),
+      this.prisma.order.count({ where: { AND: [where, { remainingCost: { gt: 0 } }] } }),
+      this.prisma.order.count({ where: { AND: [where, { settledAt: { not: null } }] } }),
+    ]);
+    return {
+      totalOrders,
+      unpaidOrders,
+      unpaidCostOrders,
+      settledOrders,
     };
   }
 
