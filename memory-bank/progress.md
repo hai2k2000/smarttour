@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Finance controller DTO contracts for Phase 4:
+  - Added `apps/api/src/modules/finance/dto/finance-body.dto.ts` and `scripts/test-finance-dto-contract.js`.
+  - Replaced Finance controller `Record<string, unknown>` request bodies for receipt/payment/invoice writes, imports, workflow actions, and debt adjustments.
+  - Preserved existing FinanceService parsing and business validation for amount allocation, linked tours/orders, final-state locks, imports, cashflow, and ledger side effects.
+  - Verified with Finance DTO/controller/helper contracts, Finance service flows, action endpoint status contract, and the API build.
+
 - Hardened Operations controller DTO contracts for Phase 4:
   - Added `apps/api/src/modules/operations/dto/operation-body.dto.ts` and `scripts/test-operations-dto-contract.js`.
   - Replaced Operations controller `Record<string, unknown>` request bodies with explicit DTO classes while keeping existing service-level validation for nested rows.

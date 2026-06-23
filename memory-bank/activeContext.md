@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Finance DTO hardening:
+  - Added explicit Finance body DTO classes for receipt/payment/invoice create-update, CSV import payloads, approve/reject/cancel action payloads, and customer/supplier debt adjustments.
+  - Finance controller no longer exposes `Record<string, unknown>` request bodies; flexible amount/date/nested row parsing remains in FinanceService so existing frontend/import workflows keep their current formats.
+  - Added a source contract guarding DTO usage plus receipt/payment/invoice/payment-method/debt-direction enum whitelists.
+  - Verification covered the new Finance DTO contract, Finance controller permission contract, Finance helper contracts, Finance service flow script, action endpoint status contract, and the API build.
+
 - Phase 4 Operations DTO hardening:
   - Added explicit Operations body DTO classes for operation form create/update/status/cancel, supplier payment request create/update/actions, and create-finance-payment actions.
   - Operations controller no longer exposes `Record<string, unknown>` request bodies; nested service/task/cost/payment-item arrays remain passed through to the existing OperationsService validators.

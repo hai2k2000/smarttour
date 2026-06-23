@@ -12,6 +12,15 @@ import { FinanceImportSizeExceptionFilter } from './finance-import-size-exceptio
 import { FinanceLedgerService } from './finance-ledger.service';
 import { FinancePaymentService } from './finance-payment.service';
 import { FinanceReceiptService } from './finance-receipt.service';
+import {
+  FinanceDebtAdjustmentDto,
+  FinanceDocumentActionDto,
+  FinanceInvoiceBodyDto,
+  FinancePaymentBodyDto,
+  FinancePaymentImportDto,
+  FinanceReceiptBodyDto,
+  FinanceReceiptImportDto,
+} from './dto/finance-body.dto';
 
 @ApiTags('finance')
 @Controller('finance')
@@ -32,7 +41,7 @@ export class FinanceController {
 
   @Post('receipts')
   @RequirePermissions('finance.receipt.create')
-  createReceipt(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  createReceipt(@Body() dto: FinanceReceiptBodyDto, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.create(dto, request.user);
   }
 
@@ -50,7 +59,7 @@ export class FinanceController {
   @UseFilters(FinanceImportSizeExceptionFilter)
   @UseInterceptors(FileInterceptor('file', financeImportInterceptorOptions()))
   importReceipts(
-    @Body() dto: Record<string, unknown>,
+    @Body() dto: FinanceReceiptImportDto,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
@@ -85,7 +94,7 @@ export class FinanceController {
 
   @Put('receipts/:id')
   @RequirePermissions('finance.receipt.update')
-  updateReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  updateReceipt(@Param('id') id: string, @Body() dto: FinanceReceiptBodyDto, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.update(id, dto, request.user);
   }
 
@@ -98,21 +107,21 @@ export class FinanceController {
   @Post('receipts/:id/approve')
   @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
-  approveReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  approveReceipt(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.approve(id, dto, request.user);
   }
 
   @Post('receipts/:id/reject')
   @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
-  rejectReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  rejectReceipt(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.reject(id, dto, request.user);
   }
 
   @Post('receipts/:id/cancel')
   @HttpCode(200)
   @RequirePermissions('finance.receipt.approve')
-  cancelReceipt(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  cancelReceipt(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.receiptsService.cancel(id, dto, request.user);
   }
 
@@ -124,7 +133,7 @@ export class FinanceController {
 
   @Post('payments')
   @RequirePermissions('finance.payment.create')
-  createPayment(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  createPayment(@Body() dto: FinancePaymentBodyDto, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.create(dto, request.user);
   }
 
@@ -142,7 +151,7 @@ export class FinanceController {
   @UseFilters(FinanceImportSizeExceptionFilter)
   @UseInterceptors(FileInterceptor('file', financeImportInterceptorOptions()))
   importPayments(
-    @Body() dto: Record<string, unknown>,
+    @Body() dto: FinancePaymentImportDto,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
@@ -177,7 +186,7 @@ export class FinanceController {
 
   @Put('payments/:id')
   @RequirePermissions('finance.payment.update')
-  updatePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  updatePayment(@Param('id') id: string, @Body() dto: FinancePaymentBodyDto, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.update(id, dto, request.user);
   }
 
@@ -190,21 +199,21 @@ export class FinanceController {
   @Post('payments/:id/approve')
   @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
-  approvePayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  approvePayment(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.approve(id, dto, request.user);
   }
 
   @Post('payments/:id/reject')
   @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
-  rejectPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  rejectPayment(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.reject(id, dto, request.user);
   }
 
   @Post('payments/:id/cancel')
   @HttpCode(200)
   @RequirePermissions('finance.payment.approve')
-  cancelPayment(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  cancelPayment(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.paymentsService.cancel(id, dto, request.user);
   }
 
@@ -216,7 +225,7 @@ export class FinanceController {
 
   @Post('invoices')
   @RequirePermissions('finance.invoice.create')
-  createInvoice(@Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  createInvoice(@Body() dto: FinanceInvoiceBodyDto, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.create(dto, request.user);
   }
 
@@ -256,7 +265,7 @@ export class FinanceController {
 
   @Put('invoices/:id')
   @RequirePermissions('finance.invoice.update')
-  updateInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  updateInvoice(@Param('id') id: string, @Body() dto: FinanceInvoiceBodyDto, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.update(id, dto, request.user);
   }
 
@@ -269,21 +278,21 @@ export class FinanceController {
   @Post('invoices/:id/approve')
   @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
-  approveInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  approveInvoice(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.approve(id, dto, request.user);
   }
 
   @Post('invoices/:id/reject')
   @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
-  rejectInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  rejectInvoice(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.reject(id, dto, request.user);
   }
 
   @Post('invoices/:id/cancel')
   @HttpCode(200)
   @RequirePermissions('finance.invoice.approve')
-  cancelInvoice(@Param('id') id: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  cancelInvoice(@Param('id') id: string, @Body() dto: FinanceDocumentActionDto, @Req() request: { user?: RequestUser }) {
     return this.invoicesService.cancel(id, dto, request.user);
   }
 
@@ -295,7 +304,7 @@ export class FinanceController {
 
   @Post('debt/customers/:customerId/adjustments')
   @RequirePermissions('finance.debt.adjust')
-  createCustomerDebtAdjustment(@Param('customerId') customerId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  createCustomerDebtAdjustment(@Param('customerId') customerId: string, @Body() dto: FinanceDebtAdjustmentDto, @Req() request: { user?: RequestUser }) {
     return this.ledgerService.createCustomerAdjustment(customerId, dto, request.user);
   }
 
@@ -307,7 +316,7 @@ export class FinanceController {
 
   @Post('debt/suppliers/:supplierId/adjustments')
   @RequirePermissions('finance.debt.adjust')
-  createSupplierDebtAdjustment(@Param('supplierId') supplierId: string, @Body() dto: Record<string, unknown>, @Req() request: { user?: RequestUser }) {
+  createSupplierDebtAdjustment(@Param('supplierId') supplierId: string, @Body() dto: FinanceDebtAdjustmentDto, @Req() request: { user?: RequestUser }) {
     return this.ledgerService.createSupplierAdjustment(supplierId, dto, request.user);
   }
 
