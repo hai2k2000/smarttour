@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 Operations DTO hardening:
+  - Added explicit Operations body DTO classes for operation form create/update/status/cancel, supplier payment request create/update/actions, and create-finance-payment actions.
+  - Operations controller no longer exposes `Record<string, unknown>` request bodies; nested service/task/cost/payment-item arrays remain passed through to the existing OperationsService validators.
+  - Added a source contract guarding DTO usage, status/payment-method enum whitelists, scalar string limits, and nested array pass-through.
+  - Verification covered the new Operations DTO contract, action endpoint status contract, Operations controller contract, Operations service flow script, and the API build.
+
 - Phase 4 Auth DTO hardening:
   - Added explicit Auth controller DTO classes for bootstrap, login, change-password, user management, and role management request bodies.
   - Auth controller no longer exposes high-risk `Record<string, unknown>` body signatures while AuthService keeps its existing normalization, audit, scope, and password-policy behavior.

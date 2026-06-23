@@ -3,6 +3,16 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { ListOperationFormsQueryDto, ListSupplierPaymentRequestsQueryDto } from './dto/list-operations-query.dto';
+import {
+  CancelOperationFormDto,
+  CreateFinancePaymentForRequestDto,
+  CreateOperationFormDto,
+  CreateSupplierPaymentRequestDto,
+  OperationFormStatusDto,
+  SupplierPaymentRequestActionDto,
+  UpdateOperationFormDto,
+  UpdateSupplierPaymentRequestDto,
+} from './dto/operation-body.dto';
 import { OperationsService } from './operations.service';
 
 @ApiTags('operations')
@@ -30,7 +40,7 @@ export class OperationsController {
 
   @Post('forms')
   @RequirePermissions('operation.form.manage')
-  createForm(@Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  createForm(@Body() dto: CreateOperationFormDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.createForm(dto, request?.user);
   }
 
@@ -42,14 +52,14 @@ export class OperationsController {
 
   @Put('forms/:id')
   @RequirePermissions('operation.form.manage')
-  updateForm(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  updateForm(@Param('id') id: string, @Body() dto: UpdateOperationFormDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.updateForm(id, dto, request?.user);
   }
 
   @Post('forms/:id/status')
   @HttpCode(200)
   @RequirePermissions('operation.form.manage')
-  updateFormStatus(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  updateFormStatus(@Param('id') id: string, @Body() dto: OperationFormStatusDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.changeFormStatus(id, dto?.status, dto, request?.user);
   }
 
@@ -57,7 +67,7 @@ export class OperationsController {
   @HttpCode(200)
   @RequirePermissions('operation.form.manage')
   @ApiOperation({ summary: 'Legacy alias for POST /operations/forms/{id}/cancel', deprecated: true })
-  cancelFormLegacy(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  cancelFormLegacy(@Param('id') id: string, @Body() dto: CancelOperationFormDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.cancelForm(id, dto, request?.user);
   }
 
@@ -65,7 +75,7 @@ export class OperationsController {
   @HttpCode(200)
   @RequirePermissions('operation.form.manage')
   @ApiOperation({ summary: 'H\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh. \u0110\u00e2y l\u00e0 route ch\u00ednh th\u1ee9c; DELETE /operations/forms/{id} ch\u1ec9 gi\u1eef \u0111\u1ec3 t\u01b0\u01a1ng th\u00edch.' })
-  cancelForm(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  cancelForm(@Param('id') id: string, @Body() dto: CancelOperationFormDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.cancelForm(id, dto, request?.user);
   }
 
@@ -77,7 +87,7 @@ export class OperationsController {
 
   @Post('supplier-payment-requests')
   @RequirePermissions('operation.payment-request.create')
-  createPaymentRequest(@Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  createPaymentRequest(@Body() dto: CreateSupplierPaymentRequestDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.createPaymentRequest(dto, request?.user);
   }
 
@@ -89,7 +99,7 @@ export class OperationsController {
 
   @Put('supplier-payment-requests/:id')
   @RequirePermissions('operation.payment-request.create')
-  updatePaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  updatePaymentRequest(@Param('id') id: string, @Body() dto: UpdateSupplierPaymentRequestDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.updatePaymentRequest(id, dto, request?.user);
   }
 
@@ -102,28 +112,28 @@ export class OperationsController {
   @Post('supplier-payment-requests/:id/submit')
   @HttpCode(200)
   @RequirePermissions('operation.payment-request.create')
-  submitPaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  submitPaymentRequest(@Param('id') id: string, @Body() dto: SupplierPaymentRequestActionDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.submitPaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/approve')
   @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve')
-  approvePaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  approvePaymentRequest(@Param('id') id: string, @Body() dto: SupplierPaymentRequestActionDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.approvePaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/reject')
   @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve')
-  rejectPaymentRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  rejectPaymentRequest(@Param('id') id: string, @Body() dto: SupplierPaymentRequestActionDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.rejectPaymentRequest(id, dto, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/create-finance-payment')
   @HttpCode(200)
   @RequirePermissions('operation.payment-request.approve', 'finance.payment.create')
-  createFinancePaymentForRequest(@Param('id') id: string, @Body() dto?: Record<string, unknown>, @Req() request?: { user?: RequestUser }) {
+  createFinancePaymentForRequest(@Param('id') id: string, @Body() dto: CreateFinancePaymentForRequestDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.createFinancePaymentForRequest(id, dto, request?.user);
   }
 }

@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Operations controller DTO contracts for Phase 4:
+  - Added `apps/api/src/modules/operations/dto/operation-body.dto.ts` and `scripts/test-operations-dto-contract.js`.
+  - Replaced Operations controller `Record<string, unknown>` request bodies with explicit DTO classes while keeping existing service-level validation for nested rows.
+  - Covered operation form, supplier payment request, payment request action, and finance-payment action bodies.
+  - Verified with Operations DTO/controller/status contracts, Operations service flows, and the API build.
+
 - Hardened Auth controller DTO contracts for Phase 4:
   - Added `apps/api/src/modules/auth/dto/auth.dto.ts` and `scripts/test-auth-dto-contract.js`.
   - Replaced Auth controller `Record<string, unknown>` request bodies with explicit DTO classes for login/bootstrap/session password change and user/role management.
