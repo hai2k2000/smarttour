@@ -51,4 +51,6 @@ first and deploy `main`.
 The server-side deploy script aborts when tracked, staged, or untracked files
 exist in the VPS worktree. Do not set `ALLOW_DIRTY=true` in GitHub Actions.
 Emergency dirty deploys must be run explicitly on the VPS with an operator
-present.
+present. When `ALLOW_DIRTY=true` is used on the VPS, set
+`DEPLOY_DIRTY_REASON` with the incident/change reason; the deploy script aborts
+without it and logs the reason when the override is accepted.

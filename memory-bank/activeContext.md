@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production deploy dirty override reason hardening:
+  - Hardened `scripts/deploy-production.sh` so `ALLOW_DIRTY=true` now requires `DEPLOY_DIRTY_REASON` and logs `DEPLOY_DIRTY_OVERRIDE reason=...` before continuing.
+  - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to guard/document the emergency override reason.
+
 - Production deploy clean worktree hardening:
   - Hardened `scripts/deploy-production.sh` so production deploy aborts on untracked files in addition to tracked and staged changes, unless `ALLOW_DIRTY=true` is set explicitly on the server.
   - Extended `scripts/test-github-actions-contract.js` and `docs/github-actions-runbook.md` so the untracked-file guard remains documented and guarded.

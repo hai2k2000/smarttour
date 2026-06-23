@@ -7,6 +7,7 @@ SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 API_URL="${API_URL:-https://aitour.io.vn/api}"
 RUN_GIT_PULL="${RUN_GIT_PULL:-true}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
+DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
 
 cd "$REPO_DIR"
 
@@ -24,6 +25,14 @@ validate_branch_name() {
 }
 
 validate_branch_name "$BRANCH"
+
+if [[ "$ALLOW_DIRTY" == "true" ]]; then
+  if [[ -z "$DEPLOY_DIRTY_REASON" ]]; then
+    echo "DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON"
+    exit 1
+  fi
+  echo "DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON"
+fi
 
 if [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --quiet; then
   echo "DEPLOY_ABORT dirty worktree. Commit/push changes first, or set ALLOW_DIRTY=true for an emergency deploy."

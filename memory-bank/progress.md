@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production deploy dirty override accountability:
+  - Required `DEPLOY_DIRTY_REASON` whenever `ALLOW_DIRTY=true` is used on the server.
+  - Logged the dirty deploy reason before continuing so emergency deploys leave operator intent in command output.
+  - Extended deploy contracts and docs to keep this override guard from regressing.
+
 - Hardened production deploy clean-worktree checks:
   - Added an untracked-file guard to `scripts/deploy-production.sh` so production deploy requires a fully clean VPS worktree by default.
   - Extended the GitHub Actions deploy contract and runbook to guard/document the untracked-file abort behavior.

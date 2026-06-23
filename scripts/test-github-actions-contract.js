@@ -96,6 +96,9 @@ includes(deployScript, 'validate_branch_name "$BRANCH"', 'Server-side deploy mus
 includes(deployScript, 'git ls-files --others --exclude-standard', 'Server-side production deploy must detect untracked files.');
 includes(deployScript, 'DEPLOY_ABORT untracked files exist', 'Server-side production deploy must abort when untracked files exist.');
 includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side production deploy must print untracked files before aborting.');
+includes(deployScript, 'DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"', 'Server-side deploy must define DEPLOY_DIRTY_REASON.');
+includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 'Server-side deploy must require a reason for dirty deploy override.');
+includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
 
 
 const runbookText = read(runbook);
@@ -119,6 +122,7 @@ for (const text of [
   'with `https://`',
   'untracked files',
   'ALLOW_DIRTY=true',
+  'DEPLOY_DIRTY_REASON',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

@@ -100,6 +100,7 @@ Completed implementation: GitHub Actions now has PR/push CI for lockfile install
 Completed implementation: production deploy SSH setup now uses bounded `ssh-keyscan` and non-interactive SSH with connect/server-alive timeouts.
 Completed implementation: production deploy validates manual dispatch inputs and server-side branch names before SSH/git deploy commands run.
 Completed implementation: production deploy aborts on tracked, staged, or untracked VPS worktree changes unless an operator explicitly uses `ALLOW_DIRTY=true` on the server.
+Completed implementation: emergency dirty deploy override requires `DEPLOY_DIRTY_REASON` and logs the reason before continuing.
 
 Manual owner task: configure the GitHub `production` environment approval gate and required secrets documented in `docs/github-actions-runbook.md`.
 
