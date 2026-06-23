@@ -177,8 +177,11 @@ function collectValidationMessages(errors: ValidationError[], parent = ''): stri
 
 export function validationExceptionFactory(errors: ValidationError[]) {
   const messages = collectValidationMessages(errors);
+  const responseMessages = messages.length ? messages : ['Dữ liệu không hợp lệ'];
   return new BadRequestException({
     statusCode: 400,
+    messages: responseMessages,
+    code: 'VALIDATION_ERROR',
     message: messages.length ? messages : ['Dữ liệu không hợp lệ'],
     error: 'Dữ liệu không hợp lệ',
   });

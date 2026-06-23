@@ -2,6 +2,12 @@
 
 ## Done
 
+- Standardized API error response shape for Phase 4:
+  - Added `apps/api/src/http-error-response.filter.ts` and registered it globally in `main.ts`.
+  - Extended `validation-exception.factory.ts` with `messages` and `code: VALIDATION_ERROR` while preserving the existing `message` field.
+  - Added `scripts/test-error-response-contract.js` to guard the response shape and no-secret/no-body-logging behavior.
+  - Verified with the error response contract and Docker API build.
+
 - Hardened Customers controller DTO contracts for Phase 4:
   - Added `apps/api/src/modules/customers/dto/customer-body.dto.ts` and `scripts/test-customers-dto-contract.js`.
   - Replaced Customers controller `Record<string, unknown>` request bodies across config, bulk, import, customer profile, merge/owner, comment, care, call, and opportunity endpoints.

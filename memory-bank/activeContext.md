@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 error response standardization:
+  - Added a global `HttpErrorResponseFilter` so API `HttpException` responses include stable `statusCode`, `message`, `messages`, `error`, `code`, `path`, `method`, and `timestamp` fields.
+  - Validation exceptions now include `messages` and `code: VALIDATION_ERROR` while preserving the existing `message` payload for compatibility.
+  - The filter does not log request bodies or sensitive fields, and keeps runtime response shaping separate from business services.
+  - Verification covered the new error response source contract and Docker API build.
+
 - Phase 4 Customers DTO hardening:
   - Added explicit Customers body DTO classes for type/tag/campaign config writes, bulk tag/update, import rows, customer create/update, merge/transfer-owner, comments, care tasks, call logs, and opportunities.
   - Customers controller no longer exposes `Record<string, unknown>` request bodies; nested customer contacts/tasks/comments/calls/opportunities/import rows remain passed through to existing CustomersService validators.

@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertSecureRuntimeConfig, configuredCorsOrigins, smartTourEnvironment } from './config/runtime-env';
+import { HttpErrorResponseFilter } from './http-error-response.filter';
 import { validationExceptionFactory } from './validation-exception.factory';
 
 async function bootstrap() {
@@ -15,6 +16,7 @@ async function bootstrap() {
     credentials: true,
     origin: corsOrigins.length ? corsOrigins : smartTourEnvironment() === 'development',
   });
+  app.useGlobalFilters(new HttpErrorResponseFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
 
   const config = new DocumentBuilder()
