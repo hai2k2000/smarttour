@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 order report summary accuracy/payload hardening:
+  - Business summary and employee performance report summaries now use scoped database order aggregates instead of summing the bounded 1000-row display list.
+  - Report query validation contract now guards these summary paths against regressing to `summary(orders)` from capped order rows.
+
 - Phase 3 commission report summary/grouping payload hardening:
   - Commission report list, summary, and grouping now calculate summary totals and grouping buckets with scoped database aggregate/groupBy queries instead of loading every matching commission entry into Node.
   - Commission report security contract now guards against `summaryRows`, full-row summary/grouping regressions, and helper regressions away from database aggregate/groupBy behavior.

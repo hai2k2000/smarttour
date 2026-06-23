@@ -116,9 +116,12 @@ export class ReportsService {
   }
 
   async businessSummary(query: ReportQuery, user?: RequestUser) {
-    const orders = await this.orders(query, user);
+    const [orders, summary] = await Promise.all([
+      this.orders(query, user),
+      this.orderSummaryFromDb(query, user),
+    ]);
     return {
-      summary: this.summary(orders),
+      summary,
       revenueByType: this.groupOrders(orders, 'by-type').rows,
       revenueByBranch: this.groupOrders(orders, 'by-branch').rows,
       profitByEmployee: this.groupOrders(orders, 'by-employee').rows,
@@ -240,7 +243,10 @@ export class ReportsService {
   }
 
   async employeePerformance(query: ReportQuery, user?: RequestUser) {
-    const orders = await this.orders(query, user);
+    const [orders, summary] = await Promise.all([
+      this.orders(query, user),
+      this.orderSummaryFromDb(query, user),
+    ]);
     const rows = this.groupOrders(orders, 'by-employee').rows.map((row) => ({
       ...row,
       averageOrderValue: row.orderCount ? row.revenue / row.orderCount : 0,
@@ -248,7 +254,7 @@ export class ReportsService {
       commission: row.commission,
       paidRatio: row.revenue ? (row.paidAmount / row.revenue) * 100 : 0,
     }));
-    return { summary: this.summary(orders), rows };
+    return { summary, rows };
   }
 
   async exportCsv(report: string, query: ReportQuery, user?: RequestUser) {
@@ -269,6 +275,37 @@ export class ReportsService {
       orderBy: [{ createdAt: 'desc' }, { systemCode: 'asc' }],
       take: 1000,
     });
+  }
+
+  private async orderSummaryFromDb(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    const total = await this.prisma.order.aggregate({
+      where: branchDepartmentScopeWhere(this.orderWhere(query), user),
+      _sum: {
+        totalRevenue: true,
+        paidAmount: true,
+        remainingRevenue: true,
+        totalCost: true,
+        paidCost: true,
+        remainingCost: true,
+        profit: true,
+        commission: true,
+      },
+    });
+    const totalRevenue = Number(total._sum.totalRevenue ?? 0);
+    const profit = Number(total._sum.profit ?? 0);
+    return {
+      totalRevenue,
+      paidAmount: Number(total._sum.paidAmount ?? 0),
+      remainingRevenue: Number(total._sum.remainingRevenue ?? 0),
+      totalCost: Number(total._sum.totalCost ?? 0),
+      paidCost: Number(total._sum.paidCost ?? 0),
+      remainingCost: Number(total._sum.remainingCost ?? 0),
+      profit,
+      commission: Number(total._sum.commission ?? 0),
+      commissionRevenue: totalRevenue,
+      marginRate: totalRevenue ? (profit / totalRevenue) * 100 : 0,
+    };
   }
 
   private async tours(query: ReportQuery, user?: RequestUser) {

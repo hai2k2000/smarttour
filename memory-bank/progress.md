@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened order report summary accuracy:
+  - Business summary and employee performance report totals now use scoped database order aggregates instead of summing the capped display row set.
+  - Strengthened report query validation coverage so these summaries cannot regress to `summary(orders)` from bounded report rows.
+
 - Hardened commission report summary/grouping payloads:
   - Replaced commission report list/summary/grouping full-row loads with scoped database `aggregate` and `groupBy` helpers.
   - Strengthened commission report contracts so summary and grouping cannot regress to loading all matching commission entries into the API process.

@@ -34,6 +34,20 @@ async function assertBadRequest(action, label) {
 
 async function main() {
   const reportsClient = fs.readFileSync('/workspace/apps/web/app/reports/ReportsClient.tsx', 'utf8');
+  const reportsServiceSource = fs.readFileSync('/workspace/apps/api/src/modules/reports/reports.service.ts', 'utf8');
+  for (const method of ['businessSummary', 'employeePerformance']) {
+    const start = reportsServiceSource.indexOf('async ' + method + '(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes('orderSummaryFromDb(query, user)'), `${method} summary must use database aggregate helper`);
+    assert(!block.includes('summary(orders)'), `${method} summary must not depend on bounded order rows`);
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async orderSummaryFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 1400);
+    assert(block.includes('aggregate({'), 'orderSummaryFromDb must aggregate order totals in the database');
+    assert(block.includes('_sum:'), 'orderSummaryFromDb must sum financial fields in the database');
+  }
   assert(reportsClient.includes('financeFilterKeys'), 'reports browser must filter hybrid finance query keys');
   assert(reportsClient.includes('financeDateFields'), 'reports browser must expose finance date fields');
   assert(reportsClient.includes('customerDebtFilterKeys'), 'reports browser must filter customer debt query keys');
