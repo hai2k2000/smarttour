@@ -78,6 +78,21 @@ for (const helper of ['receiptSummaryFromDb', 'paymentSummaryFromDb', 'invoiceSu
   const block = start === -1 ? '' : service.slice(start, start + 1200);
   if (!block.includes('.count({') || !block.includes('.aggregate({')) failures.push(helper + ' must use database count and aggregate');
 }
+for (const [method, summaryHelper, oldSummary] of [
+  ['customerDebt', 'customerLedgerSummaryFromDb', 'ledgerSummary(summaryEntries)'],
+  ['supplierDebt', 'supplierLedgerSummaryFromDb', 'supplierLedgerSummary(summaryEntries)'],
+]) {
+  const start = service.indexOf('async ' + method + '(');
+  const next = service.indexOf('\n  async ', start + 1);
+  const block = start === -1 ? '' : service.slice(start, next === -1 ? service.length : next);
+  if (!block.includes(summaryHelper + '(where)')) failures.push(method + ' must use aggregate/count ledger summary helper: ' + summaryHelper);
+  if (block.includes(oldSummary)) failures.push(method + ' must not summarize debt from full ledger rows');
+}
+for (const helper of ['customerLedgerSummaryFromDb', 'supplierLedgerSummaryFromDb']) {
+  const start = service.indexOf('private async ' + helper + '(');
+  const block = start === -1 ? '' : service.slice(start, start + 1200);
+  if (!block.includes('.aggregate({') || !block.includes('_count: { _all: true }')) failures.push(helper + ' must use database aggregate and count');
+}
 {
   const start = service.indexOf('async cashflow(');
   const next = service.indexOf('\n  async ', start + 1);

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance debt summary payload hardening:
+  - Customer and supplier debt summaries now use scoped database aggregate/count helpers instead of reducing full ledger row sets in the API process.
+  - Finance helper contract now guards debt summaries against regressing to `ledgerSummary(summaryEntries)` or `supplierLedgerSummary(summaryEntries)`.
+
 - Phase 3 report overview count accuracy hardening:
   - Report overview total order, unpaid revenue order, unpaid cost order, and settled order counts now use scoped database count queries instead of counting the bounded 1000-row display list.
   - Report query validation contract now guards overview counts against regressing to `orders.length` or bounded-row filters.

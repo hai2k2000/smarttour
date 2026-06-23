@@ -555,11 +555,12 @@ export class FinanceService {
     }, user);
     const include = { customer: true, order: true, receipt: true, invoice: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
-    const [entries, summaryEntries] = await Promise.all([
+    const [entries, summaryEntries, summary] = await Promise.all([
       this.prisma.customerLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
       this.prisma.customerLedgerEntry.findMany({ where, include, orderBy }),
+      this.customerLedgerSummaryFromDb(where),
     ]);
-    return { rows: this.customerDebtRows(summaryEntries), entries, summary: this.ledgerSummary(summaryEntries) };
+    return { rows: this.customerDebtRows(summaryEntries), entries, summary };
   }
 
   async supplierDebt(query: Record<string, string>, user?: RequestUser) {
@@ -573,11 +574,12 @@ export class FinanceService {
     }, user);
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
-    const [entries, summaryEntries] = await Promise.all([
+    const [entries, summaryEntries, summary] = await Promise.all([
       this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
       this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy }),
+      this.supplierLedgerSummaryFromDb(where),
     ]);
-    return { rows: this.supplierDebtRows(summaryEntries), entries, summary: this.supplierLedgerSummary(summaryEntries) };
+    return { rows: this.supplierDebtRows(summaryEntries), entries, summary };
   }
 
   async createCustomerDebtAdjustment(customerId: string, dto: AnyRecord, user?: RequestUser) {
@@ -1228,16 +1230,26 @@ export class FinanceService {
     return `${prefix}-${year}${String(month).padStart(2, '0')}-${String(row.currentNo).padStart(row.padding, '0')}`;
   }
 
-  private ledgerSummary(rows: { debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal }[]) {
-    const debit = rows.reduce((sum, row) => sum + Number(row.debitAmount), 0);
-    const credit = rows.reduce((sum, row) => sum + Number(row.creditAmount), 0);
-    return { debit, credit, balance: debit - credit, count: rows.length };
+  private async customerLedgerSummaryFromDb(where: Prisma.CustomerLedgerEntryWhereInput) {
+    const total = await this.prisma.customerLedgerEntry.aggregate({
+      where,
+      _count: { _all: true },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const debit = Number(total._sum.debitAmount ?? 0);
+    const credit = Number(total._sum.creditAmount ?? 0);
+    return { debit, credit, balance: debit - credit, count: total._count._all };
   }
 
-  private supplierLedgerSummary(rows: { debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal }[]) {
-    const paid = rows.reduce((sum, row) => sum + Number(row.debitAmount), 0);
-    const payable = rows.reduce((sum, row) => sum + Number(row.creditAmount), 0);
-    return { debit: payable, credit: paid, balance: payable - paid, count: rows.length };
+  private async supplierLedgerSummaryFromDb(where: Prisma.SupplierLedgerEntryWhereInput) {
+    const total = await this.prisma.supplierLedgerEntry.aggregate({
+      where,
+      _count: { _all: true },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const paid = Number(total._sum.debitAmount ?? 0);
+    const payable = Number(total._sum.creditAmount ?? 0);
+    return { debit: payable, credit: paid, balance: payable - paid, count: total._count._all };
   }
 
   private customerDebtRows(entries: Array<{ customerId: string; customer: { fullName: string; phone: string; code: string }; debitAmount: Prisma.Decimal; creditAmount: Prisma.Decimal; dueDate: Date | null; documentDate: Date | null; createdAt: Date }>) {

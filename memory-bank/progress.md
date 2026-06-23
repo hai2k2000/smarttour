@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened finance debt summary payloads:
+  - Customer and supplier debt summary totals now use scoped database aggregate/count helpers instead of reducing full ledger row sets.
+  - Strengthened finance helper contracts so debt summaries cannot regress to full-row summary reductions.
+
 - Hardened report overview count accuracy:
   - Overview counts for total orders, unpaid revenue orders, unpaid cost orders, and settled orders now use scoped database counts instead of the capped display row set.
   - Strengthened report query validation coverage so overview counts cannot regress to `orders.length` or bounded-row filters.
