@@ -472,10 +472,14 @@ model QuoteCombo {
   status              QuoteComboStatus @default(DRAFT)
   items               QuoteComboItem[]
   createdBy           String?
+  branch              String?
+  department          String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
   @@index([status])
+  @@index([branch])
+  @@index([department])
 }
 
 model QuoteComboItem {

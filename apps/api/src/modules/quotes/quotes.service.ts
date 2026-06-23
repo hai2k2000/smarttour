@@ -153,34 +153,34 @@ export class QuotesService {
     return this.prisma.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' } });
   }
 
-  listComboQuotes(query: ListQuotesQueryDto = {}) {
+  listComboQuotes(query: ListQuotesQueryDto = {}, user?: RequestUser) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     return this.prisma.quoteCombo.findMany({
-      where: contains
+      where: this.quoteComboScopeWhere(contains
         ? {
             OR: [
               { comboCode: contains },
               { comboType: contains },
             ],
           }
-        : {},
+        : {}, user),
       include: { _count: { select: { items: true } } },
       take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { comboCode: 'asc' }],
     });
   }
 
-  async getComboQuote(id: string) {
-    const combo = await this.prisma.quoteCombo.findUnique({
-      where: { id },
+  async getComboQuote(id: string, user?: RequestUser) {
+    const combo = await this.prisma.quoteCombo.findFirst({
+      where: this.quoteComboScopeWhere({ id }, user),
       include: { items: { include: { supplier: true, supplierService: true }, orderBy: { sortOrder: 'asc' } } },
     });
     if (!combo) throw new NotFoundException('Không tìm thấy báo giá combo.');
     return combo;
   }
 
-  async createComboQuote(dto: CreateQuoteComboDto) {
+  async createComboQuote(dto: CreateQuoteComboDto, user?: RequestUser) {
     const input = await this.prepareComboDto(dto, true);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -188,6 +188,9 @@ export class QuotesService {
           data: {
             ...this.toComboData(input),
             ...this.calculateCombo(input),
+            createdBy: this.actor(user),
+            branch: user?.branch,
+            department: user?.department,
           } as Prisma.QuoteComboCreateInput,
         });
         await this.replaceComboItems(tx, combo.id, input);
@@ -201,13 +204,13 @@ export class QuotesService {
     }
   }
 
-  async updateComboQuote(id: string, dto: UpdateQuoteComboDto) {
-    const currentCombo = await this.getComboQuote(id);
+  async updateComboQuote(id: string, dto: UpdateQuoteComboDto, user?: RequestUser) {
+    const currentCombo = await this.getComboQuote(id, user);
     this.assertComboEditable(currentCombo.status);
     const input = await this.prepareComboDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const current = await tx.quoteCombo.findUniqueOrThrow({ where: { id }, include: { items: true } });
+        const current = await tx.quoteCombo.findFirstOrThrow({ where: this.quoteComboScopeWhere({ id }, user), include: { items: true } });
         this.assertComboEditable(current.status);
         const currentDto = this.toComboDto(current);
         const merged = {
@@ -233,28 +236,28 @@ export class QuotesService {
     }
   }
 
-  async deleteComboQuote(id: string) {
-    const combo = await this.getComboQuote(id);
+  async deleteComboQuote(id: string, user?: RequestUser) {
+    const combo = await this.getComboQuote(id, user);
     this.assertComboEditable(combo.status);
     return this.prisma.quoteCombo.delete({ where: { id } });
   }
 
-  async createQuoteFromCombo(id: string) {
-    const combo = await this.getComboQuote(id);
+  async createQuoteFromCombo(id: string, user?: RequestUser) {
+    const combo = await this.getComboQuote(id, user);
     if (combo.status === 'QUOTED') return combo;
     this.assertComboStatus(combo.status, ['DRAFT'], 'quote');
     return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'QUOTED' }, include: { items: true } });
   }
 
-  async createOrderFromCombo(id: string) {
-    const combo = await this.getComboQuote(id);
+  async createOrderFromCombo(id: string, user?: RequestUser) {
+    const combo = await this.getComboQuote(id, user);
     if (combo.status === 'ORDER_CREATED') return combo;
     this.assertComboStatus(combo.status, ['QUOTED'], 'create order');
     return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'ORDER_CREATED' }, include: { items: true } });
   }
 
-  async recalculateCombo(id: string) {
-    const combo = await this.getComboQuote(id);
+  async recalculateCombo(id: string, user?: RequestUser) {
+    const combo = await this.getComboQuote(id, user);
     this.assertComboEditable(combo.status);
     const dto = {
       comboCode: combo.comboCode,
@@ -526,6 +529,11 @@ export class QuotesService {
         { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
       ],
     };
+  }
+
+  private quoteComboScopeWhere(where: Prisma.QuoteComboWhereInput, user?: RequestUser): Prisma.QuoteComboWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return branchDepartmentScopeWhere(where, user);
   }
 
   private async scopedTourQuoteCustomerId(dto: Partial<CreateQuoteTourDto>, user?: RequestUser) {

@@ -65,52 +65,52 @@ export class QuotesController {
 
   @Get('combos')
   @RequirePermissions('quote.view')
-  listCombos(@Query() query: ListQuotesQueryDto) {
-    return this.quotesService.listComboQuotes(query);
+  listCombos(@Query() query: ListQuotesQueryDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.listComboQuotes(query, request?.user);
   }
 
   @Get('combos/:id')
   @RequirePermissions('quote.view')
-  comboDetail(@Param('id') id: string) {
-    return this.quotesService.getComboQuote(id);
+  comboDetail(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.getComboQuote(id, request?.user);
   }
 
   @Post('combos')
   @RequirePermissions('quote.manage')
-  createCombo(@Body() dto: CreateQuoteComboDto) {
-    return this.quotesService.createComboQuote(dto);
+  createCombo(@Body() dto: CreateQuoteComboDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.createComboQuote(dto, request?.user);
   }
 
   @Put('combos/:id')
   @RequirePermissions('quote.manage')
-  updateCombo(@Param('id') id: string, @Body() dto: UpdateQuoteComboDto) {
-    return this.quotesService.updateComboQuote(id, dto);
+  updateCombo(@Param('id') id: string, @Body() dto: UpdateQuoteComboDto, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.updateComboQuote(id, dto, request?.user);
   }
 
   @Delete('combos/:id')
   @RequirePermissions('quote.manage')
-  deleteCombo(@Param('id') id: string) {
-    return this.quotesService.deleteComboQuote(id);
+  deleteCombo(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.deleteComboQuote(id, request?.user);
   }
 
   @Post('combos/:id/create-quote')
   @HttpCode(200)
   @RequirePermissions('quote.manage')
-  createQuoteFromCombo(@Param('id') id: string) {
-    return this.quotesService.createQuoteFromCombo(id);
+  createQuoteFromCombo(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.createQuoteFromCombo(id, request?.user);
   }
 
   @Post('combos/:id/create-order')
   @HttpCode(200)
   @RequirePermissions('quote.manage')
-  createOrderFromCombo(@Param('id') id: string) {
-    return this.quotesService.createOrderFromCombo(id);
+  createOrderFromCombo(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.createOrderFromCombo(id, request?.user);
   }
 
   @Post('combos/:id/recalculate')
   @HttpCode(200)
   @RequirePermissions('quote.manage')
-  recalculateCombo(@Param('id') id: string) {
-    return this.quotesService.recalculateCombo(id);
+  recalculateCombo(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
+    return this.quotesService.recalculateCombo(id, request?.user);
   }
 }

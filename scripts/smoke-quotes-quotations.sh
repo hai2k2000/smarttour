@@ -385,15 +385,23 @@ function assertLoadableQuotation(row) {
   const admin = await adminToken();
   const viewRoleCode = `quote-view-${lowerRun}`;
   const noQuoteRoleCode = `quote-no-access-${lowerRun}`;
+  const scopedManageRoleCode = `quote-scoped-manage-${lowerRun}`;
   const viewEmail = `quote-view-${lowerRun}@smarttour.local`;
   const noPermEmail = `quote-noperm-${lowerRun}@smarttour.local`;
+  const scopedAEmail = `quote-scoped-a-${lowerRun}@smarttour.local`;
+  const scopedBEmail = `quote-scoped-b-${lowerRun}@smarttour.local`;
 
   await request(admin, 'POST', '/auth/roles', { code: viewRoleCode, name: 'Quote smoke view role', permissions: ['quote.view', 'quotation.view', 'data.scope.all'] });
   await request(admin, 'POST', '/auth/roles', { code: noQuoteRoleCode, name: 'Quote smoke no quote role', permissions: ['customer.view', 'data.scope.all'] });
+  await request(admin, 'POST', '/auth/roles', { code: scopedManageRoleCode, name: 'Quote smoke scoped manage role', permissions: ['quote.view', 'quote.manage', 'data.scope.branch', 'data.scope.department'] });
   await request(admin, 'POST', '/auth/users', { email: viewEmail, name: 'Quote Smoke View', password: rolePassword, branch: 'SMOKE-BR', department: 'SMOKE-DEP', roleCodes: [viewRoleCode] });
   await request(admin, 'POST', '/auth/users', { email: noPermEmail, name: 'Quote Smoke No Permission', password: rolePassword, branch: 'SMOKE-BR', department: 'SMOKE-DEP', roleCodes: [noQuoteRoleCode] });
+  await request(admin, 'POST', '/auth/users', { email: scopedAEmail, name: 'Quote Smoke Scoped A', password: rolePassword, branch: 'SMOKE-BR-A', department: 'SMOKE-DEP-A', roleCodes: [scopedManageRoleCode] });
+  await request(admin, 'POST', '/auth/users', { email: scopedBEmail, name: 'Quote Smoke Scoped B', password: rolePassword, branch: 'SMOKE-BR-B', department: 'SMOKE-DEP-B', roleCodes: [scopedManageRoleCode] });
   const view = await login(viewEmail, rolePassword);
   const noPerm = await login(noPermEmail, rolePassword);
+  const scopedA = await login(scopedAEmail, rolePassword);
+  const scopedB = await login(scopedBEmail, rolePassword);
 
   await request(null, 'GET', '/quotes/tours', undefined, [401]);
   await request(noPerm, 'GET', '/quotes/tours', undefined, [403]);
@@ -427,6 +435,24 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-MISSING`), comboCode: '' }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-NUM`), items: [{ serviceName: 'Bad combo', netPricePerService: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-ITEMS`), items: [] }, [400]);
+
+  const scopedCombo = await request(scopedA, 'POST', '/quotes/combos', comboPayload(`${run}-COMBO-SCOPED`));
+  assert(scopedCombo.branch === 'SMOKE-BR-A' && scopedCombo.department === 'SMOKE-DEP-A', 'scoped combo create did not persist creator branch/department');
+  const scopedComboDetail = await request(scopedA, 'GET', `/quotes/combos/${scopedCombo.id}`);
+  assertLoadableCombo(scopedComboDetail);
+  const scopedComboListA = await request(scopedA, 'GET', `/quotes/combos?search=${encodeURIComponent(`${run}-COMBO-SCOPED`)}`);
+  assert(includesJson(scopedComboListA, `${run}-COMBO-SCOPED`), 'scoped combo owner search did not return own combo');
+  const scopedUpdatedCombo = await request(scopedA, 'PUT', `/quotes/combos/${scopedCombo.id}`, { note: 'Scoped owner update' });
+  assert(scopedUpdatedCombo.note === 'Scoped owner update', 'scoped combo owner could not update own combo');
+  const scopedRecalculatedCombo = await request(scopedA, 'POST', `/quotes/combos/${scopedCombo.id}/recalculate`, {});
+  assertComboTotals(scopedRecalculatedCombo);
+  const scopedComboListB = await request(scopedB, 'GET', `/quotes/combos?search=${encodeURIComponent(`${run}-COMBO-SCOPED`)}`);
+  assert(!includesJson(scopedComboListB, `${run}-COMBO-SCOPED`), 'scoped combo search leaked combo across branch/department');
+  await request(scopedB, 'GET', `/quotes/combos/${scopedCombo.id}`, undefined, [404]);
+  await request(scopedB, 'PUT', `/quotes/combos/${scopedCombo.id}`, { note: 'Cross-scope update' }, [404]);
+  await request(scopedB, 'POST', `/quotes/combos/${scopedCombo.id}/recalculate`, {}, [404]);
+  await request(scopedB, 'POST', `/quotes/combos/${scopedCombo.id}/create-quote`, {}, [404]);
+  await request(scopedB, 'POST', `/quotes/combos/${scopedCombo.id}/create-order`, {}, [404]);
 
   const combo = await request(admin, 'POST', '/quotes/combos', comboPayload());
   assertComboTotals(combo);

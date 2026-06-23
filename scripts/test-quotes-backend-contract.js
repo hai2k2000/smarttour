@@ -41,8 +41,33 @@ includes(quoteListQueryDto, 'MAX_QUOTES_TAKE', 'Quotes list query DTO must cap t
 includes(quotesController, 'listTours(@Query() query: ListQuotesQueryDto', 'Quote tour list route must use the validated list query DTO.');
 includes(quotesController, 'this.quotesService.listTourQuotes(query, request?.user)', 'Quote tour controller must pass the full validated list query.');
 includes(quotesController, 'listCombos(@Query() query: ListQuotesQueryDto', 'Quote combo list route must use the validated list query DTO.');
-includes(quotesController, 'this.quotesService.listComboQuotes(query)', 'Quote combo controller must pass the full validated list query.');
+includes(quotesController, 'listCombos(@Query() query: ListQuotesQueryDto, @Req() request?: { user?: RequestUser })', 'Quote combo list route must receive request.user.');
+includes(quotesController, 'this.quotesService.listComboQuotes(query, request?.user)', 'Quote combo controller must pass request.user to list service.');
+includes(quotesController, 'comboDetail(@Param(\'id\') id: string, @Req() request?: { user?: RequestUser })', 'Quote combo detail route must receive request.user.');
+includes(quotesController, 'this.quotesService.getComboQuote(id, request?.user)', 'Quote combo detail controller must pass request.user.');
+includes(quotesController, 'createCombo(@Body() dto: CreateQuoteComboDto, @Req() request?: { user?: RequestUser })', 'Quote combo create route must receive request.user.');
+includes(quotesController, 'this.quotesService.createComboQuote(dto, request?.user)', 'Quote combo create controller must pass request.user.');
+includes(quotesController, 'updateCombo(@Param(\'id\') id: string, @Body() dto: UpdateQuoteComboDto, @Req() request?: { user?: RequestUser })', 'Quote combo update route must receive request.user.');
+includes(quotesController, 'this.quotesService.updateComboQuote(id, dto, request?.user)', 'Quote combo update controller must pass request.user.');
+includes(quotesController, 'deleteCombo(@Param(\'id\') id: string, @Req() request?: { user?: RequestUser })', 'Quote combo delete route must receive request.user.');
+includes(quotesController, 'this.quotesService.deleteComboQuote(id, request?.user)', 'Quote combo delete controller must pass request.user.');
+includes(quotesController, 'this.quotesService.createQuoteFromCombo(id, request?.user)', 'Quote combo create-quote controller must pass request.user.');
+includes(quotesController, 'this.quotesService.createOrderFromCombo(id, request?.user)', 'Quote combo create-order controller must pass request.user.');
+includes(quotesController, 'this.quotesService.recalculateCombo(id, request?.user)', 'Quote combo recalculate controller must pass request.user.');
 includes(quotesService, 'take: this.listTake(query.take)', 'Quotes list services must apply bounded take.');
+includes(quotesService, 'listComboQuotes(query: ListQuotesQueryDto = {}, user?: RequestUser)', 'Quote combo list service must accept request.user.');
+includes(quotesService, 'quoteComboScopeWhere(', 'Quote combo service must use data-scope helper.');
+includes(quotesService, 'branchDepartmentScopeWhere(where, user)', 'Quote combo scope helper must apply branch/department scope.');
+includes(quotesService, 'branch: user?.branch', 'Quote combo create must persist user branch.');
+includes(quotesService, 'department: user?.department', 'Quote combo create must persist user department.');
+const prismaSchema = read('prisma/schema.prisma');
+const quoteComboModelStart = prismaSchema.indexOf('model QuoteCombo {');
+const quoteComboItemStart = prismaSchema.indexOf('model QuoteComboItem {', quoteComboModelStart);
+const quoteComboModel = quoteComboModelStart === -1 || quoteComboItemStart === -1 ? '' : prismaSchema.slice(quoteComboModelStart, quoteComboItemStart);
+includes(quoteComboModel, 'branch              String?', 'QuoteCombo model must store branch for data scope.');
+includes(quoteComboModel, 'department          String?', 'QuoteCombo model must store department for data scope.');
+includes(quoteComboModel, '@@index([branch])', 'QuoteCombo model must index branch.');
+includes(quoteComboModel, '@@index([department])', 'QuoteCombo model must index department.');
 
 for (const permission of [
   "@RequirePermissions('quotation.view')",

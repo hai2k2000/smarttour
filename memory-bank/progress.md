@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Phase 4 QuoteCombo data scope:
+  - Added `branch` and `department` ownership fields plus indexes to `QuoteCombo`, with migration `20260623192000_quote_combo_data_scope`.
+  - Passed `request.user` through QuoteCombo controller routes and applied branch/department scope in list/detail/write/action service paths.
+  - Persisted creator branch/department on new combo quotes so scoped users can only access matching combo quote data.
+  - Extended quotes backend contract and quotations smoke coverage for scoped QuoteCombo isolation across list, detail, update, recalculate, create-quote, and create-order paths.
+
 - Hardened Phase 4 quotation workflow trust boundaries:
   - Removed direct `status`, direct `smartLinkEnabled`, and client-supplied `actor` from quotation create/update/action DTO contracts.
   - Forced quotation creation to `DRAFT` with SmartLink disabled and removed workflow-state writes from create/update `toData()`.

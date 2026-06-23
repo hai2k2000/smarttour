@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 QuoteCombo data-scope hardening:
+  - Added `branch` and `department` fields plus indexes to `QuoteCombo`, with migration `20260623192000_quote_combo_data_scope` backfilling from creator user metadata when possible.
+  - QuoteCombo controller routes now pass `request.user` into list/detail/write/action service calls.
+  - QuoteCombo list/detail/update/delete/recalculate/create-quote/create-order paths now apply branch/department scope for scoped users, while create persists the creator branch/department.
+  - Updated quotes backend contract and quotations smoke coverage so scoped users can manage their own combo quotes but cannot list/detail/update/action combo quotes from another branch/department.
+
 - Phase 4 quotation workflow trust hardening:
   - Removed client-writable quotation workflow fields from create/update/action DTO contracts: direct `status`, direct `smartLinkEnabled`, and client-supplied `actor`.
   - Quotation create now explicitly starts as `DRAFT` with SmartLink disabled, while update no longer writes workflow state through `toData()`.
