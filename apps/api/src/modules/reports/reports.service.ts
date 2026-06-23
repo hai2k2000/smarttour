@@ -157,11 +157,12 @@ export class ReportsService {
     this.assertFinanceQuery(query);
     const orders = await this.orders(this.financeOrderQuery(query), user);
     const orderIds = orders.map((order) => order.id);
-    const [receiptRows, paymentRows, cashflowRows, financeSummary, customerDebtReport, supplierDebtReport] = await Promise.all([
+    const [receiptRows, paymentRows, cashflowRows, financeSummary, cashflowByMonth, customerDebtReport, supplierDebtReport] = await Promise.all([
       this.financeReceiptRows(query, orderIds, user),
       this.financePaymentRows(query, orderIds, user),
       this.financeCashflowRows(query, orderIds, user),
       this.financeSummaryFromDb(query, orderIds, user),
+      this.financeCashflowByMonthFromDb(query, orderIds, user),
       this.customerDebt({ ...query, dateField: 'documentDate' }, user),
       this.supplierDebt({ ...query, dateField: 'documentDate' }, user),
     ]);
@@ -186,7 +187,7 @@ export class ReportsService {
       summary,
       rows: grouped.rows,
       byType: grouped.rows,
-      cashflowByMonth: this.cashflowByMonth(cashflowRows),
+      cashflowByMonth,
       orders: orders.slice(0, 300),
       orderRows,
       receiptRows: receiptRows.map((row) => this.receiptRows(row)),
@@ -530,6 +531,24 @@ export class ReportsService {
       .filter((row) => row.entryType === 'PAYMENT')
       .reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
     return { totalReceipt, totalPayment, netCashflow: totalReceipt - totalPayment, receiptCount, paymentCount };
+  }
+
+  private async financeCashflowByMonthFromDb(query: ReportQuery, orderIds: string[], user?: RequestUser) {
+    const groups = await this.prisma.financeCashflowEntry.groupBy({
+      by: ['paymentDate', 'entryType'],
+      where: this.financeCashflowWhere(query, orderIds, user),
+      _sum: { amount: true },
+    });
+    const months = new Map<string, { period: string; received: number; paid: number; netCashflow: number }>();
+    groups.forEach((row) => {
+      const period = row.paymentDate ? row.paymentDate.toISOString().slice(0, 7) : 'NO_DATE';
+      const current = months.get(period) || { period, received: 0, paid: 0, netCashflow: 0 };
+      if (row.entryType === 'RECEIPT') current.received += Number(row._sum.amount || 0);
+      if (row.entryType === 'PAYMENT') current.paid += Number(row._sum.amount || 0);
+      current.netCashflow = current.received - current.paid;
+      months.set(period, current);
+    });
+    return [...months.values()].sort((left, right) => right.period.localeCompare(left.period));
   }
 
   private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[], cashflowRows: FinanceCashflowReportRow[]) {

@@ -79,7 +79,9 @@ async function main() {
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
     const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
     assert(block.includes('financeSummaryFromDb(query, orderIds, user)'), 'finance report summary must use database summary helper');
+    assert(block.includes('financeCashflowByMonthFromDb(query, orderIds, user)'), 'finance report cashflowByMonth must use database grouped helper');
     assert(!block.includes('cashflowSummary(cashflowRows)'), 'finance report cashflow totals must not depend on capped cashflow rows');
+    assert(!block.includes('cashflowByMonth(cashflowRows)'), 'finance report cashflowByMonth must not depend on capped cashflow rows');
     assert(!block.includes('receiptCount: receiptRows.length'), 'finance report receiptCount must not depend on capped receipt rows');
     assert(!block.includes('paymentCount: paymentRows.length'), 'finance report paymentCount must not depend on capped payment rows');
   }
@@ -124,6 +126,13 @@ async function main() {
     assert(block.includes('financePayment.count({'), 'financeSummaryFromDb must count payments in the database');
     assert(block.includes('financeCashflowEntry.groupBy({'), 'financeSummaryFromDb must group cashflow totals in the database');
     assert(block.includes('_sum: { amount: true }'), 'financeSummaryFromDb must sum cashflow amounts in the database');
+  }
+  {
+    const start = reportsServiceSource.indexOf('private async financeCashflowByMonthFromDb(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2200);
+    assert(block.includes('financeCashflowEntry.groupBy({'), 'financeCashflowByMonthFromDb must group cashflow rows in the database');
+    assert(block.includes("by: ['paymentDate', 'entryType']"), 'financeCashflowByMonthFromDb must group by payment date and entry type');
+    assert(block.includes('_sum: { amount: true }'), 'financeCashflowByMonthFromDb must sum cashflow amounts in the database');
   }
   assert(reportsClient.includes('financeFilterKeys'), 'reports browser must filter hybrid finance query keys');
   assert(reportsClient.includes('financeDateFields'), 'reports browser must expose finance date fields');

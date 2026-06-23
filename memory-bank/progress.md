@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened hybrid finance report monthly cashflow chart:
+  - `cashflowByMonth` now uses scoped database `groupBy` over cashflow payment date and entry type instead of capped cashflow display rows.
+  - Cashflow row payloads remain bounded, while monthly chart totals reflect the aggregated matching dataset.
+  - Strengthened report query validation coverage so the chart cannot regress to `cashflowByMonth(cashflowRows)`.
+
 - Hardened revenue/profit report summaries:
   - Revenue and profit endpoints now return summary totals from scoped database order aggregates instead of the capped `groupOrders()` order list.
   - Group rows stay bounded for payload safety, while summary totals use the full matching dataset with the same normalized group date field.

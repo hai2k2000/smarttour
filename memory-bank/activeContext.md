@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 finance report cashflow chart accuracy hardening:
+  - Hybrid finance report `cashflowByMonth` now uses scoped database cashflow `groupBy` by payment date and entry type instead of deriving the chart from capped cashflow display rows.
+  - The finance report keeps bounded cashflow row payloads, while monthly cashflow chart values are based on aggregated matching cashflow data.
+  - Report query validation contract now guards `cashflowByMonth` against regressing to capped-row `cashflowByMonth(cashflowRows)`.
+
 - Phase 3 revenue/profit report summary accuracy hardening:
   - Revenue and profit report endpoint summaries now use scoped database order aggregates instead of keeping the `groupOrders()` summary derived from capped display orders.
   - Grouped rows remain bounded display data, while summary totals reflect the full scoped matching dataset with the same normalized date field used by the group.
