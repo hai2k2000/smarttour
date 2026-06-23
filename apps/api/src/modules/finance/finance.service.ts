@@ -11,6 +11,7 @@ import { assertCanApproveFinanceEntity, assertCanCancelFinanceEntity, assertCanD
 import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow } from './finance-import';
 import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
+import { toXlsxWorkbook } from './finance-xlsx';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -38,6 +39,13 @@ const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLL
 const FINANCE_PAYMENT_TYPES = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'];
 const FINANCE_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER'];
 const FINANCE_INVOICE_TYPES = ['VAT', 'E_INVOICE', 'PROFORMA', 'ADJUSTMENT', 'OTHER'];
+function receiptExportKeys() {
+  return ['receiptCode', 'tourId', 'receiptName', 'receiptType', 'paymentDate', 'paymentMethod', 'payerName', 'payerPhone', 'totalAmount', 'paidBefore', 'receiptAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff'];
+}
+
+function paymentExportKeys() {
+  return ['voucherCode', 'tourId', 'voucherName', 'voucherType', 'paymentDate', 'paymentMethod', 'receiverName', 'receiverPhone', 'totalAmount', 'paymentAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff'];
+}
 
 @Injectable()
 export class FinanceService {
@@ -525,21 +533,39 @@ export class FinanceService {
   }
 
   async exportReceipts(query: Record<string, string>, user?: RequestUser) {
-    const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
-    const rows = await this.prisma.financeReceipt.findMany({
-      where,
-      orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
-    });
-    return this.csv(rows, ['receiptCode', 'tourId', 'receiptName', 'receiptType', 'paymentDate', 'paymentMethod', 'payerName', 'payerPhone', 'totalAmount', 'paidBefore', 'receiptAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
+    const rows = await this.exportReceiptRows(query, user);
+    return this.csv(rows, receiptExportKeys());
+  }
+
+  async exportReceiptsXlsx(query: Record<string, string>, user?: RequestUser) {
+    const rows = await this.exportReceiptRows(query, user);
+    return toXlsxWorkbook('finance-receipts', rows, receiptExportKeys());
   }
 
   async exportPayments(query: Record<string, string>, user?: RequestUser) {
+    const rows = await this.exportPaymentRows(query, user);
+    return this.csv(rows, paymentExportKeys());
+  }
+
+  async exportPaymentsXlsx(query: Record<string, string>, user?: RequestUser) {
+    const rows = await this.exportPaymentRows(query, user);
+    return toXlsxWorkbook('finance-payments', rows, paymentExportKeys());
+  }
+
+  private async exportReceiptRows(query: Record<string, string>, user?: RequestUser) {
+    const where = branchDepartmentScopeWhere(this.receiptWhere(query), user);
+    return this.prisma.financeReceipt.findMany({
+      where,
+      orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
+    });
+  }
+
+  private async exportPaymentRows(query: Record<string, string>, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.paymentWhere(query), user);
-    const rows = await this.prisma.financePayment.findMany({
+    return this.prisma.financePayment.findMany({
       where,
       orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
     });
-    return this.csv(rows, ['voucherCode', 'tourId', 'voucherName', 'voucherType', 'paymentDate', 'paymentMethod', 'receiverName', 'receiverPhone', 'totalAmount', 'paymentAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff']);
   }
 
   async exportInvoices(query: Record<string, string>, user?: RequestUser) {

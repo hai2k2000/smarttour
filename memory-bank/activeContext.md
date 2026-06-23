@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production readiness import/export XLSX hardening:
+  - Added dependency-free native XLSX workbook support for Finance receipt/payment import and export.
+  - CSV remains the default export format; `/finance/receipts/export?format=xlsx` and `/finance/payments/export?format=xlsx` return workbook responses with XLSX MIME type and ZIP magic.
+  - Finance receipt/payment import now accepts `.xlsx` uploads and parses the first worksheet into the existing validated import row pipeline.
+  - Added `scripts/test-finance-xlsx-contract.js`, extended `scripts/test-finance-helper-contracts.sh`, and extended `scripts/smoke-exports.sh` with XLSX export checks.
+  - Verification covered the new source contract, helper runtime round-trip, endpoint XLSX export smoke, endpoint XLSX import parser smoke, Docker API build/deploy, and existing finance helper contracts.
+
 - Phase 4 review remediation documentation consistency:
   - Fixed the stale conclusion in `docs/code-review-2026-06-13.md` so it no longer contradicts the 2026-06-23 remediation status table.
   - The review doc now preserves the original 2026-06-13 findings while stating that all High/Medium/Low findings have remediation evidence, with production/manual readiness tracked separately.

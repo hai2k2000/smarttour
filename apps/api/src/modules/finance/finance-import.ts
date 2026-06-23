@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { parseXlsxRows } from './finance-xlsx';
 
 export type FinanceImportRecord = Record<string, unknown>;
 export type FinanceImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -9,8 +10,8 @@ export function financeImportInterceptorOptions() {
   return {
     limits: { fileSize: MAX_FINANCE_IMPORT_BYTES },
     fileFilter: (_request: unknown, file: Pick<FinanceImportFile, 'originalname' | 'mimetype'>, callback: (error: Error | null, acceptFile: boolean) => void) => {
-      const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
-      callback(isCsv ? null : new BadRequestException('Chỉ hỗ trợ file CSV. XLSX cần được xuất thành CSV trước khi tải lên.'), isCsv);
+      const supported = isCsvFile(file) || isXlsxFile(file);
+      callback(supported ? null : new BadRequestException('Chỉ hỗ trợ file CSV hoặc XLSX.'), supported);
     },
   };
 }
@@ -19,23 +20,31 @@ export function financeImportRows(dto: FinanceImportRecord, file?: FinanceImport
   let rows: unknown[];
   if (file) {
     if (file.size > MAX_FINANCE_IMPORT_BYTES || file.buffer.length > MAX_FINANCE_IMPORT_BYTES) {
-      throw new BadRequestException('File CSV không được vượt quá 5 MB');
+      throw new BadRequestException('File import không được vượt quá 5 MB');
     }
-    const isCsv = file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
-    if (!isCsv) throw new BadRequestException('Chỉ hỗ trợ import CSV. XLSX cần được xuất thành CSV trước khi tải lên.');
-    rows = parseCsv(file.buffer.toString('utf8'));
+    if (isXlsxFile(file)) rows = parseXlsxRows(file.buffer);
+    else if (isCsvFile(file)) rows = parseCsv(file.buffer.toString('utf8'));
+    else throw new BadRequestException('Chỉ hỗ trợ import CSV hoặc XLSX.');
   } else if (Array.isArray(dto.rows)) {
     rows = dto.rows;
   } else if (typeof dto.csv === 'string') {
     if (Buffer.byteLength(dto.csv, 'utf8') > MAX_FINANCE_IMPORT_BYTES) throw new BadRequestException('Dữ liệu CSV không được vượt quá 5 MB');
     rows = parseCsv(dto.csv);
   } else {
-    throw new BadRequestException('Cần tải lên file CSV hoặc gửi mảng rows');
+    throw new BadRequestException('Cần tải lên file CSV/XLSX hoặc gửi mảng rows');
   }
   if (!rows.length) throw new BadRequestException('File import không có dòng dữ liệu');
   if (rows.length > 500) throw new BadRequestException('Mỗi lần chỉ được import tối đa 500 dòng');
   if (rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new BadRequestException('Dữ liệu import không hợp lệ');
   return rows as FinanceImportRecord[];
+}
+
+function isCsvFile(file: Pick<FinanceImportFile, 'originalname' | 'mimetype'>) {
+  return file.originalname.toLowerCase().endsWith('.csv') || ['text/csv', 'application/vnd.ms-excel'].includes(file.mimetype.toLowerCase());
+}
+
+function isXlsxFile(file: Pick<FinanceImportFile, 'originalname' | 'mimetype'>) {
+  return file.originalname.toLowerCase().endsWith('.xlsx') || file.mimetype.toLowerCase() === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 }
 
 export function validateReceiptImportRow(row: FinanceImportRecord, line: number) {

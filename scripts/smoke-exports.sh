@@ -88,4 +88,36 @@ NODE
   fi
 done
 
+xlsx_exports=(
+  "finance-receipts-xlsx:/finance/receipts/export?format=xlsx"
+  "finance-payments-xlsx:/finance/payments/export?format=xlsx"
+)
+
+for item in "${xlsx_exports[@]}"; do
+  name="${item%%:*}"
+  path="${item#*:}"
+  file="$OUT_DIR/$name.xlsx"
+  headers="$OUT_DIR/$name.headers"
+  code=$(curl -fsS -D "$headers" -o "$file" -w '%{http_code}' -H "Cookie: smarttour.auth.token=$token" "$API_URL$path")
+  if [[ "$code" != "200" ]]; then
+    echo "FAIL_EXPORT_XLSX $name http=$code"
+    exit 1
+  fi
+  if [[ ! -s "$file" ]]; then
+    echo "FAIL_EXPORT_XLSX_EMPTY_FILE $name"
+    exit 1
+  fi
+  if ! grep -iq 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' "$headers"; then
+    echo "FAIL_EXPORT_XLSX_CONTENT_TYPE $name"
+    cat "$headers"
+    exit 1
+  fi
+  magic=$(od -An -tx1 -N4 "$file" | tr -d ' \n')
+  if [[ "$magic" != "504b0304" ]]; then
+    echo "FAIL_EXPORT_XLSX_MAGIC $name magic=$magic"
+    exit 1
+  fi
+  echo "OK_EXPORT_XLSX $name $(wc -c < "$file" | tr -d ' ') bytes"
+done
+
 echo "SMOKE_EXPORTS_OK output=$OUT_DIR"

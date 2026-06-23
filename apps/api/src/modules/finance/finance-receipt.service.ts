@@ -53,6 +53,10 @@ export class FinanceReceiptService {
     return this.finance.exportReceipts(query, user);
   }
 
+  exportXlsx(query: Record<string, string>, user?: RequestUser) {
+    return this.finance.exportReceiptsXlsx(query, user);
+  }
+
   import(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     return this.finance.importReceipts(dto, file, user);
   }

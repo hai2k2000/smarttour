@@ -118,8 +118,8 @@ for (const [helper, model] of [
   if (!block.includes('.groupBy({') || !block.includes('_sum: { amount: true }')) failures.push('cashflowSummaryFromDb must use database groupBy amount sums');
 }
 for (const [method, model, whereHelper] of [
-  ['exportReceipts', 'financeReceipt', 'receiptWhere(query)'],
-  ['exportPayments', 'financePayment', 'paymentWhere(query)'],
+  ['exportReceiptRows', 'financeReceipt', 'receiptWhere(query)'],
+  ['exportPaymentRows', 'financePayment', 'paymentWhere(query)'],
   ['exportInvoices', 'financeInvoice', 'invoiceWhere(query)'],
   ['exportCashflow', 'financeCashflowEntry', 'cashflowWhere(query)'],
 ]) {
@@ -133,6 +133,19 @@ for (const [method, model, whereHelper] of [
   if (!block.includes('this.prisma.' + model + '.findMany({') || !block.includes(whereHelper)) {
     failures.push(method + ' must query matching rows directly for CSV export');
   }
+}
+for (const [csvMethod, xlsxMethod, rowHelper] of [
+  ['exportReceipts', 'exportReceiptsXlsx', 'exportReceiptRows(query, user)'],
+  ['exportPayments', 'exportPaymentsXlsx', 'exportPaymentRows(query, user)'],
+]) {
+  const csvStart = service.indexOf('async ' + csvMethod + '(');
+  const csvNext = service.indexOf('\n  async ', csvStart + 1);
+  const csvBlock = csvStart === -1 ? '' : service.slice(csvStart, csvNext === -1 ? service.length : csvNext);
+  if (!csvBlock.includes(rowHelper) || !csvBlock.includes('this.csv(rows,')) failures.push(csvMethod + ' must export CSV from the shared uncapped row helper');
+  const xlsxStart = service.indexOf('async ' + xlsxMethod + '(');
+  const xlsxNext = service.indexOf('\n  async ', xlsxStart + 1);
+  const xlsxBlock = xlsxStart === -1 ? '' : service.slice(xlsxStart, xlsxNext === -1 ? service.length : xlsxNext);
+  if (!xlsxBlock.includes(rowHelper) || !xlsxBlock.includes('toXlsxWorkbook(')) failures.push(xlsxMethod + ' must export XLSX from the shared uncapped row helper');
 }
 if (failures.length) {
   console.error('FAIL_FINANCE_HELPER_CONTRACTS');

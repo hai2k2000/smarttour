@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, Param, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, Param, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { ServerResponse } from 'node:http';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/data-scope';
@@ -48,9 +49,12 @@ export class FinanceController {
 
   @Get('receipts/export')
   @RequirePermissions('finance.receipt.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-finance-receipts.csv"')
-  exportReceipts(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+  async exportReceipts(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'smarttour-finance-receipts.xlsx');
+      return new StreamableFile(await this.receiptsService.exportXlsx(query as Record<string, string>, request.user));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-receipts.csv');
     return this.receiptsService.export(query as Record<string, string>, request.user);
   }
 
@@ -140,9 +144,12 @@ export class FinanceController {
 
   @Get('payments/export')
   @RequirePermissions('finance.payment.export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="smarttour-finance-payments.csv"')
-  exportPayments(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+  async exportPayments(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'smarttour-finance-payments.xlsx');
+      return new StreamableFile(await this.paymentsService.exportXlsx(query as Record<string, string>, request.user));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-finance-payments.csv');
     return this.paymentsService.export(query as Record<string, string>, request.user);
   }
 
@@ -333,5 +340,10 @@ export class FinanceController {
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-cashflow.csv"')
   exportCashflow(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
     return this.cashflowService.export(query as Record<string, string>, request.user);
+  }
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

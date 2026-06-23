@@ -53,6 +53,10 @@ export class FinancePaymentService {
     return this.finance.exportPayments(query, user);
   }
 
+  exportXlsx(query: Record<string, string>, user?: RequestUser) {
+    return this.finance.exportPaymentsXlsx(query, user);
+  }
+
   import(dto: AnyRecord, file?: ImportFile, user?: RequestUser) {
     return this.finance.importPayments(dto, file, user);
   }

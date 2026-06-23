@@ -54,8 +54,9 @@ Status: `open`
 Automated coverage validates CSV endpoints respond and include expected smoke data.
 
 Completed implementation: Finance receipt/payment CSV import now parses multipart files or JSON rows, validates rows, and writes drafts transactionally. Supplier, FIT, tour guide, Customer, Finance receipt/payment attachments, and Finance invoice multi-file documents use private MinIO storage.
+Completed implementation: Finance receipt/payment import/export now supports native `.xlsx` workbooks without adding `exceljs`/`xlsx` dependencies. CSV remains the default export format, while `?format=xlsx` returns a native workbook for finance receipt/payment exports.
 
-Open implementation: native XLSX workbook import/export remains open. `exceljs@4.4.0` was evaluated and removed because its transitive dependency tree introduced moderate audit findings.
+Open implementation: native XLSX workbook import/export remains open for the remaining export families beyond finance receipt/payment. `exceljs@4.4.0` was evaluated and removed because its transitive dependency tree introduced moderate audit findings.
 
 Manual owner task: open exports in Excel and confirm encoding, money, and date formatting.
 

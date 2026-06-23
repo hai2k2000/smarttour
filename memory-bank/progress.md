@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Finance XLSX import/export readiness:
+  - Added native XLSX workbook generation/parsing for Finance receipt/payment flows without introducing external workbook dependencies.
+  - Kept CSV as the default export format and added `format=xlsx` for receipt/payment exports.
+  - Extended finance import to accept `.xlsx` files through the same row validation and transactional draft creation path as CSV/JSON rows.
+  - Verified with `node scripts/test-finance-xlsx-contract.js`, `bash scripts/test-finance-helper-contracts.sh`, Docker API build/deploy, XLSX helper runtime round-trip, `bash scripts/smoke-exports.sh`, and an endpoint XLSX import parser smoke.
+
 - Corrected the Phase 4 review remediation conclusion:
   - Updated `docs/code-review-2026-06-13.md` so the final conclusion matches the 2026-06-23 remediation status table.
   - The doc now separates completed code-review remediation from remaining production readiness/manual validation tracked in `docs/production-readiness-tracker.md`.
