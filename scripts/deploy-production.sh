@@ -61,6 +61,9 @@ fi
 
 "$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard
 
+echo "DEPLOY_PHASE prisma_migrate_deploy"
+npx prisma migrate deploy
+
 docker compose build api web
 docker compose up -d api web nginx
 

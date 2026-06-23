@@ -99,6 +99,14 @@ includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side produ
 includes(deployScript, 'DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"', 'Server-side deploy must define DEPLOY_DIRTY_REASON.');
 includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 'Server-side deploy must require a reason for dirty deploy override.');
 includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
+includes(deployScript, 'DEPLOY_PHASE prisma_migrate_deploy', 'Server-side deploy must log the Prisma migration phase.');
+includes(deployScript, 'npx prisma migrate deploy', 'Server-side deploy must run Prisma production migrations.');
+if (
+  deployScript.indexOf('smartlink-legacy-audit.sh" --mode=guard') > deployScript.indexOf('npx prisma migrate deploy')
+  || deployScript.indexOf('npx prisma migrate deploy') > deployScript.indexOf('docker compose build api web')
+) {
+  throw new Error('Server-side deploy must run SmartLink guard, then Prisma migrate deploy, then Docker build.');
+}
 
 
 const runbookText = read(runbook);
@@ -123,6 +131,8 @@ for (const text of [
   'untracked files',
   'ALLOW_DIRTY=true',
   'DEPLOY_DIRTY_REASON',
+  'Prisma migrations',
+  'npx prisma migrate deploy',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

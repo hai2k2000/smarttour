@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production deploy Prisma migration hardening:
+  - Hardened `scripts/deploy-production.sh` so production deploy logs `DEPLOY_PHASE prisma_migrate_deploy` and runs `npx prisma migrate deploy` after the SmartLink guard and before Docker build/up.
+  - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to guard/document the migration step.
+
 - Production deploy dirty override reason hardening:
   - Hardened `scripts/deploy-production.sh` so `ALLOW_DIRTY=true` now requires `DEPLOY_DIRTY_REASON` and logs `DEPLOY_DIRTY_OVERRIDE reason=...` before continuing.
   - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to guard/document the emergency override reason.

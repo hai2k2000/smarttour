@@ -15,7 +15,8 @@ not put production secrets in this file or in the workflow YAML.
 `SmartTour Production Deploy` is manual only through `workflow_dispatch`. It
 connects to the VPS over SSH and runs `scripts/deploy-production.sh` inside the
 configured project directory. The server-side deploy script still performs the
-Git fast-forward pull, SmartLink legacy guard, Docker build/up, and healthcheck.
+Git fast-forward pull, SmartLink legacy guard, Prisma migrations with
+`npx prisma migrate deploy`, Docker build/up, and healthcheck.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
 The manual dispatch inputs are validated before SSH starts. Branch names may

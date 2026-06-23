@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened production deploy migration execution:
+  - Added `npx prisma migrate deploy` to `scripts/deploy-production.sh` after the SmartLink guard and before Docker build/up.
+  - Added a deploy phase log line for Prisma migrations and extended deploy contracts/docs to prevent this step from being dropped.
+
 - Hardened production deploy dirty override accountability:
   - Required `DEPLOY_DIRTY_REASON` whenever `ALLOW_DIRTY=true` is used on the server.
   - Logged the dirty deploy reason before continuing so emergency deploys leave operator intent in command output.
