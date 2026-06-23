@@ -2,6 +2,12 @@
 
 ## Done
 
+- Hardened Phase 4 quotation workflow trust boundaries:
+  - Removed direct `status`, direct `smartLinkEnabled`, and client-supplied `actor` from quotation create/update/action DTO contracts.
+  - Forced quotation creation to `DRAFT` with SmartLink disabled and removed workflow-state writes from create/update `toData()`.
+  - Changed submit/approve/reject/convert logs to derive actor from `request.user`.
+  - Updated quotes backend contract and quotations smoke coverage for ignored workflow fields and actor-spoof prevention.
+
 - Hardened Phase 4 commission sync workflow safety:
   - Limited `CommissionReportsService.syncFromOrders()` updates to existing commission entries that remain `PENDING` and `UNPAID`.
   - Preserved approved/partial/paid/rejected/revoked commission entries during order resync so paid amounts, remaining amounts, and audit workflow state are not overwritten.

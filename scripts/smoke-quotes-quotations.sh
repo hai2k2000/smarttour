@@ -76,6 +76,20 @@ seed_admin_if_needed
 
 export API_URL SITE_URL RUN_ID ROLE_PASSWORD
 
+wait_for_api() {
+  local docs_url="${API_URL%/api}/docs-json"
+  for _ in $(seq 1 30); do
+    if curl -fsS "$docs_url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "API did not become ready at $docs_url" >&2
+  return 1
+}
+
+wait_for_api
+
 run_node() {
   if command -v node >/dev/null 2>&1; then
     node
@@ -183,10 +197,13 @@ async function page(token, route, ok = [200, 307]) {
 }
 
 async function login(identifier, password) {
+  const loginBody = String(identifier).includes('@')
+    ? { email: identifier, password }
+    : { username: identifier, password };
   const response = await fetch(api + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: identifier, email: identifier, password }),
+    body: JSON.stringify(loginBody),
   });
   const data = await response.json().catch(() => ({}));
   const credential = authCredential(response, data);
@@ -439,10 +456,16 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-MISSING`), quoteCode: '' }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-NUM`), items: [{ ...quotationPayload().items[0], netPrice: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-ITEMS`), items: [] }, [400]);
-  await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-STATUS`), status: 'APPROVED' }, [400]);
+  const ignoredStatusQuote = await request(admin, 'POST', '/quotations', {
+    ...quotationPayload(`${run}-QTE-BAD-STATUS`),
+    status: 'APPROVED',
+    smartLinkEnabled: true,
+  });
+  assert(ignoredStatusQuote.status === 'DRAFT' && ignoredStatusQuote.smartLinkEnabled === false, 'quotation create should ignore client workflow fields and start as DRAFT with SmartLink off');
 
   const stateQuote = await request(admin, 'POST', '/quotations', quotationPayload(`${run}-QTE-STATE`));
-  await request(admin, 'PUT', `/quotations/${stateQuote.id}`, { status: 'APPROVED' }, [400]);
+  const ignoredUpdateStatus = await request(admin, 'PUT', `/quotations/${stateQuote.id}`, { status: 'APPROVED', smartLinkEnabled: true });
+  assert(ignoredUpdateStatus.status === 'DRAFT' && ignoredUpdateStatus.smartLinkEnabled === false, 'quotation update should ignore client workflow fields');
   await request(admin, 'POST', `/quotations/${stateQuote.id}/approve`, { actor: 'quote-smoke' }, [400]);
   await request(admin, 'POST', `/quotations/${stateQuote.id}/convert`, { actor: 'quote-smoke' }, [400]);
 
@@ -480,6 +503,7 @@ function assertLoadableQuotation(row) {
   assert(approved.status === 'APPROVED', 'quotation approve did not set APPROVED');
   const converted = await request(admin, 'POST', `/quotations/${quotation.id}/convert`, { actor: 'quote-smoke' });
   assert(converted.status === 'CONVERTED' && converted.convertedOrderId, 'quotation convert did not create order link');
+  assert(converted.logs.every((log) => log.actor !== 'quote-smoke'), 'quotation workflow logs should not trust client-supplied actor');
   assertQuotationTotals(converted, 3);
   await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false }, [400]);
   await request(admin, 'POST', `/quotations/${quotation.id}/submit`, { actor: 'quote-smoke' }, [400]);

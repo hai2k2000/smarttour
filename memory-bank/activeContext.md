@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 quotation workflow trust hardening:
+  - Removed client-writable quotation workflow fields from create/update/action DTO contracts: direct `status`, direct `smartLinkEnabled`, and client-supplied `actor`.
+  - Quotation create now explicitly starts as `DRAFT` with SmartLink disabled, while update no longer writes workflow state through `toData()`.
+  - Submit/approve/reject/convert audit logs now derive actor from `request.user` instead of trusting request body actor values.
+  - Updated quotes backend contract and quotations smoke coverage so direct workflow fields cannot change state and actor spoofing does not enter quotation workflow logs.
+
 - Phase 4 commission sync workflow hardening:
   - `CommissionReportsService.syncFromOrders()` now only updates existing commission entries that are still `PENDING` and `UNPAID`.
   - Approved, partially paid, paid, rejected, or revoked commission entries are no longer overwritten by order resync, preventing financial/audit drift after workflow actions.

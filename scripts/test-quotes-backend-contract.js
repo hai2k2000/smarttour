@@ -57,6 +57,23 @@ includes(quotationDto, 'take?: number', 'Quotations list query DTO must accept b
 includes(quotationDto, 'MAX_QUOTATIONS_TAKE', 'Quotations list query DTO must cap take.');
 includes(quotationsController, 'list(@Query() query: ListQuotationsQueryDto', 'Quotation list route must use the validated list query DTO.');
 includes(quotationsService, 'take: this.listTake(query.take)', 'Quotation list service must apply bounded take.');
+{
+  const createDtoStart = quotationDto.indexOf('export class CreateQuotationDto');
+  const updateDtoStart = quotationDto.indexOf('export class UpdateQuotationDto', createDtoStart);
+  const actionDtoStart = quotationDto.indexOf('export class QuotationActionDto', updateDtoStart);
+  const smartLinkDtoStart = quotationDto.indexOf('export class QuotationSmartLinkDto', actionDtoStart);
+  const createDtoBlock = createDtoStart === -1 || updateDtoStart === -1 ? '' : quotationDto.slice(createDtoStart, updateDtoStart);
+  const actionDtoBlock = actionDtoStart === -1 || smartLinkDtoStart === -1 ? '' : quotationDto.slice(actionDtoStart, smartLinkDtoStart);
+  excludes(createDtoBlock, 'status?:', 'CreateQuotationDto must not accept direct status writes.');
+  excludes(createDtoBlock, 'smartLinkEnabled?:', 'CreateQuotationDto must not accept direct SmartLink toggles.');
+  excludes(actionDtoBlock, 'actor?:', 'QuotationActionDto must not accept client-supplied actor values.');
+}
+excludes(quotationsService, 'this.assertWritableQuotationStatus(dto.status);', 'Create quotation should not inspect client-supplied status.');
+excludes(quotationsService, 'this.assertWritableQuotationStatus(dto.status, current.status);', 'Update quotation should not inspect client-supplied status.');
+excludes(quotationsService, '...(dto.status !== undefined ? { status: dto.status } : {})', 'Quotation toData must not write status from client DTOs.');
+excludes(quotationsService, '...(dto.smartLinkEnabled !== undefined ? { smartLinkEnabled: dto.smartLinkEnabled } : {})', 'Quotation toData must not toggle SmartLink from create/update DTOs.');
+excludes(quotationsService, 'actor: this.text(dto.actor)', 'Quotation workflow logs must not trust actor from request body.');
+includes(quotationsService, 'actor: this.actor(user)', 'Quotation workflow logs should derive actor from request.user.');
 const quotationDashboardStart = quotationsService.indexOf('async dashboard(');
 const quotationListStart = quotationsService.indexOf('list(query: ListQuotationsQueryDto', quotationDashboardStart);
 const quotationDashboardBlock = quotationDashboardStart === -1 || quotationListStart === -1 ? '' : quotationsService.slice(quotationDashboardStart, quotationListStart);
@@ -119,8 +136,8 @@ for (const needle of [
   excludes(quotationsService, needle, 'Quotations backend messages must be Vietnamese and business-readable.');
 }
 
-includes(quotationsService, 'this.assertWritableQuotationStatus(dto.status);', 'Create quotation must reject direct non-DRAFT status writes.');
-includes(quotationsService, 'this.assertWritableQuotationStatus(dto.status, current.status);', 'Update quotation must reject direct status transitions; actions own the workflow.');
+includes(quotationsService, "status: 'DRAFT'", 'Create quotation must force DRAFT status.');
+includes(quotationsService, 'smartLinkEnabled: false', 'Create quotation must force SmartLink off by default.');
 includes(quotationsService, "this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit')", 'Submit must only run from DRAFT/REJECTED.');
 includes(quotationsService, "this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve')", 'Approve must only run from PENDING_APPROVAL.');
 includes(quotationsService, "if (quote.status !== 'APPROVED')", 'Convert must only run from APPROVED.');

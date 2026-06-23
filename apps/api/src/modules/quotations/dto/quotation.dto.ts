@@ -111,10 +111,8 @@ export class CreateQuotationDto {
   @ApiPropertyOptional() @IsOptional() @IsString() departureDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() returnDate?: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) approvalLevel?: number;
-  @ApiPropertyOptional({ enum: QuotationStatus }) @IsOptional() @IsEnum(QuotationStatus) status?: QuotationStatus;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) childPricePercent?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) infantPricePercent?: number;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() smartLinkEnabled?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() language?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() terms?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() note?: string;
@@ -124,7 +122,6 @@ export class CreateQuotationDto {
 export class UpdateQuotationDto extends PartialType(CreateQuotationDto) {}
 
 export class QuotationActionDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() actor?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() note?: string;
 }
 

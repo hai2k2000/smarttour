@@ -129,14 +129,13 @@ export class QuotationsService {
   async create(dto: CreateQuotationDto, user?: RequestUser) {
     dto = applyWriteDataScope(dto, user);
     dto = this.prepareDto(dto, true);
-    this.assertWritableQuotationStatus(dto.status);
     this.validateDates(dto);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const totals = this.calculate(dto);
-        const quote = await tx.quotation.create({ data: { ...this.toData(dto), ...totals, smartLinkToken: this.token() } as Prisma.QuotationCreateInput });
+        const quote = await tx.quotation.create({ data: { ...this.toData(dto), ...totals, status: 'DRAFT', smartLinkEnabled: false, smartLinkToken: this.token() } as Prisma.QuotationCreateInput });
         await this.replaceItems(tx, quote.id, dto.items ?? [], dto.exchangeRate);
-        await tx.quotationApprovalLog.create({ data: { quotationId: quote.id, action: 'CREATE', newStatus: quote.status } });
+        await tx.quotationApprovalLog.create({ data: { quotationId: quote.id, action: 'CREATE', actor: this.actor(user), newStatus: quote.status } });
         return tx.quotation.findUniqueOrThrow({ where: { id: quote.id }, include: this.includeAll() });
       });
     } catch (error) {
@@ -150,7 +149,6 @@ export class QuotationsService {
     dto = applyWriteDataScope(dto, user);
     this.assertEditable(current.status);
     dto = this.prepareDto(dto, false);
-    this.assertWritableQuotationStatus(dto.status, current.status);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const items = dto.items ?? current.items.map((item) => ({
@@ -179,7 +177,7 @@ export class QuotationsService {
         this.validateDates(merged);
         await tx.quotation.update({ where: { id }, data: { ...this.toData(dto), ...this.calculate(merged) } as Prisma.QuotationUpdateInput });
         if (dto.items || dto.exchangeRate !== undefined) await this.replaceItems(tx, id, items, merged.exchangeRate);
-        await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'UPDATE', actor: 'Operator', oldStatus: current.status, newStatus: dto.status ?? current.status } });
+        await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'UPDATE', actor: this.actor(user), oldStatus: current.status, newStatus: current.status } });
         return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
@@ -198,21 +196,21 @@ export class QuotationsService {
     const current = await this.detail(id, user);
     if (current.status === 'PENDING_APPROVAL') return current;
     this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit');
-    return this.statusFromCurrent(current, 'PENDING_APPROVAL', 'SUBMIT', dto);
+    return this.statusFromCurrent(current, 'PENDING_APPROVAL', 'SUBMIT', dto, user);
   }
 
   async approve(id: string, dto: QuotationActionDto, user?: RequestUser) {
     const current = await this.detail(id, user);
     if (current.status === 'APPROVED') return current;
     this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve');
-    return this.statusFromCurrent(current, 'APPROVED', 'APPROVE', dto);
+    return this.statusFromCurrent(current, 'APPROVED', 'APPROVE', dto, user);
   }
 
   async reject(id: string, dto: QuotationActionDto, user?: RequestUser) {
     const current = await this.detail(id, user);
     if (current.status === 'REJECTED') return current;
     this.assertStatus(current.status, ['PENDING_APPROVAL'], 'reject');
-    return this.statusFromCurrent(current, 'REJECTED', 'REJECT', dto);
+    return this.statusFromCurrent(current, 'REJECTED', 'REJECT', dto, user);
   }
 
   async smartLink(id: string, enabled = true, user?: RequestUser) {
@@ -281,13 +279,13 @@ export class QuotationsService {
         } as Prisma.OrderCreateInput,
       });
       await tx.quotation.update({ where: { id }, data: { ...totals, status: 'CONVERTED', convertedOrderId: order.id } });
-      await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'CONVERT', actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: quote.status, newStatus: 'CONVERTED' } });
+      await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'CONVERT', actor: this.actor(user), note: this.text(dto.note), oldStatus: quote.status, newStatus: 'CONVERTED' } });
       return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
     });
   }
-  private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto) {
+  private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto, user?: RequestUser) {
     const quote = await this.prisma.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
-    await this.prisma.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.text(dto.actor), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
+    await this.prisma.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.actor(user), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
     return quote;
   }
 
@@ -417,8 +415,6 @@ export class QuotationsService {
       ...(dto.departureDate !== undefined ? { departureDate: this.date(dto.departureDate) } : {}),
       ...(dto.returnDate !== undefined ? { returnDate: this.date(dto.returnDate) } : {}),
       ...(dto.approvalLevel !== undefined ? { approvalLevel: dto.approvalLevel } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
-      ...(dto.smartLinkEnabled !== undefined ? { smartLinkEnabled: dto.smartLinkEnabled } : {}),
       ...(dto.language !== undefined ? { language: dto.language || 'VI' } : {}),
       ...(dto.terms !== undefined ? { terms: this.text(dto.terms) } : {}),
       ...(dto.note !== undefined ? { note: this.text(dto.note) } : {}),
@@ -440,17 +436,6 @@ export class QuotationsService {
   private assertStatus(status: QuotationStatus, allowed: QuotationStatus[], action: string) {
     if (!allowed.includes(status)) {
       throw new BadRequestException(`Không thể ${this.actionLabel(action)} báo giá từ trạng thái ${this.statusLabel(status)}.`);
-    }
-  }
-
-  private assertWritableQuotationStatus(nextStatus?: QuotationStatus, currentStatus?: QuotationStatus) {
-    if (!nextStatus) return;
-    if (!currentStatus) {
-      if (nextStatus !== 'DRAFT') throw new BadRequestException('Không được tạo báo giá trực tiếp ở trạng thái khác Nháp.');
-      return;
-    }
-    if (nextStatus !== currentStatus) {
-      throw new BadRequestException('Không được đổi trạng thái báo giá trực tiếp. Hãy dùng các hành động gửi duyệt, duyệt, từ chối hoặc chuyển đơn.');
     }
   }
 
@@ -477,6 +462,10 @@ export class QuotationsService {
   private text(value?: string | null) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
+  }
+
+  private actor(user?: RequestUser) {
+    return user?.username || user?.email || user?.id || 'system';
   }
 
   private date(value?: string | Date | null) {
