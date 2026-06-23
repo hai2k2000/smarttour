@@ -21,6 +21,7 @@ import {
   FinanceReceiptBodyDto,
   FinanceReceiptImportDto,
 } from './dto/finance-body.dto';
+import { FinanceQueryDto } from './dto/finance-query.dto';
 
 @ApiTags('finance')
 @Controller('finance')
@@ -35,8 +36,8 @@ export class FinanceController {
 
   @Get('receipts')
   @RequirePermissions('finance.receipt.view')
-  receipts(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.receiptsService.list(query, request.user);
+  receipts(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.receiptsService.list(query as Record<string, string>, request.user);
   }
 
   @Post('receipts')
@@ -49,8 +50,8 @@ export class FinanceController {
   @RequirePermissions('finance.receipt.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-receipts.csv"')
-  exportReceipts(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.receiptsService.export(query, request.user);
+  exportReceipts(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.receiptsService.export(query as Record<string, string>, request.user);
   }
 
   @Post('receipts/import')
@@ -127,8 +128,8 @@ export class FinanceController {
 
   @Get('payments')
   @RequirePermissions('finance.payment.view')
-  payments(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.paymentsService.list(query, request.user);
+  payments(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.paymentsService.list(query as Record<string, string>, request.user);
   }
 
   @Post('payments')
@@ -141,8 +142,8 @@ export class FinanceController {
   @RequirePermissions('finance.payment.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-payments.csv"')
-  exportPayments(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.paymentsService.export(query, request.user);
+  exportPayments(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.paymentsService.export(query as Record<string, string>, request.user);
   }
 
   @Post('payments/import')
@@ -219,8 +220,8 @@ export class FinanceController {
 
   @Get('invoices')
   @RequirePermissions('finance.invoice.view')
-  invoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.invoicesService.list(query, request.user);
+  invoices(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.invoicesService.list(query as Record<string, string>, request.user);
   }
 
   @Post('invoices')
@@ -233,8 +234,8 @@ export class FinanceController {
   @RequirePermissions('finance.invoice.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-invoices.csv"')
-  exportInvoices(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.invoicesService.export(query, request.user);
+  exportInvoices(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.invoicesService.export(query as Record<string, string>, request.user);
   }
 
   @Get('invoices/:id')
@@ -298,8 +299,8 @@ export class FinanceController {
 
   @Get('debt/customers')
   @RequirePermissions('finance.debt.view')
-  customerDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.ledgerService.customerDebt(query, request.user);
+  customerDebt(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.ledgerService.customerDebt(query as Record<string, string>, request.user);
   }
 
   @Post('debt/customers/:customerId/adjustments')
@@ -310,8 +311,8 @@ export class FinanceController {
 
   @Get('debt/suppliers')
   @RequirePermissions('finance.debt.view')
-  supplierDebt(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.ledgerService.supplierDebt(query, request.user);
+  supplierDebt(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.ledgerService.supplierDebt(query as Record<string, string>, request.user);
   }
 
   @Post('debt/suppliers/:supplierId/adjustments')
@@ -322,15 +323,15 @@ export class FinanceController {
 
   @Get('cashflow')
   @RequirePermissions('finance.cashflow.view')
-  cashflow(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.cashflowService.list(query, request.user);
+  cashflow(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.cashflowService.list(query as Record<string, string>, request.user);
   }
 
   @Get('cashflow/export')
   @RequirePermissions('finance.cashflow.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-finance-cashflow.csv"')
-  exportCashflow(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.cashflowService.export(query, request.user);
+  exportCashflow(@Query() query: FinanceQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.cashflowService.export(query as Record<string, string>, request.user);
   }
 }

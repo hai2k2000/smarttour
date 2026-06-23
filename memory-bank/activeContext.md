@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 4 query/controller contract hardening:
+  - Added explicit `ListToursQueryDto` and `CloseTourDto`; `ToursController` now uses DTOs for list query and close action body instead of raw `@Query('...')` parameters or inline body types.
+  - Added explicit query DTOs for Customers, Finance, and Order Center list/export/dashboard/debt/cashflow/activity endpoints, removing the remaining controller-level `@Query() Record<string, string>` usage.
+  - Added source contracts `scripts/test-tours-dto-contract.js` and `scripts/test-query-dto-contract.js` to guard the new DTO controller contracts.
+  - Re-audited controllers after the change; no API controller still uses `Record<string, unknown>` body types, inline object body DTOs, or `@Query() Record<string, string>`.
+  - Finance already has route-level wrapper services around the large finance service. Further Suppliers/Reports/Operations service splitting remains deferred unless a smaller, strongly covered extraction target is identified.
+
 - Phase 4 performance index hardening:
   - Added `scripts/test-prisma-index-contract.js` to guard composite Prisma indexes for high-volume list/search/report paths.
   - Added migration `20260623170000_phase4_performance_indexes` and deployed it on the VPS database.

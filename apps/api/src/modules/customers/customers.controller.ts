@@ -20,6 +20,7 @@ import {
   CustomerTransferOwnerDto,
   CustomerTypeBodyDto,
 } from './dto/customer-body.dto';
+import { CustomerActivityQueryDto, CustomerListQueryDto } from './dto/customer-query.dto';
 import { CustomersService } from './customers.service';
 
 @ApiTags('customers')
@@ -29,14 +30,14 @@ export class CustomersController {
 
   @Get()
   @RequirePermissions('customer.view')
-  list(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.list(query, request.user);
+  list(@Query() query: CustomerListQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.list(query as Record<string, string>, request.user);
   }
 
   @Get('dashboard')
   @RequirePermissions('customer.view')
-  dashboard(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.dashboard(query, request.user);
+  dashboard(@Query() query: CustomerListQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.dashboard(query as Record<string, string>, request.user);
   }
 
   @Get('types')
@@ -103,8 +104,8 @@ export class CustomersController {
   @RequirePermissions('customer.view')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="smarttour-customers.csv"')
-  export(@Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.exportCsv(query, request.user);
+  export(@Query() query: CustomerListQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.exportCsv(query as Record<string, string>, request.user);
   }
 
   @Post(':id/files')
@@ -210,19 +211,19 @@ export class CustomersController {
 
   @Get(':id/timeline')
   @RequirePermissions('customer.view')
-  timeline(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.timeline(id, request.user, query);
+  timeline(@Param('id') id: string, @Query() query: CustomerActivityQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.timeline(id, request.user, query as Record<string, string>);
   }
 
   @Get(':id/care-history')
   @RequirePermissions('customer.view')
-  careHistory(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.careHistory(id, request.user, query);
+  careHistory(@Param('id') id: string, @Query() query: CustomerActivityQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.careHistory(id, request.user, query as Record<string, string>);
   }
 
   @Get(':id/opportunities')
   @RequirePermissions('customer.view')
-  opportunities(@Param('id') id: string, @Query() query: Record<string, string>, @Req() request: { user?: RequestUser }) {
-    return this.service.opportunities(id, request.user, query);
+  opportunities(@Param('id') id: string, @Query() query: CustomerActivityQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.service.opportunities(id, request.user, query as Record<string, string>);
   }
 }

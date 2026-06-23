@@ -5,6 +5,8 @@ import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { TourCoreService } from './tour-core.service';
 import { CreateTourDto } from './dto/create-tour.dto';
+import { ListToursQueryDto } from './dto/list-tours-query.dto';
+import { CloseTourDto } from './dto/tour-action.dto';
 import { UpdateTourDto } from './dto/update-tour.dto';
 
 const tourInclude = {
@@ -72,10 +74,10 @@ export class ToursService {
     } satisfies Prisma.TourSelect;
   }
 
-  list(search?: string, type?: string | TourType, status?: string | TourStatus, user?: RequestUser) {
-    const tourType = this.toTourType(type);
-    const tourStatus = this.toTourStatus(status);
-    const searchText = normalizeListSearch(search);
+  list(query: ListToursQueryDto = {}, user?: RequestUser) {
+    const tourType = this.toTourType(query.type);
+    const tourStatus = this.toTourStatus(query.status);
+    const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const where: Prisma.TourWhereInput = {
       ...(tourType ? { type: tourType } : {}),
@@ -175,7 +177,7 @@ export class ToursService {
     }
   }
 
-  async close(id: string, dto: { note?: string }, user?: RequestUser) {
+  async close(id: string, dto: CloseTourDto = {}, user?: RequestUser) {
     await this.detail(id, user);
     return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
   }

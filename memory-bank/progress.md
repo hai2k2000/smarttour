@@ -2,6 +2,13 @@
 
 ## Done
 
+- Hardened remaining Phase 4 controller query/body contracts:
+  - Added `ListToursQueryDto` and `CloseTourDto`; Tours list and close endpoints no longer use raw query parameters or inline body types.
+  - Added Customers, Finance, and Order Center query DTOs and updated those controllers to remove the remaining `@Query() Record<string, string>` signatures.
+  - Added `scripts/test-tours-dto-contract.js` and `scripts/test-query-dto-contract.js` to guard the controller contract hardening.
+  - Confirmed controller audit is clean for `Record<string, unknown>` bodies, inline object body DTOs, and loose query record signatures.
+  - Kept larger Suppliers/Reports/Operations service splitting deferred because Phase 4 only allows service splits where behavior is already tightly protected and the extraction target is genuinely small.
+
 - Hardened Phase 4 database indexes for high-volume paths:
   - Added `scripts/test-prisma-index-contract.js` to require composite indexes that match current list/search/report query patterns.
   - Added and deployed migration `20260623170000_phase4_performance_indexes`.
