@@ -29,6 +29,7 @@ docker compose run --rm \
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { CustomersService } = require('./apps/api/dist/modules/customers/customers.service');
 const { fileUploadMaxBytes, FilesService } = require('./apps/api/dist/modules/files/files.service');
+const fs = require('fs');
 
 function role(...permissions) {
   return { role: { permissions: permissions.map((permission) => ({ permission })) } };
@@ -106,6 +107,21 @@ class FakeFilesService {
 }
 
 async function main() {
+  const serviceSource = fs.readFileSync('/workspace/apps/api/src/modules/customers/customers.service.ts', 'utf8');
+  {
+    const start = serviceSource.indexOf('async debts(');
+    const next = serviceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : serviceSource.slice(start, next === -1 ? serviceSource.length : next);
+    assert(block.includes('customerDebtSummaryFromDb(customer, user)'), 'customer debts must use aggregate order summary helper');
+    assert(!block.includes('.reduce('), 'customer debts must not reduce bounded order rows');
+  }
+  {
+    const start = serviceSource.indexOf('private async customerDebtSummaryFromDb(');
+    const block = start === -1 ? '' : serviceSource.slice(start, start + 1400);
+    assert(block.includes('.aggregate({'), 'customerDebtSummaryFromDb must aggregate order totals in the database');
+    assert(block.includes('_sum:'), 'customerDebtSummaryFromDb must sum order financial fields in the database');
+  }
+
   const prisma = new PrismaService();
   await prisma.$connect();
   const files = new FakeFilesService();

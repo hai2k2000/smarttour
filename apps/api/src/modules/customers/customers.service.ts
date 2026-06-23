@@ -459,10 +459,12 @@ export class CustomersService {
   }
 
   async debts(id: string, user?: RequestUser) {
-    const { rows } = await this.orders(id, user);
-    const totalRevenue = rows.reduce((sum, order) => sum + Number(order.totalRevenue ?? 0), 0);
-    const paidAmount = rows.reduce((sum, order) => sum + Number(order.paidAmount ?? 0), 0);
-    return { totalRevenue, paidAmount, receivableDebt: Math.max(totalRevenue - paidAmount, 0), rows };
+    const customer = await this.getCustomer(id, user);
+    const [{ rows }, summary] = await Promise.all([
+      this.orders(id, user),
+      this.customerDebtSummaryFromDb(customer, user),
+    ]);
+    return { ...summary, rows };
   }
 
   async timeline(id: string, user?: RequestUser, query: Record<string, string> = {}) {
@@ -813,6 +815,16 @@ export class CustomersService {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
     if (!customer) throw new NotFoundException('Customer not found');
     return customer;
+  }
+
+  private async customerDebtSummaryFromDb(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }, user?: RequestUser) {
+    const total = await this.prisma.order.aggregate({
+      where: branchDepartmentScopeWhere({ deletedAt: null, OR: this.customerOrderOr(customer) }, user),
+      _sum: { totalRevenue: true, paidAmount: true },
+    });
+    const totalRevenue = Number(total._sum.totalRevenue ?? 0);
+    const paidAmount = Number(total._sum.paidAmount ?? 0);
+    return { totalRevenue, paidAmount, receivableDebt: Math.max(totalRevenue - paidAmount, 0) };
   }
 
   private contacts(value: unknown): Prisma.CustomerContactCreateWithoutCustomerInput[] {

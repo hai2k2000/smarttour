@@ -2,6 +2,10 @@
 
 ## Done
 
+- Hardened customer debt summary accuracy:
+  - Customer profile debt totals now use scoped database order aggregates instead of reducing the capped related-order row set.
+  - Strengthened customer service coverage so debt summaries cannot regress to bounded-row reductions.
+
 - Hardened finance debt summary payloads:
   - Customer and supplier debt summary totals now use scoped database aggregate/count helpers instead of reducing full ledger row sets.
   - Strengthened finance helper contracts so debt summaries cannot regress to full-row summary reductions.
