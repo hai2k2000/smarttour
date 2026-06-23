@@ -61,8 +61,17 @@ for (const secret of ['SMARTTOUR_SSH_HOST', 'SMARTTOUR_SSH_PORT', 'SMARTTOUR_SSH
   includes(deploy, `secrets.${secret}`, `Deploy workflow must require ${secret}.`);
 }
 includes(deploy, 'ssh-keyscan', 'Deploy workflow must populate known_hosts before SSH.');
+includes(deploy, 'ssh-keyscan -T 10', 'Deploy workflow must bound ssh-keyscan connection time.');
 includes(deploy, 'scripts/deploy-production.sh', 'Deploy workflow must call the server-side production deploy script.');
 includes(deploy, 'BRANCH=', 'Deploy workflow must pass an explicit branch to the deploy script.');
+for (const option of [
+  '-o BatchMode=yes',
+  '-o ConnectTimeout=10',
+  '-o ServerAliveInterval=15',
+  '-o ServerAliveCountMax=2',
+]) {
+  includes(deploy, option, `Deploy workflow SSH command must include ${option}.`);
+}
 excludes(deploy, 'ALLOW_DIRTY=true', 'Deploy workflow must not allow dirty production deploys.');
 
 
@@ -76,6 +85,10 @@ for (const text of [
   'SMARTTOUR_SSH_KEY',
   'workflow_dispatch',
   'scripts/deploy-production.sh',
+  'BatchMode=yes',
+  'ConnectTimeout=10',
+  'ServerAliveInterval=15',
+  'ServerAliveCountMax=2',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

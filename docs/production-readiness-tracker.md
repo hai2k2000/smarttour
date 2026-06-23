@@ -97,6 +97,7 @@ Deploy tooling:
 - `.github/workflows/deploy-production.yml`
 
 Completed implementation: GitHub Actions now has PR/push CI for lockfile install, audit, source contracts, typechecks, and API/Web Docker builds. Production deploy is available only through manual `workflow_dispatch` and runs the server-side `scripts/deploy-production.sh` over SSH.
+Completed implementation: production deploy SSH setup now uses bounded `ssh-keyscan` and non-interactive SSH with connect/server-alive timeouts.
 
 Manual owner task: configure the GitHub `production` environment approval gate and required secrets documented in `docs/github-actions-runbook.md`.
 

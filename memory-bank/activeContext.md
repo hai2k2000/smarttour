@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- GitHub production deploy SSH hardening:
+  - Hardened `.github/workflows/deploy-production.yml` so `ssh-keyscan` uses a bounded timeout and the deploy SSH command uses `BatchMode=yes`, `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
+  - Extended `scripts/test-github-actions-contract.js` to guard the bounded/non-interactive SSH options and updated `docs/github-actions-runbook.md`.
+  - `docs/production-readiness-tracker.md` now separates this completed deploy SSH hardening from the remaining manual GitHub secrets/environment approval task.
+
 - Observability ops env template hardening:
   - Extended `scripts/test-observability-alerting-contract.js` so the `/etc/default/smarttour-ops` template must document `HEALTHCHECK_WEBHOOK_URL`, connect timeout, max time, and retry settings.
   - Updated `scripts/install-ops-schedule.sh` to include commented `HEALTHCHECK_WEBHOOK_*` settings when it creates `/etc/default/smarttour-ops`.

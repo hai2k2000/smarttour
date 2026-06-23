@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened GitHub production deploy SSH behavior:
+  - Added bounded `ssh-keyscan` and non-interactive SSH timeout/server-alive options to the manual production deploy workflow.
+  - Extended the GitHub Actions contract and runbook so deploy SSH cannot regress to prompt-prone or long-hanging defaults.
+  - Updated the production readiness tracker while keeping the remaining GitHub secrets/environment approval as a manual owner task.
+
 - Hardened observability ops environment template:
   - Added contract coverage requiring `HEALTHCHECK_WEBHOOK_*` settings in the `/etc/default/smarttour-ops` template.
   - Added commented webhook URL, connect timeout, max time, and retry settings to `scripts/install-ops-schedule.sh`.
