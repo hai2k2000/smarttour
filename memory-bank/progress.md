@@ -2,6 +2,11 @@
 
 ## Done
 
+- Hardened reports debt grouped row accuracy:
+  - Customer-debt and supplier-debt report rows now calculate grouped balances with scoped database ledger `groupBy` queries instead of capped ledger-entry payload reductions.
+  - Rows still expose the fields used by reports/workspace/finance views, with exact grouped balances and bounded display code enrichment.
+  - Strengthened report query validation coverage so debt report rows cannot regress to grouping capped `entries`.
+
 - Hardened hybrid finance report order summary accuracy:
   - Replaced finance summary order financial totals from capped grouped display rows with scoped database order aggregates.
   - Replaced finance summary `orderCount` from `orderRows.length` with a scoped database count.

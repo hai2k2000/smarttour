@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 reports debt row accuracy/payload hardening:
+  - Customer-debt and supplier-debt report rows now use scoped database ledger `groupBy` helpers for grouped balances instead of grouping the capped 1000-entry ledger payload in Node.
+  - Report debt rows keep the existing UI/export shape for customer/supplier names, order/voucher counts, and display codes, while `debitTotal`, `creditTotal`, and `balance` come from full matching ledger aggregates.
+  - Report query validation contract now guards debt report rows against regressing to `this.customerDebtRows(entries)` / `this.supplierDebtRows(entries)` from capped ledger entries.
+
 - Phase 3 finance report order-summary accuracy hardening:
   - Hybrid finance report order financial metrics (`totalRevenue`, paid/remaining amounts, cost, profit, commission, margin) now use scoped database order aggregates instead of the capped finance `orderRows` display list.
   - Finance report `summary.orderCount` now uses a scoped database count instead of `orderRows.length`, so it is not capped at the 1000-row order preload.

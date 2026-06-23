@@ -214,15 +214,12 @@ export class ReportsService {
   async customerDebt(query: ReportQuery, user?: RequestUser) {
     this.assertDebtQuery(query);
     const where = branchDepartmentScopeWhere(this.customerDebtWhere(query), user);
-    const entries = await this.prisma.customerLedgerEntry.findMany({
-      where,
-      include: { customer: true, order: true, tour: true, receipt: true, invoice: true },
-      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
-      take: 1000,
-    });
-    const rows = this.customerDebtRows(entries);
+    const [rows, summary] = await Promise.all([
+      this.customerDebtRowsFromDb(where, 1000),
+      this.customerDebtSummaryFromDb(where),
+    ]);
     return {
-      summary: await this.customerDebtSummaryFromDb(where),
+      summary,
       rows,
     };
   }
@@ -230,15 +227,12 @@ export class ReportsService {
   async supplierDebt(query: ReportQuery, user?: RequestUser) {
     this.assertDebtQuery(query);
     const where = branchDepartmentScopeWhere(this.supplierDebtWhere(query), user);
-    const entries = await this.prisma.supplierLedgerEntry.findMany({
-      where,
-      include: { supplier: { include: { category: true } }, order: true, tour: true, operationVoucher: true, payment: true },
-      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
-      take: 1000,
-    });
-    const rows = this.supplierDebtRows(entries);
+    const [rows, summary] = await Promise.all([
+      this.supplierDebtRowsFromDb(where, 1000),
+      this.supplierDebtSummaryFromDb(where),
+    ]);
     return {
-      summary: await this.supplierDebtSummaryFromDb(where),
+      summary,
       rows,
     };
   }
@@ -1112,6 +1106,205 @@ export class ReportsService {
     });
     const list = [...rows.values()].sort((a, b) => b.revenue - a.revenue);
     return { summary: this.tourFinanceSummary(tours), rows: list };
+  }
+
+  private async customerDebtRowsFromDb(where: Prisma.CustomerLedgerEntryWhereInput, take: number) {
+    const grouped = await this.prisma.customerLedgerEntry.groupBy({
+      by: ['customerId'],
+      where,
+      _count: { _all: true },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const rows = grouped
+      .map((row) => {
+        const debitTotal = Number(row._sum.debitAmount ?? 0);
+        const creditTotal = Number(row._sum.creditAmount ?? 0);
+        return { customerId: row.customerId, entryCount: this.groupCount(row), debitTotal, creditTotal, balance: debitTotal - creditTotal };
+      })
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance)
+      .slice(0, take);
+    const customerIds = rows.map((row) => row.customerId).filter(Boolean);
+    if (!customerIds.length) return [];
+    const scopedWhere: Prisma.CustomerLedgerEntryWhereInput = { AND: [where, { customerId: { in: customerIds } }] };
+    const [customers, orderGroups, tourGroups, recentEntries] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true, code: true, fullName: true, phone: true },
+      }),
+      this.prisma.customerLedgerEntry.groupBy({ by: ['customerId', 'orderId'], where: { AND: [scopedWhere, { orderId: { not: null } }] } }),
+      this.prisma.customerLedgerEntry.groupBy({ by: ['customerId', 'tourId'], where: { AND: [scopedWhere, { tourId: { not: null } }] } }),
+      this.prisma.customerLedgerEntry.findMany({
+        where: scopedWhere,
+        select: {
+          customerId: true,
+          orderId: true,
+          tourId: true,
+          order: { select: { systemCode: true } },
+          tour: { select: { systemCode: true } },
+        },
+        orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+        take,
+      }),
+    ]);
+    const customersById = new Map(customers.map((customer) => [customer.id, customer]));
+    const orderIdsByCustomer = new Map<string, Set<string>>();
+    const orderCodesByCustomer = new Map<string, Set<string>>();
+    const addOrderId = (customerId: string | null, value?: string | null) => {
+      if (!customerId || !value) return;
+      const set = orderIdsByCustomer.get(customerId) || new Set<string>();
+      set.add(value);
+      orderIdsByCustomer.set(customerId, set);
+    };
+    for (const row of orderGroups) addOrderId(row.customerId, row.orderId);
+    for (const row of tourGroups) addOrderId(row.customerId, row.tourId);
+    for (const entry of recentEntries) {
+      if (!entry.customerId) continue;
+      const codes = orderCodesByCustomer.get(entry.customerId) || new Set<string>();
+      if (entry.order?.systemCode) codes.add(entry.order.systemCode);
+      if (entry.tour?.systemCode) codes.add(entry.tour.systemCode);
+      orderCodesByCustomer.set(entry.customerId, codes);
+    }
+    return rows.map((row) => {
+      const customer = customersById.get(row.customerId);
+      const orderCodes = [...(orderCodesByCustomer.get(row.customerId) || new Set<string>())];
+      const orderIds = [...(orderIdsByCustomer.get(row.customerId) || new Set<string>())];
+      const customerName = customer?.fullName || 'Chưa có khách';
+      const customerCode = customer?.code || '';
+      return {
+        key: row.customerId,
+        customerId: row.customerId,
+        customerCode,
+        customerName,
+        customerPhone: customer?.phone || '',
+        label: `${customerName} - ${customerCode || 'Chưa có mã KH'}`,
+        entryCount: row.entryCount,
+        orderCount: orderIds.length || row.entryCount,
+        customerCount: 1,
+        revenue: row.debitTotal,
+        paidAmount: row.creditTotal,
+        remainingRevenue: row.balance,
+        totalRevenue: row.debitTotal,
+        debitTotal: row.debitTotal,
+        creditTotal: row.creditTotal,
+        balance: row.balance,
+        cost: 0,
+        paidCost: 0,
+        remainingCost: 0,
+        profit: 0,
+        commission: 0,
+        marginRate: 0,
+        systemCode: orderCodes.join(', '),
+        orderCodes,
+        orderIds,
+      };
+    });
+  }
+
+  private async supplierDebtRowsFromDb(where: Prisma.SupplierLedgerEntryWhereInput, take: number) {
+    const grouped = await this.prisma.supplierLedgerEntry.groupBy({
+      by: ['supplierId'],
+      where,
+      _count: { _all: true },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const rows = grouped
+      .map((row) => {
+        const paidAmount = Number(row._sum.debitAmount ?? 0);
+        const totalPurchase = Number(row._sum.creditAmount ?? 0);
+        return { supplierId: row.supplierId, entryCount: this.groupCount(row), debitTotal: totalPurchase, creditTotal: paidAmount, balance: totalPurchase - paidAmount };
+      })
+      .filter((row) => row.balance !== 0)
+      .sort((left, right) => right.balance - left.balance)
+      .slice(0, take);
+    const supplierIds = rows.map((row) => row.supplierId).filter(Boolean);
+    if (!supplierIds.length) return [];
+    const scopedWhere: Prisma.SupplierLedgerEntryWhereInput = { AND: [where, { supplierId: { in: supplierIds } }] };
+    const [suppliers, orderGroups, tourGroups, voucherGroups, recentEntries] = await Promise.all([
+      this.prisma.supplier.findMany({
+        where: { id: { in: supplierIds }, deletedAt: null },
+        select: { id: true, supplierCode: true, name: true, phone: true, category: { select: { name: true } } },
+      }),
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['supplierId', 'orderId'], where: { AND: [scopedWhere, { orderId: { not: null } }] } }),
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['supplierId', 'tourId'], where: { AND: [scopedWhere, { tourId: { not: null } }] } }),
+      this.prisma.supplierLedgerEntry.groupBy({ by: ['supplierId', 'operationVoucherId'], where: { AND: [scopedWhere, { operationVoucherId: { not: null } }] } }),
+      this.prisma.supplierLedgerEntry.findMany({
+        where: scopedWhere,
+        select: {
+          supplierId: true,
+          operationVoucherId: true,
+          operationVoucher: { select: { voucherCode: true, serviceType: true } },
+        },
+        orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+        take,
+      }),
+    ]);
+    const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+    const orderIdsBySupplier = new Map<string, Set<string>>();
+    const voucherIdsBySupplier = new Map<string, Set<string>>();
+    const voucherCodesBySupplier = new Map<string, Set<string>>();
+    const voucherTypeBySupplier = new Map<string, string>();
+    const addOrderId = (supplierId: string | null, value?: string | null) => {
+      if (!supplierId || !value) return;
+      const set = orderIdsBySupplier.get(supplierId) || new Set<string>();
+      set.add(value);
+      orderIdsBySupplier.set(supplierId, set);
+    };
+    const addVoucherId = (supplierId: string | null, value?: string | null) => {
+      if (!supplierId || !value) return;
+      const set = voucherIdsBySupplier.get(supplierId) || new Set<string>();
+      set.add(value);
+      voucherIdsBySupplier.set(supplierId, set);
+    };
+    for (const row of orderGroups) addOrderId(row.supplierId, row.orderId);
+    for (const row of tourGroups) addOrderId(row.supplierId, row.tourId);
+    for (const row of voucherGroups) addVoucherId(row.supplierId, row.operationVoucherId);
+    for (const entry of recentEntries) {
+      if (!entry.supplierId) continue;
+      const codes = voucherCodesBySupplier.get(entry.supplierId) || new Set<string>();
+      if (entry.operationVoucher?.voucherCode) codes.add(entry.operationVoucher.voucherCode);
+      voucherCodesBySupplier.set(entry.supplierId, codes);
+      if (entry.operationVoucher?.serviceType && !voucherTypeBySupplier.get(entry.supplierId)) {
+        voucherTypeBySupplier.set(entry.supplierId, entry.operationVoucher.serviceType);
+      }
+    }
+    return rows.map((row) => {
+      const supplier = suppliersById.get(row.supplierId);
+      const orderIds = [...(orderIdsBySupplier.get(row.supplierId) || new Set<string>())];
+      const voucherIds = [...(voucherIdsBySupplier.get(row.supplierId) || new Set<string>())];
+      const voucherCodes = [...(voucherCodesBySupplier.get(row.supplierId) || new Set<string>())];
+      const supplierName = supplier?.name || 'Chưa gắn NCC';
+      return {
+        key: row.supplierId,
+        supplierId: row.supplierId,
+        supplierCode: supplier?.supplierCode || '',
+        supplierName,
+        supplierType: supplier?.category?.name || voucherTypeBySupplier.get(row.supplierId) || '',
+        label: supplierName,
+        entryCount: row.entryCount,
+        voucherCount: voucherIds.length || row.entryCount,
+        orderCount: orderIds.length,
+        customerCount: 0,
+        revenue: 0,
+        paidAmount: row.creditTotal,
+        remainingRevenue: 0,
+        totalPurchase: row.debitTotal,
+        totalCost: row.debitTotal,
+        cost: row.debitTotal,
+        paidCost: row.creditTotal,
+        remainingAmount: row.balance,
+        remainingCost: row.balance,
+        profit: -row.balance,
+        commission: 0,
+        marginRate: 0,
+        debitTotal: row.debitTotal,
+        creditTotal: row.creditTotal,
+        balance: row.balance,
+        voucherCodes,
+        voucherIds,
+        orderIds,
+      };
+    });
   }
 
   private customerDebtRows(entries: any[]) {

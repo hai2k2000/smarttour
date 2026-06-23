@@ -79,6 +79,17 @@ async function main() {
     assert(block.includes(helper), `${method} summary must use database grouped summary helper`);
     assert(!block.includes(oldSummary), `${method} summary must not depend on capped debt rows`);
   }
+  for (const [method, helper, oldRows] of [
+    ['customerDebt', 'customerDebtRowsFromDb(where, 1000)', 'this.customerDebtRows(entries)'],
+    ['supplierDebt', 'supplierDebtRowsFromDb(where, 1000)', 'this.supplierDebtRows(entries)'],
+  ]) {
+    const start = reportsServiceSource.indexOf('async ' + method + '(');
+    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
+    assert(block.includes(helper), `${method} rows must use database grouped row helper`);
+    assert(!block.includes(oldRows), `${method} rows must not be grouped from capped ledger entries`);
+    assert(!block.includes('findMany({\n      where,\n      include:'), `${method} must not load capped ledger entries before grouping report rows`);
+  }
   {
     const start = reportsServiceSource.indexOf('async finance(');
     const next = reportsServiceSource.indexOf('\n  async ', start + 1);
@@ -145,6 +156,16 @@ async function main() {
     assert(block.includes('.groupBy({'), `${helper} must group ledger balances in the database`);
     assert(block.includes('_sum:'), `${helper} must sum ledger fields in the database`);
   }
+  for (const [helper, model] of [
+    ['customerDebtRowsFromDb', 'customerLedgerEntry'],
+    ['supplierDebtRowsFromDb', 'supplierLedgerEntry'],
+  ]) {
+    const start = reportsServiceSource.indexOf('private async ' + helper + '(');
+    const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 3600);
+    assert(block.includes(model + '.groupBy({'), `${helper} must group ledger rows in the database`);
+    assert(block.includes('_sum: { debitAmount: true, creditAmount: true }'), `${helper} must sum ledger debit/credit in the database`);
+    assert(block.includes('.slice(0, take)'), `${helper} must keep grouped report rows bounded after sorting`);
+  }
   {
     const start = reportsServiceSource.indexOf('private async financeSummaryFromDb(');
     const block = start === -1 ? '' : reportsServiceSource.slice(start, start + 2200);
@@ -209,12 +230,14 @@ async function main() {
     tour: { findMany: async () => { tourCalls += 1; return []; } },
     customerLedgerEntry: {
       findMany: async () => { debtCalls += 1; return []; },
-      groupBy: async () => [],
+      groupBy: async () => { debtCalls += 1; return []; },
     },
+    customer: { findMany: async () => [] },
     supplierLedgerEntry: {
       findMany: async () => { supplierDebtCalls += 1; return []; },
-      groupBy: async () => [],
+      groupBy: async () => { supplierDebtCalls += 1; return []; },
     },
+    supplier: { findMany: async () => [] },
     financeReceipt: {
       findMany: async () => { financeDocumentCalls += 1; return []; },
       count: async () => 0,
@@ -242,8 +265,8 @@ async function main() {
   await assertBadRequest(() => service.supplierHistory('supplier-1', { dateField: 'closedAt' }), 'supplier history must reject ignored dateField');
   assert.equal(orderCalls, 2, 'valid hybrid finance report and export must query orders exactly twice');
   assert.equal(tourCalls, 0, 'invalid Tour filters must be rejected before querying Prisma');
-  assert.equal(debtCalls, 2, 'valid hybrid finance report and export must query customer debt exactly twice');
-  assert.equal(supplierDebtCalls, 2, 'valid hybrid finance report and export must query supplier debt exactly twice');
+  assert(debtCalls >= 4, 'valid hybrid finance report and export must query customer debt grouped rows and summaries');
+  assert(supplierDebtCalls >= 4, 'valid hybrid finance report and export must query supplier debt grouped rows and summaries');
   assert.equal(historyCalls, 0, 'invalid supplier history filters must be rejected before querying Prisma');
   assert.equal(financeDocumentCalls, 6, 'valid hybrid finance report and export must query receipt, payment, and cashflow rows twice');
 
@@ -258,10 +281,12 @@ async function main() {
       findMany: async () => [],
       groupBy: async () => [],
     },
+    customer: { findMany: async () => [] },
     supplierLedgerEntry: {
       findMany: async () => [],
       groupBy: async () => [],
     },
+    supplier: { findMany: async () => [] },
     financeReceipt: {
       findMany: async (args) => { capturedFinanceWhere.receiptRows = args.where; return []; },
       count: async (args) => { capturedFinanceWhere.receiptCount = args.where; return 0; },
