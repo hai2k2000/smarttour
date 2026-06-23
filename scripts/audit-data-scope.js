@@ -43,12 +43,12 @@ const schemaScopeGaps = [
   {
     file: 'apps/api/src/modules/tour-guides/tour-guides.service.ts',
     reason: 'GuideProfile is a global guide catalog model without branch/department fields; guide schedule writes are scoped through linked Tour/Order records',
-    must: ['list(search', 'validateScheduleLinks', 'RequestUser', 'branchDepartmentScopeWhere', 'applyWriteDataScope'],
+    must: ['list(query', 'validateScheduleLinks', 'RequestUser', 'branchDepartmentScopeWhere', 'applyWriteDataScope'],
   },
   {
     file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
     reason: 'TourProgram and TourItineraryDay are reusable program templates without branch/department fields',
-    must: ['list(search', 'createItineraryDay'],
+    must: ['list(input', 'createItineraryDay'],
   },
   {
     file: 'apps/api/src/modules/quotes/quotes.service.ts',

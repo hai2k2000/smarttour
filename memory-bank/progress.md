@@ -2,6 +2,13 @@
 
 ## Done
 
+- Completed Phase 3 final verification hardening:
+  - Updated data-scope audit/module-flow fixtures after bounded DTO list signatures replaced older string-search service calls.
+  - Added migration `20260623140000_restore_system_roles` to restore baseline system roles and RBAC/data-scope permissions when a database has drifted to empty roles after earlier migrations.
+  - Restored due-date aging accuracy for finance customer/supplier debt grouped rows while preserving database grouped balance calculations and bounded row payloads.
+  - Made supplier service row ordering deterministic across create/detail/list responses by ordering service includes by `createdAt`, `sku`, and `id`.
+  - Verified with data-scope/RBAC, supplier, finance, self-seeding Phase 3 smoke, admin-required workflow/file/UI smoke, API Docker deploy, and export smoke.
+
 - Hardened finance CSV export completeness:
   - Finance receipt, payment, invoice, and cashflow exports now query all matching scoped rows directly instead of reusing capped list payloads.
   - Preserved the existing filters, sort order, and data-scope behavior for exported rows.

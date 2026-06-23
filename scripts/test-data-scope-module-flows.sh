@@ -435,7 +435,7 @@ async function main() {
     department: 'DEP-B',
   }, allUser);
   assert(gitA.branch === 'BR-A', 'GIT create should inject branch');
-  const gitRows = await gitTours.list(run, undefined, branchUser);
+  const gitRows = await gitTours.list({ search: run }, branchUser);
   assert(gitRows.length === 1 && gitRows[0].id === gitA.id, 'GIT list should be branch scoped');
   await rejects(() => gitTours.detail(gitB.id, branchUser), 'GIT detail should reject other branch');
   await rejects(() => gitTours.update(gitB.id, { name: 'Blocked other branch GIT' }, branchUser), 'GIT update should reject other branch target');
@@ -443,7 +443,7 @@ async function main() {
   await rejects(() => gitTours.remove(gitB.id, branchUser), 'GIT remove should reject other branch target');
   await rejects(() => gitTours.copyServices(gitB.id, gitA.id, branchUser), 'GIT copy-services should reject other branch target');
   await rejects(() => gitTours.copyServices(gitA.id, gitB.id, branchUser), 'GIT copy-services should reject other branch source');
-  assert((await gitTours.list(run, undefined, noScopeUser)).length === 0, 'GIT no-scope user should see no sensitive rows');
+  assert((await gitTours.list({ search: run }, noScopeUser)).length === 0, 'GIT no-scope user should see no sensitive rows');
 
   const landA = await landTours.create({
     systemCode: run + '-LAND-A',
@@ -460,7 +460,7 @@ async function main() {
     department: 'DEP-B',
   }, allUser);
   assert(landA.branch === 'BR-A', 'LandTour create should inject branch');
-  assert((await landTours.list(run, undefined, branchUser)).length === 1, 'LandTour list should be branch scoped');
+  assert((await landTours.list({ search: run }, branchUser)).length === 1, 'LandTour list should be branch scoped');
   await rejects(() => landTours.detail(landB.id, branchUser), 'LandTour detail should reject other branch');
 
   const fitA = await fitTours.create({
@@ -485,7 +485,7 @@ async function main() {
   assert(fitWithCustomerA.customerId === customerA.id && fitWithCustomerA.tour.customers[0]?.crmCustomerId === customerA.id, 'FIT create should link scoped customer into common TourCustomer');
   await rejects(() => fitTours.create({ quoteCode: run + '-FIT-OTHER-CUST', tourCode: run + '-FIT-OTHER-CUST', customerId: customerB.id, customerName: customerB.fullName }, branchUser), 'FIT create should reject customer outside branch scope');
   await rejects(() => fitTours.update(fitA.id, { customerId: customerB.id }, branchUser), 'FIT update should reject customer outside branch scope');
-  const fitRows = await fitTours.list(run, undefined, branchUser);
+  const fitRows = await fitTours.list({ search: run }, branchUser);
   assert(fitRows.length === 2 && fitRows.some((row) => row.id === fitA.id) && fitRows.some((row) => row.id === fitWithCustomerA.id), 'FIT list should be branch scoped through tour');
   await rejects(() => fitTours.detail(fitB.id, branchUser), 'FIT detail should reject other branch');
 

@@ -58,11 +58,14 @@ assert 'throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound)' in s
 for include_fragment in [
     'hotelProfile: true',
     "contacts: { orderBy: { createdAt: 'asc' } }",
-    "supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }",
+    "supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY }",
     "allotments: { orderBy: { createdAt: 'asc' }, include: { allocations:",
     "files: { orderBy: { createdAt: 'desc' } }",
 ]:
     assert include_fragment in service, f'hotel detail include is missing {include_fragment}'
+
+for order_fragment in ["{ createdAt: 'asc' }", "{ sku: 'asc' }", "{ id: 'asc' }"]:
+    assert order_fragment in service, f'supplier service order must include deterministic {order_fragment}'
 
 assert 'const hotelProfileData = this.toHotelProfileData(dto)' in service
 assert 'this.validateHotelProfilePayload(dto)' in service and 'this.validateHotelProfilePayload(dto, true)' in service, 'hotel create/update must validate required profile fields in the service layer'

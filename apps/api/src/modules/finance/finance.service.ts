@@ -1287,7 +1287,13 @@ export class FinanceService {
       where: { id: { in: rows.map((row) => row.customerId) } },
       select: { id: true, code: true, fullName: true, phone: true },
     });
+    const entries = await this.prisma.customerLedgerEntry.findMany({
+      where: { AND: [where, { customerId: { in: rows.map((row) => row.customerId) } }] },
+      select: { customerId: true, debitAmount: true, creditAmount: true, dueDate: true, documentDate: true, createdAt: true },
+      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+    });
     const customersById = new Map(customers.map((customer) => [customer.id, customer]));
+    const entriesByCustomer = this.groupBy(entries, (entry) => entry.customerId);
     return rows.map((row) => {
       const customer = customersById.get(row.customerId);
       return {
@@ -1298,7 +1304,7 @@ export class FinanceService {
         debitTotal: row.debitTotal,
         creditTotal: row.creditTotal,
         balance: row.balance,
-        aging: this.balanceAging(row.balance),
+        aging: this.debtAging(entriesByCustomer.get(row.customerId) || [], 'debitAmount', 'creditAmount'),
       };
     });
   }
@@ -1322,7 +1328,13 @@ export class FinanceService {
       where: { id: { in: rows.map((row) => row.supplierId) }, deletedAt: null },
       select: { id: true, supplierCode: true, name: true, phone: true },
     });
+    const entries = await this.prisma.supplierLedgerEntry.findMany({
+      where: { AND: [where, { supplierId: { in: rows.map((row) => row.supplierId) } }] },
+      select: { supplierId: true, debitAmount: true, creditAmount: true, dueDate: true, documentDate: true, createdAt: true },
+      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+    });
     const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+    const entriesBySupplier = this.groupBy(entries, (entry) => entry.supplierId);
     return rows.map((row) => {
       const supplier = suppliersById.get(row.supplierId);
       return {
@@ -1333,7 +1345,7 @@ export class FinanceService {
         debitTotal: row.debitTotal,
         creditTotal: row.creditTotal,
         balance: row.balance,
-        aging: this.balanceAging(row.balance),
+        aging: this.debtAging(entriesBySupplier.get(row.supplierId) || [], 'creditAmount', 'debitAmount'),
       };
     });
   }
@@ -1396,6 +1408,17 @@ export class FinanceService {
     }
     if (settlements > 0) aging.current -= settlements;
     return { ...aging, overdueTotal: aging.overdue1To30 + aging.overdue31To60 + aging.overdue61To90 + aging.overdueOver90 };
+  }
+
+  private groupBy<T, K>(items: T[], keyOf: (item: T) => K) {
+    const grouped = new Map<K, T[]>();
+    for (const item of items) {
+      const key = keyOf(item);
+      const group = grouped.get(key) || [];
+      group.push(item);
+      grouped.set(key, group);
+    }
+    return grouped;
   }
 
   private balanceAging(balance: number) {

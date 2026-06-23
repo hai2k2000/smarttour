@@ -68,6 +68,11 @@ const SUPPLIER_ERRORS = {
   allocationNotFound: 'Không tìm thấy phân bổ quỹ phòng',
   unsupportedType: 'Loại nhà cung cấp không được hỗ trợ',
 } as const;
+const SUPPLIER_SERVICE_ORDER_BY = [
+  { createdAt: 'asc' },
+  { sku: 'asc' },
+  { id: 'asc' },
+] satisfies Prisma.SupplierServiceOrderByWithRelationInput[];
 
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
@@ -187,7 +192,7 @@ export class SuppliersService {
         category: true,
         hotelProfile: true,
         contacts: true,
-        supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+        supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
         allotments: true,
         files: true,
         services: true,
@@ -1303,7 +1308,7 @@ export class SuppliersService {
       category: true,
       hotelProfile: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
       allotments: { orderBy: { createdAt: 'asc' }, include: { allocations: { orderBy: { createdAt: 'desc' }, take: 10 }, logs: { orderBy: { createdAt: 'desc' }, take: 3 } } },
       files: { orderBy: { createdAt: 'desc' } },
     } satisfies Prisma.SupplierInclude;
@@ -1314,7 +1319,7 @@ export class SuppliersService {
       category: true,
       hotelProfile: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
       allotments: { orderBy: { createdAt: 'asc' } },
     } satisfies Prisma.SupplierInclude;
   }
@@ -1407,7 +1412,7 @@ export class SuppliersService {
     return {
       category: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
       files: { orderBy: { createdAt: 'desc' } },
     } satisfies Prisma.SupplierInclude;
   }
@@ -1416,7 +1421,7 @@ export class SuppliersService {
     return {
       category: true,
       contacts: { orderBy: { createdAt: 'asc' } },
-      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
     } satisfies Prisma.SupplierInclude;
   }
 
@@ -1635,7 +1640,7 @@ export class SuppliersService {
   private supplierListInclude() {
     return {
       category: true,
-      supplierServices: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+      supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
     } satisfies Prisma.SupplierInclude;
   }
 

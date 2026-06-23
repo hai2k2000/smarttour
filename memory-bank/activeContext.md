@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Phase 3 final verification hardening:
+  - Data-scope verification now tracks the current bounded list signatures for tour guides and tour programs, and module-flow tests call GIT/Land/FIT list services through their DTO query contracts.
+  - Added an idempotent system-role restore migration so empty/drifted databases regain the baseline `super_admin`, `sales`, `operation`, and `accounting` roles plus current RBAC/data-scope permissions.
+  - Finance customer/supplier debt grouped rows still use database `groupBy` for balances, then compute aging from ledger entries for the selected bounded rows so overdue buckets remain accurate.
+  - Supplier service includes now order service rows deterministically by created time, SKU, and id, preventing unstable typed-supplier service row ordering.
+  - Verification covered data-scope/RBAC, self-seeding Phase 3 smokes, admin-required workflow/file/UI smokes with a temporary admin user, API Docker rebuild/restart, and export smoke.
+
 - Phase 3 finance CSV export completeness hardening:
   - Finance receipt, payment, invoice, and cashflow CSV exports now query matching scoped rows directly instead of exporting from capped list payloads (`take: 1000`/`2000`).
   - Export filters and branch/department scope continue to reuse the same where builders as list endpoints, while list endpoints remain bounded for UI payload safety.
