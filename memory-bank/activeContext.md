@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production deploy clean worktree hardening:
+  - Hardened `scripts/deploy-production.sh` so production deploy aborts on untracked files in addition to tracked and staged changes, unless `ALLOW_DIRTY=true` is set explicitly on the server.
+  - Extended `scripts/test-github-actions-contract.js` and `docs/github-actions-runbook.md` so the untracked-file guard remains documented and guarded.
+  - Verified the untracked-file guard in an isolated temporary git repository because the live VPS branch intentionally still has old untracked files `=280` and `=520`.
+
 - Production deploy input validation hardening:
   - Added a `Validate dispatch inputs` step to `.github/workflows/deploy-production.yml` so branch, repo path, site URL, and API URL are allowlist-checked before SSH starts.
   - Added server-side `BRANCH` validation in `scripts/deploy-production.sh` before git fetch/checkout/pull.

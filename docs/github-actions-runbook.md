@@ -48,5 +48,7 @@ Before first use, run a dry manual dispatch against a non-production branch only
 if the VPS worktree can safely switch to that branch. Otherwise merge to `main`
 first and deploy `main`.
 
-Do not set `ALLOW_DIRTY=true` in GitHub Actions. Emergency dirty deploys must be
-run explicitly on the VPS with an operator present.
+The server-side deploy script aborts when tracked, staged, or untracked files
+exist in the VPS worktree. Do not set `ALLOW_DIRTY=true` in GitHub Actions.
+Emergency dirty deploys must be run explicitly on the VPS with an operator
+present.

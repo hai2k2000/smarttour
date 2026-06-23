@@ -93,6 +93,9 @@ includes(deployScript, '[[ ! "$value" =~ ^[A-Za-z0-9._/-]+$ ]]', 'Server-side br
 includes(deployScript, '[[ "$value" == /* ]]', 'Server-side branch validation must reject absolute ref paths.');
 includes(deployScript, '[[ "$value" == *..* ]]', 'Server-side branch validation must reject parent traversal.');
 includes(deployScript, 'validate_branch_name "$BRANCH"', 'Server-side deploy must validate BRANCH before git fetch/checkout/pull.');
+includes(deployScript, 'git ls-files --others --exclude-standard', 'Server-side production deploy must detect untracked files.');
+includes(deployScript, 'DEPLOY_ABORT untracked files exist', 'Server-side production deploy must abort when untracked files exist.');
+includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side production deploy must print untracked files before aborting.');
 
 
 const runbookText = read(runbook);
@@ -114,6 +117,8 @@ for (const text of [
   'contain only letters, numbers, dot, underscore, slash, and hyphen',
   'URLs must start',
   'with `https://`',
+  'untracked files',
+  'ALLOW_DIRTY=true',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

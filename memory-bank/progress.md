@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production deploy clean-worktree checks:
+  - Added an untracked-file guard to `scripts/deploy-production.sh` so production deploy requires a fully clean VPS worktree by default.
+  - Extended the GitHub Actions deploy contract and runbook to guard/document the untracked-file abort behavior.
+  - Verified the guard with an isolated temporary git repository that aborts before deploy steps when `leftover.tmp` is untracked.
+
 - Hardened production deploy input validation:
   - Added workflow validation for manual dispatch branch, repo path, site URL, and API URL before SSH starts.
   - Added server-side branch validation in `scripts/deploy-production.sh` before git commands run.

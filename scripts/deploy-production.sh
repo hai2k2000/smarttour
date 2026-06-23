@@ -37,6 +37,13 @@ if [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --cached --quiet; then
   exit 1
 fi
 
+untracked_files="$(git ls-files --others --exclude-standard)"
+if [[ "$ALLOW_DIRTY" != "true" && -n "$untracked_files" ]]; then
+  echo "DEPLOY_ABORT untracked files exist. Remove or commit them first, or set ALLOW_DIRTY=true for an emergency deploy."
+  printf '%s\n' "$untracked_files"
+  exit 1
+fi
+
 if [[ "$RUN_GIT_PULL" == "true" ]]; then
   git fetch origin "$BRANCH"
   git checkout "$BRANCH"
