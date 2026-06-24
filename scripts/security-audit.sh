@@ -94,6 +94,20 @@ else
   failures=$((failures + 1))
 fi
 
+ops_log_dir_mode="$(stat -c '%a %U:%G' /var/log/smarttour)"
+ops_security_log_dir_mode="$(stat -c '%a %U:%G' /var/log/smarttour/security)"
+exposed_ops_log="$(find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -perm /037 -print -quit)"
+exposed_security_report="$(find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -perm /037 -print -quit)"
+if [[ "$ops_log_dir_mode" == "750 root:root" ]] \
+  && [[ "$ops_security_log_dir_mode" == "750 root:root" ]] \
+  && [[ -z "$exposed_ops_log" ]] \
+  && [[ -z "$exposed_security_report" ]]; then
+  echo "OK_OPS_LOG_PERMS /var/log/smarttour private"
+else
+  echo "FAIL_OPS_LOG_PERMS dir=$ops_log_dir_mode security_dir=$ops_security_log_dir_mode exposed_log=${exposed_ops_log:-none} exposed_report=${exposed_security_report:-none}"
+  failures=$((failures + 1))
+fi
+
 check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 check_disaster_backup_staging_dirs

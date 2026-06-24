@@ -11,8 +11,13 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-install -d -m 0755 /var/log/smarttour
-install -d -m 0755 /var/log/smarttour/security
+install -d -m 0750 /var/log/smarttour
+install -d -m 0750 /var/log/smarttour/security
+chown root:root /var/log/smarttour /var/log/smarttour/security
+find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chown root:root {} +
+find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chmod 0640 {} +
+find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chown root:root {} +
+find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chmod 0640 {} +
 install -d -m 0700 /var/backups/smarttour/disaster
 install -d -m 0755 /etc/logrotate.d
 install -m 0644 "$REPO_DIR/deploy/logrotate/smarttour" /etc/logrotate.d/smarttour

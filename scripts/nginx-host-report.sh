@@ -13,7 +13,7 @@ latest="$REPORT_DIR/nginx-host-report-latest.txt"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-install -d -m 0755 "$REPORT_DIR"
+install -d -m 0750 "$REPORT_DIR"
 
 docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1 \
   | grep -F '|host=' > "$tmp" || true
@@ -47,8 +47,10 @@ docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1 \
   echo "RECENT_UNKNOWN_REQUESTS"
   grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" | tail -20 || true
 } | tee "$report"
+chmod 0640 "$report"
 
 cp "$report" "$latest"
+chmod 0640 "$latest"
 find "$REPORT_DIR" -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -mtime "+$KEEP_DAYS" -delete
 
 echo "NGINX_HOST_REPORT_OK report=$report"

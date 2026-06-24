@@ -2873,3 +2873,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found SmartTour systemd services append operational logs under `/var/log/smarttour/*.log`, but the VPS had no `/etc/logrotate.d/smarttour` configuration.
   - Added an ops logrotate contract first; RED failed because `deploy/logrotate/smarttour` was missing.
   - Added a SmartTour logrotate config for `/var/log/smarttour/*.log`, installed it through `scripts/install-ops-schedule.sh`, and added `OK_LOGROTATE` / `FAIL_LOGROTATE` coverage to the live security audit.
+
+- 2026-06-24 production ops log permission follow-up:
+  - Found existing SmartTour operational logs and host security reports under `/var/log/smarttour` were `644` inside `755` directories, making them world-readable.
+  - Added an ops log permissions contract first; RED failed because `scripts/install-ops-schedule.sh` still created `/var/log/smarttour` as `0755`.
+  - Updated schedule installation, host report generation, and security audit coverage so SmartTour ops logs/reports are kept in `750` directories with `0640` files and audited via `OK_OPS_LOG_PERMS`.

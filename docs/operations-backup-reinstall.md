@@ -40,6 +40,10 @@ npm run test:ops-logrotate
 sudo logrotate -d /etc/logrotate.d/smarttour
 ```
 
+Operational logs and host security reports under `/var/log/smarttour` are kept
+private (`750` directories, `0640` files) and are checked by `OK_OPS_LOG_PERMS`
+in the security audit.
+
 ## Backup Contents
 
 Daily PostgreSQL backups are stored in:

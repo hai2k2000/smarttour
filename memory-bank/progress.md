@@ -2473,3 +2473,9 @@
   - `scripts/install-ops-schedule.sh` now installs `/etc/logrotate.d/smarttour`; `scripts/security-audit.sh` emits `OK_LOGROTATE` or `FAIL_LOGROTATE` for mode/owner and expected rotation settings.
   - `scripts/test-ops-logrotate-contract.js`, `package.json`, CI source contracts, backup/reinstall docs, security docs, and the production readiness tracker now guard and document the ops logrotate contract.
   - The live `/etc/logrotate.d/smarttour` file was installed as `644 root:root`; `logrotate -d` parsed the SmartTour log pattern, and a temporary bad-config probe confirmed the security audit fails with `FAIL_LOGROTATE` and returns to `OK_LOGROTATE` after restore.
+
+- 2026-06-24 Completed production ops log permission hardening:
+  - `scripts/install-ops-schedule.sh` now normalizes `/var/log/smarttour` and `/var/log/smarttour/security` to `750 root:root`, with SmartTour `.log` and `nginx-host-report-*.txt` files set to `0640 root:root`.
+  - `scripts/nginx-host-report.sh` now creates the report directory as `0750` and writes current/latest report files as `0640`.
+  - `scripts/security-audit.sh` now emits `OK_OPS_LOG_PERMS` or `FAIL_OPS_LOG_PERMS`, and `scripts/test-ops-log-permissions-contract.js`, CI, docs, and Memory Bank guard/document the contract.
+  - Live logs/reports were normalized to `640 root:root`, directories to `750 root:root`; a host report probe created new `0640` report files, and a temporary `0644` log probe confirmed the audit fails with `FAIL_OPS_LOG_PERMS` and returns to OK after restore.
