@@ -85,6 +85,8 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m
 # Set this to bound disaster backup archive and checksum commands.
 # DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m
+# Set this to bound disaster backup Git metadata and bundle commands.
+# DISASTER_BACKUP_GIT_TIMEOUT=5m
 EOF
   chmod 600 "$OPS_ENV"
 fi

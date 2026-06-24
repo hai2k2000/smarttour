@@ -107,7 +107,8 @@ bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`, so a stuck Docker/Compose
 operation fails the weekly timer instead of hanging it indefinitely.
 Disaster backup host inventory commands are bounded by
 `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s`. Disaster archive and checksum
-commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
+commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`. Disaster backup
+Git metadata and bundle commands are bounded by `DISASTER_BACKUP_GIT_TIMEOUT=5m`.
 Disaster backup staging directories are removed after archive checksum verification.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.

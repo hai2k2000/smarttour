@@ -3006,3 +3006,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended backup artifact, offsite backup, and restore-drill safety contracts first; RED failed because `BACKUP_CHECKSUM_TIMEOUT` coverage was missing.
   - Updated `scripts/backup-postgres.sh`, `scripts/sync-latest-backup.sh`, and `scripts/restore-drill-postgres.sh` to run checksum work through `BACKUP_CHECKSUM_TIMEOUT=5m`.
   - Updated ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake timeout probes confirmed daily backup checksum and sync checksum return status 124, and restore-drill checksum timeout still triggers cleanup dropdb.
+
+- 2026-06-24 disaster backup Git timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still ran Git metadata and bundle commands directly while building the weekly disaster archive. A stuck `git bundle create --all` could hang the disaster backup before the volume-consistency phase.
+  - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_GIT_TIMEOUT` coverage was missing.
+  - Updated disaster backup Git status, commit, remote, bundle, and manifest commit lookup to run through `DISASTER_BACKUP_GIT_TIMEOUT=5m`.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake Git bundle timeout probe confirmed status 124 and verified Compose stop is not reached when Git bundle hangs.

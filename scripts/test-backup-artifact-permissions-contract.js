@@ -52,16 +52,23 @@ for (const expected of [
   'DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"',
   'DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"',
+  'DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"',
   'run_disaster_docker()',
   'run_disaster_compose()',
   'run_disaster_host_command()',
   'run_disaster_archive_command()',
+  'run_disaster_git()',
   'timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"',
   'timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"',
   'timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"',
   'timeout "$DISASTER_BACKUP_ARCHIVE_TIMEOUT" "$@"',
+  'timeout "$DISASTER_BACKUP_GIT_TIMEOUT" git "$@"',
   'run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump',
   'run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l',
+  'run_disaster_git status --short --branch',
+  'run_disaster_git rev-parse HEAD',
+  'run_disaster_git remote -v',
+  'run_disaster_git bundle create "$work_dir/git/smarttour.bundle" --all',
   'run_disaster_archive_command tar -czf "$work_dir/config/smarttour-config.tar.gz"',
   'run_disaster_archive_command tar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz"',
   'run_disaster_archive_command tar -czf "$work_dir/volumes/$volume.tar.gz"',
@@ -104,6 +111,10 @@ for (const forbidden of [
   '\ndf -hT > "$work_dir/config/disk.txt"',
   '\nsystemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt"',
   '\ncrontab -l > "$work_dir/config/root-crontab.txt"',
+  '\ngit status --short --branch',
+  '\ngit rev-parse HEAD',
+  '\ngit remote -v',
+  '\ngit bundle create',
   '\ntar -czf "$work_dir/config/smarttour-config.tar.gz"',
   '\ntar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz"',
   '\ntar -czf "$work_dir/volumes/$volume.tar.gz"',
@@ -134,6 +145,7 @@ for (const expected of [
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
   'DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m',
+  'DISASTER_BACKUP_GIT_TIMEOUT=5m',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -177,6 +189,12 @@ includes(
 );
 
 includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'DISASTER_BACKUP_GIT_TIMEOUT',
+);
+
+includes(
   'scripts/install-ops-schedule.sh',
   read('scripts/install-ops-schedule.sh'),
   '# POSTGRES_BACKUP_TIMEOUT=30m',
@@ -198,6 +216,12 @@ includes(
   'scripts/install-ops-schedule.sh',
   read('scripts/install-ops-schedule.sh'),
   '# DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m',
+);
+
+includes(
+  'scripts/install-ops-schedule.sh',
+  read('scripts/install-ops-schedule.sh'),
+  '# DISASTER_BACKUP_GIT_TIMEOUT=5m',
 );
 
 if (packageJson.scripts['test:backup-artifact-permissions'] !== 'node scripts/test-backup-artifact-permissions-contract.js') {

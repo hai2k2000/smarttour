@@ -12,6 +12,7 @@ DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"
 DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"
 DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"
 DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"
+DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -40,6 +41,10 @@ run_disaster_host_command() {
 
 run_disaster_archive_command() {
   timeout "$DISASTER_BACKUP_ARCHIVE_TIMEOUT" "$@"
+}
+
+run_disaster_git() {
+  timeout "$DISASTER_BACKUP_GIT_TIMEOUT" git "$@"
 }
 
 run_disaster_scp() {
@@ -115,10 +120,10 @@ run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l \
   > "$work_dir/database/smarttour.dump.list"
 
 echo "BACKUP_PHASE git_and_config"
-git status --short --branch > "$work_dir/git/status.txt"
-git rev-parse HEAD > "$work_dir/git/commit.txt"
-git remote -v > "$work_dir/git/remotes.txt"
-git bundle create "$work_dir/git/smarttour.bundle" --all
+run_disaster_git status --short --branch > "$work_dir/git/status.txt"
+run_disaster_git rev-parse HEAD > "$work_dir/git/commit.txt"
+run_disaster_git remote -v > "$work_dir/git/remotes.txt"
+run_disaster_git bundle create "$work_dir/git/smarttour.bundle" --all
 
 config_paths=(
   AGENTS.md
@@ -188,7 +193,7 @@ services_stopped=0
 cat > "$work_dir/MANIFEST.txt" <<EOF
 timestamp=$timestamp
 hostname=$(hostname)
-repo_commit=$(git rev-parse HEAD)
+repo_commit=$(run_disaster_git rev-parse HEAD)
 root_mode=$(stat -c '%a %U:%G' /)
 archive=$archive
 EOF

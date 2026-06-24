@@ -2610,3 +2610,9 @@
   - The sync script still verifies checksums before SCP, and restore-drill still validates the backup checksum before any restore command; a checksum timeout exits with status 124.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the checksum timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `BACKUP_CHECKSUM_TIMEOUT=5m` while remaining `600 root:root`; fake timeout probes covered daily backup checksum, sync checksum before SCP, and restore-drill cleanup on checksum timeout.
+
+- 2026-06-24 Completed disaster backup Git timeout hardening:
+  - `scripts/disaster-backup.sh` now runs Git status, commit lookup, remote listing, bundle creation, and manifest commit lookup through `run_disaster_git`, bounded by `DISASTER_BACKUP_GIT_TIMEOUT=5m`.
+  - The bounded Git bundle step runs before `docker compose stop`, so a stuck Git archive operation fails without entering the raw-volume consistency window.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the Git timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_GIT_TIMEOUT=5m` while remaining `600 root:root`; a fake Git bundle timeout probe verified status 124 and no Compose stop.

@@ -87,7 +87,8 @@ bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` by default.
 Host inventory commands collected for the disaster archive are bounded by
 `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s` by default. Archive creation and
 checksum commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` by
-default.
+default. Git metadata and bundle commands are bounded by
+`DISASTER_BACKUP_GIT_TIMEOUT=5m` by default.
 
 ## Backup Artifact Permissions
 
