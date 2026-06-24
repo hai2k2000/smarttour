@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production rollback runbook hardening:
+  - Reworked `docs/rollback-runbook.md` so production rollback records `BAD_COMMIT`, selects `GOOD_COMMIT`, creates/pushes a named `rollback/...` branch, and deploys through `scripts/deploy-production.sh` instead of the preview deploy path.
+  - Added `scripts/test-rollback-runbook-contract.js`, exposed `npm run test:rollback-runbook`, and wired the contract into `SmartTour CI` and the GitHub Actions source contract.
+
 - Production deploy traceability hardening:
   - Hardened `scripts/deploy-production.sh` so production deploy logs `DEPLOY_START` with the current commit, `DEPLOY_REVISION` after git sync, and ordered phase markers for SmartLink guard, Prisma migrations, Docker build/up, and healthcheck.
   - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to keep deploy revision/phase logging documented and guarded.

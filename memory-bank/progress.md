@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production rollback documentation:
+  - Replaced the production rollback runbook's preview/deferred checkout flow with a named rollback branch flow that deploys through `scripts/deploy-production.sh`.
+  - Added explicit `BAD_COMMIT`, `GOOD_COMMIT`, `ROLLBACK_BRANCH`, deploy trace expectation, migration status, dependency audit, healthcheck, and security audit steps.
+  - Added `scripts/test-rollback-runbook-contract.js`, `npm run test:rollback-runbook`, and CI/source-contract wiring.
+
 - Hardened production deploy traceability:
   - Added `DEPLOY_START` and `DEPLOY_REVISION` logs to expose the branch, starting commit, and post-sync target commit during production deploys.
   - Added ordered `DEPLOY_PHASE` logs for SmartLink guard, Prisma migrations, Docker build, Docker up, and healthcheck so failed deploy output identifies the blocked step.

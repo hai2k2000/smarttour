@@ -64,7 +64,8 @@
     "test:backup-offsite": "node scripts/test-backup-offsite-contract.js",
     "test:security-audit": "node scripts/test-security-audit-contract.js",
     "test:smoke-files-command": "node scripts/test-smoke-files-command-contract.js",
-    "test:ops-schedule-docs": "node scripts/test-ops-schedule-docs-contract.js"
+    "test:ops-schedule-docs": "node scripts/test-ops-schedule-docs-contract.js",
+    "test:rollback-runbook": "node scripts/test-rollback-runbook-contract.js"
   },
   "devDependencies": {
     "playwright": "^1.60.0",
