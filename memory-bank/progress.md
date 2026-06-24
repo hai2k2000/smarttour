@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened ops environment file permissions:
+  - Added `/etc/default/smarttour-ops` mode/owner verification to `scripts/security-audit.sh`, emitting `OK_OPS_ENV_FILE` only for `600 root:root`.
+  - Updated `scripts/install-ops-schedule.sh` to normalize the ops environment file owner/mode even when the file already exists.
+  - Updated the security runbook and production readiness tracker so healthcheck/offsite backup configuration permissions are part of standard security evidence.
+
 - Added live security audit coverage for backup permissions:
   - `scripts/security-audit.sh` now verifies PostgreSQL and disaster backup directories are `700 root:root` and backup artifacts/checksums are not group/world-readable.
   - `OK_BACKUP_PERMS` is now guarded by the security audit contract and documented in the security runbook and production readiness tracker.

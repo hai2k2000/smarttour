@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Ops environment file permission hardening:
+  - Hardened `scripts/security-audit.sh` so `/etc/default/smarttour-ops` must be `600 root:root` and emits `OK_OPS_ENV_FILE`/`FAIL_OPS_ENV_FILE`.
+  - Updated `scripts/install-ops-schedule.sh`, `scripts/test-security-audit-contract.js`, the security runbook, and production readiness tracker so healthcheck/offsite backup configuration cannot drift to group/world-readable permissions.
+
 - Backup permission live audit hardening:
   - Extended `scripts/security-audit.sh` with `OK_BACKUP_PERMS` checks so PostgreSQL and disaster backup directories must be `700 root:root` and backup artifacts/checksums must not be group/world-readable.
   - Extended `scripts/test-security-audit-contract.js`, the security runbook, and the production readiness tracker so backup permission drift is caught during live security audits.

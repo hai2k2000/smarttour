@@ -21,6 +21,7 @@ function assertRegex(file, content, regex, message) {
 
 const securityAudit = read('scripts/security-audit.sh');
 const hardeningInstaller = read('scripts/install-security-hardening.sh');
+const opsScheduleInstaller = read('scripts/install-ops-schedule.sh');
 const securityRunbook = read('docs/security-hardening-runbook.md');
 const readinessTracker = read('docs/production-readiness-tracker.md');
 const packageJson = JSON.parse(read('package.json'));
@@ -30,6 +31,9 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   "env_file_mode=\"$(stat -c '%a %U:%G' .env)\"",
   'OK_ENV_FILE .env=600 root:root',
   'FAIL_ENV_FILE',
+  "ops_env_mode=\"$(stat -c '%a %U:%G' /etc/default/smarttour-ops)\"",
+  'OK_OPS_ENV_FILE /etc/default/smarttour-ops=600 root:root',
+  'FAIL_OPS_ENV_FILE',
   'check_private_backup_artifacts()',
   'OK_BACKUP_PERMS $label artifacts private',
   'check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres"',
@@ -60,6 +64,11 @@ assertRegex(
 );
 
 [
+  'chmod 600 "$OPS_ENV"',
+  'chown root:root "$OPS_ENV"',
+].forEach((expected) => assertIncludes('scripts/install-ops-schedule.sh', opsScheduleInstaller, expected));
+
+[
   'chmod 600 "$REPO_DIR/.env"',
   'chmod 755 /',
   'chmod 700 /root/.ssh',
@@ -76,12 +85,14 @@ assertRegex(
   'npm run ops:security',
   'npm run test:security-audit',
   'OK_ENV_FILE',
+  'OK_OPS_ENV_FILE',
   'OK_BACKUP_PERMS',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
 [
   'OK_ENV_FILE',
+  'OK_OPS_ENV_FILE',
   'OK_BACKUP_PERMS',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',

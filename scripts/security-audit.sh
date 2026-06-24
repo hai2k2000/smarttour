@@ -64,6 +64,14 @@ else
   failures=$((failures + 1))
 fi
 
+ops_env_mode="$(stat -c '%a %U:%G' /etc/default/smarttour-ops)"
+if [[ "$ops_env_mode" == "600 root:root" ]]; then
+  echo "OK_OPS_ENV_FILE /etc/default/smarttour-ops=600 root:root"
+else
+  echo "FAIL_OPS_ENV_FILE /etc/default/smarttour-ops=$ops_env_mode expected=600 root:root"
+  failures=$((failures + 1))
+fi
+
 check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 

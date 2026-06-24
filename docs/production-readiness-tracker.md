@@ -148,6 +148,8 @@ Completed hardening:
 - MinIO health and stronger placeholder-secret detection are included in the automated audits.
 - The production `.env` file is checked for `600 root:root` permissions with
   `OK_ENV_FILE`.
+- `/etc/default/smarttour-ops` is checked for `600 root:root` permissions with
+  `OK_OPS_ENV_FILE`.
 - PostgreSQL and disaster backup artifact permissions are checked in the live
   security audit with `OK_BACKUP_PERMS`.
 

@@ -45,6 +45,8 @@ DISASTER_KEEP_BACKUPS=4
 EOF
   chmod 600 "$OPS_ENV"
 fi
+chown root:root "$OPS_ENV"
+chmod 600 "$OPS_ENV"
 
 for unit in "$SYSTEMD_SOURCE"/smarttour-*.service "$SYSTEMD_SOURCE"/smarttour-*.timer; do
   install -m 0644 "$unit" "$SYSTEMD_TARGET/$(basename "$unit")"
