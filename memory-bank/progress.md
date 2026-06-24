@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened PostgreSQL backup tmp cleanup timeout:
+  - `scripts/backup-postgres.sh` now removes failed-backup temporary files through `BACKUP_CLEANUP_TIMEOUT=5m`.
+  - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so tmp cleanup deletion remains bounded.
+
 - Hardened disaster backup cleanup timeout:
   - Guarded `scripts/disaster-backup.sh` staging/archive cleanup deletion now runs through `DISASTER_BACKUP_CLEANUP_TIMEOUT=5m`.
   - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so disaster cleanup deletion remains bounded.

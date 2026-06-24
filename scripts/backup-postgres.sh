@@ -12,6 +12,7 @@ POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+BACKUP_CLEANUP_TIMEOUT="${BACKUP_CLEANUP_TIMEOUT:-5m}"
 
 run_postgres_backup_dump() {
   timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump "$@"
@@ -29,6 +30,10 @@ run_backup_file_scan() {
   timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"
 }
 
+run_backup_cleanup() {
+  timeout "$BACKUP_CLEANUP_TIMEOUT" rm "$@"
+}
+
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 cd "$REPO_DIR"
@@ -39,7 +44,7 @@ tmp_file="$backup_file.tmp"
 checksum_file="$backup_file.sha256"
 
 cleanup_tmp_backup() {
-  rm -f "$tmp_file"
+  run_backup_cleanup -f "$tmp_file"
 }
 trap cleanup_tmp_backup EXIT
 

@@ -27,18 +27,21 @@ for (const expected of [
   'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"',
   'BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
+  'BACKUP_CLEANUP_TIMEOUT="${BACKUP_CLEANUP_TIMEOUT:-5m}"',
   'run_postgres_backup_dump()',
   'run_backup_checksum()',
   'run_backup_compression()',
   'run_backup_file_scan()',
+  'run_backup_cleanup()',
   'timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump',
   'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"',
   'timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
+  'timeout "$BACKUP_CLEANUP_TIMEOUT" rm "$@"',
   'chmod 700 "$BACKUP_DIR"',
   'cleanup_tmp_backup()',
   'trap cleanup_tmp_backup EXIT',
-  'rm -f "$tmp_file"',
+  'run_backup_cleanup -f "$tmp_file"',
   'run_backup_compression -9 > "$tmp_file"',
   'run_backup_checksum "$backup_file" > "$checksum_file"',
   'chmod 600 "$backup_file" "$checksum_file"',
@@ -54,6 +57,10 @@ if (postgresBackup.indexOf('trap cleanup_tmp_backup EXIT') > postgresBackup.inde
 
 if (postgresBackup.includes('\ndocker exec "$POSTGRES_CONTAINER" pg_dump')) {
   throw new Error('scripts/backup-postgres.sh must not call pg_dump through raw docker exec.');
+}
+
+if (postgresBackup.includes('rm -f "$tmp_file"')) {
+  throw new Error('scripts/backup-postgres.sh must not remove tmp backups without a timeout wrapper.');
 }
 
 for (const expected of [
@@ -207,6 +214,7 @@ for (const expected of [
   'BACKUP_CHECKSUM_TIMEOUT=5m',
   'BACKUP_COMPRESSION_TIMEOUT=30m',
   'BACKUP_FILE_SCAN_TIMEOUT=30s',
+  'BACKUP_CLEANUP_TIMEOUT=5m',
   'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
@@ -229,6 +237,7 @@ for (const expected of [
 }
 
 for (const expected of [
+  'BACKUP_CLEANUP_TIMEOUT=5m',
   'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
 ]) {
   includes('scripts/install-ops-schedule.sh', scheduleInstaller, expected);
@@ -244,6 +253,12 @@ includes(
   'docs/production-readiness-tracker.md',
   readinessTracker,
   'POSTGRES_BACKUP_TIMEOUT',
+);
+
+includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'BACKUP_CLEANUP_TIMEOUT',
 );
 
 includes(

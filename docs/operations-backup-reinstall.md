@@ -71,6 +71,8 @@ Backup file discovery and retention cleanup are bounded by
 `BACKUP_FILE_SCAN_TIMEOUT=30s` by default. Backup file ordering after discovery
 is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s` by default. Backup key/config
 file reads are bounded by `BACKUP_FILE_READ_TIMEOUT=10s` by default.
+Temporary backup cleanup deletion is bounded by
+`BACKUP_CLEANUP_TIMEOUT=5m` by default.
 
 Weekly disaster backups are stored in:
 
@@ -112,6 +114,7 @@ Backup artifacts must be private because they contain production data and the
 disaster archive includes `.env` and server configuration. New artifacts are
 created with mode `600`; backup directories are kept at mode `700`.
 Temporary backup files are removed automatically if backup creation fails.
+Temporary backup cleanup deletion is bounded by `BACKUP_CLEANUP_TIMEOUT=5m`.
 Disaster backup staging directories are removed after archive checksum verification.
 Disaster backup staging and retention cleanup only remove guarded
 `smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`, with deletion

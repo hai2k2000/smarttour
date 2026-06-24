@@ -100,6 +100,8 @@ Backup compression and restore decompression are bounded by `BACKUP_COMPRESSION_
 Backup file discovery and retention cleanup are bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
 Backup file ordering before sync/restore is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s`.
 Backup key/config reads before offsite sync are bounded by `BACKUP_FILE_READ_TIMEOUT=10s`.
+Temporary PostgreSQL backup cleanup deletion is bounded by
+`BACKUP_CLEANUP_TIMEOUT=5m`.
 PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.

@@ -50,6 +50,8 @@ DISASTER_KEEP_BACKUPS=4
 # BACKUP_COMPRESSION_TIMEOUT=30m
 # Set this to bound backup file discovery and retention cleanup.
 # BACKUP_FILE_SCAN_TIMEOUT=30s
+# Set this to bound temporary backup cleanup deletion.
+# BACKUP_CLEANUP_TIMEOUT=5m
 # Set this to bound backup key/config file reads.
 # BACKUP_FILE_READ_TIMEOUT=10s
 # Set this to bound backup file ordering after discovery.
