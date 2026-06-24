@@ -2688,3 +2688,9 @@
   - Docker collection remains bounded separately by `DOCKER_CHECK_TIMEOUT=10s`, and restore-drill log reads remain bounded by `HEALTHCHECK_FILE_READ_TIMEOUT=10s`.
   - The ops env template, observability runbook, production readiness tracker, and `npm run test:healthcheck-docker-timeout` now guard/document the text-filter timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.
+
+- 2026-06-24 Completed healthcheck host-command timeout hardening:
+  - `scripts/healthcheck.sh` now bounds root mode, disk usage, and failure-host lookup commands with `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s`.
+  - Docker, systemd, checksum, file scan, file read, text filter, and alert payload work remain bounded by their dedicated healthcheck timeout wrappers.
+  - `npm run test:healthcheck-host-timeout` is exposed in `package.json`, wired into CI source contracts, and guarded by `scripts/test-github-actions-contract.js`.
+  - The ops env template, observability runbook, and production readiness tracker now document the host-command timeout setting; the live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `stat` returns status 124.

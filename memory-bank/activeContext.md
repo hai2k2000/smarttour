@@ -3084,3 +3084,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the healthcheck Docker timeout contract first; RED failed because `HEALTHCHECK_TEXT_FILTER_TIMEOUT` coverage was missing.
   - Added `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` and `run_healthcheck_text_filter`, then routed healthcheck grep filters through the bounded wrapper.
   - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text-filter wrapper probe confirmed stuck `grep` returns timeout status 124.
+
+- 2026-06-24 healthcheck host-command timeout follow-up:
+  - Found `scripts/healthcheck.sh` still used raw host-local commands for root mode, disk usage, and failure-host lookup. A stuck `stat`, `df`, or `hostname` call could hang the healthcheck timer outside Docker/systemd wrappers.
+  - Added a new healthcheck host timeout contract first and wired it into package scripts, CI source contracts, and the GitHub Actions contract; RED failed because `HEALTHCHECK_HOST_COMMAND_TIMEOUT` coverage was missing.
+  - Added `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s` and `run_healthcheck_host_command`, then routed root mode, disk usage, and failure-host lookup through the bounded wrapper.
+  - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake host-command wrapper probe confirmed stuck `stat` returns timeout status 124.

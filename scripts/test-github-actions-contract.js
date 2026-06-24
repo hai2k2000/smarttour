@@ -46,6 +46,7 @@ for (const command of [
   'node scripts/test-backup-artifact-permissions-contract.js',
   'node scripts/test-healthcheck-http-timeout-contract.js',
   'node scripts/test-healthcheck-docker-timeout-contract.js',
+  'node scripts/test-healthcheck-host-timeout-contract.js',
   'node scripts/test-healthcheck-systemd-timeout-contract.js',
   'node scripts/test-ops-logrotate-contract.js',
   'node scripts/test-ops-log-permissions-contract.js',

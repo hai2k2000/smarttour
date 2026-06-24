@@ -10,6 +10,7 @@ RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
 RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
 DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
+HEALTHCHECK_HOST_COMMAND_TIMEOUT="${HEALTHCHECK_HOST_COMMAND_TIMEOUT:-10s}"
 CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
 HEALTHCHECK_FILE_SCAN_TIMEOUT="${HEALTHCHECK_FILE_SCAN_TIMEOUT:-30s}"
 HEALTHCHECK_FILE_READ_TIMEOUT="${HEALTHCHECK_FILE_READ_TIMEOUT:-10s}"
@@ -26,6 +27,10 @@ run_docker_check() {
 
 run_systemd_check() {
   timeout "$SYSTEMD_CHECK_TIMEOUT" systemctl "$@"
+}
+
+run_healthcheck_host_command() {
+  timeout "$HEALTHCHECK_HOST_COMMAND_TIMEOUT" "$@"
 }
 
 run_checksum_check() {
@@ -158,7 +163,7 @@ else
   failures=$((failures + 1))
 fi
 
-root_mode="$(stat -c '%a' /)"
+root_mode="$(run_healthcheck_host_command stat -c '%a' /)"
 if [[ "$root_mode" == "755" ]]; then
   echo "OK_ROOT_MODE /=$root_mode"
 else
@@ -184,7 +189,7 @@ elif [[ "$systemd_failed_units_available" == "true" ]]; then
   echo "OK_SYSTEMD no critical failed units"
 fi
 
-disk_use=$(df -P / | awk 'NR==2 {gsub("%","",$5); print $5}')
+disk_use=$(run_healthcheck_host_command df -P / | awk 'NR==2 {gsub("%","",$5); print $5}')
 if [[ "$disk_use" -ge "${DISK_WARN_PERCENT:-85}" ]]; then
   echo "FAIL_DISK root=${disk_use}%"
   failures=$((failures + 1))
@@ -283,7 +288,8 @@ fi
 
 if [[ "$failures" -gt 0 ]]; then
   echo "HEALTHCHECK_FAILED failures=$failures"
-  notify_failure "SmartTour healthcheck failed on $(hostname): failures=$failures"
+  notify_host="$(run_healthcheck_host_command hostname 2>/dev/null || printf 'unknown')"
+  notify_failure "SmartTour healthcheck failed on $notify_host: failures=$failures"
   exit 1
 fi
 

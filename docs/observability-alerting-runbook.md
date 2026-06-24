@@ -61,7 +61,11 @@ healthcheck instead of hiding or hanging the system health result:
 ```bash
 # /etc/default/smarttour-ops
 SYSTEMD_CHECK_TIMEOUT=10s
+HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s
 ```
+
+Host-local healthcheck commands such as root mode, disk usage, and failure
+hostname lookup are bounded by `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s`.
 
 Backup checksum verification is bounded by `CHECKSUM_CHECK_TIMEOUT=5m` so a
 large or stuck checksum read fails the healthcheck timer instead of hanging it.
