@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened offsite PostgreSQL backup sync checksum handling:
+  - `scripts/sync-latest-backup.sh` now chmods the checksum file private and runs `sha256sum -c "$checksum"` before uploading backup artifacts.
+  - Extended the backup offsite contract and backup/reinstall runbook so offsite sync cannot upload an unverified local dump/checksum pair.
+
 - Hardened ops environment file permissions:
   - Added `/etc/default/smarttour-ops` mode/owner verification to `scripts/security-audit.sh`, emitting `OK_OPS_ENV_FILE` only for `600 root:root`.
   - Updated `scripts/install-ops-schedule.sh` to normalize the ops environment file owner/mode even when the file already exists.

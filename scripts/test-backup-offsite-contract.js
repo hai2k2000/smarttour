@@ -30,7 +30,13 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"',
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
+  'chmod 600 "$checksum"',
+  'sha256sum -c "$checksum"',
 ].forEach((expected) => assertIncludes('scripts/sync-latest-backup.sh', syncScript, expected));
+
+if (syncScript.indexOf('sha256sum -c "$checksum"') > syncScript.indexOf('scp "${scp_args[@]}" "$latest" "$checksum"')) {
+  throw new Error('scripts/sync-latest-backup.sh must verify the checksum before uploading backup artifacts.');
+}
 
 assertRegex(
   'scripts/sync-latest-backup.sh',
@@ -74,6 +80,7 @@ assertRegex(
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX',
   'npm run ops:backup-sync',
   'npm run test:backup-offsite',
+  'sha256sum -c',
   'chmod 600 /root/.ssh/id_ed25519_backup',
 ].forEach((expected) => assertIncludes('docs/operations-backup-reinstall.md', backupRunbook, expected));
 

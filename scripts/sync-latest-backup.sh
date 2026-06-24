@@ -27,6 +27,8 @@ checksum="$latest.sha256"
 if [[ ! -f "$checksum" ]]; then
   sha256sum "$latest" > "$checksum"
 fi
+chmod 600 "$checksum"
+sha256sum -c "$checksum"
 
 scp_args=(-P "$BACKUP_REMOTE_PORT" -o BatchMode=yes -o ConnectTimeout="$BACKUP_REMOTE_CONNECT_TIMEOUT" -o ServerAliveInterval="$BACKUP_REMOTE_SERVER_ALIVE_INTERVAL" -o ServerAliveCountMax="$BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX")
 if [[ -n "$BACKUP_REMOTE_KEY" ]]; then

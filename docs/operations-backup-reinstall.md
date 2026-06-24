@@ -118,6 +118,8 @@ chmod 600 /root/.ssh/id_ed25519_backup
 
 Both sync scripts use `BatchMode=yes` and bounded SSH timeouts so a broken
 remote destination fails the scheduled job instead of hanging indefinitely.
+The daily PostgreSQL dump sync runs `sha256sum -c` locally before uploading the
+dump and checksum files.
 
 Validate the source contract after changing backup sync settings or scripts:
 
