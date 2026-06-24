@@ -39,6 +39,10 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres"',
   'check_private_backup_artifacts disaster /var/backups/smarttour/disaster',
   'FAIL_BACKUP_PERMS',
+  'check_disaster_backup_staging_dirs()',
+  "find /var/backups/smarttour/disaster -maxdepth 1 -type d -name 'smarttour-disaster-*'",
+  'OK_DISASTER_STAGING no expanded disaster backup staging directories',
+  'FAIL_DISASTER_STAGING',
   "root_mode=\"$(stat -c '%a %U:%G' /)\"",
   'OK_ROOT_MODE /=755 root:root',
   'FAIL_ROOT_MODE',
@@ -87,6 +91,7 @@ assertRegex(
   'OK_ENV_FILE',
   'OK_OPS_ENV_FILE',
   'OK_BACKUP_PERMS',
+  'OK_DISASTER_STAGING',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
@@ -94,6 +99,7 @@ assertRegex(
   'OK_ENV_FILE',
   'OK_OPS_ENV_FILE',
   'OK_BACKUP_PERMS',
+  'OK_DISASTER_STAGING',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',
   'scripts/test-security-audit-contract.js',

@@ -158,6 +158,8 @@ Completed hardening:
   `OK_OPS_ENV_FILE`.
 - PostgreSQL and disaster backup artifact permissions are checked in the live
   security audit with `OK_BACKUP_PERMS`.
+- Expanded disaster backup staging directories are checked in the live security
+  audit with `OK_DISASTER_STAGING`.
 
 Completed hardening:
 

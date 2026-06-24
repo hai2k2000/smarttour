@@ -2450,3 +2450,8 @@
   - Disaster backup now removes the expanded `$work_dir` only after the archive checksum has been generated and verified with `sha256sum -c "$archive.sha256"`.
   - The backup artifact permissions contract now guards checksum-before-cleanup ordering, cleanup before offsite sync, and the documented operations expectation.
   - Existing leftover disaster staging directories under `/var/backups/smarttour/disaster` were removed after GREEN verification, leaving only the private archive and checksum artifacts.
+
+- 2026-06-24 Completed production security audit disaster staging coverage:
+  - `scripts/security-audit.sh` now emits `OK_DISASTER_STAGING` when no expanded disaster backup staging directories remain and `FAIL_DISASTER_STAGING` if a `smarttour-disaster-*` directory reappears under `/var/backups/smarttour/disaster`.
+  - `scripts/test-security-audit-contract.js`, the security hardening runbook, and the production readiness tracker now guard and document the new live audit marker.
+  - A live failure probe with a temporary `smarttour-disaster-audit-probe` directory confirmed the audit fails on expanded staging and returns to OK after cleanup.

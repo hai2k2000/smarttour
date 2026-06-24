@@ -2853,3 +2853,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `scripts/disaster-backup.sh` did not remove `$work_dir`.
   - Updated disaster backups to verify `sha256sum -c "$archive.sha256"` before deleting the staging directory, then continue archive retention/offsite sync from the sealed archive artifacts.
   - Updated operations backup/reinstall docs and the production readiness tracker to record that disaster backup staging directories are removed after archive checksum verification.
+
+- 2026-06-24 production security audit follow-up:
+  - Found the live security audit checked private disaster archive artifacts but did not fail if expanded disaster backup staging directories reappeared.
+  - Extended the security audit source contract first; RED failed because `scripts/security-audit.sh` lacked `check_disaster_backup_staging_dirs()`.
+  - Added `OK_DISASTER_STAGING` / `FAIL_DISASTER_STAGING` audit coverage so production security checks assert there are no expanded `smarttour-disaster-*` staging directories under `/var/backups/smarttour/disaster`.

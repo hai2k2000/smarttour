@@ -38,6 +38,17 @@ check_private_backup_artifacts() {
   fi
 }
 
+check_disaster_backup_staging_dirs() {
+  local staging_dir
+  staging_dir="$(find /var/backups/smarttour/disaster -maxdepth 1 -type d -name 'smarttour-disaster-*' -print -quit)"
+  if [[ -n "$staging_dir" ]]; then
+    echo "FAIL_DISASTER_STAGING expanded=$staging_dir"
+    failures=$((failures + 1))
+  else
+    echo "OK_DISASTER_STAGING no expanded disaster backup staging directories"
+  fi
+}
+
 require_env SMARTTOUR_AUTH_ENFORCE
 require_env JWT_SECRET
 require_env DATABASE_URL
@@ -74,6 +85,7 @@ fi
 
 check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
+check_disaster_backup_staging_dirs
 
 if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour containers are published on all interfaces"

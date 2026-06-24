@@ -38,8 +38,9 @@ npm run ops:security
 ```
 
 The live audit must include `OK_ENV_FILE`, `OK_OPS_ENV_FILE`,
-`OK_BACKUP_PERMS`, `OK_ROOT_MODE`, and `OK_SSH_PERMS` lines for `.env`,
-`/etc/default/smarttour-ops`, backup artifacts, `/`, `/root/.ssh`, and
+`OK_BACKUP_PERMS`, `OK_DISASTER_STAGING`, `OK_ROOT_MODE`, and `OK_SSH_PERMS`
+lines for `.env`, `/etc/default/smarttour-ops`, backup artifacts, absence of
+expanded disaster backup staging directories, `/`, `/root/.ssh`, and
 `/root/.ssh/authorized_keys`.
 
 ## Daily host report
