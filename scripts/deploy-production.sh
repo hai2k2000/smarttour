@@ -8,10 +8,15 @@ API_URL="${API_URL:-https://aitour.io.vn/api}"
 RUN_GIT_PULL="${RUN_GIT_PULL:-true}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
+DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"
 DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"
 DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"
 
 cd "$REPO_DIR"
+
+run_deploy_prisma() {
+  timeout "$DEPLOY_PRISMA_MIGRATE_TIMEOUT" npx prisma "$@"
+}
 
 run_deploy_compose_build() {
   timeout "$DEPLOY_DOCKER_BUILD_TIMEOUT" docker compose "$@"
@@ -79,7 +84,7 @@ echo "DEPLOY_PHASE smartlink_guard"
 "$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard
 
 echo "DEPLOY_PHASE prisma_migrate_deploy"
-npx prisma migrate deploy
+run_deploy_prisma migrate deploy
 
 echo "DEPLOY_PHASE docker_build"
 run_deploy_compose_build build api web

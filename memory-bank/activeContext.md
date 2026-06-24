@@ -2946,3 +2946,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the security audit contract first; RED failed because `SECURITY_INSTALL_COMMAND_TIMEOUT` coverage was missing.
   - Updated the hardening installer to run SSH validation/effective-config output, SSH reload, and Nginx test/reload commands through `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
   - Updated the security runbook and production readiness tracker; verification used source contract and syntax checks without running the live installer to avoid unnecessary SSH/Nginx reloads during the remediation session.
+
+- 2026-06-24 production deploy Prisma migration timeout follow-up:
+  - Found `scripts/deploy-production.sh` still ran `npx prisma migrate deploy` directly, so a stuck Prisma migration process could hang a manual production deploy before Docker build/up.
+  - Extended the GitHub Actions/deploy contract first; RED failed because `DEPLOY_PRISMA_MIGRATE_TIMEOUT` coverage was missing.
+  - Updated production deploy to run Prisma migrations through `DEPLOY_PRISMA_MIGRATE_TIMEOUT=10m`, preserving the existing `DEPLOY_PHASE prisma_migrate_deploy` marker and deploy phase ordering.
+  - Updated the GitHub Actions runbook and production readiness tracker; a fake clean-repo deploy probe confirmed a stuck Prisma migration fails fast with timeout status `124`.

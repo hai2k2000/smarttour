@@ -21,8 +21,9 @@ It logs `DEPLOY_START` with the current commit, `DEPLOY_REVISION` after the
 Git sync, and ordered phase markers for `DEPLOY_PHASE smartlink_guard`,
 `DEPLOY_PHASE prisma_migrate_deploy`, `DEPLOY_PHASE docker_build`,
 `DEPLOY_PHASE docker_up`, and `DEPLOY_PHASE healthcheck`.
-Docker build and service startup are bounded by `DEPLOY_DOCKER_BUILD_TIMEOUT=45m`
-and `DEPLOY_DOCKER_UP_TIMEOUT=10m` by default.
+Prisma migration, Docker build, and service startup are bounded by
+`DEPLOY_PRISMA_MIGRATE_TIMEOUT=10m`, `DEPLOY_DOCKER_BUILD_TIMEOUT=45m`, and
+`DEPLOY_DOCKER_UP_TIMEOUT=10m` by default.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
 The manual dispatch inputs are validated before SSH starts. Branch names may

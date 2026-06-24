@@ -2549,3 +2549,9 @@
   - The installer still normalizes `/`, `/root/.ssh`, `authorized_keys`, and `.env` permissions before reloading services.
   - `npm run test:security-audit`, the security runbook, and the production readiness tracker now guard/document the installer timeout setting.
   - Verification used source contract and syntax checks without running the live installer, avoiding unnecessary SSH/Nginx reloads during the remediation session.
+
+- 2026-06-24 Completed production deploy Prisma migration timeout hardening:
+  - `scripts/deploy-production.sh` now runs `prisma migrate deploy` through `run_deploy_prisma`, bounded by `DEPLOY_PRISMA_MIGRATE_TIMEOUT=10m`.
+  - The existing `DEPLOY_PHASE prisma_migrate_deploy` marker and deploy phase ordering are preserved and guarded by `node scripts/test-github-actions-contract.js`.
+  - The GitHub Actions runbook and production readiness tracker now document the migration timeout setting.
+  - A fake clean-repo deploy probe verified a stuck Prisma migration fails fast with timeout status `124` without touching the production stack.
