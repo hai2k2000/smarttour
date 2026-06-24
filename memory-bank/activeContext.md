@@ -2988,3 +2988,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact contract first; RED failed because `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT` coverage was missing.
   - Updated host inventory collection to run through `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s`, preserving the existing optional/non-fatal behavior for best-effort host snapshots.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake host-command timeout probe confirmed the backup fails fast with status `124`.
+
+- 2026-06-24 disaster backup archive timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still ran local archive/checksum commands directly, including volume `tar` while the Compose stack is stopped. A stuck archive step could therefore keep production down until manual intervention.
+  - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_ARCHIVE_TIMEOUT` coverage was missing.
+  - Updated disaster backup archive creation, volume/config tar commands, archive checksum creation/verification, and SHA256 manifest generation to run through `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake volume archive timeout probe confirmed the script exits with status 124 and the restart trap runs `docker compose up -d`.

@@ -11,6 +11,7 @@ POSTGRES_DB="${POSTGRES_DB:-smarttour}"
 DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"
 DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"
 DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"
+DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -35,6 +36,10 @@ run_disaster_compose() {
 
 run_disaster_host_command() {
   timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"
+}
+
+run_disaster_archive_command() {
+  timeout "$DISASTER_BACKUP_ARCHIVE_TIMEOUT" "$@"
 }
 
 run_disaster_scp() {
@@ -135,9 +140,9 @@ for path in "${config_paths[@]}"; do
     existing_config_paths+=("$path")
   fi
 done
-tar -czf "$work_dir/config/smarttour-config.tar.gz" "${existing_config_paths[@]}"
+run_disaster_archive_command tar -czf "$work_dir/config/smarttour-config.tar.gz" "${existing_config_paths[@]}"
 
-tar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz" \
+run_disaster_archive_command tar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz" \
   /etc/ssh \
   /etc/netplan \
   /etc/cloud \
@@ -174,7 +179,7 @@ do
     echo "Invalid mountpoint for $volume: $mountpoint" >&2
     exit 1
   fi
-  tar -czf "$work_dir/volumes/$volume.tar.gz" -C "$mountpoint" .
+  run_disaster_archive_command tar -czf "$work_dir/volumes/$volume.tar.gz" -C "$mountpoint" .
 done
 
 run_disaster_compose up -d
@@ -190,13 +195,13 @@ EOF
 
 find "$work_dir" -type f ! -name SHA256SUMS -print0 \
   | sort -z \
-  | xargs -0 sha256sum \
+  | run_disaster_archive_command xargs -0 sha256sum \
   > "$work_dir/SHA256SUMS"
 
-tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
-sha256sum "$archive" > "$archive.sha256"
+run_disaster_archive_command tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
+run_disaster_archive_command sha256sum "$archive" > "$archive.sha256"
 chmod 600 "$archive" "$archive.sha256"
-sha256sum -c "$archive.sha256"
+run_disaster_archive_command sha256sum -c "$archive.sha256"
 rm -rf "$work_dir"
 
 mapfile -t old_archives < <(

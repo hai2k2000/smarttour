@@ -84,7 +84,9 @@ Disaster backup Docker commands are bounded by
 `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and Compose stop/start commands are
 bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` by default.
 Host inventory commands collected for the disaster archive are bounded by
-`DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s` by default.
+`DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s` by default. Archive creation and
+checksum commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` by
+default.
 
 ## Backup Artifact Permissions
 
