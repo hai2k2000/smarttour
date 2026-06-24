@@ -13,6 +13,7 @@ BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
 BACKUP_CLEANUP_TIMEOUT="${BACKUP_CLEANUP_TIMEOUT:-5m}"
+BACKUP_FILE_COMMAND_TIMEOUT="${BACKUP_FILE_COMMAND_TIMEOUT:-5m}"
 
 run_postgres_backup_dump() {
   timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump "$@"
@@ -34,8 +35,12 @@ run_backup_cleanup() {
   timeout "$BACKUP_CLEANUP_TIMEOUT" rm "$@"
 }
 
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
+run_backup_file_command() {
+  timeout "$BACKUP_FILE_COMMAND_TIMEOUT" "$@"
+}
+
+run_backup_file_command mkdir -p "$BACKUP_DIR"
+run_backup_file_command chmod 700 "$BACKUP_DIR"
 cd "$REPO_DIR"
 
 timestamp="$(date +%Y%m%d%H%M%S)"
@@ -57,12 +62,12 @@ run_postgres_backup_dump \
   --no-privileges \
   | run_backup_compression -9 > "$tmp_file"
 
-mv "$tmp_file" "$backup_file"
+run_backup_file_command mv "$tmp_file" "$backup_file"
 run_backup_checksum "$backup_file" > "$checksum_file"
-chmod 600 "$backup_file" "$checksum_file"
+run_backup_file_command chmod 600 "$backup_file" "$checksum_file"
 
 run_backup_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
 run_backup_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz.sha256' -mtime +"$KEEP_DAYS" -delete
 
 echo "BACKUP_OK $backup_file"
-cat "$checksum_file"
+run_backup_file_command cat "$checksum_file"

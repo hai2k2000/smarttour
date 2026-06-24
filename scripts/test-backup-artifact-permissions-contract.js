@@ -28,25 +28,31 @@ for (const expected of [
   'BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"',
   'BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
   'BACKUP_CLEANUP_TIMEOUT="${BACKUP_CLEANUP_TIMEOUT:-5m}"',
+  'BACKUP_FILE_COMMAND_TIMEOUT="${BACKUP_FILE_COMMAND_TIMEOUT:-5m}"',
   'run_postgres_backup_dump()',
   'run_backup_checksum()',
   'run_backup_compression()',
   'run_backup_file_scan()',
   'run_backup_cleanup()',
+  'run_backup_file_command()',
   'timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump',
   'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"',
   'timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
   'timeout "$BACKUP_CLEANUP_TIMEOUT" rm "$@"',
-  'chmod 700 "$BACKUP_DIR"',
+  'timeout "$BACKUP_FILE_COMMAND_TIMEOUT" "$@"',
+  'run_backup_file_command mkdir -p "$BACKUP_DIR"',
+  'run_backup_file_command chmod 700 "$BACKUP_DIR"',
   'cleanup_tmp_backup()',
   'trap cleanup_tmp_backup EXIT',
   'run_backup_cleanup -f "$tmp_file"',
   'run_backup_compression -9 > "$tmp_file"',
+  'run_backup_file_command mv "$tmp_file" "$backup_file"',
   'run_backup_checksum "$backup_file" > "$checksum_file"',
-  'chmod 600 "$backup_file" "$checksum_file"',
+  'run_backup_file_command chmod 600 "$backup_file" "$checksum_file"',
   'run_backup_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz\' -mtime +"$KEEP_DAYS" -delete',
   'run_backup_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz.sha256\' -mtime +"$KEEP_DAYS" -delete',
+  'run_backup_file_command cat "$checksum_file"',
 ]) {
   includes('scripts/backup-postgres.sh', postgresBackup, expected);
 }
@@ -61,6 +67,18 @@ if (postgresBackup.includes('\ndocker exec "$POSTGRES_CONTAINER" pg_dump')) {
 
 if (postgresBackup.includes('rm -f "$tmp_file"')) {
   throw new Error('scripts/backup-postgres.sh must not remove tmp backups without a timeout wrapper.');
+}
+
+for (const forbidden of [
+  'mkdir -p "$BACKUP_DIR"',
+  'chmod 700 "$BACKUP_DIR"',
+  'mv "$tmp_file" "$backup_file"',
+  'chmod 600 "$backup_file" "$checksum_file"',
+  'cat "$checksum_file"',
+]) {
+  if (postgresBackup.includes(`\n${forbidden}`)) {
+    throw new Error(`scripts/backup-postgres.sh must not use raw ${forbidden}.`);
+  }
 }
 
 for (const expected of [
@@ -215,6 +233,7 @@ for (const expected of [
   'BACKUP_COMPRESSION_TIMEOUT=30m',
   'BACKUP_FILE_SCAN_TIMEOUT=30s',
   'BACKUP_CLEANUP_TIMEOUT=5m',
+  'BACKUP_FILE_COMMAND_TIMEOUT=5m',
   'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
@@ -238,6 +257,7 @@ for (const expected of [
 
 for (const expected of [
   'BACKUP_CLEANUP_TIMEOUT=5m',
+  'BACKUP_FILE_COMMAND_TIMEOUT=5m',
   'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
 ]) {
   includes('scripts/install-ops-schedule.sh', scheduleInstaller, expected);
@@ -259,6 +279,12 @@ includes(
   'docs/production-readiness-tracker.md',
   readinessTracker,
   'BACKUP_CLEANUP_TIMEOUT',
+);
+
+includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'BACKUP_FILE_COMMAND_TIMEOUT',
 );
 
 includes(
