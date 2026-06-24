@@ -2502,3 +2502,9 @@
   - Restore drill service result lookup is now bounded by the same systemd timeout.
   - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-systemd-timeout-contract.js` now guard/document the systemd probe timeout settings.
   - The live `/etc/default/smarttour-ops` file now sets `SYSTEMD_CHECK_TIMEOUT=10s` and remains `600 root:root`; healthcheck was verified with that environment file sourced.
+
+- 2026-06-24 Completed production security audit timeout hardening:
+  - `scripts/security-audit.sh` now bounds Docker, sshd, systemd, and npm audit probes with `AUDIT_COMMAND_TIMEOUT=10s` and `NPM_AUDIT_TIMEOUT=120s`.
+  - Docker port inspection now emits `FAIL_PORTS docker_unavailable` if Docker cannot be queried, instead of downgrading to a warning.
+  - sshd effective-config inspection now emits `FAIL_SSH sshd_config_unavailable` if `sshd -T` cannot return, and npm audit failures/timeouts emit `FAIL_NPM_AUDIT failed_or_timed_out`.
+  - The existing `npm run test:security-audit` contract, security runbook, and production readiness tracker now guard/document the audit timeout settings.

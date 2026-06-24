@@ -174,6 +174,9 @@ Completed hardening:
   security audit with `OK_BACKUP_PERMS`.
 - Expanded disaster backup staging directories are checked in the live security
   audit with `OK_DISASTER_STAGING`.
+- Security audit external probes are bounded by `AUDIT_COMMAND_TIMEOUT` and
+  `NPM_AUDIT_TIMEOUT`; Docker, sshd, systemd, and npm-audit failures are treated
+  as audit failures instead of being hidden or left to hang.
 
 Completed hardening:
 

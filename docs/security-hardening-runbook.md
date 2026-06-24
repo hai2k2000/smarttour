@@ -37,6 +37,11 @@ npm run test:security-audit
 npm run ops:security
 ```
 
+The live audit bounds external command probes with `AUDIT_COMMAND_TIMEOUT=10s`
+and `NPM_AUDIT_TIMEOUT=120s` by default. Increase these only for a known slow
+host. Treat `FAIL_PORTS docker_unavailable`, `FAIL_SSH sshd_config_unavailable`,
+and `FAIL_NPM_AUDIT failed_or_timed_out` as real security audit failures.
+
 The live audit must include `OK_ENV_FILE`, `OK_OPS_ENV_FILE`, `OK_LOGROTATE`,
 `OK_OPS_LOG_PERMS`, `OK_OPS_SERVICE_UMASK`, `OK_BACKUP_PERMS`,
 `OK_DISASTER_STAGING`, `OK_ROOT_MODE`, and `OK_SSH_PERMS` lines for `.env`,

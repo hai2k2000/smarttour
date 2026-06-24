@@ -2900,3 +2900,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a dedicated healthcheck systemd timeout contract first; RED failed because `SYSTEMD_CHECK_TIMEOUT` coverage was missing.
   - Updated failed-unit and restore-drill result checks to use configurable `SYSTEMD_CHECK_TIMEOUT=10s`, with `FAIL_SYSTEMD unavailable` when failed-unit inspection cannot return.
   - Updated the live `/etc/default/smarttour-ops` with `SYSTEMD_CHECK_TIMEOUT=10s` while preserving `600 root:root`, then verified healthcheck with the environment file sourced.
+
+- 2026-06-24 production security audit timeout follow-up:
+  - Found `scripts/security-audit.sh` still used raw Docker, sshd, systemctl, and npm audit commands; Docker port inspection could degrade to `WARN_PORTS` instead of failing when Docker was unavailable.
+  - Extended the existing security audit contract first; RED failed because `AUDIT_COMMAND_TIMEOUT` coverage was missing.
+  - Updated the live audit to bound external probes with `AUDIT_COMMAND_TIMEOUT=10s` and `NPM_AUDIT_TIMEOUT=120s`, fail Docker/sshd/npm-audit unavailability explicitly, and keep systemd timer/umask checks bounded.

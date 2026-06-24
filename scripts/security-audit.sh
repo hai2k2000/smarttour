@@ -2,9 +2,20 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+AUDIT_COMMAND_TIMEOUT="${AUDIT_COMMAND_TIMEOUT:-10s}"
+NPM_AUDIT_TIMEOUT="${NPM_AUDIT_TIMEOUT:-120s}"
+
 cd "$REPO_DIR"
 
 failures=0
+
+run_audit_command() {
+  timeout "$AUDIT_COMMAND_TIMEOUT" "$@"
+}
+
+run_npm_audit() {
+  timeout "$NPM_AUDIT_TIMEOUT" npm audit --omit=dev
+}
 
 require_env() {
   local key="$1"
@@ -115,7 +126,7 @@ for ops_service in \
   smarttour-postgres-backup.service \
   smarttour-disaster-backup.service \
   smarttour-restore-drill.service; do
-  ops_service_umask="$(systemctl show "$ops_service" -p UMask --value 2>/dev/null || true)"
+  ops_service_umask="$(run_audit_command systemctl show "$ops_service" -p UMask --value 2>/dev/null || true)"
   if [[ "$ops_service_umask" != "0027" ]]; then
     ops_service_umask_failures+=("$ops_service=$ops_service_umask")
   fi
@@ -131,29 +142,35 @@ check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 check_disaster_backup_staging_dirs
 
-if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
+if ! ports_output="$(run_audit_command docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null)"; then
+  echo "FAIL_PORTS docker_unavailable"
+  failures=$((failures + 1))
+elif printf '%s\n' "$ports_output" | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour containers are published on all interfaces"
   failures=$((failures + 1))
-elif docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*127\.0\.0\.1'; then
+elif printf '%s\n' "$ports_output" | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*127\.0\.0\.1'; then
   echo "OK_PORTS SmartTour host ports bound to localhost"
 else
   echo "WARN_PORTS SmartTour publish state could not be confirmed"
 fi
 
-sshd_effective="$(sshd -T)"
-
-if grep -Eq '^passwordauthentication no$' <<< "$sshd_effective"; then
-  echo "OK_SSH password authentication disabled"
-else
-  echo "FAIL_SSH password authentication is enabled"
+if ! sshd_effective="$(run_audit_command sshd -T 2>/dev/null)"; then
+  echo "FAIL_SSH sshd_config_unavailable"
   failures=$((failures + 1))
-fi
-
-if grep -Eq '^permitrootlogin (without-password|prohibit-password)$' <<< "$sshd_effective"; then
-  echo "OK_SSH root login restricted to public key"
 else
-  echo "FAIL_SSH root login is not restricted to public key"
-  failures=$((failures + 1))
+  if grep -Eq '^passwordauthentication no$' <<< "$sshd_effective"; then
+    echo "OK_SSH password authentication disabled"
+  else
+    echo "FAIL_SSH password authentication is enabled"
+    failures=$((failures + 1))
+  fi
+
+  if grep -Eq '^permitrootlogin (without-password|prohibit-password)$' <<< "$sshd_effective"; then
+    echo "OK_SSH root login restricted to public key"
+  else
+    echo "FAIL_SSH root login is not restricted to public key"
+    failures=$((failures + 1))
+  fi
 fi
 
 root_mode="$(stat -c '%a %U:%G' /)"
@@ -196,42 +213,45 @@ else
   failures=$((failures + 1))
 fi
 
-if systemctl is-enabled smarttour-postgres-backup.timer >/dev/null 2>&1; then
+if run_audit_command systemctl is-enabled smarttour-postgres-backup.timer >/dev/null 2>&1; then
   echo "OK_BACKUP_TIMER enabled"
 else
   echo "FAIL_BACKUP_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-if systemctl is-enabled smarttour-healthcheck.timer >/dev/null 2>&1; then
+if run_audit_command systemctl is-enabled smarttour-healthcheck.timer >/dev/null 2>&1; then
   echo "OK_HEALTH_TIMER enabled"
 else
   echo "FAIL_HEALTH_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-if systemctl is-enabled smarttour-nginx-host-report.timer >/dev/null 2>&1; then
+if run_audit_command systemctl is-enabled smarttour-nginx-host-report.timer >/dev/null 2>&1; then
   echo "OK_HOST_REPORT_TIMER enabled"
 else
   echo "FAIL_HOST_REPORT_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-if systemctl is-enabled smarttour-disaster-backup.timer >/dev/null 2>&1; then
+if run_audit_command systemctl is-enabled smarttour-disaster-backup.timer >/dev/null 2>&1; then
   echo "OK_DISASTER_BACKUP_TIMER enabled"
 else
   echo "FAIL_DISASTER_BACKUP_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-if systemctl is-enabled smarttour-restore-drill.timer >/dev/null 2>&1; then
+if run_audit_command systemctl is-enabled smarttour-restore-drill.timer >/dev/null 2>&1; then
   echo "OK_RESTORE_DRILL_TIMER enabled"
 else
   echo "FAIL_RESTORE_DRILL_TIMER missing_or_disabled"
   failures=$((failures + 1))
 fi
 
-npm audit --omit=dev
+if ! run_npm_audit; then
+  echo "FAIL_NPM_AUDIT failed_or_timed_out"
+  failures=$((failures + 1))
+fi
 
 if [[ "$failures" -gt 0 ]]; then
   echo "SECURITY_AUDIT_FAILED failures=$failures"

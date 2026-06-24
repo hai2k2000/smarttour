@@ -28,6 +28,12 @@ const packageJson = JSON.parse(read('package.json'));
 const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
 
 [
+  'AUDIT_COMMAND_TIMEOUT="${AUDIT_COMMAND_TIMEOUT:-10s}"',
+  'NPM_AUDIT_TIMEOUT="${NPM_AUDIT_TIMEOUT:-120s}"',
+  'run_audit_command()',
+  'timeout "$AUDIT_COMMAND_TIMEOUT" "$@"',
+  'run_npm_audit()',
+  'timeout "$NPM_AUDIT_TIMEOUT" npm audit --omit=dev',
   "env_file_mode=\"$(stat -c '%a %U:%G' .env)\"",
   'OK_ENV_FILE .env=600 root:root',
   'FAIL_ENV_FILE',
@@ -52,6 +58,8 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   "find /var/backups/smarttour/disaster -maxdepth 1 -type d -name 'smarttour-disaster-*'",
   'OK_DISASTER_STAGING no expanded disaster backup staging directories',
   'FAIL_DISASTER_STAGING',
+  'if ! ports_output="$(run_audit_command docker ps --format',
+  'FAIL_PORTS docker_unavailable',
   "root_mode=\"$(stat -c '%a %U:%G' /)\"",
   'OK_ROOT_MODE /=755 root:root',
   'FAIL_ROOT_MODE',
@@ -60,7 +68,30 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'OK_SSH_PERMS /root/.ssh=700 root:root',
   'OK_SSH_PERMS authorized_keys=600 root:root',
   'FAIL_SSH_PERMS',
+  'if ! sshd_effective="$(run_audit_command sshd -T 2>/dev/null)"; then',
+  'FAIL_SSH sshd_config_unavailable',
+  'run_audit_command systemctl show "$ops_service" -p UMask --value',
+  'run_audit_command systemctl is-enabled smarttour-postgres-backup.timer',
+  'run_audit_command systemctl is-enabled smarttour-healthcheck.timer',
+  'run_audit_command systemctl is-enabled smarttour-nginx-host-report.timer',
+  'run_audit_command systemctl is-enabled smarttour-disaster-backup.timer',
+  'run_audit_command systemctl is-enabled smarttour-restore-drill.timer',
+  'if ! run_npm_audit; then',
+  'FAIL_NPM_AUDIT failed_or_timed_out',
 ].forEach((expected) => assertIncludes('scripts/security-audit.sh', securityAudit, expected));
+
+[
+  'if docker ps --format',
+  'elif docker ps --format',
+  'sshd_effective="$(sshd -T)"',
+  'ops_service_umask="$(systemctl show "$ops_service"',
+  'if systemctl is-enabled smarttour-postgres-backup.timer',
+  '\nnpm audit --omit=dev\n',
+].forEach((forbidden) => {
+  if (securityAudit.includes(forbidden)) {
+    throw new Error(`scripts/security-audit.sh must not include raw command: ${forbidden}`);
+  }
+});
 
 assertRegex(
   'scripts/security-audit.sh',
@@ -104,6 +135,8 @@ assertRegex(
   'OK_OPS_SERVICE_UMASK',
   'OK_BACKUP_PERMS',
   'OK_DISASTER_STAGING',
+  'AUDIT_COMMAND_TIMEOUT',
+  'NPM_AUDIT_TIMEOUT',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
@@ -115,6 +148,8 @@ assertRegex(
   'OK_OPS_SERVICE_UMASK',
   'OK_BACKUP_PERMS',
   'OK_DISASTER_STAGING',
+  'AUDIT_COMMAND_TIMEOUT',
+  'NPM_AUDIT_TIMEOUT',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',
   'scripts/test-security-audit-contract.js',
