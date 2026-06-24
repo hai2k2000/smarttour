@@ -26,6 +26,8 @@ Prisma migration, Docker build, and service startup are bounded by
 `DEPLOY_DOCKER_UP_TIMEOUT=10m` by default.
 The SmartLink legacy guard Docker fallback is bounded by
 `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m` by default.
+Git fetch/checkout/pull during server-side sync are bounded by
+`DEPLOY_GIT_TIMEOUT=5m` by default.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
 The manual dispatch inputs are validated before SSH starts. Branch names may

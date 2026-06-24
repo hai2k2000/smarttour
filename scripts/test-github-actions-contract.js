@@ -109,6 +109,9 @@ includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side produ
 includes(deployScript, 'DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"', 'Server-side deploy must define DEPLOY_DIRTY_REASON.');
 includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 'Server-side deploy must require a reason for dirty deploy override.');
 includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
+includes(deployScript, 'DEPLOY_GIT_TIMEOUT="${DEPLOY_GIT_TIMEOUT:-5m}"', 'Server-side deploy must define Git sync timeout.');
+includes(deployScript, 'run_deploy_git()', 'Server-side deploy must wrap Git sync commands.');
+includes(deployScript, 'timeout "$DEPLOY_GIT_TIMEOUT" git "$@"', 'Server-side deploy Git sync must be bounded.');
 includes(deployScript, 'DEPLOY_START branch=$BRANCH current_commit=$starting_commit', 'Server-side deploy must log the starting branch and commit.');
 includes(deployScript, 'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit', 'Server-side deploy must log the revision after git sync.');
 includes(deployScript, 'DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"', 'Server-side deploy must define Prisma migration timeout.');
@@ -131,6 +134,9 @@ includes(deployScript, 'DEPLOY_PHASE healthcheck', 'Server-side deploy must log 
 excludes(deployScript, '\nnpx prisma migrate deploy', 'Server-side deploy must not call raw Prisma migrate deploy.');
 excludes(deployScript, '\ndocker compose build api web', 'Server-side deploy must not call raw docker compose build.');
 excludes(deployScript, '\ndocker compose up -d api web nginx', 'Server-side deploy must not call raw docker compose up.');
+excludes(deployScript, '\ngit fetch origin "$BRANCH"', 'Server-side deploy must not call raw git fetch.');
+excludes(deployScript, '\ngit checkout "$BRANCH"', 'Server-side deploy must not call raw git checkout.');
+excludes(deployScript, '\ngit pull --ff-only origin "$BRANCH"', 'Server-side deploy must not call raw git pull.');
 includes(smartlinkWrapper, 'SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"', 'SmartLink wrapper must define Docker fallback timeout.');
 includes(smartlinkWrapper, 'run_smartlink_docker()', 'SmartLink wrapper must wrap Docker fallback commands.');
 includes(smartlinkWrapper, 'timeout "$SMARTLINK_AUDIT_DOCKER_TIMEOUT" docker "$@"', 'SmartLink Docker fallback must be bounded.');
@@ -138,7 +144,9 @@ includes(smartlinkWrapper, 'run_smartlink_docker compose run --rm --no-deps', 'S
 excludes(smartlinkWrapper, '\ndocker compose run --rm --no-deps', 'SmartLink wrapper must not call raw docker compose run.');
 const deployPhaseOrder = [
   'DEPLOY_START branch=$BRANCH current_commit=$starting_commit',
-  'git fetch origin "$BRANCH"',
+  'run_deploy_git fetch origin "$BRANCH"',
+  'run_deploy_git checkout "$BRANCH"',
+  'run_deploy_git pull --ff-only origin "$BRANCH"',
   'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit',
   'DEPLOY_PHASE smartlink_guard',
   'smartlink-legacy-audit.sh" --mode=guard',
@@ -184,6 +192,7 @@ for (const text of [
   'ALLOW_DIRTY=true',
   'DEPLOY_DIRTY_REASON',
   'DEPLOY_START',
+  'DEPLOY_GIT_TIMEOUT',
   'DEPLOY_REVISION',
   'Prisma migrations',
   'DEPLOY_PRISMA_MIGRATE_TIMEOUT',

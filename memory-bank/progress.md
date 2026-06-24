@@ -2561,3 +2561,9 @@
   - The wrapper still prefers the local Node path when `@prisma/client` is available, so normal production deploy guard behavior stays fast.
   - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker now guard/document the fallback timeout.
   - A fake no-node/Docker-hang probe verified the fallback fails fast with timeout status `124`.
+
+- 2026-06-24 Completed production deploy Git sync timeout hardening:
+  - `scripts/deploy-production.sh` now runs `git fetch`, `git checkout`, and `git pull --ff-only` through `run_deploy_git`, bounded by `DEPLOY_GIT_TIMEOUT=5m`.
+  - Local dirty-worktree guard commands still run before sync, preserving the existing deploy safety behavior.
+  - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, and production readiness tracker now guard/document the Git sync timeout setting.
+  - A fake clean-repo deploy probe verified a stuck `git fetch` fails fast with timeout status `124` before SmartLink guard.

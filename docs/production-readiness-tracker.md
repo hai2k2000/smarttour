@@ -120,6 +120,7 @@ Deploy tooling:
 Completed implementation: GitHub Actions now has PR/push CI for lockfile install, audit, source contracts, typechecks, and API/Web Docker builds. Production deploy is available only through manual `workflow_dispatch` and runs the server-side `scripts/deploy-production.sh` over SSH.
 Completed implementation: production deploy SSH setup now uses bounded `ssh-keyscan` and non-interactive SSH with connect/server-alive timeouts.
 Completed implementation: production deploy validates manual dispatch inputs and server-side branch names before SSH/git deploy commands run.
+Completed implementation: production deploy Git fetch/checkout/pull sync is bounded by `DEPLOY_GIT_TIMEOUT=5m`, guarded by `node scripts/test-github-actions-contract.js`.
 Completed implementation: production deploy aborts on tracked, staged, or untracked VPS worktree changes unless an operator explicitly uses `ALLOW_DIRTY=true` on the server.
 Completed implementation: emergency dirty deploy override requires `DEPLOY_DIRTY_REASON` and logs the reason before continuing.
 Completed implementation: production deploy runs `npx prisma migrate deploy` after the SmartLink guard and before Docker image build/up.

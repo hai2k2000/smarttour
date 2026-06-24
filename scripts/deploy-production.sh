@@ -8,11 +8,16 @@ API_URL="${API_URL:-https://aitour.io.vn/api}"
 RUN_GIT_PULL="${RUN_GIT_PULL:-true}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
+DEPLOY_GIT_TIMEOUT="${DEPLOY_GIT_TIMEOUT:-5m}"
 DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"
 DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"
 DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"
 
 cd "$REPO_DIR"
+
+run_deploy_git() {
+  timeout "$DEPLOY_GIT_TIMEOUT" git "$@"
+}
 
 run_deploy_prisma() {
   timeout "$DEPLOY_PRISMA_MIGRATE_TIMEOUT" npx prisma "$@"
@@ -72,9 +77,9 @@ starting_commit="$(git rev-parse --short HEAD)"
 echo "DEPLOY_START branch=$BRANCH current_commit=$starting_commit"
 
 if [[ "$RUN_GIT_PULL" == "true" ]]; then
-  git fetch origin "$BRANCH"
-  git checkout "$BRANCH"
-  git pull --ff-only origin "$BRANCH"
+  run_deploy_git fetch origin "$BRANCH"
+  run_deploy_git checkout "$BRANCH"
+  run_deploy_git pull --ff-only origin "$BRANCH"
 fi
 
 target_commit="$(git rev-parse --short HEAD)"

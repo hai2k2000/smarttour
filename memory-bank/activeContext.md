@@ -2958,3 +2958,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the GitHub Actions/deploy contract first; RED failed because `SMARTLINK_AUDIT_DOCKER_TIMEOUT` coverage was missing.
   - Updated the SmartLink wrapper to run Docker fallback through `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m` while preserving the existing fast local Node path.
   - Updated the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker; a fake no-node/Docker-hang probe confirmed the fallback fails fast with timeout status `124`.
+
+- 2026-06-24 production deploy Git sync timeout follow-up:
+  - Found `scripts/deploy-production.sh` still ran `git fetch`, `git checkout`, and `git pull --ff-only` directly when `RUN_GIT_PULL=true`, so a stuck remote Git/network operation could hang deploy before SmartLink guard.
+  - Extended the GitHub Actions/deploy contract first; RED failed because `DEPLOY_GIT_TIMEOUT` coverage was missing.
+  - Updated production deploy to run Git sync commands through `DEPLOY_GIT_TIMEOUT=5m`, while leaving local worktree guard commands unchanged.
+  - Updated the GitHub Actions runbook and production readiness tracker; a fake clean-repo deploy probe confirmed a stuck `git fetch` fails fast with timeout status `124`.
