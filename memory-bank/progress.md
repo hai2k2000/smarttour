@@ -2567,3 +2567,9 @@
   - Local dirty-worktree guard commands still run before sync, preserving the existing deploy safety behavior.
   - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, and production readiness tracker now guard/document the Git sync timeout setting.
   - A fake clean-repo deploy probe verified a stuck `git fetch` fails fast with timeout status `124` before SmartLink guard.
+
+- 2026-06-24 Completed production SmartLink guard local Node timeout hardening:
+  - `scripts/smartlink-legacy-audit.sh` now runs local Prisma-client detection and the local audit command through `run_smartlink_node`, bounded by `SMARTLINK_AUDIT_NODE_TIMEOUT=10m`.
+  - The existing Docker fallback remains bounded by `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`.
+  - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker now guard/document both SmartLink guard timeout paths.
+  - A fake local-node hang probe verified the preferred local Node path fails fast with timeout status `124`.

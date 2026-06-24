@@ -2,16 +2,22 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+SMARTLINK_AUDIT_NODE_TIMEOUT="${SMARTLINK_AUDIT_NODE_TIMEOUT:-10m}"
 SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"
 cd "$REPO_DIR"
+
+run_smartlink_node() {
+  timeout "$SMARTLINK_AUDIT_NODE_TIMEOUT" node "$@"
+}
 
 run_smartlink_docker() {
   timeout "$SMARTLINK_AUDIT_DOCKER_TIMEOUT" docker "$@"
 }
 
-if command -v node >/dev/null 2>&1 && NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}" node -e "require('@prisma/client')" >/dev/null 2>&1; then
+if command -v node >/dev/null 2>&1 && NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}" run_smartlink_node -e "require('@prisma/client')" >/dev/null 2>&1; then
   export NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}"
-  exec node scripts/smartlink-legacy-audit.js "$@"
+  run_smartlink_node scripts/smartlink-legacy-audit.js "$@"
+  exit $?
 fi
 
 if ! command -v docker >/dev/null 2>&1; then

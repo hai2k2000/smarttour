@@ -124,7 +124,7 @@ Completed implementation: production deploy Git fetch/checkout/pull sync is boun
 Completed implementation: production deploy aborts on tracked, staged, or untracked VPS worktree changes unless an operator explicitly uses `ALLOW_DIRTY=true` on the server.
 Completed implementation: emergency dirty deploy override requires `DEPLOY_DIRTY_REASON` and logs the reason before continuing.
 Completed implementation: production deploy runs `npx prisma migrate deploy` after the SmartLink guard and before Docker image build/up.
-Completed implementation: SmartLink legacy deploy guard Docker fallback is bounded by `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`, guarded by `node scripts/test-github-actions-contract.js`.
+Completed implementation: SmartLink legacy deploy guard local Node path and Docker fallback are bounded by `SMARTLINK_AUDIT_NODE_TIMEOUT=10m` and `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`, guarded by `node scripts/test-github-actions-contract.js`.
 Completed implementation: production deploy Prisma migration is bounded by `DEPLOY_PRISMA_MIGRATE_TIMEOUT=10m`, guarded by `node scripts/test-github-actions-contract.js`.
 Completed implementation: production deploy logs the starting commit, post-sync revision, and ordered phase markers for SmartLink guard, Prisma migrations, Docker build/up, and healthcheck.
 Completed implementation: production deploy Docker build/up phases are bounded by `DEPLOY_DOCKER_BUILD_TIMEOUT=45m` and `DEPLOY_DOCKER_UP_TIMEOUT=10m`, guarded by `node scripts/test-github-actions-contract.js`.

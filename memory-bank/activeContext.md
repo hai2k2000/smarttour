@@ -2964,3 +2964,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the GitHub Actions/deploy contract first; RED failed because `DEPLOY_GIT_TIMEOUT` coverage was missing.
   - Updated production deploy to run Git sync commands through `DEPLOY_GIT_TIMEOUT=5m`, while leaving local worktree guard commands unchanged.
   - Updated the GitHub Actions runbook and production readiness tracker; a fake clean-repo deploy probe confirmed a stuck `git fetch` fails fast with timeout status `124`.
+
+- 2026-06-24 production SmartLink guard local Node timeout follow-up:
+  - Found `scripts/smartlink-legacy-audit.sh` now bounded Docker fallback but still executed the preferred local Node audit path with raw `exec node`, so a stuck Prisma/DB audit could hang deploy before Prisma migrations.
+  - Extended the GitHub Actions/deploy contract first; RED failed because `SMARTLINK_AUDIT_NODE_TIMEOUT` coverage was missing.
+  - Updated the SmartLink wrapper to run local Prisma-client detection and the local audit command through `SMARTLINK_AUDIT_NODE_TIMEOUT=10m`, while keeping the existing Docker fallback.
+  - Updated the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker; a fake local-node hang probe confirmed the local path fails fast with timeout status `124`.

@@ -24,7 +24,8 @@ Git sync, and ordered phase markers for `DEPLOY_PHASE smartlink_guard`,
 Prisma migration, Docker build, and service startup are bounded by
 `DEPLOY_PRISMA_MIGRATE_TIMEOUT=10m`, `DEPLOY_DOCKER_BUILD_TIMEOUT=45m`, and
 `DEPLOY_DOCKER_UP_TIMEOUT=10m` by default.
-The SmartLink legacy guard Docker fallback is bounded by
+The SmartLink legacy guard local Node path and Docker fallback are bounded by
+`SMARTLINK_AUDIT_NODE_TIMEOUT=10m` and
 `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m` by default.
 Git fetch/checkout/pull during server-side sync are bounded by
 `DEPLOY_GIT_TIMEOUT=5m` by default.

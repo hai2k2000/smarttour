@@ -138,8 +138,14 @@ excludes(deployScript, '\ngit fetch origin "$BRANCH"', 'Server-side deploy must 
 excludes(deployScript, '\ngit checkout "$BRANCH"', 'Server-side deploy must not call raw git checkout.');
 excludes(deployScript, '\ngit pull --ff-only origin "$BRANCH"', 'Server-side deploy must not call raw git pull.');
 includes(smartlinkWrapper, 'SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"', 'SmartLink wrapper must define Docker fallback timeout.');
+includes(smartlinkWrapper, 'SMARTLINK_AUDIT_NODE_TIMEOUT="${SMARTLINK_AUDIT_NODE_TIMEOUT:-10m}"', 'SmartLink wrapper must define local Node audit timeout.');
+includes(smartlinkWrapper, 'run_smartlink_node()', 'SmartLink wrapper must wrap local Node commands.');
+includes(smartlinkWrapper, 'timeout "$SMARTLINK_AUDIT_NODE_TIMEOUT" node "$@"', 'SmartLink local Node path must be bounded.');
 includes(smartlinkWrapper, 'run_smartlink_docker()', 'SmartLink wrapper must wrap Docker fallback commands.');
 includes(smartlinkWrapper, 'timeout "$SMARTLINK_AUDIT_DOCKER_TIMEOUT" docker "$@"', 'SmartLink Docker fallback must be bounded.');
+includes(smartlinkWrapper, 'NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}" run_smartlink_node -e "require(\'@prisma/client\')"', 'SmartLink wrapper must check local Prisma client through the bounded Node wrapper.');
+includes(smartlinkWrapper, 'run_smartlink_node scripts/smartlink-legacy-audit.js "$@"', 'SmartLink wrapper must run local audit through the bounded Node wrapper.');
+excludes(smartlinkWrapper, '\n  exec node scripts/smartlink-legacy-audit.js "$@"', 'SmartLink wrapper must not exec raw local node audit.');
 includes(smartlinkWrapper, 'run_smartlink_docker compose run --rm --no-deps', 'SmartLink wrapper must run Docker fallback through the bounded wrapper.');
 excludes(smartlinkWrapper, '\ndocker compose run --rm --no-deps', 'SmartLink wrapper must not call raw docker compose run.');
 const deployPhaseOrder = [
@@ -196,6 +202,7 @@ for (const text of [
   'DEPLOY_REVISION',
   'Prisma migrations',
   'DEPLOY_PRISMA_MIGRATE_TIMEOUT',
+  'SMARTLINK_AUDIT_NODE_TIMEOUT',
   'SMARTLINK_AUDIT_DOCKER_TIMEOUT',
   'DEPLOY_DOCKER_BUILD_TIMEOUT',
   'DEPLOY_DOCKER_UP_TIMEOUT',
