@@ -44,11 +44,41 @@ if (postgresBackup.includes('\ndocker exec "$POSTGRES_CONTAINER" pg_dump')) {
 
 for (const expected of [
   'umask 077',
+  'DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"',
+  'DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"',
+  'run_disaster_docker()',
+  'run_disaster_compose()',
+  'timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"',
+  'timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"',
+  'run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump',
+  'run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l',
+  'run_disaster_docker ps -a',
+  'run_disaster_docker image ls',
+  'run_disaster_docker volume ls',
+  'run_disaster_compose stop',
+  'run_disaster_compose up -d',
+  'run_disaster_docker volume inspect "$volume"',
   'chmod 700 "$BACKUP_ROOT"',
   'chmod 600 "$archive" "$archive.sha256"',
   'rm -rf "$work_dir"',
 ]) {
   includes('scripts/disaster-backup.sh', disasterBackup, expected);
+}
+
+for (const forbidden of [
+  '\ndocker exec "$POSTGRES_CONTAINER" pg_dump',
+  '\ndocker exec "$POSTGRES_CONTAINER" pg_dumpall',
+  '\ndocker exec -i "$POSTGRES_CONTAINER" pg_restore',
+  '\ndocker ps -a',
+  '\ndocker image ls',
+  '\ndocker volume ls',
+  '\ndocker volume inspect "$volume"',
+  '\ndocker compose stop',
+  '\ndocker compose up -d',
+]) {
+  if (disasterBackup.includes(forbidden)) {
+    throw new Error(`scripts/disaster-backup.sh must not use raw ${forbidden.trim()}.`);
+  }
 }
 
 if (disasterBackup.indexOf('sha256sum -c "$archive.sha256"') > disasterBackup.indexOf('rm -rf "$work_dir"')) {
@@ -63,6 +93,8 @@ for (const expected of [
   'Backup artifacts must be private',
   'Temporary backup files are removed automatically if backup creation fails',
   'POSTGRES_BACKUP_TIMEOUT=30m',
+  'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
+  'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -88,9 +120,21 @@ includes(
 );
 
 includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'DISASTER_BACKUP_DOCKER_TIMEOUT',
+);
+
+includes(
   'scripts/install-ops-schedule.sh',
   read('scripts/install-ops-schedule.sh'),
   '# POSTGRES_BACKUP_TIMEOUT=30m',
+);
+
+includes(
+  'scripts/install-ops-schedule.sh',
+  read('scripts/install-ops-schedule.sh'),
+  '# DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
 );
 
 if (packageJson.scripts['test:backup-artifact-permissions'] !== 'node scripts/test-backup-artifact-permissions-contract.js') {

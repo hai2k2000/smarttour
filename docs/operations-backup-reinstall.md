@@ -80,6 +80,9 @@ Each full disaster archive includes:
 
 The weekly backup briefly stops the Compose stack while raw volumes are
 archived, then starts it again. A trap restarts the stack if archiving fails.
+Disaster backup Docker commands are bounded by
+`DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and Compose stop/start commands are
+bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` by default.
 
 ## Backup Artifact Permissions
 

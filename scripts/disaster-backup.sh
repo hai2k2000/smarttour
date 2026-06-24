@@ -8,6 +8,8 @@ KEEP_BACKUPS="${DISASTER_KEEP_BACKUPS:-4}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
 POSTGRES_USER="${POSTGRES_USER:-smarttour}"
 POSTGRES_DB="${POSTGRES_DB:-smarttour}"
+DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"
+DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -20,6 +22,14 @@ if [[ "$(id -u)" -ne 0 ]]; then
   echo "Disaster backup must run as root" >&2
   exit 1
 fi
+
+run_disaster_docker() {
+  timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"
+}
+
+run_disaster_compose() {
+  timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"
+}
 
 require_private_key_file() {
   local key_file="$1"
@@ -57,13 +67,13 @@ chmod 700 "$work_dir"
 
 restart_services() {
   if [[ "$services_stopped" == "1" ]]; then
-    docker compose up -d
+    run_disaster_compose up -d
   fi
 }
 trap restart_services EXIT
 
 echo "BACKUP_PHASE logical_database"
-docker exec "$POSTGRES_CONTAINER" pg_dump \
+run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   -Fc \
@@ -71,7 +81,7 @@ docker exec "$POSTGRES_CONTAINER" pg_dump \
   --no-privileges \
   > "$work_dir/database/smarttour.dump"
 
-docker exec "$POSTGRES_CONTAINER" pg_dump \
+run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   --clean \
@@ -80,12 +90,12 @@ docker exec "$POSTGRES_CONTAINER" pg_dump \
   --no-privileges \
   | gzip -9 > "$work_dir/database/smarttour.sql.gz"
 
-docker exec "$POSTGRES_CONTAINER" pg_dumpall \
+run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dumpall \
   -U "$POSTGRES_USER" \
   --globals-only \
   > "$work_dir/database/postgres-globals.sql"
 
-docker exec -i "$POSTGRES_CONTAINER" pg_restore -l \
+run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l \
   < "$work_dir/database/smarttour.dump" \
   > "$work_dir/database/smarttour.dump.list"
 
@@ -134,14 +144,14 @@ hostnamectl > "$work_dir/config/hostnamectl.txt" 2>&1 || true
 ip addr > "$work_dir/config/ip-addresses.txt"
 ip route > "$work_dir/config/ip-routes.txt"
 df -hT > "$work_dir/config/disk.txt"
-docker ps -a > "$work_dir/config/docker-containers.txt"
-docker image ls > "$work_dir/config/docker-images.txt"
-docker volume ls > "$work_dir/config/docker-volumes.txt"
+run_disaster_docker ps -a > "$work_dir/config/docker-containers.txt"
+run_disaster_docker image ls > "$work_dir/config/docker-images.txt"
+run_disaster_docker volume ls > "$work_dir/config/docker-volumes.txt"
 systemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt" || true
 crontab -l > "$work_dir/config/root-crontab.txt" 2>/dev/null || true
 
 echo "BACKUP_PHASE consistent_volumes"
-docker compose stop
+run_disaster_compose stop
 services_stopped=1
 
 for volume in \
@@ -149,7 +159,7 @@ for volume in \
   smarttour_smarttour_minio \
   smarttour_smarttour_n8n
 do
-  mountpoint="$(docker volume inspect "$volume" --format '{{.Mountpoint}}')"
+  mountpoint="$(run_disaster_docker volume inspect "$volume" --format '{{.Mountpoint}}')"
   if [[ -z "$mountpoint" || "$mountpoint" == "/" || ! -d "$mountpoint" ]]; then
     echo "Invalid mountpoint for $volume: $mountpoint" >&2
     exit 1
@@ -157,7 +167,7 @@ do
   tar -czf "$work_dir/volumes/$volume.tar.gz" -C "$mountpoint" .
 done
 
-docker compose up -d
+run_disaster_compose up -d
 services_stopped=0
 
 cat > "$work_dir/MANIFEST.txt" <<EOF

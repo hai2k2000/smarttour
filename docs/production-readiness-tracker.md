@@ -98,6 +98,10 @@ PostgreSQL backup temporary files are removed automatically on backup failure.
 Daily PostgreSQL dump execution is bounded by `POSTGRES_BACKUP_TIMEOUT=30m`
 so a stuck Docker or `pg_dump` process fails the backup timer instead of
 hanging it indefinitely.
+Full disaster backup Docker commands are bounded by
+`DISASTER_BACKUP_DOCKER_TIMEOUT=30m`, and Compose stop/start commands are
+bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`, so a stuck Docker/Compose
+operation fails the weekly timer instead of hanging it indefinitely.
 Disaster backup staging directories are removed after archive checksum verification.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.

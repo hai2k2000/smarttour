@@ -2922,3 +2922,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the restore-drill safety contract first; RED failed because `RESTORE_DRILL_COMMAND_TIMEOUT` coverage was missing.
   - Updated restore drill PostgreSQL commands to run through `RESTORE_DRILL_COMMAND_TIMEOUT=30m`, and documented the setting in the ops env template, backup runbook, and readiness tracker.
   - Updated the live `/etc/default/smarttour-ops` with `RESTORE_DRILL_COMMAND_TIMEOUT=30m` while preserving `600 root:root`, then verified a fake Docker timeout probe and a successful live restore drill with a throwaway database.
+
+- 2026-06-24 production disaster-backup timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still used raw Docker and Compose commands for logical dumps, Docker inventory, volume inspection, and Compose stop/start, so a stuck Docker/Compose call could hang the weekly disaster backup timer.
+  - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_DOCKER_TIMEOUT` coverage was missing.
+  - Updated disaster backup Docker commands to run through `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and Compose stop/start commands through `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake Docker and Compose timeout probes confirmed stuck commands fail fast.

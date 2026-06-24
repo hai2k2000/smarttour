@@ -2525,3 +2525,9 @@
   - The protected database-name guard still runs before any drop/create/restore command.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:restore-drill-safety` now guard/document the restore-drill command timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `RESTORE_DRILL_COMMAND_TIMEOUT=30m` and remains `600 root:root`; a fake Docker timeout probe failed fast, and a live restore drill succeeded with a throwaway database.
+
+- 2026-06-24 Completed production disaster-backup timeout hardening:
+  - `scripts/disaster-backup.sh` now runs logical dump, dump listing, Docker inventory, and volume inspection commands through `run_disaster_docker`, bounded by `DISASTER_BACKUP_DOCKER_TIMEOUT=30m`.
+  - Compose stop/start and the restart trap now run through `run_disaster_compose`, bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the disaster backup timeout settings.
+  - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` while remaining `600 root:root`; fake Docker and Compose timeout probes failed fast.

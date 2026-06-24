@@ -41,6 +41,9 @@ DISASTER_KEEP_BACKUPS=4
 # POSTGRES_BACKUP_TIMEOUT=30m
 # Set this to bound restore-drill PostgreSQL commands.
 # RESTORE_DRILL_COMMAND_TIMEOUT=30m
+# Set these to bound full disaster backup Docker/Compose commands.
+# DISASTER_BACKUP_DOCKER_TIMEOUT=30m
+# DISASTER_BACKUP_COMPOSE_TIMEOUT=10m
 # Set these to send healthcheck failure alerts to an external destination.
 # HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
 # HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
