@@ -124,6 +124,19 @@ scp -i $Key -P 24700 `
 
 Verify SHA256 after transfer.
 
+## Restore Drill Safety
+
+DRILL_DB must be a throwaway database name made only of letters, numbers, and
+underscores. Do not set `DRILL_DB` to `smarttour`, `postgres`, `template0`, or `template1`; the restore drill script aborts before any `dropdb` call when a
+protected or unsafe name is supplied.
+
+Validate this guard after changing restore drill behavior:
+
+```bash
+cd /opt/smarttour
+npm run test:restore-drill-safety
+```
+
 ## Manual Readiness Check
 
 Before requesting an OS reinstall:

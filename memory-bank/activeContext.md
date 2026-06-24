@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Restore drill database safety hardening:
+  - Hardened `scripts/restore-drill-postgres.sh` so `DRILL_DB` must be a throwaway identifier and cannot be `smarttour`, `postgres`, `template0`, or `template1`; unsafe values abort before any `dropdb` call.
+  - Added `scripts/test-restore-drill-safety-contract.js`, exposed `npm run test:restore-drill-safety`, wired it into `SmartTour CI`, and documented the guard in the backup/reinstall runbook and production readiness tracker.
+
 - Production rollback runbook hardening:
   - Reworked `docs/rollback-runbook.md` so production rollback records `BAD_COMMIT`, selects `GOOD_COMMIT`, creates/pushes a named `rollback/...` branch, and deploys through `scripts/deploy-production.sh` instead of the preview deploy path.
   - Added `scripts/test-rollback-runbook-contract.js`, exposed `npm run test:rollback-runbook`, and wired the contract into `SmartTour CI` and the GitHub Actions source contract.

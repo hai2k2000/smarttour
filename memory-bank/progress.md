@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened restore drill database target safety:
+  - Added `DRILL_DB` validation to `scripts/restore-drill-postgres.sh` so protected production/system databases and unsafe names abort before any `dropdb` call.
+  - Added `scripts/test-restore-drill-safety-contract.js`, `npm run test:restore-drill-safety`, and CI/source-contract wiring.
+  - Updated the backup/reinstall runbook and production readiness tracker with the restore drill database-name guard.
+
 - Hardened production rollback documentation:
   - Replaced the production rollback runbook's preview/deferred checkout flow with a named rollback branch flow that deploys through `scripts/deploy-production.sh`.
   - Added explicit `BAD_COMMIT`, `GOOD_COMMIT`, `ROLLBACK_BRANCH`, deploy trace expectation, migration status, dependency audit, healthcheck, and security audit steps.

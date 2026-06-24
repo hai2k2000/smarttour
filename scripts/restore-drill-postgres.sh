@@ -7,8 +7,32 @@ POSTGRES_USER="${POSTGRES_USER:-smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DRILL_DB="${DRILL_DB:-smarttour_restore_drill_$(date +%Y%m%d%H%M%S)}"
 KEEP_RESTORE_DRILL_DB="${KEEP_RESTORE_DRILL_DB:-0}"
+PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)
 
 cd "$REPO_DIR"
+
+validate_drill_db_name() {
+  local value="$1"
+  if [[ -z "$value" ]]; then
+    echo "RESTORE_DRILL_ABORT unsafe DRILL_DB: $value" >&2
+    exit 1
+  fi
+
+  if [[ ! "$value" =~ ^[A-Za-z0-9_]+$ ]]; then
+    echo "RESTORE_DRILL_ABORT unsafe DRILL_DB: $value" >&2
+    exit 1
+  fi
+
+  local protected_db
+  for protected_db in "${PROTECTED_RESTORE_DRILL_DBS[@]}"; do
+    if [[ "$value" == "$protected_db" ]]; then
+      echo "RESTORE_DRILL_ABORT unsafe DRILL_DB: $value" >&2
+      exit 1
+    fi
+  done
+}
+
+validate_drill_db_name "$DRILL_DB"
 
 backup_file="${1:-}"
 if [[ -z "$backup_file" ]]; then

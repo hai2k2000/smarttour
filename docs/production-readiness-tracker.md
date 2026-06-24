@@ -82,6 +82,8 @@ Tooling is ready:
 - `npm run test:backup-offsite`
 
 The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
+Restore drills reject protected production/system database names before any
+`dropdb` call, and `npm run test:restore-drill-safety` guards the contract.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.
 
