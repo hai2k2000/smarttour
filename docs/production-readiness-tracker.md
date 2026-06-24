@@ -135,6 +135,7 @@ Health tooling:
 Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
 Completed implementation: `/etc/default/smarttour-ops` template now includes commented `HEALTHCHECK_WEBHOOK_*` settings so reinstall/setup keeps alerting configuration discoverable.
 Completed implementation: healthcheck now verifies the latest disaster backup archive age and checksum with `OK_DISASTER_BACKUP`, using `DISASTER_BACKUP_MAX_AGE_HOURS=192` by default.
+Completed implementation: healthcheck now verifies the latest restore drill log age, `RESTORE_DRILL_OK` marker, and systemd result with `OK_RESTORE_DRILL`, using `RESTORE_DRILL_MAX_AGE_HOURS=192` by default.
 
 Manual owner task: choose the external alert destination and configure `HEALTHCHECK_WEBHOOK_URL` plus timeout/retry settings in `/etc/default/smarttour-ops`.
 

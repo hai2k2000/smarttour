@@ -2461,3 +2461,9 @@
   - `/etc/default/smarttour-ops` template now includes `DISASTER_BACKUP_MAX_AGE_HOURS=192` so weekly disaster backups alert when older than eight days.
   - `scripts/test-healthcheck-backup-contract.js`, `package.json`, observability docs, and the production readiness tracker now guard and document the disaster backup healthcheck contract.
   - The live `/etc/default/smarttour-ops` file was updated with `DISASTER_BACKUP_MAX_AGE_HOURS=192` and preserved as `600 root:root`; a temporary stale archive probe confirmed the healthcheck fails on stale disaster backups and returns to OK after cleanup.
+
+- 2026-06-24 Completed production healthcheck restore-drill freshness coverage:
+  - `scripts/healthcheck.sh` now checks `/var/log/smarttour/restore-drill.log` for a recent `RESTORE_DRILL_OK` marker and confirms `smarttour-restore-drill.service` last result is `success`, emitting `OK_RESTORE_DRILL` or `FAIL_RESTORE_DRILL`.
+  - `/etc/default/smarttour-ops` template now includes `RESTORE_DRILL_MAX_AGE_HOURS=192` so weekly restore drills alert when older than eight days.
+  - `scripts/test-healthcheck-restore-drill-contract.js`, `package.json`, observability docs, backup/reinstall docs, and the production readiness tracker now guard and document the restore drill healthcheck contract.
+  - The live `/etc/default/smarttour-ops` file was updated with `RESTORE_DRILL_MAX_AGE_HOURS=192` and preserved as `600 root:root`; a temporary log-without-success-marker probe confirmed the healthcheck fails on missing `RESTORE_DRILL_OK` and returns to OK after cleanup.

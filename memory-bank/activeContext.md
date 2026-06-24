@@ -2863,3 +2863,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `scripts/healthcheck.sh` verified the latest daily PostgreSQL dump age/checksum but did not verify disaster backup archive freshness/checksum.
   - Added a dedicated healthcheck backup contract first; RED failed because `DISASTER_BACKUP_DIR` and `OK_DISASTER_BACKUP` coverage were missing.
   - Updated healthcheck to verify the latest disaster backup archive under `/var/backups/smarttour/disaster`, fail on missing/stale/checksum-invalid archives, and default `DISASTER_BACKUP_MAX_AGE_HOURS` to 192.
+
+- 2026-06-24 production healthcheck restore-drill follow-up:
+  - Found `smarttour-restore-drill.timer` was enabled and the restore drill log contained `RESTORE_DRILL_OK`, but `scripts/healthcheck.sh` did not alert if the weekly restore drill became stale or failed.
+  - Added a dedicated healthcheck restore-drill contract first; RED failed because `RESTORE_DRILL_LOG` / `OK_RESTORE_DRILL` coverage was missing.
+  - Updated healthcheck to require the restore drill log, `RESTORE_DRILL_OK` marker, recent log age, and `smarttour-restore-drill.service` result `success`, defaulting `RESTORE_DRILL_MAX_AGE_HOURS` to 192.

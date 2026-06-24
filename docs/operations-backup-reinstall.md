@@ -168,6 +168,10 @@ cd /opt/smarttour
 npm run test:restore-drill-safety
 ```
 
+The healthcheck reports `OK_RESTORE_DRILL` when the latest restore drill log
+contains `RESTORE_DRILL_OK`, is recent, and the systemd service result is
+success.
+
 ## Manual Readiness Check
 
 Before requesting an OS reinstall:

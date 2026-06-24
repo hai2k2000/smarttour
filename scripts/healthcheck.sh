@@ -6,6 +6,8 @@ API_URL="${API_URL:-https://aitour.io.vn/api}"
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"
+RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
+RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
 
 cd "$REPO_DIR"
 
@@ -158,6 +160,27 @@ else
   else
     echo "FAIL_DISASTER_BACKUP checksum missing_or_invalid file=$latest_disaster_backup_file"
     failures=$((failures + 1))
+  fi
+fi
+
+if [[ ! -f "$RESTORE_DRILL_LOG" ]]; then
+  echo "FAIL_RESTORE_DRILL missing_log log=$RESTORE_DRILL_LOG"
+  failures=$((failures + 1))
+elif ! grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_LOG"; then
+  echo "FAIL_RESTORE_DRILL missing_success_marker log=$RESTORE_DRILL_LOG"
+  failures=$((failures + 1))
+else
+  restore_drill_epoch="$(stat -c '%Y' "$RESTORE_DRILL_LOG")"
+  restore_drill_age_hours=$(( ($(date +%s) - restore_drill_epoch) / 3600 ))
+  restore_drill_result="$(systemctl show "$RESTORE_DRILL_SERVICE" -p Result --value 2>/dev/null || true)"
+  if [[ "$restore_drill_age_hours" -gt "${RESTORE_DRILL_MAX_AGE_HOURS:-192}" ]]; then
+    echo "FAIL_RESTORE_DRILL stale age=${restore_drill_age_hours}h log=$RESTORE_DRILL_LOG"
+    failures=$((failures + 1))
+  elif [[ "$restore_drill_result" != "success" ]]; then
+    echo "FAIL_RESTORE_DRILL result=${restore_drill_result:-unknown} service=$RESTORE_DRILL_SERVICE"
+    failures=$((failures + 1))
+  else
+    echo "OK_RESTORE_DRILL age=${restore_drill_age_hours}h result=success log=$RESTORE_DRILL_LOG"
   fi
 fi
 
