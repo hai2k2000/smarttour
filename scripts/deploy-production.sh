@@ -53,20 +53,31 @@ if [[ "$ALLOW_DIRTY" != "true" && -n "$untracked_files" ]]; then
   exit 1
 fi
 
+starting_commit="$(git rev-parse --short HEAD)"
+echo "DEPLOY_START branch=$BRANCH current_commit=$starting_commit"
+
 if [[ "$RUN_GIT_PULL" == "true" ]]; then
   git fetch origin "$BRANCH"
   git checkout "$BRANCH"
   git pull --ff-only origin "$BRANCH"
 fi
 
+target_commit="$(git rev-parse --short HEAD)"
+echo "DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit"
+
+echo "DEPLOY_PHASE smartlink_guard"
 "$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard
 
 echo "DEPLOY_PHASE prisma_migrate_deploy"
 npx prisma migrate deploy
 
+echo "DEPLOY_PHASE docker_build"
 docker compose build api web
+
+echo "DEPLOY_PHASE docker_up"
 docker compose up -d api web nginx
 
+echo "DEPLOY_PHASE healthcheck"
 SITE_URL="$SITE_URL" API_URL="$API_URL" "$REPO_DIR/scripts/healthcheck.sh"
 
 echo "DEPLOY_PRODUCTION_OK branch=$BRANCH commit=$(git rev-parse --short HEAD)"

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production deploy traceability hardening:
+  - Hardened `scripts/deploy-production.sh` so production deploy logs `DEPLOY_START` with the current commit, `DEPLOY_REVISION` after git sync, and ordered phase markers for SmartLink guard, Prisma migrations, Docker build/up, and healthcheck.
+  - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to keep deploy revision/phase logging documented and guarded.
+
 - Production deploy Prisma migration hardening:
   - Hardened `scripts/deploy-production.sh` so production deploy logs `DEPLOY_PHASE prisma_migrate_deploy` and runs `npx prisma migrate deploy` after the SmartLink guard and before Docker build/up.
   - Extended `scripts/test-github-actions-contract.js`, `docs/github-actions-runbook.md`, and the production readiness tracker to guard/document the migration step.

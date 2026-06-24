@@ -99,13 +99,36 @@ includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side produ
 includes(deployScript, 'DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"', 'Server-side deploy must define DEPLOY_DIRTY_REASON.');
 includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 'Server-side deploy must require a reason for dirty deploy override.');
 includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
+includes(deployScript, 'DEPLOY_START branch=$BRANCH current_commit=$starting_commit', 'Server-side deploy must log the starting branch and commit.');
+includes(deployScript, 'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit', 'Server-side deploy must log the revision after git sync.');
+includes(deployScript, 'DEPLOY_PHASE smartlink_guard', 'Server-side deploy must log the SmartLink guard phase.');
 includes(deployScript, 'DEPLOY_PHASE prisma_migrate_deploy', 'Server-side deploy must log the Prisma migration phase.');
 includes(deployScript, 'npx prisma migrate deploy', 'Server-side deploy must run Prisma production migrations.');
-if (
-  deployScript.indexOf('smartlink-legacy-audit.sh" --mode=guard') > deployScript.indexOf('npx prisma migrate deploy')
-  || deployScript.indexOf('npx prisma migrate deploy') > deployScript.indexOf('docker compose build api web')
-) {
-  throw new Error('Server-side deploy must run SmartLink guard, then Prisma migrate deploy, then Docker build.');
+includes(deployScript, 'DEPLOY_PHASE docker_build', 'Server-side deploy must log the Docker build phase.');
+includes(deployScript, 'DEPLOY_PHASE docker_up', 'Server-side deploy must log the Docker up phase.');
+includes(deployScript, 'DEPLOY_PHASE healthcheck', 'Server-side deploy must log the healthcheck phase.');
+const deployPhaseOrder = [
+  'DEPLOY_START branch=$BRANCH current_commit=$starting_commit',
+  'git fetch origin "$BRANCH"',
+  'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit',
+  'DEPLOY_PHASE smartlink_guard',
+  'smartlink-legacy-audit.sh" --mode=guard',
+  'DEPLOY_PHASE prisma_migrate_deploy',
+  'npx prisma migrate deploy',
+  'DEPLOY_PHASE docker_build',
+  'docker compose build api web',
+  'DEPLOY_PHASE docker_up',
+  'docker compose up -d api web nginx',
+  'DEPLOY_PHASE healthcheck',
+  'scripts/healthcheck.sh',
+  'DEPLOY_PRODUCTION_OK',
+];
+for (let index = 1; index < deployPhaseOrder.length; index += 1) {
+  const previous = deployPhaseOrder[index - 1];
+  const current = deployPhaseOrder[index];
+  if (deployScript.indexOf(previous) > deployScript.indexOf(current)) {
+    throw new Error(`Server-side deploy must run ${previous} before ${current}.`);
+  }
 }
 
 
@@ -131,8 +154,14 @@ for (const text of [
   'untracked files',
   'ALLOW_DIRTY=true',
   'DEPLOY_DIRTY_REASON',
+  'DEPLOY_START',
+  'DEPLOY_REVISION',
   'Prisma migrations',
   'npx prisma migrate deploy',
+  'DEPLOY_PHASE smartlink_guard',
+  'DEPLOY_PHASE docker_build',
+  'DEPLOY_PHASE docker_up',
+  'DEPLOY_PHASE healthcheck',
 ]) {
   includes(runbookText, text, `GitHub Actions runbook must document ${text}.`);
 }

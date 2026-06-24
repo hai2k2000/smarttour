@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production deploy traceability:
+  - Added `DEPLOY_START` and `DEPLOY_REVISION` logs to expose the branch, starting commit, and post-sync target commit during production deploys.
+  - Added ordered `DEPLOY_PHASE` logs for SmartLink guard, Prisma migrations, Docker build, Docker up, and healthcheck so failed deploy output identifies the blocked step.
+  - Extended deploy contracts, the GitHub Actions runbook, and the production readiness tracker to keep the trace markers from regressing.
+
 - Hardened production deploy migration execution:
   - Added `npx prisma migrate deploy` to `scripts/deploy-production.sh` after the SmartLink guard and before Docker build/up.
   - Added a deploy phase log line for Prisma migrations and extended deploy contracts/docs to prevent this step from being dropped.

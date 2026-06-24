@@ -102,6 +102,7 @@ Completed implementation: production deploy validates manual dispatch inputs and
 Completed implementation: production deploy aborts on tracked, staged, or untracked VPS worktree changes unless an operator explicitly uses `ALLOW_DIRTY=true` on the server.
 Completed implementation: emergency dirty deploy override requires `DEPLOY_DIRTY_REASON` and logs the reason before continuing.
 Completed implementation: production deploy runs `npx prisma migrate deploy` after the SmartLink guard and before Docker image build/up.
+Completed implementation: production deploy logs the starting commit, post-sync revision, and ordered phase markers for SmartLink guard, Prisma migrations, Docker build/up, and healthcheck.
 
 Manual owner task: configure the GitHub `production` environment approval gate and required secrets documented in `docs/github-actions-runbook.md`.
 

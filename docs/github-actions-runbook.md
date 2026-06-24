@@ -17,6 +17,10 @@ connects to the VPS over SSH and runs `scripts/deploy-production.sh` inside the
 configured project directory. The server-side deploy script still performs the
 Git fast-forward pull, SmartLink legacy guard, Prisma migrations with
 `npx prisma migrate deploy`, Docker build/up, and healthcheck.
+It logs `DEPLOY_START` with the current commit, `DEPLOY_REVISION` after the
+Git sync, and ordered phase markers for `DEPLOY_PHASE smartlink_guard`,
+`DEPLOY_PHASE prisma_migrate_deploy`, `DEPLOY_PHASE docker_build`,
+`DEPLOY_PHASE docker_up`, and `DEPLOY_PHASE healthcheck`.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
 The manual dispatch inputs are validated before SSH starts. Branch names may
