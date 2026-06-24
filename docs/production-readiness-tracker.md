@@ -95,6 +95,7 @@ Restore-drill PostgreSQL commands are bounded by
 timer instead of hanging it indefinitely.
 Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOUT=5m`.
 Backup compression and restore decompression are bounded by `BACKUP_COMPRESSION_TIMEOUT=30m`.
+Backup file discovery and retention cleanup are bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
 PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.

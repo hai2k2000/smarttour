@@ -3030,3 +3030,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the healthcheck backup contract first; RED failed because `HEALTHCHECK_FILE_SCAN_TIMEOUT` coverage was missing.
   - Added `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` and `run_healthcheck_file_scan`, then routed PostgreSQL and disaster backup file discovery through the bounded wrapper.
   - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
+
+- 2026-06-24 backup script file-scan timeout follow-up:
+  - Found daily backup retention cleanup, backup sync latest-file discovery, and restore-drill latest-backup discovery still used raw `find`. Stuck backup directory scans could hang scheduled backup/sync/restore operations.
+  - Extended backup artifact, offsite backup, and restore-drill contracts first; RED failed because `BACKUP_FILE_SCAN_TIMEOUT` coverage was missing.
+  - Added `BACKUP_FILE_SCAN_TIMEOUT=30s` wrappers to `scripts/backup-postgres.sh`, `scripts/sync-latest-backup.sh`, and `scripts/restore-drill-postgres.sh`.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake timeout probes confirmed backup retention, sync discovery, and restore discovery return status 124 without SCP.

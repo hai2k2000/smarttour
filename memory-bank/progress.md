@@ -2634,3 +2634,9 @@
   - Existing healthcheck semantics are preserved: if discovery fails or times out, the healthcheck reports the existing missing-backup failure paths instead of hanging the timer.
   - `/etc/default/smarttour-ops` template, observability runbook, production readiness tracker, and `npm run test:healthcheck-backup` now guard/document the file-scan timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified timeout status 124.
+
+- 2026-06-24 Completed backup script file-scan timeout hardening:
+  - Daily backup retention cleanup now uses `run_backup_file_scan`, bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
+  - Latest backup discovery for offsite sync and restore-drill now uses bounded file-scan wrappers before checksum, SCP, or restore work starts.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the file-scan timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `BACKUP_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; fake timeout probes verified status 124 for backup retention, sync discovery, and restore discovery.

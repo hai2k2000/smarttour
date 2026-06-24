@@ -25,12 +25,15 @@ for (const expected of [
   'POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"',
   'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"',
+  'BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
   'run_postgres_backup_dump()',
   'run_backup_checksum()',
   'run_backup_compression()',
+  'run_backup_file_scan()',
   'timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump',
   'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"',
+  'timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
   'chmod 700 "$BACKUP_DIR"',
   'cleanup_tmp_backup()',
   'trap cleanup_tmp_backup EXIT',
@@ -38,6 +41,8 @@ for (const expected of [
   'run_backup_compression -9 > "$tmp_file"',
   'run_backup_checksum "$backup_file" > "$checksum_file"',
   'chmod 600 "$backup_file" "$checksum_file"',
+  'run_backup_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz\' -mtime +"$KEEP_DAYS" -delete',
+  'run_backup_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz.sha256\' -mtime +"$KEEP_DAYS" -delete',
 ]) {
   includes('scripts/backup-postgres.sh', postgresBackup, expected);
 }
@@ -148,6 +153,7 @@ for (const expected of [
   'POSTGRES_BACKUP_TIMEOUT=30m',
   'BACKUP_CHECKSUM_TIMEOUT=5m',
   'BACKUP_COMPRESSION_TIMEOUT=30m',
+  'BACKUP_FILE_SCAN_TIMEOUT=30s',
   'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
