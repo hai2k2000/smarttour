@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened disaster backup file command timeout:
+  - `scripts/disaster-backup.sh` now runs backup root/staging directory creation/chmod, manifest write, archive chmod, and checksum output through `DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m`.
+  - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so weekly backup file commands remain bounded.
+
 - Hardened PostgreSQL backup file command timeout:
   - `scripts/backup-postgres.sh` now runs backup directory creation/chmod, final artifact move, artifact chmod, and checksum output through `BACKUP_FILE_COMMAND_TIMEOUT=5m`.
   - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so daily backup artifact file commands remain bounded.

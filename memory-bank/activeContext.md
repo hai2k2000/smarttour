@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Disaster backup file command timeout hardening:
+  - Hardened `scripts/disaster-backup.sh` so backup root/staging directory creation/chmod, manifest write, archive chmod, and checksum output run through `DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m`.
+  - Extended `scripts/test-backup-artifact-permissions-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so weekly backup file commands cannot regress to unbounded raw calls.
+
 - PostgreSQL backup file command timeout hardening:
   - Hardened `scripts/backup-postgres.sh` so backup directory creation/chmod, final artifact move, artifact chmod, and checksum output run through `BACKUP_FILE_COMMAND_TIMEOUT=5m`.
   - Extended `scripts/test-backup-artifact-permissions-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so daily backup artifact file commands cannot regress to unbounded raw calls.

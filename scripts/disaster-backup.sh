@@ -18,6 +18,7 @@ DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"
 DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"
 DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 DISASTER_BACKUP_CLEANUP_TIMEOUT="${DISASTER_BACKUP_CLEANUP_TIMEOUT:-5m}"
+DISASTER_BACKUP_FILE_COMMAND_TIMEOUT="${DISASTER_BACKUP_FILE_COMMAND_TIMEOUT:-5m}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -105,6 +106,10 @@ run_disaster_cleanup() {
   timeout "$DISASTER_BACKUP_CLEANUP_TIMEOUT" rm "$@"
 }
 
+run_disaster_file_command() {
+  timeout "$DISASTER_BACKUP_FILE_COMMAND_TIMEOUT" "$@"
+}
+
 run_disaster_scp() {
   timeout "$REMOTE_SCP_TIMEOUT" scp "$@"
 }
@@ -126,8 +131,8 @@ require_private_key_file() {
 
 validate_disaster_backup_root "$BACKUP_ROOT"
 
-mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
-chmod 700 "$BACKUP_ROOT"
+run_disaster_file_command mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
+run_disaster_file_command chmod 700 "$BACKUP_ROOT"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "Another SmartTour disaster backup is running" >&2
@@ -142,8 +147,8 @@ work_dir="$BACKUP_ROOT/$name"
 archive="$BACKUP_ROOT/$name.tar.gz"
 services_stopped=0
 
-mkdir -p "$work_dir"/{database,volumes,config,git}
-chmod 700 "$work_dir"
+run_disaster_file_command mkdir -p "$work_dir"/{database,volumes,config,git}
+run_disaster_file_command chmod 700 "$work_dir"
 
 restart_services() {
   if [[ "$services_stopped" == "1" ]]; then
@@ -250,7 +255,7 @@ done
 run_disaster_compose up -d
 services_stopped=0
 
-cat > "$work_dir/MANIFEST.txt" <<EOF
+run_disaster_file_command tee "$work_dir/MANIFEST.txt" >/dev/null <<EOF
 timestamp=$timestamp
 hostname=$(run_disaster_host_command hostname)
 repo_commit=$(run_disaster_git rev-parse HEAD)
@@ -265,7 +270,7 @@ run_disaster_file_scan "$work_dir" -type f ! -name SHA256SUMS -print0 \
 
 run_disaster_archive_command tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
 run_disaster_archive_command sha256sum "$archive" > "$archive.sha256"
-chmod 600 "$archive" "$archive.sha256"
+run_disaster_file_command chmod 600 "$archive" "$archive.sha256"
 run_disaster_archive_command sha256sum -c "$archive.sha256"
 safe_remove_disaster_path "$work_dir"
 
@@ -291,4 +296,4 @@ if [[ -n "$REMOTE_TARGET" ]]; then
 fi
 
 echo "DISASTER_BACKUP_OK $archive"
-cat "$archive.sha256"
+run_disaster_file_command cat "$archive.sha256"

@@ -92,6 +92,7 @@ for (const expected of [
   'DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"',
   'DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"',
   'DISASTER_BACKUP_CLEANUP_TIMEOUT="${DISASTER_BACKUP_CLEANUP_TIMEOUT:-5m}"',
+  'DISASTER_BACKUP_FILE_COMMAND_TIMEOUT="${DISASTER_BACKUP_FILE_COMMAND_TIMEOUT:-5m}"',
   'BACKUP_ROOT="${BACKUP_ROOT%/}"',
   'validate_disaster_backup_root()',
   'safe_remove_disaster_path()',
@@ -114,6 +115,7 @@ for (const expected of [
   'run_disaster_file_read()',
   'run_disaster_text_filter()',
   'run_disaster_cleanup()',
+  'run_disaster_file_command()',
   'timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"',
   'timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"',
   'timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"',
@@ -123,8 +125,16 @@ for (const expected of [
   'timeout "$DISASTER_BACKUP_FILE_READ_TIMEOUT" "$@"',
   'timeout "$DISASTER_BACKUP_TEXT_FILTER_TIMEOUT" "$@"',
   'timeout "$DISASTER_BACKUP_CLEANUP_TIMEOUT" rm "$@"',
+  'timeout "$DISASTER_BACKUP_FILE_COMMAND_TIMEOUT" "$@"',
   'run_disaster_cleanup -rf "$target"',
   'run_disaster_cleanup -f "$target" "$target.sha256"',
+  'run_disaster_file_command mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"',
+  'run_disaster_file_command chmod 700 "$BACKUP_ROOT"',
+  'run_disaster_file_command mkdir -p "$work_dir"/{database,volumes,config,git}',
+  'run_disaster_file_command chmod 700 "$work_dir"',
+  'run_disaster_file_command tee "$work_dir/MANIFEST.txt"',
+  'run_disaster_file_command chmod 600 "$archive" "$archive.sha256"',
+  'run_disaster_file_command cat "$archive.sha256"',
   'run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump',
   'run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l',
   'run_disaster_git status --short --branch',
@@ -204,6 +214,13 @@ for (const forbidden of [
   '\nsha256sum "$archive" > "$archive.sha256"',
   '\nsha256sum -c "$archive.sha256"',
   '\n  | xargs -0 sha256sum',
+  '\nmkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"',
+  '\nchmod 700 "$BACKUP_ROOT"',
+  '\nmkdir -p "$work_dir"/{database,volumes,config,git}',
+  '\nchmod 700 "$work_dir"',
+  '\ncat > "$work_dir/MANIFEST.txt"',
+  '\nchmod 600 "$archive" "$archive.sha256"',
+  '\ncat "$archive.sha256"',
   'rm -rf "$work_dir"',
   'rm -rf "$target"',
   'rm -rf "${old_archive%.tar.gz}"',
@@ -243,6 +260,7 @@ for (const expected of [
   'DISASTER_BACKUP_FILE_READ_TIMEOUT=10s',
   'DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s',
   'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
+  'DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -259,6 +277,7 @@ for (const expected of [
   'BACKUP_CLEANUP_TIMEOUT=5m',
   'BACKUP_FILE_COMMAND_TIMEOUT=5m',
   'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
+  'DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m',
 ]) {
   includes('scripts/install-ops-schedule.sh', scheduleInstaller, expected);
 }
@@ -315,6 +334,12 @@ includes(
   'docs/production-readiness-tracker.md',
   readinessTracker,
   'DISASTER_BACKUP_CLEANUP_TIMEOUT',
+);
+
+includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'DISASTER_BACKUP_FILE_COMMAND_TIMEOUT',
 );
 
 includes(

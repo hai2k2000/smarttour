@@ -127,6 +127,8 @@ Disaster backup key/config reads before offsite sync are bounded by
 `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
 Disaster backup staging/archive cleanup deletion is bounded by
 `DISASTER_BACKUP_CLEANUP_TIMEOUT=5m`.
+Disaster backup file commands are bounded by
+`DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m`.
 Disaster backup staging directories are removed after archive checksum verification.
 Disaster backup staging and retention cleanup only remove guarded
 `smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
