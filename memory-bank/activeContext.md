@@ -3048,3 +3048,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_FILE_SCAN_TIMEOUT` coverage was missing.
   - Added `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s` and `run_disaster_file_scan`, then routed staging manifest discovery and retention cleanup through the bounded wrapper.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
+
+- 2026-06-24 Nginx host report file-scan timeout follow-up:
+  - Found `scripts/nginx-host-report.sh` still used raw `find` for old host-report retention cleanup. A stuck security report directory scan could hang the daily host-report timer after writing the latest report.
+  - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_FILE_SCAN_TIMEOUT` coverage was missing.
+  - Added `HOST_REPORT_FILE_SCAN_TIMEOUT=30s` and `run_host_report_file_scan`, then routed report retention cleanup through the bounded wrapper.
+  - Updated the ops env template, security hardening runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.

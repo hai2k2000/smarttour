@@ -2652,3 +2652,9 @@
   - Existing disaster archive/checksum work remains bounded separately by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the file-scan timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `find` returns status 124.
+
+- 2026-06-24 Completed Nginx host report file-scan timeout hardening:
+  - `scripts/nginx-host-report.sh` now bounds old report retention cleanup with `HOST_REPORT_FILE_SCAN_TIMEOUT=30s`.
+  - Docker log collection remains bounded separately by `HOST_REPORT_DOCKER_TIMEOUT=10s`.
+  - `/etc/default/smarttour-ops` template, security hardening runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the file-scan timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `find` returns status 124.

@@ -7,9 +7,14 @@ REPORT_HOURS="${REPORT_HOURS:-24}"
 REPORT_DIR="${REPORT_DIR:-/var/log/smarttour/security}"
 KEEP_DAYS="${SECURITY_REPORT_KEEP_DAYS:-30}"
 HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"
+HOST_REPORT_FILE_SCAN_TIMEOUT="${HOST_REPORT_FILE_SCAN_TIMEOUT:-30s}"
 
 run_host_report_docker() {
   timeout "$HOST_REPORT_DOCKER_TIMEOUT" docker "$@"
+}
+
+run_host_report_file_scan() {
+  timeout "$HOST_REPORT_FILE_SCAN_TIMEOUT" find "$@"
 }
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -61,6 +66,6 @@ chmod 0640 "$report"
 
 cp "$report" "$latest"
 chmod 0640 "$latest"
-find "$REPORT_DIR" -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -mtime "+$KEEP_DAYS" -delete
+run_host_report_file_scan "$REPORT_DIR" -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -mtime "+$KEEP_DAYS" -delete
 
 echo "NGINX_HOST_REPORT_OK report=$report"

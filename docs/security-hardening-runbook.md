@@ -72,7 +72,8 @@ scripts/nginx-host-report.sh
 
 Docker log collection for the report is bounded by
 `HOST_REPORT_DOCKER_TIMEOUT=10s` by default, so a stuck Docker log read fails
-the host report job instead of hanging it.
+the host report job instead of hanging it. Host report retention cleanup scans
+are bounded by `HOST_REPORT_FILE_SCAN_TIMEOUT=30s` by default.
 
 The report is installed by the operations schedule as
 `smarttour-nginx-host-report.timer`. The full timer set should include:

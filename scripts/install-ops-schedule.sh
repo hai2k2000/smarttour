@@ -71,6 +71,8 @@ DISASTER_KEEP_BACKUPS=4
 # HEALTHCHECK_FILE_SCAN_TIMEOUT=30s
 # Set this to bound Docker log collection in the daily Nginx host report.
 # HOST_REPORT_DOCKER_TIMEOUT=10s
+# Set this to bound file cleanup scans in the daily Nginx host report.
+# HOST_REPORT_FILE_SCAN_TIMEOUT=30s
 # Set this to bound systemd operations in this installer.
 # OPS_SYSTEMD_TIMEOUT=30s
 # Set this to bound file scans in the security audit.
