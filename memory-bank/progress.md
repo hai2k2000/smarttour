@@ -2676,3 +2676,9 @@
   - Restore-drill service result checks remain bounded separately by `SYSTEMD_CHECK_TIMEOUT=10s`.
   - The ops env template, observability runbook, backup runbook, production readiness tracker, and `npm run test:healthcheck-restore-drill` now guard/document the file-read timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_FILE_READ_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.
+
+- 2026-06-24 Completed security audit file-read timeout hardening:
+  - `scripts/security-audit.sh` now bounds config/permission reads with `AUDIT_FILE_READ_TIMEOUT=10s`.
+  - Coverage includes `.env` checks, logrotate and Nginx config greps, SSH/root permission metadata, backup/log directory mode checks, and bounded grep checks over previously collected command output.
+  - The ops env template, security hardening runbook, production readiness tracker, and `npm run test:security-audit` now guard/document the file-read timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `AUDIT_FILE_READ_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.

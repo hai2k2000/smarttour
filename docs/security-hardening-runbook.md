@@ -47,6 +47,8 @@ and `NPM_AUDIT_TIMEOUT=120s` by default. Increase these only for a known slow
 host. Treat `FAIL_PORTS docker_unavailable`, `FAIL_SSH sshd_config_unavailable`,
 and `FAIL_NPM_AUDIT failed_or_timed_out` as real security audit failures.
 Security audit file scans are bounded by `AUDIT_FILE_SCAN_TIMEOUT=30s` by default, including backup artifact, disaster staging, and ops log permission scans.
+Security audit config and permission reads are bounded by
+`AUDIT_FILE_READ_TIMEOUT=10s` by default.
 
 The live audit must include `OK_ENV_FILE`, `OK_OPS_ENV_FILE`, `OK_LOGROTATE`,
 `OK_OPS_LOG_PERMS`, `OK_OPS_SERVICE_UMASK`, `OK_BACKUP_PERMS`,

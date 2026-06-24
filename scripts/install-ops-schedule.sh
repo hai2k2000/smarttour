@@ -87,6 +87,8 @@ DISASTER_KEEP_BACKUPS=4
 # OPS_FILE_SCAN_TIMEOUT=30s
 # Set this to bound file scans in the security audit.
 # AUDIT_FILE_SCAN_TIMEOUT=30s
+# Set this to bound config and permission file reads in the security audit.
+# AUDIT_FILE_READ_TIMEOUT=10s
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22
