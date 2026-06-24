@@ -10,6 +10,7 @@ POSTGRES_USER="${POSTGRES_USER:-smarttour}"
 POSTGRES_DB="${POSTGRES_DB:-smarttour}"
 DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"
 DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"
+DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -30,6 +31,10 @@ run_disaster_docker() {
 
 run_disaster_compose() {
   timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"
+}
+
+run_disaster_host_command() {
+  timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"
 }
 
 run_disaster_scp() {
@@ -145,15 +150,15 @@ tar --ignore-failed-read -czf "$work_dir/config/server-config.tar.gz" \
   /root/.ssh \
   /var/spool/cron 2>/dev/null || true
 
-hostnamectl > "$work_dir/config/hostnamectl.txt" 2>&1 || true
-ip addr > "$work_dir/config/ip-addresses.txt"
-ip route > "$work_dir/config/ip-routes.txt"
-df -hT > "$work_dir/config/disk.txt"
+run_disaster_host_command hostnamectl > "$work_dir/config/hostnamectl.txt" 2>&1 || true
+run_disaster_host_command ip addr > "$work_dir/config/ip-addresses.txt"
+run_disaster_host_command ip route > "$work_dir/config/ip-routes.txt"
+run_disaster_host_command df -hT > "$work_dir/config/disk.txt"
 run_disaster_docker ps -a > "$work_dir/config/docker-containers.txt"
 run_disaster_docker image ls > "$work_dir/config/docker-images.txt"
 run_disaster_docker volume ls > "$work_dir/config/docker-volumes.txt"
-systemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt" || true
-crontab -l > "$work_dir/config/root-crontab.txt" 2>/dev/null || true
+run_disaster_host_command systemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt" || true
+run_disaster_host_command crontab -l > "$work_dir/config/root-crontab.txt" 2>/dev/null || true
 
 echo "BACKUP_PHASE consistent_volumes"
 run_disaster_compose stop

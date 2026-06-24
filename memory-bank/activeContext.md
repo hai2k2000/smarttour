@@ -2982,3 +2982,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup offsite contract first; RED failed because `BACKUP_REMOTE_SCP_TIMEOUT` coverage was missing.
   - Updated daily backup sync to run SCP through `BACKUP_REMOTE_SCP_TIMEOUT=30m` and disaster archive sync through `DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m`.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake SCP timeout probes confirmed both upload paths fail fast with status `124`.
+
+- 2026-06-24 disaster backup host inventory timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still ran host inventory commands (`hostnamectl`, `ip`, `df`, `systemctl`, `crontab`) directly while building the disaster archive, so a stuck DBus/network utility could hang the weekly backup timer.
+  - Extended the backup artifact contract first; RED failed because `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT` coverage was missing.
+  - Updated host inventory collection to run through `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s`, preserving the existing optional/non-fatal behavior for best-effort host snapshots.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake host-command timeout probe confirmed the backup fails fast with status `124`.

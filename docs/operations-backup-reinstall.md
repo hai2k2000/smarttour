@@ -83,6 +83,8 @@ archived, then starts it again. A trap restarts the stack if archiving fails.
 Disaster backup Docker commands are bounded by
 `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and Compose stop/start commands are
 bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` by default.
+Host inventory commands collected for the disaster archive are bounded by
+`DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s` by default.
 
 ## Backup Artifact Permissions
 

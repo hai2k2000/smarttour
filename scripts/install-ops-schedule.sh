@@ -44,6 +44,7 @@ DISASTER_KEEP_BACKUPS=4
 # Set these to bound full disaster backup Docker/Compose commands.
 # DISASTER_BACKUP_DOCKER_TIMEOUT=30m
 # DISASTER_BACKUP_COMPOSE_TIMEOUT=10m
+# DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s
 # Set these to send healthcheck failure alerts to an external destination.
 # HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
 # HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5

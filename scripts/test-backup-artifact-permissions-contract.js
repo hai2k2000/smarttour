@@ -46,12 +46,21 @@ for (const expected of [
   'umask 077',
   'DISASTER_BACKUP_DOCKER_TIMEOUT="${DISASTER_BACKUP_DOCKER_TIMEOUT:-30m}"',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"',
+  'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"',
   'run_disaster_docker()',
   'run_disaster_compose()',
+  'run_disaster_host_command()',
   'timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"',
   'timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"',
+  'timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"',
   'run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump',
   'run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l',
+  'run_disaster_host_command hostnamectl',
+  'run_disaster_host_command ip addr',
+  'run_disaster_host_command ip route',
+  'run_disaster_host_command df -hT',
+  'run_disaster_host_command systemctl --failed --no-pager',
+  'run_disaster_host_command crontab -l',
   'run_disaster_docker ps -a',
   'run_disaster_docker image ls',
   'run_disaster_docker volume ls',
@@ -75,6 +84,12 @@ for (const forbidden of [
   '\ndocker volume inspect "$volume"',
   '\ndocker compose stop',
   '\ndocker compose up -d',
+  '\nhostnamectl > "$work_dir/config/hostnamectl.txt"',
+  '\nip addr > "$work_dir/config/ip-addresses.txt"',
+  '\nip route > "$work_dir/config/ip-routes.txt"',
+  '\ndf -hT > "$work_dir/config/disk.txt"',
+  '\nsystemctl --failed --no-pager > "$work_dir/config/systemd-failed.txt"',
+  '\ncrontab -l > "$work_dir/config/root-crontab.txt"',
 ]) {
   if (disasterBackup.includes(forbidden)) {
     throw new Error(`scripts/disaster-backup.sh must not use raw ${forbidden.trim()}.`);
@@ -95,6 +110,7 @@ for (const expected of [
   'POSTGRES_BACKUP_TIMEOUT=30m',
   'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
+  'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -126,6 +142,12 @@ includes(
 );
 
 includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT',
+);
+
+includes(
   'scripts/install-ops-schedule.sh',
   read('scripts/install-ops-schedule.sh'),
   '# POSTGRES_BACKUP_TIMEOUT=30m',
@@ -135,6 +157,12 @@ includes(
   'scripts/install-ops-schedule.sh',
   read('scripts/install-ops-schedule.sh'),
   '# DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
+);
+
+includes(
+  'scripts/install-ops-schedule.sh',
+  read('scripts/install-ops-schedule.sh'),
+  '# DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',
 );
 
 if (packageJson.scripts['test:backup-artifact-permissions'] !== 'node scripts/test-backup-artifact-permissions-contract.js') {

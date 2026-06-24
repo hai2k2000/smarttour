@@ -2586,3 +2586,9 @@
   - The existing checksum-before-upload and remote key mode guards remain in place before SCP starts.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-offsite` now guard/document total SCP transfer timeouts.
   - The live `/etc/default/smarttour-ops` file now sets both SCP timeout values while remaining `600 root:root`; fake SCP timeout probes verified both upload paths fail fast with status `124`.
+
+- 2026-06-24 Completed disaster backup host inventory timeout hardening:
+  - `scripts/disaster-backup.sh` now runs host inventory commands through `run_disaster_host_command`, bounded by `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s`.
+  - Host inventory coverage includes `hostnamectl`, `ip addr`, `ip route`, `df -hT`, `systemctl --failed`, and `crontab -l`.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the host inventory timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s` while remaining `600 root:root`; a fake host-command timeout probe verified the backup fails fast with status `124`.
