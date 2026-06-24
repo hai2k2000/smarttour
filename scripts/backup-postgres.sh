@@ -9,9 +9,14 @@ POSTGRES_DB="${POSTGRES_DB:-smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"
+BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 
 run_postgres_backup_dump() {
   timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump "$@"
+}
+
+run_backup_checksum() {
+  timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"
 }
 
 mkdir -p "$BACKUP_DIR"
@@ -38,7 +43,7 @@ run_postgres_backup_dump \
   | gzip -9 > "$tmp_file"
 
 mv "$tmp_file" "$backup_file"
-sha256sum "$backup_file" > "$checksum_file"
+run_backup_checksum "$backup_file" > "$checksum_file"
 chmod 600 "$backup_file" "$checksum_file"
 
 find "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -mtime +"$KEEP_DAYS" -delete

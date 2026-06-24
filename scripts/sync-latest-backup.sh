@@ -10,12 +10,17 @@ BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"
 BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"
+BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 CREATE_BACKUP_FIRST="${CREATE_BACKUP_FIRST:-1}"
 
 cd "$REPO_DIR"
 
 run_backup_scp() {
   timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"
+}
+
+run_backup_checksum() {
+  timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"
 }
 
 require_private_key_file() {
@@ -45,10 +50,10 @@ fi
 
 checksum="$latest.sha256"
 if [[ ! -f "$checksum" ]]; then
-  sha256sum "$latest" > "$checksum"
+  run_backup_checksum "$latest" > "$checksum"
 fi
 chmod 600 "$checksum"
-sha256sum -c "$checksum"
+run_backup_checksum -c "$checksum"
 
 scp_args=(-P "$BACKUP_REMOTE_PORT" -o BatchMode=yes -o ConnectTimeout="$BACKUP_REMOTE_CONNECT_TIMEOUT" -o ServerAliveInterval="$BACKUP_REMOTE_SERVER_ALIVE_INTERVAL" -o ServerAliveCountMax="$BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX")
 if [[ -n "$BACKUP_REMOTE_KEY" ]]; then

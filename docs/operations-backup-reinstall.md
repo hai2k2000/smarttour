@@ -60,6 +60,7 @@ Daily PostgreSQL backups are stored in:
 Daily PostgreSQL dump execution is bounded by `POSTGRES_BACKUP_TIMEOUT=30m` by
 default, so a stuck Docker or `pg_dump` process fails the backup timer instead
 of hanging it indefinitely.
+Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOUT=5m` by default.
 
 Weekly disaster backups are stored in:
 
@@ -194,6 +195,7 @@ underscores. Do not set `DRILL_DB` to `smarttour`, `postgres`, `template0`, or `
 protected or unsafe name is supplied.
 Restore-drill PostgreSQL commands are bounded by
 `RESTORE_DRILL_COMMAND_TIMEOUT=30m` by default.
+Backup checksum verification before restore is bounded by `BACKUP_CHECKSUM_TIMEOUT=5m`.
 
 Validate this guard after changing restore drill behavior:
 

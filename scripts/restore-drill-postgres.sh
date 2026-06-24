@@ -8,12 +8,17 @@ BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DRILL_DB="${DRILL_DB:-smarttour_restore_drill_$(date +%Y%m%d%H%M%S)}"
 KEEP_RESTORE_DRILL_DB="${KEEP_RESTORE_DRILL_DB:-0}"
 RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"
+BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)
 
 cd "$REPO_DIR"
 
 run_restore_drill_docker() {
   timeout "$RESTORE_DRILL_COMMAND_TIMEOUT" docker exec "$@"
+}
+
+run_restore_drill_checksum() {
+  timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"
 }
 
 validate_drill_db_name() {
@@ -57,7 +62,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ -f "$backup_file.sha256" ]]; then
-  sha256sum -c "$backup_file.sha256"
+  run_restore_drill_checksum -c "$backup_file.sha256"
 fi
 
 run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true

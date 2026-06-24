@@ -2604,3 +2604,9 @@
   - Existing healthcheck semantics are preserved: valid checksums still emit `OK_BACKUP` / `OK_DISASTER_BACKUP`, while missing, invalid, or timed-out checksum verification emits the existing checksum failure messages.
   - `/etc/default/smarttour-ops` template, observability runbook, production readiness tracker, and `npm run test:healthcheck-backup` now guard/document the checksum timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `CHECKSUM_CHECK_TIMEOUT=5m` while remaining `600 root:root`; a fake checksum wrapper probe verified timeout status 124.
+
+- 2026-06-24 Completed backup checksum command timeout hardening:
+  - Daily PostgreSQL backup checksum creation, latest-backup sync checksum creation/verification, and restore-drill pre-restore checksum verification now run through bounded checksum wrappers using `BACKUP_CHECKSUM_TIMEOUT=5m`.
+  - The sync script still verifies checksums before SCP, and restore-drill still validates the backup checksum before any restore command; a checksum timeout exits with status 124.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the checksum timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `BACKUP_CHECKSUM_TIMEOUT=5m` while remaining `600 root:root`; fake timeout probes covered daily backup checksum, sync checksum before SCP, and restore-drill cleanup on checksum timeout.

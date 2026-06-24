@@ -31,13 +31,17 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
   'BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"',
+  'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'run_backup_scp()',
+  'run_backup_checksum()',
   'timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"',
+  'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'require_private_key_file()',
   'BACKUP_SYNC_ABORT remote key must be 600',
   'require_private_key_file "$BACKUP_REMOTE_KEY"',
   'chmod 600 "$checksum"',
-  'sha256sum -c "$checksum"',
+  'run_backup_checksum "$latest" > "$checksum"',
+  'run_backup_checksum -c "$checksum"',
   'run_backup_scp "${scp_args[@]}" "$latest" "$checksum" "$BACKUP_REMOTE_TARGET/"',
 ].forEach((expected) => assertIncludes('scripts/sync-latest-backup.sh', syncScript, expected));
 
@@ -45,7 +49,7 @@ if (syncScript.includes('\nscp "${scp_args[@]}" "$latest" "$checksum"')) {
   throw new Error('scripts/sync-latest-backup.sh must not call raw scp.');
 }
 
-if (syncScript.indexOf('sha256sum -c "$checksum"') > syncScript.indexOf('run_backup_scp "${scp_args[@]}" "$latest" "$checksum"')) {
+if (syncScript.indexOf('run_backup_checksum -c "$checksum"') > syncScript.indexOf('run_backup_scp "${scp_args[@]}" "$latest" "$checksum"')) {
   throw new Error('scripts/sync-latest-backup.sh must verify the checksum before uploading backup artifacts.');
 }
 
@@ -91,6 +95,7 @@ assertRegex(
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2',
   'BACKUP_REMOTE_SCP_TIMEOUT=30m',
+  'BACKUP_CHECKSUM_TIMEOUT=5m',
   'DISASTER_BACKUP_REMOTE_TARGET=',
   'DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10',
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15',
@@ -111,6 +116,7 @@ assertRegex(
   'DISASTER_BACKUP_REMOTE_SCP_TIMEOUT',
   'npm run ops:backup-sync',
   'npm run test:backup-offsite',
+  'BACKUP_CHECKSUM_TIMEOUT=5m',
   'sha256sum -c',
   'disaster archive sync verifies `sha256sum -c` before upload',
   'remote key must be mode `600`',

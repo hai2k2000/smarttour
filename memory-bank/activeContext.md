@@ -3000,3 +3000,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the healthcheck backup contract first; RED failed because `CHECKSUM_CHECK_TIMEOUT` coverage was missing.
   - Updated backup checksum verification to run through `CHECKSUM_CHECK_TIMEOUT=5m`, preserving existing `OK_BACKUP` / `OK_DISASTER_BACKUP` and checksum-failure behavior.
   - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake checksum wrapper probe confirmed stuck checksum commands return timeout status 124.
+
+- 2026-06-24 backup checksum command timeout follow-up:
+  - Found daily backup, backup sync, and restore-drill scripts still used raw `sha256sum` for checksum creation/verification, so stuck disk reads could hang scheduled backup/sync/restore jobs.
+  - Extended backup artifact, offsite backup, and restore-drill safety contracts first; RED failed because `BACKUP_CHECKSUM_TIMEOUT` coverage was missing.
+  - Updated `scripts/backup-postgres.sh`, `scripts/sync-latest-backup.sh`, and `scripts/restore-drill-postgres.sh` to run checksum work through `BACKUP_CHECKSUM_TIMEOUT=5m`.
+  - Updated ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake timeout probes confirmed daily backup checksum and sync checksum return status 124, and restore-drill checksum timeout still triggers cleanup dropdb.

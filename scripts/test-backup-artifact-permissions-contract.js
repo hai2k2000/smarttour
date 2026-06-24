@@ -23,12 +23,16 @@ const ci = read('.github/workflows/smarttour-ci.yml');
 for (const expected of [
   'umask 077',
   'POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"',
+  'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'run_postgres_backup_dump()',
+  'run_backup_checksum()',
   'timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump',
+  'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'chmod 700 "$BACKUP_DIR"',
   'cleanup_tmp_backup()',
   'trap cleanup_tmp_backup EXIT',
   'rm -f "$tmp_file"',
+  'run_backup_checksum "$backup_file" > "$checksum_file"',
   'chmod 600 "$backup_file" "$checksum_file"',
 ]) {
   includes('scripts/backup-postgres.sh', postgresBackup, expected);
@@ -125,6 +129,7 @@ for (const expected of [
   'Backup artifacts must be private',
   'Temporary backup files are removed automatically if backup creation fails',
   'POSTGRES_BACKUP_TIMEOUT=30m',
+  'BACKUP_CHECKSUM_TIMEOUT=5m',
   'DISASTER_BACKUP_DOCKER_TIMEOUT=30m',
   'DISASTER_BACKUP_COMPOSE_TIMEOUT=10m',
   'DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s',

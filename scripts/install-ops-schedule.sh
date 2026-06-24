@@ -39,6 +39,8 @@ KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
 # Set this to bound the daily PostgreSQL dump command.
 # POSTGRES_BACKUP_TIMEOUT=30m
+# Set this to bound backup checksum creation and verification.
+# BACKUP_CHECKSUM_TIMEOUT=5m
 # Set this to bound restore-drill PostgreSQL commands.
 # RESTORE_DRILL_COMMAND_TIMEOUT=30m
 # Set these to bound full disaster backup Docker/Compose commands.

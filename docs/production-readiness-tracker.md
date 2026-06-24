@@ -93,6 +93,7 @@ Restore drills reject protected production/system database names before any
 Restore-drill PostgreSQL commands are bounded by
 `RESTORE_DRILL_COMMAND_TIMEOUT=30m` so a stuck Docker or restore query fails the
 timer instead of hanging it indefinitely.
+Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOUT=5m`.
 PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.
