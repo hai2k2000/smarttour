@@ -6,9 +6,14 @@ SYSTEMD_SOURCE="$REPO_DIR/deploy/systemd"
 SYSTEMD_TARGET="/etc/systemd/system"
 OPS_ENV="/etc/default/smarttour-ops"
 OPS_SYSTEMD_TIMEOUT="${OPS_SYSTEMD_TIMEOUT:-30s}"
+OPS_FILE_SCAN_TIMEOUT="${OPS_FILE_SCAN_TIMEOUT:-30s}"
 
 run_ops_systemctl() {
   timeout "$OPS_SYSTEMD_TIMEOUT" systemctl "$@"
+}
+
+run_ops_file_scan() {
+  timeout "$OPS_FILE_SCAN_TIMEOUT" find "$@"
 }
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -19,10 +24,10 @@ fi
 install -d -m 0750 /var/log/smarttour
 install -d -m 0750 /var/log/smarttour/security
 chown root:root /var/log/smarttour /var/log/smarttour/security
-find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chown root:root {} +
-find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chmod 0640 {} +
-find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chown root:root {} +
-find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chmod 0640 {} +
+run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chown root:root {} +
+run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chmod 0640 {} +
+run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chown root:root {} +
+run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chmod 0640 {} +
 install -d -m 0700 /var/backups/smarttour/disaster
 install -d -m 0755 /etc/logrotate.d
 install -m 0644 "$REPO_DIR/deploy/logrotate/smarttour" /etc/logrotate.d/smarttour
@@ -76,6 +81,8 @@ DISASTER_KEEP_BACKUPS=4
 # HOST_REPORT_FILE_SCAN_TIMEOUT=30s
 # Set this to bound systemd operations in this installer.
 # OPS_SYSTEMD_TIMEOUT=30s
+# Set this to bound file scans in this installer.
+# OPS_FILE_SCAN_TIMEOUT=30s
 # Set this to bound file scans in the security audit.
 # AUDIT_FILE_SCAN_TIMEOUT=30s
 # Set these to sync daily PostgreSQL dumps to another machine.

@@ -36,9 +36,23 @@ for (const serviceUnit of serviceUnits) {
   'install -d -m 0750 /var/log/smarttour',
   'install -d -m 0750 /var/log/smarttour/security',
   'chown root:root /var/log/smarttour /var/log/smarttour/security',
-  'find /var/log/smarttour -maxdepth 1 -type f -name \'*.log\' -exec chmod 0640 {} +',
-  'find /var/log/smarttour/security -maxdepth 1 -type f -name \'nginx-host-report-*.txt\' -exec chmod 0640 {} +',
+  'OPS_FILE_SCAN_TIMEOUT="${OPS_FILE_SCAN_TIMEOUT:-30s}"',
+  'run_ops_file_scan()',
+  'timeout "$OPS_FILE_SCAN_TIMEOUT" find "$@"',
+  'run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name \'*.log\' -exec chown root:root {} +',
+  'run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name \'*.log\' -exec chmod 0640 {} +',
+  'run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name \'nginx-host-report-*.txt\' -exec chown root:root {} +',
+  'run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name \'nginx-host-report-*.txt\' -exec chmod 0640 {} +',
 ].forEach((expected) => includes('scripts/install-ops-schedule.sh', installer, expected));
+
+[
+  '\nfind /var/log/smarttour -maxdepth 1',
+  '\nfind /var/log/smarttour/security -maxdepth 1',
+].forEach((forbidden) => {
+  if (installer.includes(forbidden)) {
+    throw new Error(`scripts/install-ops-schedule.sh must not call raw ${forbidden.trim()}.`);
+  }
+});
 
 [
   'HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"',
@@ -85,6 +99,7 @@ includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_DOC
 includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_FILE_SCAN_TIMEOUT');
 includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_DOCKER_TIMEOUT=10s');
 includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_FILE_SCAN_TIMEOUT=30s');
+includes('scripts/install-ops-schedule.sh', installer, '# OPS_FILE_SCAN_TIMEOUT=30s');
 
 if (packageJson.scripts['test:ops-log-permissions'] !== 'node scripts/test-ops-log-permissions-contract.js') {
   throw new Error('package.json must expose test:ops-log-permissions');

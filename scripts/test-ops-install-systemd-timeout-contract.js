@@ -26,12 +26,16 @@ const githubActionsContract = read('scripts/test-github-actions-contract.js');
 
 [
   'OPS_SYSTEMD_TIMEOUT="${OPS_SYSTEMD_TIMEOUT:-30s}"',
+  'OPS_FILE_SCAN_TIMEOUT="${OPS_FILE_SCAN_TIMEOUT:-30s}"',
   'run_ops_systemctl()',
+  'run_ops_file_scan()',
   'timeout "$OPS_SYSTEMD_TIMEOUT" systemctl "$@"',
+  'timeout "$OPS_FILE_SCAN_TIMEOUT" find "$@"',
   'run_ops_systemctl daemon-reload',
   'run_ops_systemctl enable --now \\',
   "run_ops_systemctl list-timers --all --no-pager 'smarttour-*'",
   '# OPS_SYSTEMD_TIMEOUT=30s',
+  '# OPS_FILE_SCAN_TIMEOUT=30s',
 ].forEach((expected) => includes('scripts/install-ops-schedule.sh', installer, expected));
 
 [
@@ -42,6 +46,7 @@ const githubActionsContract = read('scripts/test-github-actions-contract.js');
 
 [
   'OPS_SYSTEMD_TIMEOUT',
+  'OPS_FILE_SCAN_TIMEOUT',
   'scripts/install-ops-schedule.sh',
 ].forEach((expected) => {
   includes('docs/operations-backup-reinstall.md', backupRunbook, expected);

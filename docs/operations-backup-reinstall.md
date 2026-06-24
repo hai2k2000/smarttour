@@ -19,6 +19,8 @@ sudo scripts/install-ops-schedule.sh
 
 The installer bounds systemd operations with `OPS_SYSTEMD_TIMEOUT=30s` by
 default, so a stuck systemd/DBus call fails the install instead of hanging it.
+Installer log permission file scans are bounded by `OPS_FILE_SCAN_TIMEOUT=30s`
+by default.
 
 Inspect the schedule and logs:
 

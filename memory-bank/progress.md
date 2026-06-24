@@ -2664,3 +2664,9 @@
   - Webhook delivery remains bounded separately by `HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT`, `HEALTHCHECK_WEBHOOK_MAX_TIME`, and `HEALTHCHECK_WEBHOOK_RETRIES`.
   - `/etc/default/smarttour-ops` template, observability alerting runbook, production readiness tracker, and `npm run test:observability-alerting` now guard/document the payload timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `node` returns status 124.
+
+- 2026-06-24 Completed ops installer file-scan timeout hardening:
+  - `scripts/install-ops-schedule.sh` now bounds SmartTour log and host-report permission normalization scans with `OPS_FILE_SCAN_TIMEOUT=30s`.
+  - Systemd reload/enable/list-timer operations remain bounded separately by `OPS_SYSTEMD_TIMEOUT=30s`.
+  - Backup/security runbooks, production readiness tracker, `npm run test:ops-log-permissions`, and `npm run test:ops-install-systemd-timeout` now guard/document the file-scan timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `OPS_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `find` returns status 124.
