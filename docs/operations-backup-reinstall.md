@@ -103,6 +103,8 @@ and retention cleanup are bounded by `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s`
 by default. Disaster backup manifest and retention text ordering is bounded by
 `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` by default. Disaster backup key/config
 file reads are bounded by `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s` by default.
+Disaster backup staging/archive cleanup deletion is bounded by
+`DISASTER_BACKUP_CLEANUP_TIMEOUT=5m` by default.
 
 ## Backup Artifact Permissions
 
@@ -112,7 +114,8 @@ created with mode `600`; backup directories are kept at mode `700`.
 Temporary backup files are removed automatically if backup creation fails.
 Disaster backup staging directories are removed after archive checksum verification.
 Disaster backup staging and retention cleanup only remove guarded
-`smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
+`smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`, with deletion
+bounded by `DISASTER_BACKUP_CLEANUP_TIMEOUT=5m`.
 
 Normalize existing files after a hardening change:
 

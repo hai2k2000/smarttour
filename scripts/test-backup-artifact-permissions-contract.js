@@ -15,6 +15,7 @@ function includes(file, content, expected) {
 
 const postgresBackup = read('scripts/backup-postgres.sh');
 const disasterBackup = read('scripts/disaster-backup.sh');
+const scheduleInstaller = read('scripts/install-ops-schedule.sh');
 const backupRunbook = read('docs/operations-backup-reinstall.md');
 const readinessTracker = read('docs/production-readiness-tracker.md');
 const packageJson = JSON.parse(read('package.json'));
@@ -65,6 +66,7 @@ for (const expected of [
   'DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
   'DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"',
   'DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"',
+  'DISASTER_BACKUP_CLEANUP_TIMEOUT="${DISASTER_BACKUP_CLEANUP_TIMEOUT:-5m}"',
   'BACKUP_ROOT="${BACKUP_ROOT%/}"',
   'validate_disaster_backup_root()',
   'safe_remove_disaster_path()',
@@ -86,6 +88,7 @@ for (const expected of [
   'run_disaster_file_scan()',
   'run_disaster_file_read()',
   'run_disaster_text_filter()',
+  'run_disaster_cleanup()',
   'timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"',
   'timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"',
   'timeout "$DISASTER_BACKUP_HOST_COMMAND_TIMEOUT" "$@"',
@@ -94,6 +97,9 @@ for (const expected of [
   'timeout "$DISASTER_BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
   'timeout "$DISASTER_BACKUP_FILE_READ_TIMEOUT" "$@"',
   'timeout "$DISASTER_BACKUP_TEXT_FILTER_TIMEOUT" "$@"',
+  'timeout "$DISASTER_BACKUP_CLEANUP_TIMEOUT" rm "$@"',
+  'run_disaster_cleanup -rf "$target"',
+  'run_disaster_cleanup -f "$target" "$target.sha256"',
   'run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump',
   'run_disaster_docker exec -i "$POSTGRES_CONTAINER" pg_restore -l',
   'run_disaster_git status --short --branch',
@@ -174,8 +180,10 @@ for (const forbidden of [
   '\nsha256sum -c "$archive.sha256"',
   '\n  | xargs -0 sha256sum',
   'rm -rf "$work_dir"',
+  'rm -rf "$target"',
   'rm -rf "${old_archive%.tar.gz}"',
   'rm -f "$old_archive" "$old_archive.sha256"',
+  'rm -f "$target" "$target.sha256"',
   '[[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-* ]]',
   '[[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-*.tar.gz ]]',
 ]) {
@@ -207,6 +215,7 @@ for (const expected of [
   'DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s',
   'DISASTER_BACKUP_FILE_READ_TIMEOUT=10s',
   'DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s',
+  'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -217,6 +226,12 @@ for (const expected of [
   'npm run test:backup-artifact-permissions',
 ]) {
   includes('docs/operations-backup-reinstall.md', backupRunbook, expected);
+}
+
+for (const expected of [
+  'DISASTER_BACKUP_CLEANUP_TIMEOUT=5m',
+]) {
+  includes('scripts/install-ops-schedule.sh', scheduleInstaller, expected);
 }
 
 includes(
@@ -253,6 +268,12 @@ includes(
   'docs/production-readiness-tracker.md',
   readinessTracker,
   'DISASTER_BACKUP_GIT_TIMEOUT',
+);
+
+includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'DISASTER_BACKUP_CLEANUP_TIMEOUT',
 );
 
 includes(

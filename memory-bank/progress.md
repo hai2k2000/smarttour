@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened disaster backup cleanup timeout:
+  - Guarded `scripts/disaster-backup.sh` staging/archive cleanup deletion now runs through `DISASTER_BACKUP_CLEANUP_TIMEOUT=5m`.
+  - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so disaster cleanup deletion remains bounded.
+
 - Hardened offsite backup pre-sync creation timeout:
   - `scripts/sync-latest-backup.sh` now wraps optional `CREATE_BACKUP_FIRST=1` PostgreSQL backup creation with `BACKUP_CREATE_TIMEOUT=45m`.
   - Extended the backup offsite contract, ops env template, backup/reinstall runbook, and production readiness tracker so offsite sync cannot regress to an unbounded backup child process.

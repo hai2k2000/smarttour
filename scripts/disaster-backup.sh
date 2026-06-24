@@ -17,6 +17,7 @@ DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"
 DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"
 DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"
 DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
+DISASTER_BACKUP_CLEANUP_TIMEOUT="${DISASTER_BACKUP_CLEANUP_TIMEOUT:-5m}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -50,7 +51,7 @@ safe_remove_disaster_path() {
     echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
     exit 1
   fi
-  rm -rf "$target"
+  run_disaster_cleanup -rf "$target"
 }
 
 safe_remove_disaster_archive() {
@@ -64,7 +65,7 @@ safe_remove_disaster_archive() {
     echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
     exit 1
   fi
-  rm -f "$target" "$target.sha256"
+  run_disaster_cleanup -f "$target" "$target.sha256"
   safe_remove_disaster_path "${target%.tar.gz}"
 }
 
@@ -98,6 +99,10 @@ run_disaster_file_read() {
 
 run_disaster_text_filter() {
   timeout "$DISASTER_BACKUP_TEXT_FILTER_TIMEOUT" "$@"
+}
+
+run_disaster_cleanup() {
+  timeout "$DISASTER_BACKUP_CLEANUP_TIMEOUT" rm "$@"
 }
 
 run_disaster_scp() {

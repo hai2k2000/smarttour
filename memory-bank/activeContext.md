@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Disaster backup cleanup timeout hardening:
+  - Hardened `scripts/disaster-backup.sh` so guarded staging/archive cleanup deletion runs through `DISASTER_BACKUP_CLEANUP_TIMEOUT=5m` instead of raw `rm`.
+  - Extended `scripts/test-backup-artifact-permissions-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so cleanup deletion cannot regress to an unbounded command.
+
 - Backup offsite pre-sync creation timeout hardening:
   - Hardened `scripts/sync-latest-backup.sh` so optional `CREATE_BACKUP_FIRST=1` PostgreSQL backup creation is bounded by `BACKUP_CREATE_TIMEOUT=45m` before offsite sync continues.
   - Extended `scripts/test-backup-offsite-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so the pre-sync backup child process cannot regress to an unbounded call.

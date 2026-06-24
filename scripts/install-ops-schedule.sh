@@ -127,6 +127,8 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_FILE_READ_TIMEOUT=10s
 # Set this to bound disaster backup text ordering/filtering.
 # DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s
+# Set this to bound disaster backup staging/archive cleanup deletion.
+# DISASTER_BACKUP_CLEANUP_TIMEOUT=5m
 EOF
   chmod 600 "$OPS_ENV"
 fi
