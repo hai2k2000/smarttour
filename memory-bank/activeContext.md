@@ -2847,3 +2847,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated `/quotes/tours` and `/quotes/combos` SSR preloads plus client reloads to request `take=100`.
   - Strengthened backend and client contracts so quote list DTO/controller/service/page/client boundaries cannot regress to unbounded payloads.
   - Verification passed: `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-24 production backup hardening follow-up:
+  - Found old expanded disaster backup staging directories under `/var/backups/smarttour/disaster` after archive creation, leaving config and backup data on disk longer than required.
+  - Extended the backup artifact permissions contract first; RED failed because `scripts/disaster-backup.sh` did not remove `$work_dir`.
+  - Updated disaster backups to verify `sha256sum -c "$archive.sha256"` before deleting the staging directory, then continue archive retention/offsite sync from the sealed archive artifacts.
+  - Updated operations backup/reinstall docs and the production readiness tracker to record that disaster backup staging directories are removed after archive checksum verification.

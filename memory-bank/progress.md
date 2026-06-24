@@ -2445,3 +2445,8 @@
   - `/quotes/tours` and `/quotes/combos` server preloads and client reloads now include `take=100`.
   - Expanded backend and client quote contracts to guard bounded list behavior.
   - Verification passed: `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quote-tours-client-contract.js`, `node scripts/test-quote-combos-client-contract.js`, `node scripts/test-web-server-api-base-contract.js`, `npx prisma validate --schema prisma/schema.prisma`, `npm run build -w @smarttour/api`, `npm run build -w @smarttour/web`, and `git diff --check`.
+
+- 2026-06-24 Completed production disaster backup staging cleanup hardening:
+  - Disaster backup now removes the expanded `$work_dir` only after the archive checksum has been generated and verified with `sha256sum -c "$archive.sha256"`.
+  - The backup artifact permissions contract now guards checksum-before-cleanup ordering, cleanup before offsite sync, and the documented operations expectation.
+  - Existing leftover disaster staging directories under `/var/backups/smarttour/disaster` were removed after GREEN verification, leaving only the private archive and checksum artifacts.

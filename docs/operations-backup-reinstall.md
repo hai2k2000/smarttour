@@ -65,6 +65,7 @@ Backup artifacts must be private because they contain production data and the
 disaster archive includes `.env` and server configuration. New artifacts are
 created with mode `600`; backup directories are kept at mode `700`.
 Temporary backup files are removed automatically if backup creation fails.
+Disaster backup staging directories are removed after archive checksum verification.
 
 Normalize existing files after a hardening change:
 

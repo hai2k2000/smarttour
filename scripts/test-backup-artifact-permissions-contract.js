@@ -39,13 +39,23 @@ for (const expected of [
   'umask 077',
   'chmod 700 "$BACKUP_ROOT"',
   'chmod 600 "$archive" "$archive.sha256"',
+  'rm -rf "$work_dir"',
 ]) {
   includes('scripts/disaster-backup.sh', disasterBackup, expected);
+}
+
+if (disasterBackup.indexOf('sha256sum -c "$archive.sha256"') > disasterBackup.indexOf('rm -rf "$work_dir"')) {
+  throw new Error('scripts/disaster-backup.sh must verify the archive checksum before removing the staging directory.');
+}
+
+if (disasterBackup.indexOf('rm -rf "$work_dir"') > disasterBackup.indexOf('if [[ -n "$REMOTE_TARGET" ]]')) {
+  throw new Error('scripts/disaster-backup.sh must remove the staging directory before offsite sync starts.');
 }
 
 for (const expected of [
   'Backup artifacts must be private',
   'Temporary backup files are removed automatically if backup creation fails',
+  'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz.sha256',

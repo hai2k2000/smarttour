@@ -177,6 +177,7 @@ tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
 sha256sum "$archive" > "$archive.sha256"
 chmod 600 "$archive" "$archive.sha256"
 sha256sum -c "$archive.sha256"
+rm -rf "$work_dir"
 
 mapfile -t old_archives < <(
   find "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
