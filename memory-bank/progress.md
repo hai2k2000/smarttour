@@ -2711,3 +2711,9 @@
   - Backup discovery remains bounded separately by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
   - The ops env template, backup runbook, production readiness tracker, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the ordering timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `BACKUP_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `sort` returns status 124.
+
+- 2026-06-24 Completed disaster backup text/manifest timeout hardening:
+  - `scripts/disaster-backup.sh` now bounds SHA256 manifest ordering and old archive retention ordering with `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s`.
+  - Manifest hostname and root mode reads now use `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT` through `run_disaster_host_command`.
+  - The ops env template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the text timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `sort` returns status 124.

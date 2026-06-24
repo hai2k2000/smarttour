@@ -3108,3 +3108,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup offsite and restore-drill safety contracts first; RED failed because `BACKUP_TEXT_FILTER_TIMEOUT` coverage was missing.
   - Added `BACKUP_TEXT_FILTER_TIMEOUT=10s`, `run_backup_text_filter`, and `run_restore_drill_text_filter`, then routed latest-backup ordering through the bounded wrappers.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text-filter wrapper probe confirmed stuck `sort` returns timeout status 124.
+
+- 2026-06-24 disaster backup text/manifest timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still used raw `sort -z` for SHA256 manifest ordering, raw `sort/tail/cut` for old archive retention selection, and raw `hostname`/`stat` in the disaster manifest.
+  - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT` coverage was missing.
+  - Added `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` and `run_disaster_text_filter`, routed manifest and retention ordering through the bounded wrapper, and routed manifest hostname/root mode through `run_disaster_host_command`.
+  - Updated the ops env template, backup runbook, and production readiness tracker; live `/etc/default/smarttour-ops` now sets the same setting while preserving `600 root:root`, and a fake `sort` timeout probe returned status 124.

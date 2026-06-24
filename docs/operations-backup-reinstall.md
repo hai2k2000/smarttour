@@ -96,7 +96,8 @@ checksum commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` by
 default. Git metadata and bundle commands are bounded by
 `DISASTER_BACKUP_GIT_TIMEOUT=5m` by default. Disaster backup file discovery
 and retention cleanup are bounded by `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s`
-by default.
+by default. Disaster backup manifest and retention text ordering is bounded by
+`DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` by default.
 
 ## Backup Artifact Permissions
 

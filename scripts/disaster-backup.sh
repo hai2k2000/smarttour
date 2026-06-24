@@ -14,6 +14,7 @@ DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30
 DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"
 DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"
 DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -50,6 +51,10 @@ run_disaster_git() {
 
 run_disaster_file_scan() {
   timeout "$DISASTER_BACKUP_FILE_SCAN_TIMEOUT" find "$@"
+}
+
+run_disaster_text_filter() {
+  timeout "$DISASTER_BACKUP_TEXT_FILTER_TIMEOUT" "$@"
 }
 
 run_disaster_scp() {
@@ -197,14 +202,14 @@ services_stopped=0
 
 cat > "$work_dir/MANIFEST.txt" <<EOF
 timestamp=$timestamp
-hostname=$(hostname)
+hostname=$(run_disaster_host_command hostname)
 repo_commit=$(run_disaster_git rev-parse HEAD)
-root_mode=$(stat -c '%a %U:%G' /)
+root_mode=$(run_disaster_host_command stat -c '%a %U:%G' /)
 archive=$archive
 EOF
 
 run_disaster_file_scan "$work_dir" -type f ! -name SHA256SUMS -print0 \
-  | sort -z \
+  | run_disaster_text_filter sort -z \
   | run_disaster_archive_command xargs -0 sha256sum \
   > "$work_dir/SHA256SUMS"
 
@@ -217,9 +222,9 @@ rm -rf "$work_dir"
 mapfile -t old_archives < <(
   run_disaster_file_scan "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
     -printf '%T@ %p\n' \
-    | sort -nr \
-    | tail -n "+$((KEEP_BACKUPS + 1))" \
-    | cut -d' ' -f2-
+    | run_disaster_text_filter sort -nr \
+    | run_disaster_text_filter tail -n "+$((KEEP_BACKUPS + 1))" \
+    | run_disaster_text_filter cut -d' ' -f2-
 )
 for old_archive in "${old_archives[@]}"; do
   rm -f "$old_archive" "$old_archive.sha256"

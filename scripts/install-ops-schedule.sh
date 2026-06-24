@@ -119,6 +119,8 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_GIT_TIMEOUT=5m
 # Set this to bound disaster backup file discovery and retention cleanup.
 # DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s
+# Set this to bound disaster backup text ordering/filtering.
+# DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s
 EOF
   chmod 600 "$OPS_ENV"
 fi
