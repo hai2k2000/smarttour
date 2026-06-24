@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened security installer file command timeout:
+  - `scripts/install-security-hardening.sh` now runs root-level SSH/env permission and config install commands through `SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s`.
+  - Extended the security audit contract, security runbook, and production readiness tracker so security installer file commands remain bounded.
+
 - Hardened ops schedule installer file command timeout:
   - `scripts/install-ops-schedule.sh` now runs root-level file install/permission/env creation commands through `OPS_FILE_COMMAND_TIMEOUT=30s`.
   - Extended the ops install timeout contract, backup/security runbooks, and production readiness tracker so installer file commands remain bounded after reinstall or timer refresh.

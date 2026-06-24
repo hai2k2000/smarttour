@@ -6,6 +6,7 @@ SSH_SOURCE="$REPO_DIR/deploy/ssh/01-smarttour-hardening.conf"
 SSH_TARGET="/etc/ssh/sshd_config.d/01-smarttour-hardening.conf"
 SECURITY_INSTALL_COMMAND_TIMEOUT="${SECURITY_INSTALL_COMMAND_TIMEOUT:-10s}"
 SECURITY_INSTALL_TEXT_FILTER_TIMEOUT="${SECURITY_INSTALL_TEXT_FILTER_TIMEOUT:-10s}"
+SECURITY_INSTALL_FILE_COMMAND_TIMEOUT="${SECURITY_INSTALL_FILE_COMMAND_TIMEOUT:-10s}"
 
 run_security_install_command() {
   timeout "$SECURITY_INSTALL_COMMAND_TIMEOUT" "$@"
@@ -13,6 +14,10 @@ run_security_install_command() {
 
 run_security_install_text_filter() {
   timeout "$SECURITY_INSTALL_TEXT_FILTER_TIMEOUT" "$@"
+}
+
+run_security_install_file_command() {
+  timeout "$SECURITY_INSTALL_FILE_COMMAND_TIMEOUT" "$@"
 }
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -26,16 +31,16 @@ if [[ ! -s /root/.ssh/authorized_keys ]]; then
 fi
 
 if [[ -f "$REPO_DIR/.env" ]]; then
-  chmod 600 "$REPO_DIR/.env"
+  run_security_install_file_command chmod 600 "$REPO_DIR/.env"
 fi
 
-chmod 755 /
-chmod 700 /root/.ssh
-chmod 600 /root/.ssh/authorized_keys
-chown -R root:root /root/.ssh
+run_security_install_file_command chmod 755 /
+run_security_install_file_command chmod 700 /root/.ssh
+run_security_install_file_command chmod 600 /root/.ssh/authorized_keys
+run_security_install_file_command chown -R root:root /root/.ssh
 
-install -d -m 0755 /etc/ssh/sshd_config.d
-install -m 0644 "$SSH_SOURCE" "$SSH_TARGET"
+run_security_install_file_command install -d -m 0755 /etc/ssh/sshd_config.d
+run_security_install_file_command install -m 0644 "$SSH_SOURCE" "$SSH_TARGET"
 
 run_security_install_command sshd -t
 run_security_install_command systemctl reload ssh || run_security_install_command systemctl reload sshd

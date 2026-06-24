@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Security hardening installer file command timeout hardening:
+  - Hardened `scripts/install-security-hardening.sh` so root-level SSH/env permission and config install commands run through `SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s`.
+  - Extended `scripts/test-security-audit-contract.js`, the security runbook, and production readiness tracker so security installer file commands cannot regress to unbounded raw calls.
+
 - Ops schedule installer file command timeout hardening:
   - Hardened `scripts/install-ops-schedule.sh` so root-level file install/permission/env creation commands run through `OPS_FILE_COMMAND_TIMEOUT=30s`.
   - Extended `scripts/test-ops-install-systemd-timeout-contract.js`, backup/security runbooks, and production readiness tracker so schedule refresh after reinstall cannot regress to unbounded installer file commands.

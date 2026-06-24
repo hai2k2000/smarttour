@@ -233,6 +233,8 @@ Completed hardening:
   commands with `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
 - The security hardening installer bounds SSH effective-config text filtering
   with `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s`.
+- The security hardening installer bounds file install/permission commands
+  with `SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s`.
 
 Completed hardening:
 

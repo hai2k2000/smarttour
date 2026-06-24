@@ -36,6 +36,8 @@ The security hardening installer bounds SSH validation/reload and Nginx reload
 commands with `SECURITY_INSTALL_COMMAND_TIMEOUT=10s` by default.
 It also bounds SSH effective-config text filtering with
 `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s` by default.
+Security hardening file install/permission commands are bounded by
+`SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s` by default.
 
 Validate the security audit source contract and the live host audit:
 
