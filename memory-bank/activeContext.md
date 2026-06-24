@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Backup offsite SSH key permission hardening:
+  - Hardened `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` so configured offsite SSH key files must exist and be mode `600` before SCP starts.
+  - Extended `scripts/test-backup-offsite-contract.js`, the backup/reinstall runbook, and production readiness tracker so offsite backup sync cannot regress to using overly readable SSH keys.
+
 - Backup offsite checksum verification hardening:
   - Hardened `scripts/sync-latest-backup.sh` so the latest PostgreSQL dump checksum is chmodded private and verified with `sha256sum -c` before any SCP upload.
   - Extended `scripts/test-backup-offsite-contract.js`, the backup/reinstall runbook, and production readiness tracker so offsite dump sync cannot regress to uploading an unverified local artifact.

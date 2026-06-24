@@ -21,6 +21,21 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
+require_private_key_file() {
+  local key_file="$1"
+  if [[ ! -f "$key_file" ]]; then
+    echo "DISASTER_BACKUP_ABORT remote key not found: $key_file" >&2
+    exit 1
+  fi
+
+  local key_mode
+  key_mode="$(stat -c '%a' "$key_file")"
+  if [[ "$key_mode" != "600" ]]; then
+    echo "DISASTER_BACKUP_ABORT remote key must be 600: $key_file mode=$key_mode" >&2
+    exit 1
+  fi
+}
+
 mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
 chmod 700 "$BACKUP_ROOT"
 exec 9>"$LOCK_FILE"
@@ -177,6 +192,7 @@ done
 if [[ -n "$REMOTE_TARGET" ]]; then
   scp_args=(-P "$REMOTE_PORT" -o BatchMode=yes -o ConnectTimeout="$REMOTE_CONNECT_TIMEOUT" -o ServerAliveInterval="$REMOTE_SERVER_ALIVE_INTERVAL" -o ServerAliveCountMax="$REMOTE_SERVER_ALIVE_COUNT_MAX")
   if [[ -n "$REMOTE_KEY" ]]; then
+    require_private_key_file "$REMOTE_KEY"
     scp_args+=(-i "$REMOTE_KEY")
   fi
   scp "${scp_args[@]}" "$archive" "$archive.sha256" "$REMOTE_TARGET/"

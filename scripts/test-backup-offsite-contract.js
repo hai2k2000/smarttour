@@ -30,6 +30,9 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"',
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
+  'require_private_key_file()',
+  'BACKUP_SYNC_ABORT remote key must be 600',
+  'require_private_key_file "$BACKUP_REMOTE_KEY"',
   'chmod 600 "$checksum"',
   'sha256sum -c "$checksum"',
 ].forEach((expected) => assertIncludes('scripts/sync-latest-backup.sh', syncScript, expected));
@@ -49,6 +52,9 @@ assertRegex(
   'REMOTE_CONNECT_TIMEOUT="${DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"',
   'REMOTE_SERVER_ALIVE_INTERVAL="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'REMOTE_SERVER_ALIVE_COUNT_MAX="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
+  'require_private_key_file()',
+  'DISASTER_BACKUP_ABORT remote key must be 600',
+  'require_private_key_file "$REMOTE_KEY"',
 ].forEach((expected) => assertIncludes('scripts/disaster-backup.sh', disasterScript, expected));
 
 assertRegex(
@@ -81,6 +87,7 @@ assertRegex(
   'npm run ops:backup-sync',
   'npm run test:backup-offsite',
   'sha256sum -c',
+  'remote key must be mode `600`',
   'chmod 600 /root/.ssh/id_ed25519_backup',
 ].forEach((expected) => assertIncludes('docs/operations-backup-reinstall.md', backupRunbook, expected));
 

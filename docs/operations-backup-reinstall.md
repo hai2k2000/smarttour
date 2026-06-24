@@ -110,7 +110,9 @@ DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 ```
 
-The remote key must be dedicated to backup upload and mode `600`:
+The remote key must be dedicated to backup upload and mode `600`; both sync
+scripts abort before SCP if the configured remote key is missing or has a
+different mode.
 
 ```bash
 chmod 600 /root/.ssh/id_ed25519_backup
@@ -118,6 +120,7 @@ chmod 600 /root/.ssh/id_ed25519_backup
 
 Both sync scripts use `BatchMode=yes` and bounded SSH timeouts so a broken
 remote destination fails the scheduled job instead of hanging indefinitely.
+The remote key must be mode `600`.
 The daily PostgreSQL dump sync runs `sha256sum -c` locally before uploading the
 dump and checksum files.
 

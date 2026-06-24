@@ -13,6 +13,21 @@ CREATE_BACKUP_FIRST="${CREATE_BACKUP_FIRST:-1}"
 
 cd "$REPO_DIR"
 
+require_private_key_file() {
+  local key_file="$1"
+  if [[ ! -f "$key_file" ]]; then
+    echo "BACKUP_SYNC_ABORT remote key not found: $key_file" >&2
+    exit 1
+  fi
+
+  local key_mode
+  key_mode="$(stat -c '%a' "$key_file")"
+  if [[ "$key_mode" != "600" ]]; then
+    echo "BACKUP_SYNC_ABORT remote key must be 600: $key_file mode=$key_mode" >&2
+    exit 1
+  fi
+}
+
 if [[ "$CREATE_BACKUP_FIRST" == "1" ]]; then
   scripts/backup-postgres.sh >/tmp/smarttour-last-backup.log
 fi
@@ -32,6 +47,7 @@ sha256sum -c "$checksum"
 
 scp_args=(-P "$BACKUP_REMOTE_PORT" -o BatchMode=yes -o ConnectTimeout="$BACKUP_REMOTE_CONNECT_TIMEOUT" -o ServerAliveInterval="$BACKUP_REMOTE_SERVER_ALIVE_INTERVAL" -o ServerAliveCountMax="$BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX")
 if [[ -n "$BACKUP_REMOTE_KEY" ]]; then
+  require_private_key_file "$BACKUP_REMOTE_KEY"
   scp_args+=(-i "$BACKUP_REMOTE_KEY")
 fi
 

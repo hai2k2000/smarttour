@@ -82,6 +82,8 @@ Tooling is ready:
 - `npm run test:backup-offsite`
 
 The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
+The offsite copy scripts abort when a configured remote SSH key is missing or
+not mode `600`.
 The daily dump sync verifies the local SHA256 checksum before upload.
 Restore drills reject protected production/system database names before any
 `dropdb` call, and `npm run test:restore-drill-safety` guards the contract.

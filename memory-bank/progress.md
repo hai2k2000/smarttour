@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened offsite backup SSH key permissions:
+  - `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` now abort before SCP when the configured remote key is missing or not mode `600`.
+  - Extended the backup offsite contract and backup/reinstall runbook so offsite sync key permissions are enforced by automation rather than only documented.
+
 - Hardened offsite PostgreSQL backup sync checksum handling:
   - `scripts/sync-latest-backup.sh` now chmods the checksum file private and runs `sha256sum -c "$checksum"` before uploading backup artifacts.
   - Extended the backup offsite contract and backup/reinstall runbook so offsite sync cannot upload an unverified local dump/checksum pair.
