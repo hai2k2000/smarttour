@@ -57,6 +57,10 @@ Daily PostgreSQL backups are stored in:
 /opt/smarttour/backups/postgres
 ```
 
+Daily PostgreSQL dump execution is bounded by `POSTGRES_BACKUP_TIMEOUT=30m` by
+default, so a stuck Docker or `pg_dump` process fails the backup timer instead
+of hanging it indefinitely.
+
 Weekly disaster backups are stored in:
 
 ```text

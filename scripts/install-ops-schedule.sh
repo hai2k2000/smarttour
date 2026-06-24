@@ -37,6 +37,8 @@ DISASTER_BACKUP_MAX_AGE_HOURS=192
 RESTORE_DRILL_MAX_AGE_HOURS=192
 KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
+# Set this to bound the daily PostgreSQL dump command.
+# POSTGRES_BACKUP_TIMEOUT=30m
 # Set these to send healthcheck failure alerts to an external destination.
 # HEALTHCHECK_WEBHOOK_URL=https://example-alert-endpoint.invalid/smarttour
 # HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5

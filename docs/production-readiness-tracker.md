@@ -92,6 +92,9 @@ PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.
 PostgreSQL backup temporary files are removed automatically on backup failure.
+Daily PostgreSQL dump execution is bounded by `POSTGRES_BACKUP_TIMEOUT=30m`
+so a stuck Docker or `pg_dump` process fails the backup timer instead of
+hanging it indefinitely.
 Disaster backup staging directories are removed after archive checksum verification.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.

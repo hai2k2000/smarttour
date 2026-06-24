@@ -22,6 +22,9 @@ const ci = read('.github/workflows/smarttour-ci.yml');
 
 for (const expected of [
   'umask 077',
+  'POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"',
+  'run_postgres_backup_dump()',
+  'timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump',
   'chmod 700 "$BACKUP_DIR"',
   'cleanup_tmp_backup()',
   'trap cleanup_tmp_backup EXIT',
@@ -31,8 +34,12 @@ for (const expected of [
   includes('scripts/backup-postgres.sh', postgresBackup, expected);
 }
 
-if (postgresBackup.indexOf('trap cleanup_tmp_backup EXIT') > postgresBackup.indexOf('docker exec "$POSTGRES_CONTAINER" pg_dump')) {
+if (postgresBackup.indexOf('trap cleanup_tmp_backup EXIT') > postgresBackup.indexOf('run_postgres_backup_dump \\')) {
   throw new Error('scripts/backup-postgres.sh must install tmp cleanup before pg_dump starts.');
+}
+
+if (postgresBackup.includes('\ndocker exec "$POSTGRES_CONTAINER" pg_dump')) {
+  throw new Error('scripts/backup-postgres.sh must not call pg_dump through raw docker exec.');
 }
 
 for (const expected of [
@@ -55,6 +62,7 @@ if (disasterBackup.indexOf('rm -rf "$work_dir"') > disasterBackup.indexOf('if [[
 for (const expected of [
   'Backup artifacts must be private',
   'Temporary backup files are removed automatically if backup creation fails',
+  'POSTGRES_BACKUP_TIMEOUT=30m',
   'Disaster backup staging directories are removed after archive checksum verification',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
@@ -71,6 +79,18 @@ includes(
   'docs/production-readiness-tracker.md',
   readinessTracker,
   'npm run test:backup-artifact-permissions',
+);
+
+includes(
+  'docs/production-readiness-tracker.md',
+  readinessTracker,
+  'POSTGRES_BACKUP_TIMEOUT',
+);
+
+includes(
+  'scripts/install-ops-schedule.sh',
+  read('scripts/install-ops-schedule.sh'),
+  '# POSTGRES_BACKUP_TIMEOUT=30m',
 );
 
 if (packageJson.scripts['test:backup-artifact-permissions'] !== 'node scripts/test-backup-artifact-permissions-contract.js') {

@@ -8,6 +8,11 @@ POSTGRES_USER="${POSTGRES_USER:-smarttour}"
 POSTGRES_DB="${POSTGRES_DB:-smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
+POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"
+
+run_postgres_backup_dump() {
+  timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump "$@"
+}
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -23,7 +28,7 @@ cleanup_tmp_backup() {
 }
 trap cleanup_tmp_backup EXIT
 
-docker exec "$POSTGRES_CONTAINER" pg_dump \
+run_postgres_backup_dump \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   --clean \

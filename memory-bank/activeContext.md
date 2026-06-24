@@ -2910,3 +2910,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `scripts/install-ops-schedule.sh` still called `systemctl daemon-reload`, `enable --now`, and `list-timers` directly, so reinstall/setup could hang on systemd/DBus issues.
   - Added a dedicated ops installer systemd timeout contract first; RED failed because `OPS_SYSTEMD_TIMEOUT` coverage was missing.
   - Updated the installer to run systemd operations through `OPS_SYSTEMD_TIMEOUT=30s` and documented the setting in ops/security runbooks and the readiness tracker.
+
+- 2026-06-24 production PostgreSQL backup timeout follow-up:
+  - Found `scripts/backup-postgres.sh` still ran `docker exec ... pg_dump` directly, so a stuck Docker or dump process could hang the daily backup timer.
+  - Extended the backup artifact contract first; RED failed because `POSTGRES_BACKUP_TIMEOUT` coverage was missing.
+  - Updated daily PostgreSQL backups to run `pg_dump` through `POSTGRES_BACKUP_TIMEOUT=30m`, and documented the setting in the ops env template, backup runbook, and readiness tracker.
+  - Updated the live `/etc/default/smarttour-ops` with `POSTGRES_BACKUP_TIMEOUT=30m` while preserving `600 root:root`, then verified timeout cleanup and a successful temporary backup run.

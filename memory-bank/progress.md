@@ -2513,3 +2513,9 @@
   - `scripts/install-ops-schedule.sh` now runs systemd reload, timer enablement, and timer listing through `run_ops_systemctl`, bounded by `OPS_SYSTEMD_TIMEOUT=30s`.
   - The `/etc/default/smarttour-ops` template documents `OPS_SYSTEMD_TIMEOUT=30s` for reinstall/setup runs.
   - `scripts/test-ops-install-systemd-timeout-contract.js`, CI source contracts, backup/security runbooks, and the production readiness tracker now guard/document the installer systemd timeout contract.
+
+- 2026-06-24 Completed production PostgreSQL backup timeout hardening:
+  - `scripts/backup-postgres.sh` now runs daily `pg_dump` through `run_postgres_backup_dump`, bounded by `POSTGRES_BACKUP_TIMEOUT=30m`.
+  - The temporary backup cleanup trap remains installed before dumping starts, so timeout/failure still removes the `.tmp` artifact.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the PostgreSQL backup timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `POSTGRES_BACKUP_TIMEOUT=30m` and remains `600 root:root`; a fake Docker timeout probe confirmed `.tmp` cleanup, and a successful temporary backup produced private artifacts.
