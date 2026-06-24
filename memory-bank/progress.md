@@ -2555,3 +2555,9 @@
   - The existing `DEPLOY_PHASE prisma_migrate_deploy` marker and deploy phase ordering are preserved and guarded by `node scripts/test-github-actions-contract.js`.
   - The GitHub Actions runbook and production readiness tracker now document the migration timeout setting.
   - A fake clean-repo deploy probe verified a stuck Prisma migration fails fast with timeout status `124` without touching the production stack.
+
+- 2026-06-24 Completed production SmartLink guard Docker fallback timeout hardening:
+  - `scripts/smartlink-legacy-audit.sh` now runs its Docker fallback through `run_smartlink_docker`, bounded by `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`.
+  - The wrapper still prefers the local Node path when `@prisma/client` is available, so normal production deploy guard behavior stays fast.
+  - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker now guard/document the fallback timeout.
+  - A fake no-node/Docker-hang probe verified the fallback fails fast with timeout status `124`.

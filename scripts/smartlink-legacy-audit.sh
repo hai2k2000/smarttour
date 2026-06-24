@@ -2,7 +2,12 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
+SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"
 cd "$REPO_DIR"
+
+run_smartlink_docker() {
+  timeout "$SMARTLINK_AUDIT_DOCKER_TIMEOUT" docker "$@"
+}
 
 if command -v node >/dev/null 2>&1 && NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}" node -e "require('@prisma/client')" >/dev/null 2>&1; then
   export NODE_PATH="${NODE_PATH:-$REPO_DIR/node_modules}"
@@ -14,7 +19,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 127
 fi
 
-docker compose run --rm --no-deps \
+run_smartlink_docker compose run --rm --no-deps \
   -v "$PWD:/workspace" \
   --workdir /workspace \
   -e NODE_PATH=/app/node_modules \

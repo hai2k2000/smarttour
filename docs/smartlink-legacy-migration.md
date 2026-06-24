@@ -31,3 +31,5 @@ scripts/smartlink-legacy-audit.sh --mode=guard
 ```
 
 If any active SmartLink still has a legacy or missing token, deploy stops with `SMARTLINK_LEGACY_ACTIVE`.
+When the wrapper must fall back to Docker because local `node_modules` are not
+available, the Docker run is bounded by `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`.

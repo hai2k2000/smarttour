@@ -96,6 +96,7 @@ for (const option of [
 excludes(deploy, 'ALLOW_DIRTY=true', 'Deploy workflow must not allow dirty production deploys.');
 
 const deployScript = read('scripts/deploy-production.sh');
+const smartlinkWrapper = read('scripts/smartlink-legacy-audit.sh');
 includes(deployScript, 'validate_branch_name()', 'Server-side production deploy must validate BRANCH.');
 includes(deployScript, 'DEPLOY_ABORT invalid branch name', 'Server-side production deploy must abort on invalid branch names.');
 includes(deployScript, '[[ ! "$value" =~ ^[A-Za-z0-9._/-]+$ ]]', 'Server-side branch validation must reject unsafe git ref characters.');
@@ -130,6 +131,11 @@ includes(deployScript, 'DEPLOY_PHASE healthcheck', 'Server-side deploy must log 
 excludes(deployScript, '\nnpx prisma migrate deploy', 'Server-side deploy must not call raw Prisma migrate deploy.');
 excludes(deployScript, '\ndocker compose build api web', 'Server-side deploy must not call raw docker compose build.');
 excludes(deployScript, '\ndocker compose up -d api web nginx', 'Server-side deploy must not call raw docker compose up.');
+includes(smartlinkWrapper, 'SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"', 'SmartLink wrapper must define Docker fallback timeout.');
+includes(smartlinkWrapper, 'run_smartlink_docker()', 'SmartLink wrapper must wrap Docker fallback commands.');
+includes(smartlinkWrapper, 'timeout "$SMARTLINK_AUDIT_DOCKER_TIMEOUT" docker "$@"', 'SmartLink Docker fallback must be bounded.');
+includes(smartlinkWrapper, 'run_smartlink_docker compose run --rm --no-deps', 'SmartLink wrapper must run Docker fallback through the bounded wrapper.');
+excludes(smartlinkWrapper, '\ndocker compose run --rm --no-deps', 'SmartLink wrapper must not call raw docker compose run.');
 const deployPhaseOrder = [
   'DEPLOY_START branch=$BRANCH current_commit=$starting_commit',
   'git fetch origin "$BRANCH"',
@@ -181,6 +187,7 @@ for (const text of [
   'DEPLOY_REVISION',
   'Prisma migrations',
   'DEPLOY_PRISMA_MIGRATE_TIMEOUT',
+  'SMARTLINK_AUDIT_DOCKER_TIMEOUT',
   'DEPLOY_DOCKER_BUILD_TIMEOUT',
   'DEPLOY_DOCKER_UP_TIMEOUT',
   'DEPLOY_PHASE smartlink_guard',
