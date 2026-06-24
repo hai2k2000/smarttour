@@ -28,6 +28,8 @@ scripts/install-ops-schedule.sh
 ```
 
 Open a second SSH session with the configured key before closing the first session.
+The operations schedule installer bounds systemd calls with
+`OPS_SYSTEMD_TIMEOUT=30s` by default.
 
 Validate the security audit source contract and the live host audit:
 

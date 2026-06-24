@@ -5,6 +5,11 @@ REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 SYSTEMD_SOURCE="$REPO_DIR/deploy/systemd"
 SYSTEMD_TARGET="/etc/systemd/system"
 OPS_ENV="/etc/default/smarttour-ops"
+OPS_SYSTEMD_TIMEOUT="${OPS_SYSTEMD_TIMEOUT:-30s}"
+
+run_ops_systemctl() {
+  timeout "$OPS_SYSTEMD_TIMEOUT" systemctl "$@"
+}
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Schedule installer must run as root" >&2
@@ -46,6 +51,8 @@ DISASTER_KEEP_BACKUPS=4
 # DOCKER_CHECK_TIMEOUT=10s
 # Set this to bound systemd probes in the healthcheck.
 # SYSTEMD_CHECK_TIMEOUT=10s
+# Set this to bound systemd operations in this installer.
+# OPS_SYSTEMD_TIMEOUT=30s
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22
@@ -77,13 +84,13 @@ chmod +x \
   "$REPO_DIR/scripts/nginx-host-report.sh" \
   "$REPO_DIR/scripts/restore-drill-postgres.sh"
 
-systemctl daemon-reload
-systemctl enable --now \
+run_ops_systemctl daemon-reload
+run_ops_systemctl enable --now \
   smarttour-healthcheck.timer \
   smarttour-nginx-host-report.timer \
   smarttour-postgres-backup.timer \
   smarttour-disaster-backup.timer \
   smarttour-restore-drill.timer
 
-systemctl list-timers --all --no-pager 'smarttour-*'
+run_ops_systemctl list-timers --all --no-pager 'smarttour-*'
 echo "OPS_SCHEDULE_INSTALL_OK"

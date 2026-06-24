@@ -2508,3 +2508,8 @@
   - Docker port inspection now emits `FAIL_PORTS docker_unavailable` if Docker cannot be queried, instead of downgrading to a warning.
   - sshd effective-config inspection now emits `FAIL_SSH sshd_config_unavailable` if `sshd -T` cannot return, and npm audit failures/timeouts emit `FAIL_NPM_AUDIT failed_or_timed_out`.
   - The existing `npm run test:security-audit` contract, security runbook, and production readiness tracker now guard/document the audit timeout settings.
+
+- 2026-06-24 Completed production ops schedule installer timeout hardening:
+  - `scripts/install-ops-schedule.sh` now runs systemd reload, timer enablement, and timer listing through `run_ops_systemctl`, bounded by `OPS_SYSTEMD_TIMEOUT=30s`.
+  - The `/etc/default/smarttour-ops` template documents `OPS_SYSTEMD_TIMEOUT=30s` for reinstall/setup runs.
+  - `scripts/test-ops-install-systemd-timeout-contract.js`, CI source contracts, backup/security runbooks, and the production readiness tracker now guard/document the installer systemd timeout contract.

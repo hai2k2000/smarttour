@@ -134,6 +134,7 @@ Health tooling:
 
 Completed implementation: ops schedule installation now installs `/etc/logrotate.d/smarttour` for `/var/log/smarttour/*.log`, guarded by `npm run test:ops-logrotate`.
 Completed implementation: ops schedule installation now normalizes SmartTour operational log/report directories to `750` and files to `0640`, guarded by `npm run test:ops-log-permissions`.
+Completed implementation: ops schedule installation bounds systemd reload/enable/list-timer operations with `OPS_SYSTEMD_TIMEOUT=30s`, guarded by `npm run test:ops-install-systemd-timeout`.
 Completed implementation: SmartTour ops systemd services set `UMask=0027` so recreated logs remain private, guarded by `npm run test:ops-log-permissions`.
 Completed implementation: healthcheck HTTP route probes use bounded `HTTP_CONNECT_TIMEOUT`, `HTTP_MAX_TIME`, `HTTP_ATTEMPTS`, and `HTTP_RETRY_DELAY` settings, guarded by `npm run test:healthcheck-http-timeout`.
 Completed implementation: healthcheck Docker/container probes use bounded `DOCKER_CHECK_TIMEOUT` so inspect, logs, exec, compose exec, and port scans cannot hang the health timer, guarded by `npm run test:healthcheck-docker-timeout`.

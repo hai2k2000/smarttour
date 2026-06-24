@@ -2905,3 +2905,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `scripts/security-audit.sh` still used raw Docker, sshd, systemctl, and npm audit commands; Docker port inspection could degrade to `WARN_PORTS` instead of failing when Docker was unavailable.
   - Extended the existing security audit contract first; RED failed because `AUDIT_COMMAND_TIMEOUT` coverage was missing.
   - Updated the live audit to bound external probes with `AUDIT_COMMAND_TIMEOUT=10s` and `NPM_AUDIT_TIMEOUT=120s`, fail Docker/sshd/npm-audit unavailability explicitly, and keep systemd timer/umask checks bounded.
+
+- 2026-06-24 production ops schedule installer timeout follow-up:
+  - Found `scripts/install-ops-schedule.sh` still called `systemctl daemon-reload`, `enable --now`, and `list-timers` directly, so reinstall/setup could hang on systemd/DBus issues.
+  - Added a dedicated ops installer systemd timeout contract first; RED failed because `OPS_SYSTEMD_TIMEOUT` coverage was missing.
+  - Updated the installer to run systemd operations through `OPS_SYSTEMD_TIMEOUT=30s` and documented the setting in ops/security runbooks and the readiness tracker.

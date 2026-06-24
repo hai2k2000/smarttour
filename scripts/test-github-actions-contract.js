@@ -49,6 +49,7 @@ for (const command of [
   'node scripts/test-healthcheck-systemd-timeout-contract.js',
   'node scripts/test-ops-logrotate-contract.js',
   'node scripts/test-ops-log-permissions-contract.js',
+  'node scripts/test-ops-install-systemd-timeout-contract.js',
   'npm run lint --workspace @smarttour/api',
   'npm run lint --workspace @smarttour/web',
   'docker compose build api web',

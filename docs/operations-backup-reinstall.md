@@ -17,6 +17,9 @@ cd /opt/smarttour
 sudo scripts/install-ops-schedule.sh
 ```
 
+The installer bounds systemd operations with `OPS_SYSTEMD_TIMEOUT=30s` by
+default, so a stuck systemd/DBus call fails the install instead of hanging it.
+
 Inspect the schedule and logs:
 
 ```bash
