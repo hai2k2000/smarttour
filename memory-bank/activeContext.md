@@ -3078,3 +3078,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the security audit contract first; RED failed because `AUDIT_FILE_READ_TIMEOUT` coverage was missing.
   - Added `AUDIT_FILE_READ_TIMEOUT=10s` and `run_audit_file_read`, then routed audit config reads, permission metadata reads, and in-memory grep checks through the bounded wrapper.
   - Updated the ops env template, security hardening runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-read wrapper probe confirmed stuck `grep` returns timeout status 124.
+
+- 2026-06-24 healthcheck text-filter timeout follow-up:
+  - Found `scripts/healthcheck.sh` still used raw `grep` filters over Docker inspect/exec/log output, systemd output, API/Web logs, and Docker port output. Stuck or oversized collected output could hang the healthcheck timer after bounded command collection.
+  - Extended the healthcheck Docker timeout contract first; RED failed because `HEALTHCHECK_TEXT_FILTER_TIMEOUT` coverage was missing.
+  - Added `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` and `run_healthcheck_text_filter`, then routed healthcheck grep filters through the bounded wrapper.
+  - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text-filter wrapper probe confirmed stuck `grep` returns timeout status 124.

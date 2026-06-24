@@ -13,6 +13,7 @@ SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
 CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
 HEALTHCHECK_FILE_SCAN_TIMEOUT="${HEALTHCHECK_FILE_SCAN_TIMEOUT:-30s}"
 HEALTHCHECK_FILE_READ_TIMEOUT="${HEALTHCHECK_FILE_READ_TIMEOUT:-10s}"
+HEALTHCHECK_TEXT_FILTER_TIMEOUT="${HEALTHCHECK_TEXT_FILTER_TIMEOUT:-10s}"
 HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT="${HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT:-5s}"
 
 cd "$REPO_DIR"
@@ -37,6 +38,10 @@ run_healthcheck_file_scan() {
 
 run_healthcheck_file_read() {
   timeout "$HEALTHCHECK_FILE_READ_TIMEOUT" "$@"
+}
+
+run_healthcheck_text_filter() {
+  timeout "$HEALTHCHECK_TEXT_FILTER_TIMEOUT" "$@"
 }
 
 run_alert_payload_command() {
@@ -99,7 +104,7 @@ check_http() {
 
 check_container() {
   local name="$1"
-  if run_docker_check docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true; then
+  if run_docker_check docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | run_healthcheck_text_filter grep -qx true; then
     echo "OK_CONTAINER $name"
   else
     echo "FAIL_CONTAINER $name"
@@ -114,8 +119,8 @@ recent_logs_for_scan() {
     return 1
   fi
   printf '%s\n' "$raw_logs" \
-    | grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
-    | grep -Ev '"event":"request_failed".*"statusCode":4[0-9][0-9]' \
+    | run_healthcheck_text_filter grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
+    | run_healthcheck_text_filter grep -Ev '"event":"request_failed".*"statusCode":4[0-9][0-9]' \
     || true
 }
 
@@ -132,7 +137,7 @@ check_http login "$SITE_URL/login" 200
 check_http api_requires_auth "$API_URL/auth/me" 401
 check_http minio_live "http://127.0.0.1:9000/minio/health/live" 200
 
-if run_docker_check docker compose exec -T api printenv SMARTTOUR_AUTH_ENFORCE | grep -qx true; then
+if run_docker_check docker compose exec -T api printenv SMARTTOUR_AUTH_ENFORCE | run_healthcheck_text_filter grep -qx true; then
   echo "OK_AUTH_ENFORCE true"
 else
   echo "FAIL_AUTH_ENFORCE not true"
@@ -146,7 +151,7 @@ else
   failures=$((failures + 1))
 fi
 
-if run_docker_check docker exec smarttour-redis-1 redis-cli ping | grep -qx PONG; then
+if run_docker_check docker exec smarttour-redis-1 redis-cli ping | run_healthcheck_text_filter grep -qx PONG; then
   echo "OK_REDIS ping"
 else
   echo "FAIL_REDIS ping"
@@ -169,7 +174,7 @@ else
   systemd_failed_units_available=true
   critical_failed_units="$(printf '%s\n' "$failed_units_output" \
     | awk '{print $1}' \
-    | grep -E '^(dbus|polkit|systemd-networkd|systemd-resolved|networkd-dispatcher|docker|ssh)\.(service|socket)$' \
+    | run_healthcheck_text_filter grep -E '^(dbus|polkit|systemd-networkd|systemd-resolved|networkd-dispatcher|docker|ssh)\.(service|socket)$' \
     || true)"
 fi
 if [[ "${critical_failed_units:-}" != "" ]]; then
@@ -249,7 +254,7 @@ fi
 if ! api_logs="$(recent_logs_for_scan smarttour-api-1)"; then
   echo "FAIL_LOG api unavailable"
   failures=$((failures + 1))
-elif printf '%s\n' "$api_logs" | grep -Eiq 'error|exception|failed'; then
+elif printf '%s\n' "$api_logs" | run_healthcheck_text_filter grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG api has recent error signature"
   failures=$((failures + 1))
 else
@@ -259,7 +264,7 @@ fi
 if ! web_logs="$(recent_logs_for_scan smarttour-web-1)"; then
   echo "FAIL_LOG web unavailable"
   failures=$((failures + 1))
-elif printf '%s\n' "$web_logs" | grep -Eiq 'error|exception|failed'; then
+elif printf '%s\n' "$web_logs" | run_healthcheck_text_filter grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG web has recent error signature"
   failures=$((failures + 1))
 else
@@ -269,7 +274,7 @@ fi
 if ! ports_output="$(run_docker_check docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null)"; then
   echo "FAIL_PORTS docker_ps_unavailable"
   failures=$((failures + 1))
-elif printf '%s\n' "$ports_output" | grep -E 'smarttour-(api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
+elif printf '%s\n' "$ports_output" | run_healthcheck_text_filter grep -E 'smarttour-(api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour service exposes host ports on all interfaces"
   failures=$((failures + 1))
 else

@@ -49,7 +49,11 @@ container exec/log command fails the healthcheck instead of hanging it:
 ```bash
 # /etc/default/smarttour-ops
 DOCKER_CHECK_TIMEOUT=10s
+HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s
 ```
+
+Text filtering over collected Docker, log, port, and systemd output is bounded
+by `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
 
 Systemd probes are also bounded so a stuck systemd/DBus call fails the
 healthcheck instead of hiding or hanging the system health result:

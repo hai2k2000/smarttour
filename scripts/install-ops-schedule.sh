@@ -77,6 +77,8 @@ DISASTER_KEEP_BACKUPS=4
 # HEALTHCHECK_FILE_SCAN_TIMEOUT=30s
 # Set this to bound healthcheck reads of restore-drill log files.
 # HEALTHCHECK_FILE_READ_TIMEOUT=10s
+# Set this to bound healthcheck text filtering over command/log output.
+# HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s
 # Set this to bound Docker log collection in the daily Nginx host report.
 # HOST_REPORT_DOCKER_TIMEOUT=10s
 # Set this to bound file cleanup scans in the daily Nginx host report.

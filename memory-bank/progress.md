@@ -2682,3 +2682,9 @@
   - Coverage includes `.env` checks, logrotate and Nginx config greps, SSH/root permission metadata, backup/log directory mode checks, and bounded grep checks over previously collected command output.
   - The ops env template, security hardening runbook, production readiness tracker, and `npm run test:security-audit` now guard/document the file-read timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `AUDIT_FILE_READ_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.
+
+- 2026-06-24 Completed healthcheck text-filter timeout hardening:
+  - `scripts/healthcheck.sh` now bounds grep filters over collected Docker, log, port, and systemd output with `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
+  - Docker collection remains bounded separately by `DOCKER_CHECK_TIMEOUT=10s`, and restore-drill log reads remain bounded by `HEALTHCHECK_FILE_READ_TIMEOUT=10s`.
+  - The ops env template, observability runbook, production readiness tracker, and `npm run test:healthcheck-docker-timeout` now guard/document the text-filter timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.
