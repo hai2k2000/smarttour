@@ -85,6 +85,8 @@ DISASTER_KEEP_BACKUPS=4
 # HOST_REPORT_DOCKER_TIMEOUT=10s
 # Set this to bound file cleanup scans in the daily Nginx host report.
 # HOST_REPORT_FILE_SCAN_TIMEOUT=30s
+# Set this to bound text processing in the daily Nginx host report.
+# HOST_REPORT_TEXT_TIMEOUT=10s
 # Set this to bound systemd operations in this installer.
 # OPS_SYSTEMD_TIMEOUT=30s
 # Set this to bound file scans in this installer.

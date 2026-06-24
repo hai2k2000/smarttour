@@ -2694,3 +2694,9 @@
   - Docker, systemd, checksum, file scan, file read, text filter, and alert payload work remain bounded by their dedicated healthcheck timeout wrappers.
   - `npm run test:healthcheck-host-timeout` is exposed in `package.json`, wired into CI source contracts, and guarded by `scripts/test-github-actions-contract.js`.
   - The ops env template, observability runbook, and production readiness tracker now document the host-command timeout setting; the live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `stat` returns status 124.
+
+- 2026-06-24 Completed Nginx host report text timeout hardening:
+  - `scripts/nginx-host-report.sh` now bounds parsing and summary text processing with `HOST_REPORT_TEXT_TIMEOUT=10s`.
+  - Docker log collection and report retention cleanup remain bounded separately by `HOST_REPORT_DOCKER_TIMEOUT=10s` and `HOST_REPORT_FILE_SCAN_TIMEOUT=30s`.
+  - The ops env template, security hardening runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the text timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_TEXT_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.

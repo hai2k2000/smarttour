@@ -3090,3 +3090,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a new healthcheck host timeout contract first and wired it into package scripts, CI source contracts, and the GitHub Actions contract; RED failed because `HEALTHCHECK_HOST_COMMAND_TIMEOUT` coverage was missing.
   - Added `HEALTHCHECK_HOST_COMMAND_TIMEOUT=10s` and `run_healthcheck_host_command`, then routed root mode, disk usage, and failure-host lookup through the bounded wrapper.
   - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake host-command wrapper probe confirmed stuck `stat` returns timeout status 124.
+
+- 2026-06-24 Nginx host report text timeout follow-up:
+  - Found `scripts/nginx-host-report.sh` still used raw `grep`, `cut`, `sed`, `sort`, `uniq`, `head`, `tail`, and `wc` while processing bounded Docker logs. A stuck or oversized log processing pipeline could hang the daily host-report timer.
+  - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_TEXT_TIMEOUT` coverage was missing.
+  - Added `HOST_REPORT_TEXT_TIMEOUT=10s` and `run_host_report_text`, then routed host-report parsing and summary pipelines through the bounded wrapper.
+  - Updated the ops env template, security hardening runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text wrapper probe confirmed stuck `grep` returns timeout status 124.

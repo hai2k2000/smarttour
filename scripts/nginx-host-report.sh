@@ -8,6 +8,7 @@ REPORT_DIR="${REPORT_DIR:-/var/log/smarttour/security}"
 KEEP_DAYS="${SECURITY_REPORT_KEEP_DAYS:-30}"
 HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"
 HOST_REPORT_FILE_SCAN_TIMEOUT="${HOST_REPORT_FILE_SCAN_TIMEOUT:-30s}"
+HOST_REPORT_TEXT_TIMEOUT="${HOST_REPORT_TEXT_TIMEOUT:-10s}"
 
 run_host_report_docker() {
   timeout "$HOST_REPORT_DOCKER_TIMEOUT" docker "$@"
@@ -15,6 +16,10 @@ run_host_report_docker() {
 
 run_host_report_file_scan() {
   timeout "$HOST_REPORT_FILE_SCAN_TIMEOUT" find "$@"
+}
+
+run_host_report_text() {
+  timeout "$HOST_REPORT_TEXT_TIMEOUT" "$@"
 }
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -31,7 +36,7 @@ if ! raw_logs="$(run_host_report_docker logs --since "${REPORT_HOURS}h" "$NGINX_
   exit 1
 fi
 
-printf '%s\n' "$raw_logs" | grep -F '|host=' > "$tmp" || true
+printf '%s\n' "$raw_logs" | run_host_report_text grep -F '|host=' > "$tmp" || true
 
 {
   echo "SMARTTOUR_NGINX_HOST_REPORT"
@@ -39,28 +44,28 @@ printf '%s\n' "$raw_logs" | grep -F '|host=' > "$tmp" || true
   echo "container=$NGINX_CONTAINER"
   echo "official_host=$OFFICIAL_HOST"
   echo "window_hours=$REPORT_HOURS"
-  echo "parsed_requests=$(wc -l < "$tmp")"
+  echo "parsed_requests=$(run_host_report_text wc -l < "$tmp")"
 
   echo
   echo "TOP_HOSTS"
-  cut -d'|' -f2 "$tmp" | sed 's/^host=//' | sort | uniq -c | sort -nr | head -30
+  run_host_report_text cut -d'|' -f2 "$tmp" | run_host_report_text sed 's/^host=//' | run_host_report_text sort | run_host_report_text uniq -c | run_host_report_text sort -nr | run_host_report_text head -30
 
   echo
   echo "TOP_UNKNOWN_HOSTS"
-  grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" \
-    | cut -d'|' -f2 | sed 's/^host=//' | sort | uniq -c | sort -nr | head -30 || true
+  run_host_report_text grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" \
+    | run_host_report_text cut -d'|' -f2 | run_host_report_text sed 's/^host=//' | run_host_report_text sort | run_host_report_text uniq -c | run_host_report_text sort -nr | run_host_report_text head -30 || true
 
   echo
   echo "TOP_CLIENT_IPS"
-  cut -d'|' -f1 "$tmp" | sort | uniq -c | sort -nr | head -30
+  run_host_report_text cut -d'|' -f1 "$tmp" | run_host_report_text sort | run_host_report_text uniq -c | run_host_report_text sort -nr | run_host_report_text head -30
 
   echo
   echo "TOP_STATUS_CODES"
-  cut -d'|' -f5 "$tmp" | sed 's/^status=//' | sort | uniq -c | sort -nr
+  run_host_report_text cut -d'|' -f5 "$tmp" | run_host_report_text sed 's/^status=//' | run_host_report_text sort | run_host_report_text uniq -c | run_host_report_text sort -nr
 
   echo
   echo "RECENT_UNKNOWN_REQUESTS"
-  grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" | tail -20 || true
+  run_host_report_text grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" | run_host_report_text tail -20 || true
 } | tee "$report"
 chmod 0640 "$report"
 

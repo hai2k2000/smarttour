@@ -57,13 +57,19 @@ for (const serviceUnit of serviceUnits) {
 [
   'HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"',
   'HOST_REPORT_FILE_SCAN_TIMEOUT="${HOST_REPORT_FILE_SCAN_TIMEOUT:-30s}"',
+  'HOST_REPORT_TEXT_TIMEOUT="${HOST_REPORT_TEXT_TIMEOUT:-10s}"',
   'run_host_report_docker()',
   'run_host_report_file_scan()',
+  'run_host_report_text()',
   'timeout "$HOST_REPORT_DOCKER_TIMEOUT" docker "$@"',
   'timeout "$HOST_REPORT_FILE_SCAN_TIMEOUT" find "$@"',
+  'timeout "$HOST_REPORT_TEXT_TIMEOUT" "$@"',
   'if ! raw_logs="$(run_host_report_docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1)"; then',
   'NGINX_HOST_REPORT_ABORT docker_logs_unavailable',
-  'printf \'%s\\n\' "$raw_logs"',
+  'printf \'%s\\n\' "$raw_logs" | run_host_report_text grep -F \'|host=\' > "$tmp" || true',
+  'run_host_report_text wc -l < "$tmp"',
+  'run_host_report_text grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp"',
+  'run_host_report_text tail -20 || true',
   'install -d -m 0750 "$REPORT_DIR"',
   'chmod 0640 "$report"',
   'chmod 0640 "$latest"',
@@ -79,8 +85,17 @@ if (hostReport.includes('\nfind "$REPORT_DIR" -maxdepth 1 -type f -name \'nginx-
 }
 
 [
-  "ops_log_dir_mode=\"$(stat -c '%a %U:%G' /var/log/smarttour)\"",
-  "ops_security_log_dir_mode=\"$(stat -c '%a %U:%G' /var/log/smarttour/security)\"",
+  '\n  grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp"',
+  '\n  grep -Fv "|host=${OFFICIAL_HOST}|" "$tmp" | tail -20',
+].forEach((forbidden) => {
+  if (hostReport.includes(forbidden)) {
+    throw new Error(`scripts/nginx-host-report.sh must not call raw ${forbidden.trim()}.`);
+  }
+});
+
+[
+  "ops_log_dir_mode=\"$(run_audit_file_read stat -c '%a %U:%G' /var/log/smarttour)\"",
+  "ops_security_log_dir_mode=\"$(run_audit_file_read stat -c '%a %U:%G' /var/log/smarttour/security)\"",
   "run_audit_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -perm /037",
   "run_audit_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -perm /037",
   'OK_OPS_LOG_PERMS /var/log/smarttour private',
@@ -93,12 +108,15 @@ includes('scripts/test-security-audit-contract.js', securityContract, 'OK_OPS_LO
 includes('docs/production-readiness-tracker.md', readinessTracker, 'OK_OPS_LOG_PERMS');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'HOST_REPORT_DOCKER_TIMEOUT');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'HOST_REPORT_FILE_SCAN_TIMEOUT');
+includes('docs/production-readiness-tracker.md', readinessTracker, 'HOST_REPORT_TEXT_TIMEOUT');
 includes('docs/operations-backup-reinstall.md', backupRunbook, 'OK_OPS_LOG_PERMS');
 includes('docs/security-hardening-runbook.md', securityRunbook, 'OK_OPS_LOG_PERMS');
 includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_DOCKER_TIMEOUT');
 includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_FILE_SCAN_TIMEOUT');
+includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_TEXT_TIMEOUT');
 includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_DOCKER_TIMEOUT=10s');
 includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_FILE_SCAN_TIMEOUT=30s');
+includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_TEXT_TIMEOUT=10s');
 includes('scripts/install-ops-schedule.sh', installer, '# OPS_FILE_SCAN_TIMEOUT=30s');
 
 if (packageJson.scripts['test:ops-log-permissions'] !== 'node scripts/test-ops-log-permissions-contract.js') {
