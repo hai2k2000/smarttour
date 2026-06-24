@@ -44,6 +44,8 @@ DISASTER_KEEP_BACKUPS=4
 # HTTP_RETRY_DELAY=3
 # Set this to bound Docker/container probes in the healthcheck.
 # DOCKER_CHECK_TIMEOUT=10s
+# Set this to bound systemd probes in the healthcheck.
+# SYSTEMD_CHECK_TIMEOUT=10s
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22

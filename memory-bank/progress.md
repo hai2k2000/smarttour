@@ -2495,3 +2495,10 @@
   - Container state, auth env, PostgreSQL readiness, Redis ping, recent log scans, and internal port scans now fail explicitly if the Docker command cannot return inside the timeout.
   - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-docker-timeout-contract.js` now guard/document the Docker probe timeout settings.
   - The live `/etc/default/smarttour-ops` file now sets `DOCKER_CHECK_TIMEOUT=10s` and remains `600 root:root`; healthcheck was verified with that environment file sourced.
+
+- 2026-06-24 Completed production healthcheck systemd timeout hardening:
+  - `scripts/healthcheck.sh` now runs systemd probes through `run_systemd_check`, bounded by `SYSTEMD_CHECK_TIMEOUT=10s`.
+  - Failed-unit inspection now emits `FAIL_SYSTEMD unavailable` if `systemctl --failed` cannot return, instead of treating unavailable systemd status as OK.
+  - Restore drill service result lookup is now bounded by the same systemd timeout.
+  - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-systemd-timeout-contract.js` now guard/document the systemd probe timeout settings.
+  - The live `/etc/default/smarttour-ops` file now sets `SYSTEMD_CHECK_TIMEOUT=10s` and remains `600 root:root`; healthcheck was verified with that environment file sourced.

@@ -9,6 +9,7 @@ DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"
 RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
 RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
 DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
+SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
 
 cd "$REPO_DIR"
 
@@ -16,6 +17,10 @@ failures=0
 
 run_docker_check() {
   timeout "$DOCKER_CHECK_TIMEOUT" "$@"
+}
+
+run_systemd_check() {
+  timeout "$SYSTEMD_CHECK_TIMEOUT" systemctl "$@"
 }
 
 notify_failure() {
@@ -131,16 +136,21 @@ else
   failures=$((failures + 1))
 fi
 
-critical_failed_units="$(
-  systemctl --failed --no-legend --plain 2>/dev/null \
-    | awk '{print $1}' \
-    | grep -E '^(dbus|polkit|systemd-networkd|systemd-resolved|networkd-dispatcher|docker|ssh)\.(service|socket)$' \
-    || true
-)"
-if [[ -n "$critical_failed_units" ]]; then
-  echo "FAIL_SYSTEMD critical_failed=$(echo "$critical_failed_units" | paste -sd, -)"
+systemd_failed_units_available=false
+if ! failed_units_output="$(run_systemd_check --failed --no-legend --plain 2>/dev/null)"; then
+  echo "FAIL_SYSTEMD unavailable"
   failures=$((failures + 1))
 else
+  systemd_failed_units_available=true
+  critical_failed_units="$(printf '%s\n' "$failed_units_output" \
+    | awk '{print $1}' \
+    | grep -E '^(dbus|polkit|systemd-networkd|systemd-resolved|networkd-dispatcher|docker|ssh)\.(service|socket)$' \
+    || true)"
+fi
+if [[ "${critical_failed_units:-}" != "" ]]; then
+  echo "FAIL_SYSTEMD critical_failed=$(echo "$critical_failed_units" | paste -sd, -)"
+  failures=$((failures + 1))
+elif [[ "$systemd_failed_units_available" == "true" ]]; then
   echo "OK_SYSTEMD no critical failed units"
 fi
 
@@ -199,7 +209,7 @@ elif ! grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_LOG"; then
 else
   restore_drill_epoch="$(stat -c '%Y' "$RESTORE_DRILL_LOG")"
   restore_drill_age_hours=$(( ($(date +%s) - restore_drill_epoch) / 3600 ))
-  restore_drill_result="$(systemctl show "$RESTORE_DRILL_SERVICE" -p Result --value 2>/dev/null || true)"
+  restore_drill_result="$(run_systemd_check show "$RESTORE_DRILL_SERVICE" -p Result --value 2>/dev/null || true)"
   if [[ "$restore_drill_age_hours" -gt "${RESTORE_DRILL_MAX_AGE_HOURS:-192}" ]]; then
     echo "FAIL_RESTORE_DRILL stale age=${restore_drill_age_hours}h log=$RESTORE_DRILL_LOG"
     failures=$((failures + 1))

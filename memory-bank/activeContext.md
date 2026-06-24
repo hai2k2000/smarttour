@@ -2894,3 +2894,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a dedicated healthcheck Docker timeout contract first; RED failed because `DOCKER_CHECK_TIMEOUT` coverage was missing.
   - Updated healthcheck Docker/container probes to run through a configurable `DOCKER_CHECK_TIMEOUT=10s` wrapper and fail explicitly if log or port scans cannot return.
   - Updated the live `/etc/default/smarttour-ops` with `DOCKER_CHECK_TIMEOUT=10s` while preserving `600 root:root`, then verified healthcheck with the environment file sourced.
+
+- 2026-06-24 production healthcheck systemd timeout follow-up:
+  - Found healthcheck systemd probes still used raw `systemctl --failed` and `systemctl show`; `systemctl --failed` was hidden behind `|| true`, so systemd/DBus failures could become `OK_SYSTEMD`.
+  - Added a dedicated healthcheck systemd timeout contract first; RED failed because `SYSTEMD_CHECK_TIMEOUT` coverage was missing.
+  - Updated failed-unit and restore-drill result checks to use configurable `SYSTEMD_CHECK_TIMEOUT=10s`, with `FAIL_SYSTEMD unavailable` when failed-unit inspection cannot return.
+  - Updated the live `/etc/default/smarttour-ops` with `SYSTEMD_CHECK_TIMEOUT=10s` while preserving `600 root:root`, then verified healthcheck with the environment file sourced.

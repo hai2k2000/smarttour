@@ -47,6 +47,14 @@ container exec/log command fails the healthcheck instead of hanging it:
 DOCKER_CHECK_TIMEOUT=10s
 ```
 
+Systemd probes are also bounded so a stuck systemd/DBus call fails the
+healthcheck instead of hiding or hanging the system health result:
+
+```bash
+# /etc/default/smarttour-ops
+SYSTEMD_CHECK_TIMEOUT=10s
+```
+
 ## Apply Configuration
 
 ```bash
