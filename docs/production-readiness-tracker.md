@@ -84,7 +84,8 @@ Tooling is ready:
 The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
 The offsite copy scripts abort when a configured remote SSH key is missing or
 not mode `600`.
-The daily dump sync verifies the local SHA256 checksum before upload.
+The daily dump and disaster archive sync paths verify local SHA256 checksums
+before upload.
 Restore drills reject protected production/system database names before any
 `dropdb` call, and `npm run test:restore-drill-safety` guards the contract.
 PostgreSQL and disaster backup artifacts are created private (`600`) under

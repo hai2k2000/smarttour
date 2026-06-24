@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened disaster backup checksum verification before sync:
+  - `scripts/disaster-backup.sh` now runs `sha256sum -c "$archive.sha256"` after creating the disaster archive and before cleanup/offsite upload.
+  - Extended the backup offsite contract and backup/reinstall runbook so disaster archive sync cannot upload an unverified archive/checksum pair.
+
 - Hardened offsite backup SSH key permissions:
   - `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` now abort before SCP when the configured remote key is missing or not mode `600`.
   - Extended the backup offsite contract and backup/reinstall runbook so offsite sync key permissions are enforced by automation rather than only documented.

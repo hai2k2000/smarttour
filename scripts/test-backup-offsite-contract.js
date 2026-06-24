@@ -55,7 +55,12 @@ assertRegex(
   'require_private_key_file()',
   'DISASTER_BACKUP_ABORT remote key must be 600',
   'require_private_key_file "$REMOTE_KEY"',
+  'sha256sum -c "$archive.sha256"',
 ].forEach((expected) => assertIncludes('scripts/disaster-backup.sh', disasterScript, expected));
+
+if (disasterScript.indexOf('sha256sum -c "$archive.sha256"') > disasterScript.indexOf('scp "${scp_args[@]}" "$archive" "$archive.sha256"')) {
+  throw new Error('scripts/disaster-backup.sh must verify the disaster archive checksum before uploading artifacts.');
+}
 
 assertRegex(
   'scripts/disaster-backup.sh',
@@ -87,6 +92,7 @@ assertRegex(
   'npm run ops:backup-sync',
   'npm run test:backup-offsite',
   'sha256sum -c',
+  'disaster archive sync verifies `sha256sum -c` before upload',
   'remote key must be mode `600`',
   'chmod 600 /root/.ssh/id_ed25519_backup',
 ].forEach((expected) => assertIncludes('docs/operations-backup-reinstall.md', backupRunbook, expected));

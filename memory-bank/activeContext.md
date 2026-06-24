@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Disaster backup checksum verification hardening:
+  - Hardened `scripts/disaster-backup.sh` so the generated disaster archive checksum is verified with `sha256sum -c "$archive.sha256"` before cleanup/offsite upload proceeds.
+  - Extended `scripts/test-backup-offsite-contract.js`, the backup/reinstall runbook, and production readiness tracker so disaster archive sync cannot regress to uploading an unverified archive/checksum pair.
+
 - Backup offsite SSH key permission hardening:
   - Hardened `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` so configured offsite SSH key files must exist and be mode `600` before SCP starts.
   - Extended `scripts/test-backup-offsite-contract.js`, the backup/reinstall runbook, and production readiness tracker so offsite backup sync cannot regress to using overly readable SSH keys.
