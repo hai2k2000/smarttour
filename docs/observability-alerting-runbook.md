@@ -39,6 +39,14 @@ HTTP_ATTEMPTS=6
 HTTP_RETRY_DELAY=3
 ```
 
+Docker/container probes are bounded separately so a stuck Docker daemon or
+container exec/log command fails the healthcheck instead of hanging it:
+
+```bash
+# /etc/default/smarttour-ops
+DOCKER_CHECK_TIMEOUT=10s
+```
+
 ## Apply Configuration
 
 ```bash

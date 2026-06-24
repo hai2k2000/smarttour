@@ -8,10 +8,15 @@ BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"
 RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
 RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
+DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 
 cd "$REPO_DIR"
 
 failures=0
+
+run_docker_check() {
+  timeout "$DOCKER_CHECK_TIMEOUT" "$@"
+}
 
 notify_failure() {
   local message="$1"
@@ -64,7 +69,7 @@ check_http() {
 
 check_container() {
   local name="$1"
-  if docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true; then
+  if run_docker_check docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true; then
     echo "OK_CONTAINER $name"
   else
     echo "FAIL_CONTAINER $name"
@@ -74,7 +79,11 @@ check_container() {
 
 recent_logs_for_scan() {
   local name="$1"
-  docker logs --since "${LOG_WINDOW:-10m}" "$name" 2>&1 \
+  local raw_logs
+  if ! raw_logs="$(run_docker_check docker logs --since "${LOG_WINDOW:-10m}" "$name" 2>&1)"; then
+    return 1
+  fi
+  printf '%s\n' "$raw_logs" \
     | grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
     | grep -Ev '"event":"request_failed".*"statusCode":4[0-9][0-9]' \
     || true
@@ -93,15 +102,26 @@ check_http login "$SITE_URL/login" 200
 check_http api_requires_auth "$API_URL/auth/me" 401
 check_http minio_live "http://127.0.0.1:9000/minio/health/live" 200
 
-if docker compose exec -T api printenv SMARTTOUR_AUTH_ENFORCE | grep -qx true; then
+if run_docker_check docker compose exec -T api printenv SMARTTOUR_AUTH_ENFORCE | grep -qx true; then
   echo "OK_AUTH_ENFORCE true"
 else
   echo "FAIL_AUTH_ENFORCE not true"
   failures=$((failures + 1))
 fi
 
-docker exec smarttour-postgres-1 pg_isready -U smarttour -d smarttour >/dev/null && echo "OK_POSTGRES pg_isready" || { echo "FAIL_POSTGRES pg_isready"; failures=$((failures + 1)); }
-docker exec smarttour-redis-1 redis-cli ping | grep -qx PONG && echo "OK_REDIS ping" || { echo "FAIL_REDIS ping"; failures=$((failures + 1)); }
+if run_docker_check docker exec smarttour-postgres-1 pg_isready -U smarttour -d smarttour >/dev/null; then
+  echo "OK_POSTGRES pg_isready"
+else
+  echo "FAIL_POSTGRES pg_isready"
+  failures=$((failures + 1))
+fi
+
+if run_docker_check docker exec smarttour-redis-1 redis-cli ping | grep -qx PONG; then
+  echo "OK_REDIS ping"
+else
+  echo "FAIL_REDIS ping"
+  failures=$((failures + 1))
+fi
 
 root_mode="$(stat -c '%a' /)"
 if [[ "$root_mode" == "755" ]]; then
@@ -191,21 +211,30 @@ else
   fi
 fi
 
-if recent_logs_for_scan smarttour-api-1 | grep -Eiq 'error|exception|failed'; then
+if ! api_logs="$(recent_logs_for_scan smarttour-api-1)"; then
+  echo "FAIL_LOG api unavailable"
+  failures=$((failures + 1))
+elif printf '%s\n' "$api_logs" | grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG api has recent error signature"
   failures=$((failures + 1))
 else
   echo "OK_LOG api"
 fi
 
-if recent_logs_for_scan smarttour-web-1 | grep -Eiq 'error|exception|failed'; then
+if ! web_logs="$(recent_logs_for_scan smarttour-web-1)"; then
+  echo "FAIL_LOG web unavailable"
+  failures=$((failures + 1))
+elif printf '%s\n' "$web_logs" | grep -Eiq 'error|exception|failed'; then
   echo "FAIL_LOG web has recent error signature"
   failures=$((failures + 1))
 else
   echo "OK_LOG web"
 fi
 
-if docker ps --format '{{.Names}} {{.Ports}}' | grep -E 'smarttour-(api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
+if ! ports_output="$(run_docker_check docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null)"; then
+  echo "FAIL_PORTS docker_ps_unavailable"
+  failures=$((failures + 1))
+elif printf '%s\n' "$ports_output" | grep -E 'smarttour-(api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour service exposes host ports on all interfaces"
   failures=$((failures + 1))
 else

@@ -2489,3 +2489,9 @@
   - `scripts/healthcheck.sh` now passes `--connect-timeout "$HTTP_CONNECT_TIMEOUT"` and `--max-time "$HTTP_MAX_TIME"` to route-probe curl calls, with existing bounded attempts and retry delay.
   - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-http-timeout-contract.js` now guard/document the HTTP route probe timeout settings.
   - A live failure probe with `HTTP_ATTEMPTS=1`, `HTTP_CONNECT_TIMEOUT=1`, `HTTP_MAX_TIME=2`, and closed localhost URLs confirmed route checks fail quickly with `FAIL_HTTP`, and the normal healthcheck returns to `HEALTHCHECK_OK`.
+
+- 2026-06-24 Completed production healthcheck Docker timeout hardening:
+  - `scripts/healthcheck.sh` now runs Docker/container probes through `run_docker_check`, bounded by `DOCKER_CHECK_TIMEOUT=10s`.
+  - Container state, auth env, PostgreSQL readiness, Redis ping, recent log scans, and internal port scans now fail explicitly if the Docker command cannot return inside the timeout.
+  - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-docker-timeout-contract.js` now guard/document the Docker probe timeout settings.
+  - The live `/etc/default/smarttour-ops` file now sets `DOCKER_CHECK_TIMEOUT=10s` and remains `600 root:root`; healthcheck was verified with that environment file sourced.

@@ -2888,3 +2888,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `scripts/healthcheck.sh` bounded webhook alert delivery but route probes in `check_http()` still called curl without explicit connect/total timeouts.
   - Added a dedicated healthcheck HTTP timeout contract first; RED failed because `HTTP_CONNECT_TIMEOUT` coverage was missing.
   - Updated route probes to use configurable `HTTP_CONNECT_TIMEOUT`, `HTTP_MAX_TIME`, `HTTP_ATTEMPTS`, and `HTTP_RETRY_DELAY` values so slow endpoints cannot hang the health timer.
+
+- 2026-06-24 production healthcheck Docker timeout follow-up:
+  - Found healthcheck Docker/container probes used raw `docker inspect`, `docker logs`, `docker compose exec`, `docker exec`, and `docker ps` calls after HTTP probes were bounded.
+  - Added a dedicated healthcheck Docker timeout contract first; RED failed because `DOCKER_CHECK_TIMEOUT` coverage was missing.
+  - Updated healthcheck Docker/container probes to run through a configurable `DOCKER_CHECK_TIMEOUT=10s` wrapper and fail explicitly if log or port scans cannot return.
+  - Updated the live `/etc/default/smarttour-ops` with `DOCKER_CHECK_TIMEOUT=10s` while preserving `600 root:root`, then verified healthcheck with the environment file sourced.
