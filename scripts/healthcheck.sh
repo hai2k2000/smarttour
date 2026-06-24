@@ -12,6 +12,7 @@ DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
 CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
 HEALTHCHECK_FILE_SCAN_TIMEOUT="${HEALTHCHECK_FILE_SCAN_TIMEOUT:-30s}"
+HEALTHCHECK_FILE_READ_TIMEOUT="${HEALTHCHECK_FILE_READ_TIMEOUT:-10s}"
 HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT="${HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT:-5s}"
 
 cd "$REPO_DIR"
@@ -32,6 +33,10 @@ run_checksum_check() {
 
 run_healthcheck_file_scan() {
   timeout "$HEALTHCHECK_FILE_SCAN_TIMEOUT" find "$@"
+}
+
+run_healthcheck_file_read() {
+  timeout "$HEALTHCHECK_FILE_READ_TIMEOUT" "$@"
 }
 
 run_alert_payload_command() {
@@ -223,11 +228,11 @@ fi
 if [[ ! -f "$RESTORE_DRILL_LOG" ]]; then
   echo "FAIL_RESTORE_DRILL missing_log log=$RESTORE_DRILL_LOG"
   failures=$((failures + 1))
-elif ! grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_LOG"; then
+elif ! run_healthcheck_file_read grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_LOG"; then
   echo "FAIL_RESTORE_DRILL missing_success_marker log=$RESTORE_DRILL_LOG"
   failures=$((failures + 1))
 else
-  restore_drill_epoch="$(stat -c '%Y' "$RESTORE_DRILL_LOG")"
+  restore_drill_epoch="$(run_healthcheck_file_read stat -c '%Y' "$RESTORE_DRILL_LOG")"
   restore_drill_age_hours=$(( ($(date +%s) - restore_drill_epoch) / 3600 ))
   restore_drill_result="$(run_systemd_check show "$RESTORE_DRILL_SERVICE" -p Result --value 2>/dev/null || true)"
   if [[ "$restore_drill_age_hours" -gt "${RESTORE_DRILL_MAX_AGE_HOURS:-192}" ]]; then

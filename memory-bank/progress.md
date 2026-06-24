@@ -2670,3 +2670,9 @@
   - Systemd reload/enable/list-timer operations remain bounded separately by `OPS_SYSTEMD_TIMEOUT=30s`.
   - Backup/security runbooks, production readiness tracker, `npm run test:ops-log-permissions`, and `npm run test:ops-install-systemd-timeout` now guard/document the file-scan timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `OPS_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `find` returns status 124.
+
+- 2026-06-24 Completed healthcheck restore-drill file-read timeout hardening:
+  - `scripts/healthcheck.sh` now bounds restore-drill log marker and mtime reads with `HEALTHCHECK_FILE_READ_TIMEOUT=10s`.
+  - Restore-drill service result checks remain bounded separately by `SYSTEMD_CHECK_TIMEOUT=10s`.
+  - The ops env template, observability runbook, backup runbook, production readiness tracker, and `npm run test:healthcheck-restore-drill` now guard/document the file-read timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_FILE_READ_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.

@@ -3066,3 +3066,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the ops log permissions and ops installer timeout contracts first; RED failed because `OPS_FILE_SCAN_TIMEOUT` coverage was missing.
   - Added `OPS_FILE_SCAN_TIMEOUT=30s` and `run_ops_file_scan`, then routed log/report permission normalization scans through the bounded wrapper.
   - Updated backup/security runbooks, the production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
+
+- 2026-06-24 healthcheck restore-drill file-read timeout follow-up:
+  - Found `scripts/healthcheck.sh` still used raw `grep` and `stat` against `/var/log/smarttour/restore-drill.log`. A stuck log read could hang the healthcheck timer after backup checks.
+  - Extended the healthcheck restore-drill contract first; RED failed because `HEALTHCHECK_FILE_READ_TIMEOUT` coverage was missing.
+  - Added `HEALTHCHECK_FILE_READ_TIMEOUT=10s` and `run_healthcheck_file_read`, then routed restore-drill marker and mtime reads through the bounded wrapper.
+  - Updated the ops env template, observability runbook, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-read wrapper probe confirmed stuck `grep` returns timeout status 124.
