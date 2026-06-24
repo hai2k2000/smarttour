@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 AUDIT_COMMAND_TIMEOUT="${AUDIT_COMMAND_TIMEOUT:-10s}"
+AUDIT_FILE_SCAN_TIMEOUT="${AUDIT_FILE_SCAN_TIMEOUT:-30s}"
 NPM_AUDIT_TIMEOUT="${NPM_AUDIT_TIMEOUT:-120s}"
 
 cd "$REPO_DIR"
@@ -11,6 +12,10 @@ failures=0
 
 run_audit_command() {
   timeout "$AUDIT_COMMAND_TIMEOUT" "$@"
+}
+
+run_audit_file_scan() {
+  timeout "$AUDIT_FILE_SCAN_TIMEOUT" find "$@"
 }
 
 run_npm_audit() {
@@ -40,7 +45,7 @@ check_private_backup_artifacts() {
   fi
 
   local exposed_file
-  exposed_file="$(find "$dir" -maxdepth 1 -type f \( -name "$pattern" -o -name "$pattern.sha256" \) -perm /077 -print -quit)"
+  exposed_file="$(run_audit_file_scan "$dir" -maxdepth 1 -type f \( -name "$pattern" -o -name "$pattern.sha256" \) -perm /077 -print -quit)"
   if [[ -n "$exposed_file" ]]; then
     echo "FAIL_BACKUP_PERMS $label exposed=$exposed_file"
     failures=$((failures + 1))
@@ -51,7 +56,7 @@ check_private_backup_artifacts() {
 
 check_disaster_backup_staging_dirs() {
   local staging_dir
-  staging_dir="$(find /var/backups/smarttour/disaster -maxdepth 1 -type d -name 'smarttour-disaster-*' -print -quit)"
+  staging_dir="$(run_audit_file_scan /var/backups/smarttour/disaster -maxdepth 1 -type d -name 'smarttour-disaster-*' -print -quit)"
   if [[ -n "$staging_dir" ]]; then
     echo "FAIL_DISASTER_STAGING expanded=$staging_dir"
     failures=$((failures + 1))
@@ -107,8 +112,8 @@ fi
 
 ops_log_dir_mode="$(stat -c '%a %U:%G' /var/log/smarttour)"
 ops_security_log_dir_mode="$(stat -c '%a %U:%G' /var/log/smarttour/security)"
-exposed_ops_log="$(find /var/log/smarttour -maxdepth 1 -type f -name '*.log' -perm /037 -print -quit)"
-exposed_security_report="$(find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -perm /037 -print -quit)"
+exposed_ops_log="$(run_audit_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -perm /037 -print -quit)"
+exposed_security_report="$(run_audit_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -perm /037 -print -quit)"
 if [[ "$ops_log_dir_mode" == "750 root:root" ]] \
   && [[ "$ops_security_log_dir_mode" == "750 root:root" ]] \
   && [[ -z "$exposed_ops_log" ]] \

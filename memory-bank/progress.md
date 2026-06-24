@@ -2640,3 +2640,9 @@
   - Latest backup discovery for offsite sync and restore-drill now uses bounded file-scan wrappers before checksum, SCP, or restore work starts.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the file-scan timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `BACKUP_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; fake timeout probes verified status 124 for backup retention, sync discovery, and restore discovery.
+
+- 2026-06-24 Completed security audit file-scan timeout hardening:
+  - `scripts/security-audit.sh` now bounds backup artifact, disaster staging, ops log, and security report file scans with `AUDIT_FILE_SCAN_TIMEOUT=30s`.
+  - Docker, sshd, systemd, and npm audit probes remain bounded separately by the existing audit timeouts.
+  - `/etc/default/smarttour-ops` template, security runbook, production readiness tracker, and `npm run test:security-audit` now guard/document the file-scan timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `AUDIT_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified timeout status 124.

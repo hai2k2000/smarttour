@@ -73,6 +73,8 @@ DISASTER_KEEP_BACKUPS=4
 # HOST_REPORT_DOCKER_TIMEOUT=10s
 # Set this to bound systemd operations in this installer.
 # OPS_SYSTEMD_TIMEOUT=30s
+# Set this to bound file scans in the security audit.
+# AUDIT_FILE_SCAN_TIMEOUT=30s
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22
