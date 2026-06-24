@@ -10,9 +10,11 @@ ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
 DEPLOY_GIT_TIMEOUT="${DEPLOY_GIT_TIMEOUT:-5m}"
 DEPLOY_LOCAL_GIT_TIMEOUT="${DEPLOY_LOCAL_GIT_TIMEOUT:-30s}"
+DEPLOY_SMARTLINK_GUARD_TIMEOUT="${DEPLOY_SMARTLINK_GUARD_TIMEOUT:-10m}"
 DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"
 DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"
 DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"
+DEPLOY_HEALTHCHECK_TIMEOUT="${DEPLOY_HEALTHCHECK_TIMEOUT:-5m}"
 
 cd "$REPO_DIR"
 
@@ -28,12 +30,20 @@ run_deploy_prisma() {
   timeout "$DEPLOY_PRISMA_MIGRATE_TIMEOUT" npx prisma "$@"
 }
 
+run_deploy_smartlink_guard() {
+  timeout "$DEPLOY_SMARTLINK_GUARD_TIMEOUT" "$REPO_DIR/scripts/smartlink-legacy-audit.sh" "$@"
+}
+
 run_deploy_compose_build() {
   timeout "$DEPLOY_DOCKER_BUILD_TIMEOUT" docker compose "$@"
 }
 
 run_deploy_compose_up() {
   timeout "$DEPLOY_DOCKER_UP_TIMEOUT" docker compose "$@"
+}
+
+run_deploy_healthcheck() {
+  SITE_URL="$SITE_URL" API_URL="$API_URL" timeout "$DEPLOY_HEALTHCHECK_TIMEOUT" "$REPO_DIR/scripts/healthcheck.sh"
 }
 
 validate_branch_name() {
@@ -91,7 +101,7 @@ target_commit="$(run_deploy_local_git rev-parse --short HEAD)"
 echo "DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit"
 
 echo "DEPLOY_PHASE smartlink_guard"
-"$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard
+run_deploy_smartlink_guard --mode=guard
 
 echo "DEPLOY_PHASE prisma_migrate_deploy"
 run_deploy_prisma migrate deploy
@@ -103,6 +113,6 @@ echo "DEPLOY_PHASE docker_up"
 run_deploy_compose_up up -d api web nginx
 
 echo "DEPLOY_PHASE healthcheck"
-SITE_URL="$SITE_URL" API_URL="$API_URL" "$REPO_DIR/scripts/healthcheck.sh"
+run_deploy_healthcheck
 
 echo "DEPLOY_PRODUCTION_OK branch=$BRANCH commit=$(run_deploy_local_git rev-parse --short HEAD)"

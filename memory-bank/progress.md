@@ -2729,3 +2729,9 @@
   - SSH validation/reload and Nginx validation/reload remain bounded separately by `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
   - The security hardening runbook, production readiness tracker, and `npm run test:security-audit` now guard/document the installer text-filter timeout setting.
   - A fake wrapper probe verified a stuck `grep` returns status 124 without running the real security installer.
+
+- 2026-06-24 Completed production deploy script phase timeout hardening:
+  - `scripts/deploy-production.sh` now wraps the SmartLink guard phase with `run_deploy_smartlink_guard`, bounded by `DEPLOY_SMARTLINK_GUARD_TIMEOUT=10m`.
+  - The post-deploy healthcheck phase now runs through `run_deploy_healthcheck`, bounded by `DEPLOY_HEALTHCHECK_TIMEOUT=5m`.
+  - The GitHub Actions runbook, production readiness tracker, and `node scripts/test-github-actions-contract.js` now guard/document both deploy phase timeout settings.
+  - Fake wrapper probes verified stuck SmartLink guard and healthcheck calls return status 124 without running the real production deploy.

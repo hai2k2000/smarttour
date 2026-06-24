@@ -3126,3 +3126,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended `npm run test:security-audit` first; RED failed because `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT` coverage was missing.
   - Added `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s` and `run_security_install_text_filter` for the effective-config grep, plus security runbook/readiness coverage.
   - A fake `grep` timeout probe verified status 124 without running the real security installer or reloading SSH/Nginx.
+
+- 2026-06-24 production deploy script phase timeout follow-up:
+  - Found `scripts/deploy-production.sh` still invoked the SmartLink guard and post-deploy healthcheck scripts directly at the deploy layer.
+  - Extended `node scripts/test-github-actions-contract.js` first; RED failed because `DEPLOY_SMARTLINK_GUARD_TIMEOUT` and `DEPLOY_HEALTHCHECK_TIMEOUT` coverage was missing.
+  - Added `DEPLOY_SMARTLINK_GUARD_TIMEOUT=10m`, `DEPLOY_HEALTHCHECK_TIMEOUT=5m`, `run_deploy_smartlink_guard`, and `run_deploy_healthcheck`, preserving the existing deploy phase order.
+  - Verification used source contracts, shell syntax, and fake timeout probes only; real `scripts/deploy-production.sh` remains intentionally unrun.

@@ -123,8 +123,14 @@ includes(deployScript, 'run_deploy_local_git diff --cached --quiet', 'Server-sid
 includes(deployScript, 'run_deploy_local_git status --short', 'Server-side deploy status output must be bounded.');
 includes(deployScript, 'run_deploy_local_git rev-parse --short HEAD', 'Server-side deploy commit markers must be bounded.');
 includes(deployScript, 'DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"', 'Server-side deploy must define Prisma migration timeout.');
+includes(deployScript, 'DEPLOY_SMARTLINK_GUARD_TIMEOUT="${DEPLOY_SMARTLINK_GUARD_TIMEOUT:-10m}"', 'Server-side deploy must define SmartLink guard phase timeout.');
+includes(deployScript, 'DEPLOY_HEALTHCHECK_TIMEOUT="${DEPLOY_HEALTHCHECK_TIMEOUT:-5m}"', 'Server-side deploy must define healthcheck phase timeout.');
 includes(deployScript, 'run_deploy_prisma()', 'Server-side deploy must wrap Prisma migration commands.');
+includes(deployScript, 'run_deploy_smartlink_guard()', 'Server-side deploy must wrap SmartLink guard script.');
+includes(deployScript, 'run_deploy_healthcheck()', 'Server-side deploy must wrap healthcheck script.');
 includes(deployScript, 'timeout "$DEPLOY_PRISMA_MIGRATE_TIMEOUT" npx prisma "$@"', 'Server-side deploy Prisma migration must be bounded.');
+includes(deployScript, 'timeout "$DEPLOY_SMARTLINK_GUARD_TIMEOUT" "$REPO_DIR/scripts/smartlink-legacy-audit.sh" "$@"', 'Server-side deploy SmartLink guard must be bounded.');
+includes(deployScript, 'timeout "$DEPLOY_HEALTHCHECK_TIMEOUT" "$REPO_DIR/scripts/healthcheck.sh"', 'Server-side deploy healthcheck must be bounded.');
 includes(deployScript, 'DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"', 'Server-side deploy must define Docker build timeout.');
 includes(deployScript, 'DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"', 'Server-side deploy must define Docker up timeout.');
 includes(deployScript, 'run_deploy_compose_build()', 'Server-side deploy must wrap Docker build commands.');
@@ -132,6 +138,7 @@ includes(deployScript, 'run_deploy_compose_up()', 'Server-side deploy must wrap 
 includes(deployScript, 'timeout "$DEPLOY_DOCKER_BUILD_TIMEOUT" docker compose "$@"', 'Server-side deploy Docker build must be bounded.');
 includes(deployScript, 'timeout "$DEPLOY_DOCKER_UP_TIMEOUT" docker compose "$@"', 'Server-side deploy Docker up must be bounded.');
 includes(deployScript, 'DEPLOY_PHASE smartlink_guard', 'Server-side deploy must log the SmartLink guard phase.');
+includes(deployScript, 'run_deploy_smartlink_guard --mode=guard', 'Server-side deploy must run SmartLink guard through the bounded wrapper.');
 includes(deployScript, 'DEPLOY_PHASE prisma_migrate_deploy', 'Server-side deploy must log the Prisma migration phase.');
 includes(deployScript, 'run_deploy_prisma migrate deploy', 'Server-side deploy must run Prisma production migrations through the bounded wrapper.');
 includes(deployScript, 'DEPLOY_PHASE docker_build', 'Server-side deploy must log the Docker build phase.');
@@ -139,6 +146,7 @@ includes(deployScript, 'run_deploy_compose_build build api web', 'Server-side de
 includes(deployScript, 'DEPLOY_PHASE docker_up', 'Server-side deploy must log the Docker up phase.');
 includes(deployScript, 'run_deploy_compose_up up -d api web nginx', 'Server-side deploy must bring up services through the bounded Docker up wrapper.');
 includes(deployScript, 'DEPLOY_PHASE healthcheck', 'Server-side deploy must log the healthcheck phase.');
+includes(deployScript, 'run_deploy_healthcheck', 'Server-side deploy must run healthcheck through the bounded wrapper.');
 excludes(deployScript, '\nnpx prisma migrate deploy', 'Server-side deploy must not call raw Prisma migrate deploy.');
 excludes(deployScript, '\ndocker compose build api web', 'Server-side deploy must not call raw docker compose build.');
 excludes(deployScript, '\ndocker compose up -d api web nginx', 'Server-side deploy must not call raw docker compose up.');
@@ -149,6 +157,8 @@ excludes(deployScript, '\nif [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --quie
 excludes(deployScript, '\nif [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --cached --quiet', 'Server-side deploy must not call raw local cached git diff.');
 excludes(deployScript, '\n  git status --short', 'Server-side deploy must not call raw local git status.');
 excludes(deployScript, '\nuntracked_files="$(git ls-files --others --exclude-standard)"', 'Server-side deploy must not call raw local git ls-files.');
+excludes(deployScript, '\n"$REPO_DIR/scripts/smartlink-legacy-audit.sh" --mode=guard', 'Server-side deploy must not call raw SmartLink guard script.');
+excludes(deployScript, '\nSITE_URL="$SITE_URL" API_URL="$API_URL" "$REPO_DIR/scripts/healthcheck.sh"', 'Server-side deploy must not call raw healthcheck script.');
 excludes(deployScript, '\nstarting_commit="$(git rev-parse --short HEAD)"', 'Server-side deploy must not call raw local git rev-parse for starting commit.');
 excludes(deployScript, '\ntarget_commit="$(git rev-parse --short HEAD)"', 'Server-side deploy must not call raw local git rev-parse for target commit.');
 excludes(deployScript, 'commit=$(git rev-parse --short HEAD)', 'Server-side deploy must not call raw local git rev-parse for final status.');
@@ -170,7 +180,7 @@ const deployPhaseOrder = [
   'run_deploy_git pull --ff-only origin "$BRANCH"',
   'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit',
   'DEPLOY_PHASE smartlink_guard',
-  'smartlink-legacy-audit.sh" --mode=guard',
+  '\nrun_deploy_smartlink_guard --mode=guard\n',
   'DEPLOY_PHASE prisma_migrate_deploy',
   'run_deploy_prisma migrate deploy',
   'DEPLOY_PHASE docker_build',
@@ -178,7 +188,7 @@ const deployPhaseOrder = [
   'DEPLOY_PHASE docker_up',
   'run_deploy_compose_up up -d api web nginx',
   'DEPLOY_PHASE healthcheck',
-  'scripts/healthcheck.sh',
+  '\nrun_deploy_healthcheck\n',
   'DEPLOY_PRODUCTION_OK',
 ];
 for (let index = 1; index < deployPhaseOrder.length; index += 1) {
@@ -218,6 +228,8 @@ for (const text of [
   'DEPLOY_REVISION',
   'Prisma migrations',
   'DEPLOY_PRISMA_MIGRATE_TIMEOUT',
+  'DEPLOY_SMARTLINK_GUARD_TIMEOUT',
+  'DEPLOY_HEALTHCHECK_TIMEOUT',
   'SMARTLINK_AUDIT_NODE_TIMEOUT',
   'SMARTLINK_AUDIT_DOCKER_TIMEOUT',
   'DEPLOY_DOCKER_BUILD_TIMEOUT',
