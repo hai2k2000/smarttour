@@ -75,7 +75,8 @@
     "test:ops-logrotate": "node scripts/test-ops-logrotate-contract.js",
     "test:ops-log-permissions": "node scripts/test-ops-log-permissions-contract.js",
     "test:ops-install-systemd-timeout": "node scripts/test-ops-install-systemd-timeout-contract.js",
-    "test:backup-artifact-permissions": "node scripts/test-backup-artifact-permissions-contract.js"
+    "test:backup-artifact-permissions": "node scripts/test-backup-artifact-permissions-contract.js",
+    "test:deploy-preview-timeout": "node scripts/test-deploy-preview-timeout-contract.js"
   },
   "devDependencies": {
     "playwright": "^1.60.0",

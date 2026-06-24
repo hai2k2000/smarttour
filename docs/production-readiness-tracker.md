@@ -117,6 +117,7 @@ Deploy tooling:
 - `.github/workflows/smarttour-ci.yml`
 - `.github/workflows/deploy-production.yml`
 
+Completed implementation: preview deploy build/Docker operations in `scripts/deploy-preview.sh` are bounded by `PREVIEW_NPM_BUILD_TIMEOUT=20m`, `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`, and `PREVIEW_DOCKER_COMMAND_TIMEOUT=5m`, guarded by `node scripts/test-deploy-preview-timeout-contract.js`.
 Completed implementation: GitHub Actions now has PR/push CI for lockfile install, audit, source contracts, typechecks, and API/Web Docker builds. Production deploy is available only through manual `workflow_dispatch` and runs the server-side `scripts/deploy-production.sh` over SSH.
 Completed implementation: production deploy SSH setup now uses bounded `ssh-keyscan` and non-interactive SSH with connect/server-alive timeouts.
 Completed implementation: production deploy validates manual dispatch inputs and server-side branch names before SSH/git deploy commands run.

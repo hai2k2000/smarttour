@@ -2573,3 +2573,9 @@
   - The existing Docker fallback remains bounded by `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m`.
   - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker now guard/document both SmartLink guard timeout paths.
   - A fake local-node hang probe verified the preferred local Node path fails fast with timeout status `124`.
+
+- 2026-06-24 Completed preview deploy timeout hardening:
+  - `scripts/deploy-preview.sh` now runs API/Web npm builds through `run_preview_npm`, bounded by `PREVIEW_NPM_BUILD_TIMEOUT=20m`.
+  - Docker image builds now run through `run_preview_compose_build`, bounded by `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`.
+  - Docker rm, compose up, and web preview run commands now run through bounded Docker command wrappers with `PREVIEW_DOCKER_COMMAND_TIMEOUT=5m`.
+  - `node scripts/test-deploy-preview-timeout-contract.js` is exposed in `package.json`, wired into CI source contracts, documented in the ops/readiness runbooks, and verified with fake timeout probes for npm build, Docker build, and Docker run paths.

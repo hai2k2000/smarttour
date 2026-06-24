@@ -150,6 +150,10 @@ cd /opt/smarttour
 scripts/deploy-preview.sh
 ```
 
+The preview deploy script bounds build and Docker operations with
+`PREVIEW_NPM_BUILD_TIMEOUT=20m`, `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`, and
+`PREVIEW_DOCKER_COMMAND_TIMEOUT=5m` by default.
+
 ## Production Network Notes
 
 - Web preview host port `3001` is bound to `127.0.0.1`.

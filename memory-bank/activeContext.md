@@ -2970,3 +2970,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the GitHub Actions/deploy contract first; RED failed because `SMARTLINK_AUDIT_NODE_TIMEOUT` coverage was missing.
   - Updated the SmartLink wrapper to run local Prisma-client detection and the local audit command through `SMARTLINK_AUDIT_NODE_TIMEOUT=10m`, while keeping the existing Docker fallback.
   - Updated the GitHub Actions runbook, SmartLink migration runbook, and production readiness tracker; a fake local-node hang probe confirmed the local path fails fast with timeout status `124`.
+
+- 2026-06-24 preview deploy timeout follow-up:
+  - Found `scripts/deploy-preview.sh` still ran raw `npm run build`, `docker compose build/up`, `docker rm`, and `docker run`, so a stuck local build or Docker operation could hang preview deploys.
+  - Added a dedicated deploy-preview timeout contract first; RED failed because `PREVIEW_NPM_BUILD_TIMEOUT` coverage was missing.
+  - Updated preview deploy to run npm builds through `PREVIEW_NPM_BUILD_TIMEOUT=20m`, Docker image builds through `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`, and Docker rm/up/run commands through `PREVIEW_DOCKER_COMMAND_TIMEOUT=5m`.
+  - Wired the contract into package scripts and CI, updated ops/readiness docs, and verified fake timeout probes for npm build, Docker build, and Docker run paths.
