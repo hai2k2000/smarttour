@@ -2598,3 +2598,9 @@
   - This specifically bounds volume archive work after `docker compose stop`, so a stuck local archive command exits and lets the existing restart trap bring the Compose stack back up.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the archive timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` while remaining `600 root:root`; a fake volume-tar timeout probe verified status 124 and `docker compose up -d` restart-trap execution.
+
+- 2026-06-24 Completed healthcheck backup checksum timeout hardening:
+  - `scripts/healthcheck.sh` now runs PostgreSQL and disaster backup checksum verification through `run_checksum_check`, bounded by `CHECKSUM_CHECK_TIMEOUT=5m`.
+  - Existing healthcheck semantics are preserved: valid checksums still emit `OK_BACKUP` / `OK_DISASTER_BACKUP`, while missing, invalid, or timed-out checksum verification emits the existing checksum failure messages.
+  - `/etc/default/smarttour-ops` template, observability runbook, production readiness tracker, and `npm run test:healthcheck-backup` now guard/document the checksum timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `CHECKSUM_CHECK_TIMEOUT=5m` while remaining `600 root:root`; a fake checksum wrapper probe verified timeout status 124.

@@ -2994,3 +2994,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_ARCHIVE_TIMEOUT` coverage was missing.
   - Updated disaster backup archive creation, volume/config tar commands, archive checksum creation/verification, and SHA256 manifest generation to run through `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake volume archive timeout probe confirmed the script exits with status 124 and the restart trap runs `docker compose up -d`.
+
+- 2026-06-24 healthcheck backup checksum timeout follow-up:
+  - Found `scripts/healthcheck.sh` still verified PostgreSQL and disaster backup SHA256 files with raw `sha256sum -c`, so a large or stuck archive read could hang the healthcheck timer.
+  - Extended the healthcheck backup contract first; RED failed because `CHECKSUM_CHECK_TIMEOUT` coverage was missing.
+  - Updated backup checksum verification to run through `CHECKSUM_CHECK_TIMEOUT=5m`, preserving existing `OK_BACKUP` / `OK_DISASTER_BACKUP` and checksum-failure behavior.
+  - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake checksum wrapper probe confirmed stuck checksum commands return timeout status 124.

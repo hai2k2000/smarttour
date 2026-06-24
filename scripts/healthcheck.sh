@@ -10,6 +10,7 @@ RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
 RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
 DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
+CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
 
 cd "$REPO_DIR"
 
@@ -21,6 +22,10 @@ run_docker_check() {
 
 run_systemd_check() {
   timeout "$SYSTEMD_CHECK_TIMEOUT" systemctl "$@"
+}
+
+run_checksum_check() {
+  timeout "$CHECKSUM_CHECK_TIMEOUT" sha256sum "$@"
 }
 
 notify_failure() {
@@ -173,7 +178,7 @@ else
   if [[ "$backup_age_hours" -gt "${BACKUP_MAX_AGE_HOURS:-30}" ]]; then
     echo "FAIL_BACKUP stale age=${backup_age_hours}h file=$latest_backup_file"
     failures=$((failures + 1))
-  elif [[ -f "$latest_backup_file.sha256" ]] && sha256sum -c "$latest_backup_file.sha256" >/dev/null 2>&1; then
+  elif [[ -f "$latest_backup_file.sha256" ]] && run_checksum_check -c "$latest_backup_file.sha256" >/dev/null 2>&1; then
     echo "OK_BACKUP age=${backup_age_hours}h checksum=valid file=$latest_backup_file"
   else
     echo "FAIL_BACKUP checksum missing_or_invalid file=$latest_backup_file"
@@ -192,7 +197,7 @@ else
   if [[ "$disaster_backup_age_hours" -gt "${DISASTER_BACKUP_MAX_AGE_HOURS:-192}" ]]; then
     echo "FAIL_DISASTER_BACKUP stale age=${disaster_backup_age_hours}h file=$latest_disaster_backup_file"
     failures=$((failures + 1))
-  elif [[ -f "$latest_disaster_backup_file.sha256" ]] && sha256sum -c "$latest_disaster_backup_file.sha256" >/dev/null 2>&1; then
+  elif [[ -f "$latest_disaster_backup_file.sha256" ]] && run_checksum_check -c "$latest_disaster_backup_file.sha256" >/dev/null 2>&1; then
     echo "OK_DISASTER_BACKUP age=${disaster_backup_age_hours}h checksum=valid file=$latest_disaster_backup_file"
   else
     echo "FAIL_DISASTER_BACKUP checksum missing_or_invalid file=$latest_disaster_backup_file"

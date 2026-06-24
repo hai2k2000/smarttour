@@ -16,16 +16,27 @@ function includes(file, content, expected) {
   'DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"',
   'latest_disaster_backup="$(find "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name \'smarttour-disaster-*.tar.gz\'',
   'DISASTER_BACKUP_MAX_AGE_HOURS:-192',
+  'CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"',
+  'run_checksum_check()',
+  'timeout "$CHECKSUM_CHECK_TIMEOUT" sha256sum "$@"',
   'OK_DISASTER_BACKUP age=${disaster_backup_age_hours}h checksum=valid file=$latest_disaster_backup_file',
   'FAIL_DISASTER_BACKUP no disaster backup in $DISASTER_BACKUP_DIR',
   'FAIL_DISASTER_BACKUP stale age=${disaster_backup_age_hours}h file=$latest_disaster_backup_file',
   'FAIL_DISASTER_BACKUP checksum missing_or_invalid file=$latest_disaster_backup_file',
-  'sha256sum -c "$latest_disaster_backup_file.sha256"',
+  'run_checksum_check -c "$latest_backup_file.sha256"',
+  'run_checksum_check -c "$latest_disaster_backup_file.sha256"',
 ].forEach((expected) => includes('scripts/healthcheck.sh', healthcheck, expected));
 
 includes('scripts/install-ops-schedule.sh', opsSchedule, 'DISASTER_BACKUP_MAX_AGE_HOURS=192');
+includes('scripts/install-ops-schedule.sh', opsSchedule, '# CHECKSUM_CHECK_TIMEOUT=5m');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'OK_DISASTER_BACKUP');
+includes('docs/production-readiness-tracker.md', readinessTracker, 'CHECKSUM_CHECK_TIMEOUT');
 includes('docs/observability-alerting-runbook.md', observabilityRunbook, 'OK_DISASTER_BACKUP');
+includes('docs/observability-alerting-runbook.md', observabilityRunbook, 'CHECKSUM_CHECK_TIMEOUT');
+
+if (healthcheck.includes('sha256sum -c "$latest_backup_file.sha256"') || healthcheck.includes('sha256sum -c "$latest_disaster_backup_file.sha256"')) {
+  throw new Error('scripts/healthcheck.sh must not run raw sha256sum checksum verification.');
+}
 
 if (packageJson.scripts['test:healthcheck-backup'] !== 'node scripts/test-healthcheck-backup-contract.js') {
   throw new Error('package.json must expose test:healthcheck-backup');
