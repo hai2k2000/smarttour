@@ -23,9 +23,16 @@ const ci = read('.github/workflows/smarttour-ci.yml');
 for (const expected of [
   'umask 077',
   'chmod 700 "$BACKUP_DIR"',
+  'cleanup_tmp_backup()',
+  'trap cleanup_tmp_backup EXIT',
+  'rm -f "$tmp_file"',
   'chmod 600 "$backup_file" "$checksum_file"',
 ]) {
   includes('scripts/backup-postgres.sh', postgresBackup, expected);
+}
+
+if (postgresBackup.indexOf('trap cleanup_tmp_backup EXIT') > postgresBackup.indexOf('docker exec "$POSTGRES_CONTAINER" pg_dump')) {
+  throw new Error('scripts/backup-postgres.sh must install tmp cleanup before pg_dump starts.');
 }
 
 for (const expected of [
@@ -38,6 +45,7 @@ for (const expected of [
 
 for (const expected of [
   'Backup artifacts must be private',
+  'Temporary backup files are removed automatically if backup creation fails',
   'chmod 700 /opt/smarttour/backups/postgres',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz',
   'chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz.sha256',

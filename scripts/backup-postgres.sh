@@ -18,6 +18,11 @@ backup_file="$BACKUP_DIR/smarttour-$timestamp.sql.gz"
 tmp_file="$backup_file.tmp"
 checksum_file="$backup_file.sha256"
 
+cleanup_tmp_backup() {
+  rm -f "$tmp_file"
+}
+trap cleanup_tmp_backup EXIT
+
 docker exec "$POSTGRES_CONTAINER" pg_dump \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \

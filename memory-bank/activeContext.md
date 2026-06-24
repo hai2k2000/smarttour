@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- PostgreSQL backup temporary file cleanup hardening:
+  - Hardened `scripts/backup-postgres.sh` so partial `*.tmp` backup files are removed automatically on exit if backup creation fails before the final archive move.
+  - Extended `scripts/test-backup-artifact-permissions-contract.js`, the backup/reinstall runbook, and production readiness tracker so temporary backup cleanup cannot regress silently.
+
 - Disaster backup checksum verification hardening:
   - Hardened `scripts/disaster-backup.sh` so the generated disaster archive checksum is verified with `sha256sum -c "$archive.sha256"` before cleanup/offsite upload proceeds.
   - Extended `scripts/test-backup-offsite-contract.js`, the backup/reinstall runbook, and production readiness tracker so disaster archive sync cannot regress to uploading an unverified archive/checksum pair.

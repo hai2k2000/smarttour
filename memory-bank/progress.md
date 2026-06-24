@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened PostgreSQL backup temporary file cleanup:
+  - Added an exit trap to `scripts/backup-postgres.sh` so partial `smarttour-*.sql.gz.tmp` files are removed when backup creation fails before the final move.
+  - Extended the backup artifact permission contract and backup/reinstall runbook so tmp cleanup is guarded alongside backup artifact mode checks.
+
 - Hardened disaster backup checksum verification before sync:
   - `scripts/disaster-backup.sh` now runs `sha256sum -c "$archive.sha256"` after creating the disaster archive and before cleanup/offsite upload.
   - Extended the backup offsite contract and backup/reinstall runbook so disaster archive sync cannot upload an unverified archive/checksum pair.
