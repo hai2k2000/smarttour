@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Backup offsite pre-sync creation timeout hardening:
+  - Hardened `scripts/sync-latest-backup.sh` so optional `CREATE_BACKUP_FIRST=1` PostgreSQL backup creation is bounded by `BACKUP_CREATE_TIMEOUT=45m` before offsite sync continues.
+  - Extended `scripts/test-backup-offsite-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so the pre-sync backup child process cannot regress to an unbounded call.
+
 - PostgreSQL backup temporary file cleanup hardening:
   - Hardened `scripts/backup-postgres.sh` so partial `*.tmp` backup files are removed automatically on exit if backup creation fails before the final archive move.
   - Extended `scripts/test-backup-artifact-permissions-contract.js`, the backup/reinstall runbook, and production readiness tracker so temporary backup cleanup cannot regress silently.

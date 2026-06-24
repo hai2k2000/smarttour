@@ -147,6 +147,7 @@ BACKUP_REMOTE_CONNECT_TIMEOUT=10
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 BACKUP_REMOTE_SCP_TIMEOUT=30m
+BACKUP_CREATE_TIMEOUT=45m
 BACKUP_FILE_READ_TIMEOUT=10s
 ```
 
@@ -175,6 +176,8 @@ chmod 600 /root/.ssh/id_ed25519_backup
 Both sync scripts use `BatchMode=yes`, bounded SSH timeouts, and total SCP
 timeouts so a broken remote destination or stuck transfer fails the scheduled
 job instead of hanging indefinitely.
+When `CREATE_BACKUP_FIRST=1`, optional PostgreSQL backup creation before the
+daily dump sync is also bounded by `BACKUP_CREATE_TIMEOUT=45m` by default.
 The remote key must be mode `600`.
 The daily PostgreSQL dump sync runs `sha256sum -c` locally before uploading the
 dump and checksum files. The disaster archive sync verifies `sha256sum -c` before upload as well.

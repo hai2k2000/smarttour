@@ -107,6 +107,8 @@ DISASTER_KEEP_BACKUPS=4
 # BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 # BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 # BACKUP_REMOTE_SCP_TIMEOUT=30m
+# Set this to bound optional PostgreSQL backup creation before offsite sync.
+# BACKUP_CREATE_TIMEOUT=45m
 # Set these to sync full disaster archives to another machine.
 # DISASTER_BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour
 # DISASTER_BACKUP_REMOTE_PORT=22

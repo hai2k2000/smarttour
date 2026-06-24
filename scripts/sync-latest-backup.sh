@@ -10,6 +10,7 @@ BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"
 BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"
+BACKUP_CREATE_TIMEOUT="${BACKUP_CREATE_TIMEOUT:-45m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
 BACKUP_FILE_READ_TIMEOUT="${BACKUP_FILE_READ_TIMEOUT:-10s}"
@@ -20,6 +21,10 @@ cd "$REPO_DIR"
 
 run_backup_scp() {
   timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"
+}
+
+run_backup_create() {
+  timeout "$BACKUP_CREATE_TIMEOUT" scripts/backup-postgres.sh
 }
 
 run_backup_checksum() {
@@ -54,7 +59,7 @@ require_private_key_file() {
 }
 
 if [[ "$CREATE_BACKUP_FIRST" == "1" ]]; then
-  scripts/backup-postgres.sh >/tmp/smarttour-last-backup.log
+  run_backup_create >/tmp/smarttour-last-backup.log
 fi
 
 latest="$(run_backup_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' | run_backup_text_filter sort | run_backup_text_filter tail -1)"

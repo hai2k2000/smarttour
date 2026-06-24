@@ -31,20 +31,24 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
   'BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"',
+  'BACKUP_CREATE_TIMEOUT="${BACKUP_CREATE_TIMEOUT:-45m}"',
   'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
   'BACKUP_FILE_READ_TIMEOUT="${BACKUP_FILE_READ_TIMEOUT:-10s}"',
   'BACKUP_TEXT_FILTER_TIMEOUT="${BACKUP_TEXT_FILTER_TIMEOUT:-10s}"',
   'run_backup_scp()',
+  'run_backup_create()',
   'run_backup_checksum()',
   'run_backup_file_scan()',
   'run_backup_file_read()',
   'run_backup_text_filter()',
   'timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"',
+  'timeout "$BACKUP_CREATE_TIMEOUT" scripts/backup-postgres.sh',
   'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
   'timeout "$BACKUP_FILE_READ_TIMEOUT" "$@"',
   'timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"',
+  'run_backup_create >/tmp/smarttour-last-backup.log',
   'latest="$(run_backup_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz\' | run_backup_text_filter sort | run_backup_text_filter tail -1)"',
   'require_private_key_file()',
   'key_mode="$(run_backup_file_read stat -c \'%a\' "$key_file")"',
@@ -58,6 +62,10 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
 
 if (syncScript.includes('\nscp "${scp_args[@]}" "$latest" "$checksum"')) {
   throw new Error('scripts/sync-latest-backup.sh must not call raw scp.');
+}
+
+if (syncScript.includes('scripts/backup-postgres.sh >/tmp/smarttour-last-backup.log')) {
+  throw new Error('scripts/sync-latest-backup.sh must not create backups without a timeout wrapper.');
 }
 
 if (syncScript.includes('key_mode="$(stat -c \'%a\' "$key_file")"')) {
@@ -118,6 +126,7 @@ assertRegex(
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2',
   'BACKUP_REMOTE_SCP_TIMEOUT=30m',
+  'BACKUP_CREATE_TIMEOUT=45m',
   'BACKUP_CHECKSUM_TIMEOUT=5m',
   'BACKUP_FILE_SCAN_TIMEOUT=30s',
   'BACKUP_FILE_READ_TIMEOUT=10s',
@@ -136,6 +145,7 @@ assertRegex(
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX',
   'BACKUP_REMOTE_SCP_TIMEOUT',
+  'BACKUP_CREATE_TIMEOUT=45m',
   'BACKUP_FILE_READ_TIMEOUT=10s',
   'DISASTER_BACKUP_REMOTE_TARGET',
   'DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT',
