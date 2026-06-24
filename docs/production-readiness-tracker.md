@@ -88,6 +88,9 @@ The daily dump and disaster archive sync paths verify local SHA256 checksums
 before upload.
 Restore drills reject protected production/system database names before any
 `dropdb` call, and `npm run test:restore-drill-safety` guards the contract.
+Restore-drill PostgreSQL commands are bounded by
+`RESTORE_DRILL_COMMAND_TIMEOUT=30m` so a stuck Docker or restore query fails the
+timer instead of hanging it indefinitely.
 PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.

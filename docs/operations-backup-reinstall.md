@@ -182,6 +182,8 @@ Verify SHA256 after transfer.
 DRILL_DB must be a throwaway database name made only of letters, numbers, and
 underscores. Do not set `DRILL_DB` to `smarttour`, `postgres`, `template0`, or `template1`; the restore drill script aborts before any `dropdb` call when a
 protected or unsafe name is supplied.
+Restore-drill PostgreSQL commands are bounded by
+`RESTORE_DRILL_COMMAND_TIMEOUT=30m` by default.
 
 Validate this guard after changing restore drill behavior:
 

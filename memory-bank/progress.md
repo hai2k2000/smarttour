@@ -2519,3 +2519,9 @@
   - The temporary backup cleanup trap remains installed before dumping starts, so timeout/failure still removes the `.tmp` artifact.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the PostgreSQL backup timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `POSTGRES_BACKUP_TIMEOUT=30m` and remains `600 root:root`; a fake Docker timeout probe confirmed `.tmp` cleanup, and a successful temporary backup produced private artifacts.
+
+- 2026-06-24 Completed production restore-drill timeout hardening:
+  - `scripts/restore-drill-postgres.sh` now runs restore-drill Docker/PostgreSQL commands through `run_restore_drill_docker`, bounded by `RESTORE_DRILL_COMMAND_TIMEOUT=30m`.
+  - The protected database-name guard still runs before any drop/create/restore command.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:restore-drill-safety` now guard/document the restore-drill command timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `RESTORE_DRILL_COMMAND_TIMEOUT=30m` and remains `600 root:root`; a fake Docker timeout probe failed fast, and a live restore drill succeeded with a throwaway database.

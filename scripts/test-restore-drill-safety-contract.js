@@ -22,34 +22,56 @@ function before(file, content, earlier, later) {
 }
 
 const restoreDrill = read('scripts/restore-drill-postgres.sh');
+const opsSchedule = read('scripts/install-ops-schedule.sh');
 const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/smarttour-ci.yml');
 const backupRunbook = read('docs/operations-backup-reinstall.md');
+const readinessTracker = read('docs/production-readiness-tracker.md');
 
 for (const expected of [
+  'RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"',
+  'run_restore_drill_docker()',
+  'timeout "$RESTORE_DRILL_COMMAND_TIMEOUT" docker exec "$@"',
   'PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)',
   'validate_drill_db_name()',
   'RESTORE_DRILL_ABORT unsafe DRILL_DB',
   '[[ ! "$value" =~ ^[A-Za-z0-9_]+$ ]]',
   'validate_drill_db_name "$DRILL_DB"',
+  'run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb',
+  'run_restore_drill_docker "$POSTGRES_CONTAINER" createdb',
+  'run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql',
 ]) {
   includes('scripts/restore-drill-postgres.sh', restoreDrill, expected);
+}
+
+for (const forbidden of [
+  'docker exec "$POSTGRES_CONTAINER" dropdb',
+  'docker exec "$POSTGRES_CONTAINER" createdb',
+  'docker exec -i "$POSTGRES_CONTAINER" psql',
+]) {
+  if (restoreDrill.includes(forbidden)) {
+    throw new Error(`scripts/restore-drill-postgres.sh must not include raw ${forbidden}`);
+  }
 }
 
 before(
   'scripts/restore-drill-postgres.sh',
   restoreDrill,
   'validate_drill_db_name "$DRILL_DB"',
-  'docker exec "$POSTGRES_CONTAINER" dropdb',
+  'run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb',
 );
 
 for (const expected of [
   'DRILL_DB must be a throwaway database name',
   'Do not set `DRILL_DB` to `smarttour`, `postgres`, `template0`, or `template1`',
+  'RESTORE_DRILL_COMMAND_TIMEOUT=30m',
   'npm run test:restore-drill-safety',
 ]) {
   includes('docs/operations-backup-reinstall.md', backupRunbook, expected);
 }
+
+includes('scripts/install-ops-schedule.sh', opsSchedule, '# RESTORE_DRILL_COMMAND_TIMEOUT=30m');
+includes('docs/production-readiness-tracker.md', readinessTracker, 'RESTORE_DRILL_COMMAND_TIMEOUT');
 
 if (packageJson.scripts['test:restore-drill-safety'] !== 'node scripts/test-restore-drill-safety-contract.js') {
   throw new Error('package.json must expose test:restore-drill-safety.');

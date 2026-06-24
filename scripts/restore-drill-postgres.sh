@@ -7,9 +7,14 @@ POSTGRES_USER="${POSTGRES_USER:-smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DRILL_DB="${DRILL_DB:-smarttour_restore_drill_$(date +%Y%m%d%H%M%S)}"
 KEEP_RESTORE_DRILL_DB="${KEEP_RESTORE_DRILL_DB:-0}"
+RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"
 PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)
 
 cd "$REPO_DIR"
+
+run_restore_drill_docker() {
+  timeout "$RESTORE_DRILL_COMMAND_TIMEOUT" docker exec "$@"
+}
 
 validate_drill_db_name() {
   local value="$1"
@@ -46,7 +51,7 @@ fi
 
 cleanup() {
   if [[ "$KEEP_RESTORE_DRILL_DB" != "1" ]]; then
-    docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true
+    run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -55,12 +60,12 @@ if [[ -f "$backup_file.sha256" ]]; then
   sha256sum -c "$backup_file.sha256"
 fi
 
-docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true
-docker exec "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$DRILL_DB"
+run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true
+run_restore_drill_docker "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$DRILL_DB"
 
-gzip -dc "$backup_file" | docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$DRILL_DB" >/dev/null
+gzip -dc "$backup_file" | run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$DRILL_DB" >/dev/null
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$DRILL_DB" -v ON_ERROR_STOP=1 <<'SQL'
+run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$DRILL_DB" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
   IF (SELECT COUNT(*) FROM "_prisma_migrations") = 0 THEN

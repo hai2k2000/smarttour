@@ -2916,3 +2916,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact contract first; RED failed because `POSTGRES_BACKUP_TIMEOUT` coverage was missing.
   - Updated daily PostgreSQL backups to run `pg_dump` through `POSTGRES_BACKUP_TIMEOUT=30m`, and documented the setting in the ops env template, backup runbook, and readiness tracker.
   - Updated the live `/etc/default/smarttour-ops` with `POSTGRES_BACKUP_TIMEOUT=30m` while preserving `600 root:root`, then verified timeout cleanup and a successful temporary backup run.
+
+- 2026-06-24 production restore-drill timeout follow-up:
+  - Found `scripts/restore-drill-postgres.sh` still used raw `docker exec` for `dropdb`, `createdb`, and `psql`, so a stuck restore command could hang the weekly restore-drill timer.
+  - Extended the restore-drill safety contract first; RED failed because `RESTORE_DRILL_COMMAND_TIMEOUT` coverage was missing.
+  - Updated restore drill PostgreSQL commands to run through `RESTORE_DRILL_COMMAND_TIMEOUT=30m`, and documented the setting in the ops env template, backup runbook, and readiness tracker.
+  - Updated the live `/etc/default/smarttour-ops` with `RESTORE_DRILL_COMMAND_TIMEOUT=30m` while preserving `600 root:root`, then verified a fake Docker timeout probe and a successful live restore drill with a throwaway database.
