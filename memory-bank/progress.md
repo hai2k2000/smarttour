@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened production `.env` file permissions:
+  - Added `.env` mode/owner verification to `scripts/security-audit.sh`, emitting `OK_ENV_FILE` only for `600 root:root`.
+  - Updated `scripts/install-security-hardening.sh` to normalize `/opt/smarttour/.env` to mode `600` when present.
+  - Updated the security runbook and production readiness tracker so `.env` permissions are part of the standard security evidence.
+
 - Hardened restore drill database target safety:
   - Added `DRILL_DB` validation to `scripts/restore-drill-postgres.sh` so protected production/system databases and unsafe names abort before any `dropdb` call.
   - Added `scripts/test-restore-drill-safety-contract.js`, `npm run test:restore-drill-safety`, and CI/source-contract wiring.

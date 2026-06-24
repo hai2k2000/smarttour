@@ -27,6 +27,9 @@ const packageJson = JSON.parse(read('package.json'));
 const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
 
 [
+  "env_file_mode=\"$(stat -c '%a %U:%G' .env)\"",
+  'OK_ENV_FILE .env=600 root:root',
+  'FAIL_ENV_FILE',
   "root_mode=\"$(stat -c '%a %U:%G' /)\"",
   'OK_ROOT_MODE /=755 root:root',
   'FAIL_ROOT_MODE',
@@ -52,6 +55,7 @@ assertRegex(
 );
 
 [
+  'chmod 600 "$REPO_DIR/.env"',
   'chmod 755 /',
   'chmod 700 /root/.ssh',
   'chmod 600 /root/.ssh/authorized_keys',
@@ -59,16 +63,19 @@ assertRegex(
 ].forEach((expected) => assertIncludes('scripts/install-security-hardening.sh', hardeningInstaller, expected));
 
 [
+  'chmod 600 /opt/smarttour/.env',
   'chmod 755 /',
   'chmod 700 /root/.ssh',
   'chmod 600 /root/.ssh/authorized_keys',
   'chown -R root:root /root/.ssh',
   'npm run ops:security',
   'npm run test:security-audit',
+  'OK_ENV_FILE',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
 [
+  'OK_ENV_FILE',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',
   'scripts/test-security-audit-contract.js',

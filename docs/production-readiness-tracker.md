@@ -143,6 +143,8 @@ Completed hardening:
 - Obvious development placeholder secrets were removed from `.env`.
 - MinIO ports `9000/9001` are bound to `127.0.0.1`.
 - MinIO health and stronger placeholder-secret detection are included in the automated audits.
+- The production `.env` file is checked for `600 root:root` permissions with
+  `OK_ENV_FILE`.
 
 Completed hardening:
 

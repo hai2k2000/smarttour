@@ -15,6 +15,10 @@ if [[ ! -s /root/.ssh/authorized_keys ]]; then
   exit 1
 fi
 
+if [[ -f "$REPO_DIR/.env" ]]; then
+  chmod 600 "$REPO_DIR/.env"
+fi
+
 chmod 755 /
 chmod 700 /root/.ssh
 chmod 600 /root/.ssh/authorized_keys

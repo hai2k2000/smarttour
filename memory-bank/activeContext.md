@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Production `.env` permission hardening:
+  - Hardened `scripts/security-audit.sh` so the live production `.env` must be `600 root:root` and emits `OK_ENV_FILE`/`FAIL_ENV_FILE`.
+  - Updated `scripts/install-security-hardening.sh`, `docs/security-hardening-runbook.md`, and the production readiness tracker so `.env` permissions are normalized and audited with SSH permission checks.
+
 - Restore drill database safety hardening:
   - Hardened `scripts/restore-drill-postgres.sh` so `DRILL_DB` must be a throwaway identifier and cannot be `smarttour`, `postgres`, `template0`, or `template1`; unsafe values abort before any `dropdb` call.
   - Added `scripts/test-restore-drill-safety-contract.js`, exposed `npm run test:restore-drill-safety`, wired it into `SmartTour CI`, and documented the guard in the backup/reinstall runbook and production readiness tracker.

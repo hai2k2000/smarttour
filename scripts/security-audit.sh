@@ -34,6 +34,14 @@ else
   echo "OK_ENV no obvious weak placeholder secret"
 fi
 
+env_file_mode="$(stat -c '%a %U:%G' .env)"
+if [[ "$env_file_mode" == "600 root:root" ]]; then
+  echo "OK_ENV_FILE .env=600 root:root"
+else
+  echo "FAIL_ENV_FILE .env=$env_file_mode expected=600 root:root"
+  failures=$((failures + 1))
+fi
+
 if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour containers are published on all interfaces"
   failures=$((failures + 1))

@@ -17,6 +17,7 @@ Install the root SSH public key before running hardening.
 
 ```bash
 cd /opt/smarttour
+chmod 600 /opt/smarttour/.env
 chmod 755 /
 chmod 700 /root/.ssh
 chmod 600 /root/.ssh/authorized_keys
@@ -36,8 +37,8 @@ npm run test:security-audit
 npm run ops:security
 ```
 
-The live audit must include `OK_ROOT_MODE` and `OK_SSH_PERMS` lines for `/`,
-`/root/.ssh`, and `/root/.ssh/authorized_keys`.
+The live audit must include `OK_ENV_FILE`, `OK_ROOT_MODE`, and `OK_SSH_PERMS`
+lines for `.env`, `/`, `/root/.ssh`, and `/root/.ssh/authorized_keys`.
 
 ## Daily host report
 
