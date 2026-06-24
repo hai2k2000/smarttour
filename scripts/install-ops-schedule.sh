@@ -95,6 +95,8 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m
 # Set this to bound disaster backup Git metadata and bundle commands.
 # DISASTER_BACKUP_GIT_TIMEOUT=5m
+# Set this to bound disaster backup file discovery and retention cleanup.
+# DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s
 EOF
   chmod 600 "$OPS_ENV"
 fi

@@ -111,6 +111,8 @@ Disaster backup host inventory commands are bounded by
 `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT=30s`. Disaster archive and checksum
 commands are bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`. Disaster backup
 Git metadata and bundle commands are bounded by `DISASTER_BACKUP_GIT_TIMEOUT=5m`.
+Disaster backup file discovery and retention cleanup are bounded by
+`DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s`.
 Disaster backup staging directories are removed after archive checksum verification.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.

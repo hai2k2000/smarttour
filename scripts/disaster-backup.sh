@@ -13,6 +13,7 @@ DISASTER_BACKUP_COMPOSE_TIMEOUT="${DISASTER_BACKUP_COMPOSE_TIMEOUT:-10m}"
 DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30s}"
 DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"
 DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"
+DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
 REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
@@ -45,6 +46,10 @@ run_disaster_archive_command() {
 
 run_disaster_git() {
   timeout "$DISASTER_BACKUP_GIT_TIMEOUT" git "$@"
+}
+
+run_disaster_file_scan() {
+  timeout "$DISASTER_BACKUP_FILE_SCAN_TIMEOUT" find "$@"
 }
 
 run_disaster_scp() {
@@ -198,7 +203,7 @@ root_mode=$(stat -c '%a %U:%G' /)
 archive=$archive
 EOF
 
-find "$work_dir" -type f ! -name SHA256SUMS -print0 \
+run_disaster_file_scan "$work_dir" -type f ! -name SHA256SUMS -print0 \
   | sort -z \
   | run_disaster_archive_command xargs -0 sha256sum \
   > "$work_dir/SHA256SUMS"
@@ -210,7 +215,7 @@ run_disaster_archive_command sha256sum -c "$archive.sha256"
 rm -rf "$work_dir"
 
 mapfile -t old_archives < <(
-  find "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
+  run_disaster_file_scan "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
     -printf '%T@ %p\n' \
     | sort -nr \
     | tail -n "+$((KEEP_BACKUPS + 1))" \

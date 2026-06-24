@@ -3042,3 +3042,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the security audit contract first; RED failed because `AUDIT_FILE_SCAN_TIMEOUT` coverage was missing.
   - Added `AUDIT_FILE_SCAN_TIMEOUT=30s` and `run_audit_file_scan`, then routed backup, disaster staging, ops log, and host-report file scans through the bounded wrapper.
   - Updated the ops env template, security runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
+
+- 2026-06-24 disaster backup file-scan timeout follow-up:
+  - Found `scripts/disaster-backup.sh` still used raw `find` for disaster staging checksum manifest discovery and old archive retention cleanup. A stuck disaster backup directory scan could hang the weekly backup timer.
+  - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_FILE_SCAN_TIMEOUT` coverage was missing.
+  - Added `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s` and `run_disaster_file_scan`, then routed staging manifest discovery and retention cleanup through the bounded wrapper.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
