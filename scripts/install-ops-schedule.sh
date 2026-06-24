@@ -58,6 +58,8 @@ DISASTER_KEEP_BACKUPS=4
 # DOCKER_CHECK_TIMEOUT=10s
 # Set this to bound systemd probes in the healthcheck.
 # SYSTEMD_CHECK_TIMEOUT=10s
+# Set this to bound Docker log collection in the daily Nginx host report.
+# HOST_REPORT_DOCKER_TIMEOUT=10s
 # Set this to bound systemd operations in this installer.
 # OPS_SYSTEMD_TIMEOUT=30s
 # Set these to sync daily PostgreSQL dumps to another machine.

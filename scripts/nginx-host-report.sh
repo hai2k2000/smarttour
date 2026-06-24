@@ -6,6 +6,11 @@ OFFICIAL_HOST="${OFFICIAL_HOST:-aitour.io.vn}"
 REPORT_HOURS="${REPORT_HOURS:-24}"
 REPORT_DIR="${REPORT_DIR:-/var/log/smarttour/security}"
 KEEP_DAYS="${SECURITY_REPORT_KEEP_DAYS:-30}"
+HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"
+
+run_host_report_docker() {
+  timeout "$HOST_REPORT_DOCKER_TIMEOUT" docker "$@"
+}
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
 report="$REPORT_DIR/nginx-host-report-$timestamp.txt"
@@ -15,8 +20,13 @@ trap 'rm -f "$tmp"' EXIT
 
 install -d -m 0750 "$REPORT_DIR"
 
-docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1 \
-  | grep -F '|host=' > "$tmp" || true
+if ! raw_logs="$(run_host_report_docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1)"; then
+  echo "NGINX_HOST_REPORT_ABORT docker_logs_unavailable" >&2
+  echo "$raw_logs" >&2
+  exit 1
+fi
+
+printf '%s\n' "$raw_logs" | grep -F '|host=' > "$tmp" || true
 
 {
   echo "SMARTTOUR_NGINX_HOST_REPORT"

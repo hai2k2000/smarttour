@@ -2928,3 +2928,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_DOCKER_TIMEOUT` coverage was missing.
   - Updated disaster backup Docker commands to run through `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and Compose stop/start commands through `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake Docker and Compose timeout probes confirmed stuck commands fail fast.
+
+- 2026-06-24 production Nginx host-report timeout follow-up:
+  - Found `scripts/nginx-host-report.sh` still called `docker logs` directly, and its `grep ... || true` pipeline could hide a stuck or unavailable Docker log read.
+  - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_DOCKER_TIMEOUT` coverage and a `docker_logs_unavailable` abort path were missing.
+  - Updated the host report to collect Docker logs through `HOST_REPORT_DOCKER_TIMEOUT=10s`, abort explicitly with `NGINX_HOST_REPORT_ABORT docker_logs_unavailable` when logs cannot be read, and only tolerate an empty host grep result after Docker succeeds.
+  - Updated the ops env template, security runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake Docker timeout and live report-dir probes confirmed fast aborts and private report files.

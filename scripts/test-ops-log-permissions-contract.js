@@ -41,10 +41,20 @@ for (const serviceUnit of serviceUnits) {
 ].forEach((expected) => includes('scripts/install-ops-schedule.sh', installer, expected));
 
 [
+  'HOST_REPORT_DOCKER_TIMEOUT="${HOST_REPORT_DOCKER_TIMEOUT:-10s}"',
+  'run_host_report_docker()',
+  'timeout "$HOST_REPORT_DOCKER_TIMEOUT" docker "$@"',
+  'if ! raw_logs="$(run_host_report_docker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER" 2>&1)"; then',
+  'NGINX_HOST_REPORT_ABORT docker_logs_unavailable',
+  'printf \'%s\\n\' "$raw_logs"',
   'install -d -m 0750 "$REPORT_DIR"',
   'chmod 0640 "$report"',
   'chmod 0640 "$latest"',
 ].forEach((expected) => includes('scripts/nginx-host-report.sh', hostReport, expected));
+
+if (hostReport.includes('\ndocker logs --since "${REPORT_HOURS}h" "$NGINX_CONTAINER"')) {
+  throw new Error('scripts/nginx-host-report.sh must not call raw docker logs.');
+}
 
 [
   "ops_log_dir_mode=\"$(stat -c '%a %U:%G' /var/log/smarttour)\"",
@@ -59,8 +69,11 @@ for (const serviceUnit of serviceUnits) {
 
 includes('scripts/test-security-audit-contract.js', securityContract, 'OK_OPS_LOG_PERMS');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'OK_OPS_LOG_PERMS');
+includes('docs/production-readiness-tracker.md', readinessTracker, 'HOST_REPORT_DOCKER_TIMEOUT');
 includes('docs/operations-backup-reinstall.md', backupRunbook, 'OK_OPS_LOG_PERMS');
 includes('docs/security-hardening-runbook.md', securityRunbook, 'OK_OPS_LOG_PERMS');
+includes('docs/security-hardening-runbook.md', securityRunbook, 'HOST_REPORT_DOCKER_TIMEOUT');
+includes('scripts/install-ops-schedule.sh', installer, '# HOST_REPORT_DOCKER_TIMEOUT=10s');
 
 if (packageJson.scripts['test:ops-log-permissions'] !== 'node scripts/test-ops-log-permissions-contract.js') {
   throw new Error('package.json must expose test:ops-log-permissions');

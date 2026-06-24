@@ -2531,3 +2531,9 @@
   - Compose stop/start and the restart trap now run through `run_disaster_compose`, bounded by `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m`.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the disaster backup timeout settings.
   - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_DOCKER_TIMEOUT=30m` and `DISASTER_BACKUP_COMPOSE_TIMEOUT=10m` while remaining `600 root:root`; fake Docker and Compose timeout probes failed fast.
+
+- 2026-06-24 Completed production Nginx host-report timeout hardening:
+  - `scripts/nginx-host-report.sh` now reads Docker logs through `run_host_report_docker`, bounded by `HOST_REPORT_DOCKER_TIMEOUT=10s`.
+  - Docker log read failures/timeouts now abort with `NGINX_HOST_REPORT_ABORT docker_logs_unavailable` instead of being hidden by the host-line grep fallback.
+  - `/etc/default/smarttour-ops` template, security runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the host-report Docker timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_DOCKER_TIMEOUT=10s` while remaining `600 root:root`; fake Docker timeout and live report-dir probes verified fast aborts and private report files.
