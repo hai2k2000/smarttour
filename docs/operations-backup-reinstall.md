@@ -59,6 +59,30 @@ Each full disaster archive includes:
 The weekly backup briefly stops the Compose stack while raw volumes are
 archived, then starts it again. A trap restarts the stack if archiving fails.
 
+## Backup Artifact Permissions
+
+Backup artifacts must be private because they contain production data and the
+disaster archive includes `.env` and server configuration. New artifacts are
+created with mode `600`; backup directories are kept at mode `700`.
+
+Normalize existing files after a hardening change:
+
+```bash
+chmod 700 /opt/smarttour/backups/postgres
+chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz
+chmod 600 /opt/smarttour/backups/postgres/smarttour-*.sql.gz.sha256
+chmod 700 /var/backups/smarttour/disaster
+chmod 600 /var/backups/smarttour/disaster/smarttour-disaster-*.tar.gz
+chmod 600 /var/backups/smarttour/disaster/smarttour-disaster-*.tar.gz.sha256
+```
+
+Validate the source contract after changing backup artifact handling:
+
+```bash
+cd /opt/smarttour
+npm run test:backup-artifact-permissions
+```
+
 ## Off-Server Copy
 
 A backup left only on the VPS is not a disaster backup. Configure a second

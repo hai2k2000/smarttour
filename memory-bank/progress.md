@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened backup artifact permissions:
+  - Added `umask 077` plus explicit `chmod 700` backup directory handling and `chmod 600` artifact/checksum handling to PostgreSQL and disaster backup scripts.
+  - Added `scripts/test-backup-artifact-permissions-contract.js`, `npm run test:backup-artifact-permissions`, and CI/source-contract wiring.
+  - Updated the backup/reinstall runbook and production readiness tracker with normalization commands for existing backup files.
+
 - Hardened production `.env` file permissions:
   - Added `.env` mode/owner verification to `scripts/security-audit.sh`, emitting `OK_ENV_FILE` only for `600 root:root`.
   - Updated `scripts/install-security-hardening.sh` to normalize `/opt/smarttour/.env` to mode `600` when present.

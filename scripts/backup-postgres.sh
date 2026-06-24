@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
@@ -9,6 +10,7 @@ BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 cd "$REPO_DIR"
 
 timestamp="$(date +%Y%m%d%H%M%S)"
@@ -27,6 +29,7 @@ docker exec "$POSTGRES_CONTAINER" pg_dump \
 
 mv "$tmp_file" "$backup_file"
 sha256sum "$backup_file" > "$checksum_file"
+chmod 600 "$backup_file" "$checksum_file"
 
 find "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
 find "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz.sha256' -mtime +"$KEEP_DAYS" -delete

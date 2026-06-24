@@ -84,6 +84,9 @@ Tooling is ready:
 The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
 Restore drills reject protected production/system database names before any
 `dropdb` call, and `npm run test:restore-drill-safety` guards the contract.
+PostgreSQL and disaster backup artifacts are created private (`600`) under
+private backup directories (`700`), guarded by
+`npm run test:backup-artifact-permissions`.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.
 

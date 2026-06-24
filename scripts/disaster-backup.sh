@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 BACKUP_ROOT="${DISASTER_BACKUP_ROOT:-/var/backups/smarttour/disaster}"
@@ -21,6 +22,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
+chmod 700 "$BACKUP_ROOT"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "Another SmartTour disaster backup is running" >&2
@@ -157,8 +159,8 @@ find "$work_dir" -type f ! -name SHA256SUMS -print0 \
   > "$work_dir/SHA256SUMS"
 
 tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
-chmod 600 "$archive"
 sha256sum "$archive" > "$archive.sha256"
+chmod 600 "$archive" "$archive.sha256"
 
 mapfile -t old_archives < <(
   find "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \

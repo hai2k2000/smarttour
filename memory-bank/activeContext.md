@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Backup artifact permission hardening:
+  - Hardened `scripts/backup-postgres.sh` and `scripts/disaster-backup.sh` so backup directories use mode `700` and generated backup/checksum artifacts use mode `600`.
+  - Added `scripts/test-backup-artifact-permissions-contract.js`, exposed `npm run test:backup-artifact-permissions`, wired it into `SmartTour CI`, and documented artifact permission normalization in the backup/reinstall runbook and tracker.
+
 - Production `.env` permission hardening:
   - Hardened `scripts/security-audit.sh` so the live production `.env` must be `600 root:root` and emits `OK_ENV_FILE`/`FAIL_ENV_FILE`.
   - Updated `scripts/install-security-hardening.sh`, `docs/security-hardening-runbook.md`, and the production readiness tracker so `.env` permissions are normalized and audited with SSH permission checks.
