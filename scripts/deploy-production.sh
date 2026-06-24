@@ -9,6 +9,7 @@ RUN_GIT_PULL="${RUN_GIT_PULL:-true}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
 DEPLOY_GIT_TIMEOUT="${DEPLOY_GIT_TIMEOUT:-5m}"
+DEPLOY_LOCAL_GIT_TIMEOUT="${DEPLOY_LOCAL_GIT_TIMEOUT:-30s}"
 DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"
 DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"
 DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"
@@ -17,6 +18,10 @@ cd "$REPO_DIR"
 
 run_deploy_git() {
   timeout "$DEPLOY_GIT_TIMEOUT" git "$@"
+}
+
+run_deploy_local_git() {
+  timeout "$DEPLOY_LOCAL_GIT_TIMEOUT" git "$@"
 }
 
 run_deploy_prisma() {
@@ -54,26 +59,26 @@ if [[ "$ALLOW_DIRTY" == "true" ]]; then
   echo "DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON"
 fi
 
-if [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --quiet; then
+if [[ "$ALLOW_DIRTY" != "true" ]] && ! run_deploy_local_git diff --quiet; then
   echo "DEPLOY_ABORT dirty worktree. Commit/push changes first, or set ALLOW_DIRTY=true for an emergency deploy."
-  git status --short
+  run_deploy_local_git status --short
   exit 1
 fi
 
-if [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --cached --quiet; then
+if [[ "$ALLOW_DIRTY" != "true" ]] && ! run_deploy_local_git diff --cached --quiet; then
   echo "DEPLOY_ABORT staged changes exist. Commit/push changes first."
-  git status --short
+  run_deploy_local_git status --short
   exit 1
 fi
 
-untracked_files="$(git ls-files --others --exclude-standard)"
+untracked_files="$(run_deploy_local_git ls-files --others --exclude-standard)"
 if [[ "$ALLOW_DIRTY" != "true" && -n "$untracked_files" ]]; then
   echo "DEPLOY_ABORT untracked files exist. Remove or commit them first, or set ALLOW_DIRTY=true for an emergency deploy."
   printf '%s\n' "$untracked_files"
   exit 1
 fi
 
-starting_commit="$(git rev-parse --short HEAD)"
+starting_commit="$(run_deploy_local_git rev-parse --short HEAD)"
 echo "DEPLOY_START branch=$BRANCH current_commit=$starting_commit"
 
 if [[ "$RUN_GIT_PULL" == "true" ]]; then
@@ -82,7 +87,7 @@ if [[ "$RUN_GIT_PULL" == "true" ]]; then
   run_deploy_git pull --ff-only origin "$BRANCH"
 fi
 
-target_commit="$(git rev-parse --short HEAD)"
+target_commit="$(run_deploy_local_git rev-parse --short HEAD)"
 echo "DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit"
 
 echo "DEPLOY_PHASE smartlink_guard"
@@ -100,4 +105,4 @@ run_deploy_compose_up up -d api web nginx
 echo "DEPLOY_PHASE healthcheck"
 SITE_URL="$SITE_URL" API_URL="$API_URL" "$REPO_DIR/scripts/healthcheck.sh"
 
-echo "DEPLOY_PRODUCTION_OK branch=$BRANCH commit=$(git rev-parse --short HEAD)"
+echo "DEPLOY_PRODUCTION_OK branch=$BRANCH commit=$(run_deploy_local_git rev-parse --short HEAD)"

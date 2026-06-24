@@ -3012,3 +3012,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_GIT_TIMEOUT` coverage was missing.
   - Updated disaster backup Git status, commit, remote, bundle, and manifest commit lookup to run through `DISASTER_BACKUP_GIT_TIMEOUT=5m`.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake Git bundle timeout probe confirmed status 124 and verified Compose stop is not reached when Git bundle hangs.
+
+- 2026-06-24 production deploy local Git timeout follow-up:
+  - Found `scripts/deploy-production.sh` still used raw local Git commands for dirty-worktree guards, untracked-file detection, and commit markers. A stuck local Git/index operation could hang a manual production deploy before the bounded remote Git sync.
+  - Extended the GitHub Actions/deploy contract first; RED failed because bounded local Git guard coverage was missing.
+  - Added `DEPLOY_LOCAL_GIT_TIMEOUT=30s` and `run_deploy_local_git`, then routed local dirty/staged/untracked checks and start/target/final commit markers through the bounded wrapper.
+  - Updated the GitHub Actions runbook and production readiness tracker; a fake local Git timeout probe confirmed deploy aborts quickly at the dirty-worktree guard before SmartLink, Prisma, or Docker phases.

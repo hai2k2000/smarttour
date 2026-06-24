@@ -103,17 +103,24 @@ includes(deployScript, '[[ ! "$value" =~ ^[A-Za-z0-9._/-]+$ ]]', 'Server-side br
 includes(deployScript, '[[ "$value" == /* ]]', 'Server-side branch validation must reject absolute ref paths.');
 includes(deployScript, '[[ "$value" == *..* ]]', 'Server-side branch validation must reject parent traversal.');
 includes(deployScript, 'validate_branch_name "$BRANCH"', 'Server-side deploy must validate BRANCH before git fetch/checkout/pull.');
-includes(deployScript, 'git ls-files --others --exclude-standard', 'Server-side production deploy must detect untracked files.');
+includes(deployScript, 'run_deploy_local_git ls-files --others --exclude-standard', 'Server-side production deploy must detect untracked files through bounded local Git.');
 includes(deployScript, 'DEPLOY_ABORT untracked files exist', 'Server-side production deploy must abort when untracked files exist.');
 includes(deployScript, 'printf \'%s\\n\' "$untracked_files"', 'Server-side production deploy must print untracked files before aborting.');
 includes(deployScript, 'DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"', 'Server-side deploy must define DEPLOY_DIRTY_REASON.');
 includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 'Server-side deploy must require a reason for dirty deploy override.');
 includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
 includes(deployScript, 'DEPLOY_GIT_TIMEOUT="${DEPLOY_GIT_TIMEOUT:-5m}"', 'Server-side deploy must define Git sync timeout.');
+includes(deployScript, 'DEPLOY_LOCAL_GIT_TIMEOUT="${DEPLOY_LOCAL_GIT_TIMEOUT:-30s}"', 'Server-side deploy must define local Git guard timeout.');
 includes(deployScript, 'run_deploy_git()', 'Server-side deploy must wrap Git sync commands.');
+includes(deployScript, 'run_deploy_local_git()', 'Server-side deploy must wrap local Git guard commands.');
 includes(deployScript, 'timeout "$DEPLOY_GIT_TIMEOUT" git "$@"', 'Server-side deploy Git sync must be bounded.');
+includes(deployScript, 'timeout "$DEPLOY_LOCAL_GIT_TIMEOUT" git "$@"', 'Server-side deploy local Git guard must be bounded.');
 includes(deployScript, 'DEPLOY_START branch=$BRANCH current_commit=$starting_commit', 'Server-side deploy must log the starting branch and commit.');
 includes(deployScript, 'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit', 'Server-side deploy must log the revision after git sync.');
+includes(deployScript, 'run_deploy_local_git diff --quiet', 'Server-side deploy dirty worktree check must be bounded.');
+includes(deployScript, 'run_deploy_local_git diff --cached --quiet', 'Server-side deploy staged-change check must be bounded.');
+includes(deployScript, 'run_deploy_local_git status --short', 'Server-side deploy status output must be bounded.');
+includes(deployScript, 'run_deploy_local_git rev-parse --short HEAD', 'Server-side deploy commit markers must be bounded.');
 includes(deployScript, 'DEPLOY_PRISMA_MIGRATE_TIMEOUT="${DEPLOY_PRISMA_MIGRATE_TIMEOUT:-10m}"', 'Server-side deploy must define Prisma migration timeout.');
 includes(deployScript, 'run_deploy_prisma()', 'Server-side deploy must wrap Prisma migration commands.');
 includes(deployScript, 'timeout "$DEPLOY_PRISMA_MIGRATE_TIMEOUT" npx prisma "$@"', 'Server-side deploy Prisma migration must be bounded.');
@@ -137,6 +144,13 @@ excludes(deployScript, '\ndocker compose up -d api web nginx', 'Server-side depl
 excludes(deployScript, '\ngit fetch origin "$BRANCH"', 'Server-side deploy must not call raw git fetch.');
 excludes(deployScript, '\ngit checkout "$BRANCH"', 'Server-side deploy must not call raw git checkout.');
 excludes(deployScript, '\ngit pull --ff-only origin "$BRANCH"', 'Server-side deploy must not call raw git pull.');
+excludes(deployScript, '\nif [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --quiet', 'Server-side deploy must not call raw local git diff.');
+excludes(deployScript, '\nif [[ "$ALLOW_DIRTY" != "true" ]] && ! git diff --cached --quiet', 'Server-side deploy must not call raw local cached git diff.');
+excludes(deployScript, '\n  git status --short', 'Server-side deploy must not call raw local git status.');
+excludes(deployScript, '\nuntracked_files="$(git ls-files --others --exclude-standard)"', 'Server-side deploy must not call raw local git ls-files.');
+excludes(deployScript, '\nstarting_commit="$(git rev-parse --short HEAD)"', 'Server-side deploy must not call raw local git rev-parse for starting commit.');
+excludes(deployScript, '\ntarget_commit="$(git rev-parse --short HEAD)"', 'Server-side deploy must not call raw local git rev-parse for target commit.');
+excludes(deployScript, 'commit=$(git rev-parse --short HEAD)', 'Server-side deploy must not call raw local git rev-parse for final status.');
 includes(smartlinkWrapper, 'SMARTLINK_AUDIT_DOCKER_TIMEOUT="${SMARTLINK_AUDIT_DOCKER_TIMEOUT:-10m}"', 'SmartLink wrapper must define Docker fallback timeout.');
 includes(smartlinkWrapper, 'SMARTLINK_AUDIT_NODE_TIMEOUT="${SMARTLINK_AUDIT_NODE_TIMEOUT:-10m}"', 'SmartLink wrapper must define local Node audit timeout.');
 includes(smartlinkWrapper, 'run_smartlink_node()', 'SmartLink wrapper must wrap local Node commands.');
@@ -199,6 +213,7 @@ for (const text of [
   'DEPLOY_DIRTY_REASON',
   'DEPLOY_START',
   'DEPLOY_GIT_TIMEOUT',
+  'DEPLOY_LOCAL_GIT_TIMEOUT',
   'DEPLOY_REVISION',
   'Prisma migrations',
   'DEPLOY_PRISMA_MIGRATE_TIMEOUT',

@@ -28,7 +28,8 @@ The SmartLink legacy guard local Node path and Docker fallback are bounded by
 `SMARTLINK_AUDIT_NODE_TIMEOUT=10m` and
 `SMARTLINK_AUDIT_DOCKER_TIMEOUT=10m` by default.
 Git fetch/checkout/pull during server-side sync are bounded by
-`DEPLOY_GIT_TIMEOUT=5m` by default.
+`DEPLOY_GIT_TIMEOUT=5m` by default. Local Git dirty-worktree and commit marker
+checks are bounded by `DEPLOY_LOCAL_GIT_TIMEOUT=30s` by default.
 The deploy SSH connection is non-interactive and bounded with `BatchMode=yes`,
 `ConnectTimeout=10`, `ServerAliveInterval=15`, and `ServerAliveCountMax=2`.
 The manual dispatch inputs are validated before SSH starts. Branch names may

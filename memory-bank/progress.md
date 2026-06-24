@@ -2616,3 +2616,9 @@
   - The bounded Git bundle step runs before `docker compose stop`, so a stuck Git archive operation fails without entering the raw-volume consistency window.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the Git timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_GIT_TIMEOUT=5m` while remaining `600 root:root`; a fake Git bundle timeout probe verified status 124 and no Compose stop.
+
+- 2026-06-24 Completed production deploy local Git timeout hardening:
+  - `scripts/deploy-production.sh` now bounds local Git dirty-worktree checks, staged checks, untracked-file detection, and commit marker lookups with `DEPLOY_LOCAL_GIT_TIMEOUT=30s`.
+  - Remote Git fetch/checkout/pull remains bounded separately by `DEPLOY_GIT_TIMEOUT=5m`.
+  - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, and the production readiness tracker now guard/document the local Git timeout setting.
+  - A fake deploy probe with a stuck local `git diff` confirmed the deploy aborts before SmartLink, Prisma migration, or Docker phases.
