@@ -2934,3 +2934,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_DOCKER_TIMEOUT` coverage and a `docker_logs_unavailable` abort path were missing.
   - Updated the host report to collect Docker logs through `HOST_REPORT_DOCKER_TIMEOUT=10s`, abort explicitly with `NGINX_HOST_REPORT_ABORT docker_logs_unavailable` when logs cannot be read, and only tolerate an empty host grep result after Docker succeeds.
   - Updated the ops env template, security runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake Docker timeout and live report-dir probes confirmed fast aborts and private report files.
+
+- 2026-06-24 production deploy Docker timeout follow-up:
+  - Found `scripts/deploy-production.sh` still ran `docker compose build api web` and `docker compose up -d api web nginx` directly, so a stuck Docker build or service start could hang a manual production deploy.
+  - Extended the GitHub Actions/deploy contract first; RED failed because `DEPLOY_DOCKER_BUILD_TIMEOUT` coverage was missing.
+  - Updated production deploy to run Docker build through `DEPLOY_DOCKER_BUILD_TIMEOUT=45m` and Docker up through `DEPLOY_DOCKER_UP_TIMEOUT=10m`, while preserving existing phase logs and SmartLink guard ordering.
+  - Updated the GitHub Actions runbook, production readiness tracker, and SmartLink source assertion; fake clean-repo deploy probes confirmed stuck build/up phases fail fast with timeout status `124`.

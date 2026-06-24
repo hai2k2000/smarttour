@@ -96,7 +96,7 @@ async function main() {
   assert.equal(guardAfter.status, 0, guardAfter.stderr || guardAfter.stdout);
 
   const deployScript = fs.readFileSync('/workspace/scripts/deploy-production.sh', 'utf8');
-  const buildIndex = deployScript.indexOf('docker compose build api web');
+  const buildIndex = deployScript.indexOf('run_deploy_compose_build build api web');
   const guardMatch = deployScript.match(/smartlink-legacy-audit\.sh["']?\s+--mode=guard/);
   const guardIndex = guardMatch ? guardMatch.index : -1;
   assert(guardIndex >= 0 && guardIndex < buildIndex, 'production deploy must run SmartLink legacy guard before build');

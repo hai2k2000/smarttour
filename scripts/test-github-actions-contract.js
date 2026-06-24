@@ -110,12 +110,22 @@ includes(deployScript, 'DEPLOY_ABORT ALLOW_DIRTY requires DEPLOY_DIRTY_REASON', 
 includes(deployScript, 'DEPLOY_DIRTY_OVERRIDE reason=$DEPLOY_DIRTY_REASON', 'Server-side deploy must log the dirty deploy reason.');
 includes(deployScript, 'DEPLOY_START branch=$BRANCH current_commit=$starting_commit', 'Server-side deploy must log the starting branch and commit.');
 includes(deployScript, 'DEPLOY_REVISION branch=$BRANCH previous_commit=$starting_commit target_commit=$target_commit', 'Server-side deploy must log the revision after git sync.');
+includes(deployScript, 'DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"', 'Server-side deploy must define Docker build timeout.');
+includes(deployScript, 'DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"', 'Server-side deploy must define Docker up timeout.');
+includes(deployScript, 'run_deploy_compose_build()', 'Server-side deploy must wrap Docker build commands.');
+includes(deployScript, 'run_deploy_compose_up()', 'Server-side deploy must wrap Docker up commands.');
+includes(deployScript, 'timeout "$DEPLOY_DOCKER_BUILD_TIMEOUT" docker compose "$@"', 'Server-side deploy Docker build must be bounded.');
+includes(deployScript, 'timeout "$DEPLOY_DOCKER_UP_TIMEOUT" docker compose "$@"', 'Server-side deploy Docker up must be bounded.');
 includes(deployScript, 'DEPLOY_PHASE smartlink_guard', 'Server-side deploy must log the SmartLink guard phase.');
 includes(deployScript, 'DEPLOY_PHASE prisma_migrate_deploy', 'Server-side deploy must log the Prisma migration phase.');
 includes(deployScript, 'npx prisma migrate deploy', 'Server-side deploy must run Prisma production migrations.');
 includes(deployScript, 'DEPLOY_PHASE docker_build', 'Server-side deploy must log the Docker build phase.');
+includes(deployScript, 'run_deploy_compose_build build api web', 'Server-side deploy must build API/Web through the bounded Docker build wrapper.');
 includes(deployScript, 'DEPLOY_PHASE docker_up', 'Server-side deploy must log the Docker up phase.');
+includes(deployScript, 'run_deploy_compose_up up -d api web nginx', 'Server-side deploy must bring up services through the bounded Docker up wrapper.');
 includes(deployScript, 'DEPLOY_PHASE healthcheck', 'Server-side deploy must log the healthcheck phase.');
+excludes(deployScript, '\ndocker compose build api web', 'Server-side deploy must not call raw docker compose build.');
+excludes(deployScript, '\ndocker compose up -d api web nginx', 'Server-side deploy must not call raw docker compose up.');
 const deployPhaseOrder = [
   'DEPLOY_START branch=$BRANCH current_commit=$starting_commit',
   'git fetch origin "$BRANCH"',
@@ -125,9 +135,9 @@ const deployPhaseOrder = [
   'DEPLOY_PHASE prisma_migrate_deploy',
   'npx prisma migrate deploy',
   'DEPLOY_PHASE docker_build',
-  'docker compose build api web',
+  'run_deploy_compose_build build api web',
   'DEPLOY_PHASE docker_up',
-  'docker compose up -d api web nginx',
+  'run_deploy_compose_up up -d api web nginx',
   'DEPLOY_PHASE healthcheck',
   'scripts/healthcheck.sh',
   'DEPLOY_PRODUCTION_OK',
@@ -167,6 +177,8 @@ for (const text of [
   'DEPLOY_REVISION',
   'Prisma migrations',
   'npx prisma migrate deploy',
+  'DEPLOY_DOCKER_BUILD_TIMEOUT',
+  'DEPLOY_DOCKER_UP_TIMEOUT',
   'DEPLOY_PHASE smartlink_guard',
   'DEPLOY_PHASE docker_build',
   'DEPLOY_PHASE docker_up',

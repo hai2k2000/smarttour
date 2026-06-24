@@ -124,6 +124,7 @@ Completed implementation: production deploy aborts on tracked, staged, or untrac
 Completed implementation: emergency dirty deploy override requires `DEPLOY_DIRTY_REASON` and logs the reason before continuing.
 Completed implementation: production deploy runs `npx prisma migrate deploy` after the SmartLink guard and before Docker image build/up.
 Completed implementation: production deploy logs the starting commit, post-sync revision, and ordered phase markers for SmartLink guard, Prisma migrations, Docker build/up, and healthcheck.
+Completed implementation: production deploy Docker build/up phases are bounded by `DEPLOY_DOCKER_BUILD_TIMEOUT=45m` and `DEPLOY_DOCKER_UP_TIMEOUT=10m`, guarded by `node scripts/test-github-actions-contract.js`.
 Completed implementation: rollback runbook is guarded by a source contract so production rollback uses a named rollback branch, `scripts/deploy-production.sh`, and post-rollback migration/audit/health verification.
 
 Manual owner task: configure the GitHub `production` environment approval gate and required secrets documented in `docs/github-actions-runbook.md`.

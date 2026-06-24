@@ -2537,3 +2537,9 @@
   - Docker log read failures/timeouts now abort with `NGINX_HOST_REPORT_ABORT docker_logs_unavailable` instead of being hidden by the host-line grep fallback.
   - `/etc/default/smarttour-ops` template, security runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the host-report Docker timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_DOCKER_TIMEOUT=10s` while remaining `600 root:root`; fake Docker timeout and live report-dir probes verified fast aborts and private report files.
+
+- 2026-06-24 Completed production deploy Docker timeout hardening:
+  - `scripts/deploy-production.sh` now runs the Docker build phase through `run_deploy_compose_build`, bounded by `DEPLOY_DOCKER_BUILD_TIMEOUT=45m`.
+  - The Docker up phase now runs through `run_deploy_compose_up`, bounded by `DEPLOY_DOCKER_UP_TIMEOUT=10m`.
+  - The existing deploy phase markers and SmartLink guard-before-build ordering are preserved and guarded by `node scripts/test-github-actions-contract.js` plus the SmartLink source assertion.
+  - Fake clean-repo deploy probes verified stuck Docker build/up phases fail fast with timeout status `124` without touching the production stack.

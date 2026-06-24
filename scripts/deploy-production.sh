@@ -8,8 +8,18 @@ API_URL="${API_URL:-https://aitour.io.vn/api}"
 RUN_GIT_PULL="${RUN_GIT_PULL:-true}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 DEPLOY_DIRTY_REASON="${DEPLOY_DIRTY_REASON:-}"
+DEPLOY_DOCKER_BUILD_TIMEOUT="${DEPLOY_DOCKER_BUILD_TIMEOUT:-45m}"
+DEPLOY_DOCKER_UP_TIMEOUT="${DEPLOY_DOCKER_UP_TIMEOUT:-10m}"
 
 cd "$REPO_DIR"
+
+run_deploy_compose_build() {
+  timeout "$DEPLOY_DOCKER_BUILD_TIMEOUT" docker compose "$@"
+}
+
+run_deploy_compose_up() {
+  timeout "$DEPLOY_DOCKER_UP_TIMEOUT" docker compose "$@"
+}
 
 validate_branch_name() {
   local value="$1"
@@ -72,10 +82,10 @@ echo "DEPLOY_PHASE prisma_migrate_deploy"
 npx prisma migrate deploy
 
 echo "DEPLOY_PHASE docker_build"
-docker compose build api web
+run_deploy_compose_build build api web
 
 echo "DEPLOY_PHASE docker_up"
-docker compose up -d api web nginx
+run_deploy_compose_up up -d api web nginx
 
 echo "DEPLOY_PHASE healthcheck"
 SITE_URL="$SITE_URL" API_URL="$API_URL" "$REPO_DIR/scripts/healthcheck.sh"
