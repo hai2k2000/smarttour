@@ -12,6 +12,7 @@ BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}
 BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+BACKUP_TEXT_FILTER_TIMEOUT="${BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 CREATE_BACKUP_FIRST="${CREATE_BACKUP_FIRST:-1}"
 
 cd "$REPO_DIR"
@@ -26,6 +27,10 @@ run_backup_checksum() {
 
 run_backup_file_scan() {
   timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"
+}
+
+run_backup_text_filter() {
+  timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"
 }
 
 require_private_key_file() {
@@ -47,7 +52,7 @@ if [[ "$CREATE_BACKUP_FIRST" == "1" ]]; then
   scripts/backup-postgres.sh >/tmp/smarttour-last-backup.log
 fi
 
-latest="$(run_backup_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' | sort | tail -1)"
+latest="$(run_backup_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' | run_backup_text_filter sort | run_backup_text_filter tail -1)"
 if [[ -z "$latest" || ! -f "$latest" ]]; then
   echo "No backup found in $BACKUP_DIR" >&2
   exit 1

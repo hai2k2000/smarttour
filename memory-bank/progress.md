@@ -2705,3 +2705,9 @@
   - `scripts/healthcheck.sh` now routes latest PostgreSQL and disaster backup discovery ordering through `run_healthcheck_text_filter`.
   - Backup directory scans remain bounded by `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s`; ordering uses the existing `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
   - Observability/readiness docs and `npm run test:healthcheck-backup` now guard/document bounded backup discovery ordering.
+
+- 2026-06-24 Completed backup sync/restore ordering timeout hardening:
+  - `scripts/sync-latest-backup.sh` and `scripts/restore-drill-postgres.sh` now bound latest-backup ordering with `BACKUP_TEXT_FILTER_TIMEOUT=10s`.
+  - Backup discovery remains bounded separately by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
+  - The ops env template, backup runbook, production readiness tracker, `npm run test:backup-offsite`, and `npm run test:restore-drill-safety` now guard/document the ordering timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `BACKUP_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `sort` returns status 124.

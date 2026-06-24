@@ -11,6 +11,7 @@ RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+BACKUP_TEXT_FILTER_TIMEOUT="${BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)
 
 cd "$REPO_DIR"
@@ -29,6 +30,10 @@ run_restore_drill_compression() {
 
 run_restore_drill_file_scan() {
   timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"
+}
+
+run_restore_drill_text_filter() {
+  timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"
 }
 
 validate_drill_db_name() {
@@ -56,7 +61,7 @@ validate_drill_db_name "$DRILL_DB"
 
 backup_file="${1:-}"
 if [[ -z "$backup_file" ]]; then
-  backup_file="$(run_restore_drill_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' | sort | tail -1)"
+  backup_file="$(run_restore_drill_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' | run_restore_drill_text_filter sort | run_restore_drill_text_filter tail -1)"
 fi
 
 if [[ -z "$backup_file" || ! -f "$backup_file" ]]; then

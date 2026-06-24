@@ -64,7 +64,9 @@ default, so a stuck Docker or `pg_dump` process fails the backup timer instead
 of hanging it indefinitely.
 Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOUT=5m` by default.
 Backup compression and restore decompression are bounded by `BACKUP_COMPRESSION_TIMEOUT=30m` by default.
-Backup file discovery and retention cleanup are bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s` by default.
+Backup file discovery and retention cleanup are bounded by
+`BACKUP_FILE_SCAN_TIMEOUT=30s` by default. Backup file ordering after discovery
+is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s` by default.
 
 Weekly disaster backups are stored in:
 
@@ -205,6 +207,7 @@ Restore-drill PostgreSQL commands are bounded by
 Backup checksum verification before restore is bounded by `BACKUP_CHECKSUM_TIMEOUT=5m`.
 Backup decompression before restore is bounded by `BACKUP_COMPRESSION_TIMEOUT=30m`.
 Backup discovery before restore is bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
+Backup ordering before sync/restore is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s`.
 
 Validate this guard after changing restore drill behavior:
 

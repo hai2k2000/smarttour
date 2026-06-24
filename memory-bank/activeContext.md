@@ -3102,3 +3102,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the healthcheck backup contract first; RED failed because backup discovery ordering did not route through `run_healthcheck_text_filter`.
   - Routed both PostgreSQL and disaster backup discovery ordering through `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
   - Updated observability/readiness docs; this reuses the existing live `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` setting.
+
+- 2026-06-24 backup sync/restore ordering timeout follow-up:
+  - Found `scripts/sync-latest-backup.sh` and `scripts/restore-drill-postgres.sh` used bounded `find` for latest backup discovery but still used raw `sort | tail -1`.
+  - Extended the backup offsite and restore-drill safety contracts first; RED failed because `BACKUP_TEXT_FILTER_TIMEOUT` coverage was missing.
+  - Added `BACKUP_TEXT_FILTER_TIMEOUT=10s`, `run_backup_text_filter`, and `run_restore_drill_text_filter`, then routed latest-backup ordering through the bounded wrappers.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text-filter wrapper probe confirmed stuck `sort` returns timeout status 124.

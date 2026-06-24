@@ -50,6 +50,8 @@ DISASTER_KEEP_BACKUPS=4
 # BACKUP_COMPRESSION_TIMEOUT=30m
 # Set this to bound backup file discovery and retention cleanup.
 # BACKUP_FILE_SCAN_TIMEOUT=30s
+# Set this to bound backup file ordering after discovery.
+# BACKUP_TEXT_FILTER_TIMEOUT=10s
 # Set this to bound restore-drill PostgreSQL commands.
 # RESTORE_DRILL_COMMAND_TIMEOUT=30m
 # Set these to bound full disaster backup Docker/Compose commands.

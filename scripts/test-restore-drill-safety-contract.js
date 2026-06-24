@@ -33,15 +33,18 @@ for (const expected of [
   'BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"',
   'BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"',
   'BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
+  'BACKUP_TEXT_FILTER_TIMEOUT="${BACKUP_TEXT_FILTER_TIMEOUT:-10s}"',
   'run_restore_drill_docker()',
   'run_restore_drill_checksum()',
   'run_restore_drill_compression()',
   'run_restore_drill_file_scan()',
+  'run_restore_drill_text_filter()',
   'timeout "$RESTORE_DRILL_COMMAND_TIMEOUT" docker exec "$@"',
   'timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"',
   'timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"',
   'timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"',
-  'backup_file="$(run_restore_drill_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz\'',
+  'timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"',
+  'backup_file="$(run_restore_drill_file_scan "$BACKUP_DIR" -type f -name \'smarttour-*.sql.gz\' | run_restore_drill_text_filter sort | run_restore_drill_text_filter tail -1)"',
   'PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)',
   'validate_drill_db_name()',
   'RESTORE_DRILL_ABORT unsafe DRILL_DB',
@@ -83,6 +86,7 @@ for (const expected of [
   'BACKUP_CHECKSUM_TIMEOUT=5m',
   'BACKUP_COMPRESSION_TIMEOUT=30m',
   'BACKUP_FILE_SCAN_TIMEOUT=30s',
+  'BACKUP_TEXT_FILTER_TIMEOUT=10s',
   'npm run test:restore-drill-safety',
 ]) {
   includes('docs/operations-backup-reinstall.md', backupRunbook, expected);
@@ -92,10 +96,12 @@ includes('scripts/install-ops-schedule.sh', opsSchedule, '# RESTORE_DRILL_COMMAN
 includes('scripts/install-ops-schedule.sh', opsSchedule, '# BACKUP_CHECKSUM_TIMEOUT=5m');
 includes('scripts/install-ops-schedule.sh', opsSchedule, '# BACKUP_COMPRESSION_TIMEOUT=30m');
 includes('scripts/install-ops-schedule.sh', opsSchedule, '# BACKUP_FILE_SCAN_TIMEOUT=30s');
+includes('scripts/install-ops-schedule.sh', opsSchedule, '# BACKUP_TEXT_FILTER_TIMEOUT=10s');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'RESTORE_DRILL_COMMAND_TIMEOUT');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'BACKUP_CHECKSUM_TIMEOUT');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'BACKUP_COMPRESSION_TIMEOUT');
 includes('docs/production-readiness-tracker.md', readinessTracker, 'BACKUP_FILE_SCAN_TIMEOUT');
+includes('docs/production-readiness-tracker.md', readinessTracker, 'BACKUP_TEXT_FILTER_TIMEOUT');
 
 if (packageJson.scripts['test:restore-drill-safety'] !== 'node scripts/test-restore-drill-safety-contract.js') {
   throw new Error('package.json must expose test:restore-drill-safety.');
