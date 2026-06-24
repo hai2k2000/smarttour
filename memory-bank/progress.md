@@ -2717,3 +2717,9 @@
   - Manifest hostname and root mode reads now use `DISASTER_BACKUP_HOST_COMMAND_TIMEOUT` through `run_disaster_host_command`.
   - The ops env template, backup runbook, production readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the text timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `sort` returns status 124.
+
+- 2026-06-24 Completed backup remote key mode file-read timeout hardening:
+  - `scripts/sync-latest-backup.sh` now reads remote key mode through `run_backup_file_read`, bounded by `BACKUP_FILE_READ_TIMEOUT=10s`.
+  - `scripts/disaster-backup.sh` now reads remote key mode through `run_disaster_file_read`, bounded by `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
+  - The ops env template, backup runbook, production readiness tracker, `npm run test:backup-offsite`, and `npm run test:backup-artifact-permissions` now guard/document both key-mode read timeout settings.
+  - The live `/etc/default/smarttour-ops` file now sets both file-read timeout values while remaining `600 root:root`; fake wrapper probes verified stuck `stat` reads return status 124.

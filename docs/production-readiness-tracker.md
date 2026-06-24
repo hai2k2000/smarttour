@@ -97,6 +97,7 @@ Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOU
 Backup compression and restore decompression are bounded by `BACKUP_COMPRESSION_TIMEOUT=30m`.
 Backup file discovery and retention cleanup are bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
 Backup file ordering before sync/restore is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s`.
+Backup key/config reads before offsite sync are bounded by `BACKUP_FILE_READ_TIMEOUT=10s`.
 PostgreSQL and disaster backup artifacts are created private (`600`) under
 private backup directories (`700`), guarded by
 `npm run test:backup-artifact-permissions`.
@@ -116,6 +117,8 @@ Disaster backup file discovery and retention cleanup are bounded by
 `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s`.
 Disaster backup manifest and retention text ordering are bounded by
 `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s`.
+Disaster backup key/config reads before offsite sync are bounded by
+`DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
 Disaster backup staging directories are removed after archive checksum verification.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.

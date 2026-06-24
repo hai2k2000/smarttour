@@ -12,6 +12,7 @@ BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}
 BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+BACKUP_FILE_READ_TIMEOUT="${BACKUP_FILE_READ_TIMEOUT:-10s}"
 BACKUP_TEXT_FILTER_TIMEOUT="${BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 CREATE_BACKUP_FIRST="${CREATE_BACKUP_FIRST:-1}"
 
@@ -29,6 +30,10 @@ run_backup_file_scan() {
   timeout "$BACKUP_FILE_SCAN_TIMEOUT" find "$@"
 }
 
+run_backup_file_read() {
+  timeout "$BACKUP_FILE_READ_TIMEOUT" "$@"
+}
+
 run_backup_text_filter() {
   timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"
 }
@@ -41,7 +46,7 @@ require_private_key_file() {
   fi
 
   local key_mode
-  key_mode="$(stat -c '%a' "$key_file")"
+  key_mode="$(run_backup_file_read stat -c '%a' "$key_file")"
   if [[ "$key_mode" != "600" ]]; then
     echo "BACKUP_SYNC_ABORT remote key must be 600: $key_file mode=$key_mode" >&2
     exit 1

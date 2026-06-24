@@ -50,6 +50,8 @@ DISASTER_KEEP_BACKUPS=4
 # BACKUP_COMPRESSION_TIMEOUT=30m
 # Set this to bound backup file discovery and retention cleanup.
 # BACKUP_FILE_SCAN_TIMEOUT=30s
+# Set this to bound backup key/config file reads.
+# BACKUP_FILE_READ_TIMEOUT=10s
 # Set this to bound backup file ordering after discovery.
 # BACKUP_TEXT_FILTER_TIMEOUT=10s
 # Set this to bound restore-drill PostgreSQL commands.
@@ -119,6 +121,8 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_GIT_TIMEOUT=5m
 # Set this to bound disaster backup file discovery and retention cleanup.
 # DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s
+# Set this to bound disaster backup key/config file reads.
+# DISASTER_BACKUP_FILE_READ_TIMEOUT=10s
 # Set this to bound disaster backup text ordering/filtering.
 # DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s
 EOF

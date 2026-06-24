@@ -66,7 +66,8 @@ Backup checksum creation and verification are bounded by `BACKUP_CHECKSUM_TIMEOU
 Backup compression and restore decompression are bounded by `BACKUP_COMPRESSION_TIMEOUT=30m` by default.
 Backup file discovery and retention cleanup are bounded by
 `BACKUP_FILE_SCAN_TIMEOUT=30s` by default. Backup file ordering after discovery
-is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s` by default.
+is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s` by default. Backup key/config
+file reads are bounded by `BACKUP_FILE_READ_TIMEOUT=10s` by default.
 
 Weekly disaster backups are stored in:
 
@@ -97,7 +98,8 @@ default. Git metadata and bundle commands are bounded by
 `DISASTER_BACKUP_GIT_TIMEOUT=5m` by default. Disaster backup file discovery
 and retention cleanup are bounded by `DISASTER_BACKUP_FILE_SCAN_TIMEOUT=30s`
 by default. Disaster backup manifest and retention text ordering is bounded by
-`DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` by default.
+`DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` by default. Disaster backup key/config
+file reads are bounded by `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s` by default.
 
 ## Backup Artifact Permissions
 
@@ -140,6 +142,7 @@ BACKUP_REMOTE_CONNECT_TIMEOUT=10
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 BACKUP_REMOTE_SCP_TIMEOUT=30m
+BACKUP_FILE_READ_TIMEOUT=10s
 ```
 
 Full disaster archive sync:
@@ -152,11 +155,13 @@ DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10
 DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
 DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m
+DISASTER_BACKUP_FILE_READ_TIMEOUT=10s
 ```
 
 The remote key must be dedicated to backup upload and mode `600`; both sync
 scripts abort before SCP if the configured remote key is missing or has a
-different mode.
+different mode. Remote key mode reads are bounded by
+`BACKUP_FILE_READ_TIMEOUT=10s` and `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
 
 ```bash
 chmod 600 /root/.ssh/id_ed25519_backup
@@ -209,6 +214,7 @@ Backup checksum verification before restore is bounded by `BACKUP_CHECKSUM_TIMEO
 Backup decompression before restore is bounded by `BACKUP_COMPRESSION_TIMEOUT=30m`.
 Backup discovery before restore is bounded by `BACKUP_FILE_SCAN_TIMEOUT=30s`.
 Backup ordering before sync/restore is bounded by `BACKUP_TEXT_FILTER_TIMEOUT=10s`.
+Backup key/config reads before sync are bounded by `BACKUP_FILE_READ_TIMEOUT=10s`.
 
 Validate this guard after changing restore drill behavior:
 

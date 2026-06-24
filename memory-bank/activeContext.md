@@ -3114,3 +3114,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT` coverage was missing.
   - Added `DISASTER_BACKUP_TEXT_FILTER_TIMEOUT=10s` and `run_disaster_text_filter`, routed manifest and retention ordering through the bounded wrapper, and routed manifest hostname/root mode through `run_disaster_host_command`.
   - Updated the ops env template, backup runbook, and production readiness tracker; live `/etc/default/smarttour-ops` now sets the same setting while preserving `600 root:root`, and a fake `sort` timeout probe returned status 124.
+
+- 2026-06-24 backup remote key mode file-read timeout follow-up:
+  - Found `scripts/sync-latest-backup.sh` and `scripts/disaster-backup.sh` still read remote SSH key mode with raw `stat -c '%a' "$key_file"` before offsite SCP.
+  - Extended `npm run test:backup-offsite` and `npm run test:backup-artifact-permissions` first; RED failed because `BACKUP_FILE_READ_TIMEOUT` and `DISASTER_BACKUP_FILE_READ_TIMEOUT` coverage was missing.
+  - Added bounded key-mode file-read wrappers for daily backup sync and disaster backup sync, plus docs/env template/readiness coverage.
+  - Live `/etc/default/smarttour-ops` now sets both settings while preserving `600 root:root`, and fake `stat` timeout probes verified status 124 without running real backup or SCP jobs.

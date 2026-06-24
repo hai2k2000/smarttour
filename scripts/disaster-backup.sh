@@ -14,6 +14,7 @@ DISASTER_BACKUP_HOST_COMMAND_TIMEOUT="${DISASTER_BACKUP_HOST_COMMAND_TIMEOUT:-30
 DISASTER_BACKUP_ARCHIVE_TIMEOUT="${DISASTER_BACKUP_ARCHIVE_TIMEOUT:-60m}"
 DISASTER_BACKUP_GIT_TIMEOUT="${DISASTER_BACKUP_GIT_TIMEOUT:-5m}"
 DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"
+DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"
 DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"
 REMOTE_TARGET="${DISASTER_BACKUP_REMOTE_TARGET:-}"
 REMOTE_PORT="${DISASTER_BACKUP_REMOTE_PORT:-22}"
@@ -53,6 +54,10 @@ run_disaster_file_scan() {
   timeout "$DISASTER_BACKUP_FILE_SCAN_TIMEOUT" find "$@"
 }
 
+run_disaster_file_read() {
+  timeout "$DISASTER_BACKUP_FILE_READ_TIMEOUT" "$@"
+}
+
 run_disaster_text_filter() {
   timeout "$DISASTER_BACKUP_TEXT_FILTER_TIMEOUT" "$@"
 }
@@ -69,7 +74,7 @@ require_private_key_file() {
   fi
 
   local key_mode
-  key_mode="$(stat -c '%a' "$key_file")"
+  key_mode="$(run_disaster_file_read stat -c '%a' "$key_file")"
   if [[ "$key_mode" != "600" ]]; then
     echo "DISASTER_BACKUP_ABORT remote key must be 600: $key_file mode=$key_mode" >&2
     exit 1
