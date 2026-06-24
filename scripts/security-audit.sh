@@ -83,6 +83,17 @@ else
   failures=$((failures + 1))
 fi
 
+logrotate_conf_mode="$(stat -c '%a %U:%G' /etc/logrotate.d/smarttour 2>/dev/null || true)"
+if [[ "$logrotate_conf_mode" == "644 root:root" ]] \
+  && grep -Eq '^/var/log/smarttour/\*\.log' /etc/logrotate.d/smarttour \
+  && grep -Eq '^[[:space:]]*copytruncate$' /etc/logrotate.d/smarttour \
+  && grep -Eq '^[[:space:]]*rotate 14$' /etc/logrotate.d/smarttour; then
+  echo "OK_LOGROTATE /etc/logrotate.d/smarttour=644 root:root"
+else
+  echo "FAIL_LOGROTATE /etc/logrotate.d/smarttour=$logrotate_conf_mode expected=644 root:root with smarttour log rotation"
+  failures=$((failures + 1))
+fi
+
 check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 check_disaster_backup_staging_dirs

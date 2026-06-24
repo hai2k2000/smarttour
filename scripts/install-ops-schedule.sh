@@ -14,6 +14,8 @@ fi
 install -d -m 0755 /var/log/smarttour
 install -d -m 0755 /var/log/smarttour/security
 install -d -m 0700 /var/backups/smarttour/disaster
+install -d -m 0755 /etc/logrotate.d
+install -m 0644 "$REPO_DIR/deploy/logrotate/smarttour" /etc/logrotate.d/smarttour
 
 if [[ ! -f "$OPS_ENV" ]]; then
   cat > "$OPS_ENV" <<'EOF'

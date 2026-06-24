@@ -2467,3 +2467,9 @@
   - `/etc/default/smarttour-ops` template now includes `RESTORE_DRILL_MAX_AGE_HOURS=192` so weekly restore drills alert when older than eight days.
   - `scripts/test-healthcheck-restore-drill-contract.js`, `package.json`, observability docs, backup/reinstall docs, and the production readiness tracker now guard and document the restore drill healthcheck contract.
   - The live `/etc/default/smarttour-ops` file was updated with `RESTORE_DRILL_MAX_AGE_HOURS=192` and preserved as `600 root:root`; a temporary log-without-success-marker probe confirmed the healthcheck fails on missing `RESTORE_DRILL_OK` and returns to OK after cleanup.
+
+- 2026-06-24 Completed production ops log rotation hardening:
+  - Added `deploy/logrotate/smarttour` for `/var/log/smarttour/*.log` with daily rotation, 14 retained rotations, compression, copytruncate, and private `0640 root root` recreated logs.
+  - `scripts/install-ops-schedule.sh` now installs `/etc/logrotate.d/smarttour`; `scripts/security-audit.sh` emits `OK_LOGROTATE` or `FAIL_LOGROTATE` for mode/owner and expected rotation settings.
+  - `scripts/test-ops-logrotate-contract.js`, `package.json`, CI source contracts, backup/reinstall docs, security docs, and the production readiness tracker now guard and document the ops logrotate contract.
+  - The live `/etc/logrotate.d/smarttour` file was installed as `644 root:root`; `logrotate -d` parsed the SmartTour log pattern, and a temporary bad-config probe confirmed the security audit fails with `FAIL_LOGROTATE` and returns to `OK_LOGROTATE` after restore.

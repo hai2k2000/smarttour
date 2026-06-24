@@ -2868,3 +2868,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found `smarttour-restore-drill.timer` was enabled and the restore drill log contained `RESTORE_DRILL_OK`, but `scripts/healthcheck.sh` did not alert if the weekly restore drill became stale or failed.
   - Added a dedicated healthcheck restore-drill contract first; RED failed because `RESTORE_DRILL_LOG` / `OK_RESTORE_DRILL` coverage was missing.
   - Updated healthcheck to require the restore drill log, `RESTORE_DRILL_OK` marker, recent log age, and `smarttour-restore-drill.service` result `success`, defaulting `RESTORE_DRILL_MAX_AGE_HOURS` to 192.
+
+- 2026-06-24 production ops log rotation follow-up:
+  - Found SmartTour systemd services append operational logs under `/var/log/smarttour/*.log`, but the VPS had no `/etc/logrotate.d/smarttour` configuration.
+  - Added an ops logrotate contract first; RED failed because `deploy/logrotate/smarttour` was missing.
+  - Added a SmartTour logrotate config for `/var/log/smarttour/*.log`, installed it through `scripts/install-ops-schedule.sh`, and added `OK_LOGROTATE` / `FAIL_LOGROTATE` coverage to the live security audit.

@@ -44,6 +44,7 @@ for (const command of [
   'node scripts/test-rollback-runbook-contract.js',
   'node scripts/test-restore-drill-safety-contract.js',
   'node scripts/test-backup-artifact-permissions-contract.js',
+  'node scripts/test-ops-logrotate-contract.js',
   'npm run lint --workspace @smarttour/api',
   'npm run lint --workspace @smarttour/web',
   'docker compose build api web',

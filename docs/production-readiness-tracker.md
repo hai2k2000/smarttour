@@ -132,6 +132,7 @@ Health tooling:
 - `HEALTHCHECK_WEBHOOK_URL` for webhook alerts
 - `docs/observability-alerting-runbook.md`
 
+Completed implementation: ops schedule installation now installs `/etc/logrotate.d/smarttour` for `/var/log/smarttour/*.log`, guarded by `npm run test:ops-logrotate`.
 Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
 Completed implementation: `/etc/default/smarttour-ops` template now includes commented `HEALTHCHECK_WEBHOOK_*` settings so reinstall/setup keeps alerting configuration discoverable.
 Completed implementation: healthcheck now verifies the latest disaster backup archive age and checksum with `OK_DISASTER_BACKUP`, using `DISASTER_BACKUP_MAX_AGE_HOURS=192` by default.
@@ -158,6 +159,8 @@ Completed hardening:
   `OK_ENV_FILE`.
 - `/etc/default/smarttour-ops` is checked for `600 root:root` permissions with
   `OK_OPS_ENV_FILE`.
+- `/etc/logrotate.d/smarttour` is checked for `644 root:root` permissions and
+  expected SmartTour log rotation settings with `OK_LOGROTATE`.
 - PostgreSQL and disaster backup artifact permissions are checked in the live
   security audit with `OK_BACKUP_PERMS`.
 - Expanded disaster backup staging directories are checked in the live security

@@ -80,6 +80,7 @@ jobs:
           node scripts/test-rollback-runbook-contract.js
           node scripts/test-restore-drill-safety-contract.js
           node scripts/test-backup-artifact-permissions-contract.js
+          node scripts/test-ops-logrotate-contract.js
 
       - name: Typecheck API
         run: npm run lint --workspace @smarttour/api

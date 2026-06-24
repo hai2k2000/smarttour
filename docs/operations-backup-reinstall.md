@@ -31,6 +31,15 @@ tail -100 /var/log/smarttour/restore-drill.log
 Runtime settings are stored in `/etc/default/smarttour-ops`. Keep that file
 mode `600`.
 
+The schedule installer also installs `/etc/logrotate.d/smarttour` for
+`/var/log/smarttour/*.log`. Validate changes with:
+
+```bash
+cd /opt/smarttour
+npm run test:ops-logrotate
+sudo logrotate -d /etc/logrotate.d/smarttour
+```
+
 ## Backup Contents
 
 Daily PostgreSQL backups are stored in:
