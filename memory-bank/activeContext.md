@@ -3138,3 +3138,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended `npm run test:ops-log-permissions` first; RED failed because `smarttour-healthcheck.service` lacked `TimeoutStartSec=2min`.
   - Added explicit outer systemd timeouts: 2 minutes for healthcheck and host report, 45 minutes for PostgreSQL backup and restore drill, and 90 minutes for disaster backup.
   - Docs/readiness were updated; live systemd units were reinstalled/daemon-reloaded and now report 2min for healthcheck/host-report, 45min for PostgreSQL backup/restore-drill, and 1h 30min for disaster backup.
+
+- 2026-06-24 ops systemd timeout alignment follow-up:
+  - Found the first unit-level timeout pass was still too tight: healthcheck had `TimeoutStartSec=2min` while checksum verification can run for `CHECKSUM_CHECK_TIMEOUT=5m`, and restore/disaster jobs can legitimately run several bounded phases sequentially.
+  - Extended the ops log permissions contract first; RED failed because `smarttour-healthcheck.service` did not include `TimeoutStartSec=10min`.
+  - Raised outer service limits to 10 minutes for healthcheck, 120 minutes for restore drill, and 6 hours for disaster backup, leaving host report at 2 minutes and PostgreSQL backup at 45 minutes.
+  - Live systemd units were reinstalled/daemon-reloaded and now report 10min for healthcheck, 2min for host report, 45min for PostgreSQL backup, 6h for disaster backup, and 2h for restore drill.

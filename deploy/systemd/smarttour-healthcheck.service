@@ -9,6 +9,6 @@ UMask=0027
 EnvironmentFile=-/etc/default/smarttour-ops
 WorkingDirectory=/opt/smarttour
 ExecStart=/opt/smarttour/scripts/healthcheck.sh
-TimeoutStartSec=2min
+TimeoutStartSec=10min
 StandardOutput=append:/var/log/smarttour/healthcheck.log
 StandardError=append:/var/log/smarttour/healthcheck.log

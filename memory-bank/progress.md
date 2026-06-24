@@ -2741,3 +2741,9 @@
   - PostgreSQL backup and restore-drill services now set `TimeoutStartSec=45min`.
   - Disaster backup service now sets `TimeoutStartSec=90min`, so systemd no longer cuts off the service before the script's bounded archive work can finish or fail.
   - The backup/security runbooks, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the unit-level timeout settings; live systemd units were reinstalled/daemon-reloaded and `systemctl show` confirms the new timeout values.
+
+- 2026-06-24 Completed ops systemd timeout alignment follow-up:
+  - Healthcheck service now uses `TimeoutStartSec=10min`, leaving room for `CHECKSUM_CHECK_TIMEOUT=5m` plus the other bounded health probes.
+  - Restore-drill service now uses `TimeoutStartSec=120min`, leaving room for checksum, restore, verification, and cleanup phases to fail via their script-level wrappers first.
+  - Disaster backup service now uses `TimeoutStartSec=6h`, leaving room for logical dumps, raw volume archives, final archive/checksum, retention, and optional offsite sync wrappers.
+  - The ops log permissions contract and runbooks now guard/document the aligned outer unit timeout values; live systemd units were reinstalled/daemon-reloaded and `systemctl show` confirms the new timeout values.

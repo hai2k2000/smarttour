@@ -33,11 +33,11 @@ for (const serviceUnit of serviceUnits) {
 }
 
 const serviceTimeouts = {
-  'smarttour-healthcheck.service': 'TimeoutStartSec=2min',
+  'smarttour-healthcheck.service': 'TimeoutStartSec=10min',
   'smarttour-nginx-host-report.service': 'TimeoutStartSec=2min',
   'smarttour-postgres-backup.service': 'TimeoutStartSec=45min',
-  'smarttour-disaster-backup.service': 'TimeoutStartSec=90min',
-  'smarttour-restore-drill.service': 'TimeoutStartSec=45min',
+  'smarttour-disaster-backup.service': 'TimeoutStartSec=6h',
+  'smarttour-restore-drill.service': 'TimeoutStartSec=120min',
 };
 
 for (const [serviceUnit, timeoutSetting] of Object.entries(serviceTimeouts)) {
