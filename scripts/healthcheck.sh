@@ -38,9 +38,16 @@ check_http() {
   local expected="${3:-200}"
   local attempts="${HTTP_ATTEMPTS:-6}"
   local delay="${HTTP_RETRY_DELAY:-3}"
+  local connect_timeout="${HTTP_CONNECT_TIMEOUT:-5}"
+  local max_time="${HTTP_MAX_TIME:-10}"
   local code
   for attempt in $(seq 1 "$attempts"); do
-    code=$(curl -ksS -o /dev/null -w '%{http_code}' "$url" || true)
+    code=$(curl -ksS \
+      --connect-timeout "$connect_timeout" \
+      --max-time "$max_time" \
+      -o /dev/null \
+      -w '%{http_code}' \
+      "$url" || true)
     if [[ "$code" == "$expected" ]]; then
       echo "OK_HTTP $name $code"
       return

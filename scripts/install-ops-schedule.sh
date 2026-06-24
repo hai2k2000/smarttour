@@ -37,6 +37,11 @@ DISASTER_KEEP_BACKUPS=4
 # HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
 # HEALTHCHECK_WEBHOOK_MAX_TIME=10
 # HEALTHCHECK_WEBHOOK_RETRIES=2
+# Set these to bound healthcheck HTTP route probes.
+# HTTP_CONNECT_TIMEOUT=5
+# HTTP_MAX_TIME=10
+# HTTP_ATTEMPTS=6
+# HTTP_RETRY_DELAY=3
 # Set these to sync daily PostgreSQL dumps to another machine.
 # BACKUP_REMOTE_TARGET=backup-user@backup-host:/srv/backups/smarttour/postgres
 # BACKUP_REMOTE_PORT=22

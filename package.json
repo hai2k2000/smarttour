@@ -69,6 +69,7 @@
     "test:restore-drill-safety": "node scripts/test-restore-drill-safety-contract.js",
     "test:healthcheck-backup": "node scripts/test-healthcheck-backup-contract.js",
     "test:healthcheck-restore-drill": "node scripts/test-healthcheck-restore-drill-contract.js",
+    "test:healthcheck-http-timeout": "node scripts/test-healthcheck-http-timeout-contract.js",
     "test:ops-logrotate": "node scripts/test-ops-logrotate-contract.js",
     "test:ops-log-permissions": "node scripts/test-ops-log-permissions-contract.js",
     "test:backup-artifact-permissions": "node scripts/test-backup-artifact-permissions-contract.js"

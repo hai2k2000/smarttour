@@ -2484,3 +2484,8 @@
   - SmartTour ops systemd services now set `UMask=0027` so newly created append logs remain private after reinstall, cleanup, or log recreation.
   - `scripts/security-audit.sh` now emits `OK_OPS_SERVICE_UMASK` or `FAIL_OPS_SERVICE_UMASK`, and the ops log permissions contract/docs/tracker guard the expected service umask.
   - Live systemd units were reinstalled and daemon-reloaded; `systemctl show` now reports `0027` for healthcheck, host report, PostgreSQL backup, disaster backup, and restore drill services.
+
+- 2026-06-24 Completed production healthcheck HTTP timeout hardening:
+  - `scripts/healthcheck.sh` now passes `--connect-timeout "$HTTP_CONNECT_TIMEOUT"` and `--max-time "$HTTP_MAX_TIME"` to route-probe curl calls, with existing bounded attempts and retry delay.
+  - `/etc/default/smarttour-ops` template, observability docs, production readiness tracker, CI source contracts, and `scripts/test-healthcheck-http-timeout-contract.js` now guard/document the HTTP route probe timeout settings.
+  - A live failure probe with `HTTP_ATTEMPTS=1`, `HTTP_CONNECT_TIMEOUT=1`, `HTTP_MAX_TIME=2`, and closed localhost URLs confirmed route checks fail quickly with `FAIL_HTTP`, and the normal healthcheck returns to `HEALTHCHECK_OK`.

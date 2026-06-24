@@ -28,6 +28,17 @@ HEALTHCHECK_WEBHOOK_RETRIES=2
 
 Increase these values only if the alert provider has documented slow responses.
 
+Healthcheck route probes are also bounded so one slow endpoint cannot hang the
+timer:
+
+```bash
+# /etc/default/smarttour-ops
+HTTP_CONNECT_TIMEOUT=5
+HTTP_MAX_TIME=10
+HTTP_ATTEMPTS=6
+HTTP_RETRY_DELAY=3
+```
+
 ## Apply Configuration
 
 ```bash

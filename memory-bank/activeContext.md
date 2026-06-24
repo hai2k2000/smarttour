@@ -2883,3 +2883,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found SmartTour ops systemd services still had the default `UMask=0022`, so newly recreated append logs could become world-readable even after log permission normalization.
   - Extended the ops log permissions contract first; RED failed because `deploy/systemd/smarttour-healthcheck.service` lacked `UMask=0027`.
   - Added `UMask=0027` to every SmartTour ops service and added `OK_OPS_SERVICE_UMASK` / `FAIL_OPS_SERVICE_UMASK` coverage to the live security audit.
+
+- 2026-06-24 production healthcheck HTTP timeout follow-up:
+  - Found `scripts/healthcheck.sh` bounded webhook alert delivery but route probes in `check_http()` still called curl without explicit connect/total timeouts.
+  - Added a dedicated healthcheck HTTP timeout contract first; RED failed because `HTTP_CONNECT_TIMEOUT` coverage was missing.
+  - Updated route probes to use configurable `HTTP_CONNECT_TIMEOUT`, `HTTP_MAX_TIME`, `HTTP_ATTEMPTS`, and `HTTP_RETRY_DELAY` values so slow endpoints cannot hang the health timer.
