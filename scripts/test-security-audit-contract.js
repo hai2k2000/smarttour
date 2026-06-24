@@ -113,12 +113,32 @@ assertRegex(
 ].forEach((expected) => assertIncludes('scripts/install-ops-schedule.sh', opsScheduleInstaller, expected));
 
 [
+  'SECURITY_INSTALL_COMMAND_TIMEOUT="${SECURITY_INSTALL_COMMAND_TIMEOUT:-10s}"',
+  'run_security_install_command()',
+  'timeout "$SECURITY_INSTALL_COMMAND_TIMEOUT" "$@"',
+  'run_security_install_command sshd -t',
+  'run_security_install_command systemctl reload ssh || run_security_install_command systemctl reload sshd',
+  'run_security_install_command docker compose exec -T nginx nginx -t',
+  'run_security_install_command docker compose exec -T nginx nginx -s reload',
+  'run_security_install_command sshd -T',
   'chmod 600 "$REPO_DIR/.env"',
   'chmod 755 /',
   'chmod 700 /root/.ssh',
   'chmod 600 /root/.ssh/authorized_keys',
   'chown -R root:root /root/.ssh',
 ].forEach((expected) => assertIncludes('scripts/install-security-hardening.sh', hardeningInstaller, expected));
+
+[
+  '\nsshd -t\n',
+  '\nsystemctl reload ssh || systemctl reload sshd\n',
+  '\ndocker compose exec -T nginx nginx -t\n',
+  '\ndocker compose exec -T nginx nginx -s reload\n',
+  '\nsshd -T |',
+].forEach((forbidden) => {
+  if (hardeningInstaller.includes(forbidden)) {
+    throw new Error(`scripts/install-security-hardening.sh must not include raw command: ${forbidden.trim()}`);
+  }
+});
 
 [
   'chmod 600 /opt/smarttour/.env',
@@ -137,6 +157,7 @@ assertRegex(
   'OK_DISASTER_STAGING',
   'AUDIT_COMMAND_TIMEOUT',
   'NPM_AUDIT_TIMEOUT',
+  'SECURITY_INSTALL_COMMAND_TIMEOUT',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
@@ -150,6 +171,7 @@ assertRegex(
   'OK_DISASTER_STAGING',
   'AUDIT_COMMAND_TIMEOUT',
   'NPM_AUDIT_TIMEOUT',
+  'SECURITY_INSTALL_COMMAND_TIMEOUT',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',
   'scripts/test-security-audit-contract.js',

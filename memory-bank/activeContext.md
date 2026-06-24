@@ -2940,3 +2940,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the GitHub Actions/deploy contract first; RED failed because `DEPLOY_DOCKER_BUILD_TIMEOUT` coverage was missing.
   - Updated production deploy to run Docker build through `DEPLOY_DOCKER_BUILD_TIMEOUT=45m` and Docker up through `DEPLOY_DOCKER_UP_TIMEOUT=10m`, while preserving existing phase logs and SmartLink guard ordering.
   - Updated the GitHub Actions runbook, production readiness tracker, and SmartLink source assertion; fake clean-repo deploy probes confirmed stuck build/up phases fail fast with timeout status `124`.
+
+- 2026-06-24 production security hardening installer timeout follow-up:
+  - Found `scripts/install-security-hardening.sh` still ran `sshd`, `systemctl reload ssh/sshd`, and `docker compose exec nginx` directly, so a post-reinstall hardening run could hang during SSH or Nginx validation/reload.
+  - Extended the security audit contract first; RED failed because `SECURITY_INSTALL_COMMAND_TIMEOUT` coverage was missing.
+  - Updated the hardening installer to run SSH validation/effective-config output, SSH reload, and Nginx test/reload commands through `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
+  - Updated the security runbook and production readiness tracker; verification used source contract and syntax checks without running the live installer to avoid unnecessary SSH/Nginx reloads during the remediation session.

@@ -2543,3 +2543,9 @@
   - The Docker up phase now runs through `run_deploy_compose_up`, bounded by `DEPLOY_DOCKER_UP_TIMEOUT=10m`.
   - The existing deploy phase markers and SmartLink guard-before-build ordering are preserved and guarded by `node scripts/test-github-actions-contract.js` plus the SmartLink source assertion.
   - Fake clean-repo deploy probes verified stuck Docker build/up phases fail fast with timeout status `124` without touching the production stack.
+
+- 2026-06-24 Completed production security hardening installer timeout hardening:
+  - `scripts/install-security-hardening.sh` now runs SSH validation, SSH reload, Nginx config test/reload, and SSH effective-config output through `run_security_install_command`, bounded by `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
+  - The installer still normalizes `/`, `/root/.ssh`, `authorized_keys`, and `.env` permissions before reloading services.
+  - `npm run test:security-audit`, the security runbook, and the production readiness tracker now guard/document the installer timeout setting.
+  - Verification used source contract and syntax checks without running the live installer, avoiding unnecessary SSH/Nginx reloads during the remediation session.

@@ -190,6 +190,8 @@ Completed hardening:
 - Security audit external probes are bounded by `AUDIT_COMMAND_TIMEOUT` and
   `NPM_AUDIT_TIMEOUT`; Docker, sshd, systemd, and npm-audit failures are treated
   as audit failures instead of being hidden or left to hang.
+- The security hardening installer bounds SSH validation/reload and Nginx reload
+  commands with `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
 
 Completed hardening:
 
