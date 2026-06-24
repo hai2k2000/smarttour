@@ -7,6 +7,7 @@ SYSTEMD_TARGET="/etc/systemd/system"
 OPS_ENV="/etc/default/smarttour-ops"
 OPS_SYSTEMD_TIMEOUT="${OPS_SYSTEMD_TIMEOUT:-30s}"
 OPS_FILE_SCAN_TIMEOUT="${OPS_FILE_SCAN_TIMEOUT:-30s}"
+OPS_FILE_COMMAND_TIMEOUT="${OPS_FILE_COMMAND_TIMEOUT:-30s}"
 
 run_ops_systemctl() {
   timeout "$OPS_SYSTEMD_TIMEOUT" systemctl "$@"
@@ -16,24 +17,28 @@ run_ops_file_scan() {
   timeout "$OPS_FILE_SCAN_TIMEOUT" find "$@"
 }
 
+run_ops_file_command() {
+  timeout "$OPS_FILE_COMMAND_TIMEOUT" "$@"
+}
+
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Schedule installer must run as root" >&2
   exit 1
 fi
 
-install -d -m 0750 /var/log/smarttour
-install -d -m 0750 /var/log/smarttour/security
-chown root:root /var/log/smarttour /var/log/smarttour/security
+run_ops_file_command install -d -m 0750 /var/log/smarttour
+run_ops_file_command install -d -m 0750 /var/log/smarttour/security
+run_ops_file_command chown root:root /var/log/smarttour /var/log/smarttour/security
 run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chown root:root {} +
 run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chmod 0640 {} +
 run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chown root:root {} +
 run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chmod 0640 {} +
-install -d -m 0700 /var/backups/smarttour/disaster
-install -d -m 0755 /etc/logrotate.d
-install -m 0644 "$REPO_DIR/deploy/logrotate/smarttour" /etc/logrotate.d/smarttour
+run_ops_file_command install -d -m 0700 /var/backups/smarttour/disaster
+run_ops_file_command install -d -m 0755 /etc/logrotate.d
+run_ops_file_command install -m 0644 "$REPO_DIR/deploy/logrotate/smarttour" /etc/logrotate.d/smarttour
 
 if [[ ! -f "$OPS_ENV" ]]; then
-  cat > "$OPS_ENV" <<'EOF'
+  run_ops_file_command tee "$OPS_ENV" >/dev/null <<'EOF'
 REPO_DIR=/opt/smarttour
 SITE_URL=https://aitour.io.vn
 API_URL=https://aitour.io.vn/api
@@ -99,6 +104,8 @@ DISASTER_KEEP_BACKUPS=4
 # OPS_SYSTEMD_TIMEOUT=30s
 # Set this to bound file scans in this installer.
 # OPS_FILE_SCAN_TIMEOUT=30s
+# Set this to bound file commands in this installer.
+# OPS_FILE_COMMAND_TIMEOUT=30s
 # Set this to bound file scans in the security audit.
 # AUDIT_FILE_SCAN_TIMEOUT=30s
 # Set this to bound config and permission file reads in the security audit.
@@ -136,16 +143,17 @@ DISASTER_KEEP_BACKUPS=4
 # Set this to bound disaster backup file commands such as mkdir, chmod, tee, and cat.
 # DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m
 EOF
-  chmod 600 "$OPS_ENV"
+  run_ops_file_command chmod 600 "$OPS_ENV"
 fi
-chown root:root "$OPS_ENV"
-chmod 600 "$OPS_ENV"
+run_ops_file_command chown root:root "$OPS_ENV"
+run_ops_file_command chmod 600 "$OPS_ENV"
 
 for unit in "$SYSTEMD_SOURCE"/smarttour-*.service "$SYSTEMD_SOURCE"/smarttour-*.timer; do
-  install -m 0644 "$unit" "$SYSTEMD_TARGET/$(basename "$unit")"
+  unit_name="${unit##*/}"
+  run_ops_file_command install -m 0644 "$unit" "$SYSTEMD_TARGET/$unit_name"
 done
 
-chmod +x \
+run_ops_file_command chmod +x \
   "$REPO_DIR/scripts/backup-postgres.sh" \
   "$REPO_DIR/scripts/disaster-backup.sh" \
   "$REPO_DIR/scripts/healthcheck.sh" \

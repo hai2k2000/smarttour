@@ -1,5 +1,9 @@
 # Progress
 
+- Hardened ops schedule installer file command timeout:
+  - `scripts/install-ops-schedule.sh` now runs root-level file install/permission/env creation commands through `OPS_FILE_COMMAND_TIMEOUT=30s`.
+  - Extended the ops install timeout contract, backup/security runbooks, and production readiness tracker so installer file commands remain bounded after reinstall or timer refresh.
+
 - Hardened disaster backup file command timeout:
   - `scripts/disaster-backup.sh` now runs backup root/staging directory creation/chmod, manifest write, archive chmod, and checksum output through `DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m`.
   - Extended the backup artifact contract, ops env template, backup/reinstall runbook, and production readiness tracker so weekly backup file commands remain bounded.

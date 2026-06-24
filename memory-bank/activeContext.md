@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Ops schedule installer file command timeout hardening:
+  - Hardened `scripts/install-ops-schedule.sh` so root-level file install/permission/env creation commands run through `OPS_FILE_COMMAND_TIMEOUT=30s`.
+  - Extended `scripts/test-ops-install-systemd-timeout-contract.js`, backup/security runbooks, and production readiness tracker so schedule refresh after reinstall cannot regress to unbounded installer file commands.
+
 - Disaster backup file command timeout hardening:
   - Hardened `scripts/disaster-backup.sh` so backup root/staging directory creation/chmod, manifest write, archive chmod, and checksum output run through `DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m`.
   - Extended `scripts/test-backup-artifact-permissions-contract.js`, the ops env template, backup/reinstall runbook, and production readiness tracker so weekly backup file commands cannot regress to unbounded raw calls.
