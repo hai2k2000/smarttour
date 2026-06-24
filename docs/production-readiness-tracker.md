@@ -82,6 +82,8 @@ Tooling is ready:
 - `npm run test:backup-offsite`
 
 The offsite copy scripts use non-interactive SCP with bounded SSH timeouts.
+The offsite copy scripts also bound total SCP transfer time with
+`BACKUP_REMOTE_SCP_TIMEOUT=30m` and `DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m`.
 The offsite copy scripts abort when a configured remote SSH key is missing or
 not mode `600`.
 The daily dump and disaster archive sync paths verify local SHA256 checksums

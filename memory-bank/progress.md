@@ -2579,3 +2579,10 @@
   - Docker image builds now run through `run_preview_compose_build`, bounded by `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`.
   - Docker rm, compose up, and web preview run commands now run through bounded Docker command wrappers with `PREVIEW_DOCKER_COMMAND_TIMEOUT=5m`.
   - `node scripts/test-deploy-preview-timeout-contract.js` is exposed in `package.json`, wired into CI source contracts, documented in the ops/readiness runbooks, and verified with fake timeout probes for npm build, Docker build, and Docker run paths.
+
+- 2026-06-24 Completed offsite backup SCP timeout hardening:
+  - `scripts/sync-latest-backup.sh` now uploads daily backup artifacts through `run_backup_scp`, bounded by `BACKUP_REMOTE_SCP_TIMEOUT=30m`.
+  - `scripts/disaster-backup.sh` now uploads disaster archive artifacts through `run_disaster_scp`, bounded by `DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m`.
+  - The existing checksum-before-upload and remote key mode guards remain in place before SCP starts.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, and `npm run test:backup-offsite` now guard/document total SCP transfer timeouts.
+  - The live `/etc/default/smarttour-ops` file now sets both SCP timeout values while remaining `600 root:root`; fake SCP timeout probes verified both upload paths fail fast with status `124`.

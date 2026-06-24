@@ -2976,3 +2976,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added a dedicated deploy-preview timeout contract first; RED failed because `PREVIEW_NPM_BUILD_TIMEOUT` coverage was missing.
   - Updated preview deploy to run npm builds through `PREVIEW_NPM_BUILD_TIMEOUT=20m`, Docker image builds through `PREVIEW_DOCKER_BUILD_TIMEOUT=30m`, and Docker rm/up/run commands through `PREVIEW_DOCKER_COMMAND_TIMEOUT=5m`.
   - Wired the contract into package scripts and CI, updated ops/readiness docs, and verified fake timeout probes for npm build, Docker build, and Docker run paths.
+
+- 2026-06-24 offsite backup SCP timeout follow-up:
+  - Found daily PostgreSQL backup sync and disaster archive sync used non-interactive SCP with connect/server-alive settings but no total command timeout, so a stuck transfer could still hang an offsite backup job.
+  - Extended the backup offsite contract first; RED failed because `BACKUP_REMOTE_SCP_TIMEOUT` coverage was missing.
+  - Updated daily backup sync to run SCP through `BACKUP_REMOTE_SCP_TIMEOUT=30m` and disaster archive sync through `DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m`.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake SCP timeout probes confirmed both upload paths fail fast with status `124`.

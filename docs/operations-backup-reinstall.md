@@ -124,6 +124,7 @@ BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
 BACKUP_REMOTE_CONNECT_TIMEOUT=10
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
+BACKUP_REMOTE_SCP_TIMEOUT=30m
 ```
 
 Full disaster archive sync:
@@ -135,6 +136,7 @@ DISASTER_BACKUP_REMOTE_KEY=/root/.ssh/id_ed25519_backup
 DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10
 DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15
 DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2
+DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m
 ```
 
 The remote key must be dedicated to backup upload and mode `600`; both sync
@@ -145,8 +147,9 @@ different mode.
 chmod 600 /root/.ssh/id_ed25519_backup
 ```
 
-Both sync scripts use `BatchMode=yes` and bounded SSH timeouts so a broken
-remote destination fails the scheduled job instead of hanging indefinitely.
+Both sync scripts use `BatchMode=yes`, bounded SSH timeouts, and total SCP
+timeouts so a broken remote destination or stuck transfer fails the scheduled
+job instead of hanging indefinitely.
 The remote key must be mode `600`.
 The daily PostgreSQL dump sync runs `sha256sum -c` locally before uploading the
 dump and checksum files. The disaster archive sync verifies `sha256sum -c` before upload as well.

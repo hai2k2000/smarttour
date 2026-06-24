@@ -16,6 +16,7 @@ REMOTE_KEY="${DISASTER_BACKUP_REMOTE_KEY:-}"
 REMOTE_CONNECT_TIMEOUT="${DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"
 REMOTE_SERVER_ALIVE_INTERVAL="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"
 REMOTE_SERVER_ALIVE_COUNT_MAX="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"
+REMOTE_SCP_TIMEOUT="${DISASTER_BACKUP_REMOTE_SCP_TIMEOUT:-60m}"
 LOCK_FILE="${DISASTER_BACKUP_LOCK_FILE:-/run/lock/smarttour-disaster-backup.lock}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -29,6 +30,10 @@ run_disaster_docker() {
 
 run_disaster_compose() {
   timeout "$DISASTER_BACKUP_COMPOSE_TIMEOUT" docker compose "$@"
+}
+
+run_disaster_scp() {
+  timeout "$REMOTE_SCP_TIMEOUT" scp "$@"
 }
 
 require_private_key_file() {
@@ -207,7 +212,7 @@ if [[ -n "$REMOTE_TARGET" ]]; then
     require_private_key_file "$REMOTE_KEY"
     scp_args+=(-i "$REMOTE_KEY")
   fi
-  scp "${scp_args[@]}" "$archive" "$archive.sha256" "$REMOTE_TARGET/"
+  run_disaster_scp "${scp_args[@]}" "$archive" "$archive.sha256" "$REMOTE_TARGET/"
   echo "DISASTER_BACKUP_SYNC_OK $REMOTE_TARGET"
 fi
 

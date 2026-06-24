@@ -9,9 +9,14 @@ BACKUP_REMOTE_KEY="${BACKUP_REMOTE_KEY:-}"
 BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"
 BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"
 BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"
+BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"
 CREATE_BACKUP_FIRST="${CREATE_BACKUP_FIRST:-1}"
 
 cd "$REPO_DIR"
+
+run_backup_scp() {
+  timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"
+}
 
 require_private_key_file() {
   local key_file="$1"
@@ -51,6 +56,6 @@ if [[ -n "$BACKUP_REMOTE_KEY" ]]; then
   scp_args+=(-i "$BACKUP_REMOTE_KEY")
 fi
 
-scp "${scp_args[@]}" "$latest" "$checksum" "$BACKUP_REMOTE_TARGET/"
+run_backup_scp "${scp_args[@]}" "$latest" "$checksum" "$BACKUP_REMOTE_TARGET/"
 
 echo "BACKUP_SYNC_OK $latest -> $BACKUP_REMOTE_TARGET"

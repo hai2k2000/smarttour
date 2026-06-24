@@ -30,14 +30,22 @@ const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
   'BACKUP_REMOTE_CONNECT_TIMEOUT="${BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"',
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL="${BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX="${BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
+  'BACKUP_REMOTE_SCP_TIMEOUT="${BACKUP_REMOTE_SCP_TIMEOUT:-30m}"',
+  'run_backup_scp()',
+  'timeout "$BACKUP_REMOTE_SCP_TIMEOUT" scp "$@"',
   'require_private_key_file()',
   'BACKUP_SYNC_ABORT remote key must be 600',
   'require_private_key_file "$BACKUP_REMOTE_KEY"',
   'chmod 600 "$checksum"',
   'sha256sum -c "$checksum"',
+  'run_backup_scp "${scp_args[@]}" "$latest" "$checksum" "$BACKUP_REMOTE_TARGET/"',
 ].forEach((expected) => assertIncludes('scripts/sync-latest-backup.sh', syncScript, expected));
 
-if (syncScript.indexOf('sha256sum -c "$checksum"') > syncScript.indexOf('scp "${scp_args[@]}" "$latest" "$checksum"')) {
+if (syncScript.includes('\nscp "${scp_args[@]}" "$latest" "$checksum"')) {
+  throw new Error('scripts/sync-latest-backup.sh must not call raw scp.');
+}
+
+if (syncScript.indexOf('sha256sum -c "$checksum"') > syncScript.indexOf('run_backup_scp "${scp_args[@]}" "$latest" "$checksum"')) {
   throw new Error('scripts/sync-latest-backup.sh must verify the checksum before uploading backup artifacts.');
 }
 
@@ -52,13 +60,21 @@ assertRegex(
   'REMOTE_CONNECT_TIMEOUT="${DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT:-10}"',
   'REMOTE_SERVER_ALIVE_INTERVAL="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL:-15}"',
   'REMOTE_SERVER_ALIVE_COUNT_MAX="${DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX:-2}"',
+  'REMOTE_SCP_TIMEOUT="${DISASTER_BACKUP_REMOTE_SCP_TIMEOUT:-60m}"',
+  'run_disaster_scp()',
+  'timeout "$REMOTE_SCP_TIMEOUT" scp "$@"',
   'require_private_key_file()',
   'DISASTER_BACKUP_ABORT remote key must be 600',
   'require_private_key_file "$REMOTE_KEY"',
   'sha256sum -c "$archive.sha256"',
+  'run_disaster_scp "${scp_args[@]}" "$archive" "$archive.sha256" "$REMOTE_TARGET/"',
 ].forEach((expected) => assertIncludes('scripts/disaster-backup.sh', disasterScript, expected));
 
-if (disasterScript.indexOf('sha256sum -c "$archive.sha256"') > disasterScript.indexOf('scp "${scp_args[@]}" "$archive" "$archive.sha256"')) {
+if (disasterScript.includes('\n  scp "${scp_args[@]}" "$archive" "$archive.sha256"')) {
+  throw new Error('scripts/disaster-backup.sh must not call raw scp.');
+}
+
+if (disasterScript.indexOf('sha256sum -c "$archive.sha256"') > disasterScript.indexOf('run_disaster_scp "${scp_args[@]}" "$archive" "$archive.sha256"')) {
   throw new Error('scripts/disaster-backup.sh must verify the disaster archive checksum before uploading artifacts.');
 }
 
@@ -74,10 +90,12 @@ assertRegex(
   'BACKUP_REMOTE_CONNECT_TIMEOUT=10',
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2',
+  'BACKUP_REMOTE_SCP_TIMEOUT=30m',
   'DISASTER_BACKUP_REMOTE_TARGET=',
   'DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT=10',
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL=15',
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX=2',
+  'DISASTER_BACKUP_REMOTE_SCP_TIMEOUT=60m',
 ].forEach((expected) => assertIncludes('scripts/install-ops-schedule.sh', scheduleInstaller, expected));
 
 [
@@ -85,10 +103,12 @@ assertRegex(
   'BACKUP_REMOTE_CONNECT_TIMEOUT',
   'BACKUP_REMOTE_SERVER_ALIVE_INTERVAL',
   'BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX',
+  'BACKUP_REMOTE_SCP_TIMEOUT',
   'DISASTER_BACKUP_REMOTE_TARGET',
   'DISASTER_BACKUP_REMOTE_CONNECT_TIMEOUT',
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_INTERVAL',
   'DISASTER_BACKUP_REMOTE_SERVER_ALIVE_COUNT_MAX',
+  'DISASTER_BACKUP_REMOTE_SCP_TIMEOUT',
   'npm run ops:backup-sync',
   'npm run test:backup-offsite',
   'sha256sum -c',
