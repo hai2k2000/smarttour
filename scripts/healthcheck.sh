@@ -197,7 +197,7 @@ else
   echo "OK_DISK root=${disk_use}%"
 fi
 
-latest_backup="$(run_healthcheck_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+latest_backup="$(run_healthcheck_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | run_healthcheck_text_filter sort -n | run_healthcheck_text_filter tail -1 || true)"
 if [[ -z "$latest_backup" ]]; then
   echo "FAIL_BACKUP no PostgreSQL backup in $BACKUP_DIR"
   failures=$((failures + 1))
@@ -216,7 +216,7 @@ else
   fi
 fi
 
-latest_disaster_backup="$(run_healthcheck_file_scan "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+latest_disaster_backup="$(run_healthcheck_file_scan "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | run_healthcheck_text_filter sort -n | run_healthcheck_text_filter tail -1 || true)"
 if [[ -z "$latest_disaster_backup" ]]; then
   echo "FAIL_DISASTER_BACKUP no disaster backup in $DISASTER_BACKUP_DIR"
   failures=$((failures + 1))

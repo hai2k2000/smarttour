@@ -2700,3 +2700,8 @@
   - Docker log collection and report retention cleanup remain bounded separately by `HOST_REPORT_DOCKER_TIMEOUT=10s` and `HOST_REPORT_FILE_SCAN_TIMEOUT=30s`.
   - The ops env template, security hardening runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the text timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_TEXT_TIMEOUT=10s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `grep` returns status 124.
+
+- 2026-06-24 Completed healthcheck backup ordering timeout hardening:
+  - `scripts/healthcheck.sh` now routes latest PostgreSQL and disaster backup discovery ordering through `run_healthcheck_text_filter`.
+  - Backup directory scans remain bounded by `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s`; ordering uses the existing `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
+  - Observability/readiness docs and `npm run test:healthcheck-backup` now guard/document bounded backup discovery ordering.

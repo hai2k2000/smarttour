@@ -3096,3 +3096,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_TEXT_TIMEOUT` coverage was missing.
   - Added `HOST_REPORT_TEXT_TIMEOUT=10s` and `run_host_report_text`, then routed host-report parsing and summary pipelines through the bounded wrapper.
   - Updated the ops env template, security hardening runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake text wrapper probe confirmed stuck `grep` returns timeout status 124.
+
+- 2026-06-24 healthcheck backup ordering timeout follow-up:
+  - Found `scripts/healthcheck.sh` used bounded `find` for latest PostgreSQL/disaster backup discovery but still used raw `sort -n | tail -1` to select the newest artifact.
+  - Extended the healthcheck backup contract first; RED failed because backup discovery ordering did not route through `run_healthcheck_text_filter`.
+  - Routed both PostgreSQL and disaster backup discovery ordering through `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s`.
+  - Updated observability/readiness docs; this reuses the existing live `HEALTHCHECK_TEXT_FILTER_TIMEOUT=10s` setting.
