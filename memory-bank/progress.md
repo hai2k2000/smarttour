@@ -2658,3 +2658,9 @@
   - Docker log collection remains bounded separately by `HOST_REPORT_DOCKER_TIMEOUT=10s`.
   - `/etc/default/smarttour-ops` template, security hardening runbook, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the file-scan timeout setting.
   - The live `/etc/default/smarttour-ops` file now sets `HOST_REPORT_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `find` returns status 124.
+
+- 2026-06-24 Completed healthcheck alert payload timeout hardening:
+  - `scripts/healthcheck.sh` now bounds webhook alert hostname lookup and JSON payload generation with `HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s`.
+  - Webhook delivery remains bounded separately by `HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT`, `HEALTHCHECK_WEBHOOK_MAX_TIME`, and `HEALTHCHECK_WEBHOOK_RETRIES`.
+  - `/etc/default/smarttour-ops` template, observability alerting runbook, production readiness tracker, and `npm run test:observability-alerting` now guard/document the payload timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s` while remaining `600 root:root`; a fake wrapper probe verified a stuck `node` returns status 124.

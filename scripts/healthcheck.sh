@@ -12,6 +12,7 @@ DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
 CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
 HEALTHCHECK_FILE_SCAN_TIMEOUT="${HEALTHCHECK_FILE_SCAN_TIMEOUT:-30s}"
+HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT="${HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT:-5s}"
 
 cd "$REPO_DIR"
 
@@ -33,14 +34,23 @@ run_healthcheck_file_scan() {
   timeout "$HEALTHCHECK_FILE_SCAN_TIMEOUT" find "$@"
 }
 
+run_alert_payload_command() {
+  timeout "$HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT" "$@"
+}
+
 notify_failure() {
   local message="$1"
   if [[ -n "${HEALTHCHECK_WEBHOOK_URL:-}" ]]; then
     local webhook_connect_timeout="${HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT:-5}"
     local webhook_max_time="${HEALTHCHECK_WEBHOOK_MAX_TIME:-10}"
     local webhook_retries="${HEALTHCHECK_WEBHOOK_RETRIES:-2}"
+    local alert_host
     local payload
-    payload="$(SMARTTOUR_ALERT_HOST="$(hostname)" SMARTTOUR_ALERT_MESSAGE="$message" node -e 'process.stdout.write(JSON.stringify({ event: "smarttour_healthcheck_failed", host: process.env.SMARTTOUR_ALERT_HOST, message: process.env.SMARTTOUR_ALERT_MESSAGE }))')"
+    alert_host="$(run_alert_payload_command hostname 2>/dev/null || printf 'unknown')"
+    if ! payload="$(SMARTTOUR_ALERT_HOST="$alert_host" SMARTTOUR_ALERT_MESSAGE="$message" run_alert_payload_command node -e 'process.stdout.write(JSON.stringify({ event: "smarttour_healthcheck_failed", host: process.env.SMARTTOUR_ALERT_HOST, message: process.env.SMARTTOUR_ALERT_MESSAGE }))')"; then
+      echo "WARN_ALERT_PAYLOAD failed_or_timed_out" >&2
+      return
+    fi
     curl -fsS \
       --connect-timeout "$webhook_connect_timeout" \
       --max-time "$webhook_max_time" \

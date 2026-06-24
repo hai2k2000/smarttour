@@ -168,7 +168,7 @@ Completed implementation: healthcheck Docker/container probes use bounded `DOCKE
 Completed implementation: healthcheck systemd probes use bounded `SYSTEMD_CHECK_TIMEOUT` so failed-unit and restore-drill result checks cannot hide or hang on systemd/DBus issues, guarded by `npm run test:healthcheck-systemd-timeout`.
 Completed implementation: healthcheck backup checksum verification uses bounded `CHECKSUM_CHECK_TIMEOUT=5m` so large or stuck checksum reads cannot hang the health timer, guarded by `npm run test:healthcheck-backup`.
 Completed implementation: healthcheck backup file discovery uses bounded `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` so stuck backup directory scans cannot hang the health timer, guarded by `npm run test:healthcheck-backup`.
-Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
+Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded payload generation, connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
 Completed implementation: `/etc/default/smarttour-ops` template now includes commented `HEALTHCHECK_WEBHOOK_*` settings so reinstall/setup keeps alerting configuration discoverable.
 Completed implementation: healthcheck now verifies the latest disaster backup archive age and checksum with `OK_DISASTER_BACKUP`, using `DISASTER_BACKUP_MAX_AGE_HOURS=192` by default.
 Completed implementation: healthcheck now verifies the latest restore drill log age, `RESTORE_DRILL_OK` marker, and systemd result with `OK_RESTORE_DRILL`, using `RESTORE_DRILL_MAX_AGE_HOURS=192` by default.

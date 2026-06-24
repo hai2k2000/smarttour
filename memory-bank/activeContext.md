@@ -3054,3 +3054,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the ops log permissions contract first; RED failed because `HOST_REPORT_FILE_SCAN_TIMEOUT` coverage was missing.
   - Added `HOST_REPORT_FILE_SCAN_TIMEOUT=30s` and `run_host_report_file_scan`, then routed report retention cleanup through the bounded wrapper.
   - Updated the ops env template, security hardening runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.
+
+- 2026-06-24 healthcheck alert payload timeout follow-up:
+  - Found `scripts/healthcheck.sh` still built webhook alert payloads with raw `hostname` and `node -e`. A stuck hostname lookup or local Node invocation could hang the healthcheck timer before the already-bounded webhook curl.
+  - Extended the observability alerting contract first; RED failed because `HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT` coverage was missing.
+  - Added `HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s` and `run_alert_payload_command`, then routed alert host lookup and JSON payload generation through the bounded wrapper.
+  - Updated the ops env template, observability alerting runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake alert-payload wrapper probe confirmed stuck `node` returns timeout status 124.

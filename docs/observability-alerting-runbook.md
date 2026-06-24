@@ -24,9 +24,13 @@ safe for cron/systemd timer execution:
 HEALTHCHECK_WEBHOOK_CONNECT_TIMEOUT=5
 HEALTHCHECK_WEBHOOK_MAX_TIME=10
 HEALTHCHECK_WEBHOOK_RETRIES=2
+HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s
 ```
 
 Increase these values only if the alert provider has documented slow responses.
+The alert payload `hostname` and JSON generation step is bounded by
+`HEALTHCHECK_ALERT_PAYLOAD_TIMEOUT=5s`; if payload generation fails or times out,
+the healthcheck logs a warning instead of hanging the timer.
 
 Healthcheck route probes are also bounded so one slow endpoint cannot hang the
 timer:
