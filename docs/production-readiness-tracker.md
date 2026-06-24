@@ -134,6 +134,7 @@ Health tooling:
 
 Completed implementation: ops schedule installation now installs `/etc/logrotate.d/smarttour` for `/var/log/smarttour/*.log`, guarded by `npm run test:ops-logrotate`.
 Completed implementation: ops schedule installation now normalizes SmartTour operational log/report directories to `750` and files to `0640`, guarded by `npm run test:ops-log-permissions`.
+Completed implementation: SmartTour ops systemd services set `UMask=0027` so recreated logs remain private, guarded by `npm run test:ops-log-permissions`.
 Completed implementation: healthcheck failure alerts now use a structured webhook payload with bounded connect timeout, total timeout, and retry settings so alert delivery cannot hang the health timer.
 Completed implementation: `/etc/default/smarttour-ops` template now includes commented `HEALTHCHECK_WEBHOOK_*` settings so reinstall/setup keeps alerting configuration discoverable.
 Completed implementation: healthcheck now verifies the latest disaster backup archive age and checksum with `OK_DISASTER_BACKUP`, using `DISASTER_BACKUP_MAX_AGE_HOURS=192` by default.
@@ -164,6 +165,8 @@ Completed hardening:
   expected SmartTour log rotation settings with `OK_LOGROTATE`.
 - `/var/log/smarttour` operational logs and host security reports are checked
   for private directory/file permissions with `OK_OPS_LOG_PERMS`.
+- SmartTour ops systemd services are checked for `UMask=0027` with
+  `OK_OPS_SERVICE_UMASK`.
 - PostgreSQL and disaster backup artifact permissions are checked in the live
   security audit with `OK_BACKUP_PERMS`.
 - Expanded disaster backup staging directories are checked in the live security

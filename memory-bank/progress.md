@@ -2479,3 +2479,8 @@
   - `scripts/nginx-host-report.sh` now creates the report directory as `0750` and writes current/latest report files as `0640`.
   - `scripts/security-audit.sh` now emits `OK_OPS_LOG_PERMS` or `FAIL_OPS_LOG_PERMS`, and `scripts/test-ops-log-permissions-contract.js`, CI, docs, and Memory Bank guard/document the contract.
   - Live logs/reports were normalized to `640 root:root`, directories to `750 root:root`; a host report probe created new `0640` report files, and a temporary `0644` log probe confirmed the audit fails with `FAIL_OPS_LOG_PERMS` and returns to OK after restore.
+
+- 2026-06-24 Completed production ops service umask hardening:
+  - SmartTour ops systemd services now set `UMask=0027` so newly created append logs remain private after reinstall, cleanup, or log recreation.
+  - `scripts/security-audit.sh` now emits `OK_OPS_SERVICE_UMASK` or `FAIL_OPS_SERVICE_UMASK`, and the ops log permissions contract/docs/tracker guard the expected service umask.
+  - Live systemd units were reinstalled and daemon-reloaded; `systemctl show` now reports `0027` for healthcheck, host report, PostgreSQL backup, disaster backup, and restore drill services.

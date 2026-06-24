@@ -4,6 +4,7 @@ After=docker.service smarttour-postgres-backup.service
 
 [Service]
 Type=oneshot
+UMask=0027
 EnvironmentFile=-/etc/default/smarttour-ops
 WorkingDirectory=/opt/smarttour
 ExecStart=/opt/smarttour/scripts/restore-drill-postgres.sh

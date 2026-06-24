@@ -108,6 +108,25 @@ else
   failures=$((failures + 1))
 fi
 
+ops_service_umask_failures=()
+for ops_service in \
+  smarttour-healthcheck.service \
+  smarttour-nginx-host-report.service \
+  smarttour-postgres-backup.service \
+  smarttour-disaster-backup.service \
+  smarttour-restore-drill.service; do
+  ops_service_umask="$(systemctl show "$ops_service" -p UMask --value 2>/dev/null || true)"
+  if [[ "$ops_service_umask" != "0027" ]]; then
+    ops_service_umask_failures+=("$ops_service=$ops_service_umask")
+  fi
+done
+if [[ "${#ops_service_umask_failures[@]}" -eq 0 ]]; then
+  echo "OK_OPS_SERVICE_UMASK SmartTour ops services UMask=0027"
+else
+  echo "FAIL_OPS_SERVICE_UMASK ${ops_service_umask_failures[*]}"
+  failures=$((failures + 1))
+fi
+
 check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
 check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 check_disaster_backup_staging_dirs

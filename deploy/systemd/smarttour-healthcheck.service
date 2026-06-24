@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+UMask=0027
 EnvironmentFile=-/etc/default/smarttour-ops
 WorkingDirectory=/opt/smarttour
 ExecStart=/opt/smarttour/scripts/healthcheck.sh

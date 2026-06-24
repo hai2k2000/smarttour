@@ -20,6 +20,17 @@ const securityRunbook = read('docs/security-hardening-runbook.md');
 const packageJson = JSON.parse(read('package.json'));
 const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
 const githubActionsContract = read('scripts/test-github-actions-contract.js');
+const serviceUnits = [
+  'smarttour-healthcheck.service',
+  'smarttour-nginx-host-report.service',
+  'smarttour-postgres-backup.service',
+  'smarttour-disaster-backup.service',
+  'smarttour-restore-drill.service',
+];
+
+for (const serviceUnit of serviceUnits) {
+  includes(`deploy/systemd/${serviceUnit}`, read(`deploy/systemd/${serviceUnit}`), 'UMask=0027');
+}
 
 [
   'install -d -m 0750 /var/log/smarttour',
@@ -42,6 +53,8 @@ const githubActionsContract = read('scripts/test-github-actions-contract.js');
   "find /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -perm /037",
   'OK_OPS_LOG_PERMS /var/log/smarttour private',
   'FAIL_OPS_LOG_PERMS',
+  'OK_OPS_SERVICE_UMASK SmartTour ops services UMask=0027',
+  'FAIL_OPS_SERVICE_UMASK',
 ].forEach((expected) => includes('scripts/security-audit.sh', securityAudit, expected));
 
 includes('scripts/test-security-audit-contract.js', securityContract, 'OK_OPS_LOG_PERMS');

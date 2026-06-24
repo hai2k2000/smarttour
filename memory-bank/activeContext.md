@@ -2878,3 +2878,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found existing SmartTour operational logs and host security reports under `/var/log/smarttour` were `644` inside `755` directories, making them world-readable.
   - Added an ops log permissions contract first; RED failed because `scripts/install-ops-schedule.sh` still created `/var/log/smarttour` as `0755`.
   - Updated schedule installation, host report generation, and security audit coverage so SmartTour ops logs/reports are kept in `750` directories with `0640` files and audited via `OK_OPS_LOG_PERMS`.
+
+- 2026-06-24 production ops service umask follow-up:
+  - Found SmartTour ops systemd services still had the default `UMask=0022`, so newly recreated append logs could become world-readable even after log permission normalization.
+  - Extended the ops log permissions contract first; RED failed because `deploy/systemd/smarttour-healthcheck.service` lacked `UMask=0027`.
+  - Added `UMask=0027` to every SmartTour ops service and added `OK_OPS_SERVICE_UMASK` / `FAIL_OPS_SERVICE_UMASK` coverage to the live security audit.
