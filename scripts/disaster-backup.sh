@@ -108,7 +108,7 @@ run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dump \
   --if-exists \
   --no-owner \
   --no-privileges \
-  | gzip -9 > "$work_dir/database/smarttour.sql.gz"
+  | run_disaster_archive_command gzip -9 > "$work_dir/database/smarttour.sql.gz"
 
 run_disaster_docker exec "$POSTGRES_CONTAINER" pg_dumpall \
   -U "$POSTGRES_USER" \

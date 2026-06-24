@@ -2622,3 +2622,9 @@
   - Remote Git fetch/checkout/pull remains bounded separately by `DEPLOY_GIT_TIMEOUT=5m`.
   - `node scripts/test-github-actions-contract.js`, the GitHub Actions runbook, and the production readiness tracker now guard/document the local Git timeout setting.
   - A fake deploy probe with a stuck local `git diff` confirmed the deploy aborts before SmartLink, Prisma migration, or Docker phases.
+
+- 2026-06-24 Completed backup gzip timeout hardening:
+  - `scripts/backup-postgres.sh` now bounds daily gzip compression through `BACKUP_COMPRESSION_TIMEOUT=30m`.
+  - `scripts/disaster-backup.sh` now routes disaster SQL gzip compression through `run_disaster_archive_command`, bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
+  - `scripts/restore-drill-postgres.sh` now bounds backup decompression through `BACKUP_COMPRESSION_TIMEOUT=30m`, while cleanup still drops the throwaway drill database on timeout.
+  - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, and `npm run test:restore-drill-safety` now guard/document compression timeout behavior; live env remains `600 root:root`.

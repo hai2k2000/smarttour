@@ -3018,3 +3018,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the GitHub Actions/deploy contract first; RED failed because bounded local Git guard coverage was missing.
   - Added `DEPLOY_LOCAL_GIT_TIMEOUT=30s` and `run_deploy_local_git`, then routed local dirty/staged/untracked checks and start/target/final commit markers through the bounded wrapper.
   - Updated the GitHub Actions runbook and production readiness tracker; a fake local Git timeout probe confirmed deploy aborts quickly at the dirty-worktree guard before SmartLink, Prisma, or Docker phases.
+
+- 2026-06-24 backup gzip timeout follow-up:
+  - Found backup and restore paths still used raw `gzip` for daily dump compression, disaster SQL compression, and restore-drill decompression. Stuck compression/decompression could hang scheduled backup or restore-drill jobs.
+  - Extended backup artifact and restore-drill contracts first; RED failed because `BACKUP_COMPRESSION_TIMEOUT` coverage was missing.
+  - Added `BACKUP_COMPRESSION_TIMEOUT=30m` wrappers for daily backup compression and restore-drill decompression, and routed disaster SQL gzip through the existing `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` wrapper.
+  - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake gzip timeout probes confirmed daily backup, disaster backup, and restore-drill paths return status 124, with restore cleanup still running.

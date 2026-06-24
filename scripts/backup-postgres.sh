@@ -10,6 +10,7 @@ BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 POSTGRES_BACKUP_TIMEOUT="${POSTGRES_BACKUP_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
+BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 
 run_postgres_backup_dump() {
   timeout "$POSTGRES_BACKUP_TIMEOUT" docker exec "$POSTGRES_CONTAINER" pg_dump "$@"
@@ -17,6 +18,10 @@ run_postgres_backup_dump() {
 
 run_backup_checksum() {
   timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"
+}
+
+run_backup_compression() {
+  timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"
 }
 
 mkdir -p "$BACKUP_DIR"
@@ -40,7 +45,7 @@ run_postgres_backup_dump \
   --if-exists \
   --no-owner \
   --no-privileges \
-  | gzip -9 > "$tmp_file"
+  | run_backup_compression -9 > "$tmp_file"
 
 mv "$tmp_file" "$backup_file"
 run_backup_checksum "$backup_file" > "$checksum_file"

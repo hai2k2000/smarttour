@@ -9,6 +9,7 @@ DRILL_DB="${DRILL_DB:-smarttour_restore_drill_$(date +%Y%m%d%H%M%S)}"
 KEEP_RESTORE_DRILL_DB="${KEEP_RESTORE_DRILL_DB:-0}"
 RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
+BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 PROTECTED_RESTORE_DRILL_DBS=(smarttour postgres template0 template1)
 
 cd "$REPO_DIR"
@@ -19,6 +20,10 @@ run_restore_drill_docker() {
 
 run_restore_drill_checksum() {
   timeout "$BACKUP_CHECKSUM_TIMEOUT" sha256sum "$@"
+}
+
+run_restore_drill_compression() {
+  timeout "$BACKUP_COMPRESSION_TIMEOUT" gzip "$@"
 }
 
 validate_drill_db_name() {
@@ -68,7 +73,7 @@ fi
 run_restore_drill_docker "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$DRILL_DB" >/dev/null 2>&1 || true
 run_restore_drill_docker "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$DRILL_DB"
 
-gzip -dc "$backup_file" | run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$DRILL_DB" >/dev/null
+run_restore_drill_compression -dc "$backup_file" | run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$DRILL_DB" >/dev/null
 
 run_restore_drill_docker -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$DRILL_DB" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
