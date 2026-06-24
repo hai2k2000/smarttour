@@ -2735,3 +2735,9 @@
   - The post-deploy healthcheck phase now runs through `run_deploy_healthcheck`, bounded by `DEPLOY_HEALTHCHECK_TIMEOUT=5m`.
   - The GitHub Actions runbook, production readiness tracker, and `node scripts/test-github-actions-contract.js` now guard/document both deploy phase timeout settings.
   - Fake wrapper probes verified stuck SmartLink guard and healthcheck calls return status 124 without running the real production deploy.
+
+- 2026-06-24 Completed ops systemd unit timeout hardening:
+  - SmartTour healthcheck and Nginx host-report services now set `TimeoutStartSec=2min`.
+  - PostgreSQL backup and restore-drill services now set `TimeoutStartSec=45min`.
+  - Disaster backup service now sets `TimeoutStartSec=90min`, so systemd no longer cuts off the service before the script's bounded archive work can finish or fail.
+  - The backup/security runbooks, production readiness tracker, and `npm run test:ops-log-permissions` now guard/document the unit-level timeout settings; live systemd units were reinstalled/daemon-reloaded and `systemctl show` confirms the new timeout values.

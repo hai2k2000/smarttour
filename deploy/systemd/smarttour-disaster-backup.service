@@ -9,6 +9,6 @@ UMask=0027
 EnvironmentFile=-/etc/default/smarttour-ops
 WorkingDirectory=/opt/smarttour
 ExecStart=/opt/smarttour/scripts/disaster-backup.sh
-TimeoutStartSec=45min
+TimeoutStartSec=90min
 StandardOutput=append:/var/log/smarttour/disaster-backup.log
 StandardError=append:/var/log/smarttour/disaster-backup.log

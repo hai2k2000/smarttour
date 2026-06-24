@@ -3132,3 +3132,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended `node scripts/test-github-actions-contract.js` first; RED failed because `DEPLOY_SMARTLINK_GUARD_TIMEOUT` and `DEPLOY_HEALTHCHECK_TIMEOUT` coverage was missing.
   - Added `DEPLOY_SMARTLINK_GUARD_TIMEOUT=10m`, `DEPLOY_HEALTHCHECK_TIMEOUT=5m`, `run_deploy_smartlink_guard`, and `run_deploy_healthcheck`, preserving the existing deploy phase order.
   - Verification used source contracts, shell syntax, and fake timeout probes only; real `scripts/deploy-production.sh` remains intentionally unrun.
+
+- 2026-06-24 ops systemd unit timeout follow-up:
+  - Found healthcheck, host-report, and PostgreSQL backup service units lacked explicit `TimeoutStartSec`, while disaster backup and restore drill service unit limits were shorter than some bounded script work.
+  - Extended `npm run test:ops-log-permissions` first; RED failed because `smarttour-healthcheck.service` lacked `TimeoutStartSec=2min`.
+  - Added explicit outer systemd timeouts: 2 minutes for healthcheck and host report, 45 minutes for PostgreSQL backup and restore drill, and 90 minutes for disaster backup.
+  - Docs/readiness were updated; live systemd units were reinstalled/daemon-reloaded and now report 2min for healthcheck/host-report, 45min for PostgreSQL backup/restore-drill, and 1h 30min for disaster backup.

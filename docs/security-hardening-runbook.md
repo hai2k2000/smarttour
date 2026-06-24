@@ -90,6 +90,10 @@ The report is installed by the operations schedule as
 - `smarttour-disaster-backup.timer`
 - `smarttour-restore-drill.timer`
 
+The service units enforce outer `TimeoutStartSec` limits: 2 minutes for
+healthcheck and host report, 45 minutes for PostgreSQL backup and restore drill,
+and 90 minutes for disaster backup.
+
 Inspect timers after reinstall:
 
 ```bash

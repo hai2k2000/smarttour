@@ -32,6 +32,18 @@ for (const serviceUnit of serviceUnits) {
   includes(`deploy/systemd/${serviceUnit}`, read(`deploy/systemd/${serviceUnit}`), 'UMask=0027');
 }
 
+const serviceTimeouts = {
+  'smarttour-healthcheck.service': 'TimeoutStartSec=2min',
+  'smarttour-nginx-host-report.service': 'TimeoutStartSec=2min',
+  'smarttour-postgres-backup.service': 'TimeoutStartSec=45min',
+  'smarttour-disaster-backup.service': 'TimeoutStartSec=90min',
+  'smarttour-restore-drill.service': 'TimeoutStartSec=45min',
+};
+
+for (const [serviceUnit, timeoutSetting] of Object.entries(serviceTimeouts)) {
+  includes(`deploy/systemd/${serviceUnit}`, read(`deploy/systemd/${serviceUnit}`), timeoutSetting);
+}
+
 [
   'install -d -m 0750 /var/log/smarttour',
   'install -d -m 0750 /var/log/smarttour/security',

@@ -50,6 +50,9 @@ private (`750` directories, `0640` files) and are checked by `OK_OPS_LOG_PERMS`
 in the security audit.
 SmartTour ops systemd services also set `UMask=0027` so newly created logs stay
 private after reinstall or cleanup.
+Systemd also enforces outer `TimeoutStartSec` limits: 2 minutes for healthcheck
+and host report, 45 minutes for PostgreSQL backup and restore drill, and 90
+minutes for disaster backup.
 
 ## Backup Contents
 
