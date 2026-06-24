@@ -2747,3 +2747,9 @@
   - Restore-drill service now uses `TimeoutStartSec=120min`, leaving room for checksum, restore, verification, and cleanup phases to fail via their script-level wrappers first.
   - Disaster backup service now uses `TimeoutStartSec=6h`, leaving room for logical dumps, raw volume archives, final archive/checksum, retention, and optional offsite sync wrappers.
   - The ops log permissions contract and runbooks now guard/document the aligned outer unit timeout values; live systemd units were reinstalled/daemon-reloaded and `systemctl show` confirms the new timeout values.
+
+- 2026-06-24 Completed disaster backup cleanup guard hardening:
+  - `scripts/disaster-backup.sh` now normalizes and validates `DISASTER_BACKUP_ROOT` before creating backup directories.
+  - Expanded staging cleanup now goes through `safe_remove_disaster_path`, guarded to `smarttour-disaster-*` paths under the backup root.
+  - Retention cleanup now goes through `safe_remove_disaster_archive`, guarding both archive/checksum deletion and matching staging-directory deletion.
+  - The backup runbook, readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the cleanup safety checks; fake guard probes verified allowed cleanup succeeds and unsafe paths abort.

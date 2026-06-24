@@ -65,6 +65,13 @@ for (const expected of [
   'DISASTER_BACKUP_FILE_SCAN_TIMEOUT="${DISASTER_BACKUP_FILE_SCAN_TIMEOUT:-30s}"',
   'DISASTER_BACKUP_FILE_READ_TIMEOUT="${DISASTER_BACKUP_FILE_READ_TIMEOUT:-10s}"',
   'DISASTER_BACKUP_TEXT_FILTER_TIMEOUT="${DISASTER_BACKUP_TEXT_FILTER_TIMEOUT:-10s}"',
+  'BACKUP_ROOT="${BACKUP_ROOT%/}"',
+  'validate_disaster_backup_root()',
+  'safe_remove_disaster_path()',
+  'safe_remove_disaster_archive()',
+  'DISASTER_BACKUP_ABORT unsafe backup root',
+  'DISASTER_BACKUP_ABORT unsafe cleanup path',
+  'validate_disaster_backup_root "$BACKUP_ROOT"',
   'run_disaster_archive_command gzip -9',
   'run_disaster_docker()',
   'run_disaster_compose()',
@@ -118,7 +125,8 @@ for (const expected of [
   "run_disaster_text_filter cut -d' ' -f2-",
   'chmod 700 "$BACKUP_ROOT"',
   'chmod 600 "$archive" "$archive.sha256"',
-  'rm -rf "$work_dir"',
+  'safe_remove_disaster_path "$work_dir"',
+  'safe_remove_disaster_archive "$old_archive"',
 ]) {
   includes('scripts/disaster-backup.sh', disasterBackup, expected);
 }
@@ -160,17 +168,20 @@ for (const forbidden of [
   '\nsha256sum "$archive" > "$archive.sha256"',
   '\nsha256sum -c "$archive.sha256"',
   '\n  | xargs -0 sha256sum',
+  'rm -rf "$work_dir"',
+  'rm -rf "${old_archive%.tar.gz}"',
+  'rm -f "$old_archive" "$old_archive.sha256"',
 ]) {
   if (disasterBackup.includes(forbidden)) {
     throw new Error(`scripts/disaster-backup.sh must not use raw ${forbidden.trim()}.`);
   }
 }
 
-if (disasterBackup.indexOf('sha256sum -c "$archive.sha256"') > disasterBackup.indexOf('rm -rf "$work_dir"')) {
+if (disasterBackup.indexOf('sha256sum -c "$archive.sha256"') > disasterBackup.indexOf('safe_remove_disaster_path "$work_dir"')) {
   throw new Error('scripts/disaster-backup.sh must verify the archive checksum before removing the staging directory.');
 }
 
-if (disasterBackup.indexOf('rm -rf "$work_dir"') > disasterBackup.indexOf('if [[ -n "$REMOTE_TARGET" ]]')) {
+if (disasterBackup.indexOf('safe_remove_disaster_path "$work_dir"') > disasterBackup.indexOf('if [[ -n "$REMOTE_TARGET" ]]')) {
   throw new Error('scripts/disaster-backup.sh must remove the staging directory before offsite sync starts.');
 }
 

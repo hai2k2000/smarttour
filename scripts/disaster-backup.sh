@@ -4,6 +4,7 @@ umask 077
 
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 BACKUP_ROOT="${DISASTER_BACKUP_ROOT:-/var/backups/smarttour/disaster}"
+BACKUP_ROOT="${BACKUP_ROOT%/}"
 KEEP_BACKUPS="${DISASTER_KEEP_BACKUPS:-4}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
 POSTGRES_USER="${POSTGRES_USER:-smarttour}"
@@ -29,6 +30,33 @@ if [[ "$(id -u)" -ne 0 ]]; then
   echo "Disaster backup must run as root" >&2
   exit 1
 fi
+
+validate_disaster_backup_root() {
+  local root="$1"
+  if [[ -z "$root" || "$root" != /* || "$root" == "/" || "$root" == "/var" || "$root" == "/var/backups" || "$root" == "/var/backups/smarttour" ]]; then
+    echo "DISASTER_BACKUP_ABORT unsafe backup root: $root" >&2
+    exit 1
+  fi
+}
+
+safe_remove_disaster_path() {
+  local target="$1"
+  if [[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-* ]]; then
+    echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
+    exit 1
+  fi
+  rm -rf "$target"
+}
+
+safe_remove_disaster_archive() {
+  local target="$1"
+  if [[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-*.tar.gz ]]; then
+    echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
+    exit 1
+  fi
+  rm -f "$target" "$target.sha256"
+  safe_remove_disaster_path "${target%.tar.gz}"
+}
 
 run_disaster_docker() {
   timeout "$DISASTER_BACKUP_DOCKER_TIMEOUT" docker "$@"
@@ -80,6 +108,8 @@ require_private_key_file() {
     exit 1
   fi
 }
+
+validate_disaster_backup_root "$BACKUP_ROOT"
 
 mkdir -p "$BACKUP_ROOT" "$(dirname "$LOCK_FILE")"
 chmod 700 "$BACKUP_ROOT"
@@ -222,7 +252,7 @@ run_disaster_archive_command tar -czf "$archive" -C "$BACKUP_ROOT" "$name"
 run_disaster_archive_command sha256sum "$archive" > "$archive.sha256"
 chmod 600 "$archive" "$archive.sha256"
 run_disaster_archive_command sha256sum -c "$archive.sha256"
-rm -rf "$work_dir"
+safe_remove_disaster_path "$work_dir"
 
 mapfile -t old_archives < <(
   run_disaster_file_scan "$BACKUP_ROOT" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' \
@@ -232,8 +262,7 @@ mapfile -t old_archives < <(
     | run_disaster_text_filter cut -d' ' -f2-
 )
 for old_archive in "${old_archives[@]}"; do
-  rm -f "$old_archive" "$old_archive.sha256"
-  rm -rf "${old_archive%.tar.gz}"
+  safe_remove_disaster_archive "$old_archive"
 done
 
 if [[ -n "$REMOTE_TARGET" ]]; then

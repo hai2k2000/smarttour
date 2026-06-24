@@ -120,6 +120,8 @@ Disaster backup manifest and retention text ordering are bounded by
 Disaster backup key/config reads before offsite sync are bounded by
 `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
 Disaster backup staging directories are removed after archive checksum verification.
+Disaster backup staging and retention cleanup only remove guarded
+`smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
 Manual owner task: choose and configure the off-VPS backup storage target,
 then run `npm run ops:backup-sync` and one disaster archive sync.
 

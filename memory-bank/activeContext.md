@@ -3144,3 +3144,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the ops log permissions contract first; RED failed because `smarttour-healthcheck.service` did not include `TimeoutStartSec=10min`.
   - Raised outer service limits to 10 minutes for healthcheck, 120 minutes for restore drill, and 6 hours for disaster backup, leaving host report at 2 minutes and PostgreSQL backup at 45 minutes.
   - Live systemd units were reinstalled/daemon-reloaded and now report 10min for healthcheck, 2min for host report, 45min for PostgreSQL backup, 6h for disaster backup, and 2h for restore drill.
+
+- 2026-06-24 disaster backup cleanup guard follow-up:
+  - Found `scripts/disaster-backup.sh` still used direct recursive cleanup for the expanded staging directory and old archive staging directories.
+  - Extended the backup artifact permissions contract first; RED failed because `BACKUP_ROOT` normalization and cleanup guard coverage was missing.
+  - Added backup root validation plus guarded `safe_remove_disaster_path` / `safe_remove_disaster_archive` helpers so cleanup only removes `smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
+  - Verification used source contracts, shell syntax, and fake guard probes only; real disaster backup remains intentionally unrun.

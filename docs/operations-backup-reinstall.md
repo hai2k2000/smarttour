@@ -111,6 +111,8 @@ disaster archive includes `.env` and server configuration. New artifacts are
 created with mode `600`; backup directories are kept at mode `700`.
 Temporary backup files are removed automatically if backup creation fails.
 Disaster backup staging directories are removed after archive checksum verification.
+Disaster backup staging and retention cleanup only remove guarded
+`smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
 
 Normalize existing files after a hardening change:
 
