@@ -5,9 +5,14 @@ REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 SSH_SOURCE="$REPO_DIR/deploy/ssh/01-smarttour-hardening.conf"
 SSH_TARGET="/etc/ssh/sshd_config.d/01-smarttour-hardening.conf"
 SECURITY_INSTALL_COMMAND_TIMEOUT="${SECURITY_INSTALL_COMMAND_TIMEOUT:-10s}"
+SECURITY_INSTALL_TEXT_FILTER_TIMEOUT="${SECURITY_INSTALL_TEXT_FILTER_TIMEOUT:-10s}"
 
 run_security_install_command() {
   timeout "$SECURITY_INSTALL_COMMAND_TIMEOUT" "$@"
+}
+
+run_security_install_text_filter() {
+  timeout "$SECURITY_INSTALL_TEXT_FILTER_TIMEOUT" "$@"
 }
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -39,5 +44,5 @@ cd "$REPO_DIR"
 run_security_install_command docker compose exec -T nginx nginx -t
 run_security_install_command docker compose exec -T nginx nginx -s reload
 
-run_security_install_command sshd -T | grep -E '^(port|passwordauthentication|pubkeyauthentication|permitrootlogin|authenticationmethods|maxauthtries|logingracetime)'
+run_security_install_command sshd -T | run_security_install_text_filter grep -E '^(port|passwordauthentication|pubkeyauthentication|permitrootlogin|authenticationmethods|maxauthtries|logingracetime)'
 echo "SECURITY_HARDENING_INSTALL_OK"

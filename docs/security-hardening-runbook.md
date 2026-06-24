@@ -33,6 +33,8 @@ The operations schedule installer bounds systemd calls with
 by `OPS_FILE_SCAN_TIMEOUT=30s` by default.
 The security hardening installer bounds SSH validation/reload and Nginx reload
 commands with `SECURITY_INSTALL_COMMAND_TIMEOUT=10s` by default.
+It also bounds SSH effective-config text filtering with
+`SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s` by default.
 
 Validate the security audit source contract and the live host audit:
 

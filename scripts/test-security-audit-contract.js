@@ -133,13 +133,16 @@ assertRegex(
 
 [
   'SECURITY_INSTALL_COMMAND_TIMEOUT="${SECURITY_INSTALL_COMMAND_TIMEOUT:-10s}"',
+  'SECURITY_INSTALL_TEXT_FILTER_TIMEOUT="${SECURITY_INSTALL_TEXT_FILTER_TIMEOUT:-10s}"',
   'run_security_install_command()',
+  'run_security_install_text_filter()',
   'timeout "$SECURITY_INSTALL_COMMAND_TIMEOUT" "$@"',
+  'timeout "$SECURITY_INSTALL_TEXT_FILTER_TIMEOUT" "$@"',
   'run_security_install_command sshd -t',
   'run_security_install_command systemctl reload ssh || run_security_install_command systemctl reload sshd',
   'run_security_install_command docker compose exec -T nginx nginx -t',
   'run_security_install_command docker compose exec -T nginx nginx -s reload',
-  'run_security_install_command sshd -T',
+  "run_security_install_command sshd -T | run_security_install_text_filter grep -E '^(port|passwordauthentication|pubkeyauthentication|permitrootlogin|authenticationmethods|maxauthtries|logingracetime)'",
   'chmod 600 "$REPO_DIR/.env"',
   'chmod 755 /',
   'chmod 700 /root/.ssh',
@@ -153,6 +156,7 @@ assertRegex(
   '\ndocker compose exec -T nginx nginx -t\n',
   '\ndocker compose exec -T nginx nginx -s reload\n',
   '\nsshd -T |',
+  "| grep -E '^(port|passwordauthentication|pubkeyauthentication|permitrootlogin|authenticationmethods|maxauthtries|logingracetime)'",
 ].forEach((forbidden) => {
   if (hardeningInstaller.includes(forbidden)) {
     throw new Error(`scripts/install-security-hardening.sh must not include raw command: ${forbidden.trim()}`);
@@ -179,6 +183,7 @@ assertRegex(
   'AUDIT_FILE_SCAN_TIMEOUT',
   'AUDIT_FILE_READ_TIMEOUT',
   'SECURITY_INSTALL_COMMAND_TIMEOUT',
+  'SECURITY_INSTALL_TEXT_FILTER_TIMEOUT',
   'OK_SSH_PERMS',
 ].forEach((expected) => assertIncludes('docs/security-hardening-runbook.md', securityRunbook, expected));
 
@@ -194,6 +199,7 @@ assertRegex(
   'NPM_AUDIT_TIMEOUT',
   'AUDIT_FILE_READ_TIMEOUT',
   'SECURITY_INSTALL_COMMAND_TIMEOUT',
+  'SECURITY_INSTALL_TEXT_FILTER_TIMEOUT',
   'OK_ROOT_MODE',
   'OK_SSH_PERMS',
   'scripts/test-security-audit-contract.js',

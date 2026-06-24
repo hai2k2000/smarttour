@@ -217,6 +217,8 @@ Completed hardening:
 - Security audit config and permission reads are bounded by `AUDIT_FILE_READ_TIMEOUT=10s`.
 - The security hardening installer bounds SSH validation/reload and Nginx reload
   commands with `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
+- The security hardening installer bounds SSH effective-config text filtering
+  with `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s`.
 
 Completed hardening:
 

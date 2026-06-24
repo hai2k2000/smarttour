@@ -2723,3 +2723,9 @@
   - `scripts/disaster-backup.sh` now reads remote key mode through `run_disaster_file_read`, bounded by `DISASTER_BACKUP_FILE_READ_TIMEOUT=10s`.
   - The ops env template, backup runbook, production readiness tracker, `npm run test:backup-offsite`, and `npm run test:backup-artifact-permissions` now guard/document both key-mode read timeout settings.
   - The live `/etc/default/smarttour-ops` file now sets both file-read timeout values while remaining `600 root:root`; fake wrapper probes verified stuck `stat` reads return status 124.
+
+- 2026-06-24 Completed security installer text-filter timeout hardening:
+  - `scripts/install-security-hardening.sh` now filters `sshd -T` effective config output through `run_security_install_text_filter`, bounded by `SECURITY_INSTALL_TEXT_FILTER_TIMEOUT=10s`.
+  - SSH validation/reload and Nginx validation/reload remain bounded separately by `SECURITY_INSTALL_COMMAND_TIMEOUT=10s`.
+  - The security hardening runbook, production readiness tracker, and `npm run test:security-audit` now guard/document the installer text-filter timeout setting.
+  - A fake wrapper probe verified a stuck `grep` returns status 124 without running the real security installer.
