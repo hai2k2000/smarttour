@@ -41,7 +41,12 @@ validate_disaster_backup_root() {
 
 safe_remove_disaster_path() {
   local target="$1"
-  if [[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-* ]]; then
+  local target_dir="${target%/*}"
+  local target_base="${target##*/}"
+  if [[ -z "$target" ]] \
+    || [[ "$target_dir" != "$BACKUP_ROOT" ]] \
+    || [[ "$target_base" != smarttour-disaster-* ]] \
+    || [[ "$target_base" == *"/"* ]]; then
     echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
     exit 1
   fi
@@ -50,7 +55,12 @@ safe_remove_disaster_path() {
 
 safe_remove_disaster_archive() {
   local target="$1"
-  if [[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-*.tar.gz ]]; then
+  local target_dir="${target%/*}"
+  local target_base="${target##*/}"
+  if [[ -z "$target" ]] \
+    || [[ "$target_dir" != "$BACKUP_ROOT" ]] \
+    || [[ "$target_base" != smarttour-disaster-*.tar.gz ]] \
+    || [[ "$target_base" == *"/"* ]]; then
     echo "DISASTER_BACKUP_ABORT unsafe cleanup path: $target" >&2
     exit 1
   fi

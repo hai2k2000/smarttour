@@ -2753,3 +2753,9 @@
   - Expanded staging cleanup now goes through `safe_remove_disaster_path`, guarded to `smarttour-disaster-*` paths under the backup root.
   - Retention cleanup now goes through `safe_remove_disaster_archive`, guarding both archive/checksum deletion and matching staging-directory deletion.
   - The backup runbook, readiness tracker, and `npm run test:backup-artifact-permissions` now guard/document the cleanup safety checks; fake guard probes verified allowed cleanup succeeds and unsafe paths abort.
+
+- 2026-06-24 Completed disaster backup cleanup basename guard hardening:
+  - `safe_remove_disaster_path` and `safe_remove_disaster_archive` now split cleanup targets into directory and basename components before allowing deletion.
+  - Cleanup now requires the target directory to equal `BACKUP_ROOT`, not just start with the backup root prefix.
+  - Cleanup basenames must match `smarttour-disaster-*` / `smarttour-disaster-*.tar.gz`, blocking nested or traversal-style cleanup strings.
+  - The backup artifact permissions contract now guards the stricter cleanup checks; fake guard probes verified direct children are allowed while nested/traversal-style cleanup strings abort.

@@ -3150,3 +3150,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because `BACKUP_ROOT` normalization and cleanup guard coverage was missing.
   - Added backup root validation plus guarded `safe_remove_disaster_path` / `safe_remove_disaster_archive` helpers so cleanup only removes `smarttour-disaster-*` paths under `DISASTER_BACKUP_ROOT`.
   - Verification used source contracts, shell syntax, and fake guard probes only; real disaster backup remains intentionally unrun.
+
+- 2026-06-24 disaster backup cleanup basename guard follow-up:
+  - Tightened the cleanup guard after noticing the initial full-path wildcard check was broader than necessary for a root-run script.
+  - Extended the backup artifact permissions contract first; RED failed because cleanup helpers did not split `target_dir` and `target_base`.
+  - Updated cleanup helpers to require `target_dir == BACKUP_ROOT` and `target_base` matching `smarttour-disaster-*`, so nested/traversal-style strings cannot pass the guard.
+  - Verification used source contracts, shell syntax, and fake guard probes only; real disaster backup remains intentionally unrun.

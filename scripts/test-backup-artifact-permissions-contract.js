@@ -69,6 +69,11 @@ for (const expected of [
   'validate_disaster_backup_root()',
   'safe_remove_disaster_path()',
   'safe_remove_disaster_archive()',
+  'local target_dir="${target%/*}"',
+  'local target_base="${target##*/}"',
+  '[[ "$target_dir" != "$BACKUP_ROOT" ]]',
+  '[[ "$target_base" != smarttour-disaster-* ]]',
+  '[[ "$target_base" == *"/"* ]]',
   'DISASTER_BACKUP_ABORT unsafe backup root',
   'DISASTER_BACKUP_ABORT unsafe cleanup path',
   'validate_disaster_backup_root "$BACKUP_ROOT"',
@@ -171,6 +176,8 @@ for (const forbidden of [
   'rm -rf "$work_dir"',
   'rm -rf "${old_archive%.tar.gz}"',
   'rm -f "$old_archive" "$old_archive.sha256"',
+  '[[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-* ]]',
+  '[[ -z "$target" || "$target" != "$BACKUP_ROOT"/smarttour-disaster-*.tar.gz ]]',
 ]) {
   if (disasterBackup.includes(forbidden)) {
     throw new Error(`scripts/disaster-backup.sh must not use raw ${forbidden.trim()}.`);
