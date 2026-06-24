@@ -55,3 +55,5 @@ scripts/healthcheck.sh
 ```
 
 The normal run should print `HEALTHCHECK_OK` and should not send a failure alert.
+It should also print `OK_DISASTER_BACKUP` for the latest disaster backup
+archive age and checksum.

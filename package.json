@@ -67,6 +67,7 @@
     "test:ops-schedule-docs": "node scripts/test-ops-schedule-docs-contract.js",
     "test:rollback-runbook": "node scripts/test-rollback-runbook-contract.js",
     "test:restore-drill-safety": "node scripts/test-restore-drill-safety-contract.js",
+    "test:healthcheck-backup": "node scripts/test-healthcheck-backup-contract.js",
     "test:backup-artifact-permissions": "node scripts/test-backup-artifact-permissions-contract.js"
   },
   "devDependencies": {

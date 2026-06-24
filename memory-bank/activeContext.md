@@ -2858,3 +2858,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found the live security audit checked private disaster archive artifacts but did not fail if expanded disaster backup staging directories reappeared.
   - Extended the security audit source contract first; RED failed because `scripts/security-audit.sh` lacked `check_disaster_backup_staging_dirs()`.
   - Added `OK_DISASTER_STAGING` / `FAIL_DISASTER_STAGING` audit coverage so production security checks assert there are no expanded `smarttour-disaster-*` staging directories under `/var/backups/smarttour/disaster`.
+
+- 2026-06-24 production healthcheck backup follow-up:
+  - Found `scripts/healthcheck.sh` verified the latest daily PostgreSQL dump age/checksum but did not verify disaster backup archive freshness/checksum.
+  - Added a dedicated healthcheck backup contract first; RED failed because `DISASTER_BACKUP_DIR` and `OK_DISASTER_BACKUP` coverage were missing.
+  - Updated healthcheck to verify the latest disaster backup archive under `/var/backups/smarttour/disaster`, fail on missing/stale/checksum-invalid archives, and default `DISASTER_BACKUP_MAX_AGE_HOURS` to 192.

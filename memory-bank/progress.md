@@ -2455,3 +2455,9 @@
   - `scripts/security-audit.sh` now emits `OK_DISASTER_STAGING` when no expanded disaster backup staging directories remain and `FAIL_DISASTER_STAGING` if a `smarttour-disaster-*` directory reappears under `/var/backups/smarttour/disaster`.
   - `scripts/test-security-audit-contract.js`, the security hardening runbook, and the production readiness tracker now guard and document the new live audit marker.
   - A live failure probe with a temporary `smarttour-disaster-audit-probe` directory confirmed the audit fails on expanded staging and returns to OK after cleanup.
+
+- 2026-06-24 Completed production healthcheck disaster backup freshness coverage:
+  - `scripts/healthcheck.sh` now checks the latest `smarttour-disaster-*.tar.gz` archive age and checksum, emitting `OK_DISASTER_BACKUP` or `FAIL_DISASTER_BACKUP`.
+  - `/etc/default/smarttour-ops` template now includes `DISASTER_BACKUP_MAX_AGE_HOURS=192` so weekly disaster backups alert when older than eight days.
+  - `scripts/test-healthcheck-backup-contract.js`, `package.json`, observability docs, and the production readiness tracker now guard and document the disaster backup healthcheck contract.
+  - The live `/etc/default/smarttour-ops` file was updated with `DISASTER_BACKUP_MAX_AGE_HOURS=192` and preserved as `600 root:root`; a temporary stale archive probe confirmed the healthcheck fails on stale disaster backups and returns to OK after cleanup.

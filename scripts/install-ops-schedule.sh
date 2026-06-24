@@ -21,6 +21,7 @@ REPO_DIR=/opt/smarttour
 SITE_URL=https://aitour.io.vn
 API_URL=https://aitour.io.vn/api
 BACKUP_MAX_AGE_HOURS=30
+DISASTER_BACKUP_MAX_AGE_HOURS=192
 KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
 # Set these to send healthcheck failure alerts to an external destination.

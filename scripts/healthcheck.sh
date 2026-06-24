@@ -5,6 +5,7 @@ SITE_URL="${SITE_URL:-https://aitour.io.vn}"
 API_URL="${API_URL:-https://aitour.io.vn/api}"
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
+DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"
 
 cd "$REPO_DIR"
 
@@ -137,6 +138,25 @@ else
     echo "OK_BACKUP age=${backup_age_hours}h checksum=valid file=$latest_backup_file"
   else
     echo "FAIL_BACKUP checksum missing_or_invalid file=$latest_backup_file"
+    failures=$((failures + 1))
+  fi
+fi
+
+latest_disaster_backup="$(find "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+if [[ -z "$latest_disaster_backup" ]]; then
+  echo "FAIL_DISASTER_BACKUP no disaster backup in $DISASTER_BACKUP_DIR"
+  failures=$((failures + 1))
+else
+  latest_disaster_backup_epoch="${latest_disaster_backup%% *}"
+  latest_disaster_backup_file="${latest_disaster_backup#* }"
+  disaster_backup_age_hours=$(( ($(date +%s) - ${latest_disaster_backup_epoch%.*}) / 3600 ))
+  if [[ "$disaster_backup_age_hours" -gt "${DISASTER_BACKUP_MAX_AGE_HOURS:-192}" ]]; then
+    echo "FAIL_DISASTER_BACKUP stale age=${disaster_backup_age_hours}h file=$latest_disaster_backup_file"
+    failures=$((failures + 1))
+  elif [[ -f "$latest_disaster_backup_file.sha256" ]] && sha256sum -c "$latest_disaster_backup_file.sha256" >/dev/null 2>&1; then
+    echo "OK_DISASTER_BACKUP age=${disaster_backup_age_hours}h checksum=valid file=$latest_disaster_backup_file"
+  else
+    echo "FAIL_DISASTER_BACKUP checksum missing_or_invalid file=$latest_disaster_backup_file"
     failures=$((failures + 1))
   fi
 fi
