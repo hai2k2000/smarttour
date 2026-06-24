@@ -37,8 +37,9 @@ npm run test:security-audit
 npm run ops:security
 ```
 
-The live audit must include `OK_ENV_FILE`, `OK_ROOT_MODE`, and `OK_SSH_PERMS`
-lines for `.env`, `/`, `/root/.ssh`, and `/root/.ssh/authorized_keys`.
+The live audit must include `OK_ENV_FILE`, `OK_BACKUP_PERMS`, `OK_ROOT_MODE`,
+and `OK_SSH_PERMS` lines for `.env`, backup artifacts, `/`, `/root/.ssh`, and
+`/root/.ssh/authorized_keys`.
 
 ## Daily host report
 

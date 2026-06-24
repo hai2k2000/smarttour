@@ -1,5 +1,9 @@
 # Progress
 
+- Added live security audit coverage for backup permissions:
+  - `scripts/security-audit.sh` now verifies PostgreSQL and disaster backup directories are `700 root:root` and backup artifacts/checksums are not group/world-readable.
+  - `OK_BACKUP_PERMS` is now guarded by the security audit contract and documented in the security runbook and production readiness tracker.
+
 - Hardened backup artifact permissions:
   - Added `umask 077` plus explicit `chmod 700` backup directory handling and `chmod 600` artifact/checksum handling to PostgreSQL and disaster backup scripts.
   - Added `scripts/test-backup-artifact-permissions-contract.js`, `npm run test:backup-artifact-permissions`, and CI/source-contract wiring.

@@ -20,6 +20,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Backup permission live audit hardening:
+  - Extended `scripts/security-audit.sh` with `OK_BACKUP_PERMS` checks so PostgreSQL and disaster backup directories must be `700 root:root` and backup artifacts/checksums must not be group/world-readable.
+  - Extended `scripts/test-security-audit-contract.js`, the security runbook, and the production readiness tracker so backup permission drift is caught during live security audits.
+
 - Backup artifact permission hardening:
   - Hardened `scripts/backup-postgres.sh` and `scripts/disaster-backup.sh` so backup directories use mode `700` and generated backup/checksum artifacts use mode `600`.
   - Added `scripts/test-backup-artifact-permissions-contract.js`, exposed `npm run test:backup-artifact-permissions`, wired it into `SmartTour CI`, and documented artifact permission normalization in the backup/reinstall runbook and tracker.

@@ -16,6 +16,28 @@ require_env() {
   fi
 }
 
+check_private_backup_artifacts() {
+  local label="$1"
+  local dir="$2"
+  local pattern="$3"
+  local dir_mode
+  dir_mode="$(stat -c '%a %U:%G' "$dir")"
+  if [[ "$dir_mode" != "700 root:root" ]]; then
+    echo "FAIL_BACKUP_PERMS $label dir=$dir_mode expected=700 root:root"
+    failures=$((failures + 1))
+    return
+  fi
+
+  local exposed_file
+  exposed_file="$(find "$dir" -maxdepth 1 -type f \( -name "$pattern" -o -name "$pattern.sha256" \) -perm /077 -print -quit)"
+  if [[ -n "$exposed_file" ]]; then
+    echo "FAIL_BACKUP_PERMS $label exposed=$exposed_file"
+    failures=$((failures + 1))
+  else
+    echo "OK_BACKUP_PERMS $label artifacts private"
+  fi
+}
+
 require_env SMARTTOUR_AUTH_ENFORCE
 require_env JWT_SECRET
 require_env DATABASE_URL
@@ -41,6 +63,9 @@ else
   echo "FAIL_ENV_FILE .env=$env_file_mode expected=600 root:root"
   failures=$((failures + 1))
 fi
+
+check_private_backup_artifacts postgres "$REPO_DIR/backups/postgres" '*.sql.gz'
+check_private_backup_artifacts disaster /var/backups/smarttour/disaster '*.tar.gz'
 
 if docker ps --format '{{.Names}} {{.Ports}}' | grep -Eq 'smarttour-(web-preview|web-1|api-1|postgres-1|redis-1|minio-1|n8n-1).*0\.0\.0\.0'; then
   echo "FAIL_PORTS internal SmartTour containers are published on all interfaces"
