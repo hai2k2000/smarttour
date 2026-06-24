@@ -65,6 +65,8 @@ DISASTER_KEEP_BACKUPS=4
 # SYSTEMD_CHECK_TIMEOUT=10s
 # Set this to bound backup checksum verification in the healthcheck.
 # CHECKSUM_CHECK_TIMEOUT=5m
+# Set this to bound backup file discovery in the healthcheck.
+# HEALTHCHECK_FILE_SCAN_TIMEOUT=30s
 # Set this to bound Docker log collection in the daily Nginx host report.
 # HOST_REPORT_DOCKER_TIMEOUT=10s
 # Set this to bound systemd operations in this installer.

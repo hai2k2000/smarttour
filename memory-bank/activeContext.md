@@ -3024,3 +3024,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended backup artifact and restore-drill contracts first; RED failed because `BACKUP_COMPRESSION_TIMEOUT` coverage was missing.
   - Added `BACKUP_COMPRESSION_TIMEOUT=30m` wrappers for daily backup compression and restore-drill decompression, and routed disaster SQL gzip through the existing `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m` wrapper.
   - Updated the ops env template, backup runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; fake gzip timeout probes confirmed daily backup, disaster backup, and restore-drill paths return status 124, with restore cleanup still running.
+
+- 2026-06-24 healthcheck backup file-scan timeout follow-up:
+  - Found `scripts/healthcheck.sh` still used raw `find` pipelines to discover latest PostgreSQL and disaster backup artifacts. A stuck backup directory scan could hang the healthcheck timer before checksum verification.
+  - Extended the healthcheck backup contract first; RED failed because `HEALTHCHECK_FILE_SCAN_TIMEOUT` coverage was missing.
+  - Added `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` and `run_healthcheck_file_scan`, then routed PostgreSQL and disaster backup file discovery through the bounded wrapper.
+  - Updated the ops env template, observability runbook, production readiness tracker, and live `/etc/default/smarttour-ops` while preserving `600 root:root`; a fake file-scan wrapper probe confirmed stuck `find` returns timeout status 124.

@@ -57,6 +57,7 @@ SYSTEMD_CHECK_TIMEOUT=10s
 
 Backup checksum verification is bounded by `CHECKSUM_CHECK_TIMEOUT=5m` so a
 large or stuck checksum read fails the healthcheck timer instead of hanging it.
+Backup file discovery is bounded by `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` so a stuck backup directory scan fails the healthcheck timer instead of hanging it.
 
 ## Apply Configuration
 

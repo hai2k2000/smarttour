@@ -2628,3 +2628,9 @@
   - `scripts/disaster-backup.sh` now routes disaster SQL gzip compression through `run_disaster_archive_command`, bounded by `DISASTER_BACKUP_ARCHIVE_TIMEOUT=60m`.
   - `scripts/restore-drill-postgres.sh` now bounds backup decompression through `BACKUP_COMPRESSION_TIMEOUT=30m`, while cleanup still drops the throwaway drill database on timeout.
   - `/etc/default/smarttour-ops` template, backup runbook, production readiness tracker, `npm run test:backup-artifact-permissions`, and `npm run test:restore-drill-safety` now guard/document compression timeout behavior; live env remains `600 root:root`.
+
+- 2026-06-24 Completed healthcheck backup file-scan timeout hardening:
+  - `scripts/healthcheck.sh` now bounds latest PostgreSQL backup and latest disaster archive discovery through `run_healthcheck_file_scan`, using `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s`.
+  - Existing healthcheck semantics are preserved: if discovery fails or times out, the healthcheck reports the existing missing-backup failure paths instead of hanging the timer.
+  - `/etc/default/smarttour-ops` template, observability runbook, production readiness tracker, and `npm run test:healthcheck-backup` now guard/document the file-scan timeout setting.
+  - The live `/etc/default/smarttour-ops` file now sets `HEALTHCHECK_FILE_SCAN_TIMEOUT=30s` while remaining `600 root:root`; a fake wrapper probe verified timeout status 124.

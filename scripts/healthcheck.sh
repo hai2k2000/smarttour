@@ -11,6 +11,7 @@ RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}
 DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
 CHECKSUM_CHECK_TIMEOUT="${CHECKSUM_CHECK_TIMEOUT:-5m}"
+HEALTHCHECK_FILE_SCAN_TIMEOUT="${HEALTHCHECK_FILE_SCAN_TIMEOUT:-30s}"
 
 cd "$REPO_DIR"
 
@@ -26,6 +27,10 @@ run_systemd_check() {
 
 run_checksum_check() {
   timeout "$CHECKSUM_CHECK_TIMEOUT" sha256sum "$@"
+}
+
+run_healthcheck_file_scan() {
+  timeout "$HEALTHCHECK_FILE_SCAN_TIMEOUT" find "$@"
 }
 
 notify_failure() {
@@ -167,7 +172,7 @@ else
   echo "OK_DISK root=${disk_use}%"
 fi
 
-latest_backup="$(find "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+latest_backup="$(run_healthcheck_file_scan "$BACKUP_DIR" -type f -name 'smarttour-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
 if [[ -z "$latest_backup" ]]; then
   echo "FAIL_BACKUP no PostgreSQL backup in $BACKUP_DIR"
   failures=$((failures + 1))
@@ -186,7 +191,7 @@ else
   fi
 fi
 
-latest_disaster_backup="$(find "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
+latest_disaster_backup="$(run_healthcheck_file_scan "$DISASTER_BACKUP_DIR" -maxdepth 1 -type f -name 'smarttour-disaster-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 || true)"
 if [[ -z "$latest_disaster_backup" ]]; then
   echo "FAIL_DISASTER_BACKUP no disaster backup in $DISASTER_BACKUP_DIR"
   failures=$((failures + 1))
