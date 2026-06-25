@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 
+const FINANCE_APPROVAL_STATUSES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'] as const;
+const FINANCE_PAYMENT_TYPES = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'] as const;
+const FINANCE_INVOICE_TYPES = ['VAT', 'NO_VAT', 'ADJUSTMENT', 'REPLACEMENT'] as const;
+const FINANCE_CASHFLOW_ENTRY_TYPES = ['RECEIPT', 'PAYMENT'] as const;
+const FINANCE_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'CARD', 'QR', 'OFFSET', 'OTHER'] as const;
+
 export class FinanceQueryDto {
   [key: string]: string | undefined;
 
@@ -9,29 +16,29 @@ export class FinanceQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_APPROVAL_STATUSES })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_APPROVAL_STATUSES])
   status?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_RECEIPT_TYPES })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_RECEIPT_TYPES])
   receiptType?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_PAYMENT_TYPES })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_PAYMENT_TYPES])
   voucherType?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_INVOICE_TYPES })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_INVOICE_TYPES])
   invoiceType?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_CASHFLOW_ENTRY_TYPES })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_CASHFLOW_ENTRY_TYPES])
   entryType?: string;
 
   @ApiPropertyOptional()
@@ -49,9 +56,9 @@ export class FinanceQueryDto {
   @IsString()
   tourId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: FINANCE_PAYMENT_METHODS })
   @IsOptional()
-  @IsString()
+  @IsIn([...FINANCE_PAYMENT_METHODS])
   paymentMethod?: string;
 
   @ApiPropertyOptional()

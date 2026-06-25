@@ -83,7 +83,7 @@ export class QuotationsService {
   async publicDetail(token: string) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new NotFoundException('Không tìm thấy SmartLink báo giá.');
     const quote = await this.prisma.quotation.findFirst({
-      where: { smartLinkToken: token, smartLinkEnabled: true },
+      where: { smartLinkToken: token, smartLinkEnabled: true, status: 'APPROVED', expiredDate: { gt: new Date() } },
       select: {
         quoteCode: true,
         productType: true,

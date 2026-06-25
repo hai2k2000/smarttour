@@ -92,7 +92,7 @@ assert 'function validatePendingFiles(files: File[])' in frontend and 'allowedUp
 assert "mode: 'onChange'" in frontend and '!isValid || isSubmitting' in frontend, 'typed supplier submit must be disabled while the form is invalid'
 assert "step={column.key === 'quantity' ? '1' : 'any'}" in frontend, 'typed supplier numeric inputs must use integer step only for quantity'
 
-assert 'getSupplierFromRouteKey(routeKey)' in controller
+assert 'getSupplierFromRouteKey(routeKey, request.user)' in controller
 assert 'SUPPLIER_ID_PATTERN.test(routeKey)' in service
 assert 'getSupplier(routeKey)' not in controller, 'controller must not ambiguously treat every route key as an id'
 assert "throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType)" in service
@@ -102,7 +102,7 @@ typed_query_block = query_dto.split('export class TypedSupplierListQueryDto', 1)
 assert 'status?: SupplierStatus' in typed_query_block and 'take?: number' in typed_query_block
 assert 'MAX_SUPPLIERS_TAKE' in typed_query_block, 'typed supplier query must cap take to avoid unbounded SSR payloads'
 assert 'query.status ? { status: query.status } : {}' in service, 'typed supplier status filter must use the shared Supplier status'
-typed_list_block = service.split('listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {})', 1)[1].split('async getTypedSupplier', 1)[0]
+typed_list_block = service.split('listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}, user?: RequestUser)', 1)[1].split('async getTypedSupplier', 1)[0]
 assert 'take: this.listTake(query.take)' in typed_list_block, 'typed supplier list must apply bounded take'
 for search_fragment in [
     '{ contactPerson: contains }',

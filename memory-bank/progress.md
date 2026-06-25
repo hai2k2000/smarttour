@@ -2794,3 +2794,11 @@
   - Applied migrations for finance reject audit fields and legacy constraint validation; `npx prisma migrate deploy` reports no pending migrations after applying both.
   - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-auth-login-security-contract.js`, `node scripts/test-finance-reject-audit-contract.js`, `bash scripts/test-finance-helper-contracts.sh`, `node scripts/test-db-constraint-validation-contract.js`, `bash scripts/test-auth-service-flows.sh`, and `bash scripts/test-finance-service-flows.sh`.
   - Note: `npm run typecheck --workspace apps/api` is listed in the plan but the API workspace has no `typecheck` script, so API build was used as the TypeScript verification command.
+
+- 2026-06-25 Completed Phase 2 code-review remediation:
+  - Supplier list/detail/hotel/typed read responses now mask `taxCode`, bank fields, `debtNote`, `pricePolicy`, and hotel bank fields unless `finance.payment.view` (or `*`) is present.
+  - SmartLink public detail now only resolves enabled, non-expired, `APPROVED` quotations; missing, disabled, expired, or non-approved links stay indistinguishable as 404.
+  - Finance query enum validation now rejects invalid `status`, `receiptType`, `voucherType`, `invoiceType`, `entryType`, and `paymentMethod` values at the DTO boundary.
+  - Generic file uploads now validate customer/supplier/guide/FIT/finance parent scope and manage permission before calling MinIO `putObject`.
+  - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-suppliers-sensitive-fields-contract.js`, `node scripts/test-quotations-smartlink-expiry-contract.js`, `node scripts/test-finance-query-validation-contract.js`, `node scripts/test-file-upload-scope-contract.js`, `node scripts/test-quotes-backend-contract.js`, supplier source contracts, and `bash scripts/test-file-service-error-flows.sh`.
+  - Live smoke scripts requiring admin login were not completed because `ADMIN_PASSWORD` is not configured in `.env` and `smarttour-api` systemd service is inactive in the checked environment.

@@ -51,18 +51,18 @@ export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Get()
-  list(@Query() query: SupplierListQueryDto) {
-    return this.suppliersService.listSuppliers(query);
+  list(@Query() query: SupplierListQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listSuppliers(query, request.user);
   }
 
   @Get('hotels')
-  listHotels(@Query() query: HotelSupplierListQueryDto) {
-    return this.suppliersService.listHotelSuppliers(query);
+  listHotels(@Query() query: HotelSupplierListQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listHotelSuppliers(query, request.user);
   }
 
   @Get('hotels/:id')
-  hotelDetail(@Param('id') id: string) {
-    return this.suppliersService.getHotelSupplier(id);
+  hotelDetail(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.getHotelSupplier(id, request.user);
   }
 
   @Post('hotels')
@@ -116,14 +116,14 @@ export class SuppliersController {
   }
 
   @Get(':routeKey')
-  listTypedOrDetail(@Param('routeKey') routeKey: string, @Query() query: TypedSupplierListQueryDto) {
-    if (isTypedSupplierRoute(routeKey)) return this.suppliersService.listTypedSuppliers(routeKey, query);
-    return this.suppliersService.getSupplierFromRouteKey(routeKey);
+  listTypedOrDetail(@Param('routeKey') routeKey: string, @Query() query: TypedSupplierListQueryDto, @Req() request: { user?: RequestUser }) {
+    if (isTypedSupplierRoute(routeKey)) return this.suppliersService.listTypedSuppliers(routeKey, query, request.user);
+    return this.suppliersService.getSupplierFromRouteKey(routeKey, request.user);
   }
 
   @Get(':type/:id')
-  typedDetail(@Param('type') type: string, @Param('id') id: string) {
-    return this.suppliersService.getTypedSupplier(type, id);
+  typedDetail(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.getTypedSupplier(type, id, request.user);
   }
 
   @Post(':type')

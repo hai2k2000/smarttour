@@ -13,10 +13,10 @@ schema = Path('prisma/schema.prisma').read_text()
 supplier_model = schema.split('model Supplier {', 1)[1].split('\n}', 1)[0]
 assert 'branch' not in supplier_model and 'department' not in supplier_model, 'supplier catalog must remain global master data'
 assert 'Supplier records are global master data' in service
-assert 'list(@Query() query: SupplierListQueryDto)' in controller and 'listSuppliers(query)' in controller
+assert 'list(@Query() query: SupplierListQueryDto, @Req() request: { user?: RequestUser })' in controller and 'listSuppliers(query, request.user)' in controller
 
 assert 'list(@Query() query: SupplierCategoryListQueryDto)' in controller
-assert 'list(@Query() query: SupplierListQueryDto)' in controller
+assert 'list(@Query() query: SupplierListQueryDto, @Req() request: { user?: RequestUser })' in controller
 for field in ['search?: string', 'categoryId?: string', 'status?: SupplierStatus', 'province?: string', 'market?: string', 'take?: number']:
     assert field in query_dto, f'common supplier query is missing {field}'
 assert 'MAX_SUPPLIERS_TAKE' in query_dto, 'common supplier query must cap take to avoid unbounded SSR payloads'

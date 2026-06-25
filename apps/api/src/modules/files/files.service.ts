@@ -166,6 +166,12 @@ export class FilesService {
     return { originalname: fileName, mimetype: mimeType, size, buffer: file.buffer };
   }
 
+  async uploadAuthorized(file: UploadFile | undefined, rawScope: string | undefined, user?: RequestUser): Promise<StoredFileUpload> {
+    const scope = this.safeScope(rawScope);
+    await this.assertUploadScopeAccess(scope, user);
+    return this.upload(file, scope, user?.id);
+  }
+
   async download(objectKey?: string) {
     const key = this.requiredObjectKey(objectKey);
     try {
@@ -234,6 +240,79 @@ export class FilesService {
     } catch {
       return null;
     }
+  }
+
+  private async assertUploadScopeAccess(scope: string, user: RequestUser | undefined) {
+    const parts = scope.split('/').filter(Boolean);
+    const root = parts[0];
+    const entityId = parts[1];
+    if (!root || !entityId) throw new BadRequestException('Scope upload không hợp lệ');
+
+    if (root === 'customers') {
+      this.assertPermission(user, 'customer.manage');
+      const parent = await this.prisma.customer.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id: entityId, mergedIntoId: null }, user),
+        select: { id: true },
+      });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (root === 'suppliers') {
+      this.assertPermission(user, 'supplier.manage');
+      const parent = await this.prisma.supplier.findFirst({ where: { id: entityId, deletedAt: null }, select: { id: true } });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (root === 'tour-guides') {
+      this.assertPermission(user, 'guide.manage');
+      const parent = await this.prisma.guideProfile.findFirst({ where: this.guideScopeWhere({ id: entityId, deletedAt: null }, user), select: { id: true } });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (root === 'fit-tours') {
+      this.assertPermission(user, 'tour.manage');
+      const parent = await this.prisma.fitTour.findFirst({ where: this.fitTourScopeWhere({ id: entityId }, user), select: { id: true, tourId: true } });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (root === 'finance') {
+      await this.assertFinanceUploadScope(parts[1], parts[2], user);
+      return;
+    }
+    throw new BadRequestException('Scope upload không hợp lệ');
+  }
+
+  private async assertFinanceUploadScope(type: string | undefined, entityId: string | undefined, user: RequestUser | undefined) {
+    if (!entityId) throw new BadRequestException('Scope upload không hợp lệ');
+    if (type === 'receipts') {
+      this.assertPermission(user, 'finance.receipt.update');
+      const parent = await this.prisma.financeReceipt.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ id: entityId, deletedAt: null }, user),
+        select: { id: true },
+      });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (type === 'payments') {
+      this.assertPermission(user, 'finance.payment.update');
+      const parent = await this.prisma.financePayment.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ id: entityId, deletedAt: null }, user),
+        select: { id: true },
+      });
+      this.assertUploadParent(parent);
+      return;
+    }
+    if (type === 'invoices') {
+      this.assertPermission(user, 'finance.invoice.update');
+      const parent = await this.prisma.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id: entityId, deletedAt: null }, user), select: { id: true } });
+      this.assertUploadParent(parent);
+      return;
+    }
+    throw new BadRequestException('Scope upload không hợp lệ');
+  }
+
+  private assertUploadParent(parent: unknown) {
+    if (!parent) throw this.fileAccessNotFound();
   }
 
   private async assertCustomerFile(key: string, customerId: string, user: RequestUser | undefined, action: FileAccessAction) {

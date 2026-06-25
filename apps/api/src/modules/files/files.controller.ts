@@ -19,10 +19,10 @@ export class FilesController {
   upload(
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Body() dto: FileUploadBodyDto,
-    @Req() request: { user?: { id?: string } },
+    @Req() request: { user?: RequestUser },
   ) {
     if (!file) throw new BadRequestException('Cần chọn file để tải lên');
-    return this.filesService.upload(file, dto.scope, request.user?.id);
+    return this.filesService.uploadAuthorized(file, dto.scope, request.user);
   }
 
   @Get('download')

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierDayType, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
@@ -73,6 +73,9 @@ const SUPPLIER_SERVICE_ORDER_BY = [
   { sku: 'asc' },
   { id: 'asc' },
 ] satisfies Prisma.SupplierServiceOrderByWithRelationInput[];
+const SUPPLIER_FINANCIAL_VIEW_PERMISSION = 'finance.payment.view';
+const SUPPLIER_SENSITIVE_FIELDS = ['taxCode', 'bankAccountName', 'bankAccountNumber', 'bankName', 'debtNote', 'pricePolicy'] as const;
+const HOTEL_PROFILE_SENSITIVE_FIELDS = ['bankAccountName', 'bankAccountNumber', 'bankName'] as const;
 
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
@@ -146,7 +149,7 @@ export class SuppliersService {
     return this.prisma.supplierCategory.delete({ where: { id } });
   }
 
-  listSuppliers(query: SupplierListQueryDto = {}) {
+  async listSuppliers(query: SupplierListQueryDto = {}, user?: RequestUser) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const province = this.optionalLabel(query.province);
@@ -173,19 +176,20 @@ export class SuppliersService {
         : {}),
     };
 
-    return this.prisma.supplier.findMany({
+    const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.supplierListInclude(),
       take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
+    return this.maskSupplierFinancialFields(suppliers, user);
   }
 
   private listTake(take?: number) {
     return take ?? DEFAULT_SUPPLIERS_TAKE;
   }
 
-  async getSupplier(id: string) {
+  async getSupplier(id: string, user?: RequestUser) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
       include: {
@@ -200,12 +204,12 @@ export class SuppliersService {
       },
     });
     if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.supplierNotFound);
-    return supplier;
+    return this.maskSupplierFinancialFields(supplier, user);
   }
 
-  getSupplierFromRouteKey(routeKey: string) {
+  getSupplierFromRouteKey(routeKey: string, user?: RequestUser) {
     if (!SUPPLIER_ID_PATTERN.test(routeKey)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
-    return this.getSupplier(routeKey);
+    return this.getSupplier(routeKey, user);
   }
 
   async createSupplier(dto: CreateSupplierDto) {
@@ -325,7 +329,7 @@ export class SuppliersService {
     });
   }
 
-  async listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}) {
+  async listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     const categoryNames = supplierTypeCategoryNames(typedRoute);
     const searchText = normalizeListSearch(query.search);
@@ -362,17 +366,19 @@ export class SuppliersService {
         : {}),
     };
 
-    return this.prisma.supplier.findMany({
+    const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.genericListInclude(),
       take: this.listTake(query.take),
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { name: 'asc' }],
     });
+    return this.maskSupplierFinancialFields(suppliers, user);
   }
 
-  async getTypedSupplier(type: string, id: string) {
+  async getTypedSupplier(type: string, id: string, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
-    return this.ensureTypedSupplier(typedRoute, id);
+    const supplier = await this.ensureTypedSupplier(typedRoute, id);
+    return this.maskSupplierFinancialFields(supplier, user);
   }
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
@@ -440,7 +446,7 @@ export class SuppliersService {
     return this.deleteSupplierRecord(id);
   }
 
-  async listHotelSuppliers(query: HotelSupplierListQueryDto = {}) {
+  async listHotelSuppliers(query: HotelSupplierListQueryDto = {}, user?: RequestUser) {
     const searchText = normalizeListSearch(query.search);
     const contains = searchText ? containsSearch(searchText) : undefined;
     const province = this.optionalLabel(query.province);
@@ -494,21 +500,22 @@ export class SuppliersService {
         : {}),
     };
 
-    return this.prisma.supplier.findMany({
+    const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.hotelListInclude(),
       take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
+    return this.maskSupplierFinancialFields(suppliers, user);
   }
 
-  async getHotelSupplier(id: string) {
+  async getHotelSupplier(id: string, user?: RequestUser) {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id, deletedAt: null, hotelProfile: { isNot: null } },
       include: this.hotelInclude(),
     });
     if (!supplier) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
-    return supplier;
+    return this.maskSupplierFinancialFields(supplier, user);
   }
 
   async createHotelSupplier(dto: CreateHotelSupplierDto) {
@@ -1642,6 +1649,28 @@ export class SuppliersService {
       category: true,
       supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
     } satisfies Prisma.SupplierInclude;
+  }
+
+  private canViewSupplierFinancialFields(user?: RequestUser) {
+    const permissions = userPermissions(user);
+    return permissions.has('*') || permissions.has(SUPPLIER_FINANCIAL_VIEW_PERMISSION);
+  }
+
+  private maskSupplierFinancialFields<T>(value: T, user?: RequestUser): T {
+    if (this.canViewSupplierFinancialFields(user)) return value;
+    if (Array.isArray(value)) return value.map((item) => this.maskSupplierFinancialFields(item, user)) as T;
+    if (!value || typeof value !== 'object') return value;
+
+    const supplier = { ...(value as Record<string, unknown>) };
+    for (const field of SUPPLIER_SENSITIVE_FIELDS) delete supplier[field];
+
+    if (supplier.hotelProfile && typeof supplier.hotelProfile === 'object') {
+      const hotelProfile = { ...(supplier.hotelProfile as Record<string, unknown>) };
+      for (const field of HOTEL_PROFILE_SENSITIVE_FIELDS) delete hotelProfile[field];
+      supplier.hotelProfile = hotelProfile;
+    }
+
+    return supplier as T;
   }
 
   private async deleteSupplierRecord(id: string) {

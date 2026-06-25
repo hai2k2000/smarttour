@@ -14,8 +14,8 @@ supplier_ui = Path('apps/web/app/suppliers/SupplierClientUi.tsx').read_text(enco
 globals_css = Path('apps/web/app/globals.css').read_text(encoding='utf-8')
 bookings_page = Path('apps/web/app/bookings/page.tsx').read_text(encoding='utf-8')
 
-assert "@Get('hotels')" in controller and 'listHotelSuppliers(query)' in controller
-assert "@Get('hotels/:id')" in controller and 'getHotelSupplier(id)' in controller
+assert "@Get('hotels')" in controller and 'listHotelSuppliers(query, request.user)' in controller
+assert "@Get('hotels/:id')" in controller and 'getHotelSupplier(id, request.user)' in controller
 assert "@Post('hotels')" in controller and "@Put('hotels/:id')" in controller
 
 assert 'class HotelSupplierListQueryDto' in query_dto

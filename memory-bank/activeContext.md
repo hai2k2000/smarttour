@@ -3191,3 +3191,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Finance reject audit now has explicit `rejectedBy`/`rejectedAt` fields on receipts, payments, and invoices; reject paths derive the actor from the request user and no longer write approval audit fields.
   - Legacy `NOT VALID` constraints were audited with 0 FK/check violations, then validated through migration `20260624194500_validate_legacy_constraints`; finance reject audit columns were deployed through migration `20260624193000_finance_reject_audit_fields`.
   - Added focused contracts: `scripts/test-auth-login-security-contract.js`, `scripts/test-finance-reject-audit-contract.js`, and `scripts/test-db-constraint-validation-contract.js`; updated existing auth/finance service flow scripts for the new expectations.
+
+- 2026-06-25 Phase 2 code-review remediation:
+  - Continued execution of `docs/superpowers/plans/2026-06-24-code-review-remediation-phases.md` on branch `fix/phase-1-remediation`.
+  - Supplier read endpoints now pass `request.user` into service reads; supplier financial fields are omitted unless the user has `*` or `finance.payment.view`.
+  - Public quotation SmartLinks now require enabled links, `APPROVED` status, and a future `expiredDate`; invalid/disabled/expired/non-approved links return the same generic 404.
+  - Finance query DTO now validates approval/type/payment-method query enums with `@IsIn`.
+  - Generic `/files/upload` now authorizes known entity scopes before MinIO writes, preventing arbitrary/orphan scope uploads.
+  - Added focused contracts for supplier sensitive fields, SmartLink expiry/status, finance query validation, and file upload scope authorization; updated supplier source contracts for request-user plumbing.
