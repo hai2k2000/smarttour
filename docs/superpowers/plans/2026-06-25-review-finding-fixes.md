@@ -85,7 +85,7 @@
 - Modify: `memory-bank/progress.md`
 
 - [x] Run focused tests from all completed tasks.
-- [x] Run broader smoke tests that fit the touched backend surface: operations and suppliers passed; `npm run smoke:files` remains blocked unless `ADMIN_PASSWORD` is exported.
+- [x] Run broader smoke tests that fit the touched backend surface: operations, suppliers, and `npm run smoke:files` passed; `smoke:files` used a temporary `ADMIN_PASSWORD` environment variable.
 - [x] Update Memory Bank with concise operational notes.
-- [ ] Inspect `git diff` and `git status --short`.
-- [ ] Commit only touched files and push to origin.
+- [x] Inspect `git diff` and `git status --short`.
+- [x] Commit only touched files and push to origin.
