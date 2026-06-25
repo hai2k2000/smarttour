@@ -171,6 +171,7 @@ export class FilesService {
       throw new BadRequestException('Kích thước file không khớp với nội dung tải lên');
     }
     if (size > this.maxBytes) throw new BadRequestException(`File vượt quá giới hạn ${fileUploadLimitLabel(this.maxBytes)}`);
+    assertUploadContentMatchesMetadata(fileName, mimeType, file.buffer);
     return { originalname: fileName, mimetype: mimeType, size, buffer: file.buffer };
   }
 
@@ -503,4 +504,37 @@ export class FilesService {
     if (!key || key.includes('..') || !/^[a-zA-Z0-9/_-]+(?:\.[a-zA-Z0-9]{1,20})?$/.test(key)) throw new BadRequestException('Object key không hợp lệ');
     return key;
   }
+}
+
+function assertUploadContentMatchesMetadata(fileName: string, mimeType: string, buffer: Buffer) {
+  const extension = extname(fileName).toLowerCase();
+  const textHead = buffer.subarray(0, Math.min(buffer.length, 512)).toString('utf8').trimStart().toLowerCase();
+  if (textHead.startsWith('<!doctype html') || textHead.startsWith('<html') || textHead.startsWith('<script')) throw invalidUploadContent();
+
+  if ((extension === '.png' || mimeType === 'image/png') && !startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) throw invalidUploadContent();
+  if ((extension === '.jpg' || extension === '.jpeg' || mimeType === 'image/jpeg') && !startsWithBytes(buffer, [0xff, 0xd8, 0xff])) throw invalidUploadContent();
+  if ((extension === '.gif' || mimeType === 'image/gif') && !startsWithAscii(buffer, 'GIF87a') && !startsWithAscii(buffer, 'GIF89a')) throw invalidUploadContent();
+  if ((extension === '.bmp' || mimeType === 'image/bmp') && !startsWithAscii(buffer, 'BM')) throw invalidUploadContent();
+  if ((extension === '.webp' || mimeType === 'image/webp') && !(startsWithAscii(buffer, 'RIFF') && buffer.subarray(8, 12).toString('ascii') === 'WEBP')) throw invalidUploadContent();
+  if ((extension === '.pdf' || mimeType === 'application/pdf') && !startsWithAscii(buffer, '%PDF-')) throw invalidUploadContent();
+  if ((extension === '.zip' || mimeType === 'application/zip') && !isZip(buffer)) throw invalidUploadContent();
+  if ((extension === '.rar' || mimeType === 'application/x-rar-compressed') && !startsWithAscii(buffer, 'Rar!')) throw invalidUploadContent();
+  if (['.docx', '.xlsx', '.odt', '.ods'].includes(extension) && !isZip(buffer)) throw invalidUploadContent();
+}
+
+function invalidUploadContent() {
+  return new BadRequestException('Nội dung file không khớp với định dạng tải lên');
+}
+
+function startsWithAscii(buffer: Buffer, value: string) {
+  return buffer.subarray(0, value.length).toString('ascii') === value;
+}
+
+function startsWithBytes(buffer: Buffer, bytes: number[]) {
+  if (buffer.length < bytes.length) return false;
+  return bytes.every((byte, index) => buffer[index] === byte);
+}
+
+function isZip(buffer: Buffer) {
+  return startsWithBytes(buffer, [0x50, 0x4b, 0x03, 0x04]) || startsWithBytes(buffer, [0x50, 0x4b, 0x05, 0x06]) || startsWithBytes(buffer, [0x50, 0x4b, 0x07, 0x08]);
 }

@@ -37,9 +37,16 @@ if (!fs.existsSync(interceptorPath)) {
     'path',
     'errorCode',
     'errorStack',
+    'includeErrorStack',
     'this.logger.error',
   ]) {
     if (!source.includes(token)) failures.push(`request logging interceptor missing ${token}`);
+  }
+  if (source.includes('...(errorStack ? { errorStack } : {})')) {
+    failures.push('request logging interceptor must not include errorStack unconditionally');
+  }
+  if (!source.includes('SMARTTOUR_LOG_STACKS') || !source.includes("smartTourEnvironment() === 'development'")) {
+    failures.push('request logging interceptor must gate stack logging behind debug flag or development env');
   }
   for (const unsafe of ['body', 'headers', 'authorization', 'cookie', 'password', 'token', 'secret']) {
     if (source.toLowerCase().includes(unsafe)) failures.push(`request logging interceptor must not log sensitive request data: ${unsafe}`);

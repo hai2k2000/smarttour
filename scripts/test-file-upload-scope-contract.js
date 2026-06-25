@@ -14,9 +14,8 @@ function userWith(permissions) {
   };
 }
 
-function uploadFile() {
-  const buffer = Buffer.from('smarttour file upload scope contract');
-  return { originalname: 'scope-contract.txt', mimetype: 'text/plain', size: buffer.length, buffer };
+function uploadFile(originalname = 'scope-contract.txt', mimetype = 'text/plain', buffer = Buffer.from('smarttour file upload scope contract')) {
+  return { originalname, mimetype, size: buffer.length, buffer };
 }
 
 function fakePrisma() {
@@ -46,10 +45,10 @@ function serviceWithFakeClient() {
   return { service, putObjectCalls: () => putObjectCalls };
 }
 
-async function expectUploadRejectedBeforeStorage(scope, user, label) {
+async function expectUploadRejectedBeforeStorage(scope, user, label, file = uploadFile()) {
   const { service, putObjectCalls } = serviceWithFakeClient();
   try {
-    await service.uploadAuthorized(uploadFile(), scope, user);
+    await service.uploadAuthorized(file, scope, user);
     throw new Error(`${label} should reject`);
   } catch (error) {
     assert(error instanceof BadRequestException || error instanceof ForbiddenException || error instanceof NotFoundException, `${label} must reject with a controlled HTTP error`);
@@ -62,6 +61,12 @@ async function main() {
   await expectUploadRejectedBeforeStorage('suppliers', userWith(['file.manage', '*']), 'scope missing entity id');
   await expectUploadRejectedBeforeStorage('suppliers/missing-id', userWith(['file.manage', 'supplier.manage']), 'missing parent entity');
   await expectUploadRejectedBeforeStorage('suppliers/existing-id', userWith(['file.manage', 'supplier.view']), 'missing manage permission');
+  await expectUploadRejectedBeforeStorage(
+    'suppliers/existing-id',
+    userWith(['file.manage', 'supplier.manage']),
+    'png upload with html content',
+    uploadFile('spoofed.png', 'image/png', Buffer.from('<script>alert("xss")</script>')),
+  );
 
   const { service, putObjectCalls } = serviceWithFakeClient();
   const uploaded = await service.uploadAuthorized(uploadFile(), 'suppliers/existing-id', userWith(['file.manage', 'supplier.manage']));

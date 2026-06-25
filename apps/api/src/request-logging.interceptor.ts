@@ -1,6 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
+import { smartTourEnvironment } from './config/runtime-env';
 
 type LogRequest = {
   correlationId?: string;
@@ -62,9 +63,13 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       durationMs,
       ...(errorName ? { errorName } : {}),
       ...(errorCode ? { errorCode } : {}),
-      ...(errorStack ? { errorStack } : {}),
+      ...(errorStack && this.includeErrorStack() ? { errorStack } : {}),
     });
     if (event === 'request_failed') this.logger.error(line);
     else this.logger.log(line);
+  }
+
+  private includeErrorStack() {
+    return process.env.SMARTTOUR_LOG_STACKS === 'true' || smartTourEnvironment() === 'development';
   }
 }
