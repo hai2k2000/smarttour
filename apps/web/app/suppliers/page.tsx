@@ -137,8 +137,8 @@ function supplierPayload(formData: FormData) {
     phone: optionalField(formData, 'phone'),
     email: optionalField(formData, 'email'),
     address: optionalField(formData, 'address'),
-    pricePolicy: optionalField(formData, 'pricePolicy'),
-    debtNote: optionalField(formData, 'debtNote'),
+    pricePolicy: formData.has('pricePolicy') ? optionalField(formData, 'pricePolicy') : undefined,
+    debtNote: formData.has('debtNote') ? optionalField(formData, 'debtNote') : undefined,
     notes: optionalField(formData, 'notes'),
   };
 }
@@ -243,6 +243,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const currentUser = currentUserResult.data;
   const canViewSuppliers = hasPermission(currentUser, 'supplier.view');
   const canManageSuppliers = hasPermission(currentUser, 'supplier.manage');
+  const canViewSupplierFinancialFields = hasPermission(currentUser, 'finance.payment.view');
   const [categoriesResult, allCategoriesResult, suppliersResult] = canViewSuppliers ? await Promise.all([
     apiGet<SupplierCategory[]>('/supplier-categories?includeEmpty=false', [], 'T\u1ea3i danh s\u00e1ch lo\u1ea1i nh\u00e0 cung c\u1ea5p \u0111ang d\u00f9ng'),
     apiGet<SupplierCategory[]>('/supplier-categories', [], 'T\u1ea3i danh s\u00e1ch \u0111\u1ea7y \u0111\u1ee7 lo\u1ea1i nh\u00e0 cung c\u1ea5p'),
@@ -343,10 +344,15 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                       <td>{display(supplier.address)}</td>
                       <td>
                         <div className="supplierDebtBlock">
-                          {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
-                          {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
+                          {canViewSupplierFinancialFields ? (
+                            <>
+                              {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
+                              {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
+                            </>
+                          ) : null}
                           {supplier.notes ? <span><strong>Ghi chú:</strong> {supplier.notes}</span> : null}
-                          {!supplier.debtNote && !supplier.pricePolicy && !supplier.notes ? <span className="supplierDebtNote mutedText">Chưa có ghi chú công nợ.</span> : null}
+                          {canViewSupplierFinancialFields && !supplier.debtNote && !supplier.pricePolicy && !supplier.notes ? <span className="supplierDebtNote mutedText">Chưa có ghi chú công nợ.</span> : null}
+                          {!canViewSupplierFinancialFields && !supplier.notes ? <span className="supplierDebtNote mutedText">Ghi chú tài chính đang được ẩn.</span> : null}
                         </div>
                       </td>
                       <td className="actionsCell">
@@ -391,7 +397,14 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           submitLabel="Lưu thay đổi"
         />
       ))}
-      <SupplierModal id={createSupplierModalId} title="Thêm nhà cung cấp" categories={allCategories} action={createSupplier} submitLabel="Tạo nhà cung cấp" />
+      <SupplierModal
+        id={createSupplierModalId}
+        title="Thêm nhà cung cấp"
+        categories={allCategories}
+        action={createSupplier}
+        submitLabel="Tạo nhà cung cấp"
+        canViewSupplierFinancialFields={canViewSupplierFinancialFields}
+      />
       {suppliers.map((supplier) => (
         <SupplierModal
           key={supplier.id}
@@ -401,6 +414,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           supplier={supplier}
           action={updateSupplier}
           submitLabel="Lưu thay đổi"
+          canViewSupplierFinancialFields={canViewSupplierFinancialFields}
         />
       ))}
       {suppliers.map((supplier) => (
@@ -461,6 +475,7 @@ function SupplierModal({
   supplier,
   action,
   submitLabel,
+  canViewSupplierFinancialFields,
 }: {
   id: string;
   title: string;
@@ -468,6 +483,7 @@ function SupplierModal({
   supplier?: Supplier;
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
+  canViewSupplierFinancialFields: boolean;
 }) {
   return (
     <div id={id} className="hashModal">
@@ -477,7 +493,7 @@ function SupplierModal({
           <h2><Building2 size={18} /> {title}</h2>
           <a className="secondaryButton iconOnlyButton" href="/suppliers" aria-label="Đóng"><X size={14} /></a>
         </div>
-        <SupplierForm categories={categories} supplier={supplier} action={action} submitLabel={submitLabel} />
+        <SupplierForm categories={categories} supplier={supplier} action={action} submitLabel={submitLabel} canViewSupplierFinancialFields={canViewSupplierFinancialFields} />
       </div>
     </div>
   );
@@ -487,12 +503,14 @@ function SupplierForm({
   categories,
   supplier,
   action,
+  canViewSupplierFinancialFields,
   submitLabel,
 }: {
   categories: SupplierCategory[];
   supplier?: Supplier;
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
+  canViewSupplierFinancialFields: boolean;
 }) {
   const selectedCategoryId = supplier?.category?.id || supplier?.categoryId || '';
 
@@ -540,20 +558,30 @@ function SupplierForm({
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend>Chính sách giá</legend>
-        <label>
-          Chính sách giá
-          <textarea name="pricePolicy" rows={4} defaultValue={supplier?.pricePolicy || ''} placeholder="Điều kiện giá, mùa cao điểm, phụ thu, hạn thanh toán..." />
-        </label>
-      </fieldset>
+      {canViewSupplierFinancialFields ? (
+        <>
+          <fieldset>
+            <legend>Chính sách giá</legend>
+            <label>
+              Chính sách giá
+              <textarea name="pricePolicy" rows={4} defaultValue={supplier?.pricePolicy || ''} placeholder="Điều kiện giá, mùa cao điểm, phụ thu, hạn thanh toán..." />
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Công nợ</legend>
+            <label>
+              Ghi chú công nợ
+              <textarea name="debtNote" rows={3} defaultValue={supplier?.debtNote || ''} placeholder="Hạn mức, kỳ đối soát, lưu ý thanh toán..." />
+            </label>
+          </fieldset>
+        </>
+      ) : (
+        <ServerPermissionNotice allowed={false} label="xem ghi chú tài chính nhà cung cấp" missingPermissions={['finance.payment.view']} />
+      )}
 
       <fieldset>
-        <legend>Công nợ / ghi chú</legend>
-        <label>
-          Ghi chú công nợ
-          <textarea name="debtNote" rows={3} defaultValue={supplier?.debtNote || ''} placeholder="Hạn mức, kỳ đối soát, lưu ý thanh toán..." />
-        </label>
+        <legend>Ghi chú</legend>
         <label>
           Ghi chú nội bộ
           <textarea name="notes" rows={3} defaultValue={supplier?.notes || ''} />

@@ -35,6 +35,9 @@ if (!fs.existsSync(interceptorPath)) {
     'statusCode',
     'method',
     'path',
+    'errorCode',
+    'errorStack',
+    'this.logger.error',
   ]) {
     if (!source.includes(token)) failures.push(`request logging interceptor missing ${token}`);
   }

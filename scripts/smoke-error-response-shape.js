@@ -43,7 +43,7 @@ function validateShape(label, response, expected) {
   const body = response.body || {};
   if (response.statusCode !== expected.statusCode) failures.push(`${label} expected HTTP ${expected.statusCode} got ${response.statusCode}`);
   if (!response.correlationId) failures.push(`${label} missing x-correlation-id`);
-  for (const field of ['statusCode', 'message', 'messages', 'error', 'code', 'path', 'method', 'timestamp']) {
+  for (const field of ['statusCode', 'message', 'messages', 'error', 'code', 'path', 'method', 'correlationId', 'timestamp']) {
     if (!(field in body)) failures.push(`${label} missing body.${field}`);
   }
   if (body.statusCode !== expected.statusCode) failures.push(`${label} body.statusCode mismatch`);
@@ -51,6 +51,7 @@ function validateShape(label, response, expected) {
   if (body.path !== expected.path) failures.push(`${label} expected path ${expected.path} got ${body.path}`);
   if (body.method !== expected.method) failures.push(`${label} expected method ${expected.method} got ${body.method}`);
   if (!Array.isArray(body.messages)) failures.push(`${label} body.messages must be an array`);
+  if (!body.correlationId) failures.push(`${label} missing body.correlationId`);
   if (Number.isNaN(Date.parse(body.timestamp))) failures.push(`${label} timestamp must be ISO-like`);
   const serialized = JSON.stringify(body).toLowerCase();
   for (const unsafe of ['tokenvalue', 'secretvalue', 'cookie']) {
@@ -80,6 +81,20 @@ async function main() {
       method: 'POST',
     }),
   );
+
+
+  const unknownErrorPath = process.env.PHASE3_UNKNOWN_ERROR_PATH || '/phase3/unknown-error';
+  if (process.env.PHASE3_UNKNOWN_ERROR_PATH) {
+    const unknown = await request(unknownErrorPath);
+    failures.push(
+      ...validateShape('unknown 500', unknown, {
+        statusCode: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+        path: unknownErrorPath.startsWith('/api/') ? unknownErrorPath : `/api${unknownErrorPath}`,
+        method: 'GET',
+      }),
+    );
+  }
 
   if (failures.length) {
     console.error('FAIL_ERROR_RESPONSE_SHAPE_SMOKE');

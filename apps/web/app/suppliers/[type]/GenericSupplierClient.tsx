@@ -388,9 +388,11 @@ function metadataPayload(value: Record<string, string | number>) {
   );
 }
 
-function supplierPayload(values: SupplierForm) {
+function supplierPayload(values: SupplierForm, canViewSupplierFinancialFields: boolean) {
+  const { taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values;
   return {
-    ...values,
+    ...baseValues,
+    ...(canViewSupplierFinancialFields ? { taxCode, bankAccountName, bankAccountNumber, bankName } : {}),
     rating: Number.isFinite(values.rating) ? values.rating : undefined,
     contacts: values.contacts
       .map((item) => ({
@@ -479,6 +481,7 @@ export default function GenericSupplierClient({
   const { can, permissionsReady } = usePermissions();
   const canManageSuppliers = can('supplier.manage');
   const canViewSuppliers = can('supplier.view');
+  const canViewSupplierFinancialFields = can('finance.payment.view');
   const canManage = canManageSuppliers;
   const canView = canViewSuppliers;
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => Array.isArray(initialSuppliers) ? initialSuppliers : []);
@@ -588,7 +591,7 @@ export default function GenericSupplierClient({
 
   async function onSubmit(values: SupplierForm) {
     setNotice(null);
-    const payload = supplierPayload(values);
+    const payload = supplierPayload(values, canViewSupplierFinancialFields);
     let saved: Supplier;
     try {
       saved = await supplierApi<Supplier>(
@@ -751,7 +754,7 @@ export default function GenericSupplierClient({
                     <div className="hotelFormGrid">
                       <label>Mã nhà cung cấp<input required {...register('supplierCode')} /></label>
                       <label>Tên nhà cung cấp<input required {...register('name')} /></label>
-                      <label>Mã số thuế<input {...register('taxCode')} /></label>
+                      {canViewSupplierFinancialFields ? <label>Mã số thuế<input {...register('taxCode')} /></label> : null}
                       <label>Số điện thoại<input type="tel" required {...register('phone')} /></label>
                       <label>Email<input type="email" {...register('email')} /></label>
                       <label>Tỉnh/thành<input {...register('province')} /></label>
@@ -767,9 +770,15 @@ export default function GenericSupplierClient({
                   <fieldset>
                     <legend>Thông tin thanh toán và ghi chú</legend>
                     <div className="hotelFormGrid">
-                      <label>Tên tài khoản<input {...register('bankAccountName')} /></label>
-                      <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
-                      <label>Ngân hàng<input {...register('bankName')} /></label>
+                      {canViewSupplierFinancialFields ? (
+                        <>
+                          <label>Tên tài khoản<input {...register('bankAccountName')} /></label>
+                          <label>Số tài khoản<input {...register('bankAccountNumber')} /></label>
+                          <label>Ngân hàng<input {...register('bankName')} /></label>
+                        </>
+                      ) : (
+                        <PermissionNotice allowed={false} label="xem thông tin thanh toán nhà cung cấp" missingPermissions={['finance.payment.view']} />
+                      )}
                       <label className="span2">Ghi chú nội bộ<textarea rows={3} {...register('notes')} /></label>
                     </div>
                   </fieldset>

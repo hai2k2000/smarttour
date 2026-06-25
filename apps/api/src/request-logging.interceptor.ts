@@ -14,7 +14,10 @@ type LogResponse = {
 
 type LogError = {
   getStatus?: () => number;
+  getResponse?: () => unknown;
   name?: string;
+  code?: string;
+  stack?: string;
 };
 
 @Injectable()
@@ -33,14 +36,24 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       }),
       catchError((error: LogError) => {
         const statusCode = error.getStatus?.() || response.statusCode || 500;
-        this.write('request_failed', request, statusCode, Date.now() - startedAt, error.name);
+        this.write('request_failed', request, statusCode, Date.now() - startedAt, error.name, this.errorCode(error), error.stack);
         return throwError(() => error);
       }),
     );
   }
 
-  private write(event: string, request: LogRequest, statusCode: number, durationMs: number, errorName?: string) {
-    this.logger.log(JSON.stringify({
+  private errorCode(error: LogError) {
+    if (typeof error.code === 'string' && error.code.trim()) return error.code;
+    const details = error.getResponse?.();
+    if (details && typeof details === 'object' && !Array.isArray(details) && 'code' in details) {
+      const value = (details as { code?: unknown }).code;
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+    return undefined;
+  }
+
+  private write(event: string, request: LogRequest, statusCode: number, durationMs: number, errorName?: string, errorCode?: string, errorStack?: string) {
+    const line = JSON.stringify({
       event,
       correlationId: request.correlationId,
       method: request.method,
@@ -48,6 +61,10 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       statusCode,
       durationMs,
       ...(errorName ? { errorName } : {}),
-    }));
+      ...(errorCode ? { errorCode } : {}),
+      ...(errorStack ? { errorStack } : {}),
+    });
+    if (event === 'request_failed') this.logger.error(line);
+    else this.logger.log(line);
   }
 }

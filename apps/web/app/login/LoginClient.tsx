@@ -21,7 +21,7 @@ export default function LoginClient() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMessage(data.message || 'Đăng nhập không thành công');
+      setMessage(response.status === 429 ? 'Thử lại sau ít phút.' : loginErrorMessage(response.status, data));
       return;
     }
     window.localStorage.removeItem('smarttour.auth.token');
@@ -61,4 +61,16 @@ function safeNextPath(value: string | null) {
     return DEFAULT_AFTER_LOGIN_PATH;
   }
   return value;
+}
+
+
+type LoginErrorData = { message?: unknown; messages?: unknown };
+
+function loginErrorMessage(status: number, data?: LoginErrorData) {
+  if (status === 429) return 'Thử lại sau ít phút.';
+  if (status === 401) return 'Thông tin đăng nhập không hợp lệ';
+  const messages = Array.isArray(data?.messages) ? data?.messages.map((item) => String(item)).filter(Boolean) : [];
+  if (messages.length) return messages.join('; ');
+  if (typeof data?.message === 'string' && data.message.trim()) return data.message;
+  return 'Đăng nhập không thành công';
 }

@@ -3199,3 +3199,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Finance query DTO now validates approval/type/payment-method query enums with `@IsIn`.
   - Generic `/files/upload` now authorizes known entity scopes before MinIO writes, preventing arbitrary/orphan scope uploads.
   - Added focused contracts for supplier sensitive fields, SmartLink expiry/status, finance query validation, and file upload scope authorization; updated supplier source contracts for request-user plumbing.
+
+- 2026-06-25 Phase 3 code-review remediation:
+  - Continued `docs/superpowers/plans/2026-06-24-code-review-remediation-phases.md` on branch `fix/phase-1-remediation` after Phase 1-2 commits.
+  - Global HTTP error filtering now catches unknown/non-HTTP exceptions, maps Prisma `P2002`/`P2025` to sanitized database error codes, returns a generic Vietnamese 500 message for unexpected failures, and includes `correlationId` in the response body.
+  - Request logging now records failed requests through `Logger.error` with `errorCode`, `errorStack`, `correlationId`, method/path/status/duration, while continuing to avoid request body/header/credential fields.
+  - Login UI now maps 429 to a retry-later message, keeps 401 generic, and only falls back to structured validation messages instead of blindly displaying raw backend `message`.
+  - Supplier common/typed/hotel UIs now hide tax/bank/debt/price-policy financial fields unless `finance.payment.view` is present and avoid sending hidden financial fields back in create/update payloads.
+  - Added Phase 3 source contracts for error/logging behavior, auth login UI, and supplier UI permission gating; updated existing error/logging/supplier contracts for the new response shape and gated payload helpers.

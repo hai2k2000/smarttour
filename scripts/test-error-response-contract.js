@@ -10,8 +10,12 @@ if (!fs.existsSync(filterPath)) {
 } else {
   const filter = fs.readFileSync(filterPath, 'utf8');
   for (const token of [
-    '@Catch(HttpException)',
+    '@Catch()',
     'HttpErrorResponseFilter',
+    'statusFromException',
+    'responseFromException',
+    'INTERNAL_SERVER_ERROR',
+    'correlationId',
     'statusCode',
     'message',
     'messages',
@@ -20,8 +24,6 @@ if (!fs.existsSync(filterPath)) {
     'path',
     'method',
     'timestamp',
-    'getStatus()',
-    'exception.getResponse()',
   ]) {
     if (!filter.includes(token)) failures.push(`error filter missing ${token}`);
   }

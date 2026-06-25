@@ -2802,3 +2802,10 @@
   - Generic file uploads now validate customer/supplier/guide/FIT/finance parent scope and manage permission before calling MinIO `putObject`.
   - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-suppliers-sensitive-fields-contract.js`, `node scripts/test-quotations-smartlink-expiry-contract.js`, `node scripts/test-finance-query-validation-contract.js`, `node scripts/test-file-upload-scope-contract.js`, `node scripts/test-quotes-backend-contract.js`, supplier source contracts, and `bash scripts/test-file-service-error-flows.sh`.
   - Live smoke scripts requiring admin login were not completed because `ADMIN_PASSWORD` is not configured in `.env` and `smarttour-api` systemd service is inactive in the checked environment.
+
+- 2026-06-25 Completed Phase 3 code-review remediation:
+  - Standardized unknown/Prisma API errors with sanitized response bodies, `INTERNAL_SERVER_ERROR` fallback, database conflict/not-found codes, and response-body `correlationId`.
+  - Hardened request failure logging with structured `Logger.error` output including `errorCode` and `errorStack` without logging request bodies, headers, cookies, tokens, passwords, or secrets.
+  - Updated login and supplier frontend behavior for Phase 1-2 backend hardening: safe login messages, supplier financial-field permission notices, and payload stripping for users without `finance.payment.view`.
+  - Verification passed: `npm run build --workspace apps/api`, `npm run build --workspace apps/web`, `npm run lint --workspace apps/web`, `git diff --check`, Phase 3 contracts, error/logging contracts, auth/finance/db regression contracts, SmartLink/finance query/file upload contracts, and supplier common/hotel/typed/controller/file contracts.
+  - Note: Docker-backed contract scripts must be run with stdin redirected (for example `node scripts/test-auth-login-security-contract.js </dev/null`) when batched through piped SSH scripts, otherwise `docker compose run` can consume the remaining shell script input.

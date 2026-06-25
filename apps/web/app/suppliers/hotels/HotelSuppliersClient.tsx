@@ -392,10 +392,11 @@ function shouldSendCollection(mode: 'create' | 'update', dirtyFields: DirtyColle
   return mode === 'create' || dirtyFields[name] !== undefined;
 }
 
-function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirtyFields: DirtyCollections) {
-  const { contacts, services, allotments, ...baseValues } = values;
+function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirtyFields: DirtyCollections, canViewSupplierFinancialFields: boolean) {
+  const { contacts, services, allotments, taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values;
   return {
     ...baseValues,
+    ...(canViewSupplierFinancialFields ? { taxCode, bankAccountName, bankAccountNumber, bankName } : {}),
     builtYear: values.builtYear ?? undefined,
     rating: values.rating ?? undefined,
     ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: contacts.filter((item) => item.fullName.trim()) } : {}),
@@ -539,6 +540,7 @@ export default function HotelSuppliersClient({
   const { can, permissionsReady } = usePermissions();
   const canManageSuppliers = can('supplier.manage');
   const canViewSuppliers = can('supplier.view');
+  const canViewSupplierFinancialFields = can('finance.payment.view');
   const canManage = canManageSuppliers;
   const canView = canViewSuppliers;
   const [hotels, setHotels] = useState<HotelSupplier[]>(() => Array.isArray(initialHotels) ? initialHotels : []);
@@ -720,7 +722,7 @@ export default function HotelSuppliersClient({
 
   async function onSubmit(values: HotelForm) {
     setNotice(null);
-    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections);
+    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections, canViewSupplierFinancialFields);
     let saved: HotelSupplier;
     try {
       saved = await supplierApi<HotelSupplier>(
@@ -1081,7 +1083,7 @@ export default function HotelSuppliersClient({
                     <div className="hotelFormGrid">
                       <label>Mã nhà cung cấp<input required aria-invalid={Boolean(errors.supplierCode)} {...register('supplierCode')} /><FieldError message={errors.supplierCode?.message} /></label>
                       <label>Tên khách sạn<input required aria-invalid={Boolean(errors.name)} {...register('name')} /><FieldError message={errors.name?.message} /></label>
-                      <label>Mã số thuế<input aria-invalid={Boolean(errors.taxCode)} {...register('taxCode')} /><FieldError message={errors.taxCode?.message} /></label>
+                      {canViewSupplierFinancialFields ? <label>Mã số thuế<input aria-invalid={Boolean(errors.taxCode)} {...register('taxCode')} /><FieldError message={errors.taxCode?.message} /></label> : null}
                       <label>Năm xây dựng<input type="number" min="1800" max={currentYear} placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.builtYear)} {...register('builtYear')} /><FieldError message={errors.builtYear?.message} /></label>
                       <label>Số điện thoại<input required inputMode="tel" placeholder="0901234567" aria-invalid={Boolean(errors.phone)} {...register('phone')} /><FieldError message={errors.phone?.message} /></label>
                       <label>Email<input type="email" placeholder="Có thể bỏ trống" aria-invalid={Boolean(errors.email)} {...register('email')} /><FieldError message={errors.email?.message} /></label>
@@ -1101,9 +1103,15 @@ export default function HotelSuppliersClient({
                   <fieldset>
                     <legend>Thanh toán và ghi chú</legend>
                     <div className="hotelFormGrid">
-                      <label>Tên tài khoản ngân hàng<input aria-invalid={Boolean(errors.bankAccountName)} {...register('bankAccountName')} /><FieldError message={errors.bankAccountName?.message} /></label>
-                      <label>Số tài khoản<input aria-invalid={Boolean(errors.bankAccountNumber)} {...register('bankAccountNumber')} /><FieldError message={errors.bankAccountNumber?.message} /></label>
-                      <label>Tên ngân hàng<input aria-invalid={Boolean(errors.bankName)} {...register('bankName')} /><FieldError message={errors.bankName?.message} /></label>
+                      {canViewSupplierFinancialFields ? (
+                        <>
+                          <label>Tên tài khoản ngân hàng<input aria-invalid={Boolean(errors.bankAccountName)} {...register('bankAccountName')} /><FieldError message={errors.bankAccountName?.message} /></label>
+                          <label>Số tài khoản<input aria-invalid={Boolean(errors.bankAccountNumber)} {...register('bankAccountNumber')} /><FieldError message={errors.bankAccountNumber?.message} /></label>
+                          <label>Tên ngân hàng<input aria-invalid={Boolean(errors.bankName)} {...register('bankName')} /><FieldError message={errors.bankName?.message} /></label>
+                        </>
+                      ) : (
+                        <PermissionNotice allowed={false} label="xem thông tin thanh toán nhà cung cấp khách sạn" missingPermissions={['finance.payment.view']} />
+                      )}
                       <label className="span2">Ghi chú nội bộ<textarea rows={3} placeholder="Ghi chú chính sách, công nợ hoặc lưu ý vận hành" aria-invalid={Boolean(errors.notes)} {...register('notes')} /><FieldError message={errors.notes?.message} /></label>
                     </div>
                   </fieldset>
