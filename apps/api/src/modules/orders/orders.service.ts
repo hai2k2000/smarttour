@@ -141,6 +141,7 @@ export class OrdersService {
   async create(typePath: string, dto: CreateOrderDto, user?: RequestUser) {
     const type = this.resolveType(typePath);
     const scopedDto = applyWriteDataScope(dto as ScopedOrderDto, user) as ScopedOrderDto;
+    if (scopedDto.status === 'SETTLED') throw new BadRequestException('Order settlement must use the settle action endpoint');
     validateOrderDates(scopedDto);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -150,7 +151,6 @@ export class OrdersService {
           data: {
             type,
             ...toOrderData(orderDto),
-            ...(orderDto.status === 'SETTLED' ? { settledAt: new Date() } : {}),
             ...totals,
           } as Prisma.OrderCreateInput,
         });
@@ -235,7 +235,7 @@ export class OrdersService {
   async unlock(typePath: string, id: string, dto: UnlockOrderDto, user?: RequestUser) {
     const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
-      return this.lifecycle.unlock(tx, order, dto);
+      return this.lifecycle.unlock(tx, order, dto, user?.id);
     });
   }
 

@@ -87,6 +87,13 @@ async function main() {
     name: 'Operator One',
     password,
     branch: 'Hanoi',
+    phone: '0900000111',
+    address: 'Sensitive address',
+    identityNo: 'ID-SENSITIVE-001',
+    taxCode: 'TAX-SENSITIVE-001',
+    bankAccountNumber: 'BANK-SENSITIVE-001',
+    bankAccountName: 'Sensitive Bank Owner',
+    bankName: 'Sensitive Bank',
     roleCodes: ['branch_manager'],
   }, boot.user.id);
   const second = await auth.createUser({
@@ -202,6 +209,9 @@ async function main() {
   assert(userCreateAudit?.metadata?.after?.email === first.email, 'create user audit should include after snapshot');
   assert(userCreateAudit.metadata.after.roleCodes.includes('branch_manager'), 'create user audit should trace assigned role codes');
   assert(userCreateAudit.metadata.roleChanges.added.includes('branch_manager'), 'create user audit should trace role additions');
+  for (const field of ['phone', 'address', 'identityNo', 'taxCode', 'bankAccountNumber', 'bankAccountName', 'bankName']) {
+    assert(!Object.prototype.hasOwnProperty.call(userCreateAudit.metadata.after, field), `create user audit should redact sensitive profile field ${field}`);
+  }
 
   const lockAudit = audits.find((audit) => audit.action === 'UPDATE' && audit.entity === 'User' && audit.entityId === first.id && audit.metadata?.after?.status === 'LOCKED');
   assert(lockAudit?.metadata?.before?.status === 'ACTIVE', 'update user audit should include previous status');

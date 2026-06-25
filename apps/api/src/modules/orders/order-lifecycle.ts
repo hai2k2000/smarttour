@@ -69,8 +69,8 @@ export class OrderLifecycleService {
     return settled;
   }
 
-  unlock(tx: Prisma.TransactionClient, order: LifecycleOrder, dto: UnlockOrderDto) {
-    return unlockSettledOrder(tx, order, dto);
+  unlock(tx: Prisma.TransactionClient, order: LifecycleOrder, dto: UnlockOrderDto, actorId?: string | null) {
+    return unlockSettledOrder(tx, order, dto, actorId);
   }
 }
 
@@ -82,16 +82,17 @@ export function assertOrderNotSettled(order: SettledOrder, action: string) {
   if (order.settledAt) throw new BadRequestException(`Settled order cannot be ${action}`);
 }
 
-export async function unlockSettledOrder(tx: Prisma.TransactionClient, order: LifecycleOrder, dto: UnlockOrderDto) {
+export async function unlockSettledOrder(tx: Prisma.TransactionClient, order: LifecycleOrder, dto: UnlockOrderDto, actorId?: string | null) {
   if (!order.settledAt) throw new BadRequestException('Order is not settled');
   if (order.status !== 'SETTLED') throw new BadRequestException('Only settled orders can be unlocked');
-  if (!text(dto.actor)) throw new BadRequestException('Unlock actor is required');
+  const userId = text(actorId);
+  if (!userId) throw new BadRequestException('Authenticated unlock actor is required');
   if (!text(dto.reason)) throw new BadRequestException('Unlock reason is required');
   const updated = await tx.order.update({ where: { id: order.id }, data: { settledAt: null, status: 'COMPLETED' } });
   await tx.orderLog.create({
     data: {
       orderId: order.id,
-      userId: text(dto.actor),
+      userId,
       action: 'UNLOCK_SETTLEMENT',
       oldValue: { settledAt: order.settledAt, status: order.status },
       newValue: { settledAt: null, status: 'COMPLETED', reason: dto.reason },

@@ -245,6 +245,10 @@ export class OperationsService {
 
   async createForm(dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
+    const requestedStatus = dto.status === undefined ? OperationStatus.PENDING : this.operationStatus(dto.status, OperationStatus.PENDING);
+    if (requestedStatus !== OperationStatus.PENDING) {
+      throw new BadRequestException('Phiếu điều hành phải được tạo ở trạng thái chờ xử lý; dùng action endpoint để cập nhật trạng thái');
+    }
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
     const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
     await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
@@ -256,7 +260,7 @@ export class OperationsService {
             bookingId,
             orderId: links.orderId,
             tourId: links.tourId,
-            status: this.operationStatus(dto.status, OperationStatus.PENDING),
+            status: requestedStatus,
             notes: this.text(dto.notes),
           },
         });

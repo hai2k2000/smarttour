@@ -234,6 +234,7 @@ async function main() {
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-COST-NAME'), costs: [{ expectedAmount: 100, actualAmount: 80 }] }, undefined), 'Cần nhập tên chi phí', 'form cost should require cost name');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-COST-AMOUNT'), costs: [{ costName: 'Sai tiền', expectedAmount: 0, actualAmount: 0 }] }, undefined), 'Số tiền dự kiến phải lớn hơn 0', 'form cost should validate expected amount');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceB, 'WRONG-SUPPLIER') }, undefined), 'Dịch vụ nhà cung cấp không thuộc nhà cung cấp đã chọn', 'create form should reject wrong supplier service in Vietnamese');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'STATUS-BYPASS'), status: 'DONE' }, undefined), 'trạng thái chờ xử lý', 'create form should reject lifecycle status bypass');
 
   const formA = await service.createForm(formPayload(bookingA, supplierA, supplierServiceA, 'A', 'creator-a'));
   const formB = await service.createForm(formPayload(bookingB, supplierB, supplierServiceB, 'B', 'creator-b'));

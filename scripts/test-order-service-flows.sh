@@ -219,14 +219,14 @@ async function main() {
     customerEmail: 'custom@example.test',
   });
   assert(explicitCustomerSnapshot.customerName === 'Custom Customer Name' && explicitCustomerSnapshot.customerPhone === '0999999999' && explicitCustomerSnapshot.customerEmail === 'custom@example.test', 'customer snapshot should not overwrite explicit customer fields');
-  const createdSettled = await service.create('single-services', {
+  await rejects(() => service.create('single-services', {
     systemCode: run + '-CREATE-SETTLED',
     name: 'Create Settled',
     status: 'SETTLED',
     customerId: customer.id,
     salesItems: [{ description: 'settled', quantity: 1, serviceCount: 1, unitPrice: 100, vat: 0 }],
-  });
-  assert(createdSettled.status === 'SETTLED' && createdSettled.settledAt, 'create SETTLED should set settledAt');
+  }), 'create should reject SETTLED status; use settle action endpoint');
+  assert(await prisma.order.count({ where: { systemCode: run + '-CREATE-SETTLED' } }) === 0, 'rejected create SETTLED should not persist orders');
 
   const partial = await service.update('single-services', created.id, { note: 'Partial update should not touch children' });
   await rejects(() => service.update('single-services', created.id, { status: 'CANCELLED' }), 'normal update should reject status changes; use lifecycle action endpoint');
@@ -289,10 +289,20 @@ async function main() {
   const statusSettled = await service.updateStatus('single-services', copied.id, 'SETTLED');
   assert(statusSettled.status === 'SETTLED' && statusSettled.settledAt, 'updateStatus SETTLED should set settledAt');
   await rejects(() => service.update('single-services', copied.id, { name: 'Blocked By Status Settle' }), 'status-settled order update should be blocked');
-  await rejects(() => service.unlock('single-services', copied.id, { actor: '', reason: 'missing actor' }), 'unlock should require actor');
-  await rejects(() => service.unlock('single-services', copied.id, { actor: 'order-test', reason: '' }), 'unlock should require reason');
-  const statusUnlocked = await service.unlock('single-services', copied.id, { actor: 'order-test', reason: 'test status unlock' });
+  const unlockUser = {
+    id: run + '-UNLOCK-USER',
+    email: 'unlock-user@example.test',
+    username: 'unlock-user',
+    name: 'Unlock User',
+    branch: null,
+    department: null,
+    roles: [{ role: { status: 'ACTIVE', permissions: [{ permission: '*' }] } }],
+  };
+  await rejects(() => service.unlock('single-services', copied.id, { actor: 'spoofed-user', reason: '' }, unlockUser), 'unlock should require reason');
+  const statusUnlocked = await service.unlock('single-services', copied.id, { actor: 'spoofed-user', reason: 'test status unlock' }, unlockUser);
   assert(statusUnlocked.status === 'COMPLETED' && !statusUnlocked.settledAt, 'unlock should clear status-settled orders');
+  const statusUnlockLog = await prisma.orderLog.findFirst({ where: { orderId: copied.id, action: 'UNLOCK_SETTLEMENT' }, orderBy: { createdAt: 'desc' } });
+  assert(statusUnlockLog?.userId === unlockUser.id, 'unlock log should use authenticated user id instead of client supplied actor');
 
   const draftOrder = await service.create('single-services', {
     systemCode: run + '-DRAFT-STATUS',
@@ -331,7 +341,7 @@ async function main() {
   await rejects(() => service.update('single-services', created.id, { name: 'Blocked' }), 'settled order update should be blocked');
   await rejects(() => service.remove('single-services', created.id), 'settled order delete should be blocked');
   await rejects(() => service.updateStatus('single-services', created.id, 'CANCELLED'), 'settled order status change should be blocked');
-  const unlocked = await service.unlock('single-services', created.id, { actor: 'order-test', reason: 'test unlock' });
+  const unlocked = await service.unlock('single-services', created.id, { actor: 'spoofed-user', reason: 'test unlock' }, unlockUser);
   assert(unlocked.status === 'COMPLETED' && !unlocked.settledAt, 'unlock should clear settlement and set completed');
   const afterUnlock = await service.update('single-services', created.id, { name: 'Editable After Unlock' });
   assert(afterUnlock.name === 'Editable After Unlock', 'unlocked order should be editable again');
@@ -404,7 +414,7 @@ async function main() {
   assert(settledHotel.status === 'SETTLED' && settledHotel.settledAt, 'hotel settle should mark settlement');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 1, 'hotel settle should confirm allotment');
-  await service.unlock('hotel-bookings', hotelSettle.id, { actor: 'order-test', reason: 'test hotel unlock' });
+  await service.unlock('hotel-bookings', hotelSettle.id, { actor: 'spoofed-user', reason: 'test hotel unlock' }, unlockUser);
   await service.remove('hotel-bookings', hotelSettle.id);
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel remove after unlock should release confirmed allotment');
