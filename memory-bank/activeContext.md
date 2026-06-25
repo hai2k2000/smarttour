@@ -3220,3 +3220,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Created/reset the live `admin` account (`admin@smarttour.local`) with the existing `super_admin` role so authenticated file smoke tests can run.
   - Ran `npm run smoke:files` against the live local API with the new admin credential; the smoke completed with `SMOKE_FILES_OK`.
   - The credential itself is intentionally not stored in repo or Memory Bank; rotate/change it after handoff.
+
+- 2026-06-25 Profile page follow-up:
+  - Added `/profile` as a dedicated account profile page reachable from the top-right account menu item `Thông tin người dùng`.
+  - The page loads `/api/auth/me`, shows account/role/data-scope details, and provides an inline change-password form using `/api/auth/change-password` with current/new/confirm password fields.
+  - Added `scripts/test-profile-page-contract.js` to guard the route, dropdown link, password form, and scoped profile styles.

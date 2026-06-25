@@ -2820,3 +2820,7 @@
 - 2026-06-25 Completed file smoke verification follow-up:
   - The previous Phase 4 verification gap is closed: `npm run smoke:files` now passes with `SMOKE_FILES_OK` after provisioning/resetting the live admin account.
   - Admin credential was shared only in the operator chat and must be changed after first login.
+
+- 2026-06-25 Completed profile page follow-up:
+  - Top-right account menu now sends `Thông tin người dùng` to `/profile`; `Quản trị & phân quyền` remains `/security`.
+  - Verification passed: `node scripts/test-profile-page-contract.js`, `npm run lint --workspace apps/web`, and `npm run build --workspace apps/web`; build output includes dynamic route `/profile`.

@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   TicketCheck,
   UserCircle,
+  UserRoundCog,
   Users,
   Warehouse,
   WalletCards,
@@ -245,6 +246,7 @@ const groups = [
     title: 'Cài đặt hệ thống',
     icon: Settings,
     items: [
+      { label: 'Hồ sơ cá nhân', href: '/profile', icon: UserRoundCog },
       { label: 'Phân quyền', href: '/security', icon: ShieldCheck },
       { label: 'Đăng nhập', href: '/login', icon: LogIn },
     ],
@@ -573,7 +575,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                         <span>{authEmail}</span>
                         <em>Đã xác thực</em>
                       </div>
-                      <Link href="/security" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
+                      <Link href="/profile" prefetch={false} role="menuitem" onClick={() => setAccountOpen(false)}>
                         <UserCircle size={16} />
                         <span>Thông tin người dùng</span>
                       </Link>
