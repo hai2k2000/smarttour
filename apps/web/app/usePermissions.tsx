@@ -18,6 +18,12 @@ type StoredUser = {
   roles?: { code: string; name: string }[];
 };
 
+const AUTH_USER_STORAGE_KEY = 'smarttour.auth.user';
+const PERMISSION_CACHE_TTL_MS = 60_000;
+let cachedPermissionUser: StoredUser | null | undefined;
+let cachedPermissionUserLoadedAt = 0;
+let permissionSyncPromise: Promise<StoredUser | null> | null = null;
+
 export function toStoredAuthUser(user: StoredUser | null | undefined): StoredUser | null {
   if (!user) return null;
   return {
@@ -36,42 +42,83 @@ export function toStoredAuthUser(user: StoredUser | null | undefined): StoredUse
   };
 }
 
+function readStoredAuthUser() {
+  if (typeof window === 'undefined') return null;
+  const storedUser = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
+  if (!storedUser) return null;
+  try {
+    return toStoredAuthUser(JSON.parse(storedUser) as StoredUser);
+  } catch {
+    window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    return null;
+  }
+}
+
+function persistPermissionUser(user: StoredUser | null) {
+  const nextUser = toStoredAuthUser(user);
+  cachedPermissionUser = nextUser;
+  cachedPermissionUserLoadedAt = Date.now();
+  if (typeof window !== 'undefined') {
+    if (nextUser) window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(nextUser));
+    else window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    window.dispatchEvent(new CustomEvent('smarttour:auth-user-updated'));
+  }
+  return nextUser;
+}
+
+async function syncPermissionUser(force = false) {
+  if (!force && cachedPermissionUser !== undefined && Date.now() - cachedPermissionUserLoadedAt < PERMISSION_CACHE_TTL_MS) return cachedPermissionUser;
+  if (permissionSyncPromise) return permissionSyncPromise;
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+  permissionSyncPromise = fetch(`${apiBase}/api/auth/me`, {
+    cache: 'no-store',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error('Unable to load current user permissions');
+      return persistPermissionUser(await response.json() as StoredUser);
+    })
+    .catch(() => persistPermissionUser(null))
+    .finally(() => {
+      permissionSyncPromise = null;
+    });
+  return permissionSyncPromise;
+}
+
 export function usePermissions() {
   const [user, setUser] = useState<StoredUser | null>(null);
   const [permissionsReady, setPermissionsReady] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
     let active = true;
 
-    async function syncPermissions() {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
-      try {
-        const response = await fetch(`${apiBase}/api/auth/me`, {
-          cache: 'no-store',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Không xác định được quyền của phiên đăng nhập');
-        const rawUser = await response.json() as StoredUser;
-        const nextUser = toStoredAuthUser(rawUser);
-        if (!active) return;
-        window.localStorage.setItem('smarttour.auth.user', JSON.stringify(toStoredAuthUser(rawUser)));
-        setUser(nextUser);
-      } catch {
-        if (!active || controller.signal.aborted) return;
-        window.localStorage.removeItem('smarttour.auth.user');
-        setUser(null);
-      } finally {
-        if (active) setPermissionsReady(true);
-      }
+    function applyUser(nextUser: StoredUser | null) {
+      if (!active) return;
+      setUser(nextUser);
+      setPermissionsReady(true);
     }
 
-    void syncPermissions();
+    function handleAuthUserUpdated() {
+      const nextUser = readStoredAuthUser();
+      cachedPermissionUser = nextUser;
+      applyUser(nextUser);
+    }
+
+    window.addEventListener('smarttour:auth-user-updated', handleAuthUserUpdated);
+
+    const storedUser = cachedPermissionUser !== undefined ? cachedPermissionUser : readStoredAuthUser();
+    if (storedUser) {
+      cachedPermissionUser = storedUser;
+      applyUser(storedUser);
+      void syncPermissionUser(true).then(applyUser);
+    } else {
+      void syncPermissionUser().then(applyUser);
+    }
+
     return () => {
       active = false;
-      controller.abort();
+      window.removeEventListener('smarttour:auth-user-updated', handleAuthUserUpdated);
     };
   }, []);
 

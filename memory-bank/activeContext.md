@@ -3274,3 +3274,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - VPS follow-up verification after SmartLink disable nuance passed: Prisma generate, API build/lint, business-logic/quotes/SmartLink/concurrency contracts, order/operations/operation-voucher service flows, `git diff --check`, and `scripts/healthcheck.sh`.
   - Local verification passed: `npm run prisma:generate`, `npm run build --workspace @smarttour/api`, `npm run lint --workspace @smarttour/api`, `node scripts/test-business-logic-guard-contract.js`, `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quotations-smartlink-expiry-contract.js`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, and `git diff --check`.
   - Docker-backed service flow scripts were not run locally because Docker Desktop is not running; direct Git Bash execution with `REPO_DIR` override reached repo setup, then requires Docker/Postgres containers.
+
+
+- 2026-06-25 SmartTour performance follow-up:
+  - Investigated reported slowness on the VPS: public login/root/auth probes were fast, resources were healthy, but API logs showed authenticated bursts around order-center, quotations, customers, and repeated `/api/auth/me` calls.
+  - Reduced client permission-request burst by making `usePermissions()` reuse stored auth data immediately, dedupe concurrent `/api/auth/me` refreshes, and revalidate in the background with a short cache TTL.
+  - Reduced dashboard DB query fan-out for default order-center and quotation dashboards by using DB-side aggregate queries; existing Prisma count/aggregate fallback remains for complex scoped/filter cases.
+  - Added `scripts/test-performance-guard-contract.js` to guard permission dedupe and dashboard aggregate behavior.
+  - Rebuilt/restarted API and web containers on the VPS and verified `HEALTHCHECK_OK`; post-deploy public timings remained sub-200ms and raw dashboard aggregate benchmarks were ~0-2ms after warm-up.

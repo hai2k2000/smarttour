@@ -6,6 +6,19 @@ import { applyWriteDataScope, branchDepartmentScopeWhere, RequestUser } from '..
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { CreateQuotationDto, DEFAULT_QUOTATIONS_TAKE, ListQuotationsQueryDto, MAX_QUOTATIONS_TAKE, QuotationActionDto, UpdateQuotationDto } from './dto/quotation.dto';
 
+type QuotationDashboard = {
+  total: number;
+  totalValue: number;
+  pending: number;
+  approved: number;
+  converted: number;
+  expired: number;
+};
+
+type QuotationDashboardAggregateRow = QuotationDashboard;
+
+type SimpleQuotationDashboardScope = { branch?: string; department?: string };
+
 type QuotationItemInput = NonNullable<CreateQuotationDto['items']>[number];
 
 const ORDER_TYPE_BY_PRODUCT: Record<string, OrderType> = {
@@ -25,7 +38,9 @@ export class QuotationsService {
   async dashboard(user?: RequestUser) {
     const where = branchDepartmentScopeWhere({}, user);
     const now = new Date();
-    const [total, pending, approved, converted, expired, totals] = await Promise.all([
+    const aggregate = await this.quotationDashboardAggregate(where, now);
+    if (aggregate) return aggregate;
+    const [totalCount, pendingCount, approvedCount, convertedCount, expiredCount, sums] = await Promise.all([
       this.prisma.quotation.count({ where }),
       this.prisma.quotation.count({ where: this.andWhere(where, { status: 'PENDING_APPROVAL' }) }),
       this.prisma.quotation.count({ where: this.andWhere(where, { status: 'APPROVED' }) }),
@@ -41,12 +56,64 @@ export class QuotationsService {
       this.prisma.quotation.aggregate({ where, _sum: { totalSelling: true } }),
     ]);
     return {
-      total,
-      totalValue: Number(totals._sum.totalSelling ?? 0),
-      pending,
-      approved,
-      converted,
-      expired,
+      total: totalCount,
+      totalValue: Number(sums._sum.totalSelling ?? 0),
+      pending: pendingCount,
+      approved: approvedCount,
+      converted: convertedCount,
+      expired: expiredCount,
+    };
+  }
+
+  private async quotationDashboardAggregate(where: Prisma.QuotationWhereInput, now: Date): Promise<QuotationDashboard | null> {
+    const scope = this.simpleQuotationDashboardScope(where);
+    if (!scope) return null;
+    const conditions: Prisma.Sql[] = [Prisma.sql`TRUE`];
+    if (scope.branch) conditions.push(Prisma.sql`"branch" = ${scope.branch}`);
+    if (scope.department) conditions.push(Prisma.sql`"department" = ${scope.department}`);
+    const [row] = await this.prisma.$queryRaw<QuotationDashboardAggregateRow[]>`
+      SELECT
+        COUNT(*)::integer AS "total",
+        COALESCE(SUM("totalSelling"), 0)::double precision AS "totalValue",
+        COUNT(*) FILTER (WHERE "status"::text = ${QuotationStatus.PENDING_APPROVAL})::integer AS "pending",
+        COUNT(*) FILTER (WHERE "status"::text = ${QuotationStatus.APPROVED})::integer AS "approved",
+        COUNT(*) FILTER (WHERE "status"::text = ${QuotationStatus.CONVERTED})::integer AS "converted",
+        COUNT(*) FILTER (WHERE "status"::text = ${QuotationStatus.EXPIRED} OR ("expiredDate" < ${now} AND "status"::text <> ${QuotationStatus.CONVERTED}))::integer AS "expired"
+      FROM "Quotation"
+      WHERE ${Prisma.join(conditions, ' AND ')}
+    `;
+    return this.normalizeQuotationDashboard(row);
+  }
+
+  private simpleQuotationDashboardScope(where: Prisma.QuotationWhereInput): SimpleQuotationDashboardScope | null {
+    if (this.isEmptyQuotationWhere(where)) return {};
+    const and = Array.isArray(where.AND) ? where.AND : null;
+    if (!and?.length || !this.isEmptyQuotationWhere(and[0] as Prisma.QuotationWhereInput)) return null;
+    const scope: SimpleQuotationDashboardScope = {};
+    for (const item of and.slice(1)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const entry = item as Record<string, unknown>;
+      const keys = Object.keys(entry);
+      if (keys.length !== 1) return null;
+      if (keys[0] === 'branch' && typeof entry.branch === 'string') scope.branch = entry.branch;
+      else if (keys[0] === 'department' && typeof entry.department === 'string') scope.department = entry.department;
+      else return null;
+    }
+    return scope;
+  }
+
+  private isEmptyQuotationWhere(where: Prisma.QuotationWhereInput) {
+    return Object.keys(where).length === 0;
+  }
+
+  private normalizeQuotationDashboard(row: QuotationDashboardAggregateRow | undefined): QuotationDashboard {
+    return {
+      total: Number(row?.total ?? 0),
+      totalValue: Number(row?.totalValue ?? 0),
+      pending: Number(row?.pending ?? 0),
+      approved: Number(row?.approved ?? 0),
+      converted: Number(row?.converted ?? 0),
+      expired: Number(row?.expired ?? 0),
     };
   }
 

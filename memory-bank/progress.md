@@ -2864,3 +2864,10 @@
   - VPS follow-up verification passed after the SmartLink nuance: Prisma generate, API build/lint, relevant contracts, service-flow scripts, `git diff --check`, and healthcheck.
   - Verification passed: API Prisma generate/build/lint, business-logic guard contract, quotes backend contract, SmartLink expiry contract, operation payment request concurrency contract, and `git diff --check`.
   - Remaining environment note: Docker-backed service flow scripts require a running Docker/Postgres environment; local Docker Desktop was not running during this pass.
+
+
+- 2026-06-25 Completed SmartTour performance follow-up:
+  - Root cause evidence pointed to authenticated request bursts rather than VPS CPU/RAM/disk or frontend bundle size: order-center dashboard/list and quotations dashboard/list had the highest historical p95s, while public login/root/API probes were fast.
+  - Implemented frontend permission sync dedupe/cache in `usePermissions()` and DB-side aggregate paths for default order-center and quotation dashboards.
+  - Added `scripts/test-performance-guard-contract.js` plus retained existing order-center query/permission contracts so dashboards do not regress to loading all rows.
+  - Verification passed: performance guard, order-center query/permission contracts, quotations/quotes contracts, API/web typecheck, Docker image builds for API/Web, `scripts/healthcheck.sh`, and post-deploy timing/aggregate benchmarks.

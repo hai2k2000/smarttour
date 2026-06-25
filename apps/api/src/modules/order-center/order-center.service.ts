@@ -4,6 +4,23 @@ import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 
+type OrderDashboard = {
+  total: number;
+  upcoming: number;
+  running: number;
+  completed: number;
+  cancelled: number;
+  unpaid: number;
+  unpaidCost: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+};
+
+type OrderDashboardAggregateRow = OrderDashboard;
+
+type SimpleOrderDashboardScope = { branch?: string; department?: string };
+
 type OrderCenterQuery = {
   search?: string;
   systemCode?: string;
@@ -44,7 +61,9 @@ export class OrderCenterService {
     const now = new Date();
     const next30 = new Date(now);
     next30.setDate(next30.getDate() + 30);
-    const [total, upcoming, running, completed, cancelled, unpaid, unpaidCost, totals] = await Promise.all([
+    const aggregate = await this.orderDashboardAggregate(where, now, next30);
+    if (aggregate) return aggregate;
+    const [totalCount, upcomingCount, runningCount, completedCount, cancelledCount, unpaidCount, unpaidCostCount, sums] = await Promise.all([
       this.prisma.order.count({ where }),
       this.prisma.order.count({ where: this.andWhere(where, { startDate: { gte: now, lte: next30 } }) }),
       this.prisma.order.count({ where: this.andWhere(where, { status: OrderStatus.RUNNING }) }),
@@ -58,16 +77,76 @@ export class OrderCenterService {
       }),
     ]);
     return {
-      total,
-      upcoming,
-      running,
-      completed,
-      cancelled,
-      unpaid,
-      unpaidCost,
-      revenue: Number(totals._sum.totalRevenue ?? 0),
-      cost: Number(totals._sum.totalCost ?? 0),
-      profit: Number(totals._sum.profit ?? 0),
+      total: totalCount,
+      upcoming: upcomingCount,
+      running: runningCount,
+      completed: completedCount,
+      cancelled: cancelledCount,
+      unpaid: unpaidCount,
+      unpaidCost: unpaidCostCount,
+      revenue: Number(sums._sum.totalRevenue ?? 0),
+      cost: Number(sums._sum.totalCost ?? 0),
+      profit: Number(sums._sum.profit ?? 0),
+    };
+  }
+
+  private async orderDashboardAggregate(where: Prisma.OrderWhereInput, now: Date, next30: Date): Promise<OrderDashboard | null> {
+    const scope = this.simpleOrderDashboardScope(where);
+    if (!scope) return null;
+    const conditions: Prisma.Sql[] = [Prisma.sql`"deletedAt" IS NULL`];
+    if (scope.branch) conditions.push(Prisma.sql`"branch" = ${scope.branch}`);
+    if (scope.department) conditions.push(Prisma.sql`"department" = ${scope.department}`);
+    const [row] = await this.prisma.$queryRaw<OrderDashboardAggregateRow[]>`
+      SELECT
+        COUNT(*)::integer AS "total",
+        COUNT(*) FILTER (WHERE "startDate" >= ${now} AND "startDate" <= ${next30})::integer AS "upcoming",
+        COUNT(*) FILTER (WHERE "status"::text = ${OrderStatus.RUNNING})::integer AS "running",
+        COUNT(*) FILTER (WHERE "status"::text IN (${OrderStatus.COMPLETED}, ${OrderStatus.SETTLED}))::integer AS "completed",
+        COUNT(*) FILTER (WHERE "status"::text = ${OrderStatus.CANCELLED})::integer AS "cancelled",
+        COUNT(*) FILTER (WHERE "remainingRevenue" > 0)::integer AS "unpaid",
+        COUNT(*) FILTER (WHERE "remainingCost" > 0)::integer AS "unpaidCost",
+        COALESCE(SUM("totalRevenue"), 0)::double precision AS "revenue",
+        COALESCE(SUM("totalCost"), 0)::double precision AS "cost",
+        COALESCE(SUM("profit"), 0)::double precision AS "profit"
+      FROM "Order"
+      WHERE ${Prisma.join(conditions, ' AND ')}
+    `;
+    return this.normalizeOrderDashboard(row);
+  }
+
+  private simpleOrderDashboardScope(where: Prisma.OrderWhereInput): SimpleOrderDashboardScope | null {
+    if (this.isDeletedOnlyWhere(where)) return {};
+    const and = Array.isArray(where.AND) ? where.AND : null;
+    if (!and?.length || !this.isDeletedOnlyWhere(and[0] as Prisma.OrderWhereInput)) return null;
+    const scope: SimpleOrderDashboardScope = {};
+    for (const item of and.slice(1)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const entry = item as Record<string, unknown>;
+      const keys = Object.keys(entry);
+      if (keys.length !== 1) return null;
+      if (keys[0] === 'branch' && typeof entry.branch === 'string') scope.branch = entry.branch;
+      else if (keys[0] === 'department' && typeof entry.department === 'string') scope.department = entry.department;
+      else return null;
+    }
+    return scope;
+  }
+
+  private isDeletedOnlyWhere(where: Prisma.OrderWhereInput) {
+    return Object.keys(where).length === 1 && where.deletedAt === null;
+  }
+
+  private normalizeOrderDashboard(row: OrderDashboardAggregateRow | undefined): OrderDashboard {
+    return {
+      total: Number(row?.total ?? 0),
+      upcoming: Number(row?.upcoming ?? 0),
+      running: Number(row?.running ?? 0),
+      completed: Number(row?.completed ?? 0),
+      cancelled: Number(row?.cancelled ?? 0),
+      unpaid: Number(row?.unpaid ?? 0),
+      unpaidCost: Number(row?.unpaidCost ?? 0),
+      revenue: Number(row?.revenue ?? 0),
+      cost: Number(row?.cost ?? 0),
+      profit: Number(row?.profit ?? 0),
     };
   }
 
