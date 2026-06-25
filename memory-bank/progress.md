@@ -2831,3 +2831,9 @@
   - Added/updated focused contracts: finance DTO enum, auth management data, operations controller/RBAC, order-center query, supplier file, customer DTO/service, and supplier smoke permission seed.
   - Verification passed: finance/auth/operations/RBAC/order-center/supplier-file/customer focused suite, `scripts/smoke-operations-backend.sh`, `scripts/smoke-suppliers.sh`, and `npm run smoke:files` (`SMOKE_FILES_OK`) with a temporary `ADMIN_PASSWORD` environment variable.
   - The admin credential used for the smoke run was not stored in repo or Memory Bank.
+
+
+- 2026-06-25 Completed review fixes deploy follow-up:
+  - `npx prisma migrate deploy` completed after fixing the operation payment request manage permission migration to resolve role IDs through `Role.code`.
+  - Docker build passed for `api` and `web`; `docker compose up -d api web nginx` restarted the deployed services.
+  - Post-deploy verification passed: `scripts/healthcheck.sh`, `scripts/smoke-operations-backend.sh`, `scripts/smoke-suppliers.sh`, `ADMIN_PASSWORD=<temporary> npm run smoke:files`, `ADMIN_PASSWORD=<temporary> npm run smoke:ui`, plus a profile login/page smoke. The admin password was not stored.

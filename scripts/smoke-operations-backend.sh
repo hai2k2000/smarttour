@@ -129,6 +129,7 @@ VALUES
   ('${REQUEST_CREATE_ROLE_ID}_rp_form_view', '${REQUEST_CREATE_ROLE_ID}', 'operation.form.view', now()),
   ('${REQUEST_CREATE_ROLE_ID}_rp_request_view', '${REQUEST_CREATE_ROLE_ID}', 'operation.payment-request.view', now()),
   ('${REQUEST_CREATE_ROLE_ID}_rp_request_create', '${REQUEST_CREATE_ROLE_ID}', 'operation.payment-request.create', now()),
+  ('${REQUEST_CREATE_ROLE_ID}_rp_request_manage', '${REQUEST_CREATE_ROLE_ID}', 'operation.payment-request.manage', now()),
   ('${REQUEST_CREATE_ROLE_ID}_rp_scope_all', '${REQUEST_CREATE_ROLE_ID}', 'data.scope.all', now());
 
 INSERT INTO "User" (id, username, email, name, "passwordHash", status, branch, department, "createdAt", "updatedAt")

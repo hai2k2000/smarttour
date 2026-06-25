@@ -3236,3 +3236,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier file upload/delete now passes request-user context to service lookups; customer update now requires `replaceNestedCollections: true` before replacing nested contacts/tags/care/comment/call/opportunity collections.
   - Supplier smoke manage-role seed now includes `finance.payment.view` so preservation assertions can inspect intentionally sensitive supplier fields.
   - `npm run smoke:files` was rerun with a temporary `ADMIN_PASSWORD` environment variable and completed with `SMOKE_FILES_OK`; the credential was not stored.
+
+
+- 2026-06-25 Review fixes deploy follow-up:
+  - During `npx prisma migrate deploy`, migration `20260625120000_operation_payment_request_manage_permission` initially failed because it inserted `RolePermission.roleId` from role code (`super_admin`/`operation`) instead of the live role IDs (`role_super_admin`/`role_operation`).
+  - Fixed the migration to join `Role` by `code` and insert `r.id`; marked the failed migration attempt rolled back with Prisma and reapplied successfully.
+  - Updated RBAC contract coverage for the migration shape and updated operations smoke seed so the request-create smoke session has `operation.payment-request.manage` before testing submit.
+  - Rebuilt Docker images for API/Web, restarted `api`, `web`, and `nginx`, and verified health/smoke checks after deploy.

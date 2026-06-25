@@ -125,6 +125,12 @@ function forbidPrefix(roles, role, prefix) {
   assert(matches.length === 0, `${role} không được có nhóm quyền ${prefix}: ${matches.join(', ')}`);
 }
 
+const operationManageMigration = read('prisma/migrations/20260625120000_operation_payment_request_manage_permission/migration.sql');
+assert(
+  operationManageMigration.includes('JOIN "Role" r ON r.code = rp.code') && operationManageMigration.includes(`SELECT md5(r.id || ':' || rp.permission), r.id, rp.permission, now()`),
+  'operation payment request manage permission migration must resolve RolePermission.roleId from Role.id by role code',
+);
+
 const roles = collectRolePermissions();
 const backendRoutePermissions = collectBackendRoutePermissions();
 const backendKnownPermissions = new Set(['*', ...backendRoutePermissions]);
@@ -270,6 +276,12 @@ const controllerContracts = [
 for (const [file, permission] of controllerContracts) {
   assert(read(file).includes(permission), `${file} thiếu guard ${permission}`);
 }
+
+const operationsSmoke = read('scripts/smoke-operations-backend.sh');
+assert(
+  operationsSmoke.includes("'${REQUEST_CREATE_ROLE_ID}_rp_request_manage'") && operationsSmoke.includes("'operation.payment-request.manage'"),
+  'operations smoke request-create session must include operation.payment-request.manage before submitting payment requests',
+);
 
 const smoke = read('scripts/smoke-rbac-workflows.sh');
 assert(!smoke.includes('ADMIN_PASSWORD'), 'RBAC smoke không được phụ thuộc mật khẩu admin production');
