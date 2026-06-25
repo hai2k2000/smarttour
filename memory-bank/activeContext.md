@@ -3259,3 +3259,14 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Root cause was a successful structured request log whose test-data path contained `BKG-ERROR-...`; the existing scan already ignored structured 4xx `request_failed` logs but still grepped `error|exception|failed` inside successful request paths.
   - Extended `scripts/test-healthcheck-log-filter-contract.js` first, observed RED, then updated `recent_logs_for_scan()` to ignore structured `"event":"request_completed"` lines while still keeping 5xx/unstructured error signatures visible.
   - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.
+
+- 2026-06-25 Business logic review fix follow-up:
+  - Tightened quotation workflow guards so pending-approval quotations are no longer editable, SmartLink publishing is limited to approved non-expired quotations, and duplicate convert/order-code races return a business conflict.
+  - Tightened operation form mutation paths so DONE/CANCELLED forms reject updates and status transitions run under a row lock before transition checks.
+  - Tightened operation-voucher payment reconciliation so approved FinancePayment links must match the voucher supplier/order/tour and generated finance payments derive branch/department scope from the voucher context.
+  - Tightened order lifecycle maps so COMPLETED/CANCELLED orders cannot be reopened through the generic status endpoint.
+  - Added `scripts/test-business-logic-guard-contract.js` and aligned the order service flow expectations with terminal order states.
+  - Follow-up nuance: SmartLink status/expiry guards apply when enabling; disabling remains available after the quotation passes normal scoped lookup.
+  - VPS follow-up verification after SmartLink disable nuance passed: Prisma generate, API build/lint, business-logic/quotes/SmartLink/concurrency contracts, order/operations/operation-voucher service flows, `git diff --check`, and `scripts/healthcheck.sh`.
+  - Local verification passed: `npm run prisma:generate`, `npm run build --workspace @smarttour/api`, `npm run lint --workspace @smarttour/api`, `node scripts/test-business-logic-guard-contract.js`, `node scripts/test-quotes-backend-contract.js`, `node scripts/test-quotations-smartlink-expiry-contract.js`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, and `git diff --check`.
+  - Docker-backed service flow scripts were not run locally because Docker Desktop is not running; direct Git Bash execution with `REPO_DIR` override reached repo setup, then requires Docker/Postgres containers.

@@ -237,8 +237,8 @@ export class OperationsService {
     });
   }
 
-  async formDetail(id: string, user?: RequestUser) {
-    const row = await this.prisma.operationForm.findFirst({ where: this.formScopeWhere({ id }, user), include: this.formDetailInclude() });
+  async formDetail(id: string, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const row = await client.operationForm.findFirst({ where: this.formScopeWhere({ id }, user), include: this.formDetailInclude() });
     if (!row) throw new NotFoundException('Không tìm thấy phiếu điều hành');
     return row;
   }
@@ -278,6 +278,7 @@ export class OperationsService {
     const actor = this.userActor(user, dto.actor);
     if (dto.status !== undefined) throw new BadRequestException('D\u00f9ng action endpoint \u0111\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
     const current = await this.formDetail(id, user);
+    this.assertFormEditable(current, 'update');
     const bookingId = this.text(dto.bookingId) ?? current.bookingId;
     const links = await this.resolveBookingOrderTour({
       bookingId,
@@ -308,10 +309,17 @@ export class OperationsService {
     const actor = this.userActor(user, dto.actor);
     const targetStatus = this.operationStatus(status, OperationStatus.PENDING);
     if (targetStatus === OperationStatus.CANCELLED) throw new BadRequestException('D\u00f9ng action endpoint h\u1ee7y \u0111\u1ec3 h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
-    const current = await this.formDetail(id, user);
-    this.assertOperationFormTransition(current.status, targetStatus);
-    if (current.status === targetStatus) return current;
     return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "OperationForm"
+        WHERE "id" = ${id}
+        FOR UPDATE
+      `;
+      if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+      const current = await this.formDetail(id, user, tx);
+      this.assertOperationFormTransition(current.status, targetStatus);
+      if (current.status === targetStatus) return current;
       const form = await tx.operationForm.update({ where: { id }, data: { status: targetStatus }, include: this.formDetailInclude() });
       await this.audit(tx, 'STATUS', 'OperationForm', id, { actor, from: current.status, to: targetStatus, payload: this.auditPayload(dto) }, user);
       return form;
@@ -831,6 +839,11 @@ export class OperationsService {
       [OperationStatus.CANCELLED]: new Set([OperationStatus.CANCELLED]),
     };
     if (!allowed[current]?.has(target)) throw new BadRequestException('Chuy\u1ec3n tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh kh\u00f4ng h\u1ee3p l\u1ec7');
+  }
+
+  private assertFormEditable(form: { status: OperationStatus }, _action: 'update') {
+    if (form.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda');
+    if (form.status === OperationStatus.CANCELLED) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 h\u1ee7y kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda');
   }
 
   private formServices(dto: AnyRecord): ParsedOperationService[] {

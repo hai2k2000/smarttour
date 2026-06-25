@@ -215,7 +215,10 @@ export class QuotationsService {
 
   async smartLink(id: string, enabled = true, user?: RequestUser) {
     const current = await this.detail(id, user);
-    this.assertStatus(current.status, ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXPIRED'], 'toggle smartlink');
+    if (enabled) {
+      this.assertStatus(current.status, ['APPROVED'], 'toggle smartlink');
+      this.assertSmartLinkPublishable(current);
+    }
     return this.prisma.quotation.update({
       where: { id },
       data: enabled
@@ -226,7 +229,8 @@ export class QuotationsService {
   }
 
   async convert(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Quotation" WHERE id = ${id} FOR UPDATE`;
       const quote = await tx.quotation.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: this.includeAll() });
       if (!quote) throw new NotFoundException('Không tìm thấy báo giá.');
@@ -280,8 +284,12 @@ export class QuotationsService {
       });
       await tx.quotation.update({ where: { id }, data: { ...totals, status: 'CONVERTED', convertedOrderId: order.id } });
       await tx.quotationApprovalLog.create({ data: { quotationId: id, action: 'CONVERT', actor: this.actor(user), note: this.text(dto.note), oldStatus: quote.status, newStatus: 'CONVERTED' } });
-      return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
-    });
+        return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('\u0110\u01a1n h\u00e0ng chuy\u1ec3n t\u1eeb b\u00e1o gi\u00e1 \u0111\u00e3 t\u1ed3n t\u1ea1i.');
+      throw error;
+    }
   }
   private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto, user?: RequestUser) {
     const quote = await this.prisma.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
@@ -426,7 +434,7 @@ export class QuotationsService {
   }
 
   private assertEditable(status: QuotationStatus) {
-    this.assertStatus(status, ['DRAFT', 'PENDING_APPROVAL', 'REJECTED', 'EXPIRED'], 'edit');
+    this.assertStatus(status, ['DRAFT', 'REJECTED', 'EXPIRED'], 'edit');
   }
 
   private assertDeletable(status: QuotationStatus) {
@@ -436,6 +444,12 @@ export class QuotationsService {
   private assertStatus(status: QuotationStatus, allowed: QuotationStatus[], action: string) {
     if (!allowed.includes(status)) {
       throw new BadRequestException(`Không thể ${this.actionLabel(action)} báo giá từ trạng thái ${this.statusLabel(status)}.`);
+    }
+  }
+
+  private assertSmartLinkPublishable(quote: { expiredDate?: Date | null }) {
+    if (quote.expiredDate && quote.expiredDate.getTime() <= Date.now()) {
+      throw new BadRequestException('B\u00e1o gi\u00e1 \u0111\u00e3 h\u1ebft h\u1ea1n kh\u00f4ng th\u1ec3 b\u1eadt SmartLink.');
     }
   }
 

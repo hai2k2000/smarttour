@@ -232,13 +232,14 @@ export class OperationVouchersService {
       await tx.$queryRawUnsafe('SELECT id FROM "FinancePayment" WHERE id = $1 FOR UPDATE', paymentVoucherId);
       const payment = await tx.financePayment.findFirst({
         where: branchDepartmentScopeWhere({ id: paymentVoucherId }, user),
-        select: { id: true, approvalStatus: true, operationVoucherId: true, paymentAmount: true },
+        select: { id: true, approvalStatus: true, operationVoucherId: true, paymentAmount: true, supplierId: true, orderId: true, tourId: true },
       });
       if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi tài chính');
       if (payment.approvalStatus !== 'APPROVED') throw new BadRequestException('Chỉ phiếu chi tài chính đã duyệt mới được ghi nhận thanh toán');
       if (payment.operationVoucherId && payment.operationVoucherId !== id) throw new BadRequestException('Phiếu chi tài chính đã liên kết với phiếu điều hành khác');
       const paymentAmount = this.positiveNumber(payment.paymentAmount, 'Số tiền phiếu chi tài chính phải lớn hơn 0');
       if (requestedPaymentAmount !== undefined && Math.abs(requestedPaymentAmount - paymentAmount) > 0.000001) throw new BadRequestException('Số tiền ghi nhận phải khớp với phiếu chi tài chính đã duyệt');
+      this.assertPaymentMatchesVoucher(payment, voucher);
       this.assertPayable(voucher, paymentAmount);
       const existing = await tx.operationVoucherPayment.findFirst({ where: { paymentVoucherId: payment.id }, select: { id: true, voucherId: true } });
       if (existing) throw new BadRequestException('Phiếu chi tài chính đã được ghi nhận thanh toán');
@@ -254,10 +255,10 @@ export class OperationVouchersService {
   }
 
   async createPaymentVoucher(id: string, user?: RequestUser) {
-    const scopedPayment = applyWriteDataScope({ branch: undefined, department: undefined }, user);
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       const voucher = await this.lockVoucherForPayment(tx, id, user);
+      const scopedPayment = this.paymentScopeFromVoucher(voucher, user);
       const amount = Number(voucher.remainAmount);
       this.assertPayable(voucher, amount);
       const existingPayment = await tx.financePayment.findFirst({
@@ -275,6 +276,7 @@ export class OperationVouchersService {
           supplierId: voucher.supplierId,
           operationVoucherId: voucher.id,
           orderId: voucher.orderId,
+          tourId: voucher.tourId,
           receiverName: voucher.supplierName,
           reason: `Thanh toán phiếu điều hành ${voucher.voucherCode}`,
           totalAmount: amount,
@@ -541,7 +543,7 @@ export class OperationVouchersService {
   private includeAll() {
     return {
       supplier: true,
-      booking: true,
+      booking: { include: { customer: true } },
       order: true,
       tour: true,
       details: { orderBy: { sortOrder: 'asc' } },
@@ -617,6 +619,23 @@ export class OperationVouchersService {
     const remainAmount = Number(voucher.remainAmount);
     if (remainAmount <= 0) throw new BadRequestException('Phiếu điều hành không còn công nợ cần thanh toán');
     if (amount > remainAmount + 0.000001) throw new BadRequestException('Số tiền thanh toán không được vượt quá công nợ còn lại');
+  }
+
+  private assertPaymentMatchesVoucher(
+    payment: { supplierId: string | null; orderId: string | null; tourId: string | null; operationVoucherId: string | null },
+    voucher: Awaited<ReturnType<OperationVouchersService['detail']>>,
+  ) {
+    if (payment.operationVoucherId === voucher.id) return;
+    if (voucher.supplierId && payment.supplierId !== voucher.supplierId) throw new BadRequestException('Phi\u1ebfu chi t\u00e0i ch\u00ednh kh\u00f4ng kh\u1edbp nh\u00e0 cung c\u1ea5p c\u1ee7a phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+    if (voucher.orderId && payment.orderId !== voucher.orderId) throw new BadRequestException('Phi\u1ebfu chi t\u00e0i ch\u00ednh kh\u00f4ng kh\u1edbp \u0111\u01a1n h\u00e0ng c\u1ee7a phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+    if (voucher.tourId && payment.tourId !== voucher.tourId) throw new BadRequestException('Phi\u1ebfu chi t\u00e0i ch\u00ednh kh\u00f4ng kh\u1edbp tour c\u1ee7a phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+  }
+
+  private paymentScopeFromVoucher(voucher: Awaited<ReturnType<OperationVouchersService['detail']>>, user?: RequestUser) {
+    return applyWriteDataScope({
+      branch: voucher.order?.branch ?? voucher.tour?.branch ?? voucher.booking?.customer?.branch ?? undefined,
+      department: voucher.order?.department ?? voucher.tour?.department ?? voucher.booking?.customer?.department ?? undefined,
+    }, user);
   }
 
   private operationVoucherStatus(status?: string) {

@@ -2850,3 +2850,13 @@
   - Fixed a post-sweep healthcheck false positive where a successful request path containing `ERROR` triggered `FAIL_LOG api has recent error signature`.
   - Added source contract coverage that successful structured request logs are ignored during keyword scans, while structured 5xx request failures remain detectable.
   - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.
+
+- 2026-06-25 Completed business logic review fix follow-up:
+  - Quotations: pending approval is now read-only for edit, SmartLink can only be published from approved non-expired quotations, and duplicate convert/order-code conflicts are surfaced as business conflicts.
+  - Operations: operation form updates reject DONE/CANCELLED forms, and status changes re-read the form under `FOR UPDATE` before applying transition rules.
+  - Operation vouchers: payment reconciliation now checks supplier/order/tour linkage and derives generated payment branch/department scope from the voucher's order/tour/booking context.
+  - Orders: generic lifecycle transitions now treat COMPLETED/CANCELLED as terminal except for COMPLETED -> SETTLED.
+  - SmartLink follow-up: enabling is restricted to approved non-expired quotations while disabling is not blocked by that publish guard.
+  - VPS follow-up verification passed after the SmartLink nuance: Prisma generate, API build/lint, relevant contracts, service-flow scripts, `git diff --check`, and healthcheck.
+  - Verification passed: API Prisma generate/build/lint, business-logic guard contract, quotes backend contract, SmartLink expiry contract, operation payment request concurrency contract, and `git diff --check`.
+  - Remaining environment note: Docker-backed service flow scripts require a running Docker/Postgres environment; local Docker Desktop was not running during this pass.

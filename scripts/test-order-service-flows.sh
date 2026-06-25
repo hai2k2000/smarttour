@@ -379,26 +379,31 @@ async function main() {
   activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'CONFIRMED' } });
   assert(activeHotelAllocation?.quantity === 2, 'hotel completed should mark its allocation confirmed');
 
-  await service.updateStatus('hotel-bookings', hotel.id, 'UPCOMING');
+  await rejects(() => service.updateStatus('hotel-bookings', hotel.id, 'UPCOMING'), 'completed hotel booking should not be reopened through generic status changes');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel downgrade should move booked allotment back to locked');
-
-  await service.updateStatus('hotel-bookings', hotel.id, 'RUNNING');
-  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'hotel running should confirm allotment');
-
-  await service.updateStatus('hotel-bookings', hotel.id, 'CANCELLED');
-  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel cancelled should release allotment');
-  const releasedHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotel.id, createdBy: 'ORDER_AUTO', status: 'RELEASED' }, orderBy: { releasedAt: 'desc' } });
-  assert(releasedHotelAllocation?.releasedAt, 'hotel cancelled should mark its allocation released');
-
-  await service.updateStatus('hotel-bookings', hotel.id, 'UPCOMING');
-  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel reactivation should lock allotment again');
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'rejected hotel downgrade should keep booked allotment confirmed');
   await service.remove('hotel-bookings', hotel.id);
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel remove should release locked allotment');
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel remove should release confirmed allotment');
+
+  const hotelCancel = await service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-CANCEL',
+    name: 'Hotel Booking Cancel Flow',
+    customerId: customer.id,
+    startDate: '2026-10-10',
+    endDate: '2026-10-11',
+    operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: hotelService.id, serviceDate: '2026-10-10', quantity: 2, netPrice: 700000, vat: 0, status: 'WAITING' }],
+  });
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel cancel fixture should lock allotment');
+
+  await service.updateStatus('hotel-bookings', hotelCancel.id, 'CANCELLED');
+  lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 0, 'hotel cancelled should release allotment');
+  const releasedHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotelCancel.id, createdBy: 'ORDER_AUTO', status: 'RELEASED' }, orderBy: { releasedAt: 'desc' } });
+  assert(releasedHotelAllocation?.releasedAt, 'hotel cancelled should mark its allocation released');
+
+  await rejects(() => service.updateStatus('hotel-bookings', hotelCancel.id, 'UPCOMING'), 'cancelled hotel booking should not be reopened through generic status changes');
 
   const hotelSettle = await service.create('hotel-bookings', {
     systemCode: run + '-HOTEL-SETTLE',
@@ -440,9 +445,9 @@ async function main() {
   assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'completed hotel update should keep allotment booked, not locked');
   activeHotelAllocation = await prisma.supplierAllotmentAllocation.findFirst({ where: { orderId: hotelUpdate.id, createdBy: 'ORDER_AUTO', status: 'CONFIRMED' }, orderBy: { createdAt: 'desc' } });
   assert(activeHotelAllocation?.quantity === 2 && activeHotelAllocation.orderOperationItemId === hotelUpdateChanged.operationItems[0].id, 'hotel update should link replacement allocation to the preserved operation item');
-  await service.updateStatus('hotel-bookings', hotelUpdate.id, 'UPCOMING');
+  await rejects(() => service.updateStatus('hotel-bookings', hotelUpdate.id, 'UPCOMING'), 'completed hotel update fixture should not downgrade through generic status changes');
   lockedAllotment = await prisma.supplierAllotment.findUniqueOrThrow({ where: { id: allotment.id } });
-  assert(lockedAllotment.lockedQty === 2 && lockedAllotment.bookedQty === 0, 'hotel update downgrade should move booked rooms back to locked');
+  assert(lockedAllotment.lockedQty === 0 && lockedAllotment.bookedQty === 2, 'rejected hotel update downgrade should keep booked rooms confirmed');
   await service.update('hotel-bookings', hotelUpdate.id, {
     operationItems: [{ id: hotelUpdateChanged.operationItems[0].id, serviceType: 'OTHER', quantity: 1, netPrice: 100000, vat: 0, status: 'WAITING' }],
   });
