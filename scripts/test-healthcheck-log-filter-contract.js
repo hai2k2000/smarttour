@@ -7,6 +7,10 @@ if (!source.includes('"event":"request_failed".*"statusCode":4[0-9][0-9]')) {
   failures.push('healthcheck must ignore structured RequestLoggingInterceptor 4xx request_failed logs');
 }
 
+if (!source.includes('"event":"request_completed"')) {
+  failures.push('healthcheck must ignore structured successful request logs so request paths containing error words do not trip log scans');
+}
+
 if (source.includes('"event":"request_failed".*"statusCode":[45][0-9][0-9]')) {
   failures.push('healthcheck must not ignore structured 5xx request_failed logs');
 }

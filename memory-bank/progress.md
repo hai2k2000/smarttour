@@ -2845,3 +2845,8 @@
   - Quotes/Quotations: fixed executable mode for the smoke script and updated SmartLink smoke/coverage to require public access only after approval while preserving 404 for draft links. Full quotes/quotations contracts and smoke passed.
   - Files/UI/Ops: refreshed stale contracts for `uploadAuthorized`, report CSV helper BOM/CRLF checks, FIT dynamic export headers, and logrotate checks through timeout wrappers. Files storage, UI/profile/browser/UX, reports/commission, finance, customers, and observability/security suites passed.
   - Final verification included `scripts/healthcheck.sh` and `scripts/security-audit.sh`, both passing. Temporary admin credentials used for authenticated smoke scripts were not written to repo or Memory Bank.
+
+- 2026-06-25 Completed healthcheck log-scan false-positive fix:
+  - Fixed a post-sweep healthcheck false positive where a successful request path containing `ERROR` triggered `FAIL_LOG api has recent error signature`.
+  - Added source contract coverage that successful structured request logs are ignored during keyword scans, while structured 5xx request failures remain detectable.
+  - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.

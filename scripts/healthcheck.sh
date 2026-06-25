@@ -125,6 +125,7 @@ recent_logs_for_scan() {
   fi
   printf '%s\n' "$raw_logs" \
     | run_healthcheck_text_filter grep -Ev "Content-Type doesn't match Reply body|ExceptionFilter for non-JSON responses" \
+    | run_healthcheck_text_filter grep -Ev '"event":"request_completed"' \
     | run_healthcheck_text_filter grep -Ev '"event":"request_failed".*"statusCode":4[0-9][0-9]' \
     || true
 }

@@ -3253,3 +3253,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added query enum uppercase transforms for common tour list `type` and `status`, preserving lowercase query compatibility while invalid enum values still return 400.
   - Refreshed stale source contracts for FIT export headers, file upload authorization, report CSV helper BOM/CRLF coverage, and security-audit logrotate timeout wrappers.
   - Verification passed module-by-module plus final health/security checks. Admin password was only passed through temporary environment variables and was not stored.
+
+- 2026-06-25 Healthcheck log-scan false-positive follow-up:
+  - Fresh post-sweep `scripts/healthcheck.sh` failed only on `FAIL_LOG api has recent error signature` while all containers, HTTP, DB, Redis, backup, restore-drill, and security checks were healthy.
+  - Root cause was a successful structured request log whose test-data path contained `BKG-ERROR-...`; the existing scan already ignored structured 4xx `request_failed` logs but still grepped `error|exception|failed` inside successful request paths.
+  - Extended `scripts/test-healthcheck-log-filter-contract.js` first, observed RED, then updated `recent_logs_for_scan()` to ignore structured `"event":"request_completed"` lines while still keeping 5xx/unstructured error signatures visible.
+  - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.
