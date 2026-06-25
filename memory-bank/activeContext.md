@@ -3235,3 +3235,4 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Order-center query DTO/service now validate payment/cost status enums and reject invalid date strings before Prisma filtering.
   - Supplier file upload/delete now passes request-user context to service lookups; customer update now requires `replaceNestedCollections: true` before replacing nested contacts/tags/care/comment/call/opportunity collections.
   - Supplier smoke manage-role seed now includes `finance.payment.view` so preservation assertions can inspect intentionally sensitive supplier fields.
+  - `npm run smoke:files` was rerun with a temporary `ADMIN_PASSWORD` environment variable and completed with `SMOKE_FILES_OK`; the credential was not stored.

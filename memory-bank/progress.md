@@ -2829,5 +2829,5 @@
 - 2026-06-25 Completed review finding fixes follow-up:
   - Fixed finance invoice enum drift, auth management PII exposure, operations supplier-payment-request permission granularity, order-center query validation, supplier file scope plumbing, and customer nested replacement safety.
   - Added/updated focused contracts: finance DTO enum, auth management data, operations controller/RBAC, order-center query, supplier file, customer DTO/service, and supplier smoke permission seed.
-  - Verification passed: finance/auth/operations/RBAC/order-center/supplier-file/customer focused suite, `scripts/smoke-operations-backend.sh`, and `scripts/smoke-suppliers.sh`.
-  - Remaining environment note: `npm run smoke:files` aborts before requests unless `ADMIN_PASSWORD` is exported in the shell.
+  - Verification passed: finance/auth/operations/RBAC/order-center/supplier-file/customer focused suite, `scripts/smoke-operations-backend.sh`, `scripts/smoke-suppliers.sh`, and `npm run smoke:files` (`SMOKE_FILES_OK`) with a temporary `ADMIN_PASSWORD` environment variable.
+  - The admin credential used for the smoke run was not stored in repo or Memory Bank.
