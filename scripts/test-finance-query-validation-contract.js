@@ -2,6 +2,7 @@
 const fs = require('fs');
 
 const source = fs.readFileSync('apps/api/src/modules/finance/dto/finance-query.dto.ts', 'utf8');
+assert(source.includes("from '../../query-validation'"), 'FinanceQueryDto must use shared query validation helper');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -26,7 +27,7 @@ const expected = {
 
 for (const [property, expectation] of Object.entries(expected)) {
   const block = propertyBlock(property);
-  assert(block.includes(`@IsIn([...${expectation.constant}])`), `${property} must use @IsIn enum validation`);
+  assert(block.includes(`@IsIn(readonlyValues(${expectation.constant}))`), `${property} must use helper-backed @IsIn enum validation`);
   const constantStart = source.indexOf(`const ${expectation.constant}`);
   const constantEnd = source.indexOf(' as const;', constantStart);
   const constantBlock = constantStart === -1 || constantEnd === -1 ? '' : source.slice(constantStart, constantEnd);

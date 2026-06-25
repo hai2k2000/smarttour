@@ -3207,3 +3207,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Login UI now maps 429 to a retry-later message, keeps 401 generic, and only falls back to structured validation messages instead of blindly displaying raw backend `message`.
   - Supplier common/typed/hotel UIs now hide tax/bank/debt/price-policy financial fields unless `finance.payment.view` is present and avoid sending hidden financial fields back in create/update payloads.
   - Added Phase 3 source contracts for error/logging behavior, auth login UI, and supplier UI permission gating; updated existing error/logging/supplier contracts for the new response shape and gated payload helpers.
+
+- 2026-06-25 Phase 4 code-review remediation:
+  - Continued `docs/superpowers/plans/2026-06-24-code-review-remediation-phases.md` on branch `fix/phase-1-remediation` after Phase 3 commit `29ddea8`.
+  - Extracted shared query validation helpers into `apps/api/src/modules/query-validation.ts`; finance and report query DTOs now reuse the helper-backed trim/uppercase/enum utilities while preserving existing enum contracts.
+  - Extracted supplier financial projection into `apps/api/src/modules/suppliers/supplier-projection.ts`, keeping `finance.payment.view` masking behavior out of the large supplier service.
+  - Refactored `FilesService.assertObjectAccess()` to use a root dispatch map while preserving customer/supplier/guide/FIT/finance authorization behavior.
+  - Added `scripts/audit-orphan-files.js`, a dry-run-first MinIO orphan object audit that prints object key, inferred root/entity, reason, size, and lastModified; deletion requires explicit `--delete`.
+  - Updated ops/readiness docs with the orphan audit workflow and warning not to automate deletion.

@@ -58,6 +58,7 @@ Completed implementation: Finance receipt/payment import/export now supports nat
 Completed implementation: The remaining CSV export families now support dependency-free native `.xlsx` responses through `?format=xlsx`: Finance invoices/cashflow, Reports, Commission Reports, Order Center, Customers, and FIT tour export when data exists. Existing CSV exports remain the default response format.
 
 Manual owner task: open exports in Excel and confirm encoding, money, and date formatting.
+Completed implementation: MinIO orphan cleanup now has a dry-run-first audit script (`node scripts/audit-orphan-files.js --dry-run`) that lists object key, inferred root/entity, and orphan reason; deletion requires explicit `--delete` after human review.
 
 ## 6. Backup/Restore Operations
 

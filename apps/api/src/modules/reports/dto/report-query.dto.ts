@@ -3,21 +3,7 @@ import { OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, PaymentSta
 import { Transform } from 'class-transformer';
 import { IsBooleanString, IsDateString, IsEmpty, IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { LIST_SEARCH_MAX_LENGTH } from '../../list-search';
-
-const trimOptional = ({ value }: { value: unknown }) => {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim().replace(/\s+/g, ' ');
-  return trimmed || undefined;
-};
-
-const upperOptional = ({ value }: { value: unknown }) => {
-  const trimmed = trimOptional({ value });
-  return typeof trimmed === 'string' ? trimmed.toUpperCase() : trimmed;
-};
-
-const enumValues = <T extends Record<string, string>>(value: T) => Object.values(value);
-const uniqueValues = (...values: string[][]) => Array.from(new Set(values.flat()));
+import { enumValues, trimOptional, uniqueValues, upperOptional } from '../../query-validation';
 
 const REPORT_TYPE_VALUES = uniqueValues(enumValues(OrderType), enumValues(TourType));
 const REPORT_STATUS_VALUES = uniqueValues(enumValues(OrderStatus), enumValues(TourStatus));

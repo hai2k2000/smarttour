@@ -101,6 +101,27 @@ docker rm -f smarttour-web-preview || true
 docker run -d --name smarttour-web-preview --env-file .env -e NEXT_PUBLIC_API_URL=https://aitour.io.vn -p 127.0.0.1:3001:3000 smarttour-web:latest
 ```
 
+
+## Storage Orphan Audit
+
+Audit private MinIO objects that no longer have database metadata before any storage cleanup:
+
+```bash
+cd /opt/smarttour
+node scripts/audit-orphan-files.js --dry-run
+```
+
+The audit is dry-run by default and prints one JSON line per orphan with `objectKey`, inferred `root`, inferred `entity`, `reason`, `size`, and `lastModified`, followed by a summary line. Review and save the dry-run output before cleanup.
+
+Only delete after a human has reviewed the dry-run evidence and confirmed that the listed objects are safe to remove:
+
+```bash
+cd /opt/smarttour
+node scripts/audit-orphan-files.js --delete
+```
+
+Never run `--delete` from an automated healthcheck or backup job. Re-run the dry-run after deletion and keep both outputs with the maintenance ticket.
+
 ## Verification
 
 ```bash

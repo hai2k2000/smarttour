@@ -23,6 +23,14 @@ export type StoredFileUpload = {
 };
 
 type FileAccessAction = 'view' | 'manage';
+type FileAccessRootHandler = 'customer' | 'supplier' | 'guide' | 'fitTour' | 'finance';
+const FILE_ACCESS_ROOT_HANDLERS: Record<string, FileAccessRootHandler> = {
+  customers: 'customer',
+  suppliers: 'supplier',
+  'tour-guides': 'guide',
+  'fit-tours': 'fitTour',
+  finance: 'finance',
+};
 
 const allowedExtensions = new Set([
   '.bmp', '.csv', '.doc', '.docx', '.gif', '.heic', '.heif', '.jpeg', '.jpg', '.ods', '.odt', '.pdf', '.png',
@@ -214,12 +222,13 @@ export class FilesService {
     const entityId = parts[1];
     if (!entityId) throw this.fileAccessNotFound();
 
-    if (root === 'customers') return this.assertCustomerFile(key, entityId, user, action);
-    if (root === 'suppliers') return this.assertSupplierFile(key, entityId, user, action);
-    if (root === 'tour-guides') return this.assertGuideFile(key, entityId, user, action);
-    if (root === 'fit-tours') return this.assertFitTourFile(key, entityId, user, action);
-    if (root === 'finance') return this.assertFinanceFile(key, parts[1], parts[2], user, action);
-    throw this.fileAccessNotFound();
+    const handler = FILE_ACCESS_ROOT_HANDLERS[root];
+    if (!handler) throw this.fileAccessNotFound();
+    if (handler === 'customer') return this.assertCustomerFile(key, entityId, user, action);
+    if (handler === 'supplier') return this.assertSupplierFile(key, entityId, user, action);
+    if (handler === 'guide') return this.assertGuideFile(key, entityId, user, action);
+    if (handler === 'fitTour') return this.assertFitTourFile(key, entityId, user, action);
+    return this.assertFinanceFile(key, entityId, parts[2], user, action);
   }
 
   async removeIfPresent(objectKey?: string | null) {

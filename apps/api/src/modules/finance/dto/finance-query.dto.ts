@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
+import { readonlyValues } from '../../query-validation';
 
 const FINANCE_APPROVAL_STATUSES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'] as const;
@@ -18,27 +19,27 @@ export class FinanceQueryDto {
 
   @ApiPropertyOptional({ enum: FINANCE_APPROVAL_STATUSES })
   @IsOptional()
-  @IsIn([...FINANCE_APPROVAL_STATUSES])
+  @IsIn(readonlyValues(FINANCE_APPROVAL_STATUSES))
   status?: string;
 
   @ApiPropertyOptional({ enum: FINANCE_RECEIPT_TYPES })
   @IsOptional()
-  @IsIn([...FINANCE_RECEIPT_TYPES])
+  @IsIn(readonlyValues(FINANCE_RECEIPT_TYPES))
   receiptType?: string;
 
   @ApiPropertyOptional({ enum: FINANCE_PAYMENT_TYPES })
   @IsOptional()
-  @IsIn([...FINANCE_PAYMENT_TYPES])
+  @IsIn(readonlyValues(FINANCE_PAYMENT_TYPES))
   voucherType?: string;
 
   @ApiPropertyOptional({ enum: FINANCE_INVOICE_TYPES })
   @IsOptional()
-  @IsIn([...FINANCE_INVOICE_TYPES])
+  @IsIn(readonlyValues(FINANCE_INVOICE_TYPES))
   invoiceType?: string;
 
   @ApiPropertyOptional({ enum: FINANCE_CASHFLOW_ENTRY_TYPES })
   @IsOptional()
-  @IsIn([...FINANCE_CASHFLOW_ENTRY_TYPES])
+  @IsIn(readonlyValues(FINANCE_CASHFLOW_ENTRY_TYPES))
   entryType?: string;
 
   @ApiPropertyOptional()
@@ -58,7 +59,7 @@ export class FinanceQueryDto {
 
   @ApiPropertyOptional({ enum: FINANCE_PAYMENT_METHODS })
   @IsOptional()
-  @IsIn([...FINANCE_PAYMENT_METHODS])
+  @IsIn(readonlyValues(FINANCE_PAYMENT_METHODS))
   paymentMethod?: string;
 
   @ApiPropertyOptional()

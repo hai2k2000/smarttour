@@ -11,6 +11,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
+import { maskSupplierFinancialFields } from './supplier-projection';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
 const supplierCategoryNameKey = (value: string) => value
@@ -73,10 +74,6 @@ const SUPPLIER_SERVICE_ORDER_BY = [
   { sku: 'asc' },
   { id: 'asc' },
 ] satisfies Prisma.SupplierServiceOrderByWithRelationInput[];
-const SUPPLIER_FINANCIAL_VIEW_PERMISSION = 'finance.payment.view';
-const SUPPLIER_SENSITIVE_FIELDS = ['taxCode', 'bankAccountName', 'bankAccountNumber', 'bankName', 'debtNote', 'pricePolicy'] as const;
-const HOTEL_PROFILE_SENSITIVE_FIELDS = ['bankAccountName', 'bankAccountNumber', 'bankName'] as const;
-
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
 @Injectable()
@@ -182,7 +179,7 @@ export class SuppliersService {
       take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
-    return this.maskSupplierFinancialFields(suppliers, user);
+    return maskSupplierFinancialFields(suppliers, user);
   }
 
   private listTake(take?: number) {
@@ -204,7 +201,7 @@ export class SuppliersService {
       },
     });
     if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.supplierNotFound);
-    return this.maskSupplierFinancialFields(supplier, user);
+    return maskSupplierFinancialFields(supplier, user);
   }
 
   getSupplierFromRouteKey(routeKey: string, user?: RequestUser) {
@@ -372,13 +369,13 @@ export class SuppliersService {
       take: this.listTake(query.take),
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { name: 'asc' }],
     });
-    return this.maskSupplierFinancialFields(suppliers, user);
+    return maskSupplierFinancialFields(suppliers, user);
   }
 
   async getTypedSupplier(type: string, id: string, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     const supplier = await this.ensureTypedSupplier(typedRoute, id);
-    return this.maskSupplierFinancialFields(supplier, user);
+    return maskSupplierFinancialFields(supplier, user);
   }
 
   async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
@@ -506,7 +503,7 @@ export class SuppliersService {
       take: this.listTake(query.take),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
-    return this.maskSupplierFinancialFields(suppliers, user);
+    return maskSupplierFinancialFields(suppliers, user);
   }
 
   async getHotelSupplier(id: string, user?: RequestUser) {
@@ -515,7 +512,7 @@ export class SuppliersService {
       include: this.hotelInclude(),
     });
     if (!supplier) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
-    return this.maskSupplierFinancialFields(supplier, user);
+    return maskSupplierFinancialFields(supplier, user);
   }
 
   async createHotelSupplier(dto: CreateHotelSupplierDto) {
@@ -1649,28 +1646,6 @@ export class SuppliersService {
       category: true,
       supplierServices: { where: { deletedAt: null }, orderBy: SUPPLIER_SERVICE_ORDER_BY },
     } satisfies Prisma.SupplierInclude;
-  }
-
-  private canViewSupplierFinancialFields(user?: RequestUser) {
-    const permissions = userPermissions(user);
-    return permissions.has('*') || permissions.has(SUPPLIER_FINANCIAL_VIEW_PERMISSION);
-  }
-
-  private maskSupplierFinancialFields<T>(value: T, user?: RequestUser): T {
-    if (this.canViewSupplierFinancialFields(user)) return value;
-    if (Array.isArray(value)) return value.map((item) => this.maskSupplierFinancialFields(item, user)) as T;
-    if (!value || typeof value !== 'object') return value;
-
-    const supplier = { ...(value as Record<string, unknown>) };
-    for (const field of SUPPLIER_SENSITIVE_FIELDS) delete supplier[field];
-
-    if (supplier.hotelProfile && typeof supplier.hotelProfile === 'object') {
-      const hotelProfile = { ...(supplier.hotelProfile as Record<string, unknown>) };
-      for (const field of HOTEL_PROFILE_SENSITIVE_FIELDS) delete hotelProfile[field];
-      supplier.hotelProfile = hotelProfile;
-    }
-
-    return supplier as T;
   }
 
   private async deleteSupplierRecord(id: string) {

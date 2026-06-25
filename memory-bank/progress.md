@@ -2809,3 +2809,10 @@
   - Updated login and supplier frontend behavior for Phase 1-2 backend hardening: safe login messages, supplier financial-field permission notices, and payload stripping for users without `finance.payment.view`.
   - Verification passed: `npm run build --workspace apps/api`, `npm run build --workspace apps/web`, `npm run lint --workspace apps/web`, `git diff --check`, Phase 3 contracts, error/logging contracts, auth/finance/db regression contracts, SmartLink/finance query/file upload contracts, and supplier common/hotel/typed/controller/file contracts.
   - Note: Docker-backed contract scripts must be run with stdin redirected (for example `node scripts/test-auth-login-security-contract.js </dev/null`) when batched through piped SSH scripts, otherwise `docker compose run` can consume the remaining shell script input.
+
+- 2026-06-25 Completed Phase 4 code-review remediation:
+  - Query validation, supplier projection, and file object-access code are now split into smaller helper/dispatch units without intended behavior changes.
+  - Added Phase 4 refactor/cleanup contract coverage plus updated finance query validation contract for helper-backed `@IsIn` usage.
+  - Orphan storage audit dry-run completed successfully: scanned 9 MinIO objects, found 7 orphan candidates, referenced 2 objects, and deleted 0 objects.
+  - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-phase4-refactor-cleanup-contract.js`, `node scripts/test-finance-query-validation-contract.js`, `bash scripts/test-report-query-validation.sh`, `node scripts/test-suppliers-sensitive-fields-contract.js`, `node scripts/test-file-upload-scope-contract.js`, `node scripts/audit-orphan-files.js --dry-run`, `bash scripts/healthcheck.sh`, and `bash scripts/security-audit.sh`.
+  - Note: API workspace still has no `typecheck` script, so API build remains the TypeScript verification command. `npm run smoke:files` was not run because `ADMIN_PASSWORD` is not configured in the shell; the script aborts before making requests.
