@@ -181,6 +181,7 @@ const permissionLabels: Record<string, string> = {
   'operation.form.manage': 'Quản lý phiếu điều hành',
   'operation.payment-request.view': 'Xem đề nghị thanh toán nhà cung cấp',
   'operation.payment-request.create': 'Tạo đề nghị thanh toán nhà cung cấp',
+  'operation.payment-request.manage': 'Sửa và gửi đề nghị thanh toán nhà cung cấp',
   'operation.payment-request.approve': 'Duyệt đề nghị thanh toán nhà cung cấp',
   'order.view': 'Xem đơn hàng',
   'order.manage': 'Quản lý đơn hàng',

@@ -3225,3 +3225,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added `/profile` as a dedicated account profile page reachable from the top-right account menu item `Thông tin người dùng`.
   - The page loads `/api/auth/me`, shows account/role/data-scope details, and provides an inline change-password form using `/api/auth/change-password` with current/new/confirm password fields.
   - Added `scripts/test-profile-page-contract.js` to guard the route, dropdown link, password form, and scoped profile styles.
+
+
+- 2026-06-25 Review finding fixes follow-up:
+  - Executed `docs/superpowers/plans/2026-06-25-review-finding-fixes.md` on branch `fix/phase-1-remediation` for targeted backend/API/database review findings after the four remediation phases.
+  - Finance invoice type inputs now align with Prisma `FinanceInvoiceType` (`VAT`, `NO_VAT`, `ADJUSTMENT`, `REPLACEMENT`).
+  - Auth management user listing now uses a management serializer that omits profile identity/bank PII, while `/auth/me` still returns the current user's own profile fields for the profile page.
+  - Supplier payment request update/delete/submit now use `operation.payment-request.manage`; RBAC migration and frontend permission registry were updated for the new permission.
+  - Order-center query DTO/service now validate payment/cost status enums and reject invalid date strings before Prisma filtering.
+  - Supplier file upload/delete now passes request-user context to service lookups; customer update now requires `replaceNestedCollections: true` before replacing nested contacts/tags/care/comment/call/opportunity collections.
+  - Supplier smoke manage-role seed now includes `finance.payment.view` so preservation assertions can inspect intentionally sensitive supplier fields.

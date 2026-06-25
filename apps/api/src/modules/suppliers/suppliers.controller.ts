@@ -161,13 +161,13 @@ export class SuppliersController {
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
     @Req() request: { user?: RequestUser },
   ) {
-    return this.suppliersService.addSupplierFile(id, file, request.user?.id);
+    return this.suppliersService.addSupplierFile(id, file, request.user?.id, request.user);
   }
 
   @Delete(':id/files/:fileId')
   @RequirePermissions('supplier.manage')
-  deleteSupplierFile(@Param('id') id: string, @Param('fileId') fileId: string) {
-    return this.suppliersService.deleteSupplierFile(id, fileId);
+  deleteSupplierFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteSupplierFile(id, fileId, request.user);
   }
 
   @Post()

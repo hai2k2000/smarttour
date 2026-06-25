@@ -283,6 +283,10 @@ export class CustomerBodyDto extends CustomerRequestDto {
   note?: string;
 
   @IsOptional()
+  @IsBoolean()
+  replaceNestedCollections?: boolean;
+
+  @IsOptional()
   @IsArray()
   @Allow()
   tagIds?: unknown[];

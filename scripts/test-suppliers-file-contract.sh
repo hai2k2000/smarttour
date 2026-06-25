@@ -27,6 +27,12 @@ assert 'File vượt quá giới hạn ${fileUploadLimitLabel(this.maxBytes)}' i
 assert "return key ? this.requiredObjectKey(key) : null" in files_service, 'objectKeyFromUrl must validate parsed download keys'
 assert "BadRequestException('Object key không hợp lệ')" in files_service, 'invalid object keys must be rejected before storage access'
 
+assert 'addSupplierFile(id, file, request.user?.id, request.user)' in Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read_text(), 'supplier file upload controller must pass request.user to service'
+assert "deleteSupplierFile(@Param('id') id: string, @Param('fileId') fileId: string, @Req() request: { user?: RequestUser })" in Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read_text(), 'supplier file delete controller must receive request.user'
+assert 'deleteSupplierFile(id, fileId, request.user)' in Path('apps/api/src/modules/suppliers/suppliers.controller.ts').read_text(), 'supplier file delete controller must pass request.user to service'
+assert 'async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string, user?: RequestUser)' in suppliers_service, 'supplier file upload service must accept request user context'
+assert 'await this.getSupplier(id, user)' in suppliers_service, 'supplier file upload/delete must load supplier with request user context'
+assert 'async deleteSupplierFile(id: string, fileId: string, user?: RequestUser)' in suppliers_service, 'supplier file delete service must accept request user context'
 assert "this.requiredText(actorId, 'Không xác định được người tải file')" in suppliers_service, 'supplier file upload must require an authenticated actor'
 assert 'await this.filesService.remove(upload.objectKey)' in suppliers_service, 'DB metadata failure must rollback the uploaded storage object'
 assert 'Không thể lưu thông tin file và không thể hoàn tác file trên kho lưu trữ' in suppliers_service, 'rollback failure must return a clear Vietnamese message'

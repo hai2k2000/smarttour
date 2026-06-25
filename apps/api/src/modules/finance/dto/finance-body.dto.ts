@@ -3,7 +3,7 @@ import { Allow, IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-val
 const receiptTypes = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'] as const;
 const paymentTypes = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'] as const;
 const paymentMethods = ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER'] as const;
-const invoiceTypes = ['VAT', 'E_INVOICE', 'PROFORMA', 'ADJUSTMENT', 'OTHER'] as const;
+const invoiceTypes = ['VAT', 'NO_VAT', 'ADJUSTMENT', 'REPLACEMENT'] as const;
 const adjustmentDirections = ['INCREASE', 'DECREASE'] as const;
 
 class FinanceBodyDto {

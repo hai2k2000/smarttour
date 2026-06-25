@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { OrderStatus, OrderType } from '@prisma/client';
-import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType } from '@prisma/client';
+import { IsDateString, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class OrderCenterQueryDto {
   [key: string]: string | number | boolean | undefined;
@@ -42,42 +42,42 @@ export class OrderCenterQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   createdFrom?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   createdTo?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startFrom?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startTo?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endFrom?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endTo?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   paymentFrom?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   paymentTo?: string;
 
   @ApiPropertyOptional({ enum: OrderType })
@@ -90,15 +90,15 @@ export class OrderCenterQueryDto {
   @IsEnum(OrderStatus)
   status?: OrderStatus;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: OrderPaymentStatus })
   @IsOptional()
-  @IsString()
-  paymentStatus?: string;
+  @IsEnum(OrderPaymentStatus)
+  paymentStatus?: OrderPaymentStatus;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: OrderCostStatus })
   @IsOptional()
-  @IsString()
-  costStatus?: string;
+  @IsEnum(OrderCostStatus)
+  costStatus?: OrderCostStatus;
 
   @ApiPropertyOptional()
   @IsOptional()

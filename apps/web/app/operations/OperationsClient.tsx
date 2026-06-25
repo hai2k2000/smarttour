@@ -215,6 +215,7 @@ export default function OperationsClient() {
   const canViewOperations = canViewForms || canViewPayments;
   const canCreateForm = can(operationTabs.forms.createPermission);
   const canCreatePaymentRequest = can(operationTabs.payments.createPermission);
+  const canManagePaymentRequest = can('operation.payment-request.manage');
   const canApprovePaymentRequest = can('operation.payment-request.approve');
   const canCreateFinancePayment = can('finance.payment.create');
   const canApproveFinancePayment = can('finance.payment.approve');
@@ -648,7 +649,7 @@ export default function OperationsClient() {
               canApproveFinance={canApproveFinancePayment}
               canApproveRequest={canApprovePaymentRequest}
               canCreateFinance={canCreateFinancePayment}
-              canCreateRequest={canCreatePaymentRequest}
+              canManageRequest={canManagePaymentRequest}
               onAction={requestAction}
               onApproveFinance={approveFinancePayment}
               onClose={closeReconciliation}
@@ -659,7 +660,7 @@ export default function OperationsClient() {
             <tbody>
               {requests.length === 0 ? <tr><td colSpan={7}>Chưa có yêu cầu thanh toán phù hợp bộ lọc.</td></tr> : null}
               {requests.map((request) => {
-                const canSubmitRequest = canCreatePaymentRequest && ['DRAFT', 'REJECTED'].includes(request.status);
+                const canSubmitRequest = canManagePaymentRequest && ['DRAFT', 'REJECTED'].includes(request.status);
                 const canApproveRequest = canApprovePaymentRequest && request.status === 'REQUESTED';
                 const canRejectRequest = canApprovePaymentRequest && request.status === 'REQUESTED';
                 const canCreateFinanceForRequest = canApprovePaymentRequest && canCreateFinancePayment && request.status === 'APPROVED' && !request.financePaymentId;
@@ -674,7 +675,7 @@ export default function OperationsClient() {
                   <td><span className={`statusPill ${statusPillClass(request.status)}`}>{statusLabel(request.status)}</span></td>
                   <td className="operationsActions">
                     <button data-testid="operation-payment-view-reconciliation" className="secondaryButton iconButton" title={detailRequestId === request.id ? 'Đóng đối soát yêu cầu thanh toán' : 'Xem đối soát yêu cầu thanh toán'} onClick={() => { if (detailRequestId === request.id) closeReconciliation(); else openReconciliation(request.id); }}><Search size={16} /></button>
-                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={!canCreatePaymentRequest ? permissionDeniedTitle(operationTabs.payments.createPermission) : canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
+                    <button data-testid="operation-payment-submit" className="secondaryButton iconButton" title={!canManagePaymentRequest ? permissionDeniedTitle('operation.payment-request.manage') : canSubmitRequest ? 'Gửi yêu cầu thanh toán để duyệt' : 'Chỉ yêu cầu nháp hoặc bị từ chối mới được gửi duyệt.'} disabled={!canSubmitRequest} onClick={() => { void requestAction(request.id, 'submit'); }}><Send size={16} /></button>
                     <button data-testid="operation-payment-approve" className="secondaryButton iconButton" title={!canApprovePaymentRequest ? permissionDeniedTitle('operation.payment-request.approve') : canApproveRequest ? 'Duyệt yêu cầu thanh toán' : 'Chỉ yêu cầu đã gửi mới được duyệt.'} disabled={!canApproveRequest} onClick={() => { void requestAction(request.id, 'approve'); }}><CheckCircle2 size={16} /></button>
                     <button data-testid="operation-payment-create-finance" className="secondaryButton iconButton" title={!canApprovePaymentRequest ? permissionDeniedTitle('operation.payment-request.approve') : !canCreateFinancePayment ? permissionDeniedTitle('finance.payment.create') : canCreateFinanceForRequest ? 'Tạo phiếu chi tài chính từ yêu cầu đã duyệt' : 'Cần yêu cầu đã duyệt và chưa có phiếu chi tài chính.'} disabled={!canCreateFinanceForRequest} onClick={() => { void requestAction(request.id, 'create-finance-payment'); }}><FileCheck2 size={16} /></button>
                     <button data-testid="operation-payment-approve-finance" className="secondaryButton iconButton" title={!canApproveFinancePayment ? permissionDeniedTitle('finance.payment.approve') : canApproveFinanceForRequest ? 'Duyệt phiếu chi tài chính' : 'Cần có phiếu chi tài chính chưa duyệt.'} disabled={!canApproveFinanceForRequest} onClick={() => { void approveFinancePayment(request.financePaymentId); }}><HandCoins size={16} /></button>
@@ -884,7 +885,7 @@ function ReconciliationPanel({
   canApproveFinance,
   canApproveRequest,
   canCreateFinance,
-  canCreateRequest,
+  canManageRequest,
   onAction,
   onApproveFinance,
   onClose,
@@ -895,7 +896,7 @@ function ReconciliationPanel({
   canApproveFinance: boolean;
   canApproveRequest: boolean;
   canCreateFinance: boolean;
-  canCreateRequest: boolean;
+  canManageRequest: boolean;
   onAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'create-finance-payment') => Promise<void>;
   onApproveFinance: (id?: string) => Promise<void>;
   onClose: () => void;
@@ -922,7 +923,7 @@ function ReconciliationPanel({
   }
 
   const paid = request.status === 'PAID';
-  const canSubmitRequest = canCreateRequest && ['DRAFT', 'REJECTED'].includes(request.status);
+  const canSubmitRequest = canManageRequest && ['DRAFT', 'REJECTED'].includes(request.status);
   const canApproveSubmittedRequest = canApproveRequest && request.status === 'REQUESTED';
   const canRejectSubmittedRequest = canApproveRequest && request.status === 'REQUESTED';
   const canCreateFinanceForRequest = canApproveRequest && canCreateFinance && request.status === 'APPROVED' && !request.financePaymentId;
@@ -960,7 +961,7 @@ function ReconciliationPanel({
         </div>
       </div>
       <div className="reconciliationActions">
-        <button data-testid="reconciliation-submit" className="secondaryButton" title={!canCreateRequest ? permissionDeniedTitle('operation.payment-request.create') : undefined} disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
+        <button data-testid="reconciliation-submit" className="secondaryButton" title={!canManageRequest ? permissionDeniedTitle('operation.payment-request.manage') : undefined} disabled={!canSubmitRequest} onClick={() => { void onAction(request.id, 'submit'); }}>Gửi duyệt</button>
         <button data-testid="reconciliation-approve" className="secondaryButton" title={!canApproveRequest ? permissionDeniedTitle('operation.payment-request.approve') : undefined} disabled={!canApproveSubmittedRequest} onClick={() => { void onAction(request.id, 'approve'); }}>Duyệt yêu cầu</button>
         <button data-testid="reconciliation-create-finance" className="secondaryButton" title={!canApproveRequest ? permissionDeniedTitle('operation.payment-request.approve') : !canCreateFinance ? permissionDeniedTitle('finance.payment.create') : undefined} disabled={!canCreateFinanceForRequest} onClick={() => { void onAction(request.id, 'create-finance-payment'); }}>Tạo phiếu chi</button>
         <button data-testid="reconciliation-approve-finance" className="secondaryButton" title={!canApproveFinance ? permissionDeniedTitle('finance.payment.approve') : undefined} disabled={!canApproveFinanceForRequest} onClick={() => { void onApproveFinance(request.financePaymentId); }}>Duyệt phiếu chi</button>

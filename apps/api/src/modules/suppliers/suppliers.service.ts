@@ -255,8 +255,8 @@ export class SuppliersService {
     return this.deleteSupplierRecord(id);
   }
 
-  async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string) {
-    await this.getSupplier(id);
+  async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string, user?: RequestUser) {
+    await this.getSupplier(id, user);
     const uploadedBy = this.requiredText(actorId, 'Không xác định được người tải file');
     const upload = await this.filesService.upload(file, `suppliers/${id}`, uploadedBy);
     try {
@@ -279,8 +279,8 @@ export class SuppliersService {
     }
   }
 
-  async deleteSupplierFile(id: string, fileId: string) {
-    await this.getSupplier(id);
+  async deleteSupplierFile(id: string, fileId: string, user?: RequestUser) {
+    await this.getSupplier(id, user);
     const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
     if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);

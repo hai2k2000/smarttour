@@ -98,20 +98,20 @@ export class OperationsController {
   }
 
   @Put('supplier-payment-requests/:id')
-  @RequirePermissions('operation.payment-request.create')
+  @RequirePermissions('operation.payment-request.manage')
   updatePaymentRequest(@Param('id') id: string, @Body() dto: UpdateSupplierPaymentRequestDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.updatePaymentRequest(id, dto, request?.user);
   }
 
   @Delete('supplier-payment-requests/:id')
-  @RequirePermissions('operation.payment-request.create')
+  @RequirePermissions('operation.payment-request.manage')
   deletePaymentRequest(@Param('id') id: string, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.deletePaymentRequest(id, request?.user);
   }
 
   @Post('supplier-payment-requests/:id/submit')
   @HttpCode(200)
-  @RequirePermissions('operation.payment-request.create')
+  @RequirePermissions('operation.payment-request.manage')
   submitPaymentRequest(@Param('id') id: string, @Body() dto: SupplierPaymentRequestActionDto, @Req() request?: { user?: RequestUser }) {
     return this.operationsService.submitPaymentRequest(id, dto, request?.user);
   }

@@ -288,7 +288,7 @@ export class AuthService {
       select: SAFE_USER_SELECT,
       orderBy: [{ updatedAt: 'desc' }, { username: 'asc' }, { email: 'asc' }],
     });
-    return rows.filter((row) => this.canManageUser(actor, row)).map((row) => this.safeUser(row));
+    return rows.filter((row) => this.canManageUser(actor, row)).map((row) => this.managementUser(row));
   }
 
   async createUser(dto: AnyRecord, actorInput?: ActorInput) {
@@ -747,6 +747,11 @@ export class AuthService {
         ...(actor.hasDepartmentScope ? ['department'] : []),
       ],
     };
+  }
+
+  private managementUser(user: SafeUserRow) {
+    const { identityNo, bankAccountNumber, bankAccountName, bankName, ...safe } = this.safeUser(user);
+    return safe;
   }
 
   private userAuditSnapshot(user: SafeUserRow) {

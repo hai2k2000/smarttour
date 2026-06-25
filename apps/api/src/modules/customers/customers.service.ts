@@ -291,6 +291,7 @@ export class CustomersService {
     const existing = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
     if (!existing) throw new NotFoundException('Customer not found');
     dto = applyWriteDataScope(dto, user);
+    this.assertNestedReplaceAllowed(dto);
     const nextPhone = dto.phone !== undefined ? this.required(dto.phone, 'phone') : existing.phone;
     if (nextPhone !== existing.phone) await this.assertPhoneUnique(nextPhone, id);
     await this.assertCustomerReferences(dto);
@@ -646,6 +647,14 @@ export class CustomersService {
       if (dto[field] !== undefined) data[field] = setter();
     }
     return data;
+  }
+
+  private assertNestedReplaceAllowed(dto: AnyRecord) {
+    const nestedFields = ['contacts', 'tagIds', 'careTasks', 'comments', 'callLogs', 'opportunities'];
+    const wantsNestedReplacement = nestedFields.some((field) => dto[field] !== undefined);
+    if (wantsNestedReplacement && dto.replaceNestedCollections !== true) {
+      throw new BadRequestException('replaceNestedCollections must be true to replace customer nested collections');
+    }
   }
 
   private async assertCustomerReferences(dto: AnyRecord) {

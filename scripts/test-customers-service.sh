@@ -190,7 +190,13 @@ async function main() {
   assert(partialUpdate.contacts.length === 1 && partialUpdate.tags.length === 1, 'partial update should not drop contacts or tags');
   assert(partialUpdate.latestComment === 'Partial only', 'partial update should update scalar field');
 
+  await rejectsMessage(() => service.update(customer.id, { comments: [] }, branchUser), 'replaceNestedCollections', 'update should reject comment replacement without explicit replaceNestedCollections flag');
+  assert(await prisma.customerComment.count({ where: { customerId: customer.id } }) === 1, 'rejected comment replacement must preserve existing comments');
+  await rejectsMessage(() => service.update(customer.id, { contacts: [] }, branchUser), 'replaceNestedCollections', 'update should reject contact replacement without explicit replaceNestedCollections flag');
+  assert(await prisma.customerContact.count({ where: { customerId: customer.id } }) === 1, 'rejected contact replacement must preserve existing contacts');
+
   const replaced = await service.update(customer.id, {
+    replaceNestedCollections: true,
     fullName: 'Customer A Updated',
     contacts: [{ fullName: 'Replacement Contact', email: 'replace@example.test' }],
     tagIds: [tagB.id],

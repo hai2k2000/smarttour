@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { OrderStatus, OrderType, Prisma } from '@prisma/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
@@ -21,8 +21,8 @@ type OrderCenterQuery = {
   paymentTo?: string;
   type?: OrderType;
   status?: OrderStatus;
-  paymentStatus?: string;
-  costStatus?: string;
+  paymentStatus?: OrderPaymentStatus;
+  costStatus?: OrderCostStatus;
   marketGroup?: string;
   branch?: string;
   department?: string;
@@ -171,8 +171,8 @@ export class OrderCenterService {
       deletedAt: null,
       ...(query.type ? { type: query.type } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus as any } : {}),
-      ...(query.costStatus ? { costStatus: query.costStatus as any } : {}),
+      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+      ...(query.costStatus ? { costStatus: query.costStatus } : {}),
       ...(query.systemCode ? { systemCode: { contains: query.systemCode, mode: 'insensitive' } } : {}),
       ...(query.tourCode ? { tourCode: { contains: query.tourCode, mode: 'insensitive' } } : {}),
       ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}),
@@ -207,8 +207,17 @@ export class OrderCenterService {
   }
 
   private dateRange(field: 'createdAt' | 'startDate' | 'endDate' | 'paymentDate', from?: string, to?: string) {
-    if (!from && !to) return {};
-    return { [field]: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } };
+    const gte = this.queryDate(from, `${field}From`);
+    const lte = this.queryDate(to, `${field}To`);
+    if (!gte && !lte) return {};
+    return { [field]: { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) } };
+  }
+
+  private queryDate(value: string | undefined, label: string) {
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
+    return date;
   }
 
   private take(value: string | number | undefined, fallback: number) {

@@ -59,6 +59,10 @@ async function main() {
     name: 'Branch User',
     password: 'BranchPass123',
     branch: 'Hanoi',
+    identityNo: 'ID-PRIVATE-001',
+    bankAccountNumber: 'BANK-PRIVATE-001',
+    bankAccountName: 'Branch User Private',
+    bankName: 'Private Bank',
     roleCodes: ['branch_manager'],
   }, boot.user.id);
 
@@ -69,8 +73,16 @@ async function main() {
   assert(!('sessions' in branchUser), 'listUsers must not expose sessions');
   assert(!('tokenHash' in branchUser), 'listUsers must not expose tokenHash');
   assert(branchUser.dataScope === 'branch' && branchUser.branch === 'Hanoi', 'listUsers should expose clear data scope metadata');
+  for (const pii of ['identityNo', 'bankAccountNumber', 'bankAccountName', 'bankName']) {
+    assert(!(pii in branchUser), `listUsers must not expose profile PII field ${pii}`);
+  }
   assert(Array.isArray(branchUser.roles) && branchUser.roles.every((role) => Object.keys(role).sort().join(',') === 'code,name'), 'listUsers role projection should only contain code and name');
   assert(Array.isArray(branchUser.permissions) && branchUser.permissions.includes('auth.user.manage'), 'listUsers should expose flattened permissions');
+
+  const branchLogin = await auth.login({ username: 'branch-user', password: 'BranchPass123' });
+  const branchProfile = await auth.me(branchLogin.token);
+  assert(branchProfile.identityNo === 'ID-PRIVATE-001', 'me should expose own profile identityNo');
+  assert(branchProfile.bankAccountNumber === 'BANK-PRIVATE-001', 'me should expose own profile bankAccountNumber');
 
   const roles = await auth.listRoles(boot.user.id);
   const branchRole = roles.find((role) => role.code === 'branch_manager');

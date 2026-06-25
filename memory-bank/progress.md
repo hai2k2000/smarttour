@@ -2824,3 +2824,10 @@
 - 2026-06-25 Completed profile page follow-up:
   - Top-right account menu now sends `Thông tin người dùng` to `/profile`; `Quản trị & phân quyền` remains `/security`.
   - Verification passed: `node scripts/test-profile-page-contract.js`, `npm run lint --workspace apps/web`, and `npm run build --workspace apps/web`; build output includes dynamic route `/profile`.
+
+
+- 2026-06-25 Completed review finding fixes follow-up:
+  - Fixed finance invoice enum drift, auth management PII exposure, operations supplier-payment-request permission granularity, order-center query validation, supplier file scope plumbing, and customer nested replacement safety.
+  - Added/updated focused contracts: finance DTO enum, auth management data, operations controller/RBAC, order-center query, supplier file, customer DTO/service, and supplier smoke permission seed.
+  - Verification passed: finance/auth/operations/RBAC/order-center/supplier-file/customer focused suite, `scripts/smoke-operations-backend.sh`, and `scripts/smoke-suppliers.sh`.
+  - Remaining environment note: `npm run smoke:files` aborts before requests unless `ADMIN_PASSWORD` is exported in the shell.

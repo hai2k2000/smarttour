@@ -37,6 +37,7 @@ if (!fs.existsSync(dtoPath)) {
     "['ACTIVE', 'INACTIVE', 'MERGED']",
     "['INDIVIDUAL', 'COMPANY', 'AGENCY']",
     "['PENDING', 'DONE', 'CANCELLED']",
+    'replaceNestedCollections',
   ]) {
     if (!dto.includes(token)) failures.push(`customer DTO validation missing ${token}`);
   }

@@ -99,6 +99,7 @@ const commonPermissionGroups = [
       'operation.form.manage',
       'operation.payment-request.view',
       'operation.payment-request.create',
+      'operation.payment-request.manage',
       'operation.payment-request.approve',
     ],
   },

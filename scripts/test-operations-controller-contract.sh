@@ -25,9 +25,9 @@ const requiredPermissions = [
   ["paymentRequests", "operation.payment-request.view"],
   ["createPaymentRequest", "operation.payment-request.create"],
   ["paymentRequest", "operation.payment-request.view"],
-  ["updatePaymentRequest", "operation.payment-request.create"],
-  ["deletePaymentRequest", "operation.payment-request.create"],
-  ["submitPaymentRequest", "operation.payment-request.create"],
+  ["updatePaymentRequest", "operation.payment-request.manage"],
+  ["deletePaymentRequest", "operation.payment-request.manage"],
+  ["submitPaymentRequest", "operation.payment-request.manage"],
   ["approvePaymentRequest", "operation.payment-request.approve"],
   ["rejectPaymentRequest", "operation.payment-request.approve"],
 ];
@@ -176,7 +176,7 @@ if (!client.includes('{canViewOperations ? (')) failures.push('OperationsClient 
 if (!client.includes('disabled={!permissionsReady || !canViewActiveTab || !canCreateActiveTab}')) failures.push('OperationsClient create action must stay disabled until permissions are ready.');
 if (!client.includes('permissionDeniedTitle') || !client.includes('missingOperationsViewPermissions') || !client.includes('missingPermissions={missingOperationsViewPermissions}') || !client.includes('canCreate={canCreateForm}')) failures.push('OperationsClient permissions must use explicit permission labels and shared manage/create booleans');
 if (!client.includes('permissionDeniedTitle(operationTabs.forms.createPermission)')) failures.push('OperationsClient form manage buttons must explain missing operation.form.manage');
-if (!client.includes('permissionDeniedTitle(operationTabs.payments.createPermission)') || !client.includes("permissionDeniedTitle('operation.payment-request.create')")) failures.push('OperationsClient payment create/submit buttons must explain missing operation.payment-request.create');
+if (!client.includes('permissionDeniedTitle(operationTabs.payments.createPermission)') || !client.includes("permissionDeniedTitle('operation.payment-request.manage')")) failures.push('OperationsClient payment update/delete/submit buttons must explain missing operation.payment-request.manage');
 if (!client.includes("permissionDeniedTitle('operation.payment-request.approve')")) failures.push('OperationsClient approve/reject/create-finance buttons must explain missing operation.payment-request.approve');
 if (!client.includes("permissionDeniedTitle('finance.payment.approve')")) failures.push('OperationsClient finance approve buttons must explain missing finance.payment.approve');
 if (!client.includes('authJsonHeaders') || !client.includes('return authJsonHeaders()')) failures.push('OperationsClient must use shared auth JSON headers instead of reading token directly');

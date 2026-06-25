@@ -38,7 +38,7 @@ const COMPANY_EXPENSE_PAYMENT_TYPES = new Set(['INTERNAL_EXPENSE', 'OTHER']);
 const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'];
 const FINANCE_PAYMENT_TYPES = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'];
 const FINANCE_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CARD', 'QR', 'OFFSET', 'OTHER'];
-const FINANCE_INVOICE_TYPES = ['VAT', 'E_INVOICE', 'PROFORMA', 'ADJUSTMENT', 'OTHER'];
+const FINANCE_INVOICE_TYPES = ['VAT', 'NO_VAT', 'ADJUSTMENT', 'REPLACEMENT'];
 function receiptExportKeys() {
   return ['receiptCode', 'tourId', 'receiptName', 'receiptType', 'paymentDate', 'paymentMethod', 'payerName', 'payerPhone', 'totalAmount', 'paidBefore', 'receiptAmount', 'remainingAmount', 'approvalStatus', 'branch', 'assignedStaff'];
 }

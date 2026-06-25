@@ -168,6 +168,7 @@ requirePermissions(roles, 'operation', [
   'operation.form.manage',
   'operation.payment-request.view',
   'operation.payment-request.create',
+  'operation.payment-request.manage',
   'supplier.view',
   'supplier.manage',
   'guide.view',
@@ -214,6 +215,7 @@ forbidPrefix(roles, 'sales', 'finance.');
 forbidPermissions(roles, 'sales', [
   'operation.form.manage',
   'operation.payment-request.create',
+  'operation.payment-request.manage',
   'operation.payment-request.approve',
   'supplier.manage',
   'guide.manage',
@@ -235,6 +237,7 @@ forbidPermissions(roles, 'accounting', [
   'tour.manage',
   'operation.form.manage',
   'operation.payment-request.create',
+  'operation.payment-request.manage',
   'supplier.manage',
   'guide.manage',
 ]);
