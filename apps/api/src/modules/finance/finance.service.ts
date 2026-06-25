@@ -494,7 +494,7 @@ export class FinanceService {
       const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
       assertCanRejectFinanceEntity(current, 'Hóa đơn');
-      const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', approvedBy: actor, approvedAt: new Date() } });
+      const invoice = await tx.financeInvoice.update({ where: { id }, data: { status: 'REJECTED', approvalStatus: 'REJECTED', rejectedBy: actor, rejectedAt: new Date(), approvedBy: null, approvedAt: null } });
       await this.audit(tx, 'REJECT', 'FinanceInvoice', id, { actor, note: this.text(dto.note) }, user);
       return invoice;
     });
@@ -941,7 +941,13 @@ export class FinanceService {
       const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu thu');
-      const receipt = await tx.financeReceipt.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
+      const changedAt = new Date();
+      const receipt = await tx.financeReceipt.update({
+        where: { id },
+        data: status === FinanceApprovalStatus.REJECTED
+          ? { approvalStatus: status, rejectedBy: actor, rejectedAt: changedAt, approvedBy: null, approvedAt: null }
+          : { approvalStatus: status, approvedBy: actor, approvedAt: changedAt },
+      });
       await this.audit(tx, status === 'REJECTED' ? 'REJECT' : 'STATUS', 'FinanceReceipt', id, { actor, status, note: this.text(dto.note) }, user);
       return receipt;
     });
@@ -954,7 +960,13 @@ export class FinanceService {
       const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu chi');
-      const payment = await tx.financePayment.update({ where: { id }, data: { approvalStatus: status, approvedBy: actor, approvedAt: new Date() } });
+      const changedAt = new Date();
+      const payment = await tx.financePayment.update({
+        where: { id },
+        data: status === FinanceApprovalStatus.REJECTED
+          ? { approvalStatus: status, rejectedBy: actor, rejectedAt: changedAt, approvedBy: null, approvedAt: null }
+          : { approvalStatus: status, approvedBy: actor, approvedAt: changedAt },
+      });
       if (status === FinanceApprovalStatus.REJECTED) {
         await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: id }, data: { financePaymentId: null, status: 'APPROVED' } });
       }

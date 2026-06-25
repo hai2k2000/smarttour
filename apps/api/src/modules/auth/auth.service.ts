@@ -5,6 +5,8 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'crypto';
@@ -29,6 +31,10 @@ type PermissionUser = {
 const DEFAULT_PERMISSIONS = ['*'] as const;
 const USER_STATUSES = new Set(['ACTIVE', 'INACTIVE', 'LOCKED']);
 const ROLE_STATUSES = new Set(['ACTIVE', 'INACTIVE']);
+const LOGIN_INVALID_CREDENTIALS_MESSAGE = 'Thông tin đăng nhập không hợp lệ';
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_BACKOFF_MS = 60 * 1000;
+const LOGIN_MAX_FAILED_ATTEMPTS = 5;
 const USER_PROFILE_FIELDS = [
   'phone',
   'gender',
@@ -125,9 +131,16 @@ type ManagementActor = {
   hasBranchScope: boolean;
   hasDepartmentScope: boolean;
 };
+type LoginAttemptState = {
+  failures: number;
+  windowStartedAt: number;
+  blockedUntil: number;
+};
 
 @Injectable()
 export class AuthService {
+  private readonly loginAttempts = new Map<string, LoginAttemptState>();
+
   constructor(private readonly prisma: PrismaService, private readonly sessions: AuthSessionService) {}
 
   async bootstrap(dto: AnyRecord, request?: SessionRequest) {
@@ -190,15 +203,16 @@ export class AuthService {
   async login(dto: AnyRecord, request?: SessionRequest) {
     const identifier = this.requiredText(dto.username ?? dto.email, 'Cần nhập tên đăng nhập').toLowerCase();
     const password = this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
+    this.assertLoginNotThrottled(identifier, request);
     const user = await this.prisma.user.findFirst({
       where: { OR: [{ username: identifier }, { email: identifier }] },
       select: LOGIN_USER_SELECT,
     });
-    if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
+    if (!user || !this.verifyPassword(password, user.passwordHash)) this.rejectInvalidLogin(identifier, request);
     if (user.status === 'LOCKED') throw new ForbiddenException('Tài khoản đã bị khóa');
     if (user.status === 'INACTIVE') throw new ForbiddenException('Tài khoản đã ngừng hoạt động');
     if (user.status !== 'ACTIVE') throw new ForbiddenException(`Tài khoản không thể đăng nhập ở trạng thái ${user.status}`);
-    if (!this.verifyPassword(password, user.passwordHash)) throw new UnauthorizedException('Mật khẩu không đúng');
+    this.clearLoginFailures(identifier, request);
 
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -474,6 +488,53 @@ export class AuthService {
       });
       return role;
     });
+  }
+
+  private assertLoginNotThrottled(identifier: string, request?: SessionRequest) {
+    const key = this.loginAttemptKey(identifier, request);
+    const state = this.loginAttempts.get(key);
+    const now = Date.now();
+    if (!state) return;
+    if (now - state.windowStartedAt > LOGIN_FAILURE_WINDOW_MS) {
+      this.loginAttempts.delete(key);
+      return;
+    }
+    if (state.blockedUntil > now) {
+      throw new HttpException('Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  private rejectInvalidLogin(identifier: string, request?: SessionRequest): never {
+    this.recordLoginFailure(identifier, request);
+    throw new UnauthorizedException(LOGIN_INVALID_CREDENTIALS_MESSAGE);
+  }
+
+  private recordLoginFailure(identifier: string, request?: SessionRequest) {
+    const key = this.loginAttemptKey(identifier, request);
+    const now = Date.now();
+    const current = this.loginAttempts.get(key);
+    const state = current && now - current.windowStartedAt <= LOGIN_FAILURE_WINDOW_MS
+      ? current
+      : { failures: 0, windowStartedAt: now, blockedUntil: 0 };
+    state.failures += 1;
+    if (state.failures >= LOGIN_MAX_FAILED_ATTEMPTS) {
+      state.blockedUntil = now + LOGIN_BACKOFF_MS;
+    }
+    this.loginAttempts.set(key, state);
+  }
+
+  private clearLoginFailures(identifier: string, request?: SessionRequest) {
+    this.loginAttempts.delete(this.loginAttemptKey(identifier, request));
+  }
+
+  private loginAttemptKey(identifier: string, request?: SessionRequest) {
+    return this.clientIp(request) + ':' + identifier;
+  }
+
+  private clientIp(request?: SessionRequest) {
+    const forwardedFor = request?.headers?.['x-forwarded-for'];
+    const firstForwarded = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    return (firstForwarded?.split(',')[0]?.trim() || request?.ip || 'unknown-ip').toLowerCase();
   }
 
   private async sessionResponse(tx: Prisma.TransactionClient, userId: string, request?: SessionRequest) {

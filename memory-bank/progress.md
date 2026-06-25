@@ -2787,3 +2787,10 @@
   - Cleanup now requires the target directory to equal `BACKUP_ROOT`, not just start with the backup root prefix.
   - Cleanup basenames must match `smarttour-disaster-*` / `smarttour-disaster-*.tar.gz`, blocking nested or traversal-style cleanup strings.
   - The backup artifact permissions contract now guards the stricter cleanup checks; fake guard probes verified direct children are allowed while nested/traversal-style cleanup strings abort.
+
+- 2026-06-24 Completed Phase 1 code-review remediation:
+  - Fixed auth enumeration by unifying invalid login failures and added in-service login throttling keyed by IP plus identifier.
+  - Added finance reject audit fields and updated receipt/payment/invoice reject implementations to write `rejectedBy`/`rejectedAt` only.
+  - Applied migrations for finance reject audit fields and legacy constraint validation; `npx prisma migrate deploy` reports no pending migrations after applying both.
+  - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-auth-login-security-contract.js`, `node scripts/test-finance-reject-audit-contract.js`, `bash scripts/test-finance-helper-contracts.sh`, `node scripts/test-db-constraint-validation-contract.js`, `bash scripts/test-auth-service-flows.sh`, and `bash scripts/test-finance-service-flows.sh`.
+  - Note: `npm run typecheck --workspace apps/api` is listed in the plan but the API workspace has no `typecheck` script, so API build was used as the TypeScript verification command.

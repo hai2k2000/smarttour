@@ -668,6 +668,7 @@ async function main() {
   });
   const rejectedReceipt = await finance.rejectReceipt(rejectedReceiptDraft.id, { actor: 'finance-test', note: 'reject receipt' });
   assert(rejectedReceipt.approvalStatus === 'REJECTED', 'receipt should reject');
+  assert(rejectedReceipt.rejectedBy === 'system' && rejectedReceipt.rejectedAt instanceof Date && !rejectedReceipt.approvedBy && !rejectedReceipt.approvedAt, 'receipt reject should write reject audit fields only');
   await rejects(() => finance.approveReceipt(rejectedReceiptDraft.id, { actor: 'finance-test' }), 'rejected receipt should not approve');
   await rejects(() => finance.rejectReceipt(rejectedReceiptDraft.id, { actor: 'finance-test' }), 'rejected receipt should not reject again');
   await rejects(() => finance.deleteReceipt(rejectedReceiptDraft.id), 'rejected receipt should not be deleted');
@@ -787,6 +788,7 @@ async function main() {
   });
   const rejectedPayment = await finance.rejectPayment(rejectedPaymentDraft.id, { actor: 'finance-test', note: 'reject payment' });
   assert(rejectedPayment.approvalStatus === 'REJECTED', 'payment should reject');
+  assert(rejectedPayment.rejectedBy === 'system' && rejectedPayment.rejectedAt instanceof Date && !rejectedPayment.approvedBy && !rejectedPayment.approvedAt, 'payment reject should write reject audit fields only');
   await rejects(() => finance.approvePayment(rejectedPaymentDraft.id, { actor: 'finance-test' }), 'rejected payment should not approve');
   await rejects(() => finance.rejectPayment(rejectedPaymentDraft.id, { actor: 'finance-test' }), 'rejected payment should not reject again');
   await rejects(() => finance.deletePayment(rejectedPaymentDraft.id), 'rejected payment should not be deleted');
@@ -877,6 +879,7 @@ async function main() {
   });
   const rejectedInvoice = await finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test', note: 'reject invoice' });
   assert(rejectedInvoice.approvalStatus === 'REJECTED', 'invoice should reject');
+  assert(rejectedInvoice.rejectedBy === 'system' && rejectedInvoice.rejectedAt instanceof Date && !rejectedInvoice.approvedBy && !rejectedInvoice.approvedAt, 'invoice reject should write reject audit fields only');
   await rejects(() => finance.approveInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not approve');
   await rejects(() => finance.rejectInvoice(rejectedInvoiceDraft.id, { actor: 'finance-test' }), 'rejected invoice should not reject again');
   await rejects(() => finance.deleteInvoice(rejectedInvoiceDraft.id), 'rejected invoice should not be deleted');

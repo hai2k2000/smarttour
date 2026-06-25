@@ -26,7 +26,7 @@ docker compose run --rm \
   -v "$PWD:/workspace:ro" \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
-const { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } = require('@nestjs/common');
+const { BadRequestException, ForbiddenException, UnauthorizedException } = require('@nestjs/common');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { AuthService } = require('./apps/api/dist/modules/auth/auth.service');
 const { AuthSessionService } = require('./apps/api/dist/modules/auth/auth-session.service');
@@ -64,8 +64,8 @@ async function main() {
   assert(superAdmin.permissions.length === 1 && superAdmin.permissions[0].permission === '*', 'super_admin defaults should contain only wildcard permission');
   assert(await errorFrom(() => auth.bootstrap({ email: 'other@example.com', name: 'Other', password, bootstrapKey: 'production-bootstrap-key' }, request)) instanceof UnauthorizedException, 'bootstrap must be one-time');
 
-  assert(await errorFrom(() => auth.login({ username: 'missing-user', password }, request)) instanceof NotFoundException, 'login should report missing user');
-  assert(await errorFrom(() => auth.login({ username: 'admin', password: 'WrongPass123' }, request)) instanceof UnauthorizedException, 'login should report wrong password');
+  assert(await errorFrom(() => auth.login({ username: 'missing-user', password }, request)) instanceof UnauthorizedException, 'login should hide missing users behind invalid credentials');
+  assert(await errorFrom(() => auth.login({ username: 'admin', password: 'WrongPass123' }, request)) instanceof UnauthorizedException, 'login should report wrong password as invalid credentials');
   await prisma.user.update({ where: { id: boot.user.id }, data: { status: 'LOCKED' } });
   assert(await errorFrom(() => auth.login({ username: 'admin', password }, request)) instanceof ForbiddenException, 'login should report locked user');
   await prisma.user.update({ where: { id: boot.user.id }, data: { status: 'INACTIVE' } });

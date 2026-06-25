@@ -822,6 +822,8 @@ model FinanceReceipt {
   assignedStaff     String?
   approvedBy        String?
   approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
   cancelledBy       String?
   cancelledAt       DateTime?
   cancelReason      String?
@@ -910,6 +912,8 @@ model FinancePayment {
   assignedStaff      String?
   approvedBy         String?
   approvedAt         DateTime?
+  rejectedBy         String?
+  rejectedAt         DateTime?
   cancelledBy        String?
   cancelledAt        DateTime?
   cancelReason       String?
@@ -993,6 +997,8 @@ model FinanceInvoice {
   note               String?
   approvedBy         String?
   approvedAt         DateTime?
+  rejectedBy         String?
+  rejectedAt         DateTime?
   cancelledBy        String?
   cancelledAt        DateTime?
   cancelReason       String?

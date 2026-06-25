@@ -3184,3 +3184,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended the backup artifact permissions contract first; RED failed because cleanup helpers did not split `target_dir` and `target_base`.
   - Updated cleanup helpers to require `target_dir == BACKUP_ROOT` and `target_base` matching `smarttour-disaster-*`, so nested/traversal-style strings cannot pass the guard.
   - Verification used source contracts, shell syntax, and fake guard probes only; real disaster backup remains intentionally unrun.
+
+- 2026-06-24 Phase 1 code-review remediation:
+  - Started execution of `docs/superpowers/plans/2026-06-24-code-review-remediation-phases.md` on branch `fix/phase-1-remediation`.
+  - Auth login hardening now returns one sanitized `401` message (`Thông tin đăng nhập không hợp lệ`) for missing users and wrong passwords, verifies passwords before exposing locked/inactive account states, and throttles repeated invalid attempts by IP plus normalized identifier.
+  - Finance reject audit now has explicit `rejectedBy`/`rejectedAt` fields on receipts, payments, and invoices; reject paths derive the actor from the request user and no longer write approval audit fields.
+  - Legacy `NOT VALID` constraints were audited with 0 FK/check violations, then validated through migration `20260624194500_validate_legacy_constraints`; finance reject audit columns were deployed through migration `20260624193000_finance_reject_audit_fields`.
+  - Added focused contracts: `scripts/test-auth-login-security-contract.js`, `scripts/test-finance-reject-audit-contract.js`, and `scripts/test-db-constraint-validation-contract.js`; updated existing auth/finance service flow scripts for the new expectations.
