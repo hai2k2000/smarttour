@@ -35,7 +35,6 @@ const expectedActions = [
   ['apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts', 'addPayment'],
   ['apps/api/src/modules/operation-vouchers/operation-vouchers.controller.ts', 'createPaymentVoucher'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'updateStatus'],
-  ['apps/api/src/modules/orders/orders.controller.ts', 'copy'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'settle'],
   ['apps/api/src/modules/orders/orders.controller.ts', 'unlock'],
   ['apps/api/src/modules/quotations/quotations.controller.ts', 'submit'],

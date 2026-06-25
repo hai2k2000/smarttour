@@ -2837,3 +2837,11 @@
   - `npx prisma migrate deploy` completed after fixing the operation payment request manage permission migration to resolve role IDs through `Role.code`.
   - Docker build passed for `api` and `web`; `docker compose up -d api web nginx` restarted the deployed services.
   - Post-deploy verification passed: `scripts/healthcheck.sh`, `scripts/smoke-operations-backend.sh`, `scripts/smoke-suppliers.sh`, `ADMIN_PASSWORD=<temporary> npm run smoke:files`, `ADMIN_PASSWORD=<temporary> npm run smoke:ui`, plus a profile login/page smoke. The admin password was not stored.
+
+- 2026-06-25 Completed module-by-module review fix sweep:
+  - Operations: fixed operations UI smoke default API routing to avoid production nginx 429 during long Playwright runs; added a contract for the local API/proxy behavior. Full operations controller/DTO/service/voucher/backend/UI smoke suite passed.
+  - Suppliers: fixed executable mode for the hotel contract script. Supplier common/controller/file/helper/client/typed/hotel/sensitive-field/permission/API/UI smoke suite passed.
+  - Orders/Bookings and Tours: aligned action status expectations with HTTP semantics, changed order copy to return 201, kept settle/unlock and copy-services actions at 200, and added lowercase enum transforms for common tour list queries. Full order/booking/tour/program/guide/TourKit suites passed.
+  - Quotes/Quotations: fixed executable mode for the smoke script and updated SmartLink smoke/coverage to require public access only after approval while preserving 404 for draft links. Full quotes/quotations contracts and smoke passed.
+  - Files/UI/Ops: refreshed stale contracts for `uploadAuthorized`, report CSV helper BOM/CRLF checks, FIT dynamic export headers, and logrotate checks through timeout wrappers. Files storage, UI/profile/browser/UX, reports/commission, finance, customers, and observability/security suites passed.
+  - Final verification included `scripts/healthcheck.sh` and `scripts/security-audit.sh`, both passing. Temporary admin credentials used for authenticated smoke scripts were not written to repo or Memory Bank.

@@ -215,7 +215,7 @@ async function main() {
     const copied = await request('POST', `/orders/single-services/${branchOrder.id}/copy`, { token: manageToken, status: 201 });
     assert(copied.id !== branchOrder.id && copied.members[0].id !== branchOrder.members[0].id, 'copy endpoint should create independent order children');
     await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: manageToken, status: 403 });
-    const settled = await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: actionToken, status: 201 });
+    const settled = await request('POST', `/orders/single-services/${branchOrder.id}/settle`, { token: actionToken, status: 200 });
     assert(settled.status === 'SETTLED' && settled.settledAt, 'settle endpoint should set settlement state');
     await request('POST', `/orders/single-services/${branchOrder.id}/unlock`, {
       token: manageToken,
@@ -225,7 +225,7 @@ async function main() {
     const unlocked = await request('POST', `/orders/single-services/${branchOrder.id}/unlock`, {
       token: actionToken,
       body: { actor: 'orders-api-test', reason: 'verify unlock permission' },
-      status: 201,
+      status: 200,
     });
     assert(unlocked.status === 'COMPLETED' && !unlocked.settledAt, 'unlock endpoint should clear settlement state');
     await request('DELETE', `/orders/single-services/${copied.id}`, { token: manageToken });

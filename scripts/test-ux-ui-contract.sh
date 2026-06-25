@@ -21,7 +21,7 @@ const permissions = read('apps/web/app/usePermissions.tsx');
 const orderCenter = read('apps/web/app/order-center/OrderCenterClient.tsx');
 const exports = [
   'apps/api/src/modules/customers/customers.service.ts',
-  'apps/api/src/modules/reports/reports.service.ts',
+  'apps/api/src/modules/reports/report-csv.ts',
   'apps/api/src/modules/finance/finance.service.ts',
   'apps/api/src/modules/commission-reports/commission-reports.service.ts',
   'apps/api/src/modules/order-center/order-center.service.ts',

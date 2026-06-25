@@ -25,7 +25,7 @@ for (const token of [
   "import { FileObjectKeyQueryDto, FileUploadBodyDto } from './dto/file-query.dto';",
   'upload(',
   '@Body() dto: FileUploadBodyDto',
-  'this.filesService.upload(file, dto.scope, request.user?.id)',
+  'this.filesService.uploadAuthorized(file, dto.scope, request.user)',
   'async download(@Query() query: FileObjectKeyQueryDto',
   '@Res() response: ServerResponse',
   'downloadAuthorized(query.key, request.user)',

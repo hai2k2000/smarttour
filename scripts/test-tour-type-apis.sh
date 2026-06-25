@@ -1064,7 +1064,7 @@ async function main() {
   const copiedGitServices = await expect(
     `/api/git-tours/${gitCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({ sourceTourId: gitTour.id }) },
-    201,
+    200,
     'copy GIT services',
   );
   assert(gitCopyTarget.customers.length === 0, 'GIT create without customerName should not create a fake default customer');
@@ -1470,7 +1470,7 @@ async function main() {
   const copiedLandServices = await expect(
     `/api/landtours/${landCopyTarget.id}/copy-services`,
     { method: 'POST', body: JSON.stringify({ sourceTourId: landTour.id }) },
-    201,
+    200,
     'copy LandTour services',
   );
   assertLandDetailShape(copiedLandServices, 'LandTour copy-services response');

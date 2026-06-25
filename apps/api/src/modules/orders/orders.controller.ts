@@ -48,7 +48,6 @@ export class OrdersController {
   }
 
   @Post(':type/:id/copy')
-  @HttpCode(200)
   @RequirePermissions('order.manage')
   copy(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.ordersService.copy(type, id, request.user);

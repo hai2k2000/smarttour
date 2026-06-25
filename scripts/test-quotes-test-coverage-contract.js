@@ -73,10 +73,11 @@ for (const needle of [
   "await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-MISSING`)",
   "await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-NUM`)",
   "await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-ITEMS`)",
-  "await request(admin, 'POST', '/quotations', { ...quotationPayload(`${run}-QTE-BAD-STATUS`)",
+  "const ignoredStatusQuote = await request(admin, 'POST', '/quotations', {",
   "assert(updatedQuotation.items?.length === 2, 'quotation update lost items')",
   "assert(updatedQuotation.status === 'DRAFT', 'quotation update changed status unexpectedly')",
   "assert(Array.isArray(updatedQuotation.logs) && updatedQuotation.logs.some((log) => log.action === 'UPDATE'), 'quotation update log missing')",
+  "assert(ignoredStatusQuote.status === 'DRAFT' && ignoredStatusQuote.smartLinkEnabled === false, 'quotation create should ignore client workflow fields and start as DRAFT with SmartLink off')",
 ]) {
   includes(smoke, needle, 'Quotation create/update/load/search/validation/action coverage is incomplete.');
 }
@@ -119,7 +120,8 @@ for (const needle of [
   "await request(noPerm, 'GET', '/quotations'",
   "await request(view, 'POST', '/quotations'",
   "await request(view, 'PUT', `/quotations/${quotation.id}`",
-  "await request(admin, 'PUT', `/quotations/${stateQuote.id}`, { status: 'APPROVED' }, [400])",
+  "const ignoredUpdateStatus = await request(admin, 'PUT', `/quotations/${stateQuote.id}`, { status: 'APPROVED', smartLinkEnabled: true })",
+  "assert(ignoredUpdateStatus.status === 'DRAFT' && ignoredUpdateStatus.smartLinkEnabled === false, 'quotation update should ignore client workflow fields')",
 ]) {
   includes(smoke, needle, 'Permission and invalid status/action coverage is incomplete.');
 }

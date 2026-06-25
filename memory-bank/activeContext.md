@@ -3243,3 +3243,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Fixed the migration to join `Role` by `code` and insert `r.id`; marked the failed migration attempt rolled back with Prisma and reapplied successfully.
   - Updated RBAC contract coverage for the migration shape and updated operations smoke seed so the request-create smoke session has `operation.payment-request.manage` before testing submit.
   - Rebuilt Docker images for API/Web, restarted `api`, `web`, and `nginx`, and verified health/smoke checks after deploy.
+
+- 2026-06-25 Module-by-module review fix sweep follow-up:
+  - Ran the full review-fix test list by module after the earlier remediation phases: DB/RBAC/data scope, Auth/Security, Operations, Suppliers, Finance, Customers, Orders/Bookings, Quotes/Quotations, Tours/Programs/Guides, Reports/Commission, Files/Storage, UI/Profile, and Observability/Ops.
+  - Fixed `scripts/smoke-operations-ui.js` to default `API_URL` to the local API (`http://127.0.0.1:4000/api`) while proxying browser requests from the production API base, avoiding nginx API rate-limit false negatives in long UI smoke runs; added `scripts/test-operations-ui-smoke-contract.js`.
+  - Corrected executable bits for shell smoke/contract scripts that are invoked directly: `scripts/test-suppliers-hotel-contract.sh` and `scripts/smoke-quotes-quotations.sh`.
+  - Aligned order action status semantics: order copy creates a new order and returns 201; settle/unlock and tour copy-services actions remain 200. Updated contracts/smokes accordingly.
+  - Updated quotation smoke coverage for the Phase 2 SmartLink rule: draft SmartLinks return 404 publicly, approved enabled SmartLinks load public-safe fields, and client-supplied workflow fields remain ignored.
+  - Added query enum uppercase transforms for common tour list `type` and `status`, preserving lowercase query compatibility while invalid enum values still return 400.
+  - Refreshed stale source contracts for FIT export headers, file upload authorization, report CSV helper BOM/CRLF coverage, and security-audit logrotate timeout wrappers.
+  - Verification passed module-by-module plus final health/security checks. Admin password was only passed through temporary environment variables and was not stored.

@@ -4,7 +4,7 @@ const fs = require('fs/promises');
 const path = require('path');
 
 const site = process.env.SITE_URL || 'https://aitour.io.vn';
-const api = process.env.API_URL || `${site.replace(/\/+$/, '')}/api`;
+const api = process.env.API_URL || 'http://127.0.0.1:4000/api';
 const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
 const password = process.env.ADMIN_PASSWORD || '';
 const existingToken = process.env.ADMIN_TOKEN || '';

@@ -47,12 +47,12 @@ const githubActionsContract = read('scripts/test-github-actions-contract.js');
 ].forEach((expected) => includes('scripts/install-ops-schedule.sh', installer, expected));
 
 [
-  'logrotate_conf_mode="$(stat -c',
+  "logrotate_conf_mode=\"$(run_audit_file_read stat -c '%a %U:%G' /etc/logrotate.d/smarttour",
   'OK_LOGROTATE /etc/logrotate.d/smarttour=644 root:root',
   'FAIL_LOGROTATE',
-  "grep -Eq '^/var/log/smarttour/\\*\\.log' /etc/logrotate.d/smarttour",
-  "grep -Eq '^[[:space:]]*copytruncate$' /etc/logrotate.d/smarttour",
-  "grep -Eq '^[[:space:]]*rotate 14$' /etc/logrotate.d/smarttour",
+  "run_audit_file_read grep -Eq '^/var/log/smarttour/\\*\\.log' /etc/logrotate.d/smarttour",
+  "run_audit_file_read grep -Eq '^[[:space:]]*copytruncate$' /etc/logrotate.d/smarttour",
+  "run_audit_file_read grep -Eq '^[[:space:]]*rotate 14$' /etc/logrotate.d/smarttour",
 ].forEach((expected) => includes('scripts/security-audit.sh', securityAudit, expected));
 
 includes('scripts/test-security-audit-contract.js', securityContract, 'OK_LOGROTATE');
