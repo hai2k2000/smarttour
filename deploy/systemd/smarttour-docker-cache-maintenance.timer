@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SmartTour Docker cache maintenance daily
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

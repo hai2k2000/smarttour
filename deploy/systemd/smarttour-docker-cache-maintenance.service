@@ -1,0 +1,14 @@
+[Unit]
+Description=SmartTour Docker cache maintenance
+After=docker.service smarttour-healthcheck.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+UMask=0027
+EnvironmentFile=-/etc/default/smarttour-ops
+WorkingDirectory=/opt/smarttour
+ExecStart=/opt/smarttour/scripts/docker-cache-maintenance.sh
+TimeoutStartSec=45min
+StandardOutput=append:/var/log/smarttour/docker-cache-maintenance.log
+StandardError=append:/var/log/smarttour/docker-cache-maintenance.log

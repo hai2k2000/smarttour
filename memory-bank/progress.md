@@ -2851,6 +2851,10 @@
   - Added source contract coverage that successful structured request logs are ignored during keyword scans, while structured 5xx request failures remain detectable.
   - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.
 
+- 2026-06-25 Completed Docker cache maintenance automation:
+  - Added safe Docker cache cleanup script and daily systemd timer to prevent BuildKit cache from filling the production VPS disk.
+  - The cleanup prunes builder cache and unused images by age, avoids Docker volumes, and runs healthcheck after cleanup.
+
 - 2026-06-25 Completed business logic review fix follow-up:
   - Quotations: pending approval is now read-only for edit, SmartLink can only be published from approved non-expired quotations, and duplicate convert/order-code conflicts are surfaced as business conflicts.
   - Operations: operation form updates reject DONE/CANCELLED forms, and status changes re-read the form under `FOR UPDATE` before applying transition rules.

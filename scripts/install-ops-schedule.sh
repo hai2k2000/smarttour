@@ -142,6 +142,13 @@ DISASTER_KEEP_BACKUPS=4
 # DISASTER_BACKUP_CLEANUP_TIMEOUT=5m
 # Set this to bound disaster backup file commands such as mkdir, chmod, tee, and cat.
 # DISASTER_BACKUP_FILE_COMMAND_TIMEOUT=5m
+# Set this to bound Docker cache maintenance commands.
+# DOCKER_CACHE_DOCKER_TIMEOUT=30m
+# Set this to bound Docker cache post-cleanup healthcheck.
+# DOCKER_CACHE_HEALTHCHECK_TIMEOUT=10m
+# Set these to control Docker cache retention windows.
+# DOCKER_CACHE_BUILDER_UNTIL=24h
+# DOCKER_CACHE_IMAGE_UNTIL=72h
 EOF
   run_ops_file_command chmod 600 "$OPS_ENV"
 fi
@@ -158,7 +165,8 @@ run_ops_file_command chmod +x \
   "$REPO_DIR/scripts/disaster-backup.sh" \
   "$REPO_DIR/scripts/healthcheck.sh" \
   "$REPO_DIR/scripts/nginx-host-report.sh" \
-  "$REPO_DIR/scripts/restore-drill-postgres.sh"
+  "$REPO_DIR/scripts/restore-drill-postgres.sh" \
+  "$REPO_DIR/scripts/docker-cache-maintenance.sh"
 
 run_ops_systemctl daemon-reload
 run_ops_systemctl enable --now \
@@ -166,7 +174,8 @@ run_ops_systemctl enable --now \
   smarttour-nginx-host-report.timer \
   smarttour-postgres-backup.timer \
   smarttour-disaster-backup.timer \
-  smarttour-restore-drill.timer
+  smarttour-restore-drill.timer \
+  smarttour-docker-cache-maintenance.timer
 
 run_ops_systemctl list-timers --all --no-pager 'smarttour-*'
 echo "OPS_SCHEDULE_INSTALL_OK"

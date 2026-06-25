@@ -88,6 +88,7 @@ jobs:
           node scripts/test-ops-log-permissions-contract.js
           node scripts/test-ops-install-systemd-timeout-contract.js
           node scripts/test-deploy-preview-timeout-contract.js
+          node scripts/test-docker-cache-maintenance-contract.js
 
       - name: Typecheck API
         run: npm run lint --workspace @smarttour/api

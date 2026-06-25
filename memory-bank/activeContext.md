@@ -3260,6 +3260,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended `scripts/test-healthcheck-log-filter-contract.js` first, observed RED, then updated `recent_logs_for_scan()` to ignore structured `"event":"request_completed"` lines while still keeping 5xx/unstructured error signatures visible.
   - Verification passed: `node scripts/test-healthcheck-log-filter-contract.js` and `bash scripts/healthcheck.sh`.
 
+- 2026-06-25 Docker cache maintenance follow-up:
+  - Added daily Docker cache maintenance via `scripts/docker-cache-maintenance.sh` and `smarttour-docker-cache-maintenance.timer` to prune BuildKit cache older than 24h and unused images older than 72h without touching volumes.
+  - Added `scripts/test-docker-cache-maintenance-contract.js` to guard the maintenance script, systemd unit/timer, installer wiring, package script, CI contract, and docs.
+
 - 2026-06-25 Business logic review fix follow-up:
   - Tightened quotation workflow guards so pending-approval quotations are no longer editable, SmartLink publishing is limited to approved non-expired quotations, and duplicate convert/order-code races return a business conflict.
   - Tightened operation form mutation paths so DONE/CANCELLED forms reject updates and status transitions run under a row lock before transition checks.

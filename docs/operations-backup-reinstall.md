@@ -251,6 +251,26 @@ contains `RESTORE_DRILL_OK`, is recent, and the systemd service result is
 success. Restore-drill log marker and mtime reads are bounded by
 `HEALTHCHECK_FILE_READ_TIMEOUT=10s` by default.
 
+
+## Docker Cache Maintenance
+
+SmartTour production installs `smarttour-docker-cache-maintenance.timer` through `scripts/install-ops-schedule.sh`. The timer runs `scripts/docker-cache-maintenance.sh` daily at 03:10 with a randomized delay, prunes BuildKit cache older than `DOCKER_CACHE_BUILDER_UNTIL=24h`, prunes unused images older than `DOCKER_CACHE_IMAGE_UNTIL=72h`, never prunes Docker volumes, and runs `scripts/healthcheck.sh` after cleanup.
+
+Manual run:
+
+```bash
+cd /opt/smarttour
+scripts/docker-cache-maintenance.sh
+systemctl list-timers --all 'smarttour-docker-cache-maintenance.timer'
+```
+
+Validate the guard before changing this behavior:
+
+```bash
+cd /opt/smarttour
+npm run test:docker-cache-maintenance
+```
+
 ## Manual Readiness Check
 
 Before requesting an OS reinstall:

@@ -194,6 +194,8 @@ Completed implementation: `/etc/default/smarttour-ops` template now includes com
 Completed implementation: healthcheck now verifies the latest disaster backup archive age and checksum with `OK_DISASTER_BACKUP`, using `DISASTER_BACKUP_MAX_AGE_HOURS=192` by default.
 Completed implementation: healthcheck now verifies the latest restore drill log age, `RESTORE_DRILL_OK` marker, and systemd result with `OK_RESTORE_DRILL`, using `RESTORE_DRILL_MAX_AGE_HOURS=192` by default and bounding restore-drill log reads with `HEALTHCHECK_FILE_READ_TIMEOUT=10s`.
 
+Completed implementation: Docker cache maintenance now runs via `smarttour-docker-cache-maintenance.timer`, using `scripts/docker-cache-maintenance.sh` to prune BuildKit cache older than 24h and unused images older than 72h without touching volumes; the script runs `scripts/healthcheck.sh` after cleanup and is guarded by `npm run test:docker-cache-maintenance`.
+
 Manual owner task: choose the external alert destination and configure `HEALTHCHECK_WEBHOOK_URL` plus timeout/retry settings in `/etc/default/smarttour-ops`.
 
 ## 9. Production Security
