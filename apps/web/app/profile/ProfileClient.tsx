@@ -2,6 +2,7 @@
 
 import { AlertCircle, CheckCircle2, KeyRound, Mail, ShieldCheck, UserCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { toStoredAuthUser } from '../usePermissions';
 
 type ProfileUser = {
   id?: string;
@@ -184,6 +185,6 @@ function updateAuthSession(data: unknown) {
   if (!data || typeof data !== 'object') return;
   const user = 'user' in data ? data.user : data;
   if (user && typeof user === 'object') {
-    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(user));
+    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(toStoredAuthUser(user)));
   }
 }

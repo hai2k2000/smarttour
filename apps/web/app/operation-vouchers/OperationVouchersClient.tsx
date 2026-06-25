@@ -341,7 +341,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
       params.set('take', '100');
       if (cleanText(nextQuery)) params.set('search', cleanText(nextQuery));
       if (cleanText(nextStatus)) params.set('status', cleanText(nextStatus));
-      const response = await fetch(`${browserApiBase()}/api/operation-vouchers${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' });
+      const response = await fetch(`${browserApiBase()}/api/operation-vouchers${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store', credentials: 'include' });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được danh sách phiếu điều hành từ API /operation-vouchers'));
       const data = await response.json();
       setVouchers(Array.isArray(data) ? data : []);
@@ -368,7 +368,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
     if (!keepMessage) setMessage({ kind: 'info', text: 'Đang tải thông tin phiếu điều hành...' });
     reset(newVoucherDefaults());
     try {
-      const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${id}`, { cache: 'no-store' });
+      const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${id}`, { cache: 'no-store', credentials: 'include' });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được thông tin phiếu điều hành'));
       const voucher = await response.json();
       setSelectedVoucherSummary(mapVoucherToSummary(voucher));
@@ -398,6 +398,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
     try {
       const response = await fetch(`${browserApiBase()}/api/operation-vouchers${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -437,6 +438,7 @@ export default function OperationVouchersClient({ initialVouchers }: { initialVo
     try {
       const response = await fetch(`${browserApiBase()}/api/operation-vouchers/${editingId}/payment`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ paidAmount: amount, paymentDate: new Date().toISOString(), note: 'Cập nhật thanh toán từ màn hình điều hành' }),
       });

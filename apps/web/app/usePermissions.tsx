@@ -10,9 +10,31 @@ type StoredUser = {
   name?: string;
   fullName?: string;
   displayName?: string;
+  status?: string;
+  branch?: string | null;
+  department?: string | null;
+  dataScope?: string;
   permissions?: string[];
   roles?: { code: string; name: string }[];
 };
+
+export function toStoredAuthUser(user: StoredUser | null | undefined): StoredUser | null {
+  if (!user) return null;
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    name: user.name,
+    fullName: user.fullName,
+    displayName: user.displayName,
+    status: user.status,
+    branch: user.branch,
+    department: user.department,
+    dataScope: user.dataScope,
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
+    roles: Array.isArray(user.roles) ? user.roles.map((role) => ({ code: role.code, name: role.name })) : [],
+  };
+}
 
 export function usePermissions() {
   const [user, setUser] = useState<StoredUser | null>(null);
@@ -32,9 +54,10 @@ export function usePermissions() {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error('Không xác định được quyền của phiên đăng nhập');
-        const nextUser = await response.json() as StoredUser;
+        const rawUser = await response.json() as StoredUser;
+        const nextUser = toStoredAuthUser(rawUser);
         if (!active) return;
-        window.localStorage.setItem('smarttour.auth.user', JSON.stringify(nextUser));
+        window.localStorage.setItem('smarttour.auth.user', JSON.stringify(toStoredAuthUser(rawUser)));
         setUser(nextUser);
       } catch {
         if (!active || controller.signal.aborted) return;

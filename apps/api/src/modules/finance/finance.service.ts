@@ -34,6 +34,71 @@ const PROTECTED_FINANCE_WRITE_FIELDS = new Set([
   'lockedAt',
   'reversalOfId',
 ]);
+const WRITABLE_FINANCE_FIELDS = new Set([
+  'assignedStaff',
+  'amountInWords',
+  'bankAccountName',
+  'bankAccountNumber',
+  'bankName',
+  'branch',
+  'checkinDate',
+  'checkoutDate',
+  'citizenId',
+  'collectorSupplier',
+  'companyAddress',
+  'companyName',
+  'customerEmail',
+  'customerId',
+  'customerName',
+  'customerPhone',
+  'department',
+  'documentDate',
+  'emailSentDate',
+  'follower',
+  'invoiceCode',
+  'invoiceDate',
+  'invoiceNumber',
+  'invoiceType',
+  'isSupplierDeposit',
+  'items',
+  'issuedDate',
+  'note',
+  'operationVoucherId',
+  'orderId',
+  'orders',
+  'paidBefore',
+  'partnerName',
+  'payerAddress',
+  'payerEmail',
+  'payerName',
+  'payerPhone',
+  'paymentAmount',
+  'paymentDate',
+  'paymentMethod',
+  'receiptAmount',
+  'receiptCode',
+  'receiptId',
+  'receiptName',
+  'receiptType',
+  'reason',
+  'receiverAddress',
+  'receiverEmail',
+  'receiverName',
+  'receiverPhone',
+  'supplierId',
+  'systemCode',
+  'taxAuthorityCode',
+  'taxCode',
+  'totalAmount',
+  'tourCode',
+  'tourCreator',
+  'tourId',
+  'tourName',
+  'transferDate',
+  'voucherCode',
+  'voucherName',
+  'voucherType',
+]);
 const COMPANY_EXPENSE_PAYMENT_TYPES = new Set(['INTERNAL_EXPENSE', 'OTHER']);
 const FINANCE_RECEIPT_TYPES = ['DEPOSIT', 'TOUR_PAYMENT', 'CUSTOMER_DEBT', 'COLLECT_ON_BEHALF', 'SUPPLIER_FUND_REFUND', 'OTHER'];
 const FINANCE_PAYMENT_TYPES = ['SUPPLIER_PAYMENT', 'CUSTOMER_REFUND', 'COMMISSION', 'INTERNAL_EXPENSE', 'SUPPLIER_DEPOSIT', 'ADVANCE', 'OTHER'];
@@ -93,8 +158,9 @@ export class FinanceService {
   async deleteReceiptFile(id: string, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
     const objectKey = this.objectKey(current.attachmentUrl);
-    if (objectKey) await this.filesService.removeIfPresent(objectKey);
-    return this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const receipt = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
+    return receipt;
   }
 
   async createReceipt(dto: AnyRecord, user?: RequestUser) {
@@ -287,8 +353,9 @@ export class FinanceService {
   async deletePaymentFile(id: string, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
     const objectKey = this.objectKey(current.attachmentUrl);
-    if (objectKey) await this.filesService.removeIfPresent(objectKey);
-    return this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const payment = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
+    return payment;
   }
 
   async createPayment(dto: AnyRecord, user?: RequestUser) {
@@ -419,8 +486,9 @@ export class FinanceService {
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Không tìm thấy file hóa đơn');
     const objectKey = this.objectKey(file.fileUrl);
-    if (objectKey) await this.filesService.removeIfPresent(objectKey);
-    return this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
+    const deleted = await this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
+    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
+    return deleted;
   }
 
   async createInvoice(dto: AnyRecord, user?: RequestUser) {
@@ -799,8 +867,6 @@ export class FinanceService {
       collectorSupplier: this.text(dto.collectorSupplier),
       follower: this.text(dto.follower),
       tourCreator: this.text(dto.tourCreator),
-      attachmentName: this.text(dto.attachmentName),
-      attachmentUrl: this.text(dto.attachmentUrl),
     };
   }
 
@@ -859,8 +925,6 @@ export class FinanceService {
       department: this.text(dto.department),
       assignedStaff: this.text(dto.assignedStaff),
       follower: this.text(dto.follower),
-      attachmentName: this.text(dto.attachmentName),
-      attachmentUrl: this.text(dto.attachmentUrl),
     };
   }
 
@@ -1218,7 +1282,7 @@ export class FinanceService {
   }
 
   private financeWriteInput(dto: AnyRecord) {
-    return Object.fromEntries(Object.entries(dto).filter(([key]) => !PROTECTED_FINANCE_WRITE_FIELDS.has(key)));
+    return Object.fromEntries(Object.entries(dto).filter(([key]) => WRITABLE_FINANCE_FIELDS.has(key) && !PROTECTED_FINANCE_WRITE_FIELDS.has(key)));
   }
 
   private actor(user?: RequestUser) {

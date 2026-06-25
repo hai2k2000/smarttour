@@ -89,13 +89,6 @@ class FinanceDocumentFieldsDto extends FinanceBodyDto {
   @Allow()
   totalAmount?: unknown;
 
-  @IsOptional()
-  @Allow()
-  attachmentName?: unknown;
-
-  @IsOptional()
-  @Allow()
-  attachmentUrl?: unknown;
 }
 
 export class FinanceReceiptBodyDto extends FinanceDocumentFieldsDto {

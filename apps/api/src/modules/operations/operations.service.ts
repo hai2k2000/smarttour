@@ -383,10 +383,11 @@ export class OperationsService {
     if (status !== SupplierPaymentStatus.DRAFT) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp phải được tạo ở trạng thái nháp');
     const items = this.paymentItems(dto);
     if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
-    await this.validatePaymentItems(items);
     await this.ensurePaymentItemsScoped(items, user);
     const codeBranch = await this.paymentRequestCodeBranch(items, dto, user);
     return this.prisma.$transaction(async (tx) => {
+      await this.lockPaymentItemCosts(tx, items);
+      await this.validatePaymentItems(items, undefined, tx);
       const code = this.text(dto.code) || (await this.nextAvailablePaymentRequestCode(tx, new Date(), codeBranch));
       const request = await tx.supplierPaymentRequest.create({
         data: {
@@ -412,10 +413,13 @@ export class OperationsService {
     }
     if (items) {
       if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
-      await this.validatePaymentItems(items, id);
       await this.ensurePaymentItemsScoped(items, user);
     }
     return this.prisma.$transaction(async (tx) => {
+      if (items) {
+        await this.lockPaymentItemCosts(tx, items);
+        await this.validatePaymentItems(items, id, tx);
+      }
       if (items) await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
       const request = await tx.supplierPaymentRequest.update({
         where: { id },
@@ -768,14 +772,18 @@ export class OperationsService {
     if (blockingRequest) throw new BadRequestException('Kh\u00f4ng th\u1ec3 h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh khi c\u00f2n y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p \u0111ang ho\u1ea1t \u0111\u1ed9ng');
   }
 
-  private async validatePaymentItems(items: ParsedPaymentItem[], currentRequestId?: string) {
+  private async validatePaymentItems(
+    items: ParsedPaymentItem[],
+    currentRequestId?: string,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     const duplicateCostId = items.map((item) => item.costId).find((id, index, ids) => ids.indexOf(id) !== index);
     if (duplicateCostId) throw new BadRequestException('Chi ph\u00ed \u0111i\u1ec1u h\u00e0nh b\u1ecb tr\u00f9ng trong y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
     const supplierIds = Array.from(new Set(items.map((item) => item.supplierId)));
     const costIds = items.map((item) => item.costId);
     const [suppliers, costs] = await Promise.all([
-      this.prisma.supplier.findMany({ where: { id: { in: supplierIds }, deletedAt: null }, select: { id: true } }),
-      this.prisma.operationCost.findMany({
+      client.supplier.findMany({ where: { id: { in: supplierIds }, deletedAt: null }, select: { id: true } }),
+      client.operationCost.findMany({
         where: { id: { in: costIds } },
         include: {
           service: { select: { supplierId: true } },
@@ -801,6 +809,13 @@ export class OperationsService {
       const activeDuplicate = cost.paymentItems.find((paymentItem) => paymentItem.requestId !== currentRequestId && paymentItem.request.status !== SupplierPaymentStatus.REJECTED);
       if (activeDuplicate) throw new BadRequestException('Chi phí điều hành đã có yêu cầu thanh toán nhà cung cấp');
     }
+  }
+
+  private async lockPaymentItemCosts(tx: Prisma.TransactionClient, items: ParsedPaymentItem[]) {
+    const costIds = Array.from(new Set(items.map((item) => item.costId)));
+    if (!costIds.length) return;
+    const placeholders = costIds.map((_, index) => `$${index + 1}`).join(', ');
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "OperationCost" WHERE "id" IN (${placeholders}) FOR UPDATE`, ...costIds);
   }
 
   private assertOperationFormTransition(current: OperationStatus, target: OperationStatus) {

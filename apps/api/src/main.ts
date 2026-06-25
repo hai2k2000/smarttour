@@ -23,16 +23,19 @@ async function bootstrap() {
   app.useGlobalInterceptors(new RequestLoggingInterceptor());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, exceptionFactory: validationExceptionFactory }));
 
-  const config = new DocumentBuilder()
-    .setTitle('SmartTour API')
-    .setDescription('Travel operations ERP API')
-    .setVersion('0.1.0')
-    .addTag('tour-programs', 'Quản lý tour mẫu và tạo các ngày lịch trình thuộc tour mẫu.')
-    .addTag('tour-itinerary-days', 'Cập nhật hoặc xóa ngày lịch trình là sub-resource của tour mẫu.')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  const enableSwagger = process.env.SMARTTOUR_ENABLE_SWAGGER === 'true' || smartTourEnvironment() === 'development';
+  if (enableSwagger) {
+    const config = new DocumentBuilder()
+      .setTitle('SmartTour API')
+      .setDescription('Travel operations ERP API')
+      .setVersion('0.1.0')
+      .addTag('tour-programs', 'Quản lý tour mẫu và tạo các ngày lịch trình thuộc tour mẫu.')
+      .addTag('tour-itinerary-days', 'Cập nhật hoặc xóa ngày lịch trình là sub-resource của tour mẫu.')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   await app.listen(process.env.PORT ? Number(process.env.PORT) : 4000, '0.0.0.0');
 }

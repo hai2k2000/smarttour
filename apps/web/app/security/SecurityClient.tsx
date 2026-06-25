@@ -4,6 +4,7 @@ import { CheckCircle2, KeyRound, Pencil, Plus, RefreshCcw, ShieldCheck, UserCog,
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { viPermission, viRoleCode, viStatus } from '../i18n';
+import { toStoredAuthUser } from '../usePermissions';
 
 type Role = {
   id: string;
@@ -757,7 +758,7 @@ function updateAuthSession(data: unknown) {
   if (!data || typeof data !== 'object') return;
   const user = 'user' in data ? data.user : null;
   if (user && typeof user === 'object') {
-    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(user));
+    window.localStorage.setItem('smarttour.auth.user', JSON.stringify(toStoredAuthUser(user)));
   }
 }
 

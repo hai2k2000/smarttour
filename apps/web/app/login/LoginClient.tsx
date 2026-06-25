@@ -3,6 +3,7 @@
 import { LogIn } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { toStoredAuthUser } from '../usePermissions';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const DEFAULT_AFTER_LOGIN_PATH = '/order-center';
@@ -25,7 +26,7 @@ export default function LoginClient() {
       return;
     }
     window.localStorage.removeItem('smarttour.auth.token');
-    if (data.user) window.localStorage.setItem('smarttour.auth.user', JSON.stringify(data.user));
+    if (data.user) window.localStorage.setItem('smarttour.auth.user', JSON.stringify(toStoredAuthUser(data.user)));
     const nextPath = safeNextPath(searchParams.get('next'));
     window.location.assign(nextPath);
   }

@@ -255,23 +255,32 @@ export class BookingsService {
   }
 
   async updateStatus(id: string, status: string | BookingStatus, user?: RequestUser) {
-    const current = await this.loadForMutation(id, user);
     const targetStatus = this.bookingStatus(status, true);
     if (!targetStatus) throw new BadRequestException('Trạng thái booking không được để trống');
-    this.ensureStatusTransition(current.status, targetStatus, current.operationForm?.status);
-    this.ensureBookingValues(
-      {
-        startDate: current.startDate,
-        endDate: current.endDate,
-        paxCount: current.paxCount,
-        totalSellPrice: current.totalSellPrice,
-      },
-      current.tourProgram.durationDays,
-    );
-    return this.prisma.booking.update({
-      where: { id },
-      data: { status: targetStatus },
-      select: this.detailSelect(),
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Booking"
+        WHERE "id" = ${id} AND "deletedAt" IS NULL
+        FOR UPDATE
+      `;
+      if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
+      const current = await this.loadForMutation(id, user, tx);
+      this.ensureStatusTransition(current.status, targetStatus, current.operationForm?.status);
+      this.ensureBookingValues(
+        {
+          startDate: current.startDate,
+          endDate: current.endDate,
+          paxCount: current.paxCount,
+          totalSellPrice: current.totalSellPrice,
+        },
+        current.tourProgram.durationDays,
+      );
+      return tx.booking.update({
+        where: { id },
+        data: { status: targetStatus },
+        select: this.detailSelect(),
+      });
     });
   }
 
@@ -313,8 +322,8 @@ export class BookingsService {
     return bookingScopeWhere(where, user);
   }
 
-  private async loadForMutation(id: string, user?: RequestUser) {
-    const booking = await this.prisma.booking.findFirst({
+  private async loadForMutation(id: string, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const booking = await client.booking.findFirst({
       where: this.scopeWhere({ id, deletedAt: null }, user),
       select: this.mutationSelect(),
     });
