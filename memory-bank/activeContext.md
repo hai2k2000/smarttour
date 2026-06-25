@@ -3215,3 +3215,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Refactored `FilesService.assertObjectAccess()` to use a root dispatch map while preserving customer/supplier/guide/FIT/finance authorization behavior.
   - Added `scripts/audit-orphan-files.js`, a dry-run-first MinIO orphan object audit that prints object key, inferred root/entity, reason, size, and lastModified; deletion requires explicit `--delete`.
   - Updated ops/readiness docs with the orphan audit workflow and warning not to automate deletion.
+
+- 2026-06-25 Phase 4 file smoke follow-up:
+  - Created/reset the live `admin` account (`admin@smarttour.local`) with the existing `super_admin` role so authenticated file smoke tests can run.
+  - Ran `npm run smoke:files` against the live local API with the new admin credential; the smoke completed with `SMOKE_FILES_OK`.
+  - The credential itself is intentionally not stored in repo or Memory Bank; rotate/change it after handoff.

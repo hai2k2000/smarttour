@@ -2816,3 +2816,7 @@
   - Orphan storage audit dry-run completed successfully: scanned 9 MinIO objects, found 7 orphan candidates, referenced 2 objects, and deleted 0 objects.
   - Verification passed: `npm run build --workspace apps/api`, `node scripts/test-phase4-refactor-cleanup-contract.js`, `node scripts/test-finance-query-validation-contract.js`, `bash scripts/test-report-query-validation.sh`, `node scripts/test-suppliers-sensitive-fields-contract.js`, `node scripts/test-file-upload-scope-contract.js`, `node scripts/audit-orphan-files.js --dry-run`, `bash scripts/healthcheck.sh`, and `bash scripts/security-audit.sh`.
   - Note: API workspace still has no `typecheck` script, so API build remains the TypeScript verification command. `npm run smoke:files` was not run because `ADMIN_PASSWORD` is not configured in the shell; the script aborts before making requests.
+
+- 2026-06-25 Completed file smoke verification follow-up:
+  - The previous Phase 4 verification gap is closed: `npm run smoke:files` now passes with `SMOKE_FILES_OK` after provisioning/resetting the live admin account.
+  - Admin credential was shared only in the operator chat and must be changed after first login.
