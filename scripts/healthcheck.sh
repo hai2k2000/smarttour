@@ -7,6 +7,7 @@ REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DISASTER_BACKUP_DIR="${DISASTER_BACKUP_DIR:-/var/backups/smarttour/disaster}"
 RESTORE_DRILL_LOG="${RESTORE_DRILL_LOG:-/var/log/smarttour/restore-drill.log}"
+RESTORE_DRILL_STATE="${RESTORE_DRILL_STATE:-/var/lib/smarttour/restore-drill.ok}"
 RESTORE_DRILL_SERVICE="${RESTORE_DRILL_SERVICE:-smarttour-restore-drill.service}"
 DOCKER_CHECK_TIMEOUT="${DOCKER_CHECK_TIMEOUT:-10s}"
 SYSTEMD_CHECK_TIMEOUT="${SYSTEMD_CHECK_TIMEOUT:-10s}"
@@ -236,24 +237,24 @@ else
   fi
 fi
 
-if [[ ! -f "$RESTORE_DRILL_LOG" ]]; then
-  echo "FAIL_RESTORE_DRILL missing_log log=$RESTORE_DRILL_LOG"
+if [[ ! -f "$RESTORE_DRILL_STATE" ]]; then
+  echo "FAIL_RESTORE_DRILL missing_state state=$RESTORE_DRILL_STATE"
   failures=$((failures + 1))
-elif ! run_healthcheck_file_read grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_LOG"; then
-  echo "FAIL_RESTORE_DRILL missing_success_marker log=$RESTORE_DRILL_LOG"
+elif ! run_healthcheck_file_read grep -Fq 'RESTORE_DRILL_OK' "$RESTORE_DRILL_STATE"; then
+  echo "FAIL_RESTORE_DRILL missing_success_marker state=$RESTORE_DRILL_STATE"
   failures=$((failures + 1))
 else
-  restore_drill_epoch="$(run_healthcheck_file_read stat -c '%Y' "$RESTORE_DRILL_LOG")"
+  restore_drill_epoch="$(run_healthcheck_file_read stat -c '%Y' "$RESTORE_DRILL_STATE")"
   restore_drill_age_hours=$(( ($(date +%s) - restore_drill_epoch) / 3600 ))
   restore_drill_result="$(run_systemd_check show "$RESTORE_DRILL_SERVICE" -p Result --value 2>/dev/null || true)"
   if [[ "$restore_drill_age_hours" -gt "${RESTORE_DRILL_MAX_AGE_HOURS:-192}" ]]; then
-    echo "FAIL_RESTORE_DRILL stale age=${restore_drill_age_hours}h log=$RESTORE_DRILL_LOG"
+    echo "FAIL_RESTORE_DRILL stale age=${restore_drill_age_hours}h state=$RESTORE_DRILL_STATE"
     failures=$((failures + 1))
   elif [[ "$restore_drill_result" != "success" ]]; then
     echo "FAIL_RESTORE_DRILL result=${restore_drill_result:-unknown} service=$RESTORE_DRILL_SERVICE"
     failures=$((failures + 1))
   else
-    echo "OK_RESTORE_DRILL age=${restore_drill_age_hours}h result=success log=$RESTORE_DRILL_LOG"
+    echo "OK_RESTORE_DRILL age=${restore_drill_age_hours}h result=success state=$RESTORE_DRILL_STATE log=$RESTORE_DRILL_LOG"
   fi
 fi
 

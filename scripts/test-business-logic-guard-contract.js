@@ -73,6 +73,16 @@ for (const needle of [
   includes(operationVouchers, needle, 'Operation voucher payment reconciliation must validate finance payment links and scope.');
 }
 
+includes(
+  operationVouchers,
+  'new RegExp(`^${codePrefix}(\\\\d+)$`)',
+  'Operation voucher payment code parser must match numeric suffixes when seeding CodeSequence from existing finance payment codes.',
+);
+excludes(
+  operationVouchers,
+  'new RegExp(`^${codePrefix}(\\d+)$`)',
+  'Operation voucher payment code parser must not use a string-literal \d escape that becomes a literal d matcher.',
+);
 excludes(
   orderLifecycle,
   "CANCELLED: new Set(['CANCELLED', 'UPCOMING'])",

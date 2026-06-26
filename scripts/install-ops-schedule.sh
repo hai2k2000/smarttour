@@ -28,7 +28,8 @@ fi
 
 run_ops_file_command install -d -m 0750 /var/log/smarttour
 run_ops_file_command install -d -m 0750 /var/log/smarttour/security
-run_ops_file_command chown root:root /var/log/smarttour /var/log/smarttour/security
+run_ops_file_command install -d -m 0750 /var/lib/smarttour
+run_ops_file_command chown root:root /var/log/smarttour /var/log/smarttour/security /var/lib/smarttour
 run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chown root:root {} +
 run_ops_file_scan /var/log/smarttour -maxdepth 1 -type f -name '*.log' -exec chmod 0640 {} +
 run_ops_file_scan /var/log/smarttour/security -maxdepth 1 -type f -name 'nginx-host-report-*.txt' -exec chown root:root {} +
@@ -45,6 +46,7 @@ API_URL=https://aitour.io.vn/api
 BACKUP_MAX_AGE_HOURS=30
 DISASTER_BACKUP_MAX_AGE_HOURS=192
 RESTORE_DRILL_MAX_AGE_HOURS=192
+RESTORE_DRILL_STATE=/var/lib/smarttour/restore-drill.ok
 KEEP_DAYS=14
 DISASTER_KEEP_BACKUPS=4
 # Set this to bound the daily PostgreSQL dump command.

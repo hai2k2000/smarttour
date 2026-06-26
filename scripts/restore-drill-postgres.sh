@@ -8,6 +8,7 @@ BACKUP_DIR="${BACKUP_DIR:-$REPO_DIR/backups/postgres}"
 DRILL_DB="${DRILL_DB:-smarttour_restore_drill_$(date +%Y%m%d%H%M%S)}"
 KEEP_RESTORE_DRILL_DB="${KEEP_RESTORE_DRILL_DB:-0}"
 RESTORE_DRILL_COMMAND_TIMEOUT="${RESTORE_DRILL_COMMAND_TIMEOUT:-30m}"
+RESTORE_DRILL_STATE="${RESTORE_DRILL_STATE:-/var/lib/smarttour/restore-drill.ok}"
 BACKUP_CHECKSUM_TIMEOUT="${BACKUP_CHECKSUM_TIMEOUT:-5m}"
 BACKUP_COMPRESSION_TIMEOUT="${BACKUP_COMPRESSION_TIMEOUT:-30m}"
 BACKUP_FILE_SCAN_TIMEOUT="${BACKUP_FILE_SCAN_TIMEOUT:-30s}"
@@ -34,6 +35,15 @@ run_restore_drill_file_scan() {
 
 run_restore_drill_text_filter() {
   timeout "$BACKUP_TEXT_FILTER_TIMEOUT" "$@"
+}
+
+write_restore_drill_state() {
+  local message="$1"
+  local state_dir
+  state_dir="$(dirname "$RESTORE_DRILL_STATE")"
+  install -d -m 0750 "$state_dir"
+  printf '%s\n' "$message" > "$RESTORE_DRILL_STATE"
+  chmod 0640 "$RESTORE_DRILL_STATE"
 }
 
 validate_drill_db_name() {
@@ -98,4 +108,6 @@ SELECT 'ROLES ' || COUNT(*) FROM "Role";
 SELECT 'ROLE_PERMISSIONS ' || COUNT(*) FROM "RolePermission";
 SQL
 
-echo "RESTORE_DRILL_OK $backup_file -> $DRILL_DB"
+restore_drill_message="RESTORE_DRILL_OK $backup_file -> $DRILL_DB"
+echo "$restore_drill_message"
+write_restore_drill_state "$restore_drill_message"

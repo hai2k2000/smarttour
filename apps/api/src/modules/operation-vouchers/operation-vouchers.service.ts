@@ -402,7 +402,7 @@ export class OperationVouchersService {
     const codePrefix = `PC-${yearMonth}-`;
     const existingCodes = await tx.financePayment.findMany({ where: { voucherCode: { startsWith: codePrefix } }, select: { voucherCode: true } });
     const maxExistingNo = existingCodes.reduce((max, row) => {
-      const match = row.voucherCode.match(new RegExp(`^${codePrefix}(\d+)$`));
+      const match = row.voucherCode.match(new RegExp(`^${codePrefix}(\\d+)$`));
       const value = match ? Number(match[1]) : 0;
       return Number.isFinite(value) && value > max ? value : max;
     }, 0);

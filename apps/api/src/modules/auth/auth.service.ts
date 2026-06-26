@@ -532,9 +532,13 @@ export class AuthService {
   }
 
   private clientIp(request?: SessionRequest) {
-    const forwardedFor = request?.headers?.['x-forwarded-for'];
-    const firstForwarded = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-    return (firstForwarded?.split(',')[0]?.trim() || request?.ip || 'unknown-ip').toLowerCase();
+    const realIp = this.headerValue(request?.headers?.['x-real-ip']);
+    return (realIp || request?.ip || 'unknown-ip').toLowerCase();
+  }
+
+  private headerValue(value?: string | string[]) {
+    const single = Array.isArray(value) ? value[0] : value;
+    return single?.split(',')[0]?.trim();
   }
 
   private async sessionResponse(tx: Prisma.TransactionClient, userId: string, request?: SessionRequest) {

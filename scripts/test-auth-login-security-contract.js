@@ -15,6 +15,15 @@ function envValue(name) {
   return line ? line.slice(name.length + 1) : '';
 }
 
+function assertFileIncludes(file, expected) {
+  const content = fs.readFileSync(path.join(repoDir, file), 'utf8');
+  if (!content.includes(expected)) throw new Error(`${file} must include ${expected}`);
+}
+
+assertFileIncludes('apps/api/src/modules/auth/auth.service.ts', "const realIp = this.headerValue(request?.headers?.['x-real-ip']);");
+assertFileIncludes('apps/api/src/modules/auth/auth.service.ts', "return (realIp || request?.ip || 'unknown-ip').toLowerCase();");
+assertFileIncludes('deploy/nginx/default.conf', 'proxy_set_header X-Forwarded-For $remote_addr;');
+
 const postgresPassword = process.env.POSTGRES_PASSWORD || envValue('POSTGRES_PASSWORD');
 if (!postgresPassword) {
   console.error('FAIL_AUTH_LOGIN_SECURITY_TEST missing POSTGRES_PASSWORD');
@@ -94,6 +103,33 @@ async function main() {
 
   const otherIpLogin = await auth.login({ username: 'admin', password }, { ...throttledRequest, ip: '10.42.0.100' });
   assert(otherIpLogin.token, 'throttle key should include IP and not block a legitimate login from a different address');
+
+  const spoofedForwardedForBaseRequest = {
+    headers: { 'user-agent': 'auth-login-security-contract', 'x-real-ip': '10.42.0.110' },
+    ip: '172.18.0.10',
+  };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const requestWithSpoofedForwardedFor = {
+      ...spoofedForwardedForBaseRequest,
+      headers: {
+        ...spoofedForwardedForBaseRequest.headers,
+        'x-forwarded-for': '203.0.113.' + attempt,
+      },
+    };
+    const error = await errorFrom(() => auth.login({ username: 'admin', password: 'WrongPass123' }, requestWithSpoofedForwardedFor));
+    assert(error instanceof UnauthorizedException, 'spoofed X-Forwarded-For attempts before throttle should remain sanitized 401');
+  }
+  const spoofedForwardedForThrottled = await errorFrom(() => auth.login(
+    { username: 'admin', password: 'WrongPass123' },
+    {
+      ...spoofedForwardedForBaseRequest,
+      headers: {
+        ...spoofedForwardedForBaseRequest.headers,
+        'x-forwarded-for': '203.0.113.250',
+      },
+    },
+  ));
+  assert(spoofedForwardedForThrottled.status === 429, 'throttle must use trusted X-Real-IP instead of client-spoofed X-Forwarded-For');
 
   await prisma.$disconnect();
   console.log('TEST_AUTH_LOGIN_SECURITY_CONTRACT_OK');
