@@ -5,14 +5,14 @@ const root = process.cwd();
 const checks = [
   {
     file: 'apps/api/src/modules/tours/tours.service.ts',
-    sectionStart: 'list(search?: string',
+    sectionStart: 'list(query: ListToursQueryDto',
     sectionEnd: 'async detail',
     must: ['private listSelect()', 'select: this.listSelect()'],
     forbidden: ['include: {\n        order: true', 'fitTour: true,'],
   },
   {
     file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
-    sectionStart: 'list(search?: string',
+    sectionStart: 'list(input: ListTourProgramsQueryDto',
     sectionEnd: 'async detail',
     must: ['private listSelect()', 'select: this.listSelect()'],
     forbidden: ['itineraryDays: { orderBy: { dayNumber: \'asc\' } }'],
@@ -138,14 +138,14 @@ const checks = [
   },
   {
     file: 'apps/api/src/modules/quotes/quotes.service.ts',
-    sectionStart: 'listTourQuotes(search',
+    sectionStart: 'listTourQuotes(query',
     sectionEnd: 'async getTourQuote',
     must: ['include: { _count: { select: { costItems: true, itineraries: true } } }'],
     forbidden: ['costItems: {', 'itineraries: {'],
   },
   {
     file: 'apps/api/src/modules/quotes/quotes.service.ts',
-    sectionStart: 'listComboQuotes(search',
+    sectionStart: 'listComboQuotes(query',
     sectionEnd: 'async getComboQuote',
     must: ['include: { _count: { select: { items: true } } }'],
     forbidden: ['items: {'],

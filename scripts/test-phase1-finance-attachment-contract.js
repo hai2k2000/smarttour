@@ -16,4 +16,33 @@ assert(
   'Finance receipt/payment data must not persist attachmentUrl from DTO',
 );
 
+function methodSection(sourceText, startToken, endToken) {
+  const start = sourceText.indexOf(startToken);
+  assert(start >= 0, `${startToken} must exist in finance service`);
+  const end = sourceText.indexOf(endToken, start);
+  assert(end > start, `${endToken} must follow ${startToken}`);
+  return sourceText.slice(start, end);
+}
+
+const financeFileGuardChecks = [
+  { name: 'uploadReceiptFile', start: 'async uploadReceiptFile', end: 'async deleteReceiptFile', before: 'this.filesService.upload(' },
+  { name: 'deleteReceiptFile', start: 'async deleteReceiptFile', end: 'async createReceipt', before: 'this.prisma.financeReceipt.update(' },
+  { name: 'uploadPaymentFile', start: 'async uploadPaymentFile', end: 'async deletePaymentFile', before: 'this.filesService.upload(' },
+  { name: 'deletePaymentFile', start: 'async deletePaymentFile', end: 'async createPayment', before: 'this.prisma.financePayment.update(' },
+  { name: 'uploadInvoiceFile', start: 'async uploadInvoiceFile', end: 'async deleteInvoiceFile', before: 'this.filesService.upload(' },
+  { name: 'deleteInvoiceFile', start: 'async deleteInvoiceFile', end: 'async createInvoice', before: 'this.prisma.financeInvoiceFile.findFirst(' },
+];
+
+assert(!/assertCanUpdateFinanceEntity\(current, '[^']*\?/.test(service), 'Finance final-state guard labels must not contain mojibake placeholders');
+
+for (const check of financeFileGuardChecks) {
+  const section = methodSection(service, check.start, check.end);
+  const guardMatch = section.match(/assertCanUpdateFinanceEntity\(current,\s*['\"][^'\"]+['\"]\)/);
+  const guardIndex = guardMatch ? guardMatch.index : -1;
+  const beforeIndex = section.indexOf(check.before);
+  assert(guardIndex >= 0, `${check.name} must guard final-state finance entities before file changes`);
+  assert(beforeIndex >= 0, `${check.name} must contain ${check.before}`);
+  assert(guardIndex < beforeIndex, `${check.name} must guard final-state finance entities before ${check.before}`);
+}
+
 console.log('TEST_PHASE1_FINANCE_ATTACHMENT_CONTRACT_OK');

@@ -143,6 +143,7 @@ export class FinanceService {
     user?: RequestUser,
   ) {
     const current = await this.receiptDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
     const upload = await this.filesService.upload(file, `finance/receipts/${id}`, actorId);
     try {
       const updated = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
@@ -157,6 +158,7 @@ export class FinanceService {
 
   async deleteReceiptFile(id: string, user?: RequestUser) {
     const current = await this.receiptDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
     const objectKey = this.objectKey(current.attachmentUrl);
     const receipt = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
     if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
@@ -338,6 +340,7 @@ export class FinanceService {
     user?: RequestUser,
   ) {
     const current = await this.paymentDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
     const upload = await this.filesService.upload(file, `finance/payments/${id}`, actorId);
     try {
       const updated = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
@@ -352,6 +355,7 @@ export class FinanceService {
 
   async deletePaymentFile(id: string, user?: RequestUser) {
     const current = await this.paymentDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
     const objectKey = this.objectKey(current.attachmentUrl);
     const payment = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
     if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
@@ -469,7 +473,8 @@ export class FinanceService {
     actorId?: string,
     user?: RequestUser,
   ) {
-    await this.invoiceDetail(id, user);
+    const current = await this.invoiceDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
     const upload = await this.filesService.upload(file, `finance/invoices/${id}`, actorId);
     try {
       return await this.prisma.financeInvoiceFile.create({
@@ -482,7 +487,8 @@ export class FinanceService {
   }
 
   async deleteInvoiceFile(id: string, fileId: string, user?: RequestUser) {
-    await this.invoiceDetail(id, user);
+    const current = await this.invoiceDetail(id, user);
+    assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
     if (!file) throw new NotFoundException('Không tìm thấy file hóa đơn');
     const objectKey = this.objectKey(file.fileUrl);
