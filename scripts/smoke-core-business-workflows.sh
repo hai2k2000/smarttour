@@ -305,6 +305,7 @@ async function createOrder(type, suffix, customer, extra = {}) {
   mark('CREATE_CUSTOMER_OK');
   const updatedCustomer = await request('PUT', `/customers/${customer.id}`, {
     phone: customer.phone,
+    replaceNestedCollections: true,
     contacts: [{ fullName: 'Core Updated Contact', phone: '0912000000', email: 'updated@example.test' }],
   });
   assert(updatedCustomer.contacts?.[0]?.fullName === 'Core Updated Contact', 'customer contact update failed');

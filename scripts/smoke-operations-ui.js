@@ -6,6 +6,8 @@ const path = require('path');
 const site = process.env.SITE_URL || 'https://aitour.io.vn';
 const api = process.env.API_URL || 'http://127.0.0.1:4000/api';
 const username = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL || 'admin';
+const isEmailLike = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+const loginEmail = process.env.ADMIN_EMAIL || (isEmailLike(username) ? username : undefined);
 const password = process.env.ADMIN_PASSWORD || '';
 const existingToken = process.env.ADMIN_TOKEN || '';
 const outDir = process.env.OUT_DIR || '/tmp/smarttour-operations-ui-smoke';
@@ -70,7 +72,7 @@ async function getSession() {
   const response = await fetch(api + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: username, username, password }),
+    body: JSON.stringify({ ...(loginEmail ? { email: loginEmail } : {}), username, password }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.user) {

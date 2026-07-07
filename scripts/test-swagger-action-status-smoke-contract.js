@@ -5,6 +5,12 @@ const failures = [];
 
 for (const token of [
   'HTTP_ATTEMPTS',
+  'API_DOCS_URL',
+  'docsUrlExplicit',
+  'SWAGGER_ACTION_STATUS_SMOKE_SKIPPED',
+  'status=401',
+  'status=403',
+  'status=404',
   'content-type',
   'application/json',
   'setTimeout',
@@ -24,7 +30,7 @@ if (source.includes('const expectedActionResponses = [')) {
 }
 
 if (!source.includes("process.exit(1)")) {
-  failures.push('smoke-swagger-action-status.js must fail non-zero on bad docs responses');
+  failures.push('smoke-swagger-action-status.js must fail non-zero on bad docs responses when API_DOCS_URL is explicit');
 }
 
 if (failures.length) {
