@@ -28,9 +28,10 @@ for (const token of [
   'this.filesService.uploadAuthorized(file, dto.scope, request.user)',
   'async download(@Query() query: FileObjectKeyQueryDto',
   '@Res() response: ServerResponse',
-  'downloadAuthorized(query.key, request.user)',
+  'const key = query.key;',
+  'downloadAuthorized(key, request.user)',
   'remove(@Query() query: FileObjectKeyQueryDto',
-  'removeAuthorized(query.key, request.user)',
+  'removeAuthorized(key, request.user)',
 ]) {
   if (!controller.includes(token)) failures.push(`FilesController missing ${token}`);
 }

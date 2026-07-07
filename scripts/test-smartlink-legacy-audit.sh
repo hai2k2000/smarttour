@@ -97,8 +97,10 @@ async function main() {
 
   const deployScript = fs.readFileSync('/workspace/scripts/deploy-production.sh', 'utf8');
   const buildIndex = deployScript.indexOf('run_deploy_compose_build build api web');
-  const guardMatch = deployScript.match(/smartlink-legacy-audit\.sh["']?\s+--mode=guard/);
-  const guardIndex = guardMatch ? guardMatch.index : -1;
+  const directGuardMatch = deployScript.match(/smartlink-legacy-audit\.sh["']?\s+--mode=guard/);
+  const wrapperGuardMatch = deployScript.match(/run_deploy_smartlink_guard\s+--mode=guard/);
+  const guardIndex = directGuardMatch ? directGuardMatch.index : (wrapperGuardMatch ? wrapperGuardMatch.index : -1);
+  assert(deployScript.includes('smartlink-legacy-audit.sh'), 'production deploy SmartLink guard wrapper must call the SmartLink legacy audit script');
   assert(guardIndex >= 0 && guardIndex < buildIndex, 'production deploy must run SmartLink legacy guard before build');
 
   const packageJson = JSON.parse(fs.readFileSync('/workspace/package.json', 'utf8'));
