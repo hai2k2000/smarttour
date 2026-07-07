@@ -113,7 +113,10 @@ async function assertFinanceAttachmentDeleteRollback(kind) {
   else await assert.rejects(() => service.deletePaymentFile('payment-1'), /remove failed/);
 
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
-  assert.deepEqual(updates, []);
+  assert.deepEqual(updates, [
+    { attachmentName: null, attachmentUrl: null },
+    { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl },
+  ]);
 }
 
 async function assertFinanceInvoiceUploadCleanup() {
@@ -142,7 +145,8 @@ async function assertFinanceInvoiceDeleteRollback() {
 
   await assert.rejects(() => service.deleteInvoiceFile('invoice-1', 'invoice-file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
-  assert.equal(restored.length, 0);
+  assert.equal(restored[0].id, invoiceFile.id);
+  assert.equal(restored[0].fileUrl, invoiceFile.fileUrl);
 }
 
 async function assertSupplierUploadCleanup() {

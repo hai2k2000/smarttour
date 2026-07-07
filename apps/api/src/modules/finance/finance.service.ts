@@ -161,8 +161,15 @@ export class FinanceService {
     assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
     const objectKey = this.objectKey(current.attachmentUrl);
     const receipt = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
-    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
-    return receipt;
+    try {
+      if (objectKey) await this.filesService.removeIfPresent(objectKey);
+      return receipt;
+    } catch (error) {
+      await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl } }).catch(() => {
+        throw new BadRequestException('Xoa file phieu thu that bai va khong khoi phuc duoc metadata file');
+      });
+      throw error;
+    }
   }
 
   async createReceipt(dto: AnyRecord, user?: RequestUser) {
@@ -358,8 +365,15 @@ export class FinanceService {
     assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
     const objectKey = this.objectKey(current.attachmentUrl);
     const payment = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
-    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
-    return payment;
+    try {
+      if (objectKey) await this.filesService.removeIfPresent(objectKey);
+      return payment;
+    } catch (error) {
+      await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl } }).catch(() => {
+        throw new BadRequestException('Xoa file phieu chi that bai va khong khoi phuc duoc metadata file');
+      });
+      throw error;
+    }
   }
 
   async createPayment(dto: AnyRecord, user?: RequestUser) {
@@ -490,11 +504,28 @@ export class FinanceService {
     const current = await this.invoiceDetail(id, user);
     assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
     const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
-    if (!file) throw new NotFoundException('Không tìm thấy file hóa đơn');
+    if (!file) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y file h\u00f3a \u0111\u01a1n');
     const objectKey = this.objectKey(file.fileUrl);
     const deleted = await this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
-    if (objectKey) await this.filesService.removeIfPresent(objectKey).catch(() => undefined);
-    return deleted;
+    try {
+      if (objectKey) await this.filesService.removeIfPresent(objectKey);
+      return deleted;
+    } catch (error) {
+      await this.prisma.financeInvoiceFile.create({
+        data: {
+          id: deleted.id,
+          invoiceId: deleted.invoiceId,
+          fileName: deleted.fileName,
+          fileUrl: deleted.fileUrl,
+          fileType: deleted.fileType,
+          uploadedBy: deleted.uploadedBy,
+          createdAt: deleted.createdAt,
+        },
+      }).catch(() => {
+        throw new BadRequestException('Xoa file hoa don that bai va khong khoi phuc duoc metadata file');
+      });
+      throw error;
+    }
   }
 
   async createInvoice(dto: AnyRecord, user?: RequestUser) {

@@ -10,18 +10,21 @@ function functionBody(name) {
   return service.slice(start, next === -1 ? service.length : next);
 }
 
-function assertDbBeforeObjectDelete(name, dbPattern) {
+function assertRollbackObjectDelete(name, dbPattern) {
   const body = functionBody(name);
   const dbIndex = body.search(dbPattern);
   const objectIndex = body.indexOf('removeIfPresent');
   assert(dbIndex !== -1, `${name} must update/delete database metadata`);
   assert(objectIndex !== -1, `${name} must remove the object after database metadata changes`);
   assert(dbIndex < objectIndex, `${name} must change database metadata before removing the object`);
-  assert(/removeIfPresent\(objectKey\)\.catch\(\(\) => undefined\)/.test(body), `${name} must remove the object best-effort after DB changes`);
+  assert(body.includes('try {'), `${name} must catch object removal failures`);
+  assert(body.includes('catch (error)'), `${name} must catch object removal failures`);
+  assert(!/removeIfPresent\(objectKey\)\.catch\(\(\) => undefined\)/.test(body), `${name} must not swallow object removal failures`);
+  assert(/throw error;/.test(body), `${name} must rethrow object removal failures after rollback`);
 }
 
-assertDbBeforeObjectDelete('deleteReceiptFile', /financeReceipt\.update/);
-assertDbBeforeObjectDelete('deletePaymentFile', /financePayment\.update/);
-assertDbBeforeObjectDelete('deleteInvoiceFile', /financeInvoiceFile\.delete/);
+assertRollbackObjectDelete('deleteReceiptFile', /financeReceipt\.update/);
+assertRollbackObjectDelete('deletePaymentFile', /financePayment\.update/);
+assertRollbackObjectDelete('deleteInvoiceFile', /financeInvoiceFile\.delete/);
 
 console.log('TEST_PHASE2_FINANCE_FILE_DELETE_CONTRACT_OK');
