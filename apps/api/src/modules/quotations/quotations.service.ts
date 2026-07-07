@@ -515,7 +515,10 @@ export class QuotationsService {
   }
 
   private assertSmartLinkPublishable(quote: { expiredDate?: Date | null }) {
-    if (quote.expiredDate && quote.expiredDate.getTime() <= Date.now()) {
+    if (!quote.expiredDate) {
+      throw new BadRequestException('B\u00e1o gi\u00e1 ch\u01b0a c\u00f3 ng\u00e0y h\u1ebft h\u1ea1n kh\u00f4ng th\u1ec3 b\u1eadt SmartLink.');
+    }
+    if (quote.expiredDate.getTime() <= Date.now()) {
       throw new BadRequestException('B\u00e1o gi\u00e1 \u0111\u00e3 h\u1ebft h\u1ea1n kh\u00f4ng th\u1ec3 b\u1eadt SmartLink.');
     }
   }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { NotFoundException } = require('@nestjs/common');
+const { BadRequestException, NotFoundException } = require('@nestjs/common');
 const { QuotationsService } = require('../apps/api/dist/modules/quotations/quotations.service');
 
 function assert(condition, label) {
@@ -49,6 +49,32 @@ async function main() {
   assert(capturedWhere.smartLinkEnabled === true, 'public SmartLink must require enabled links');
   assert(capturedWhere.status === 'APPROVED', 'public SmartLink must require APPROVED status');
   assert(capturedWhere.expiredDate && capturedWhere.expiredDate.gt instanceof Date, 'public SmartLink must require expiredDate greater than now');
+
+  let updateCalled = false;
+  const noExpiryService = new QuotationsService({
+    quotation: {
+      findFirst: async () => ({
+        id: 'quote-no-expiry',
+        status: 'APPROVED',
+        expiredDate: null,
+        smartLinkEnabled: false,
+        smartLinkToken: 'C'.repeat(43),
+        items: [],
+        logs: [],
+      }),
+      update: async () => {
+        updateCalled = true;
+        return {};
+      },
+    },
+  });
+  try {
+    await noExpiryService.smartLink('quote-no-expiry', true);
+    throw new Error('SmartLink without expiredDate should not enable');
+  } catch (error) {
+    assert(error instanceof BadRequestException, 'SmartLink without expiredDate must be rejected before publishing');
+  }
+  assert(!updateCalled, 'SmartLink without expiredDate must not update the quotation');
 
   const missingService = new QuotationsService({ quotation: { findFirst: async () => null } });
   for (const badToken of ['bad-token', 'B'.repeat(42), 'B'.repeat(44)]) {

@@ -77,14 +77,16 @@ seed_admin_if_needed
 export API_URL SITE_URL RUN_ID ROLE_PASSWORD
 
 wait_for_api() {
-  local docs_url="${API_URL%/api}/docs-json"
+  local ready_url="${API_URL%/}/quotations/public/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  local status
   for _ in $(seq 1 30); do
-    if curl -fsS "$docs_url" >/dev/null 2>&1; then
+    status="$(curl -sS -o /dev/null -w '%{http_code}' "$ready_url" 2>/dev/null || true)"
+    if [[ "$status" == "200" || "$status" == "400" || "$status" == "401" || "$status" == "404" ]]; then
       return 0
     fi
     sleep 2
   done
-  echo "API did not become ready at $docs_url" >&2
+  echo "API did not become ready at $ready_url" >&2
   return 1
 }
 
@@ -508,20 +510,23 @@ function assertLoadableQuotation(row) {
   const quotationList = await request(admin, 'GET', `/quotations?search=${encodeURIComponent(run)}`);
   assert(includesJson(quotationList, `${run}-QTE`), 'quotation search did not return created quotation');
 
-  const smartOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
-  assert(smartOn.smartLinkEnabled === true, 'smartlink did not enable');
-  assert(/^[A-Za-z0-9_-]{43}$/.test(smartOn.smartLinkToken), 'smartlink token is not cryptographically random');
-  await request(null, 'GET', `/quotations/public/${smartOn.smartLinkToken}`, undefined, [404]);
-  const smartOff = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false });
-  assert(smartOff.smartLinkEnabled === false, 'smartlink did not disable');
-  const smartBackOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
-  assert(smartBackOn.smartLinkEnabled === true, 'smartlink did not re-enable');
-  assert(smartBackOn.smartLinkToken !== smartOn.smartLinkToken, 'smartlink token should rotate when enabled');
+  await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true }, [400]);
 
   const submitted = await request(admin, 'POST', `/quotations/${quotation.id}/submit`, { actor: 'quote-smoke' });
   assert(submitted.status === 'PENDING_APPROVAL', 'quotation submit did not set PENDING_APPROVAL');
   const approved = await request(admin, 'POST', `/quotations/${quotation.id}/approve`, { actor: 'quote-smoke' });
   assert(approved.status === 'APPROVED', 'quotation approve did not set APPROVED');
+  const smartOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
+  assert(smartOn.smartLinkEnabled === true, 'smartlink did not enable');
+  assert(/^[A-Za-z0-9_-]{43}$/.test(smartOn.smartLinkToken), 'smartlink token is not cryptographically random');
+  const repeatedSmartOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
+  assert(repeatedSmartOn.smartLinkToken === smartOn.smartLinkToken, 'smartlink token should stay stable when already enabled');
+  const smartOff = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false });
+  assert(smartOff.smartLinkEnabled === false, 'smartlink did not disable');
+  await request(null, 'GET', `/quotations/public/${smartOn.smartLinkToken}`, undefined, [404]);
+  const smartBackOn = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: true });
+  assert(smartBackOn.smartLinkEnabled === true, 'smartlink did not re-enable');
+  assert(smartBackOn.smartLinkToken !== smartOn.smartLinkToken, 'smartlink token should rotate when enabled');
   const publicDetail = await request(null, 'GET', `/quotations/public/${smartBackOn.smartLinkToken}`);
   assert(publicDetail.quoteCode === quotation.quoteCode, 'public smartlink did not load quotation');
   for (const field of ['id', 'customerCode', 'customerPhone', 'customerEmail', 'salesOwner', 'operatorOwner', 'branch', 'department', 'totalCost', 'totalMarkup', 'costPerPax', 'profitPerPax', 'marginRate', 'smartLinkToken', 'note', 'logs']) {
@@ -532,7 +537,8 @@ function assertLoadableQuotation(row) {
   assert(converted.status === 'CONVERTED' && converted.convertedOrderId, 'quotation convert did not create order link');
   assert(converted.logs.every((log) => log.actor !== 'quote-smoke'), 'quotation workflow logs should not trust client-supplied actor');
   assertQuotationTotals(converted, 3);
-  await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false }, [400]);
+  const disabledAfterConvert = await request(admin, 'PATCH', `/quotations/${quotation.id}/smartlink`, { enabled: false });
+  assert(disabledAfterConvert.smartLinkEnabled === false, 'converted quotation smartlink did not disable');
   await request(admin, 'POST', `/quotations/${quotation.id}/submit`, { actor: 'quote-smoke' }, [400]);
 
   const order = await request(admin, 'GET', `/orders/fit-tours/${converted.convertedOrderId}`);

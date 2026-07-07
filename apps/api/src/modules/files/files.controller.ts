@@ -28,7 +28,8 @@ export class FilesController {
   @Get('download')
   @RequirePermissions('file.view')
   async download(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }, @Res() response: ServerResponse) {
-    const file = await this.filesService.downloadAuthorized(query.key, request.user);
+    const key = query.key;
+    const file = await this.filesService.downloadAuthorized(key, request.user);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.size));
     response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
@@ -38,6 +39,7 @@ export class FilesController {
   @Delete()
   @RequirePermissions('file.manage')
   remove(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }) {
-    return this.filesService.removeAuthorized(query.key, request.user);
+    const key = query.key;
+    return this.filesService.removeAuthorized(key, request.user);
   }
 }

@@ -119,14 +119,15 @@ async function main() {
   assert(reportsController.includes('this.assertSensitiveExportPermission(report, request?.user)'), 'sensitive report exports need specialized permissions');
   assert(filesController.includes('downloadAuthorized(key, request.user)'), 'generic file download must authorize the parent entity');
   assert(filesController.includes('removeAuthorized(key, request.user)'), 'generic file delete must authorize the parent entity');
-  assert(quotesController.includes('listTourQuotes(search, request?.user)'), 'tour quote list must pass request.user');
+  assert(quotesController.includes('listTourQuotes(query, request?.user)'), 'tour quote list must pass request.user');
   assert(quotesController.includes('getTourQuote(id, request?.user)'), 'tour quote detail must pass request.user');
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.finance), ['report.view', 'finance.cashflow.view']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.customerDebt), ['report.view', 'finance.debt.view']);
-  const reports = new ReportsController({ exportCsv: () => 'ok' });
+  const reports = new ReportsController({ exportCsv: async () => 'ok' });
   const reportOnlyUser = user(null, null, 'data.scope.all', 'report.view', 'report.export');
-  assert.throws(() => reports.export('finance', {}, { user: reportOnlyUser }), /Thiếu quyền xem báo cáo tài chính/);
-  assert.equal(reports.export('finance', {}, { user: user(null, null, 'data.scope.all', 'report.view', 'report.export', 'finance.cashflow.view') }), 'ok');
+  const exportResponse = { setHeader() {} };
+  await assert.rejects(() => reports.export('finance', {}, { user: reportOnlyUser }, exportResponse), /Thi\u1ebfu quy\u1ec1n xem b\u00e1o c\u00e1o t\u00e0i ch\u00ednh/);
+  assert.equal(await reports.export('finance', {}, { user: user(null, null, 'data.scope.all', 'report.view', 'report.export', 'finance.cashflow.view') }, exportResponse), 'ok');
 
   const prisma = new PrismaService();
   await prisma.$connect();
@@ -146,7 +147,7 @@ async function main() {
     data: { code: `${run}-CB`, fullName: 'Shared Customer Name', phone: `091${String(Date.now()).slice(-7)}`, email: `${run.toLowerCase()}-b@example.com`, branch: 'BR-B', department: 'DEP-B' },
   });
 
-  const quotationA = await quotations.create(quotationPayload(`${run}-QA`, 'BR-A', 'DEP-A'), allUser);
+  const quotationA = await quotations.create({ ...quotationPayload(`${run}-QA`, 'BR-A', 'DEP-A'), expiredDate: '2099-01-01' }, allUser);
   await rejects(
     () => quotations.create({ ...quotationPayload(`${run}-Q-BAD-RATE`, 'BR-A', 'DEP-A'), exchangeRate: 0 }, allUser),
     'quotation create should reject zero exchangeRate instead of defaulting it to one',
@@ -186,6 +187,8 @@ async function main() {
   assert(scopedQuotationIds.includes(quotationA.id) && scopedQuotationIds.includes(convertCandidate.id) && !scopedQuotationIds.includes(quotationB.id), 'quotation list must be scoped');
   await rejects(() => quotations.detail(quotationB.id, branchUser), 'quotation detail must be scoped');
 
+  await quotations.submit(quotationA.id, { actor: 'smart-submitter' }, allUser);
+  await quotations.approve(quotationA.id, { actor: 'smart-approver' }, allUser);
   const smart = await quotations.smartLink(quotationA.id, true, allUser);
   assert.match(smart.smartLinkToken, /^[A-Za-z0-9_-]{43}$/, 'SmartLink token must be 32 random bytes encoded as base64url');
   assert(!smart.smartLinkToken.toLowerCase().includes(quotationA.quoteCode.toLowerCase()), 'SmartLink token must not expose quote code');
@@ -207,7 +210,7 @@ async function main() {
   await rejects(() => quotes.createTourQuote(tourPayload(`${run}-TB-BLOCK`, customerB), branchUser), 'scoped tour quote create must reject customer outside scope');
   const tourB = await quotes.createTourQuote(tourPayload(`${run}-TB`, customerB), allUser);
   await prisma.tourQuote.update({ where: { id: tourB.id }, data: { customerId: customerB.id, customerName: customerA.fullName } });
-  assert.deepEqual((await quotes.listTourQuotes(run, branchUser)).map((row) => row.id), [tourA.id], 'tour quote list must be scoped through customer');
+  assert.deepEqual((await quotes.listTourQuotes({ search: run }, branchUser)).map((row) => row.id), [tourA.id], 'tour quote list must be scoped through customer');
   await rejects(() => quotes.getTourQuote(tourB.id, branchUser), 'tour quote detail must reject rows outside scope');
   await rejects(() => quotes.updateTourQuote(tourB.id, { route: 'blocked' }, branchUser), 'tour quote update must reject rows outside scope');
   await rejects(() => quotes.deleteTourQuote(tourB.id, branchUser), 'tour quote delete must reject rows outside scope');
