@@ -294,8 +294,9 @@ async function main() {
 
   const orderRows = await timed('orders.list', () => ordersService.list('fit-tours', run), maxMs);
   assert(orderRows[0]._count && !orderRows[0].salesItems, 'orders list should not include child arrays');
-  const shortSearchRows = await timed('orders.list short search ignored', () => ordersService.list('fit-tours', 'L'), maxMs);
-  assert(shortSearchRows.length === rows, 'one-character list search should not add broad contains filters');
+  const shortSearchRows = await timed('orders.list short search ignored', () => ordersService.list('fit-tours', 'Z'), maxMs);
+  assert(shortSearchRows.length === orderRows.length, 'one-character list search should keep the default page size instead of adding broad contains filters');
+  assert(shortSearchRows.every((row, index) => row.id === orderRows[index].id), 'one-character list search should return the same default page as an unfiltered list');
   const trimmedSearchRows = await timed('orders.list trimmed search', () => ordersService.list('fit-tours', `  ${run}-ORD-1  `), maxMs);
   assert(trimmedSearchRows.length > 0 && trimmedSearchRows.every((row) => row.systemCode.includes(`${run}-ORD-1`)), 'list search should trim leading and trailing whitespace');
   await rejects(() => ordersService.list('fit-tours', 'x'.repeat(81)), 'overlong list search should be rejected');
