@@ -2904,3 +2904,7 @@
 - 2026-07-08 Completed pagination offset alias follow-up:
   - Booking, operation-voucher, and customer list pagination now supports conventional `offset` as an alias for `skip`, with `skip` taking precedence.
   - Verification passed: list limit/offset alias contract, query DTO/finance query contracts, API typecheck/build, Docker API rebuild/restart, live offset probe, `git diff --check`, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed workspace performance follow-up:
+  - Workspace dashboard now requests /api/reports/finance?dateField=documentDate&financeView=customer-debt and bounded /api/finance/receipts?take=20 plus /api/finance/payments?take=10 for small widgets.
+  - Verification passed: performance guard, workspace data permission contract, workspace pages contract, and web typecheck.

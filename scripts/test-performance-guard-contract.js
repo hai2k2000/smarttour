@@ -22,6 +22,7 @@ const quotations = read('apps/api/src/modules/quotations/quotations.service.ts')
 const reports = read('apps/api/src/modules/reports/reports.service.ts');
 const reportDto = read('apps/api/src/modules/reports/dto/report-query.dto.ts');
 const reportsClient = read('apps/web/app/reports/ReportsClient.tsx');
+const workspaceData = read('apps/web/app/workspace/workspace-data.ts');
 
 includes(
   usePermissions,
@@ -164,5 +165,32 @@ for (const needle of [
 ]) {
   includes(reportsClient, needle, 'ReportsClient should not refetch the global reports overview when only switching finance sub-views.');
 }
+
+for (const needle of [
+  "/api/reports/finance?dateField=documentDate&financeView=customer-debt",
+  "/api/finance/receipts?take=20",
+  "/api/finance/payments?take=10",
+]) {
+  includes(
+    workspaceData,
+    needle,
+    'Workspace should use lightweight finance endpoints and bounded rows for dashboard widgets.',
+  );
+}
+excludes(
+  workspaceData,
+  "/api/reports/finance?dateField=documentDate'",
+  'Workspace should not request the legacy full finance report payload.',
+);
+excludes(
+  workspaceData,
+  "/api/finance/receipts'",
+  'Workspace should not load the default 300 receipt rows for small dashboard widgets.',
+);
+excludes(
+  workspaceData,
+  "/api/finance/payments'",
+  'Workspace should not load the default 300 payment rows for small dashboard widgets.',
+);
 
 console.log('TEST_PERFORMANCE_GUARD_CONTRACT_OK');

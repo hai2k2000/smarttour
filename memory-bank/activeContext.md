@@ -3325,3 +3325,8 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added `offset` as an alias for `skip` with `skip` remaining the priority when both are present; customer list now also applies the already-declared `skip`/`offset` pagination instead of only limiting rows.
   - Extended `scripts/test-list-limit-alias-contract.js`; RED confirmed missing offset aliases before the fix, then GREEN passed after DTO/controller/service updates.
   - Rebuilt/restarted API on the VPS. Post-deploy live probe confirmed `offset=1` matches `skip=1` for bookings, operation vouchers, and customers.
+
+- 2026-07-08 Workspace performance follow-up:
+  - Reduced workspace dashboard finance payload by replacing the legacy full /api/reports/finance call with financeView=customer-debt, which still carries finance base summary plus the customer-debt rows used by the page.
+  - Bounded workspace receipt/payment widget fetches to take=20 and take=10 instead of the finance module default rows.
+  - Added performance/permission contract coverage for the lighter workspace calls.

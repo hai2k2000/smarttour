@@ -20,13 +20,13 @@ includes("const canViewQuotations = hasPermission(user, 'quotation.view');", 'Wo
 includes("const canViewReceipts = hasPermission(user, 'finance.receipt.view');", 'Workspace data should calculate receipt view permission.');
 includes("const canViewPayments = hasPermission(user, 'finance.payment.view');", 'Workspace data should calculate payment view permission.');
 includes("canViewReports ? apiGet<WorkspaceSummary>('/api/reports/overview'", 'Workspace should not fetch overview reports without report.view.');
-includes("canViewFinanceReports ? apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate'", 'Workspace should not fetch finance report without finance.cashflow.view.');
+includes("canViewFinanceReports ? apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate&financeView=customer-debt'", 'Workspace should not fetch finance report without finance.cashflow.view.');
 includes("canViewOrders ? apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard'", 'Workspace should not fetch order dashboard without order.view.');
 includes("canViewOrders ? apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120'", 'Workspace should not fetch orders without order.view.');
 includes("canViewOperations ? apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard'", 'Workspace should not fetch operations dashboard without operation.form.view.');
 includes("canViewQuotations ? apiGet<WorkspaceQuotationDashboard>('/api/quotations/dashboard'", 'Workspace should not fetch quotations dashboard without quotation.view.');
-includes("canViewReceipts ? apiGet<{ rows?: WorkspaceReceipt[] }>('/api/finance/receipts'", 'Workspace should not fetch receipts without finance.receipt.view.');
-includes("canViewPayments ? apiGet<{ rows?: WorkspacePayment[] }>('/api/finance/payments'", 'Workspace should not fetch payments without finance.payment.view.');
+includes("canViewReceipts ? apiGet<{ rows?: WorkspaceReceipt[] }>('/api/finance/receipts?take=20'", 'Workspace should not fetch receipts without finance.receipt.view.');
+includes("canViewPayments ? apiGet<{ rows?: WorkspacePayment[] }>('/api/finance/payments?take=10'", 'Workspace should not fetch payments without finance.payment.view.');
 includes("canViewReports ? apiGet<WorkspaceReportData>('/api/reports/revenue/by-type?dateField=createdAt'", 'Workspace overview should not fetch product reports without report.view.');
 includes("canViewReports ? apiGet<WorkspaceReportData>('/api/reports/revenue/by-market?dateField=createdAt'", 'Workspace overview should not fetch market reports without report.view.');
 
