@@ -3301,3 +3301,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated the Reports UI to request only the active finance sub-view, merge sub-view responses into existing report state, and keep filter/reset/tab reload behavior aligned with the selected view.
   - Live VPS timings after container deploy: legacy full payload remains about 839KB and ~254-265ms warm; `overview` is ~1.6KB/~57ms, and detail views are materially smaller/faster than the full response.
   - Verification passed before commit: performance guard, finance hybrid contract, report permissions/query-validation contracts, API/Web lint and builds, Docker API/Web rebuild, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Finance sub-view request trim follow-up:
+  - Found one remaining frontend request fan-out after finance lazy-view deployment: switching a finance sub-view still refetched `/api/reports/overview` even though only the finance detail view changed.
+  - Updated `ReportsClient` so `reason === 'finance-view'` skips the global overview request, preserves the existing overview state, and fetches only the selected finance sub-view.
+  - Added contract coverage in `scripts/test-performance-guard-contract.js`; RED confirmed the missing `shouldLoadOverview` guard before the frontend fix, then GREEN passed after the scoped change.
+  - Rebuilt/restarted the web deployment path on the VPS; Docker Compose also recreated API due service dependencies, and post-deploy `scripts/healthcheck.sh` passed.

@@ -157,4 +157,12 @@ for (const needle of [
   includes(reportsClient, needle, 'ReportsClient should lazy-load finance sub-views instead of fetching every finance detail table up front.');
 }
 
+for (const needle of [
+  "const shouldLoadOverview = reason !== 'finance-view';",
+  'const overviewRequest = shouldLoadOverview',
+  'else if (shouldLoadOverview) failures.push',
+]) {
+  includes(reportsClient, needle, 'ReportsClient should not refetch the global reports overview when only switching finance sub-views.');
+}
+
 console.log('TEST_PERFORMANCE_GUARD_CONTRACT_OK');

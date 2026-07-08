@@ -516,24 +516,30 @@ export default function ReportsClient({
     const reportQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, true, nextFinanceView));
     const endpoint = endpointFor(nextActive, nextGroupBy);
     const apiBase = browserApiBase();
+    const shouldLoadOverview = reason !== 'finance-view';
 
     try {
-      const [overviewResult, reportResult] = await Promise.allSettled([
-        fetch(`${apiBase}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+      const overviewRequest = shouldLoadOverview
+        ? fetch(`${apiBase}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
           if (!response.ok) throw new Error(await responseError(response, 'Không tải được Tổng quan'));
           return response.json() as Promise<Overview>;
-        }),
-        fetch(`${apiBase}/api${endpoint}${reportQuery ? `?${reportQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
-          if (!response.ok) throw new Error(await responseError(response, `Không tải được báo cáo ${tabLabels[nextActive]}`));
-          return response.json() as Promise<ReportData>;
-        }),
+        })
+        : Promise.resolve(null);
+      const reportRequest = fetch(`${apiBase}/api${endpoint}${reportQuery ? `?${reportQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+        if (!response.ok) throw new Error(await responseError(response, `Không tải được báo cáo ${tabLabels[nextActive]}`));
+        return response.json() as Promise<ReportData>;
+      });
+      const [overviewResult, reportResult] = await Promise.allSettled([
+        overviewRequest,
+        reportRequest,
       ]);
 
       if (requestId !== requestSeq.current) return;
 
       const failures: string[] = [];
-      if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
-      else failures.push(overviewResult.reason instanceof Error ? overviewResult.reason.message : 'Không tải được Tổng quan.');
+      if (overviewResult.status === 'fulfilled') {
+        if (overviewResult.value) setOverview(overviewResult.value);
+      } else if (shouldLoadOverview) failures.push(overviewResult.reason instanceof Error ? overviewResult.reason.message : 'Không tải được Tổng quan.');
       if (reportResult.status === 'fulfilled') {
         if (nextActive === 'finance' && reason === 'finance-view') setReport((current) => mergeFinanceReport(current, reportResult.value));
         else setReport(reportResult.value);

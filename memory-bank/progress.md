@@ -2888,3 +2888,7 @@
   - The Reports frontend now lazy-loads finance detail tabs and merges partial responses into current state, reducing initial finance-screen data transfer and repeated tab-load cost.
   - Live post-deploy measurements on the VPS showed `financeView=overview` around 57ms/1.6KB versus the legacy full report around 254-265ms/839KB; detail views were between roughly 87-166ms with smaller payloads.
   - Verification passed: `node scripts/test-performance-guard-contract.js`, finance hybrid/report permission/query validation contracts, API/Web lint/build, Docker API/Web rebuild, `git diff --check`, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed finance sub-view request trim follow-up:
+  - Finance report sub-tab changes now avoid refetching the global reports overview and only request the selected `financeView` endpoint.
+  - Verification passed: performance guard contract, web typecheck/build, `git diff --check`, Docker web rebuild/restart, and post-deploy `scripts/healthcheck.sh`.
