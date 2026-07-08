@@ -3294,3 +3294,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Split standalone customer/supplier debt reports from the finance-screen debt detail path so public debt report endpoints keep their 1000-row cap while the finance screen builds only `FINANCE_REPORT_DETAIL_LIMIT` detail rows.
   - Updated performance/query-validation contracts to guard lightweight finance selects, finance detail caps, and the helper split.
   - Container-image service profiling improved `/reports/finance` direct warm runs from roughly 545ms before selector work to roughly 226-256ms after the final changes; response payload remains about 839KB because the frontend contract still returns the same capped detail arrays.
+
+- 2026-07-08 Finance report lazy-view follow-up:
+  - Added optional `financeView` query support for `/api/reports/finance` so the frontend can load finance detail tabs independently while preserving the legacy full payload when `financeView` is omitted.
+  - Supported views are `overview`, `orders`, `receipts`, `payments`, `customer-debt`, `supplier-debt`, `reconciliation`, and `all`; CSV export continues to use the full finance payload.
+  - Updated the Reports UI to request only the active finance sub-view, merge sub-view responses into existing report state, and keep filter/reset/tab reload behavior aligned with the selected view.
+  - Live VPS timings after container deploy: legacy full payload remains about 839KB and ~254-265ms warm; `overview` is ~1.6KB/~57ms, and detail views are materially smaller/faster than the full response.
+  - Verification passed before commit: performance guard, finance hybrid contract, report permissions/query-validation contracts, API/Web lint and builds, Docker API/Web rebuild, and `scripts/healthcheck.sh`.

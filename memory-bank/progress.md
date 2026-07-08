@@ -2882,3 +2882,9 @@
   - `/api/reports/finance` now uses report-specific lightweight selectors and avoids full relation hydration for detail rows.
   - Finance report debt detail generation now uses the 200-row interactive report cap without changing standalone customer/supplier debt report limits.
   - Verification passed: performance guard, finance hybrid report contract, report permissions contract, report query validation contract, logging/correlation/error-response contracts, API build/lint, and container-image service profiling.
+
+- 2026-07-08 Completed finance report lazy-view follow-up:
+  - `/api/reports/finance` now supports validated lazy sub-view loading via `financeView` while retaining backward-compatible full responses for callers that omit the query.
+  - The Reports frontend now lazy-loads finance detail tabs and merges partial responses into current state, reducing initial finance-screen data transfer and repeated tab-load cost.
+  - Live post-deploy measurements on the VPS showed `financeView=overview` around 57ms/1.6KB versus the legacy full report around 254-265ms/839KB; detail views were between roughly 87-166ms with smaller payloads.
+  - Verification passed: `node scripts/test-performance-guard-contract.js`, finance hybrid/report permission/query validation contracts, API/Web lint/build, Docker API/Web rebuild, `git diff --check`, and `scripts/healthcheck.sh`.

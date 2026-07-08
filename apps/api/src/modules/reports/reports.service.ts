@@ -6,7 +6,9 @@ import { containsSearch, normalizeListSearch } from '../list-search';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { toReportCsv } from './report-csv';
 
-type ReportQuery = ReportQueryDto;
+type FinanceReportView = 'all' | 'overview' | 'orders' | 'receipts' | 'payments' | 'customer-debt' | 'supplier-debt' | 'reconciliation';
+type ReportQuery = ReportQueryDto & { financeView?: string };
+const FINANCE_REPORT_VIEWS = new Set<FinanceReportView>(['all', 'overview', 'orders', 'receipts', 'payments', 'customer-debt', 'supplier-debt', 'reconciliation']);
 const FINANCE_ORDER_SELECT = {
   id: true,
   type: true,
@@ -221,6 +223,148 @@ export class ReportsService {
 
   async finance(query: ReportQuery, user?: RequestUser) {
     this.assertFinanceQuery(query);
+    const view = this.financeView(query);
+    if (view === 'overview') return this.financeOverview(query, user);
+    if (view === 'orders') return this.financeOrderDetail(query, user);
+    if (view === 'receipts') return this.financeReceipts(query, user);
+    if (view === 'payments') return this.financePayments(query, user);
+    if (view === 'customer-debt') return this.financeCustomerDebt(query, user);
+    if (view === 'supplier-debt') return this.financeSupplierDebt(query, user);
+    if (view === 'reconciliation') return this.financeReconciliation(query, user);
+    return this.financeFull(query, user);
+  }
+
+  private financeView(query: ReportQuery): FinanceReportView {
+    const view = query.financeView as FinanceReportView | undefined;
+    return view && FINANCE_REPORT_VIEWS.has(view) ? view : 'all';
+  }
+
+  private async financeOverview(query: ReportQuery, user?: RequestUser) {
+    return this.financeBase(query, user);
+  }
+
+  private async financeReceipts(query: ReportQuery, user?: RequestUser) {
+    const [base, receiptRows] = await Promise.all([
+      this.financeBase(query, user),
+      this.financeReceiptRows(query, user),
+    ]);
+    return {
+      ...base,
+      receiptRows: receiptRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT).map((row) => this.receiptRows(row)),
+      orphanReceiptRows: this.orphanReceiptRows(receiptRows).slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financePayments(query: ReportQuery, user?: RequestUser) {
+    const [base, paymentRows] = await Promise.all([
+      this.financeBase(query, user),
+      this.financePaymentRows(query, user),
+    ]);
+    return {
+      ...base,
+      paymentRows: paymentRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT).map((row) => this.paymentRows(row)),
+      orphanPaymentRows: this.orphanPaymentRows(paymentRows).slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financeCustomerDebt(query: ReportQuery, user?: RequestUser) {
+    const [base, customerDebtReport] = await Promise.all([
+      this.financeBase(query, user),
+      this.customerDebtReport({ ...query, dateField: 'documentDate' }, user, FINANCE_REPORT_DETAIL_LIMIT),
+    ]);
+    return {
+      ...base,
+      customerDebtRows: customerDebtReport.rows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financeSupplierDebt(query: ReportQuery, user?: RequestUser) {
+    const [base, supplierDebtReport] = await Promise.all([
+      this.financeBase(query, user),
+      this.supplierDebtReport({ ...query, dateField: 'documentDate' }, user, FINANCE_REPORT_DETAIL_LIMIT),
+    ]);
+    return {
+      ...base,
+      supplierDebtRows: supplierDebtReport.rows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financeOrderDetail(query: ReportQuery, user?: RequestUser) {
+    const [base, orders, receiptRows, paymentRows, cashflowRows] = await Promise.all([
+      this.financeBase(query, user),
+      this.financeOrders(this.financeOrderQuery(query), user),
+      this.financeReceiptRows(query, user),
+      this.financePaymentRows(query, user),
+      this.financeCashflowRows(query, user),
+    ]);
+    const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows, cashflowRows);
+    const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
+    return {
+      ...base,
+      rows: grouped.rows,
+      byType: grouped.rows,
+      orderRows: orderRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financeReconciliation(query: ReportQuery, user?: RequestUser) {
+    const [base, orders, receiptRows, paymentRows, cashflowRows] = await Promise.all([
+      this.financeBase(query, user),
+      this.financeOrders(this.financeOrderQuery(query), user),
+      this.financeReceiptRows(query, user),
+      this.financePaymentRows(query, user),
+      this.financeCashflowRows(query, user),
+    ]);
+    const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows, cashflowRows);
+    const orphanReceiptRows = this.orphanReceiptRows(receiptRows);
+    const orphanPaymentRows = this.orphanPaymentRows(paymentRows);
+    const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
+    return {
+      ...base,
+      summary: { ...base.summary, issueCount: reconciliationRows.length },
+      reconciliationRows: reconciliationRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      orphanReceiptRows: orphanReceiptRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      orphanPaymentRows: orphanPaymentRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+    };
+  }
+
+  private async financeBase(query: ReportQuery, user?: RequestUser) {
+    const orderQuery = this.financeOrderQuery(query);
+    const [orderSummary, orderCount, financeSummary, cashflowByMonth, customerDebtSummary, supplierDebtSummary] = await Promise.all([
+      this.orderSummaryFromDb(orderQuery, user),
+      this.orderCountFromDb(orderQuery, user),
+      this.financeSummaryFromDb(query, user),
+      this.financeCashflowByMonthFromDb(query, user),
+      this.customerDebtSummaryReport({ ...query, dateField: 'documentDate' }, user),
+      this.supplierDebtSummaryReport({ ...query, dateField: 'documentDate' }, user),
+    ]);
+    return {
+      summary: this.financeReportSummary(orderSummary, orderCount, financeSummary, customerDebtSummary, supplierDebtSummary),
+      cashflowByMonth,
+    };
+  }
+
+  private financeReportSummary(orderSummary: any, orderCount: number, financeSummary: any, customerDebtSummary: any, supplierDebtSummary: any, issueCount?: number) {
+    const summary: any = {
+      ...orderSummary,
+      paidAmount: financeSummary.totalReceipt,
+      remainingRevenue: Math.max(orderSummary.totalRevenue - financeSummary.totalReceipt, 0),
+      paidCost: financeSummary.totalPayment,
+      remainingCost: Math.max(orderSummary.totalCost - financeSummary.totalPayment, 0),
+      totalReceipt: financeSummary.totalReceipt,
+      totalPayment: financeSummary.totalPayment,
+      netCashflow: financeSummary.netCashflow,
+      receiptCount: financeSummary.receiptCount,
+      paymentCount: financeSummary.paymentCount,
+      customerDebtBalance: Number(customerDebtSummary?.balance || customerDebtSummary?.remainingRevenue || 0),
+      supplierDebtBalance: Number(supplierDebtSummary?.balance || supplierDebtSummary?.remainingAmount || 0),
+      orderCount,
+    };
+    if (issueCount !== undefined) summary.issueCount = issueCount;
+    return summary;
+  }
+
+  private async financeFull(query: ReportQuery, user?: RequestUser) {
     const [orders, orderSummary, orderCount, receiptRows, paymentRows, cashflowRows, financeSummary, cashflowByMonth, customerDebtReport, supplierDebtReport] = await Promise.all([
       this.financeOrders(this.financeOrderQuery(query), user),
       this.orderSummaryFromDb(this.financeOrderQuery(query), user),
@@ -238,22 +382,7 @@ export class ReportsService {
     const orphanPaymentRows = this.orphanPaymentRows(paymentRows);
     const reconciliationRows = this.financeReconciliationRows(orderRows, orphanReceiptRows, orphanPaymentRows);
     const grouped = this.groupFinanceOrderRows(orderRows, 'by-type');
-    const summary = {
-      ...orderSummary,
-      paidAmount: financeSummary.totalReceipt,
-      remainingRevenue: Math.max(orderSummary.totalRevenue - financeSummary.totalReceipt, 0),
-      paidCost: financeSummary.totalPayment,
-      remainingCost: Math.max(orderSummary.totalCost - financeSummary.totalPayment, 0),
-      totalReceipt: financeSummary.totalReceipt,
-      totalPayment: financeSummary.totalPayment,
-      netCashflow: financeSummary.netCashflow,
-      receiptCount: financeSummary.receiptCount,
-      paymentCount: financeSummary.paymentCount,
-      customerDebtBalance: Number(customerDebtReport.summary?.balance || customerDebtReport.summary?.remainingRevenue || 0),
-      supplierDebtBalance: Number(supplierDebtReport.summary?.balance || supplierDebtReport.summary?.remainingAmount || 0),
-      issueCount: reconciliationRows.length,
-      orderCount,
-    };
+    const summary = this.financeReportSummary(orderSummary, orderCount, financeSummary, customerDebtReport.summary, supplierDebtReport.summary, reconciliationRows.length);
     return {
       summary,
       rows: grouped.rows,
@@ -313,6 +442,18 @@ export class ReportsService {
     };
   }
 
+  private async customerDebtSummaryReport(query: ReportQuery, user: RequestUser | undefined) {
+    this.assertDebtQuery(query);
+    const where = branchDepartmentScopeWhere(this.customerDebtWhere(query), user);
+    return this.customerDebtSummaryFromDb(where);
+  }
+
+  private async supplierDebtSummaryReport(query: ReportQuery, user: RequestUser | undefined) {
+    this.assertDebtQuery(query);
+    const where = branchDepartmentScopeWhere(this.supplierDebtWhere(query), user);
+    return this.supplierDebtSummaryFromDb(where);
+  }
+
   async supplierHistory(supplierId: string, query: ReportQuery, user?: RequestUser) {
     this.assertSupplierHistoryQuery(query);
     return this.prisma.operationVoucher.findMany({
@@ -346,7 +487,7 @@ export class ReportsService {
     const reportKey = this.normalizeExportReport(report);
     if (reportKey === 'customer-debt') return toReportCsv((await this.customerDebt(query, user)).rows);
     if (reportKey === 'supplier-debt') return toReportCsv((await this.supplierDebt(query, user)).rows);
-    if (reportKey === 'finance') return toReportCsv((await this.finance(query, user)).rows || []);
+    if (reportKey === 'finance') return toReportCsv((await this.financeFull(query, user)).rows || []);
     if (reportKey === 'employees') return toReportCsv((await this.employeePerformance(query, user)).rows);
     if (reportKey === 'profit') return toReportCsv((await this.profit(query, user)).rows);
     return toReportCsv((await this.revenue(query.groupBy || 'by-created-date', query, user)).rows);

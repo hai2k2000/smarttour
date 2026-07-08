@@ -12,6 +12,7 @@ const ORDER_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endD
 const TOUR_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
 const DEBT_REPORT_DATE_FIELDS = ['documentDate'] as const;
 const FINANCE_REPORT_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt', 'documentDate'] as const;
+const FINANCE_REPORT_VIEWS = ['all', 'overview', 'orders', 'receipts', 'payments', 'customer-debt', 'supplier-debt', 'reconciliation'] as const;
 const REPORT_DATE_FIELDS = uniqueValues([...ORDER_REPORT_DATE_FIELDS], [...TOUR_REPORT_DATE_FIELDS], [...DEBT_REPORT_DATE_FIELDS]);
 const REPORT_GROUPS = ['by-created-date', 'by-checkin-date', 'by-checkout-date', 'by-approved-date', 'by-employee', 'by-agency', 'by-branch', 'by-department', 'by-market', 'by-type'] as const;
 
@@ -181,6 +182,12 @@ export class FinanceReportQueryDto extends OrderFilterReportQueryDto {
   @IsOptional()
   @IsIn(FINANCE_REPORT_DATE_FIELDS, { message: 'dateField is not valid for finance reports' })
   dateField?: string;
+
+  @ApiPropertyOptional({ enum: FINANCE_REPORT_VIEWS })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(FINANCE_REPORT_VIEWS, { message: 'financeView is not valid' })
+  financeView?: string;
 }
 
 export class TourReportQueryDto extends BaseReportQueryDto {

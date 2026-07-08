@@ -20,6 +20,8 @@ const usePermissions = read('apps/web/app/usePermissions.tsx');
 const orderCenter = read('apps/api/src/modules/order-center/order-center.service.ts');
 const quotations = read('apps/api/src/modules/quotations/quotations.service.ts');
 const reports = read('apps/api/src/modules/reports/reports.service.ts');
+const reportDto = read('apps/api/src/modules/reports/dto/report-query.dto.ts');
+const reportsClient = read('apps/web/app/reports/ReportsClient.tsx');
 
 includes(
   usePermissions,
@@ -126,6 +128,33 @@ for (const needle of [
     needle,
     'Finance report should cap expensive debt detail rows without changing standalone debt report limits.',
   );
+}
+
+
+for (const needle of [
+  'const FINANCE_REPORT_VIEWS',
+  'financeView?:',
+  "@IsIn(FINANCE_REPORT_VIEWS, { message: 'financeView is not valid' })",
+]) {
+  includes(reportDto, needle, 'Finance report query DTO should validate the optional financeView selector.');
+}
+for (const needle of [
+  'type FinanceReportView',
+  'private financeView(query: ReportQuery)',
+  "if (view === 'overview') return this.financeOverview(query, user)",
+  "if (view === 'receipts') return this.financeReceipts(query, user)",
+  "if (view === 'payments') return this.financePayments(query, user)",
+  'private async financeFull(query: ReportQuery, user?: RequestUser)',
+]) {
+  includes(reports, needle, 'Finance report service should support lightweight per-view responses while keeping the legacy full response.');
+}
+for (const needle of [
+  'financeView: nextFinanceView',
+  'mergeFinanceReport(current, reportResult.value)',
+  "reason: LoadReason = 'filter', nextFinanceView = financeView",
+  "type LoadReason = 'filter' | 'tab' | 'reset' | 'finance-view'",
+]) {
+  includes(reportsClient, needle, 'ReportsClient should lazy-load finance sub-views instead of fetching every finance detail table up front.');
 }
 
 console.log('TEST_PERFORMANCE_GUARD_CONTRACT_OK');

@@ -21,7 +21,7 @@ type DateFieldKey = 'createdAt' | 'bookingDate' | 'startDate' | 'endDate' | 'pay
 type FinanceDateFieldKey = DateFieldKey | 'documentDate';
 type FinanceViewKey = 'overview' | 'orders' | 'receipts' | 'payments' | 'customer-debt' | 'supplier-debt' | 'reconciliation';
 type MessageTone = 'idle' | 'success' | 'info' | 'error';
-type LoadReason = 'filter' | 'tab' | 'reset';
+type LoadReason = 'filter' | 'tab' | 'reset' | 'finance-view';
 
 type Summary = {
   totalRevenue?: number;
@@ -230,7 +230,7 @@ function endpointFor(tab: ReportTabKey, selectedGroup: GroupKey) {
   return `/reports/revenue/${selectedGroup}`;
 }
 
-function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: GroupKey, includeGroup = true) {
+function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: GroupKey, includeGroup = true, nextFinanceView?: FinanceViewKey) {
   const allowedKeys = tab === 'finance'
     ? financeFilterKeys
     : tab === 'customer-debt'
@@ -248,7 +248,25 @@ function queryFor(tab: ReportTabKey, currentFilters: Filters, selectedGroup: Gro
   });
   if (tab === 'customer-debt' || tab === 'supplier-debt') query.dateField = 'documentDate';
   if (includeGroup && groupedTabs.has(tab)) query.groupBy = selectedGroup;
+  if (tab === 'finance' && nextFinanceView) return { ...query, financeView: nextFinanceView };
   return query;
+}
+
+function mergeFinanceReport(current: ReportData, next: ReportData): ReportData {
+  return {
+    ...current,
+    ...next,
+    summary: { ...(current.summary || {}), ...(next.summary || {}) },
+    rows: next.rows || current.rows,
+    byType: next.byType || current.byType,
+    cashflowByMonth: next.cashflowByMonth || current.cashflowByMonth,
+    orderRows: next.orderRows || current.orderRows,
+    receiptRows: next.receiptRows || current.receiptRows,
+    paymentRows: next.paymentRows || current.paymentRows,
+    customerDebtRows: next.customerDebtRows || current.customerDebtRows,
+    supplierDebtRows: next.supplierDebtRows || current.supplierDebtRows,
+    reconciliationRows: next.reconciliationRows || current.reconciliationRows,
+  };
 }
 
 async function responseError(response: Response, fallback: string) {
@@ -352,7 +370,7 @@ function reportSummaryCards(tab: ReportTabKey, summary: Summary, rowCount: numbe
     ];
   }
   if (tab === 'finance') {
-    return [
+    const cards = [
       { label: 'Tổng doanh thu', value: summary.totalRevenue, formatter: money },
       { label: 'Thực thu', value: summary.paidAmount, formatter: money },
       { label: 'Thực chi', value: summary.paidCost, formatter: money },
@@ -360,8 +378,9 @@ function reportSummaryCards(tab: ReportTabKey, summary: Summary, rowCount: numbe
       { label: 'Còn phải thu', value: summary.remainingRevenue, formatter: money },
       { label: 'Còn phải chi', value: summary.remainingCost, formatter: money },
       { label: 'Lợi nhuận', value: summary.profit, formatter: money },
-      { label: 'Cần đối soát', value: summary.issueCount, formatter: integer },
     ];
+    if (summary.issueCount !== undefined) cards.push({ label: 'Cần đối soát', value: summary.issueCount, formatter: integer });
+    return cards;
   }
   return [
     { label: 'Doanh thu', value: summary.totalRevenue, formatter: money },
@@ -487,14 +506,14 @@ export default function ReportsClient({
     getCoreRowModel: getCoreRowModel(),
   });
 
-  async function load(nextActive = active, nextGroupBy = groupBy, nextFilters = filters, reason: LoadReason = 'filter') {
+  async function load(nextActive = active, nextGroupBy = groupBy, nextFilters = filters, reason: LoadReason = 'filter', nextFinanceView = financeView) {
     const requestId = requestSeq.current + 1;
     requestSeq.current = requestId;
     setLoading(true);
     setMessage({ tone: 'info', text: `Đang tải báo cáo ${tabLabels[nextActive]}...` });
 
     const overviewQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, false));
-    const reportQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, true));
+    const reportQuery = qs(queryFor(nextActive, nextFilters, nextGroupBy, true, nextFinanceView));
     const endpoint = endpointFor(nextActive, nextGroupBy);
     const apiBase = browserApiBase();
 
@@ -515,8 +534,10 @@ export default function ReportsClient({
       const failures: string[] = [];
       if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
       else failures.push(overviewResult.reason instanceof Error ? overviewResult.reason.message : 'Không tải được Tổng quan.');
-      if (reportResult.status === 'fulfilled') setReport(reportResult.value);
-      else failures.push(reportResult.reason instanceof Error ? reportResult.reason.message : `Không tải được báo cáo ${tabLabels[nextActive]}.`);
+      if (reportResult.status === 'fulfilled') {
+        if (nextActive === 'finance' && reason === 'finance-view') setReport((current) => mergeFinanceReport(current, reportResult.value));
+        else setReport(reportResult.value);
+      } else failures.push(reportResult.reason instanceof Error ? reportResult.reason.message : `Không tải được báo cáo ${tabLabels[nextActive]}.`);
 
       if (failures.length) {
         setMessage({ tone: 'error', text: failures.join(' ') });
@@ -526,9 +547,11 @@ export default function ReportsClient({
       const successText =
         reason === 'tab'
           ? `Đã tải báo cáo ${tabLabels[nextActive]}.`
-          : reason === 'reset'
-            ? 'Đã xóa bộ lọc và tải lại dữ liệu.'
-            : 'Đã lọc dữ liệu theo điều kiện mới.';
+          : reason === 'finance-view'
+            ? 'Đã tải dữ liệu tài chính.'
+            : reason === 'reset'
+              ? 'Đã xóa bộ lọc và tải lại dữ liệu.'
+              : 'Đã lọc dữ liệu theo điều kiện mới.';
       setMessage({ tone: 'success', text: successText });
     } catch (error) {
       if (requestId === requestSeq.current) setMessage({ tone: 'error', text: error instanceof Error ? error.message : 'Không tải được báo cáo.' });
@@ -544,6 +567,12 @@ export default function ReportsClient({
     setActive(tab);
     if (tab !== 'finance') setFinanceView('overview');
     void load(tab, groupBy, filters, 'tab');
+  }
+
+  function selectFinanceView(nextFinanceView: FinanceViewKey) {
+    if (nextFinanceView === financeView) return;
+    setFinanceView(nextFinanceView);
+    if (active === 'finance') void load('finance', groupBy, filters, 'finance-view', nextFinanceView);
   }
 
   function setFilter(key: string, value: string) {
@@ -627,7 +656,7 @@ export default function ReportsClient({
     const supplierDebtRows = report.supplierDebtRows || [];
     const reconciliationRows = report.reconciliationRows || [];
     const cashflowRows = report.cashflowByMonth || [];
-    const overviewMetrics = [
+    const overviewMetrics: Array<[string, unknown]> = [
       ['Tổng doanh thu', summary.totalRevenue],
       ['Thực thu theo đơn', summary.paidAmount],
       ['Thực chi theo đơn', summary.paidCost],
@@ -636,14 +665,15 @@ export default function ReportsClient({
       ['Công nợ nhà cung cấp', summary.supplierDebtBalance],
       ['Phiếu thu', summary.receiptCount],
       ['Phiếu chi', summary.paymentCount],
-      ['Dòng cần đối soát', summary.issueCount],
     ];
+    if (summary.issueCount !== undefined) overviewMetrics.push(['Dòng cần đối soát', summary.issueCount]);
+
 
     return (
       <div className="financeReportHybrid">
         <div className="financeReportTabs">
           {visibleFinanceViews.map((view) => (
-            <button type="button" key={view.key} className={financeView === view.key ? 'active' : ''} onClick={() => setFinanceView(view.key)}>
+            <button type="button" key={view.key} className={financeView === view.key ? 'active' : ''} onClick={() => selectFinanceView(view.key)}>
               {view.label}
             </button>
           ))}
