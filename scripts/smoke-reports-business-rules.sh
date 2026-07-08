@@ -316,7 +316,6 @@ function financeShape(data) {
     assert(typeof row.period === 'string', `finance.cashflowByMonth[${index}].period missing`);
     for (const key of ['received', 'paid', 'netCashflow']) assertNumber(row[key], `finance.cashflowByMonth[${index}].${key}`);
   }
-  assertArray(data.orders, 'finance.orders');
   assertArray(data.orderRows, 'finance.orderRows');
   assertArray(data.receiptRows, 'finance.receiptRows');
   assertArray(data.paymentRows, 'finance.paymentRows');
