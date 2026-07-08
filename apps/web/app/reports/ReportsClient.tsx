@@ -779,7 +779,7 @@ export default function ReportsClient({
         <article className="metric metricTone-green"><span>Lợi nhuận</span><strong>{money(overview.profit)}</strong></article>
         <article className="metric"><span>Tổng đơn hàng</span><strong>{integer(overview.totalOrders)}</strong></article>
         <article className="metric"><span>Khách hàng</span><strong>{integer(overview.totalCustomers)}</strong></article>
-        <article className="metric"><span>NCC còn nợ</span><strong>{integer(overview.supplierDebtCount)}</strong></article>
+        {canViewDebtReports ? <article className="metric"><span>NCC còn nợ</span><strong>{integer(overview.supplierDebtCount)}</strong></article> : null}
       </section>
 
       <section className="panel reportFilterPanel">

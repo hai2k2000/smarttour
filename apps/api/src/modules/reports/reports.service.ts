@@ -164,11 +164,12 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(query: ReportQuery, user?: RequestUser) {
+    const canViewDebtReports = this.canViewDebtReports(user);
     const [summary, counts, totalCustomers, supplierDebtCount, byType, byMonth] = await Promise.all([
       this.orderSummaryFromDb(query, user),
       this.orderOverviewCountsFromDb(query, user),
       this.orderCustomerCountFromDb(query, user),
-      this.supplierDebtCountFromDb(query, user),
+      canViewDebtReports ? this.supplierDebtCountFromDb(query, user) : Promise.resolve(0),
       this.orderOverviewByTypeFromDb(query, user),
       this.orderOverviewByMonthFromDb(query, user),
     ]);

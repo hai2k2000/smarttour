@@ -2917,3 +2917,7 @@
 - 2026-07-08 Completed customer debt permission follow-up:
   - Customer debt data is now consistently protected by finance.debt.view in customer APIs and UI: /customers/:id/debts requires the debt permission, customer dashboard totalDebt is zeroed without it, and customer detail embeds a zero debt summary rather than computing real debt for unauthorized users.
   - Verification passed: customer debt permission contract, customer client permissions contract, role/route permission contracts, customer DTO/service/API suites, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.
+
+- 2026-07-08 Completed reports overview debt-count permission follow-up:
+  - /api/reports/overview no longer computes or exposes supplierDebtCount to report users without finance.debt.view, and the Reports overview metric is hidden without that permission.
+  - Verification passed: reports permission contract, performance guard, finance hybrid contract, report query validation, workspace page/data contracts, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.

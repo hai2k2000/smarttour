@@ -3344,3 +3344,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Customer dashboard and customer detail now keep normal CRM visibility but zero/skip debt payloads unless the user has finance.debt.view; direct debt payload remains available to permitted users.
   - Customers UI now hides dashboard/detail debt widgets without finance.debt.view.
   - Verification/deploy passed on the VPS: new customer debt permission contract, customer client permissions, role/route permission contracts, customer DTO/service/API tests, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.
+
+- 2026-07-08 Reports overview debt-count permission follow-up:
+  - Found another aggregate debt leak in /api/reports/overview: supplierDebtCount was computed and returned for users with report.view even without finance.debt.view.
+  - Reports overview now skips supplier debt count computation unless the user has finance.debt.view; unauthorized payloads receive 0 for that aggregate.
+  - Reports UI hides the supplier debt count metric unless canViewDebtReports is true.
+  - Verification/deploy passed on the VPS: reports permission/performance/finance-hybrid/query-validation contracts, workspace contracts, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.

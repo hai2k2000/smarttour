@@ -54,4 +54,7 @@ includes(service, 'const canViewDebtReports = this.canViewDebtReports(user);', '
 matches(service, /canViewDebtReports\s*\?\s*this\.customerDebtSummaryReport\(\{ \.\.\.query, dateField: 'documentDate' \}, user\)\s*:\s*Promise\.resolve\(null\)/, 'Finance base summary should not compute customer debt balances without finance.debt.view.');
 matches(service, /canViewDebtReports\s*\?\s*this\.supplierDebtSummaryReport\(\{ \.\.\.query, dateField: 'documentDate' \}, user\)\s*:\s*Promise\.resolve\(null\)/, 'Finance base summary should not compute supplier debt balances without finance.debt.view.');
 
+matches(service, /async overview\(query: ReportQuery, user\?: RequestUser\) \{[\s\S]*const canViewDebtReports = this\.canViewDebtReports\(user\);[\s\S]*canViewDebtReports \? this\.supplierDebtCountFromDb\(query, user\) : Promise\.resolve\(0\)/, 'Reports overview should not compute supplier debt count without finance.debt.view.');
+matches(client, /\{canViewDebtReports \? <article className="metric"><span>[^<]+<\/span><strong>\{integer\(overview\.supplierDebtCount\)\}<\/strong><\/article> : null\}/, 'Reports overview UI should hide supplier debt count without finance.debt.view.');
+
 console.log('TEST_REPORTS_PERMISSIONS_CONTRACT_OK');
