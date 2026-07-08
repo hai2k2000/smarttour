@@ -3330,3 +3330,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Reduced workspace dashboard finance payload by replacing the legacy full /api/reports/finance call with financeView=customer-debt, which still carries finance base summary plus the customer-debt rows used by the page.
   - Bounded workspace receipt/payment widget fetches to take=20 and take=10 instead of the finance module default rows.
   - Added performance/permission contract coverage for the lighter workspace calls.
+
+- 2026-07-08 Finance report debt permission follow-up:
+  - Found a remaining debt-permission gap in the lazy finance report flow: non-debt finance views could still carry customer/supplier debt balances in summary for users with finance.cashflow.view but without finance.debt.view.
+  - Tightened /api/reports/finance query handling so omitted legacy full payload, all, customer-debt, and supplier-debt require finance.debt.view in addition to the existing report/cashflow permissions.
+  - Added service-level gating in financeBase so overview/orders/receipts/payments/reconciliation skip customer/supplier debt summary queries unless the user has finance.debt.view; balances fall back to 0 when debt is not permitted.
+  - Workspace data now loads the customer-debt finance card only when both finance.cashflow.view and finance.debt.view are present.
+  - Verification/deploy passed on the VPS: report/workspace/performance contracts, report query validation, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune, and post-prune healthcheck.

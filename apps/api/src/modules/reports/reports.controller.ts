@@ -36,6 +36,7 @@ export class ReportsController {
   @Get('finance')
   @RequirePermissions('report.view', 'finance.cashflow.view')
   finance(@Query() query: FinanceReportQueryDto, @Req() request?: { user?: RequestUser }) {
+    this.assertFinanceViewPermission(query.financeView, request?.user);
     return this.service.finance(query, request?.user);
   }
 
@@ -84,6 +85,13 @@ export class ReportsController {
     }
     this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-report.csv');
     return csv;
+  }
+
+  private assertFinanceViewPermission(financeView: string | undefined, user?: RequestUser) {
+    const view = financeView || 'all';
+    if (!['all', 'customer-debt', 'supplier-debt'].includes(view)) return;
+    const permissions = userPermissions(user);
+    if (!permissions.has('*') && !permissions.has('finance.debt.view')) throw new ForbiddenException('Thieu quyen xem bao cao cong no');
   }
 
   private assertSensitiveExportPermission(report: string, user?: RequestUser) {

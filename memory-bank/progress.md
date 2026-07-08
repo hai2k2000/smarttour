@@ -2908,3 +2908,8 @@
 - 2026-07-08 Completed workspace performance follow-up:
   - Workspace dashboard now requests /api/reports/finance?dateField=documentDate&financeView=customer-debt and bounded /api/finance/receipts?take=20 plus /api/finance/payments?take=10 for small widgets.
   - Verification passed: performance guard, workspace data permission contract, workspace pages contract, and web typecheck.
+
+- 2026-07-08 Completed finance report debt permission follow-up:
+  - /api/reports/finance now requires finance.debt.view for debt-bearing views and no longer computes/exposes debt balances in non-debt finance summaries for cashflow-only users.
+  - Workspace avoids requesting financeView=customer-debt unless the user has both finance.cashflow.view and finance.debt.view.
+  - Verification passed: reports permission contract, workspace data permission contract, performance guard, workspace pages, finance hybrid, report query validation, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.

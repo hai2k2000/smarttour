@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Order, OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, PaymentStatus, Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
+import { branchDepartmentScopeWhere, RequestUser, userPermissions } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { toReportCsv } from './report-csv';
@@ -330,18 +330,24 @@ export class ReportsService {
 
   private async financeBase(query: ReportQuery, user?: RequestUser) {
     const orderQuery = this.financeOrderQuery(query);
+    const canViewDebtReports = this.canViewDebtReports(user);
     const [orderSummary, orderCount, financeSummary, cashflowByMonth, customerDebtSummary, supplierDebtSummary] = await Promise.all([
       this.orderSummaryFromDb(orderQuery, user),
       this.orderCountFromDb(orderQuery, user),
       this.financeSummaryFromDb(query, user),
       this.financeCashflowByMonthFromDb(query, user),
-      this.customerDebtSummaryReport({ ...query, dateField: 'documentDate' }, user),
-      this.supplierDebtSummaryReport({ ...query, dateField: 'documentDate' }, user),
+      canViewDebtReports ? this.customerDebtSummaryReport({ ...query, dateField: 'documentDate' }, user) : Promise.resolve(null),
+      canViewDebtReports ? this.supplierDebtSummaryReport({ ...query, dateField: 'documentDate' }, user) : Promise.resolve(null),
     ]);
     return {
       summary: this.financeReportSummary(orderSummary, orderCount, financeSummary, customerDebtSummary, supplierDebtSummary),
       cashflowByMonth,
     };
+  }
+
+  private canViewDebtReports(user?: RequestUser) {
+    const permissions = userPermissions(user);
+    return permissions.has('*') || permissions.has('finance.debt.view');
   }
 
   private financeReportSummary(orderSummary: any, orderCount: number, financeSummary: any, customerDebtSummary: any, supplierDebtSummary: any, issueCount?: number) {

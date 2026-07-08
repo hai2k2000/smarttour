@@ -240,6 +240,7 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
   const user = await apiGet<WorkspaceUser | null>('/api/auth/me', null, 'Thong tin nguoi dung', errors, headers);
   const canViewReports = hasPermission(user, 'report.view');
   const canViewFinanceReports = canViewReports && hasPermission(user, 'finance.cashflow.view');
+  const canViewDebtReports = hasPermission(user, 'finance.debt.view');
   const canViewOrders = hasPermission(user, 'order.view');
   const canViewOperations = hasPermission(user, 'operation.form.view');
   const canViewQuotations = hasPermission(user, 'quotation.view');
@@ -247,7 +248,7 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
   const canViewPayments = hasPermission(user, 'finance.payment.view');
   const [overview, finance, orderDashboard, orders, operations, quotations, receiptsData, paymentsData] = await Promise.all([
     canViewReports ? apiGet<WorkspaceSummary>('/api/reports/overview', emptyOverview, 'Tong quan van hanh', errors, headers) : emptyOverview,
-    canViewFinanceReports ? apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate&financeView=customer-debt', emptyFinance, 'Bao cao tai chinh', errors, headers) : emptyFinance,
+    canViewFinanceReports && canViewDebtReports ? apiGet<WorkspaceFinance>('/api/reports/finance?dateField=documentDate&financeView=customer-debt', emptyFinance, 'Bao cao tai chinh', errors, headers) : emptyFinance,
     canViewOrders ? apiGet<WorkspaceOrderDashboard>('/api/order-center/dashboard', emptyOrderDashboard, 'Tong hop don hang', errors, headers) : emptyOrderDashboard,
     canViewOrders ? apiGet<WorkspaceOrder[]>('/api/order-center?compact=true&take=120', [], 'Danh sach don hang', errors, headers) : [],
     canViewOperations ? apiGet<WorkspaceOperationDashboard>('/api/operations/dashboard', emptyOperations, 'Dieu hanh tour', errors, headers) : emptyOperations,
