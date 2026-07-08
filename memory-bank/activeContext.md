@@ -3377,3 +3377,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added strict calendar-date validation for YYYY-MM-DD/ISO-date-prefix quotation fields before Date construction, preserving valid Date/ISO inputs while rejecting impossible calendar days.
   - Added `scripts/test-quotations-date-validation-contract.js` to guard invalid created/expired/departure/return/expected-payment dates before create transaction work starts.
   - Verification passed on the VPS: quotation date contract, quotes backend contract, SmartLink expiry/DTO/client contracts, business logic guard contract, API build/lint, and git diff check.
+
+- 2026-07-08 Tour guide upload policy follow-up:
+  - Found that tour guide file upload was the only normal file endpoint still using a raw FileInterceptor with a hard-coded 10 MB limit instead of the shared upload policy.
+  - Tour guide uploads now use fileUploadInterceptorOptions(), so max upload size, MIME/extension filtering, and early interceptor rejection stay aligned with the rest of the file endpoints.
+  - Extended scripts/test-files-controller-contract.js to guard against reintroducing the raw tour-guide upload interceptor.
+  - Verification passed on the VPS: files controller contract, API build/lint, upload scope contract, file service error/core flows, finance attachment contracts, supplier file contract, and git diff check.

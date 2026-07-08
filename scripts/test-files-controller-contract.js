@@ -1,6 +1,7 @@
 const fs = require('fs');
 
 const controller = fs.readFileSync('apps/api/src/modules/files/files.controller.ts', 'utf8');
+const tourGuidesController = fs.readFileSync('apps/api/src/modules/tour-guides/tour-guides.controller.ts', 'utf8');
 const dtoPath = 'apps/api/src/modules/files/dto/file-query.dto.ts';
 const failures = [];
 
@@ -42,6 +43,17 @@ for (const unsafe of [
   'response: any',
 ]) {
   if (controller.includes(unsafe)) failures.push(`FilesController must not use loose contract ${unsafe}`);
+}
+
+for (const token of [
+  "import { fileUploadInterceptorOptions } from '../files/files.service';",
+  "@UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))",
+]) {
+  if (!tourGuidesController.includes(token)) failures.push(`TourGuidesController missing standardized upload interceptor contract ${token}`);
+}
+
+if (tourGuidesController.includes("FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } })")) {
+  failures.push('TourGuidesController must not bypass shared fileUploadInterceptorOptions');
 }
 
 if (failures.length) {

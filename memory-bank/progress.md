@@ -2939,3 +2939,7 @@
   - Quotation create/update date parsing now rejects impossible calendar dates like 2026-02-31 instead of allowing JavaScript Date rollover.
   - Added a quotation date validation contract covering createdDate, expiredDate, departureDate, returnDate, and expectedPaymentDate before create transaction work.
   - Verification passed: quotation date contract, quotes backend contract, SmartLink expiry/DTO/client contracts, business logic guard contract, API typecheck/build, and git diff check.
+
+- 2026-07-08 Completed tour guide upload policy follow-up:
+  - Tour guide file upload now uses the shared fileUploadInterceptorOptions() path instead of a hard-coded raw FileInterceptor limit.
+  - Verification passed: files controller contract, API build/lint, file upload scope contract, file service error/core flows, finance attachment contracts, supplier file contract, and git diff check.

@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
+import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateTourGuideDto, ListTourGuidesQueryDto, UpdateTourGuideDto } from './dto/tour-guide.dto';
 import { TourGuidesService } from './tour-guides.service';
 
@@ -24,7 +25,7 @@ export class TourGuidesController {
 
   @Post(':id/files')
   @RequirePermissions('guide.manage')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', fileUploadInterceptorOptions()))
   addFile(
     @Param('id') id: string,
     @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
