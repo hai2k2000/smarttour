@@ -147,4 +147,8 @@ export class OrderCenterQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   take?: string | number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  limit?: string | number;
 }

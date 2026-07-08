@@ -2892,3 +2892,7 @@
 - 2026-07-08 Completed finance sub-view request trim follow-up:
   - Finance report sub-tab changes now avoid refetching the global reports overview and only request the selected `financeView` endpoint.
   - Verification passed: performance guard contract, web typecheck/build, `git diff --check`, Docker web rebuild/restart, and post-deploy `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed order-center limit alias follow-up:
+  - `/api/order-center` now treats `limit` as an alias for `take`, preventing conventional list callers from accidentally receiving the larger default payload.
+  - Verification passed: order-center query contract, query DTO contract, API typecheck/build, `git diff --check`, Docker API rebuild/restart, live `limit=20` probe, and `scripts/healthcheck.sh`.

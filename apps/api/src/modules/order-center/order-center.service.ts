@@ -50,6 +50,7 @@ type OrderCenterQuery = {
   customerType?: string;
   compact?: string | boolean;
   take?: string | number;
+  limit?: string | number;
 };
 
 @Injectable()
@@ -152,7 +153,7 @@ export class OrderCenterService {
 
   async list(query: OrderCenterQuery, user?: RequestUser) {
     const where = branchDepartmentScopeWhere(this.where(query), user);
-    const take = this.take(query.take, 500);
+    const take = this.take(query.take ?? query.limit, 500);
     if (this.isCompact(query.compact)) {
       return this.prisma.order.findMany({
         where,

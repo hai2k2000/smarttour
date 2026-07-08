@@ -3307,3 +3307,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated `ReportsClient` so `reason === 'finance-view'` skips the global overview request, preserves the existing overview state, and fetches only the selected finance sub-view.
   - Added contract coverage in `scripts/test-performance-guard-contract.js`; RED confirmed the missing `shouldLoadOverview` guard before the frontend fix, then GREEN passed after the scoped change.
   - Rebuilt/restarted the web deployment path on the VPS; Docker Compose also recreated API due service dependencies, and post-deploy `scripts/healthcheck.sh` passed.
+
+- 2026-07-08 Order-center limit alias follow-up:
+  - Live probe showed the real order-center page path is healthy (`compact=true&take=100` around 66KB/22ms), but conventional `limit=20` queries were ignored and returned the default order-center row count/payload.
+  - Added `limit` as a bounded alias for `take` on the order-center list query, with `take` remaining the priority when both are supplied.
+  - Added RED/GREEN coverage in `scripts/test-order-center-query-contract.js` and verified API query DTO contracts plus API lint/build before deploy.
+  - Rebuilt/restarted API on the VPS; post-deploy probe confirmed `limit=20` returns 20 compact rows (~13KB) and `take` still wins over `limit` when both are present.

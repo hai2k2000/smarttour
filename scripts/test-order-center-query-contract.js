@@ -18,6 +18,9 @@ for (const field of ['createdFrom', 'createdTo', 'startFrom', 'startTo', 'endFro
   const dateIndex = dto.lastIndexOf('@IsDateString', fieldIndex);
   if (fieldIndex === -1 || dateIndex === -1 || fieldIndex - dateIndex > 180) failures.push(`${field} must use @IsDateString`);
 }
+if (!dto.includes('limit?: string | number')) failures.push('OrderCenterQueryDto should accept limit as an alias for take so conventional clients can bound list payloads.');
+if (!service.includes('limit?: string | number')) failures.push('OrderCenterQuery type should include limit alias.');
+if (!service.includes('this.take(query.take ?? query.limit, 500)')) failures.push('OrderCenterService list should bound rows using take first, then limit alias.');
 if (service.includes('paymentStatus: query.paymentStatus as any')) failures.push('OrderCenterService must not cast paymentStatus as any');
 if (service.includes('costStatus: query.costStatus as any')) failures.push('OrderCenterService must not cast costStatus as any');
 if (service.includes('new Date(from)') || service.includes('new Date(to)')) failures.push('OrderCenterService dateRange must not construct Invalid Date from raw query values');
