@@ -47,12 +47,25 @@ assert 'isTypedSupplierRoute(routeKey)' in controller, 'single-segment dispatche
 remove_typed_match = re.search(r"removeTyped\([\s\S]*?\n\s*}\n", controller)
 assert remove_typed_match, 'typed delete controller method must exist'
 remove_typed_body = remove_typed_match.group(0)
-assert 'deleteTypedSupplier(type, id)' in remove_typed_body, 'typed delete controller must delegate to the typed-safe service method'
+assert 'deleteTypedSupplier(type, id, request.user)' in remove_typed_body, 'typed delete controller must delegate to the typed-safe service method with request.user'
 assert 'getTypedSupplier(type, id).then' not in remove_typed_body and 'deleteSupplier(id)' not in remove_typed_body, 'typed delete must not validate then delete a generic supplier id directly'
 delete_typed_match = re.search(r"async deleteTypedSupplier\([\s\S]*?\n\s*}\n", service)
 assert delete_typed_match, 'typed delete service method must exist'
 delete_typed_body = delete_typed_match.group(0)
-assert 'await this.ensureTypedSupplier(typedRoute, id)' in delete_typed_body and 'return this.deleteSupplierRecord(id)' in delete_typed_body, 'typed delete must validate the supplier category before soft-deleting the shared supplier record'
+assert 'await this.ensureTypedSupplier(typedRoute, id)' in delete_typed_body and 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user)' in delete_typed_body, 'typed delete must validate the supplier category and mask the soft-delete response'
+for delegation in [
+    'createHotelSupplier(dto, request.user)',
+    'updateHotelSupplier(id, dto, request.user)',
+    'createTypedSupplier(type, dto, request.user)',
+    'updateTypedSupplier(type, id, dto, request.user)',
+    'updateTypedSupplierStatus(type, id, dto.status, request.user)',
+    'deleteTypedSupplier(type, id, request.user)',
+    'createSupplier(dto, request.user)',
+    'updateSupplier(id, dto, request.user)',
+    'updateSupplierStatus(id, dto.status, request.user)',
+    'deleteSupplier(id, request.user)',
+]:
+    assert delegation in controller, f'supplier mutation controller must pass request.user: {delegation}'
 assert '@Query() query: HotelSupplierListQueryDto' in controller, 'hotel list query must be validated'
 assert '@Query() query: AllotmentInventoryQueryDto' in controller, 'allotment inventory query must be validated'
 assert "FileInterceptor('file', fileUploadInterceptorOptions())" in controller, 'supplier upload must use shared file limits and filtering'

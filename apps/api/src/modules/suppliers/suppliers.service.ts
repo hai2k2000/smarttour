@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierDayType, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
@@ -246,23 +246,25 @@ export class SuppliersService {
     return this.getSupplier(routeKey, user);
   }
 
-  async createSupplier(dto: CreateSupplierDto) {
+  async createSupplier(dto: CreateSupplierDto, user?: RequestUser) {
     this.validateSupplierPayload(dto);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     await this.ensureCategory(dto.categoryId);
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
-      return await this.prisma.supplier.create({
+      return maskSupplierFinancialFields(await this.prisma.supplier.create({
         data: this.toSupplierData(dto) as Prisma.SupplierUncheckedCreateInput,
         include: this.supplierListInclude(),
-      });
+      }), user);
     } catch (error) {
       this.rethrowSupplierUniqueConflict(error);
     }
   }
 
-  async updateSupplier(id: string, dto: UpdateSupplierDto) {
-    const current = await this.getSupplier(id);
+  async updateSupplier(id: string, dto: UpdateSupplierDto, user?: RequestUser) {
+    const current = await this.getSupplier(id, user);
     this.validateSupplierPayload(dto, true);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     if (dto.categoryId) {
       await this.ensureCategory(dto.categoryId);
       if (dto.categoryId !== current.categoryId && this.isSpecializedSupplier(current)) {
@@ -272,7 +274,7 @@ export class SuppliersService {
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
         if (statusChange === SupplierStatus.INACTIVE && current.hotelProfile) {
           await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
@@ -281,15 +283,15 @@ export class SuppliersService {
           data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
           include: this.supplierListInclude(),
         });
-      });
+      }), user);
     } catch (error) {
       this.rethrowSupplierUniqueConflict(error);
     }
   }
 
-  async deleteSupplier(id: string) {
-    await this.getSupplier(id);
-    return this.deleteSupplierRecord(id);
+  async deleteSupplier(id: string, user?: RequestUser) {
+    await this.getSupplier(id, user);
+    return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user);
   }
 
   async addSupplierFile(id: string, file: UploadFile | undefined, actorId?: string, user?: RequestUser) {
@@ -347,11 +349,11 @@ export class SuppliersService {
     }
   }
 
-  async updateSupplierStatus(id: string, status: SupplierStatus) {
-    const supplier = await this.getSupplier(id);
+  async updateSupplierStatus(id: string, status: SupplierStatus, user?: RequestUser) {
+    const supplier = await this.getSupplier(id, user);
     const nextStatus = this.toSupplierStatus(status);
     this.ensureSupplierStatusTransition(supplier.status, nextStatus);
-    return this.prisma.$transaction(async (tx) => {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
       if (supplier.hotelProfile && nextStatus === SupplierStatus.INACTIVE) {
         await this.ensureHotelSupplierCanDeactivate(tx, id);
       }
@@ -360,7 +362,7 @@ export class SuppliersService {
         data: { status: nextStatus },
         include: { ...this.supplierListInclude(), hotelProfile: true },
       });
-    });
+    }), user);
   }
 
   async listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}, user?: RequestUser) {
@@ -408,15 +410,16 @@ export class SuppliersService {
     return maskSupplierFinancialFields(supplier, user);
   }
 
-  async createTypedSupplier(type: string, dto: CreateGenericSupplierDto) {
+  async createTypedSupplier(type: string, dto: CreateGenericSupplierDto, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     this.validateSupplierPayload(dto, false, false);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto);
     this.validateTypedSupplierPayload(typedRoute, dto);
     const category = await this.ensureCategoryByName(getTypeLabel(typedRoute));
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
         const supplier = await tx.supplier.create({
           data: {
             ...this.toSupplierData(dto),
@@ -425,7 +428,7 @@ export class SuppliersService {
         });
         await this.replaceGenericChildren(tx, supplier.id, dto, typedRoute);
         return tx.supplier.findUniqueOrThrow({ where: { id: supplier.id }, include: this.genericInclude() });
-      });
+      }), user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(SUPPLIER_ERRORS.codeExists);
@@ -434,23 +437,24 @@ export class SuppliersService {
     }
   }
 
-  async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto) {
+  async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     const current = await this.ensureTypedSupplier(typedRoute, id);
     this.validateSupplierPayload(dto, true, false);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto, true);
     this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     this.requestedSupplierStatusChange(current.status, dto.status);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
         await tx.supplier.update({
           where: { id },
           data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
         });
         await this.replaceGenericChildren(tx, id, dto, typedRoute);
         return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.genericInclude() });
-      });
+      }), user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(SUPPLIER_ERRORS.codeExists);
@@ -459,18 +463,18 @@ export class SuppliersService {
     }
   }
 
-  async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus) {
+  async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     const supplier = await this.ensureTypedSupplier(typedRoute, id);
     const nextStatus = this.toSupplierStatus(status);
     this.ensureSupplierStatusTransition(supplier.status, nextStatus);
-    return this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() });
+    return maskSupplierFinancialFields(await this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() }), user);
   }
 
-  async deleteTypedSupplier(type: string, id: string) {
+  async deleteTypedSupplier(type: string, id: string, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     await this.ensureTypedSupplier(typedRoute, id);
-    return this.deleteSupplierRecord(id);
+    return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user);
   }
 
   async listHotelSuppliers(query: HotelSupplierListQueryDto = {}, user?: RequestUser) {
@@ -516,14 +520,15 @@ export class SuppliersService {
     return maskSupplierFinancialFields(supplier, user);
   }
 
-  async createHotelSupplier(dto: CreateHotelSupplierDto) {
+  async createHotelSupplier(dto: CreateHotelSupplierDto, user?: RequestUser) {
     this.validateSupplierPayload(dto, false, false);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto);
     this.validateHotelProfilePayload(dto);
     const category = await this.ensureCategoryByName(HOTEL_SUPPLIER_CATEGORY_NAME);
     await this.ensureSupplierCodeAvailable(dto.supplierCode);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
         const supplier = await tx.supplier.create({
           data: {
             ...this.toSupplierData({
@@ -546,7 +551,7 @@ export class SuppliersService {
 
         await this.replaceHotelChildren(tx, supplier.id, dto);
         return tx.supplier.findUniqueOrThrow({ where: { id: supplier.id }, include: this.hotelInclude() });
-      });
+      }), user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(SUPPLIER_ERRORS.codeExists);
@@ -555,16 +560,17 @@ export class SuppliersService {
     }
   }
 
-  async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto) {
-    const current = await this.getHotelSupplier(id);
+  async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto, user?: RequestUser) {
+    const current = await this.getHotelSupplier(id, user);
     this.validateSupplierPayload(dto, true, false);
+    this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto, true);
     this.validateHotelProfilePayload(dto, true);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     const hotelProfileData = this.toHotelProfileData(dto);
     const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
         if (statusChange === SupplierStatus.INACTIVE) {
           await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
@@ -578,7 +584,7 @@ export class SuppliersService {
 
         await this.replaceHotelChildren(tx, id, dto);
         return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.hotelInclude() });
-      });
+      }), user);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(SUPPLIER_ERRORS.codeExists);
@@ -1052,6 +1058,13 @@ export class SuppliersService {
       ...(dto.notes !== undefined ? { notes: this.optionalMaxText(dto.notes, 'Ghi chú nhà cung cấp', MAX_SUPPLIER_NOTES_LENGTH) } : {}),
       ...(dto.status !== undefined ? { status: this.toSupplierStatus(dto.status) } : {}),
     };
+  }
+
+  private assertCanWriteSupplierFinancialFields(dto: Partial<CreateSupplierDto & CreateHotelSupplierDto & CreateGenericSupplierDto>, user?: RequestUser) {
+    if (canViewSupplierFinancialFields(user)) return;
+    const sensitiveFields = ['taxCode', 'bankAccountName', 'bankAccountNumber', 'bankName', 'pricePolicy', 'debtNote'] as const;
+    const submitted = sensitiveFields.filter((field) => Object.prototype.hasOwnProperty.call(dto, field) && (dto as Record<string, unknown>)[field] !== undefined);
+    if (submitted.length) throw new ForbiddenException('Thiếu quyền cập nhật thông tin tài chính nhà cung cấp');
   }
 
   private toHotelProfileData(dto: Partial<CreateHotelSupplierDto>) {

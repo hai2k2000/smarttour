@@ -67,14 +67,14 @@ export class SuppliersController {
 
   @Post('hotels')
   @RequirePermissions('supplier.manage')
-  createHotel(@Body() dto: CreateHotelSupplierDto) {
-    return this.suppliersService.createHotelSupplier(dto);
+  createHotel(@Body() dto: CreateHotelSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createHotelSupplier(dto, request.user);
   }
 
   @Put('hotels/:id')
   @RequirePermissions('supplier.manage')
-  updateHotel(@Param('id') id: string, @Body() dto: UpdateHotelSupplierDto) {
-    return this.suppliersService.updateHotelSupplier(id, dto);
+  updateHotel(@Param('id') id: string, @Body() dto: UpdateHotelSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateHotelSupplier(id, dto, request.user);
   }
 
   @Get('hotel-allotments/dashboard')
@@ -128,27 +128,27 @@ export class SuppliersController {
 
   @Post(':type')
   @RequirePermissions('supplier.manage')
-  createTyped(@Param('type') type: string, @Body() dto: CreateGenericSupplierDto) {
-    return this.suppliersService.createTypedSupplier(type, dto);
+  createTyped(@Param('type') type: string, @Body() dto: CreateGenericSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createTypedSupplier(type, dto, request.user);
   }
 
   @Put(':type/:id')
   @RequirePermissions('supplier.manage')
-  updateTyped(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateGenericSupplierDto) {
-    return this.suppliersService.updateTypedSupplier(type, id, dto);
+  updateTyped(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateGenericSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateTypedSupplier(type, id, dto, request.user);
   }
 
   @Patch(':type/:id/status')
   @HttpCode(200)
   @RequirePermissions('supplier.manage')
-  updateTypedStatus(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
-    return this.suppliersService.updateTypedSupplierStatus(type, id, dto.status);
+  updateTypedStatus(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateTypedSupplierStatus(type, id, dto.status, request.user);
   }
 
   @Delete(':type/:id')
   @RequirePermissions('supplier.manage')
-  removeTyped(@Param('type') type: string, @Param('id') id: string) {
-    return this.suppliersService.deleteTypedSupplier(type, id);
+  removeTyped(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteTypedSupplier(type, id, request.user);
   }
 
   @Post(':id/files')
@@ -172,26 +172,26 @@ export class SuppliersController {
 
   @Post()
   @RequirePermissions('supplier.manage')
-  create(@Body() dto: CreateSupplierDto) {
-    return this.suppliersService.createSupplier(dto);
+  create(@Body() dto: CreateSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createSupplier(dto, request.user);
   }
 
   @Patch(':id')
   @RequirePermissions('supplier.manage')
-  update(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
-    return this.suppliersService.updateSupplier(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateSupplierDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateSupplier(id, dto, request.user);
   }
 
   @Patch(':id/status')
   @HttpCode(200)
   @RequirePermissions('supplier.manage')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
-    return this.suppliersService.updateSupplierStatus(id, dto.status);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateSupplierStatus(id, dto.status, request.user);
   }
 
   @Delete(':id')
   @RequirePermissions('supplier.manage')
-  remove(@Param('id') id: string) {
-    return this.suppliersService.deleteSupplier(id);
+  remove(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteSupplier(id, request.user);
   }
 }

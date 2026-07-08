@@ -2943,3 +2943,7 @@
 - 2026-07-08 Completed tour guide upload policy follow-up:
   - Tour guide file upload now uses the shared fileUploadInterceptorOptions() path instead of a hard-coded raw FileInterceptor limit.
   - Verification passed: files controller contract, API build/lint, file upload scope contract, file service error/core flows, finance attachment contracts, supplier file contract, and git diff check.
+
+- 2026-07-08 Completed supplier financial write permission follow-up:
+  - Supplier mutation APIs now enforce finance.payment.view for tax/bank/debt/price writes and mask mutation responses for users without that permission.
+  - Verification passed: API build/lint, supplier contract/smoke suites, route/role/security/data-access contracts, and git diff check.

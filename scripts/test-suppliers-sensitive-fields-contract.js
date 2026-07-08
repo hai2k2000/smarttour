@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { ForbiddenException } = require('@nestjs/common');
 const { SuppliersService } = require('../apps/api/dist/modules/suppliers/suppliers.service');
 
 function assert(condition, label) {
@@ -80,6 +81,28 @@ function fakePrisma(calls = []) {
   };
 }
 
+function fakePrismaForWrites(calls = []) {
+  const supplier = {
+    findMany: async (args = {}) => { calls.push({ model: 'supplier', action: 'findMany', args }); return [supplierRow()]; },
+    findUnique: async (args = {}) => { calls.push({ model: 'supplier', action: 'findUnique', args }); return supplierRow(); },
+    findFirst: async (args = {}) => { calls.push({ model: 'supplier', action: 'findFirst', args }); return supplierRow(); },
+    update: async (args = {}) => { calls.push({ model: 'supplier', action: 'update', args }); return { ...supplierRow(), ...(args.data || {}) }; },
+  };
+  return {
+    supplier,
+    $transaction: async (callback) => callback({ supplier }),
+  };
+}
+
+async function assertForbidden(operation, label) {
+  try {
+    await operation();
+    throw new Error(`${label} should reject`);
+  } catch (error) {
+    assert(error instanceof ForbiddenException, `${label} must reject with ForbiddenException`);
+  }
+}
+
 async function main() {
   const calls = [];
   const service = new SuppliersService(fakePrisma(calls), {});
@@ -107,6 +130,15 @@ async function main() {
   assertSensitiveSearch(calls.at(-1).where, 'listSuppliers finance.payment.view');
   await service.listHotelSuppliers({ search: '999999999' }, financeViewer);
   assertSensitiveSearch(calls.at(-1).where, 'listHotelSuppliers finance.payment.view');
+
+  const writeCalls = [];
+  const writeService = new SuppliersService(fakePrismaForWrites(writeCalls), {});
+  assertSensitiveAbsent(await writeService.updateSupplier('supplier-sensitive-row', { name: 'Changed Supplier' }, manageOnly), 'updateSupplier mutation supplier.manage');
+  await assertForbidden(
+    () => writeService.updateSupplier('supplier-sensitive-row', { taxCode: 'FORBIDDEN-TAX' }, manageOnly),
+    'updateSupplier sensitive write without finance.payment.view',
+  );
+  assert(!writeCalls.some((call) => call.action === 'update' && call.args?.data?.taxCode === 'FORBIDDEN-TAX'), 'forbidden sensitive write must not reach Prisma update');
 
   console.log('TEST_SUPPLIERS_SENSITIVE_FIELDS_CONTRACT_OK');
 }

@@ -121,9 +121,10 @@ assert "params.set('status', nextFilters.status)" in frontend, 'frontend typed s
 assert 'private async ensureTypedSupplier(type: TypedSupplierRoute, id: string)' in service
 assert 'deletedAt: null' in service and "category: { name: { in: supplierTypeCategoryNames(type), mode: 'insensitive' } }" in service
 assert service.count('await this.ensureTypedSupplier(typedRoute, id)') >= 3, 'typed update/status/delete must verify id belongs to the route type'
-assert 'return this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() })' in service
+assert service.count('this.assertCanWriteSupplierFinancialFields(dto, user)') >= 4, 'typed supplier mutations must enforce supplier financial write permission'
+assert 'return maskSupplierFinancialFields(await this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() }), user)' in service
 assert 'this.requestedSupplierStatusChange(current.status, dto.status)' in service, 'typed PUT updates must not bypass supplier status transitions'
-assert 'return this.deleteSupplierRecord(id)' in service
+assert 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user)' in service
 assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
 assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service, 'typed child replacement must not hard-delete supplier services'
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service
@@ -149,7 +150,7 @@ assert 'metadata' in supplier_service_model and 'Json?' in supplier_service_mode
 for model in ['RestaurantSupplier', 'FlightSupplier', 'TransportSupplier', 'GuideSupplier', 'VillaSupplier']:
     assert f'model {model} ' not in schema, f'{model} must not split typed suppliers into duplicate lifecycle tables'
 assert 'const supplier = await tx.supplier.create' in service, 'typed suppliers must use the shared Supplier table'
-assert 'return this.deleteSupplierRecord(id)' in service, 'typed suppliers must use the shared delete guard'
+assert 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user)' in service, 'typed suppliers must use the shared delete guard'
 
 english_errors = ['typed supplier not found', 'supplier type not found', 'unsupported supplier type', 'invalid supplier type']
 for error in english_errors:

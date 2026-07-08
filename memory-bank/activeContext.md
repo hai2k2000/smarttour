@@ -3383,3 +3383,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Tour guide uploads now use fileUploadInterceptorOptions(), so max upload size, MIME/extension filtering, and early interceptor rejection stay aligned with the rest of the file endpoints.
   - Extended scripts/test-files-controller-contract.js to guard against reintroducing the raw tour-guide upload interceptor.
   - Verification passed on the VPS: files controller contract, API build/lint, upload scope contract, file service error/core flows, finance attachment contracts, supplier file contract, and git diff check.
+
+- 2026-07-08 Supplier financial write permission follow-up:
+  - Found that supplier list/detail masked tax/bank/debt/price fields without finance.payment.view, but supplier mutation responses still returned raw sensitive fields and sensitive write payloads could be submitted by supplier.manage-only users.
+  - Supplier common, hotel, and typed mutation controllers now pass request.user into service methods.
+  - Supplier mutation services now reject submitted supplier financial fields without finance.payment.view and mask supplier mutation responses using the same projection as list/detail.
+  - Extended supplier sensitive/controller/typed contracts to cover mutation response masking, ForbiddenException on forbidden sensitive writes, and request.user delegation.
+  - Verification passed on the VPS: API build/lint, supplier sensitive/controller/typed/common/hotel/DTO/generic/i18n/file/client/UI contracts, route/role/security/data-access contracts, and git diff check.
