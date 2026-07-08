@@ -130,6 +130,7 @@ async function main() {
   const run = 'CUST-SVC-' + Date.now();
   const allUser = user({ id: 'all-user', name: 'All User', username: 'all', email: 'all@smarttour.local' }, '*', 'data.scope.all');
   const branchUser = user({ id: 'branch-user', name: 'Branch User', username: 'branch', email: 'branch@smarttour.local', branch: 'BR-A', department: 'DEP-A' }, 'data.scope.branch');
+  const branchDebtUser = user({ id: 'branch-debt-user', name: 'Branch Debt User', username: 'branch-debt', email: 'branch-debt@smarttour.local', branch: 'BR-A', department: 'DEP-A' }, 'data.scope.branch', 'finance.debt.view');
 
   const type = await prisma.customerTypeConfig.create({ data: { code: run + '-TYPE', name: 'VIP', isActive: true } });
   const campaign = await prisma.customerCampaign.create({ data: { code: run + '-CMP', name: 'Summer', isActive: true } });
@@ -258,6 +259,10 @@ async function main() {
   const careHistory = await service.careHistory(customer.id, branchUser);
   const opportunities = await service.opportunities(customer.id, branchUser);
   const timelinePage = await service.timeline(customer.id, branchUser, { take: '1', skip: '0' });
+  const detailWithoutDebt = await service.detail(customer.id, branchUser);
+  const detailWithDebt = await service.detail(customer.id, branchDebtUser);
+  assert(detailWithoutDebt.related.debts.receivableDebt === 0, 'detail should hide debt without finance.debt.view');
+  assert(detailWithDebt.related.debts.receivableDebt === 600, 'detail should include debt with finance.debt.view');
   assert(orders.rows.length === 1 && orders.rows[0].id === order.id, 'orders should be customer and scope filtered');
   assert(quotes.rows.length === 2, 'quotes should include quotation and tour quote for scoped customer');
   assert(debts.receivableDebt === 600, 'debts should derive from scoped orders');
@@ -265,7 +270,9 @@ async function main() {
   assert(timelinePage.rows.length === 1 && timelinePage.pagination.total >= timelinePage.rows.length, 'timeline should support explicit pagination');
 
   const dashboard = await service.dashboard({ search: 'Customer' }, branchUser);
-  assert(dashboard.totalCustomers >= 1 && dashboard.totalRevenue === 1000 && dashboard.totalDebt === 600, 'dashboard should use scoped customers and orders');
+  assert(dashboard.totalCustomers >= 1 && dashboard.totalRevenue === 1000 && dashboard.totalDebt === 0, 'dashboard should hide debt without finance.debt.view');
+  const dashboardWithDebt = await service.dashboard({ search: 'Customer' }, branchDebtUser);
+  assert(dashboardWithDebt.totalCustomers >= 1 && dashboardWithDebt.totalRevenue === 1000 && dashboardWithDebt.totalDebt === 600, 'dashboard should include scoped debt with finance.debt.view');
   const csv = await service.exportCsv({ search: run }, branchUser);
   const csvBody = csv.charCodeAt(0) === 0xfeff ? csv.slice(1) : csv;
   const csvLines = csvBody.split('\r\n');

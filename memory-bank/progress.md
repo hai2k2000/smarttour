@@ -2913,3 +2913,7 @@
   - /api/reports/finance now requires finance.debt.view for debt-bearing views and no longer computes/exposes debt balances in non-debt finance summaries for cashflow-only users.
   - Workspace avoids requesting financeView=customer-debt unless the user has both finance.cashflow.view and finance.debt.view.
   - Verification passed: reports permission contract, workspace data permission contract, performance guard, workspace pages, finance hybrid, report query validation, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.
+
+- 2026-07-08 Completed customer debt permission follow-up:
+  - Customer debt data is now consistently protected by finance.debt.view in customer APIs and UI: /customers/:id/debts requires the debt permission, customer dashboard totalDebt is zeroed without it, and customer detail embeds a zero debt summary rather than computing real debt for unauthorized users.
+  - Verification passed: customer debt permission contract, customer client permissions contract, role/route permission contracts, customer DTO/service/API suites, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.

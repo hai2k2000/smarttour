@@ -215,15 +215,18 @@ async function main() {
     const detail = await request('GET', `/customers/${branchCustomer.id}`, { token: manageToken });
     assert(detail.data.related.orders.length === 1, 'GET /customers/:id should include related orders');
     assert(detail.data.related.quotes.length === 2, 'GET /customers/:id should include related quotations and tour quotes');
-    assert(detail.data.related.debts.receivableDebt === 1000, 'GET /customers/:id should include scoped debts');
+    assert(detail.data.related.debts.receivableDebt === 0, 'GET /customers/:id should not embed debt values without finance.debt.view');
     assert(detail.data.related.timeline.length > 0, 'GET /customers/:id should include timeline');
+    await request('GET', `/customers/${branchCustomer.id}/debts`, { token: manageToken, status: 403 });
+    const debtDetail = await request('GET', `/customers/${branchCustomer.id}`, { token: adminToken });
+    assert(debtDetail.data.related.debts.receivableDebt === 1000, 'GET /customers/:id should include scoped debts for finance.debt.view users');
     const orders = await request('GET', `/customers/${branchCustomer.id}/orders`, { token: manageToken });
     const quotes = await request('GET', `/customers/${branchCustomer.id}/quotes`, { token: manageToken });
-    const debts = await request('GET', `/customers/${branchCustomer.id}/debts`, { token: manageToken });
+    const debts = await request('GET', `/customers/${branchCustomer.id}/debts`, { token: adminToken });
     const timeline = await request('GET', `/customers/${branchCustomer.id}/timeline?take=1`, { token: manageToken });
     assert(orders.data.rows.length === 1 && orders.data.rows[0].id === order.id, 'GET /customers/:id/orders should be scope filtered');
     assert(quotes.data.rows.length === 2, 'GET /customers/:id/quotes should return related quotes');
-    assert(debts.data.receivableDebt === 1000, 'GET /customers/:id/debts should derive scoped debt');
+    assert(debts.data.receivableDebt === 1000, 'GET /customers/:id/debts should derive scoped debt for finance.debt.view users');
     assert(timeline.data.rows.length === 1 && timeline.data.pagination.total >= 1, 'GET /customers/:id/timeline should paginate');
 
     const uploadForm = new FormData();

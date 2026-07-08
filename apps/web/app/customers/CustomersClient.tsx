@@ -99,6 +99,7 @@ export default function CustomersClient() {
   const { can, canAny, permissionsReady } = usePermissions();
   const canView = canAny(['customer.view', 'customer.manage']);
   const canManage = can('customer.manage');
+  const canViewDebt = can('finance.debt.view');
   const [rows, setRows] = useState<Customer[]>([]);
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [types, setTypes] = useState<Option[]>([]);
@@ -434,7 +435,7 @@ export default function CustomersClient() {
         <Metric label="Mua 1 lần" value={dashboard.oneTimeCustomers} />
         <Metric label="Mua lại" value={dashboard.repeatCustomers} />
         <Metric label="Doanh thu" value={money(dashboard.totalRevenue)} />
-        <Metric label="Công nợ" value={money(dashboard.totalDebt)} />
+        {canViewDebt ? <Metric label="Công nợ" value={money(dashboard.totalDebt)} /> : null}
       </section>
 
       <section className="panel customerFilters">
@@ -565,7 +566,7 @@ export default function CustomersClient() {
                   <div><span>SĐT</span><strong>{selected.phone}</strong></div>
                   <div><span>Báo giá</span><strong>{selected.related?.quotes.length || 0}</strong></div>
                   <div><span>Đơn hàng</span><strong>{selected.related?.orders.length || 0}</strong></div>
-                  <div><span>Công nợ</span><strong>{money(selected.related?.debts.receivableDebt || 0)}</strong></div>
+                  {canViewDebt ? <div><span>Công nợ</span><strong>{money(selected.related?.debts.receivableDebt || 0)}</strong></div> : null}
                 </div>
                 <h2>Tài liệu</h2>
                 <label className="fileDrop"><FileUp size={16} /> Upload tài liệu<input key={detailFileInputKey} type="file" multiple disabled={!canManage} onChange={(event) => void uploadDetailFiles(event.target.files)} /></label>

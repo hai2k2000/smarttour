@@ -3337,3 +3337,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added service-level gating in financeBase so overview/orders/receipts/payments/reconciliation skip customer/supplier debt summary queries unless the user has finance.debt.view; balances fall back to 0 when debt is not permitted.
   - Workspace data now loads the customer-debt finance card only when both finance.cashflow.view and finance.debt.view are present.
   - Verification/deploy passed on the VPS: report/workspace/performance contracts, report query validation, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune, and post-prune healthcheck.
+
+- 2026-07-08 Customer debt permission follow-up:
+  - Found a second debt-permission leak outside reports: customer dashboard/detail exposed customer debt aggregates to users with customer.view/customer.manage but without finance.debt.view, and /api/customers/:id/debts only required customer.view.
+  - Tightened /api/customers/:id/debts to require both customer.view and finance.debt.view.
+  - Customer dashboard and customer detail now keep normal CRM visibility but zero/skip debt payloads unless the user has finance.debt.view; direct debt payload remains available to permitted users.
+  - Customers UI now hides dashboard/detail debt widgets without finance.debt.view.
+  - Verification/deploy passed on the VPS: new customer debt permission contract, customer client permissions, role/route permission contracts, customer DTO/service/API tests, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CustomerStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 
@@ -67,6 +67,7 @@ export class CustomersService {
   }
 
   async dashboard(query: Record<string, string>, user?: RequestUser) {
+    const canViewDebt = this.canViewDebt(user);
     const where = branchDepartmentScopeWhere(this.customerWhere(query), user);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -120,7 +121,7 @@ export class CustomersService {
       oneTimeCustomers: oneTime,
       repeatCustomers: repeat,
       totalRevenue,
-      totalDebt,
+      totalDebt: canViewDebt ? totalDebt : 0,
     };
   }
 
@@ -222,7 +223,10 @@ export class CustomersService {
   async detail(id: string, user?: RequestUser) {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: customerInclude });
     if (!customer) throw new NotFoundException('Customer not found');
-    const [orders, quotes, debts, timeline] = await Promise.all([this.orders(id, user), this.quotes(id, user), this.debts(id, user), this.timeline(id, user)]);
+    const debts = this.canViewDebt(user)
+      ? await this.debts(id, user)
+      : this.emptyDebtSummary();
+    const [orders, quotes, timeline] = await Promise.all([this.orders(id, user), this.quotes(id, user), this.timeline(id, user)]);
     return { ...customer, related: { orders: orders.rows, quotes: quotes.rows, debts, timeline: timeline.rows } };
   }
 
@@ -819,6 +823,15 @@ export class CustomersService {
       tx.financeReceipt.updateMany({ where: { customerId: null, OR: receiptOr }, data: { customerId } }),
       tx.financeInvoice.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
     ]);
+  }
+
+  private canViewDebt(user?: RequestUser) {
+    const permissions = userPermissions(user);
+    return permissions.has('*') || permissions.has('finance.debt.view');
+  }
+
+  private emptyDebtSummary() {
+    return { totalRevenue: 0, paidAmount: 0, receivableDebt: 0, rows: [] };
   }
 
   private async getCustomer(id: string, user?: RequestUser) {

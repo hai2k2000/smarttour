@@ -210,7 +210,7 @@ export class CustomersController {
   }
 
   @Get(':id/debts')
-  @RequirePermissions('customer.view')
+  @RequirePermissions('customer.view', 'finance.debt.view')
   debts(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.service.debts(id, request.user);
   }
