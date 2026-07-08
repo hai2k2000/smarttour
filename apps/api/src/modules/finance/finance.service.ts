@@ -123,7 +123,7 @@ export class FinanceService {
         where,
         include: { orders: { select: { id: true, orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } } },
         orderBy: [{ updatedAt: 'desc' }, { receiptCode: 'asc' }],
-        take: this.take(query.take),
+        take: this.take(query.take ?? query.limit),
       }),
       this.receiptSummaryFromDb(where),
     ]);
@@ -320,7 +320,7 @@ export class FinanceService {
           supplierPaymentRequests: { select: { code: true, status: true } },
         },
         orderBy: [{ updatedAt: 'desc' }, { voucherCode: 'asc' }],
-        take: this.take(query.take),
+        take: this.take(query.take ?? query.limit),
       }),
       this.paymentSummaryFromDb(where),
     ]);
@@ -469,7 +469,7 @@ export class FinanceService {
   async listInvoices(query: Record<string, string>, user?: RequestUser) {
     const where = this.invoiceScopeWhere(this.invoiceWhere(query), user);
     const [rows, summary] = await Promise.all([
-      this.prisma.financeInvoice.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take) }),
+      this.prisma.financeInvoice.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { invoiceCode: 'asc' }], take: this.take(query.take ?? query.limit) }),
       this.invoiceSummaryFromDb(where),
     ]);
     return { rows, summary };
@@ -631,7 +631,7 @@ export class FinanceService {
     const where = branchDepartmentScopeWhere(this.cashflowWhere(query), user);
     const orderBy = [{ paymentDate: 'desc' as const }, { createdAt: 'desc' as const }];
     const [rows, summary] = await Promise.all([
-      this.prisma.financeCashflowEntry.findMany({ where, orderBy, take: this.take(query.take) }),
+      this.prisma.financeCashflowEntry.findMany({ where, orderBy, take: this.take(query.take ?? query.limit) }),
       this.cashflowSummaryFromDb(where),
     ]);
     return { rows, summary };
@@ -703,8 +703,8 @@ export class FinanceService {
     const include = { customer: true, order: true, receipt: true, invoice: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
     const [entries, rows, summary] = await Promise.all([
-      this.prisma.customerLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
-      this.customerDebtRowsFromDb(where, this.take(query.take)),
+      this.prisma.customerLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take ?? query.limit) }),
+      this.customerDebtRowsFromDb(where, this.take(query.take ?? query.limit)),
       this.customerLedgerSummaryFromDb(where),
     ]);
     return { rows, entries, summary };
@@ -722,8 +722,8 @@ export class FinanceService {
     const include = { supplier: true, order: true, operationVoucher: true, payment: true };
     const orderBy = [{ documentDate: 'desc' as const }, { createdAt: 'desc' as const }];
     const [entries, rows, summary] = await Promise.all([
-      this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take) }),
-      this.supplierDebtRowsFromDb(where, this.take(query.take)),
+      this.prisma.supplierLedgerEntry.findMany({ where, include, orderBy, take: this.take(query.take ?? query.limit) }),
+      this.supplierDebtRowsFromDb(where, this.take(query.take ?? query.limit)),
       this.supplierLedgerSummaryFromDb(where),
     ]);
     return { rows, entries, summary };

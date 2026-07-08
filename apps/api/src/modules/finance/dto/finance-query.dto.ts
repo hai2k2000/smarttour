@@ -107,6 +107,11 @@ export class FinanceQueryDto {
   @IsString()
   take?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  limit?: string;
+
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
   @IsOptional()
   @IsIn(['csv', 'xlsx'])

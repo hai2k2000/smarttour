@@ -176,7 +176,7 @@ export class SuppliersService {
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.supplierListInclude(),
-      take: this.listTake(query.take),
+      take: this.listTake(query.take ?? query.limit),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
     return maskSupplierFinancialFields(suppliers, user);
@@ -366,7 +366,7 @@ export class SuppliersService {
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.genericListInclude(),
-      take: this.listTake(query.take),
+      take: this.listTake(query.take ?? query.limit),
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { name: 'asc' }],
     });
     return maskSupplierFinancialFields(suppliers, user);
@@ -500,7 +500,7 @@ export class SuppliersService {
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: this.hotelListInclude(),
-      take: this.listTake(query.take),
+      take: this.listTake(query.take ?? query.limit),
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
     return maskSupplierFinancialFields(suppliers, user);

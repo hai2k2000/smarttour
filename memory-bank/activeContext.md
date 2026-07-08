@@ -3313,3 +3313,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added `limit` as a bounded alias for `take` on the order-center list query, with `take` remaining the priority when both are supplied.
   - Added RED/GREEN coverage in `scripts/test-order-center-query-contract.js` and verified API query DTO contracts plus API lint/build before deploy.
   - Rebuilt/restarted API on the VPS; post-deploy probe confirmed `limit=20` returns 20 compact rows (~13KB) and `take` still wins over `limit` when both are present.
+
+- 2026-07-08 List limit alias follow-up:
+  - Live limit audit found several list endpoints accepted `take` but ignored conventional `limit`, causing `limit=20` callers to receive default larger payloads: suppliers hotels/restaurants, operation vouchers, bookings, customers, and finance receipts/payments.
+  - Added validated `limit` aliases while preserving existing `take` behavior and priority when both parameters are present.
+  - Added `scripts/test-list-limit-alias-contract.js`; RED confirmed missing aliases before the fix, then GREEN passed after the scoped DTO/service/controller updates.
+  - Rebuilt/restarted API on the VPS. Post-deploy live probe confirmed `limit=20` returns 20 rows for the affected endpoints, and `take=5&limit=20` still returns 5 rows.

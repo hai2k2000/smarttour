@@ -55,6 +55,14 @@ export class ListOperationVouchersQueryDto {
   @Max(OPERATION_VOUCHER_LIST_MAX_TAKE, { message: `Số phiếu mỗi trang không được vượt quá ${OPERATION_VOUCHER_LIST_MAX_TAKE}` })
   take?: number;
 
+  @ApiPropertyOptional({ default: OPERATION_VOUCHER_LIST_DEFAULT_TAKE, minimum: 1, maximum: OPERATION_VOUCHER_LIST_MAX_TAKE })
+  @Transform(optionalNumber)
+  @IsOptional()
+  @IsInt({ message: 'So phieu moi trang phai la so nguyen' })
+  @Min(1, { message: 'So phieu moi trang phai lon hon 0' })
+  @Max(OPERATION_VOUCHER_LIST_MAX_TAKE, { message: `So phieu moi trang khong duoc vuot qua ${OPERATION_VOUCHER_LIST_MAX_TAKE}` })
+  limit?: number;
+
   @ApiPropertyOptional({ default: 0, minimum: 0 })
   @Transform(optionalNumber)
   @IsOptional()

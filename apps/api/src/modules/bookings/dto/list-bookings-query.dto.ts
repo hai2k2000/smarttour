@@ -56,6 +56,14 @@ export class ListBookingsQueryDto {
   @Max(BOOKING_LIST_MAX_TAKE, { message: `Số booking mỗi trang không được vượt quá ${BOOKING_LIST_MAX_TAKE}` })
   take?: number;
 
+  @ApiPropertyOptional({ default: BOOKING_LIST_DEFAULT_TAKE, minimum: 1, maximum: BOOKING_LIST_MAX_TAKE })
+  @Transform(optionalNumber)
+  @IsOptional()
+  @IsInt({ message: 'So booking moi trang phai la so nguyen' })
+  @Min(1, { message: 'So booking moi trang phai lon hon 0' })
+  @Max(BOOKING_LIST_MAX_TAKE, { message: `So booking moi trang khong duoc vuot qua ${BOOKING_LIST_MAX_TAKE}` })
+  limit?: number;
+
   @ApiPropertyOptional({ default: 0, minimum: 0 })
   @Transform(optionalNumber)
   @IsOptional()

@@ -2896,3 +2896,7 @@
 - 2026-07-08 Completed order-center limit alias follow-up:
   - `/api/order-center` now treats `limit` as an alias for `take`, preventing conventional list callers from accidentally receiving the larger default payload.
   - Verification passed: order-center query contract, query DTO contract, API typecheck/build, `git diff --check`, Docker API rebuild/restart, live `limit=20` probe, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed list limit alias follow-up:
+  - Supplier, operation-voucher, booking, customer, and finance list endpoints now treat `limit` as a bounded alias for `take`, reducing accidental oversized payloads for conventional API callers.
+  - Verification passed: list limit alias contract, query DTO/finance query contracts, API typecheck/build, Docker API rebuild/restart, live limit probe, `git diff --check`, and `scripts/healthcheck.sh`.

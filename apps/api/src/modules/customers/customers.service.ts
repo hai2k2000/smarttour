@@ -54,7 +54,7 @@ export class CustomersService {
         where,
         select: this.listSelect(),
         orderBy: { createdAt: 'desc' },
-        take: this.take(query.take),
+        take: this.take(query.take ?? query.limit),
       }),
       this.prisma.customer.count({ where }),
       this.dashboard(query, user),
@@ -470,7 +470,7 @@ export class CustomersService {
 
   async timeline(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
-    const take = this.take(query.take || '100');
+    const take = this.take(query.take ?? query.limit ?? '100');
     const skip = this.skip(query.skip);
     const [rows, total] = await Promise.all([
       this.prisma.customerTimeline.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
@@ -481,7 +481,7 @@ export class CustomersService {
 
   async careHistory(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
-    const take = this.take(query.take || '100');
+    const take = this.take(query.take ?? query.limit ?? '100');
     const skip = this.skip(query.skip);
     const [rows, total] = await Promise.all([
       this.prisma.customerCareTask.findMany({ where: { customerId: id }, orderBy: { scheduledAt: 'desc' }, take, skip }),
@@ -492,7 +492,7 @@ export class CustomersService {
 
   async opportunities(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
-    const take = this.take(query.take || '100');
+    const take = this.take(query.take ?? query.limit ?? '100');
     const skip = this.skip(query.skip);
     const [rows, total] = await Promise.all([
       this.prisma.customerOpportunity.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
@@ -531,7 +531,7 @@ export class CustomersService {
       where,
       select: this.listSelect(),
       orderBy: { createdAt: 'desc' },
-      take: this.take(query.take || '1000'),
+      take: this.take(query.take ?? query.limit ?? '1000'),
     });
     return this.toCsv(rows.map((row) => ({
       code: row.code,

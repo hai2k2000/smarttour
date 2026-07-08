@@ -66,6 +66,13 @@ export class SupplierListQueryDto {
   @Min(1, { message: 'Số lượng nhà cung cấp cần tải phải lớn hơn 0' })
   @Max(MAX_SUPPLIERS_TAKE, { message: `Số lượng nhà cung cấp cần tải không được vượt quá ${MAX_SUPPLIERS_TAKE}` })
   take?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'So luong nha cung cap can tai phai la so nguyen' })
+  @Min(1, { message: 'So luong nha cung cap can tai phai lon hon 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
+  limit?: number;
 }
 
 export class HotelSupplierListQueryDto {
@@ -110,6 +117,13 @@ export class HotelSupplierListQueryDto {
   @Min(1, { message: 'So luong nha cung cap khach san can tai phai lon hon 0' })
   @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap khach san can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
   take?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'So luong nha cung cap can tai phai la so nguyen' })
+  @Min(1, { message: 'So luong nha cung cap can tai phai lon hon 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
+  limit?: number;
 }
 
 export class TypedSupplierListQueryDto {
@@ -142,6 +156,13 @@ export class TypedSupplierListQueryDto {
   @Min(1, { message: 'So luong nha cung cap chuyen biet can tai phai lon hon 0' })
   @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap chuyen biet can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
   take?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt({ message: 'So luong nha cung cap can tai phai la so nguyen' })
+  @Min(1, { message: 'So luong nha cung cap can tai phai lon hon 0' })
+  @Max(MAX_SUPPLIERS_TAKE, { message: `So luong nha cung cap can tai khong duoc vuot qua ${MAX_SUPPLIERS_TAKE}` })
+  limit?: number;
 }
 
 export class AllotmentInventoryQueryDto {

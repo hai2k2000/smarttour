@@ -15,7 +15,7 @@ export class BookingsController {
 
   @Get()
   list(@Query() query: ListBookingsQueryDto, @Req() request?: { user?: RequestUser }) {
-    return this.bookingsService.list(query.search, query.status, query.tourProgramId, request?.user, query.take, query.skip);
+    return this.bookingsService.list(query.search, query.status, query.tourProgramId, request?.user, query.take ?? query.limit, query.skip);
   }
 
   @Get(':id/delete-guard')

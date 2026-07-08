@@ -17,6 +17,11 @@ class CustomerQueryBaseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  limit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   skip?: string;
 }
 
