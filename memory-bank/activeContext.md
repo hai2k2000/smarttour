@@ -3413,3 +3413,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found that branch-scoped customer create/update could auto-link orphan business rows outside the user's scope when matching phone/email/name, because linkExistingData did not receive request.user.
   - Customer auto-link now scopes direct branch/department models (orders, quotations, finance receipts) before assigning customerId, while preserving legacy linking for orphan rows without scope metadata.
   - Added RED/GREEN coverage in scripts/test-customers-service.sh for an out-of-scope orphan order that must remain unlinked.
+
+
+- 2026-07-08 Supplier allotment override data-scope follow-up:
+  - Found that branch/department-scoped users could call supplier allotment override, changing global inventory without an order/booking/tour link to enforce data scope.
+  - Allotment override now requires unrestricted data scope (`data.scope.all` or `*`); scoped lock/confirm/release behavior remains link-scoped through order/booking/tour allocations.
+  - Added RED/GREEN coverage in `scripts/test-data-scope-module-flows.sh` for scoped override rejection.

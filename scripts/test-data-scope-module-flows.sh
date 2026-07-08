@@ -390,6 +390,7 @@ async function main() {
   await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, missingBranchUser), 'branch scoped allotment lock should reject user without branch');
   await rejects(() => suppliers.lockAllotment(allotment.id, { orderId: orderA.id, quantity: 1, actor: 'scope-test' }, missingDepartmentUser), 'department scoped allotment lock should reject user without department');
   await rejects(() => suppliers.releaseAllotmentAllocation(otherLock.allocation.id, { note: 'release other' }, branchUser), 'scoped allotment release should reject other branch allocation');
+  await rejects(() => suppliers.overrideAllotment(allotment.id, { allotmentQty: 11, note: 'scoped override', actor: 'scope-test' }, branchUser), 'scoped allotment override should require unrestricted data scope');
 
   const guideA = await tourGuides.create({
     guideCode: run + '-GUIDE-A',

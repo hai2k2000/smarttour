@@ -2964,3 +2964,8 @@
 - 2026-07-08 Completed customer auto-link data-scope follow-up:
   - Customer create/update auto-link now respects branch/department scope for scoped business rows with direct scope metadata, preventing scoped users from claiming orphan orders outside their data scope by matching customer phone/email/name.
   - Verification passed: RED/GREEN scripts/test-customers-service.sh, customers API, bookings service/controller/page/status-lock contracts, data-scope module flows, and high-a data access.
+
+
+- 2026-07-08 Completed supplier allotment override data-scope follow-up:
+  - Supplier allotment override now requires unrestricted data scope, preventing scoped users from changing global hotel inventory without a scoped business link.
+  - Verification/deploy passed: RED/GREEN `scripts/test-data-scope-module-flows.sh`, supplier contract suite, data-scope audit, API build/lint, git diff check, Docker API rebuild/restart, `scripts/smoke-suppliers.sh`, HEALTHCHECK_OK, and docker builder prune to 0B.

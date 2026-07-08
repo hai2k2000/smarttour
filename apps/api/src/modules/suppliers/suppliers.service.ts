@@ -680,6 +680,9 @@ export class SuppliersService {
   async overrideAllotment(id: string, dto: OverrideAllotmentDto, user?: RequestUser) {
     const reason = this.requiredText(dto.note, 'Cần nhập lý do điều chỉnh quỹ phòng');
     const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
+    if (!hasUnrestrictedDataScope(user)) {
+      throw new ForbiddenException('Thiếu quyền điều chỉnh quỹ phòng ngoài phạm vi dữ liệu');
+    }
     if (dto.allotmentQty === undefined && dto.bookedQty === undefined && dto.lockedQty === undefined && dto.status === undefined) {
       throw new BadRequestException('Cần chọn ít nhất một giá trị quỹ phòng để điều chỉnh');
     }
