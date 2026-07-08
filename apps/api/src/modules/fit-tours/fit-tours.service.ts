@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FitServiceStatus, FitTourWorkflowStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '@prisma/client';
+import { csvTable } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
@@ -230,7 +231,7 @@ export class FitToursService {
     this.appendExportRows(rows, 'operation.services', fitTour.operationServices, (row) => [row.serviceType, row.bookingCode, row.amount, row.status]);
     this.appendExportRows(rows, 'attachments', fitTour.attachments, (row) => [row.step, row.fileName, row.fileUrl, row.uploadedBy]);
     this.appendExportRows(rows, 'survey.questions', fitTour.surveyQuestions, (row) => [row.orderNo, row.question, row.notes, '']);
-    return `\uFEFF${rows.map((row) => row.map((cell) => this.csvCell(cell)).join(',')).join('\r\n')}\r\n`;
+    return `${csvTable(rows)}\r\n`;
   }
 
   async uploadAttachment(id: string, step: string | undefined, file: UploadedFitFile | undefined, user?: RequestUser) {
@@ -773,18 +774,6 @@ export class FitToursService {
   private exportDate(value: unknown) {
     if (value instanceof Date) return value.toISOString().slice(0, 10);
     return this.optionalText(value);
-  }
-
-  private csvCell(value: unknown) {
-    const text = this.csvText(value);
-    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  }
-
-  private csvText(value: unknown) {
-    if (value === null || value === undefined) return '';
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
   }
 
   private numberValue(value: unknown) {

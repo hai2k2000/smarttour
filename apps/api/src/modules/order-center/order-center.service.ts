@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { OrderCostStatus, OrderPaymentStatus, OrderStatus, OrderType, Prisma } from '@prisma/client';
+import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
@@ -236,12 +237,7 @@ export class OrderCenterService {
       'department',
       'operatorOwner',
     ];
-    return `\uFEFF${[
-      header.join(','),
-      ...rows.map((order) =>
-        header.map((key) => this.csv((order as unknown as Record<string, unknown>)[key])).join(','),
-      ),
-    ].join('\r\n')}`;
+    return csvRows(header, rows as Array<Record<string, unknown>>);
   }
 
   private where(query: OrderCenterQuery): Prisma.OrderWhereInput {
@@ -312,11 +308,5 @@ export class OrderCenterService {
 
   private andWhere(where: Prisma.OrderWhereInput, extra: Prisma.OrderWhereInput): Prisma.OrderWhereInput {
     return { AND: [where, extra] };
-  }
-
-  private csv(value: unknown) {
-    if (value instanceof Date) return value.toISOString();
-    const text = String(value ?? '');
-    return `"${text.replaceAll('"', '""')}"`;
   }
 }

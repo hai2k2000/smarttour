@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, OrderType, Prisma } from '@prisma/client';
+import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
@@ -388,7 +389,6 @@ export class CommissionReportsService {
 
   private toCsv(rows: AnyRecord[]) {
     const headers = Object.keys(rows[0] ?? { empty: '' });
-    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    return `\uFEFF${[headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\r\n')}`;
+    return csvRows(headers, rows);
   }
 }

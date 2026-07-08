@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CustomerStatus, Prisma } from '@prisma/client';
+import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
@@ -976,7 +977,6 @@ export class CustomersService {
   }
 
   private toCsv(rows: AnyRecord[], headers: string[]) {
-    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    return `\uFEFF${[headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\r\n')}`;
+    return csvRows(headers, rows);
   }
 }

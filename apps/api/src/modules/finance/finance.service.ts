@@ -12,6 +12,7 @@ import { financeImportRows, validatePaymentImportRow, validateReceiptImportRow }
 import { applyOrderPayment, applyOrderReceipt, assertInvoiceLinks, assertPaymentLinks, assertReceiptOrderLinks, resolveInvoiceCustomerScope, resolvePaymentSupplier, resolveReceiptCustomer, resolveTourId } from './finance-order-links';
 import { reconcileApprovedPayment, reconcileCancelledPayment } from './finance-payment-reconciliation';
 import { toXlsxWorkbook } from '../../common/xlsx-workbook';
+import { csvRows } from '../../common/csv-export';
 
 type AnyRecord = Record<string, unknown>;
 type ImportFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -1286,12 +1287,7 @@ export class FinanceService {
   }
 
   private csv(rows: AnyRecord[], keys: string[]) {
-    return `\uFEFF${[keys.join(','), ...rows.map((row) => keys.map((key) => this.csvCell(row[key])).join(','))].join('\r\n')}`;
-  }
-
-  private csvCell(value: unknown) {
-    if (value instanceof Date) return value.toISOString();
-    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+    return csvRows(keys, rows);
   }
   private async assertImportCodesAvailable(type: 'receipts' | 'payments', rows: AnyRecord[], field: 'receiptCode' | 'voucherCode', tx: Prisma.TransactionClient = this.prisma) {
     const codes = rows.map((row) => this.text(row[field])).filter((code): code is string => Boolean(code));

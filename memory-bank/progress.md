@@ -2925,3 +2925,7 @@
 - 2026-07-08 Completed supplier sensitive-search permission follow-up:
   - Supplier list search no longer leaks masked tax/bank/debt/price fields through search side channels to users without finance.payment.view.
   - Verification passed: supplier sensitive-fields contract, common/hotel/typed supplier contracts, supplier UI permission contract, smoke-suppliers, API/Web typecheck/build, Docker API rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.
+
+- 2026-07-08 Completed CSV export formula-injection follow-up:
+  - CSV exports now use a shared helper that neutralizes spreadsheet formula cells by prefixing risky values with an apostrophe while retaining normal CSV quoting.
+  - Verification passed: CSV formula guard contract, finance/native XLSX export contracts, finance helper contracts, API typecheck/build, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check. Export smoke requires AUTH_TOKEN or ADMIN_PASSWORD and was not run without credentials.

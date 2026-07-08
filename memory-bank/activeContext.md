@@ -3357,3 +3357,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Extended supplier sensitive-field contract to inspect generated Prisma where clauses for view-only versus finance.payment.view users.
   - Refreshed stale supplier bounded-take contracts to the existing take ?? limit behavior from the list-limit alias work.
   - Verification/deploy passed on the VPS: supplier sensitive/common/hotel/typed/UI contracts, supplier smoke, API/Web lint and builds, Docker API rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.
+
+- 2026-07-08 CSV export formula-injection follow-up:
+  - Found a spreadsheet formula injection risk in CSV exports: finance, customer, commission, report, order-center, and FIT tour CSV writers only quoted cells, so user-controlled values beginning with =, +, -, @, tab, or CR could be interpreted as formulas by spreadsheet apps.
+  - Added a shared CSV export helper that consistently quotes cells and prefixes risky spreadsheet formula cells with an apostrophe while preserving Date/object serialization behavior needed by existing exports.
+  - Moved the affected CSV exports to the shared helper: finance receipts/payments/invoices/cashflow, customers, commission reports, reports, order center, and FIT tour exports.
+  - Added `scripts/test-csv-export-formula-guard-contract.js`; RED confirmed the vulnerable finance CSV output and local quote-only helpers, then GREEN passed after the shared helper change.
+  - Verification passed on the VPS before deploy: API build, CSV formula guard contract, finance/native XLSX export contracts, finance helper contracts, API lint/typecheck, and git diff check.
+  - Post-deploy API Docker rebuild and healthcheck passed; Docker builder cache was pruned back to 0B. `scripts/smoke-exports.sh` requires AUTH_TOKEN or ADMIN_PASSWORD and was not run in this session because no credential was available.
