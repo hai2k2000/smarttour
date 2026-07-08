@@ -7,6 +7,77 @@ import { ReportQueryDto } from './dto/report-query.dto';
 import { toReportCsv } from './report-csv';
 
 type ReportQuery = ReportQueryDto;
+const FINANCE_ORDER_SELECT = {
+  id: true,
+  type: true,
+  systemCode: true,
+  tourCode: true,
+  holdCode: true,
+  name: true,
+  customerName: true,
+  customerPhone: true,
+  status: true,
+  paymentStatus: true,
+  costStatus: true,
+  startDate: true,
+  endDate: true,
+  branch: true,
+  department: true,
+  operatorOwner: true,
+  createdBy: true,
+  totalRevenue: true,
+  paidAmount: true,
+  totalCost: true,
+  paidCost: true,
+  profit: true,
+  commission: true,
+  note: true,
+} satisfies Prisma.OrderSelect;
+const FINANCE_RECEIPT_SELECT = {
+  id: true,
+  receiptCode: true,
+  receiptName: true,
+  receiptType: true,
+  payerName: true,
+  payerPhone: true,
+  paymentDate: true,
+  paymentMethod: true,
+  approvalStatus: true,
+  totalAmount: true,
+  receiptAmount: true,
+  branch: true,
+  assignedStaff: true,
+  customer: { select: { fullName: true, phone: true } },
+  orders: { select: { orderId: true, orderCode: true, tourCode: true, tourName: true, amount: true } },
+} satisfies Prisma.FinanceReceiptSelect;
+const FINANCE_PAYMENT_SELECT = {
+  id: true,
+  voucherCode: true,
+  voucherName: true,
+  voucherType: true,
+  paymentDate: true,
+  paymentMethod: true,
+  supplierId: true,
+  orderId: true,
+  receiverName: true,
+  receiverPhone: true,
+  approvalStatus: true,
+  totalAmount: true,
+  paymentAmount: true,
+  branch: true,
+  assignedStaff: true,
+  supplier: { select: { supplierCode: true, name: true, phone: true } },
+  order: { select: { systemCode: true, tourCode: true, name: true } },
+  tour: { select: { tourCode: true, name: true } },
+  operationVoucher: { select: { voucherCode: true } },
+} satisfies Prisma.FinancePaymentSelect;
+const FINANCE_CASHFLOW_SELECT = {
+  id: true,
+  entryType: true,
+  amount: true,
+  paymentDate: true,
+  orderId: true,
+} satisfies Prisma.FinanceCashflowEntrySelect;
 type TourFinanceRow = Prisma.TourGetPayload<{
   include: {
     customers: true;
@@ -17,27 +88,17 @@ type TourFinanceRow = Prisma.TourGetPayload<{
     financePayments: true;
   };
 }>;
+type FinanceOrderReportRow = Prisma.OrderGetPayload<{
+  select: typeof FINANCE_ORDER_SELECT;
+}>;
 type FinanceReceiptReportRow = Prisma.FinanceReceiptGetPayload<{
-  include: {
-    customer: true;
-    orders: true;
-  };
+  select: typeof FINANCE_RECEIPT_SELECT;
 }>;
 type FinancePaymentReportRow = Prisma.FinancePaymentGetPayload<{
-  include: {
-    supplier: true;
-    order: true;
-    tour: true;
-    operationVoucher: true;
-  };
+  select: typeof FINANCE_PAYMENT_SELECT;
 }>;
 type FinanceCashflowReportRow = Prisma.FinanceCashflowEntryGetPayload<{
-  include: {
-    order: true;
-    tour: true;
-    customer: true;
-    supplier: true;
-  };
+  select: typeof FINANCE_CASHFLOW_SELECT;
 }>;
 type MetricRow = {
   key: string;
@@ -90,6 +151,7 @@ const ORDER_COST_STATUSES = new Set<string>(Object.values(OrderCostStatus));
 const ORDER_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt'] as const;
 const TOUR_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'closedAt'] as const;
 const FINANCE_DATE_FIELDS = ['createdAt', 'bookingDate', 'startDate', 'endDate', 'paymentDate', 'settledAt', 'documentDate'] as const;
+const FINANCE_REPORT_DETAIL_LIMIT = 200;
 type OrderDateField = typeof ORDER_DATE_FIELDS[number];
 type TourDateField = typeof TOUR_DATE_FIELDS[number];
 type FinanceDateField = typeof FINANCE_DATE_FIELDS[number];
@@ -160,7 +222,7 @@ export class ReportsService {
   async finance(query: ReportQuery, user?: RequestUser) {
     this.assertFinanceQuery(query);
     const [orders, orderSummary, orderCount, receiptRows, paymentRows, cashflowRows, financeSummary, cashflowByMonth, customerDebtReport, supplierDebtReport] = await Promise.all([
-      this.orders(this.financeOrderQuery(query), user),
+      this.financeOrders(this.financeOrderQuery(query), user),
       this.orderSummaryFromDb(this.financeOrderQuery(query), user),
       this.orderCountFromDb(this.financeOrderQuery(query), user),
       this.financeReceiptRows(query, user),
@@ -168,8 +230,8 @@ export class ReportsService {
       this.financeCashflowRows(query, user),
       this.financeSummaryFromDb(query, user),
       this.financeCashflowByMonthFromDb(query, user),
-      this.customerDebt({ ...query, dateField: 'documentDate' }, user),
-      this.supplierDebt({ ...query, dateField: 'documentDate' }, user),
+      this.customerDebtReport({ ...query, dateField: 'documentDate' }, user, FINANCE_REPORT_DETAIL_LIMIT),
+      this.supplierDebtReport({ ...query, dateField: 'documentDate' }, user, FINANCE_REPORT_DETAIL_LIMIT),
     ]);
     const orderRows = this.financeOrderRows(orders, receiptRows, paymentRows, cashflowRows);
     const orphanReceiptRows = this.orphanReceiptRows(receiptRows);
@@ -197,15 +259,14 @@ export class ReportsService {
       rows: grouped.rows,
       byType: grouped.rows,
       cashflowByMonth,
-      orders: orders.slice(0, 300),
-      orderRows,
-      receiptRows: receiptRows.map((row) => this.receiptRows(row)),
-      paymentRows: paymentRows.map((row) => this.paymentRows(row)),
-      customerDebtRows: customerDebtReport.rows,
-      supplierDebtRows: supplierDebtReport.rows,
-      reconciliationRows,
-      orphanReceiptRows,
-      orphanPaymentRows,
+      orderRows: orderRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      receiptRows: receiptRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT).map((row) => this.receiptRows(row)),
+      paymentRows: paymentRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT).map((row) => this.paymentRows(row)),
+      customerDebtRows: customerDebtReport.rows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      supplierDebtRows: supplierDebtReport.rows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      reconciliationRows: reconciliationRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      orphanReceiptRows: orphanReceiptRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
+      orphanPaymentRows: orphanPaymentRows.slice(0, FINANCE_REPORT_DETAIL_LIMIT),
     };
   }
 
@@ -219,10 +280,18 @@ export class ReportsService {
   }
 
   async customerDebt(query: ReportQuery, user?: RequestUser) {
+    return this.customerDebtReport(query, user, 1000);
+  }
+
+  async supplierDebt(query: ReportQuery, user?: RequestUser) {
+    return this.supplierDebtReport(query, user, 1000);
+  }
+
+  private async customerDebtReport(query: ReportQuery, user: RequestUser | undefined, take: number) {
     this.assertDebtQuery(query);
     const where = branchDepartmentScopeWhere(this.customerDebtWhere(query), user);
     const [rows, summary] = await Promise.all([
-      this.customerDebtRowsFromDb(where, 1000),
+      this.customerDebtRowsFromDb(where, take),
       this.customerDebtSummaryFromDb(where),
     ]);
     return {
@@ -231,11 +300,11 @@ export class ReportsService {
     };
   }
 
-  async supplierDebt(query: ReportQuery, user?: RequestUser) {
+  private async supplierDebtReport(query: ReportQuery, user: RequestUser | undefined, take: number) {
     this.assertDebtQuery(query);
     const where = branchDepartmentScopeWhere(this.supplierDebtWhere(query), user);
     const [rows, summary] = await Promise.all([
-      this.supplierDebtRowsFromDb(where, 1000),
+      this.supplierDebtRowsFromDb(where, take),
       this.supplierDebtSummaryFromDb(where),
     ]);
     return {
@@ -281,6 +350,32 @@ export class ReportsService {
     if (reportKey === 'employees') return toReportCsv((await this.employeePerformance(query, user)).rows);
     if (reportKey === 'profit') return toReportCsv((await this.profit(query, user)).rows);
     return toReportCsv((await this.revenue(query.groupBy || 'by-created-date', query, user)).rows);
+  }
+
+  private financeOrderSelect() {
+    return FINANCE_ORDER_SELECT;
+  }
+
+  private financeReceiptSelect() {
+    return FINANCE_RECEIPT_SELECT;
+  }
+
+  private financePaymentSelect() {
+    return FINANCE_PAYMENT_SELECT;
+  }
+
+  private financeCashflowSelect() {
+    return FINANCE_CASHFLOW_SELECT;
+  }
+
+  private async financeOrders(query: ReportQuery, user?: RequestUser) {
+    this.assertOrderQuery(query);
+    return this.prisma.order.findMany({
+      where: branchDepartmentScopeWhere(this.orderWhere(query), user),
+      select: this.financeOrderSelect(),
+      orderBy: [{ createdAt: 'desc' }, { systemCode: 'asc' }],
+      take: 1000,
+    });
   }
 
   private async orders(query: ReportQuery, user?: RequestUser) {
@@ -615,7 +710,7 @@ export class ReportsService {
   private async financeReceiptRows(query: ReportQuery, user?: RequestUser) {
     return this.prisma.financeReceipt.findMany({
       where: this.financeReceiptWhere(query, user),
-      include: { customer: true, orders: true },
+      select: this.financeReceiptSelect(),
       orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { receiptCode: 'asc' }],
       take: 300,
     });
@@ -657,7 +752,7 @@ export class ReportsService {
   private async financePaymentRows(query: ReportQuery, user?: RequestUser) {
     return this.prisma.financePayment.findMany({
       where: this.financePaymentWhere(query, user),
-      include: { supplier: true, order: true, tour: true, operationVoucher: true },
+      select: this.financePaymentSelect(),
       orderBy: [{ paymentDate: 'desc' }, { updatedAt: 'desc' }, { voucherCode: 'asc' }],
       take: 300,
     });
@@ -701,7 +796,7 @@ export class ReportsService {
   private async financeCashflowRows(query: ReportQuery, user?: RequestUser) {
     return this.prisma.financeCashflowEntry.findMany({
       where: this.financeCashflowWhere(query, user),
-      include: { order: true, tour: true, customer: true, supplier: true },
+      select: this.financeCashflowSelect(),
       orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
       take: 1000,
     });
@@ -774,7 +869,7 @@ export class ReportsService {
     return [...months.values()].sort((left, right) => right.period.localeCompare(left.period));
   }
 
-  private financeOrderRows(orders: Order[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[], cashflowRows: FinanceCashflowReportRow[]) {
+  private financeOrderRows(orders: FinanceOrderReportRow[], receiptRows: FinanceReceiptReportRow[], paymentRows: FinancePaymentReportRow[], cashflowRows: FinanceCashflowReportRow[]) {
     const receiptsByOrder = new Map<string, { amount: number; count: number }>();
     const paymentsByOrder = new Map<string, { amount: number; count: number }>();
     const receiptCashflowByOrder = new Map<string, { amount: number; count: number }>();

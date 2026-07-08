@@ -38,12 +38,17 @@ if (!fs.existsSync(interceptorPath)) {
     'errorCode',
     'errorStack',
     'includeErrorStack',
+    'isClientErrorStatus',
+    'this.logger.warn',
     'this.logger.error',
   ]) {
     if (!source.includes(token)) failures.push(`request logging interceptor missing ${token}`);
   }
   if (source.includes('...(errorStack ? { errorStack } : {})')) {
     failures.push('request logging interceptor must not include errorStack unconditionally');
+  }
+  if (!source.includes('statusCode >= 400 && statusCode < 500')) {
+    failures.push('request logging interceptor must log expected client errors below error severity');
   }
   if (!source.includes('SMARTTOUR_LOG_STACKS') || !source.includes("smartTourEnvironment() === 'development'")) {
     failures.push('request logging interceptor must gate stack logging behind debug flag or development env');

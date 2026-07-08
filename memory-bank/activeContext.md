@@ -3282,3 +3282,15 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Reduced dashboard DB query fan-out for default order-center and quotation dashboards by using DB-side aggregate queries; existing Prisma count/aggregate fallback remains for complex scoped/filter cases.
   - Added `scripts/test-performance-guard-contract.js` to guard permission dedupe and dashboard aggregate behavior.
   - Rebuilt/restarted API and web containers on the VPS and verified `HEALTHCHECK_OK`; post-deploy public timings remained sub-200ms and raw dashboard aggregate benchmarks were ~0-2ms after warm-up.
+
+
+- 2026-07-07 Request logging severity follow-up:
+  - During VPS readiness log review, structured 400/404 smoke-test responses were found in the API log at Nest `ERROR` level even though they were expected validation/RBAC/client errors.
+  - Updated `RequestLoggingInterceptor` so `request_failed` entries with status 400-499 are logged with `Logger.warn`, while 5xx/unexpected failures continue to use `Logger.error` and the existing correlation/error-code/stack gating behavior is preserved.
+  - Updated `scripts/test-logging-correlation-contract.js` to guard the 4xx severity split.
+
+- 2026-07-08 Finance report performance follow-up:
+  - Reduced `/api/reports/finance` service work by using lightweight Prisma `select` projections for finance order/receipt/payment/cashflow detail queries instead of hydrating full related entities.
+  - Split standalone customer/supplier debt reports from the finance-screen debt detail path so public debt report endpoints keep their 1000-row cap while the finance screen builds only `FINANCE_REPORT_DETAIL_LIMIT` detail rows.
+  - Updated performance/query-validation contracts to guard lightweight finance selects, finance detail caps, and the helper split.
+  - Container-image service profiling improved `/reports/finance` direct warm runs from roughly 545ms before selector work to roughly 226-256ms after the final changes; response payload remains about 839KB because the frontend contract still returns the same capped detail arrays.

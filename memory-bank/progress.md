@@ -2871,3 +2871,14 @@
   - Implemented frontend permission sync dedupe/cache in `usePermissions()` and DB-side aggregate paths for default order-center and quotation dashboards.
   - Added `scripts/test-performance-guard-contract.js` plus retained existing order-center query/permission contracts so dashboards do not regress to loading all rows.
   - Verification passed: performance guard, order-center query/permission contracts, quotations/quotes contracts, API/web typecheck, Docker image builds for API/Web, `scripts/healthcheck.sh`, and post-deploy timing/aggregate benchmarks.
+
+
+- 2026-07-07 Completed request logging severity follow-up:
+  - Root cause: `RequestLoggingInterceptor` used `Logger.error` for every `request_failed`, causing expected 4xx validation/RBAC smoke responses to pollute operational error logs.
+  - Fix: 4xx `request_failed` logs now use `Logger.warn`; 5xx failures still use `Logger.error`.
+  - Verification passed: logging/correlation/error-response contracts, API lint/build, live correlation smoke, phase3 error logging contract, Docker API rebuild/restart, live `/api/auth/login` 400 probe showing `WARN`, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed finance report performance follow-up:
+  - `/api/reports/finance` now uses report-specific lightweight selectors and avoids full relation hydration for detail rows.
+  - Finance report debt detail generation now uses the 200-row interactive report cap without changing standalone customer/supplier debt report limits.
+  - Verification passed: performance guard, finance hybrid report contract, report permissions contract, report query validation contract, logging/correlation/error-response contracts, API build/lint, and container-image service profiling.

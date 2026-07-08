@@ -65,8 +65,16 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       ...(errorCode ? { errorCode } : {}),
       ...(errorStack && this.includeErrorStack() ? { errorStack } : {}),
     });
-    if (event === 'request_failed') this.logger.error(line);
-    else this.logger.log(line);
+    if (event === 'request_failed') {
+      if (this.isClientErrorStatus(statusCode)) this.logger.warn(line);
+      else this.logger.error(line);
+      return;
+    }
+    this.logger.log(line);
+  }
+
+  private isClientErrorStatus(statusCode: number) {
+    return statusCode >= 400 && statusCode < 500;
   }
 
   private includeErrorStack() {

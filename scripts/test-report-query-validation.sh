@@ -90,26 +90,22 @@ async function main() {
     assert(!block.includes('return this.groupOrders(orders, group)'), `${method} must not return capped-row summary from groupOrders`);
     assert(!block.includes('summary: result.summary'), `${method} must not keep capped-row summary from groupOrders`);
   }
-  for (const [method, helper, oldSummary] of [
-    ['customerDebt', 'customerDebtSummaryFromDb(where)', 'customerDebtSummary(rows)'],
-    ['supplierDebt', 'supplierDebtSummaryFromDb(where)', 'supplierDebtSummary(rows)'],
+  for (const [method, reportHelper, summaryHelper, rowHelper, oldSummary, oldRows] of [
+    ['customerDebt', 'customerDebtReport', 'customerDebtSummaryFromDb(where)', 'customerDebtRowsFromDb(where, take)', 'customerDebtSummary(rows)', 'this.customerDebtRows(entries)'],
+    ['supplierDebt', 'supplierDebtReport', 'supplierDebtSummaryFromDb(where)', 'supplierDebtRowsFromDb(where, take)', 'supplierDebtSummary(rows)', 'this.supplierDebtRows(entries)'],
   ]) {
-    const start = reportsServiceSource.indexOf('async ' + method + '(');
-    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
-    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
-    assert(block.includes(helper), `${method} summary must use database grouped summary helper`);
-    assert(!block.includes(oldSummary), `${method} summary must not depend on capped debt rows`);
-  }
-  for (const [method, helper, oldRows] of [
-    ['customerDebt', 'customerDebtRowsFromDb(where, 1000)', 'this.customerDebtRows(entries)'],
-    ['supplierDebt', 'supplierDebtRowsFromDb(where, 1000)', 'this.supplierDebtRows(entries)'],
-  ]) {
-    const start = reportsServiceSource.indexOf('async ' + method + '(');
-    const next = reportsServiceSource.indexOf('\n  async ', start + 1);
-    const block = start === -1 ? '' : reportsServiceSource.slice(start, next === -1 ? reportsServiceSource.length : next);
-    assert(block.includes(helper), `${method} rows must use database grouped row helper`);
-    assert(!block.includes(oldRows), `${method} rows must not be grouped from capped ledger entries`);
-    assert(!block.includes('findMany({\n      where,\n      include:'), `${method} must not load capped ledger entries before grouping report rows`);
+    const publicStart = reportsServiceSource.indexOf('async ' + method + '(');
+    const publicNext = reportsServiceSource.indexOf('\n  async ', publicStart + 1);
+    const publicBlock = publicStart === -1 ? '' : reportsServiceSource.slice(publicStart, publicNext === -1 ? reportsServiceSource.length : publicNext);
+    const helperStart = reportsServiceSource.indexOf('private async ' + reportHelper + '(');
+    const helperNext = reportsServiceSource.indexOf('\n  private async ', helperStart + 1);
+    const helperBlock = helperStart === -1 ? '' : reportsServiceSource.slice(helperStart, helperNext === -1 ? reportsServiceSource.length : helperNext);
+    assert(publicBlock.includes(`return this.${reportHelper}(query, user, 1000)`), `${method} public endpoint must keep the standalone 1000-row report limit`);
+    assert(helperBlock.includes(summaryHelper), `${method} summary must use database grouped summary helper`);
+    assert(helperBlock.includes(rowHelper), `${method} rows must use database grouped row helper`);
+    assert(!helperBlock.includes(oldSummary), `${method} summary must not depend on capped debt rows`);
+    assert(!helperBlock.includes(oldRows), `${method} rows must not be grouped from capped ledger entries`);
+    assert(!helperBlock.includes('findMany({\n      where,\n      include:'), `${method} must not load capped ledger entries before grouping report rows`);
   }
   {
     const start = reportsServiceSource.indexOf('async finance(');
