@@ -104,7 +104,7 @@ assert 'status?: SupplierStatus' in typed_query_block and 'take?: number' in typ
 assert 'MAX_SUPPLIERS_TAKE' in typed_query_block, 'typed supplier query must cap take to avoid unbounded SSR payloads'
 assert 'query.status ? { status: query.status } : {}' in service, 'typed supplier status filter must use the shared Supplier status'
 typed_list_block = service.split('listTypedSuppliers(type: string, query: TypedSupplierListQueryDto = {}, user?: RequestUser)', 1)[1].split('async getTypedSupplier', 1)[0]
-assert 'take: this.listTake(query.take)' in typed_list_block, 'typed supplier list must apply bounded take'
+assert 'take: this.listTake(query.take ?? query.limit)' in typed_list_block, 'typed supplier list must apply bounded take'
 for search_fragment in [
     '{ contactPerson: contains }',
     '{ province: contains }',

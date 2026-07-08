@@ -2921,3 +2921,7 @@
 - 2026-07-08 Completed reports overview debt-count permission follow-up:
   - /api/reports/overview no longer computes or exposes supplierDebtCount to report users without finance.debt.view, and the Reports overview metric is hidden without that permission.
   - Verification passed: reports permission contract, performance guard, finance hybrid contract, report query validation, workspace page/data contracts, API/Web typecheck/build, Docker API/Web rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.
+
+- 2026-07-08 Completed supplier sensitive-search permission follow-up:
+  - Supplier list search no longer leaks masked tax/bank/debt/price fields through search side channels to users without finance.payment.view.
+  - Verification passed: supplier sensitive-fields contract, common/hotel/typed supplier contracts, supplier UI permission contract, smoke-suppliers, API/Web typecheck/build, Docker API rebuild, docker builder prune to 0B build cache, and post-prune HEALTHCHECK_OK.

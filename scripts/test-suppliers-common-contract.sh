@@ -71,7 +71,7 @@ for field in [
 for field in ['supplierCode', 'name', 'taxCode', 'contactPerson', 'phone', 'email']:
     assert f'{{ {field}: contains }}' in service, f'common supplier search must include {field}'
 assert 'deletedAt: null' in service and 'include: this.supplierListInclude()' in service
-assert 'take: this.listTake(query.take)' in service, 'common supplier list must apply bounded take'
+assert 'take: this.listTake(query.take ?? query.limit)' in service, 'common supplier list must apply bounded take'
 assert 'category: true' in service and 'supplierServices: { where: { deletedAt: null }' in service
 assert "this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: null } })" in service
 assert "this.prisma.supplierAllotment.count({ where: { supplierId: id } })" in service

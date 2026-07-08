@@ -3350,3 +3350,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Reports overview now skips supplier debt count computation unless the user has finance.debt.view; unauthorized payloads receive 0 for that aggregate.
   - Reports UI hides the supplier debt count metric unless canViewDebtReports is true.
   - Verification/deploy passed on the VPS: reports permission/performance/finance-hybrid/query-validation contracts, workspace contracts, API/Web lint and builds, Docker API/Web rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.
+
+- 2026-07-08 Supplier sensitive-search permission follow-up:
+  - Found a supplier sensitive-field side channel: responses masked tax/bank/debt/price fields without finance.payment.view, but list search still matched taxCode and hotel bank fields for supplier.view users.
+  - Supplier common/typed/hotel search now only includes sensitive supplier fields when canViewSupplierFinancialFields(user) is true; public supplier search fields remain unchanged.
+  - Extended supplier sensitive-field contract to inspect generated Prisma where clauses for view-only versus finance.payment.view users.
+  - Refreshed stale supplier bounded-take contracts to the existing take ?? limit behavior from the list-limit alias work.
+  - Verification/deploy passed on the VPS: supplier sensitive/common/hotel/typed/UI contracts, supplier smoke, API/Web lint and builds, Docker API rebuild, healthcheck, builder prune to 0B build cache, and post-prune healthcheck.

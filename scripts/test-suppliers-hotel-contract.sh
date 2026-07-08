@@ -29,7 +29,7 @@ assert "@IsUUID('4', { message: 'Mã nhà cung cấp không hợp lệ' })" in q
 assert 'const hotelProject = this.optionalLabel(query.hotelProject)' in service
 assert 'const classHotel = this.optionalLabel(query.classHotel)' in service
 hotel_list_block = service.split('async listHotelSuppliers', 1)[1].split('async getHotelSupplier', 1)[0]
-assert 'take: this.listTake(query.take)' in hotel_list_block, 'hotel supplier list must apply bounded take'
+assert 'take: this.listTake(query.take ?? query.limit)' in hotel_list_block, 'hotel supplier list must apply bounded take'
 assert 'hotelProfile: {' in service and 'is: {' in service, 'hotel list must require a hotel profile'
 for search_fragment in [
     '{ supplierCode: contains }',

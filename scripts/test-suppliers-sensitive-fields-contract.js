@@ -56,10 +56,24 @@ function assertSensitivePresent(row, label) {
   }
 }
 
-function fakePrisma() {
+function sensitiveSearchTokens(value) {
+  const text = JSON.stringify(value || {});
+  return ['taxCode', 'bankAccountName', 'bankAccountNumber', 'bankName', 'debtNote', 'pricePolicy'].filter((token) => text.includes(token));
+}
+
+function assertNoSensitiveSearch(where, label) {
+  const tokens = sensitiveSearchTokens(where);
+  assert(tokens.length === 0, label + ' must not search sensitive supplier fields without finance.payment.view: ' + tokens.join(', '));
+}
+
+function assertSensitiveSearch(where, label) {
+  assert(sensitiveSearchTokens(where).length > 0, label + ' should include sensitive supplier search fields with finance.payment.view');
+}
+
+function fakePrisma(calls = []) {
   return {
     supplier: {
-      findMany: async () => [supplierRow()],
+      findMany: async (args = {}) => { calls.push(args); return [supplierRow()]; },
       findUnique: async () => supplierRow(),
       findFirst: async () => supplierRow(),
     },
@@ -67,7 +81,8 @@ function fakePrisma() {
 }
 
 async function main() {
-  const service = new SuppliersService(fakePrisma(), {});
+  const calls = [];
+  const service = new SuppliersService(fakePrisma(calls), {});
   const viewOnly = userWith(['supplier.view']);
   const manageOnly = userWith(['supplier.view', 'supplier.manage']);
   const financeViewer = userWith(['supplier.view', 'finance.payment.view']);
@@ -79,6 +94,19 @@ async function main() {
 
   assertSensitivePresent((await service.listSuppliers({}, financeViewer))[0], 'listSuppliers finance.payment.view');
   assertSensitivePresent(await service.getHotelSupplier('supplier-sensitive-row', financeViewer), 'getHotelSupplier finance.payment.view');
+
+  calls.length = 0;
+  await service.listSuppliers({ search: 'TAX-SECRET' }, viewOnly);
+  assertNoSensitiveSearch(calls.at(-1).where, 'listSuppliers supplier.view');
+  await service.listTypedSuppliers('restaurants', { search: 'TAX-SECRET' }, viewOnly);
+  assertNoSensitiveSearch(calls.at(-1).where, 'listTypedSuppliers supplier.view');
+  await service.listHotelSuppliers({ search: '999999999' }, viewOnly);
+  assertNoSensitiveSearch(calls.at(-1).where, 'listHotelSuppliers supplier.view');
+
+  await service.listSuppliers({ search: 'TAX-SECRET' }, financeViewer);
+  assertSensitiveSearch(calls.at(-1).where, 'listSuppliers finance.payment.view');
+  await service.listHotelSuppliers({ search: '999999999' }, financeViewer);
+  assertSensitiveSearch(calls.at(-1).where, 'listHotelSuppliers finance.payment.view');
 
   console.log('TEST_SUPPLIERS_SENSITIVE_FIELDS_CONTRACT_OK');
 }

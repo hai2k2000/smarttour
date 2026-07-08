@@ -3,7 +3,7 @@ import { Prisma, SupplierDayType, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
-import { containsSearch, normalizeListSearch } from '../list-search';
+import { containsSearch, InsensitiveContains, normalizeListSearch } from '../list-search';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
@@ -11,7 +11,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
-import { maskSupplierFinancialFields } from './supplier-projection';
+import { canViewSupplierFinancialFields, maskSupplierFinancialFields } from './supplier-projection';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
 const supplierCategoryNameKey = (value: string) => value
@@ -159,16 +159,7 @@ export class SuppliersService {
       ...(market ? { market: containsSearch(market) } : {}),
       ...(contains
         ? {
-            OR: [
-              { supplierCode: contains },
-              { name: contains },
-              { taxCode: contains },
-              { contactPerson: contains },
-              { phone: contains },
-              { email: contains },
-              { province: contains },
-              { market: contains },
-            ],
+            OR: this.supplierSearchConditions(contains, user),
           }
         : {}),
     };
@@ -184,6 +175,52 @@ export class SuppliersService {
 
   private listTake(take?: number) {
     return take ?? DEFAULT_SUPPLIERS_TAKE;
+  }
+
+  private supplierSearchConditions(contains: InsensitiveContains, user?: RequestUser): Prisma.SupplierWhereInput[] {
+    const conditions: Prisma.SupplierWhereInput[] = [
+      { supplierCode: contains },
+      { name: contains },
+      { contactPerson: contains },
+      { phone: contains },
+      { email: contains },
+      { province: contains },
+      { market: contains },
+    ];
+    if (canViewSupplierFinancialFields(user)) conditions.push({ taxCode: contains });
+    return conditions;
+  }
+
+  private hotelSupplierSearchConditions(contains: InsensitiveContains, user?: RequestUser): Prisma.SupplierWhereInput[] {
+    const conditions: Prisma.SupplierWhereInput[] = [
+      ...this.supplierSearchConditions(contains, user),
+      { address: contains },
+      { website: contains },
+      { hotelProfile: { is: { hotelProject: contains } } },
+      { hotelProfile: { is: { classHotel: contains } } },
+      { hotelProfile: { is: { market: contains } } },
+      { hotelProfile: { is: { link: contains } } },
+      { contacts: { some: { fullName: contains } } },
+      { contacts: { some: { position: contains } } },
+      { contacts: { some: { phone: contains } } },
+      { contacts: { some: { email: contains } } },
+      { supplierServices: { some: { deletedAt: null, serviceName: contains } } },
+      { supplierServices: { some: { deletedAt: null, sku: contains } } },
+      { supplierServices: { some: { deletedAt: null, description: contains } } },
+      { supplierServices: { some: { deletedAt: null, note: contains } } },
+      { allotments: { some: { serviceName: contains } } },
+      { allotments: { some: { sku: contains } } },
+      { allotments: { some: { description: contains } } },
+      { allotments: { some: { note: contains } } },
+    ];
+    if (canViewSupplierFinancialFields(user)) {
+      conditions.push(
+        { hotelProfile: { is: { bankAccountName: contains } } },
+        { hotelProfile: { is: { bankAccountNumber: contains } } },
+        { hotelProfile: { is: { bankName: contains } } },
+      );
+    }
+    return conditions;
   }
 
   async getSupplier(id: string, user?: RequestUser) {
@@ -342,14 +379,7 @@ export class SuppliersService {
       ...(contains
         ? {
             OR: [
-              { supplierCode: contains },
-              { name: contains },
-              { taxCode: contains },
-              { contactPerson: contains },
-              { phone: contains },
-              { email: contains },
-              { province: contains },
-              { market: contains },
+              ...this.supplierSearchConditions(contains, user),
               { contacts: { some: { fullName: contains } } },
               { contacts: { some: { position: contains } } },
               { contacts: { some: { phone: contains } } },
@@ -463,36 +493,7 @@ export class SuppliersService {
       ...(query.status ? { status: query.status } : {}),
       ...(contains
         ? {
-            OR: [
-              { supplierCode: contains },
-              { name: contains },
-              { taxCode: contains },
-              { contactPerson: contains },
-              { phone: contains },
-              { email: contains },
-              { address: contains },
-              { website: contains },
-              { province: contains },
-              { hotelProfile: { is: { hotelProject: contains } } },
-              { hotelProfile: { is: { classHotel: contains } } },
-              { hotelProfile: { is: { market: contains } } },
-              { hotelProfile: { is: { bankAccountName: contains } } },
-              { hotelProfile: { is: { bankAccountNumber: contains } } },
-              { hotelProfile: { is: { bankName: contains } } },
-              { hotelProfile: { is: { link: contains } } },
-              { contacts: { some: { fullName: contains } } },
-              { contacts: { some: { position: contains } } },
-              { contacts: { some: { phone: contains } } },
-              { contacts: { some: { email: contains } } },
-              { supplierServices: { some: { deletedAt: null, serviceName: contains } } },
-              { supplierServices: { some: { deletedAt: null, sku: contains } } },
-              { supplierServices: { some: { deletedAt: null, description: contains } } },
-              { supplierServices: { some: { deletedAt: null, note: contains } } },
-              { allotments: { some: { serviceName: contains } } },
-              { allotments: { some: { sku: contains } } },
-              { allotments: { some: { description: contains } } },
-              { allotments: { some: { note: contains } } },
-            ],
+            OR: this.hotelSupplierSearchConditions(contains, user),
           }
         : {}),
     };
