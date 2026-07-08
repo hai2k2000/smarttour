@@ -3371,3 +3371,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added relation-based OperationVoucher scoping through linked order, tour, or booking.customer so branch/department-scoped users do not hit invalid Prisma filters and cannot see unrelated vouchers.
   - Refreshed the reports CSV helper contract to match the shared CSV export helper introduced for formula-injection protection.
   - Verification/deploy passed on the VPS: report query validation, report permission/finance-hybrid/CSV contracts, CSV formula guard, API build/lint, Docker API rebuild, healthcheck, and docker builder prune to 0B build cache.
+
+- 2026-07-08 Quotations date validation follow-up:
+  - Found that quotation date fields accepted impossible date-only values such as 2026-02-31 because the service delegated to JavaScript Date parsing, which can roll dates forward instead of rejecting them.
+  - Added strict calendar-date validation for YYYY-MM-DD/ISO-date-prefix quotation fields before Date construction, preserving valid Date/ISO inputs while rejecting impossible calendar days.
+  - Added `scripts/test-quotations-date-validation-contract.js` to guard invalid created/expired/departure/return/expected-payment dates before create transaction work starts.
+  - Verification passed on the VPS: quotation date contract, quotes backend contract, SmartLink expiry/DTO/client contracts, business logic guard contract, API build/lint, and git diff check.

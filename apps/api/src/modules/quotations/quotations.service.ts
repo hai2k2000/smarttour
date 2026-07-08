@@ -557,10 +557,24 @@ export class QuotationsService {
   }
 
   private dateValue(value?: unknown) {
-    if (!value) return null;
-    const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) throw new BadRequestException('Ngày không hợp lệ.');
+    const raw = typeof value === 'string' ? value.trim() : value;
+    if (!raw) return null;
+    if (typeof raw === 'string') this.assertValidCalendarDate(raw);
+    const date = raw instanceof Date ? raw : new Date(String(raw));
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Ng\u00e0y kh\u00f4ng h\u1ee3p l\u1ec7.');
     return date;
+  }
+
+  private assertValidCalendarDate(value: string) {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+    if (!match) return;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException('Ng\u00e0y kh\u00f4ng h\u1ee3p l\u1ec7.');
+    }
   }
 
   private actionLabel(action: string) {

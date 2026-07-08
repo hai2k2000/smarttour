@@ -2934,3 +2934,8 @@
   - /api/reports/debt/suppliers/:supplierId/history now scopes OperationVoucher rows through linked order/tour/booking.customer instead of applying branch/department directly to the voucher model.
   - Updated report query validation coverage for branch-scoped supplier history and refreshed the stale reports CSV helper contract to assert delegation to the shared CSV export helper.
   - Verification passed: report query validation, reports permission contract, finance hybrid contract, reports CSV helper contract, CSV formula guard, API typecheck/build, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check.
+
+- 2026-07-08 Completed quotations date validation follow-up:
+  - Quotation create/update date parsing now rejects impossible calendar dates like 2026-02-31 instead of allowing JavaScript Date rollover.
+  - Added a quotation date validation contract covering createdDate, expiredDate, departureDate, returnDate, and expectedPaymentDate before create transaction work.
+  - Verification passed: quotation date contract, quotes backend contract, SmartLink expiry/DTO/client contracts, business logic guard contract, API typecheck/build, and git diff check.
