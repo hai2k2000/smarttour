@@ -738,11 +738,13 @@ export class FinanceService {
     const amount = this.adjustmentAmount(dto);
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
-      const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
+      const orderId = this.text(dto.orderId);
+      const requestedTourId = this.text(dto.tourId);
+      const tourId = await this.assertCustomerDebtAdjustmentLinks(tx, customerId, { orderId, tourId: requestedTourId }, user);
       const entry = await tx.customerLedgerEntry.create({
         data: {
           customerId,
-          orderId: this.text(dto.orderId),
+          orderId,
           tourId,
           sourceType: 'MANUAL',
           sourceId: randomUUID(),
@@ -772,11 +774,13 @@ export class FinanceService {
     const amount = this.adjustmentAmount(dto);
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
-      const tourId = await resolveTourId(tx, { tourId: this.text(dto.tourId), orderId: this.text(dto.orderId) }, user);
+      const orderId = this.text(dto.orderId);
+      const requestedTourId = this.text(dto.tourId);
+      const tourId = await this.assertSupplierDebtAdjustmentLinks(tx, supplierId, { orderId, tourId: requestedTourId }, user);
       const entry = await tx.supplierLedgerEntry.create({
         data: {
           supplierId,
-          orderId: this.text(dto.orderId),
+          orderId,
           tourId,
           sourceType: 'MANUAL',
           sourceId: randomUUID(),
@@ -1259,6 +1263,107 @@ export class FinanceService {
       ...(query.staff ? { staff: { contains: query.staff, mode: 'insensitive' } } : {}),
       ...this.dateRange('paymentDate', query.from, query.to),
     };
+  }
+
+
+
+  private async assertCustomerDebtAdjustmentLinks(
+    tx: Prisma.TransactionClient,
+    customerId: string,
+    links: { orderId?: string; tourId?: string },
+    user?: RequestUser,
+  ) {
+    let order: { id: string; customerId: string | null } | null = null;
+    if (links.orderId) {
+      order = await tx.order.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id: links.orderId, deletedAt: null }, user),
+        select: { id: true, customerId: true },
+      });
+      if (!order) throw new BadRequestException('Booking dieu chinh cong no khach hang khong hop le hoac ngoai pham vi du lieu');
+      if (order.customerId !== customerId) throw new BadRequestException('Khach hang dieu chinh cong no khong khop khach hang cua booking');
+    }
+
+    if (links.tourId) {
+      const tour = await tx.tour.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id: links.tourId, deletedAt: null }, user),
+        select: {
+          id: true,
+          orderId: true,
+          customers: { where: { crmCustomerId: customerId }, select: { id: true }, take: 1 },
+        },
+      });
+      if (!tour) throw new BadRequestException('Tour dieu chinh cong no khach hang khong hop le hoac ngoai pham vi du lieu');
+      if (links.orderId && tour.orderId !== links.orderId) throw new BadRequestException('Tour dieu chinh cong no khach hang khong khop booking');
+
+      let linkedToCustomer = tour.customers.length > 0;
+      if (tour.orderId) {
+        const tourOrder = order?.id === tour.orderId
+          ? order
+          : await tx.order.findFirst({
+              where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id: tour.orderId, deletedAt: null }, user),
+              select: { id: true, customerId: true },
+            });
+        if (!tourOrder) throw new BadRequestException('Booking cua tour dieu chinh cong no khach hang khong hop le hoac ngoai pham vi du lieu');
+        linkedToCustomer = linkedToCustomer || tourOrder.customerId === customerId;
+      }
+      if (!linkedToCustomer) throw new BadRequestException('Khach hang dieu chinh cong no khong thuoc tour');
+      return tour.id;
+    }
+
+    return links.orderId ? resolveTourId(tx, { orderId: links.orderId }, user) : undefined;
+  }
+
+  private async assertSupplierDebtAdjustmentLinks(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    links: { orderId?: string; tourId?: string },
+    user?: RequestUser,
+  ) {
+    if (links.orderId) {
+      const order = await tx.order.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id: links.orderId, deletedAt: null }, user),
+        select: { id: true },
+      });
+      if (!order) throw new BadRequestException('Booking dieu chinh cong no nha cung cap khong hop le hoac ngoai pham vi du lieu');
+      if (!(await this.supplierLinkedToOrder(tx, supplierId, links.orderId))) {
+        throw new BadRequestException('Nha cung cap dieu chinh cong no khong thuoc booking');
+      }
+    }
+
+    if (links.tourId) {
+      const tour = await tx.tour.findFirst({
+        where: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id: links.tourId, deletedAt: null }, user),
+        select: { id: true, orderId: true },
+      });
+      if (!tour) throw new BadRequestException('Tour dieu chinh cong no nha cung cap khong hop le hoac ngoai pham vi du lieu');
+      if (links.orderId && tour.orderId !== links.orderId) throw new BadRequestException('Tour dieu chinh cong no nha cung cap khong khop booking');
+      if (!(await this.supplierLinkedToTour(tx, supplierId, tour.id, tour.orderId || undefined))) {
+        throw new BadRequestException('Nha cung cap dieu chinh cong no khong thuoc tour');
+      }
+      return tour.id;
+    }
+
+    return links.orderId ? resolveTourId(tx, { orderId: links.orderId }, user) : undefined;
+  }
+
+  private async supplierLinkedToOrder(tx: Prisma.TransactionClient, supplierId: string, orderId: string) {
+    const [operationItems, salesItems, vouchers] = await Promise.all([
+      tx.orderOperationItem.count({ where: { supplierId, orderId } }),
+      tx.orderSalesItem.count({ where: { supplierId, orderId } }),
+      tx.operationVoucher.count({ where: { supplierId, orderId, deletedAt: null } }),
+    ]);
+    return operationItems + salesItems + vouchers > 0;
+  }
+
+  private async supplierLinkedToTour(tx: Prisma.TransactionClient, supplierId: string, tourId: string, orderId?: string) {
+    const [tourSuppliers, tourServices, tourCosts, vouchers] = await Promise.all([
+      tx.tourSupplier.count({ where: { supplierId, tourId } }),
+      tx.tourService.count({ where: { supplierId, tourId } }),
+      tx.tourCost.count({ where: { supplierId, tourId } }),
+      tx.operationVoucher.count({ where: { supplierId, tourId, deletedAt: null } }),
+    ]);
+    if (tourSuppliers + tourServices + tourCosts + vouchers > 0) return true;
+    return orderId ? this.supplierLinkedToOrder(tx, supplierId, orderId) : false;
   }
 
   private async audit(tx: Prisma.TransactionClient, action: string, entity: string, entityId: string, metadata: unknown, user?: RequestUser) {

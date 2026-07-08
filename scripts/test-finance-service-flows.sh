@@ -973,6 +973,7 @@ async function main() {
   assert(branchCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should include branch scoped entries');
   assert(!outCustomerDebt.rows.find((row) => row.id === customer.id), 'customer debt should exclude out-of-scope entries');
   await rejects(() => finance.createCustomerDebtAdjustment(customer.id, { direction: 'SIDEWAYS', amount: 1 }), 'customer debt adjustment should reject invalid direction');
+  await rejectsWithStatus(() => finance.createCustomerDebtAdjustment(customer.id, { direction: 'INCREASE', amount: 1, orderId: otherOrder.id }), 400, 'customer debt adjustment should reject order belonging to a different customer');
 
   const supplierAdjustmentIncrease = await finance.createSupplierDebtAdjustment(supplier.id, { direction: 'INCREASE', amount: 400, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'increase supplier debt' });
   const supplierAdjustmentDecrease = await finance.createSupplierDebtAdjustment(supplier.id, { direction: 'DECREASE', amount: 125, branch: 'FIN-BR', department: 'FIN-DEP', actor: 'finance-test', description: 'decrease supplier debt' });
@@ -1007,6 +1008,7 @@ async function main() {
   assert(branchSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should include branch scoped entries');
   assert(!outSupplierDebt.rows.find((row) => row.id === supplier.id), 'supplier debt should exclude out-of-scope entries');
   await rejects(() => finance.createSupplierDebtAdjustment(supplier.id, { direction: 'INCREASE', amount: 0 }), 'supplier debt adjustment should reject non-positive amount');
+  await rejectsWithStatus(() => finance.createSupplierDebtAdjustment(otherSupplier.id, { direction: 'INCREASE', amount: 1, orderId: order.id }), 400, 'supplier debt adjustment should reject order without a supplier link');
 
   await prisma.$disconnect();
   console.log('TEST_FINANCE_SERVICE_FLOWS_OK');

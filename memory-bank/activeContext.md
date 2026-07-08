@@ -3390,3 +3390,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier mutation services now reject submitted supplier financial fields without finance.payment.view and mask supplier mutation responses using the same projection as list/detail.
   - Extended supplier sensitive/controller/typed contracts to cover mutation response masking, ForbiddenException on forbidden sensitive writes, and request.user delegation.
   - Verification passed on the VPS: API build/lint, supplier sensitive/controller/typed/common/hotel/DTO/generic/i18n/file/client/UI contracts, route/role/security/data-access contracts, and git diff check.
+
+- 2026-07-08 Finance debt adjustment link-integrity follow-up:
+  - Found manual customer/supplier debt adjustments only scoped linked order/tour but did not verify the linked entity belonged to the adjusted customer/supplier.
+  - Customer debt adjustments now reject order links for another customer and require tour links to relate through the tour order or TourCustomer CRM link.
+  - Supplier debt adjustments now reject order/tour links unless the supplier is present through order operation/sales items, operation vouchers, tour suppliers/services, or tour costs.
+  - Extended `scripts/test-finance-service-flows.sh` with mismatched customer/order and supplier/order RED cases.
+  - Verification/deploy passed on the VPS: finance service flow, API build/lint, finance DTO/controller/rules/side-effect contracts, Docker API rebuild, HEALTHCHECK_OK, and docker builder prune to 0B build cache.

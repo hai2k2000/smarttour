@@ -2947,3 +2947,7 @@
 - 2026-07-08 Completed supplier financial write permission follow-up:
   - Supplier mutation APIs now enforce finance.payment.view for tax/bank/debt/price writes and mask mutation responses for users without that permission.
   - Verification passed: API build/lint, supplier contract/smoke suites, route/role/security/data-access contracts, and git diff check.
+
+- 2026-07-08 Completed finance debt adjustment link-integrity follow-up:
+  - Manual customer/supplier debt adjustment links now require the selected order/tour to belong to the adjusted customer or supplier, preventing inconsistent ledger entries across unrelated entities.
+  - Verification passed: `scripts/test-finance-service-flows.sh`, API build/lint, finance DTO/controller/rules/side-effect contracts, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check.
