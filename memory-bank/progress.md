@@ -2969,3 +2969,8 @@
 - 2026-07-08 Completed supplier allotment override data-scope follow-up:
   - Supplier allotment override now requires unrestricted data scope, preventing scoped users from changing global hotel inventory without a scoped business link.
   - Verification/deploy passed: RED/GREEN `scripts/test-data-scope-module-flows.sh`, supplier contract suite, data-scope audit, API build/lint, git diff check, Docker API rebuild/restart, `scripts/smoke-suppliers.sh`, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-08 Completed auth profile date validation follow-up:
+  - Auth user create/update now rejects impossible `dateOfBirth` calendar dates instead of storing JavaScript rollover dates.
+  - Verification/deploy passed: RED/GREEN `scripts/test-auth-service-flows.sh`, auth/RBAC contract suite, API build/lint, git diff check, Docker API rebuild/restart, `scripts/smoke-rbac-workflows.sh`, HEALTHCHECK_OK, and docker builder prune to 0B.

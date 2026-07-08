@@ -3419,3 +3419,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found that branch/department-scoped users could call supplier allotment override, changing global inventory without an order/booking/tour link to enforce data scope.
   - Allotment override now requires unrestricted data scope (`data.scope.all` or `*`); scoped lock/confirm/release behavior remains link-scoped through order/booking/tour allocations.
   - Added RED/GREEN coverage in `scripts/test-data-scope-module-flows.sh` for scoped override rejection.
+
+
+- 2026-07-08 Auth profile date validation follow-up:
+  - Found auth profile `dateOfBirth` accepted impossible date-only values because `Date.UTC` rolled invalid calendar days forward.
+  - Auth date parsing now validates YYYY-MM-DD and DD/MM/YYYY style inputs by round-tripping year/month/day before persisting.
+  - Added RED/GREEN coverage in `scripts/test-auth-service-flows.sh` for invalid `dateOfBirth` rejection.

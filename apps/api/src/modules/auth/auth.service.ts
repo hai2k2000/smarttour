@@ -900,16 +900,24 @@ export class AuthService {
     const ymd = valueText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (ymd) {
       const [, year, month, day] = ymd;
-      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+      return this.dateFromParts(Number(year), Number(month), Number(day), label);
     }
     const dmy = valueText.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
     if (dmy) {
       const [, day, month, year] = dmy;
-      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+      return this.dateFromParts(Number(year), Number(month), Number(day), label);
     }
     const parsed = new Date(valueText);
     if (!Number.isFinite(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
     return parsed;
+  }
+
+  private dateFromParts(year: number, month: number, day: number, label: string) {
+    const date = new Date(Date.UTC(year, month - 1, day, 12));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new BadRequestException(`${label} không hợp lệ`);
+    }
+    return date;
   }
 
   private requiredPermissions(value: unknown) {

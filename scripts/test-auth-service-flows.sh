@@ -82,6 +82,8 @@ async function main() {
   assert(await errorFrom(() => auth.createUser({ email: 'no-role@example.com', name: 'No Role', password, roleCodes: [] }, boot.user.id)) instanceof BadRequestException, 'createUser should reject empty roles');
   assert(await errorFrom(() => auth.createUser({ email: 'no-branch@example.com', name: 'No Branch', password, roleCodes: ['branch_manager'] }, boot.user.id)) instanceof BadRequestException, 'createUser should require branch for branch scope');
 
+  assert(await errorFrom(() => auth.createUser({ email: 'invalid-birthdate@example.com', name: 'Invalid Birthdate', password, branch: 'Hanoi', dateOfBirth: '2026-02-31', roleCodes: ['branch_manager'] }, boot.user.id)) instanceof BadRequestException, 'createUser should reject impossible dateOfBirth');
+
   const first = await auth.createUser({
     email: 'operator@one.example.com',
     name: 'Operator One',
