@@ -3407,3 +3407,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 - 2026-07-08 Order customer snapshot data-scope follow-up:
   - Found scoped order create/update could link and snapshot an out-of-scope CRM customer because OrderCustomerSnapshotService used an unscoped Customer findUnique.
   - Added high-a RED/GREEN coverage for scoped order customer links and changed order customer snapshot lookup to apply branch/department data scope with request.user.
+
+
+- 2026-07-08 Customer auto-link data-scope follow-up:
+  - Found that branch-scoped customer create/update could auto-link orphan business rows outside the user's scope when matching phone/email/name, because linkExistingData did not receive request.user.
+  - Customer auto-link now scopes direct branch/department models (orders, quotations, finance receipts) before assigning customerId, while preserving legacy linking for orphan rows without scope metadata.
+  - Added RED/GREEN coverage in scripts/test-customers-service.sh for an out-of-scope orphan order that must remain unlinked.

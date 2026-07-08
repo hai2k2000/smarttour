@@ -2959,3 +2959,8 @@
 - 2026-07-08 Completed order customer snapshot data-scope follow-up:
   - Order create/update now rejects out-of-scope customerId values before snapshotting customer details into the order.
   - Verification passed: RED then GREEN via scripts/test-high-a-data-access.sh, API build/lint, order service flows, data-scope module flows, git diff check, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and post-prune HEALTHCHECK_OK.
+
+
+- 2026-07-08 Completed customer auto-link data-scope follow-up:
+  - Customer create/update auto-link now respects branch/department scope for scoped business rows with direct scope metadata, preventing scoped users from claiming orphan orders outside their data scope by matching customer phone/email/name.
+  - Verification passed: RED/GREEN scripts/test-customers-service.sh, customers API, bookings service/controller/page/status-lock contracts, data-scope module flows, and high-a data access.

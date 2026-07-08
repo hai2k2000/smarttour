@@ -287,7 +287,7 @@ export class CustomersService {
         } as Prisma.CustomerUncheckedCreateInput,
         include: customerInclude,
       });
-      await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName);
+      await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName, user);
       return customer;
     });
   }
@@ -328,7 +328,7 @@ export class CustomersService {
       }
       await tx.customerTimeline.create({ data: { customerId: id, eventType: 'UPDATE', title: 'Cap nhat khach hang', actor, content: this.text(dto.note) } });
       const customer = await tx.customer.update({ where: { id }, data: { ...this.customerUpdateData(dto), phone: nextPhone } as Prisma.CustomerUncheckedUpdateInput, include: customerInclude });
-      await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName);
+      await this.linkExistingData(tx, customer.id, customer.phone, customer.email, customer.fullName, user);
       return customer;
     });
   }
@@ -809,19 +809,19 @@ export class CustomersService {
     if (customer || order || quotation || quote || booking || tourCustomer || fitTour || receipt || invoice) throw new BadRequestException('So dien thoai da ton tai trong CRM hoac da duoc gan voi du lieu nghiep vu cua khach hang khac');
   }
 
-  private async linkExistingData(tx: Prisma.TransactionClient, customerId: string, phone: string, email: string | null, fullName: string) {
+  private async linkExistingData(tx: Prisma.TransactionClient, customerId: string, phone: string, email: string | null, fullName: string, user?: RequestUser) {
     const customerOr = [{ customerPhone: phone }, ...(email ? [{ customerEmail: email }] : []), { customerName: fullName }];
     const tourCustomerOr = [{ phone }, ...(email ? [{ email }] : []), { name: fullName }];
     const fitTourOr = [{ phone }, ...(email ? [{ email }] : []), { customerName: fullName }];
     const receiptOr = [{ payerPhone: phone }, ...(email ? [{ payerEmail: email }] : []), { payerName: fullName }];
     await Promise.all([
-      tx.order.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
-      tx.quotation.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.order.updateMany({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
+      tx.quotation.updateMany({ where: branchDepartmentScopeWhere<Prisma.QuotationWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
       tx.tourQuote.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
       tx.booking.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
       tx.tourCustomer.updateMany({ where: { crmCustomerId: null, OR: tourCustomerOr }, data: { crmCustomerId: customerId } }),
       tx.fitTour.updateMany({ where: { customerId: null, OR: fitTourOr }, data: { customerId } }),
-      tx.financeReceipt.updateMany({ where: { customerId: null, OR: receiptOr }, data: { customerId } }),
+      tx.financeReceipt.updateMany({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ customerId: null, OR: receiptOr }, user), data: { customerId } }),
       tx.financeInvoice.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
     ]);
   }

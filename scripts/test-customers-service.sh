@@ -140,6 +140,7 @@ async function main() {
   const linkPhone = '096' + String(Date.now()).slice(-7);
   const linkEmail = `linked-${Date.now()}@smarttour.local`;
   await prisma.order.create({ data: { type: 'FIT_TOUR', systemCode: run + '-ORD-LINK', name: 'Orphan Order', branch: 'BR-A', department: 'DEP-A', customerName: 'Linked Customer', customerPhone: linkPhone, customerEmail: linkEmail } });
+  const outOfScopeOrphanOrder = await prisma.order.create({ data: { type: 'FIT_TOUR', systemCode: run + '-ORD-LINK-OTHER-BRANCH', name: 'Other Branch Orphan Order', branch: 'BR-B', department: 'DEP-B', customerName: 'Linked Customer', customerPhone: linkPhone, customerEmail: linkEmail } });
   await prisma.quotation.create({ data: { quoteCode: run + '-Q-LINK', productType: 'FIT', customerName: 'Linked Customer', customerPhone: linkPhone, customerEmail: linkEmail, branch: 'BR-A', department: 'DEP-A' } });
   await prisma.tourQuote.create({ data: { quoteCode: run + '-TQ-LINK', tourCode: run + '-TQ-TOUR', customerName: 'Linked Customer', customerPhone: linkPhone, customerEmail: linkEmail } });
   const tourProgram = await prisma.tourProgram.create({ data: { code: run + '-TP-LINK', name: 'Linked Program', durationDays: 3 } });
@@ -147,11 +148,12 @@ async function main() {
   const tour = await prisma.tour.create({ data: { type: 'FIT', systemCode: run + '-TOUR-SYS-LINK', tourCode: run + '-TOUR-LINK', branch: 'BR-A', department: 'DEP-A' } });
   await prisma.tourCustomer.create({ data: { tourId: tour.id, name: 'Linked Customer', phone: linkPhone, email: linkEmail } });
   await prisma.fitTour.create({ data: { quoteCode: run + '-FIT-LINK', tourCode: run + '-FIT-TOUR', customerName: 'Linked Customer', phone: linkPhone, email: linkEmail } });
-  await prisma.financeReceipt.create({ data: { receiptCode: run + '-REC-LINK', receiptName: 'Linked Receipt', payerName: 'Linked Customer', payerPhone: linkPhone, payerEmail: linkEmail } });
+  await prisma.financeReceipt.create({ data: { receiptCode: run + '-REC-LINK', receiptName: 'Linked Receipt', payerName: 'Linked Customer', payerPhone: linkPhone, payerEmail: linkEmail, branch: 'BR-A', department: 'DEP-A' } });
   await prisma.financeInvoice.create({ data: { invoiceCode: run + '-INV-LINK', customerName: 'Linked Customer', customerPhone: linkPhone, customerEmail: linkEmail } });
 
   const linked = await service.create({ code: run + '-LINK', fullName: 'Linked Customer', phone: linkPhone, email: linkEmail }, branchUser);
-  assert(await prisma.order.count({ where: { customerId: linked.id, customerPhone: linkPhone } }) === 1, 'create should link orphan orders by phone/email/name');
+  assert(await prisma.order.count({ where: { customerId: linked.id, customerPhone: linkPhone, branch: 'BR-A' } }) === 1, 'create should link scoped orphan orders by phone/email/name');
+  assert((await prisma.order.findUnique({ where: { id: outOfScopeOrphanOrder.id } })).customerId === null, 'scoped create should not link orphan orders outside data scope');
   assert(await prisma.quotation.count({ where: { customerId: linked.id, customerPhone: linkPhone } }) === 1, 'create should link orphan quotations');
   assert(await prisma.tourQuote.count({ where: { customerId: linked.id, customerPhone: linkPhone } }) === 1, 'create should link orphan tour quotes');
   assert(await prisma.booking.count({ where: { customerId: linked.id, customerPhone: linkPhone } }) === 1, 'create should link orphan bookings');
