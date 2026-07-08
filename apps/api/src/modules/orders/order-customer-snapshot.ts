@@ -1,19 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 import { CreateOrderDto } from './dto/order.dto';
 
 @Injectable()
 export class OrderCustomerSnapshotService {
-  withSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
-    return withCustomerSnapshot(tx, dto);
+  withSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>, user?: RequestUser) {
+    return withCustomerSnapshot(tx, dto, user);
   }
 }
 
-export async function withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>) {
+export async function withCustomerSnapshot(tx: Prisma.TransactionClient, dto: Partial<CreateOrderDto>, user?: RequestUser) {
   const customerId = text(dto.customerId);
   if (!customerId) return dto;
-  const customer = await tx.customer.findUnique({
-    where: { id: customerId },
+  const customer = await tx.customer.findFirst({
+    where: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ id: customerId }, user),
     select: { id: true, fullName: true, phone: true, email: true, address: true, kind: true, type: { select: { name: true } } },
   });
   if (!customer) throw new NotFoundException('Không tìm thấy khách hàng');

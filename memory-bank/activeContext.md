@@ -3403,3 +3403,7 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Quote combo creation now uses `applyWriteDataScope`, so users without `data.scope.*`/`data.scope.all` are rejected and branch/department values are injected only for the actual granted scope.
   - Added a RED/GREEN high-a data-access contract for no-scope combo creation and refreshed static quote/data-scope contracts.
   - Verification passed on the VPS: high-a data access, API build/lint, quotes backend contract, data-scope audit, route permissions, security audit, and git diff check.
+
+- 2026-07-08 Order customer snapshot data-scope follow-up:
+  - Found scoped order create/update could link and snapshot an out-of-scope CRM customer because OrderCustomerSnapshotService used an unscoped Customer findUnique.
+  - Added high-a RED/GREEN coverage for scoped order customer links and changed order customer snapshot lookup to apply branch/department data scope with request.user.

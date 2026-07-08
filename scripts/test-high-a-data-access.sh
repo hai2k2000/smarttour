@@ -29,6 +29,7 @@ const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { CustomersService } = require('./apps/api/dist/modules/customers/customers.service');
 const { FilesService } = require('./apps/api/dist/modules/files/files.service');
 const { QuotationsService } = require('./apps/api/dist/modules/quotations/quotations.service');
+const { OrdersService } = require('./apps/api/dist/modules/orders/orders.service');
 const { QuotesService } = require('./apps/api/dist/modules/quotes/quotes.service');
 const { ReportsController } = require('./apps/api/dist/modules/reports/reports.controller');
 const { PERMISSIONS_KEY } = require('./apps/api/dist/modules/auth/permissions.decorator');
@@ -133,6 +134,7 @@ async function main() {
   await prisma.$connect();
   const quotations = new QuotationsService(prisma);
   const quotes = new QuotesService(prisma);
+  const orders = new OrdersService(prisma);
   const customersService = new CustomersService(prisma, {});
   const files = new FilesService(prisma);
   const run = `HIGH-A-${Date.now()}`;
@@ -147,6 +149,22 @@ async function main() {
   const customerB = await prisma.customer.create({
     data: { code: `${run}-CB`, fullName: 'Shared Customer Name', phone: `091${String(Date.now()).slice(-7)}`, email: `${run.toLowerCase()}-b@example.com`, branch: 'BR-B', department: 'DEP-B' },
   });
+
+  const scopedOrder = await orders.create('fit', {
+    systemCode: `${run}-ORD-A`,
+    name: 'Scoped order customer',
+    customerId: customerA.id,
+    salesItems: [{ description: 'Tour', quantity: 1, unitPrice: 100 }],
+  }, branchUser);
+  assert.equal(scopedOrder.customerId, customerA.id, 'scoped order create should link customer inside data scope');
+  assert.equal(scopedOrder.customerName, customerA.fullName, 'scoped order create should snapshot customer inside data scope');
+  await rejects(() => orders.create('fit', {
+    systemCode: `${run}-ORD-OTHER-CUSTOMER`,
+    name: 'Out of scope order customer',
+    customerId: customerB.id,
+    salesItems: [{ description: 'Tour', quantity: 1, unitPrice: 100 }],
+  }, branchUser), 'scoped order create must reject customer outside data scope');
+  await rejects(() => orders.update('fit', scopedOrder.id, { customerId: customerB.id }, branchUser), 'scoped order update must reject customer outside data scope');
 
   const quotationA = await quotations.create({ ...quotationPayload(`${run}-QA`, 'BR-A', 'DEP-A'), expiredDate: '2099-01-01' }, allUser);
   await rejects(

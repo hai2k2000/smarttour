@@ -2955,3 +2955,7 @@
 - 2026-07-08 Completed quote combo data-scope follow-up:
   - Quote combo create now enforces the same data-scope write rule as other scoped modules instead of trusting `user.branch`/`user.department` directly.
   - Verification passed: `scripts/test-high-a-data-access.sh`, API build/lint, quotes backend contract, data-scope audit, route permissions, security audit, and git diff check.
+
+- 2026-07-08 Completed order customer snapshot data-scope follow-up:
+  - Order create/update now rejects out-of-scope customerId values before snapshotting customer details into the order.
+  - Verification passed: RED then GREEN via scripts/test-high-a-data-access.sh, API build/lint, order service flows, data-scope module flows, git diff check, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and post-prune HEALTHCHECK_OK.

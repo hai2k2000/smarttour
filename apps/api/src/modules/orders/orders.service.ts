@@ -145,7 +145,7 @@ export class OrdersService {
     validateOrderDates(scopedDto);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto)) as ScopedOrderDto;
+        const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto, user)) as ScopedOrderDto;
         const totals = calculateOrderTotals(orderDto);
         const order = await tx.order.create({
           data: {
@@ -172,7 +172,7 @@ export class OrdersService {
     validateOrderDates(mergeOrderDateInput(current, scopedDto));
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto)) as ScopedOrderDto;
+        const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto, user)) as ScopedOrderDto;
         const hotelNeedsAllotmentResync = current.type === 'HOTEL_BOOKING' && shouldResyncHotelAllotments(orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.releaseAutoLocks(tx, id, 'UPDATE_RELEASE');
 
