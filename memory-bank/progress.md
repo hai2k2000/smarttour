@@ -2951,3 +2951,7 @@
 - 2026-07-08 Completed finance debt adjustment link-integrity follow-up:
   - Manual customer/supplier debt adjustment links now require the selected order/tour to belong to the adjusted customer or supplier, preventing inconsistent ledger entries across unrelated entities.
   - Verification passed: `scripts/test-finance-service-flows.sh`, API build/lint, finance DTO/controller/rules/side-effect contracts, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check.
+
+- 2026-07-08 Completed quote combo data-scope follow-up:
+  - Quote combo create now enforces the same data-scope write rule as other scoped modules instead of trusting `user.branch`/`user.department` directly.
+  - Verification passed: `scripts/test-high-a-data-access.sh`, API build/lint, quotes backend contract, data-scope audit, route permissions, security audit, and git diff check.

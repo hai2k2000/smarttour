@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, QuoteComboStatus, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { DEFAULT_QUOTES_TAKE, ListQuotesQueryDto } from './dto/list-quotes-query.dto';
 import { CreateQuoteComboDto, UpdateQuoteComboDto } from './dto/quote-combo.dto';
@@ -182,6 +182,7 @@ export class QuotesService {
 
   async createComboQuote(dto: CreateQuoteComboDto, user?: RequestUser) {
     const input = await this.prepareComboDto(dto, true);
+    const scoped = applyWriteDataScope({} as { branch?: string | null; department?: string | null }, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const combo = await tx.quoteCombo.create({
@@ -189,8 +190,8 @@ export class QuotesService {
             ...this.toComboData(input),
             ...this.calculateCombo(input),
             createdBy: this.actor(user),
-            branch: user?.branch,
-            department: user?.department,
+            branch: scoped.branch,
+            department: scoped.department,
           } as Prisma.QuoteComboCreateInput,
         });
         await this.replaceComboItems(tx, combo.id, input);

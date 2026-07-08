@@ -58,8 +58,9 @@ includes(quotesService, 'take: this.listTake(query.take)', 'Quotes list services
 includes(quotesService, 'listComboQuotes(query: ListQuotesQueryDto = {}, user?: RequestUser)', 'Quote combo list service must accept request.user.');
 includes(quotesService, 'quoteComboScopeWhere(', 'Quote combo service must use data-scope helper.');
 includes(quotesService, 'branchDepartmentScopeWhere(where, user)', 'Quote combo scope helper must apply branch/department scope.');
-includes(quotesService, 'branch: user?.branch', 'Quote combo create must persist user branch.');
-includes(quotesService, 'department: user?.department', 'Quote combo create must persist user department.');
+includes(quotesService, 'applyWriteDataScope', 'Quote combo create must enforce data scope for scoped writes.');
+includes(quotesService, 'branch: scoped.branch', 'Quote combo create must persist scoped branch.');
+includes(quotesService, 'department: scoped.department', 'Quote combo create must persist scoped department.');
 const prismaSchema = read('prisma/schema.prisma');
 const quoteComboModelStart = prismaSchema.indexOf('model QuoteCombo {');
 const quoteComboItemStart = prismaSchema.indexOf('model QuoteComboItem {', quoteComboModelStart);

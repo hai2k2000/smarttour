@@ -3397,3 +3397,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier debt adjustments now reject order/tour links unless the supplier is present through order operation/sales items, operation vouchers, tour suppliers/services, or tour costs.
   - Extended `scripts/test-finance-service-flows.sh` with mismatched customer/order and supplier/order RED cases.
   - Verification/deploy passed on the VPS: finance service flow, API build/lint, finance DTO/controller/rules/side-effect contracts, Docker API rebuild, HEALTHCHECK_OK, and docker builder prune to 0B build cache.
+
+- 2026-07-08 Quote combo data-scope follow-up:
+  - Found `createComboQuote` accepted users with `quote.manage` but without any data-scope permission, creating branch/department-tagged combo rows through raw `user.branch`/`user.department` instead of the shared write-scope helper.
+  - Quote combo creation now uses `applyWriteDataScope`, so users without `data.scope.*`/`data.scope.all` are rejected and branch/department values are injected only for the actual granted scope.
+  - Added a RED/GREEN high-a data-access contract for no-scope combo creation and refreshed static quote/data-scope contracts.
+  - Verification passed on the VPS: high-a data access, API build/lint, quotes backend contract, data-scope audit, route permissions, security audit, and git diff check.

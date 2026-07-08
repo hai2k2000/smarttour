@@ -138,6 +138,7 @@ async function main() {
   const run = `HIGH-A-${Date.now()}`;
   const branchUser = user('BR-A', 'DEP-A', 'data.scope.branch', 'customer.view', 'customer.manage', 'file.view', 'file.manage', 'quote.view', 'quote.manage', 'finance.receipt.view', 'finance.receipt.update');
   const scopeOnlyUser = user('BR-A', 'DEP-A', 'data.scope.branch', 'file.view', 'file.manage');
+  const quoteNoScopeUser = user('BR-A', 'DEP-A', 'quote.view', 'quote.manage');
   const allUser = user(null, null, 'data.scope.all', '*');
 
   const customerA = await prisma.customer.create({
@@ -226,6 +227,10 @@ async function main() {
   assert(related.rows.some((row) => row.id === tourA.id), 'customer quotes must include scoped tour quote');
   assert(!related.rows.some((row) => row.id === tourB.id), 'customer quotes must not leak same-name tour quote from another branch');
 
+  await rejects(
+    () => quotes.createComboQuote({ comboCode: `${run}-CB-NOSCOPE`, comboType: 'Hotel combo', items: [{ serviceName: 'Combo hotel', nightCount: 1, paxCount: 1, netPricePerService: 100 }] }, quoteNoScopeUser),
+    'combo quote create should reject users without data scope',
+  );
   await rejects(
     () => quotes.createComboQuote({ comboCode: `${run}-CB-BAD-NIGHT`, comboType: 'Hotel combo', items: [{ serviceName: 'Combo hotel', nightCount: 0, paxCount: 1, netPricePerService: 100 }] }),
     'combo quote create should reject zero nightCount instead of defaulting it to one',

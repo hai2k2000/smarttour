@@ -17,6 +17,7 @@ const checks = [
   { file: 'apps/api/src/modules/operations/operations.service.ts', must: ['RequestUser', 'formScopeWhere', 'paymentRequestScopeWhere', 'bookingScopeWhere', 'orderScopeWhere', 'tourScopeWhere', 'applyScopedWriteMeta'] },
   { file: 'apps/api/src/modules/reports/reports.service.ts', must: ['branchDepartmentScopeWhere'] },
   { file: 'apps/api/src/modules/commission-reports/commission-reports.service.ts', must: ['branchDepartmentScopeWhere'] },
+  { file: 'apps/api/src/modules/quotes/quotes.service.ts', must: ['RequestUser', 'tourQuoteScopeWhere', 'quoteComboScopeWhere', 'branchDepartmentScopeWhere', 'applyWriteDataScope'] },
 ];
 
 const controllerChecks = [
@@ -49,11 +50,6 @@ const schemaScopeGaps = [
     file: 'apps/api/src/modules/tour-programs/tour-programs.service.ts',
     reason: 'TourProgram and TourItineraryDay are reusable program templates without branch/department fields',
     must: ['list(input', 'createItineraryDay'],
-  },
-  {
-    file: 'apps/api/src/modules/quotes/quotes.service.ts',
-    reason: 'TourQuote has customerId but no branch/department field; QuoteCombo has no customer/branch link',
-    must: ['listTourQuotes', 'listComboQuotes', 'getTourQuote', 'getComboQuote'],
   },
 ];
 
