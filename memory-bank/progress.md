@@ -2929,3 +2929,8 @@
 - 2026-07-08 Completed CSV export formula-injection follow-up:
   - CSV exports now use a shared helper that neutralizes spreadsheet formula cells by prefixing risky values with an apostrophe while retaining normal CSV quoting.
   - Verification passed: CSV formula guard contract, finance/native XLSX export contracts, finance helper contracts, API typecheck/build, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check. Export smoke requires AUTH_TOKEN or ADMIN_PASSWORD and was not run without credentials.
+
+- 2026-07-08 Completed reports supplier-history scoped access follow-up:
+  - /api/reports/debt/suppliers/:supplierId/history now scopes OperationVoucher rows through linked order/tour/booking.customer instead of applying branch/department directly to the voucher model.
+  - Updated report query validation coverage for branch-scoped supplier history and refreshed the stale reports CSV helper contract to assert delegation to the shared CSV export helper.
+  - Verification passed: report query validation, reports permission contract, finance hybrid contract, reports CSV helper contract, CSV formula guard, API typecheck/build, Docker API rebuild, post-deploy HEALTHCHECK_OK, docker builder prune to 0B, and git diff check.

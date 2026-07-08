@@ -298,6 +298,27 @@ async function main() {
   await assertBadRequest(() => service.exportCsv('customer-debt', { dateField: 'paymentDate' }), 'dynamic debt export must reject misleading Order dateField');
   await assertBadRequest(() => service.supplierHistory('supplier-1', { type: 'FIT' }), 'supplier history must reject ignored report filters');
   await assertBadRequest(() => service.supplierHistory('supplier-1', { dateField: 'closedAt' }), 'supplier history must reject ignored dateField');
+
+  let scopedSupplierHistoryWhere;
+  const scopedSupplierHistoryUser = {
+    id: 'reports-supplier-history-branch-user',
+    username: 'reports-supplier-history-branch-user',
+    branch: 'OV-BR',
+    roles: [{ role: { permissions: [{ permission: 'data.scope.branch' }] } }],
+  };
+  const scopedSupplierHistoryService = new ReportsService({
+    operationVoucher: {
+      findMany: async (args) => { scopedSupplierHistoryWhere = args.where; return []; },
+    },
+  });
+  await scopedSupplierHistoryService.supplierHistory('supplier-1', { dateFrom: '2026-01-01', dateTo: '2026-01-31' }, scopedSupplierHistoryUser);
+  const scopedSupplierHistoryWhereJson = JSON.stringify(scopedSupplierHistoryWhere);
+  assert(scopedSupplierHistoryWhereJson.includes('"supplierId":"supplier-1"'), 'supplier history must keep the requested supplier filter');
+  assert(scopedSupplierHistoryWhereJson.includes('"serviceDate"'), 'supplier history must keep the serviceDate filter');
+  assert(scopedSupplierHistoryWhereJson.includes('"order":{"branch":"OV-BR"}'), 'supplier history must scope operation vouchers through linked order branch');
+  assert(scopedSupplierHistoryWhereJson.includes('"tour":{"branch":"OV-BR"}'), 'supplier history must scope operation vouchers through linked tour branch');
+  assert(scopedSupplierHistoryWhereJson.includes('"booking":{"customer":{"branch":"OV-BR"}}'), 'supplier history must scope operation vouchers through linked booking customer branch');
+
   assert.equal(orderCalls, 2, 'valid hybrid finance report and export must query orders exactly twice');
   assert.equal(tourCalls, 0, 'invalid Tour filters must be rejected before querying Prisma');
   assert(debtCalls >= 4, 'valid hybrid finance report and export must query customer debt grouped rows and summaries');

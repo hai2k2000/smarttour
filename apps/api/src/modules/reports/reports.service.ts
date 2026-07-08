@@ -464,7 +464,7 @@ export class ReportsService {
   async supplierHistory(supplierId: string, query: ReportQuery, user?: RequestUser) {
     this.assertSupplierHistoryQuery(query);
     return this.prisma.operationVoucher.findMany({
-      where: branchDepartmentScopeWhere({ deletedAt: null, supplierId, ...this.dateRange('serviceDate', query.dateFrom, query.dateTo) }, user),
+      where: this.operationVoucherScopeWhere({ deletedAt: null, supplierId, ...this.dateRange('serviceDate', query.dateFrom, query.dateTo) }, user),
       include: { payments: true },
       orderBy: [{ serviceDate: 'desc' }, { voucherCode: 'asc' }],
       take: 300,
@@ -1411,6 +1411,25 @@ export class ReportsService {
         : {}),
       ...this.dateRange('documentDate', query.dateFrom || query.createdFrom || query.from, query.dateTo || query.createdTo || query.to),
     };
+  }
+
+  private operationVoucherScopeWhere(where: Prisma.OperationVoucherWhereInput, user?: RequestUser): Prisma.OperationVoucherWhereInput {
+    if (!user) return where;
+    const permissions = userPermissions(user);
+    if (permissions.has('*') || permissions.has('data.scope.all')) return where;
+    const requiresBranch = permissions.has('data.scope.branch');
+    const requiresDepartment = permissions.has('data.scope.department');
+    if ((requiresBranch && !user.branch) || (requiresDepartment && !user.department) || (!requiresBranch && !requiresDepartment)) {
+      return { AND: [where, { id: '__no_data_scope__' }] };
+    }
+    const AND: Prisma.OperationVoucherWhereInput[] = [where];
+    if (requiresBranch && user.branch) {
+      AND.push({ OR: [{ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } }] });
+    }
+    if (requiresDepartment && user.department) {
+      AND.push({ OR: [{ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } }] });
+    }
+    return { AND };
   }
 
   private orderRelationWhere(query: ReportQuery): Prisma.OrderWhereInput {

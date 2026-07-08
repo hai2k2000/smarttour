@@ -1,6 +1,7 @@
 const fs = require('fs');
 
 const helperPath = 'apps/api/src/modules/reports/report-csv.ts';
+const commonHelperPath = 'apps/api/src/common/csv-export.ts';
 const service = fs.readFileSync('apps/api/src/modules/reports/reports.service.ts', 'utf8');
 const failures = [];
 
@@ -9,17 +10,31 @@ if (!fs.existsSync(helperPath)) {
 } else {
   const helper = fs.readFileSync(helperPath, 'utf8');
   for (const token of [
+    "import { csvRows } from '../../common/csv-export';",
     'export function toReportCsv',
-    'function reportCsvValue',
     "if (!rows.length) return '\\uFEFF'",
-    'value instanceof Date',
-    'toISOString()',
-    'replaceAll(\'"\', \'""\')',
+    'return csvRows(headers, rows)',
   ]) {
     if (!helper.includes(token)) failures.push(`report CSV helper missing ${token}`);
   }
 }
 
+if (!fs.existsSync(commonHelperPath)) {
+  failures.push('shared CSV export helper file is missing');
+} else {
+  const commonHelper = fs.readFileSync(commonHelperPath, 'utf8');
+  for (const token of [
+    'export function csvRows',
+    'export function csvCell',
+    'function csvText',
+    'value instanceof Date',
+    'toISOString()',
+    'replaceAll(\'"\', \'""\')',
+    'neutralizeCsvFormula',
+  ]) {
+    if (!commonHelper.includes(token)) failures.push(`shared CSV helper missing ${token}`);
+  }
+}
 if (!service.includes("import { toReportCsv } from './report-csv';")) {
   failures.push('ReportsService must import toReportCsv');
 }

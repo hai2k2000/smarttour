@@ -3365,3 +3365,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added `scripts/test-csv-export-formula-guard-contract.js`; RED confirmed the vulnerable finance CSV output and local quote-only helpers, then GREEN passed after the shared helper change.
   - Verification passed on the VPS before deploy: API build, CSV formula guard contract, finance/native XLSX export contracts, finance helper contracts, API lint/typecheck, and git diff check.
   - Post-deploy API Docker rebuild and healthcheck passed; Docker builder cache was pruned back to 0B. `scripts/smoke-exports.sh` requires AUTH_TOKEN or ADMIN_PASSWORD and was not run in this session because no credential was available.
+
+- 2026-07-08 Reports supplier-history scoped access follow-up:
+  - Found that reports supplier history applied the generic branch/department helper directly to OperationVoucher even though OperationVoucher has no branch/department columns.
+  - Added relation-based OperationVoucher scoping through linked order, tour, or booking.customer so branch/department-scoped users do not hit invalid Prisma filters and cannot see unrelated vouchers.
+  - Refreshed the reports CSV helper contract to match the shared CSV export helper introduced for formula-injection protection.
+  - Verification/deploy passed on the VPS: report query validation, report permission/finance-hybrid/CSV contracts, CSV formula guard, API build/lint, Docker API rebuild, healthcheck, and docker builder prune to 0B build cache.
