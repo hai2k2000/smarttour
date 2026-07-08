@@ -23,6 +23,11 @@ class CustomerQueryBaseDto {
   @IsOptional()
   @IsString()
   skip?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  offset?: string;
 }
 
 export class CustomerListQueryDto extends CustomerQueryBaseDto {

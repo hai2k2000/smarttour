@@ -13,7 +13,7 @@ export class OperationVouchersController {
 
   @Get()
   list(@Query() query: ListOperationVouchersQueryDto, @Req() request?: { user?: RequestUser }) {
-    return this.service.list(query.search, query.status, request?.user, query.take ?? query.limit, query.skip);
+    return this.service.list(query.search, query.status, request?.user, query.take ?? query.limit, query.skip ?? query.offset);
   }
 
   @Get(':id')

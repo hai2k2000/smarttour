@@ -69,6 +69,13 @@ export class ListOperationVouchersQueryDto {
   @IsInt({ message: 'Vị trí bắt đầu danh sách phiếu phải là số nguyên' })
   @Min(0, { message: 'Vị trí bắt đầu danh sách phiếu không được âm' })
   skip?: number;
+
+  @ApiPropertyOptional({ default: 0, minimum: 0 })
+  @Transform(optionalNumber)
+  @IsOptional()
+  @IsInt({ message: 'Phieu offset phai la so nguyen' })
+  @Min(0, { message: 'Phieu offset khong duoc am' })
+  offset?: number;
 }
 
 export class CreateOperationVoucherDto {

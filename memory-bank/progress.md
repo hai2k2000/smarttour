@@ -2900,3 +2900,7 @@
 - 2026-07-08 Completed list limit alias follow-up:
   - Supplier, operation-voucher, booking, customer, and finance list endpoints now treat `limit` as a bounded alias for `take`, reducing accidental oversized payloads for conventional API callers.
   - Verification passed: list limit alias contract, query DTO/finance query contracts, API typecheck/build, Docker API rebuild/restart, live limit probe, `git diff --check`, and `scripts/healthcheck.sh`.
+
+- 2026-07-08 Completed pagination offset alias follow-up:
+  - Booking, operation-voucher, and customer list pagination now supports conventional `offset` as an alias for `skip`, with `skip` taking precedence.
+  - Verification passed: list limit/offset alias contract, query DTO/finance query contracts, API typecheck/build, Docker API rebuild/restart, live offset probe, `git diff --check`, and `scripts/healthcheck.sh`.

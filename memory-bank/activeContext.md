@@ -3319,3 +3319,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added validated `limit` aliases while preserving existing `take` behavior and priority when both parameters are present.
   - Added `scripts/test-list-limit-alias-contract.js`; RED confirmed missing aliases before the fix, then GREEN passed after the scoped DTO/service/controller updates.
   - Rebuilt/restarted API on the VPS. Post-deploy live probe confirmed `limit=20` returns 20 rows for the affected endpoints, and `take=5&limit=20` still returns 5 rows.
+
+- 2026-07-08 Pagination offset alias follow-up:
+  - Live pagination probe found `offset=1` was ignored on bookings and operation-vouchers, returning the first row while `skip=1` returned the second row.
+  - Added `offset` as an alias for `skip` with `skip` remaining the priority when both are present; customer list now also applies the already-declared `skip`/`offset` pagination instead of only limiting rows.
+  - Extended `scripts/test-list-limit-alias-contract.js`; RED confirmed missing offset aliases before the fix, then GREEN passed after DTO/controller/service updates.
+  - Rebuilt/restarted API on the VPS. Post-deploy live probe confirmed `offset=1` matches `skip=1` for bookings, operation vouchers, and customers.

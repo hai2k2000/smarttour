@@ -70,4 +70,11 @@ export class ListBookingsQueryDto {
   @IsInt({ message: 'Vị trí bắt đầu danh sách booking phải là số nguyên' })
   @Min(0, { message: 'Vị trí bắt đầu danh sách booking không được âm' })
   skip?: number;
+
+  @ApiPropertyOptional({ default: 0, minimum: 0 })
+  @Transform(optionalNumber)
+  @IsOptional()
+  @IsInt({ message: 'Booking offset phai la so nguyen' })
+  @Min(0, { message: 'Booking offset khong duoc am' })
+  offset?: number;
 }

@@ -51,4 +51,13 @@ for (const needle of [
   includes(financeService, needle, 'Finance list endpoints should bound rows using take first, then limit alias.');
 }
 
+
+includes(vouchersDto, 'offset?: number;', 'Operation voucher list query should accept offset alias for skip.');
+includes(vouchersController, 'query.skip ?? query.offset', 'Operation voucher controller should pass skip first, then offset alias.');
+includes(bookingsDto, 'offset?: number;', 'Booking list query should accept offset alias for skip.');
+includes(bookingsController, 'query.skip ?? query.offset', 'Booking controller should pass skip first, then offset alias.');
+includes(customersDto, 'offset?: string;', 'Customer query DTO should accept offset alias for skip.');
+includes(customersService, 'skip: this.skip(query.skip ?? query.offset)', 'Customer list should apply skip first, then offset alias.');
+includes(customersService, 'const skip = this.skip(query.skip ?? query.offset);', 'Customer activity lists should apply skip first, then offset alias.');
+
 console.log('TEST_LIST_LIMIT_ALIAS_CONTRACT_OK');

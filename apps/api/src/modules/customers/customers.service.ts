@@ -55,6 +55,7 @@ export class CustomersService {
         select: this.listSelect(),
         orderBy: { createdAt: 'desc' },
         take: this.take(query.take ?? query.limit),
+        skip: this.skip(query.skip ?? query.offset),
       }),
       this.prisma.customer.count({ where }),
       this.dashboard(query, user),
@@ -471,7 +472,7 @@ export class CustomersService {
   async timeline(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
     const take = this.take(query.take ?? query.limit ?? '100');
-    const skip = this.skip(query.skip);
+    const skip = this.skip(query.skip ?? query.offset);
     const [rows, total] = await Promise.all([
       this.prisma.customerTimeline.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
       this.prisma.customerTimeline.count({ where: { customerId: id } }),
@@ -482,7 +483,7 @@ export class CustomersService {
   async careHistory(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
     const take = this.take(query.take ?? query.limit ?? '100');
-    const skip = this.skip(query.skip);
+    const skip = this.skip(query.skip ?? query.offset);
     const [rows, total] = await Promise.all([
       this.prisma.customerCareTask.findMany({ where: { customerId: id }, orderBy: { scheduledAt: 'desc' }, take, skip }),
       this.prisma.customerCareTask.count({ where: { customerId: id } }),
@@ -493,7 +494,7 @@ export class CustomersService {
   async opportunities(id: string, user?: RequestUser, query: Record<string, string> = {}) {
     await this.getCustomer(id, user);
     const take = this.take(query.take ?? query.limit ?? '100');
-    const skip = this.skip(query.skip);
+    const skip = this.skip(query.skip ?? query.offset);
     const [rows, total] = await Promise.all([
       this.prisma.customerOpportunity.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take, skip }),
       this.prisma.customerOpportunity.count({ where: { customerId: id } }),
