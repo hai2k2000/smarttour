@@ -68,6 +68,7 @@ async function main() {
   const service = new OperationVouchersService(prisma);
   const run = 'OV-SVC-' + Date.now();
   const actorUser = { id: 'operation-voucher-user', username: 'operation-voucher-server-actor', roles: [{ role: { permissions: [{ permission: 'data.scope.all' }] } }] };
+  const scopedBranchUser = { id: 'operation-voucher-branch-user', username: 'operation-voucher-branch-actor', branch: 'OV-BR', roles: [{ role: { permissions: [{ permission: 'data.scope.branch' }] } }] };
 
   const customer = await prisma.customer.create({
     data: {
@@ -131,6 +132,82 @@ async function main() {
       endDate: new Date('2026-11-03T00:00:00.000Z'),
     },
   });
+
+  const otherOrder = await prisma.order.create({
+    data: {
+      type: 'SINGLE_SERVICE',
+      systemCode: run + '-OTHER-ORD',
+      name: 'Operation Voucher Other Order',
+      customerId: customer.id,
+      branch: 'OV-OTHER-BR',
+      department: 'OV-OTHER-DEP',
+    },
+  });
+  const otherTour = await prisma.tour.create({
+    data: {
+      type: 'FIT',
+      systemCode: run + '-OTHER-TOUR-SYS',
+      tourCode: run + '-OTHER-TOUR',
+      name: 'Operation Voucher Other Tour',
+      orderId: otherOrder.id,
+      branch: 'OV-OTHER-BR',
+      department: 'OV-OTHER-DEP',
+    },
+  });
+  const scopedStandaloneBooking = await prisma.booking.create({
+    data: {
+      code: run + '-SCOPED-BOOKING',
+      tourProgramId: tourProgram.id,
+      customerId: customer.id,
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      paxCount: 1,
+      startDate: new Date('2026-11-04T00:00:00.000Z'),
+      endDate: new Date('2026-11-05T00:00:00.000Z'),
+    },
+  });
+
+  await rejects(() => service.create({
+    voucherCode: run + '-BAD-BOOKING-ORDER',
+    bookingId: booking.id,
+    orderId: otherOrder.id,
+    supplierId: supplier.id,
+    serviceType: 'Hotel',
+    serviceName: 'Mismatched booking order voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'create should reject an order that does not belong to the selected booking');
+  await rejects(() => service.create({
+    voucherCode: run + '-BAD-BOOKING-TOUR',
+    bookingId: booking.id,
+    tourId: otherTour.id,
+    supplierId: supplier.id,
+    serviceType: 'Hotel',
+    serviceName: 'Mismatched booking tour voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'create should reject a tour that does not belong to the selected booking');
+  await rejects(() => service.create({
+    voucherCode: run + '-BAD-TOUR-ORDER',
+    tourId: tour.id,
+    orderId: otherOrder.id,
+    supplierId: supplier.id,
+    serviceType: 'Hotel',
+    serviceName: 'Mismatched tour order voucher',
+    serviceDate: '2026-11-01',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'create should reject an order that does not belong to the selected tour');
+  await rejects(() => service.create({
+    voucherCode: run + '-SCOPED-OUT-ORDER',
+    bookingId: scopedStandaloneBooking.id,
+    orderId: otherOrder.id,
+    supplierId: supplier.id,
+    serviceType: 'Hotel',
+    serviceName: 'Scoped mismatched order voucher',
+    serviceDate: '2026-11-04',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }, scopedBranchUser), 'scoped create should reject an out-of-scope explicit order even when the booking is in scope');
 
   await rejectsMessage(() => service.create({
     voucherCode: run + '-EMPTY',

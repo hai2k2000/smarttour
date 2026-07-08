@@ -296,24 +296,36 @@ export class OperationVouchersService {
     let orderId = this.text(dto.orderId);
     let supplierId = this.text(dto.supplierId);
     let supplierName = this.text(dto.supplierName);
+    const requestedTourId = tourId;
+    const requestedOrderId = orderId;
+    let bookingTourId: string | null = null;
+    let bookingOrderId: string | null = null;
+    let tourOrderId: string | null = null;
     if (bookingId) {
       const booking = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, tourId: true, orderId: true } });
-      if (!booking) throw new NotFoundException('Không tìm thấy booking');
-      tourId = tourId ?? booking.tourId;
-      orderId = orderId ?? booking.orderId;
+      if (!booking) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y booking');
+      bookingTourId = booking.tourId;
+      bookingOrderId = booking.orderId;
+      if (requestedTourId && bookingTourId && requestedTourId !== bookingTourId) throw new BadRequestException('Tour \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c booking \u0111\u00e3 ch\u1ecdn');
+      tourId = tourId ?? bookingTourId;
+      orderId = orderId ?? bookingOrderId;
     }
     if (tourId) {
       const tour = await this.prisma.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
-      if (!tour) throw new NotFoundException('Không tìm thấy tour');
-      orderId = orderId ?? tour.orderId;
+      if (!tour) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
+      tourOrderId = tour.orderId;
+      orderId = orderId ?? tourOrderId;
     }
+    if (bookingOrderId && tourOrderId && bookingOrderId !== tourOrderId) throw new BadRequestException('Tour \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c \u0111\u01a1n h\u00e0ng c\u1ee7a booking \u0111\u00e3 ch\u1ecdn');
+    if (requestedOrderId && bookingOrderId && requestedOrderId !== bookingOrderId) throw new BadRequestException('\u0110\u01a1n h\u00e0ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c booking \u0111\u00e3 ch\u1ecdn');
+    if (requestedOrderId && tourOrderId && requestedOrderId !== tourOrderId) throw new BadRequestException('\u0110\u01a1n h\u00e0ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c tour \u0111\u00e3 ch\u1ecdn');
     if (orderId) {
       const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
-      if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+      if (!order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
     }
     if (supplierId) {
       const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true, name: true } });
-      if (!supplier) throw new NotFoundException('Không tìm thấy nhà cung cấp');
+      if (!supplier) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y nh\u00e0 cung c\u1ea5p');
       supplierId = supplier.id;
       supplierName = supplierName ?? supplier.name;
     }
@@ -335,13 +347,8 @@ export class OperationVouchersService {
     if (!user || hasUnrestrictedDataScope(user)) return;
     applyWriteDataScope({ branch: undefined, department: undefined }, user);
     if (!links.bookingId && !links.tourId && !links.orderId) {
-      throw new BadRequestException('Cần gắn booking, đơn hàng hoặc tour trong phạm vi dữ liệu để tạo phiếu điều hành');
+      throw new BadRequestException('C\u1ea7n g\u1eafn booking, \u0111\u01a1n h\u00e0ng ho\u1eb7c tour trong ph\u1ea1m vi d\u1eef li\u1ec7u \u0111\u1ec3 t\u1ea1o phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
     }
-    const scoped = await this.prisma.operationVoucher.findFirst({
-      where: this.scopeWhere({ bookingId: links.bookingId || undefined, tourId: links.tourId || undefined, orderId: links.orderId || undefined }, user),
-      select: { id: true },
-    });
-    if (scoped) return;
     const permissions = userPermissions(user);
     const orderWhere = links.orderId ? { id: links.orderId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
     const tourWhere = links.tourId ? { id: links.tourId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
@@ -359,7 +366,9 @@ export class OperationVouchersService {
       tourWhere ? this.prisma.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
       bookingWhere ? this.prisma.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
     ]);
-    if (!order && !tour && !booking) throw new NotFoundException('Không tìm thấy booking, đơn hàng hoặc tour trong phạm vi dữ liệu');
+    if (links.bookingId && !booking) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y booking trong ph\u1ea1m vi d\u1eef li\u1ec7u');
+    if (links.orderId && !order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng trong ph\u1ea1m vi d\u1eef li\u1ec7u');
+    if (links.tourId && !tour) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour trong ph\u1ea1m vi d\u1eef li\u1ec7u');
   }
 
   private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
