@@ -71,6 +71,7 @@ check_disaster_backup_staging_dirs() {
 }
 
 require_env SMARTTOUR_AUTH_ENFORCE
+require_env SMARTTOUR_BOOTSTRAP_KEY
 require_env JWT_SECRET
 require_env DATABASE_URL
 

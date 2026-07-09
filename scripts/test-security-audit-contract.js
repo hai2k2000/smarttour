@@ -42,6 +42,7 @@ const apiMain = read('apps/api/src/main.ts');
   'run_npm_audit()',
   'timeout "$NPM_AUDIT_TIMEOUT" npm audit --omit=dev',
   'if ! run_audit_file_read grep -Eq "^${key}=.+" .env; then',
+  'require_env SMARTTOUR_BOOTSTRAP_KEY',
   "env_file_mode=\"$(run_audit_file_read stat -c '%a %U:%G' .env)\"",
   'OK_ENV_FILE .env=600 root:root',
   'FAIL_ENV_FILE',
