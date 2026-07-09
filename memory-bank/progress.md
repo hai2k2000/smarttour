@@ -3052,3 +3052,7 @@
 - 2026-07-09 Completed auth ISO dateOfBirth validation follow-up:
   - Auth user create/update dateOfBirth now rejects impossible ISO datetime calendar dates instead of allowing JavaScript Date rollover.
   - Verification passed: RED/GREEN scripts/test-auth-service-flows.sh, auth DTO contract, smoke RBAC workflows, API build/lint, and git diff check.
+
+- 2026-07-09 Completed common tour lifecycle follow-up:
+  - Common Tour CANCELLED status is now terminal for generic PATCH and close flows, preventing cancelled tours from being reopened or completed.
+  - Verification passed: RED/GREEN scripts/test-tour-type-apis.sh, API build/lint, and git diff check.

@@ -126,6 +126,7 @@ export class ToursService {
 
   async update(id: string, dto: UpdateTourDto, user?: RequestUser) {
     const current = await this.detail(id, user);
+    this.assertLifecycleUpdateAllowed(current.status, dto.status);
     dto = applyWriteDataScope(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -178,8 +179,16 @@ export class ToursService {
   }
 
   async close(id: string, dto: CloseTourDto = {}, user?: RequestUser) {
-    await this.detail(id, user);
+    const current = await this.detail(id, user);
+    if (current.status === TourStatus.CANCELLED) throw new BadRequestException('Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 h\u1ee7y');
     return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
+  }
+
+  private assertLifecycleUpdateAllowed(currentStatus: TourStatus, nextStatus?: TourStatus) {
+    if (nextStatus === undefined || nextStatus === currentStatus) return;
+    if (currentStatus === TourStatus.CANCELLED) {
+      throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y');
+    }
   }
 
   private optionalText(value?: unknown) {

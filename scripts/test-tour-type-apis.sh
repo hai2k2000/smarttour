@@ -609,6 +609,20 @@ async function main() {
   );
   assert(workflowPatchedCommonTour.workflowStep === 'COMMON_REVIEW', 'common tour PATCH should update workflowStep');
   assert(workflowPatchedCommonTour.status === 'RUNNING', 'common tour workflowStep PATCH should not change lifecycle status');
+  const cancelledCommonTour = await expect(
+    `/api/tours/${commonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
+    200,
+    'cancel common tour via PATCH',
+  );
+  assert(cancelledCommonTour.status === 'CANCELLED', 'common tour PATCH should allow cancellation');
+  await expect(
+    `/api/tours/${commonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'common tour should not reopen from CANCELLED status',
+  );
+  await expect(`/api/tours/${commonTour.id}/close`, { method: 'POST', body: JSON.stringify({ note: 'cannot close cancelled tour' }) }, 400, 'common tour close should reject CANCELLED status');
   await expect('/api/tours?type=fit', {}, 200, 'common tours lowercase type query');
   await expect('/api/tours?status=running', {}, 200, 'common tours lowercase status query');
   await expect('/api/tours?type=WRONG', {}, 400, 'common tours invalid type query');

@@ -3536,3 +3536,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - AuthService optionalDate() now validates YYYY-MM-DD prefixes followed by either end-of-string or T, covering ISO datetime user payloads before Date construction.
   - Added RED/GREEN coverage in scripts/test-auth-service-flows.sh for impossible ISO dateOfBirth rejection.
   - Verification passed on the VPS: auth service flows, auth DTO contract, smoke RBAC workflows, API build/lint, and git diff check.
+
+- 2026-07-09 Common tour lifecycle follow-up:
+  - Found common Tour PATCH could reopen a CANCELLED tour back to RUNNING, and the close endpoint could complete a cancelled tour because ToursService only loaded the row before applying lifecycle writes.
+  - ToursService now rejects status changes out of CANCELLED and rejects close on CANCELLED tours, keeping cancelled tours terminal.
+  - Added RED/GREEN coverage in scripts/test-tour-type-apis.sh for common tour cancel, blocked reopen, and blocked close after cancellation.
+  - Verification passed on the VPS: Tour type API suite, API build/lint, and git diff check.
