@@ -515,9 +515,9 @@ async function main() {
   assert(legacyAttachmentsAfterStepPatch.length === 1 && legacyAttachmentsAfterStepPatch[0].fileName === 'fit-pricing.pdf', 'FIT step save should not overwrite uploaded legacy attachment snapshot');
 
   const exportedCsv = await fitTours.exportCsv(source.id);
-  assert(exportedCsv.includes(`tour,tourId,${source.tourId},common Tour root`), 'FIT export should include common tourId');
+  assert(exportedCsv.includes(`"tour","tourId","${source.tourId}","common Tour root"`), 'FIT export should include common tourId');
   assert(exportedCsv.includes('FIT Root Contract Source'), 'FIT export should include common Tour root name');
-  assert(exportedCsv.includes('attachments,1,PRICING,fit-pricing.pdf'), 'FIT export should include uploaded attachment metadata');
+  assert(exportedCsv.includes('"attachments","1","PRICING","fit-pricing.pdf"'), 'FIT export should include uploaded attachment metadata');
   assert(exportedCsv.includes('budget.services'), 'FIT export should include budget service rows');
 
   const createdRoot = await prisma.tour.findUnique({
