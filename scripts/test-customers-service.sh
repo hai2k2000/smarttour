@@ -133,6 +133,7 @@ async function main() {
   const branchDebtUser = user({ id: 'branch-debt-user', name: 'Branch Debt User', username: 'branch-debt', email: 'branch-debt@smarttour.local', branch: 'BR-A', department: 'DEP-A' }, 'data.scope.branch', 'finance.debt.view');
 
   const type = await prisma.customerTypeConfig.create({ data: { code: run + '-TYPE', name: 'VIP', isActive: true } });
+  await rejectsMessage(() => service.create({ code: run + '-BAD-DOB', fullName: 'Bad Date Customer', phone: '098' + String(Date.now()).slice(-7), dateOfBirth: '2026-02-31' }, branchUser), 'Date is invalid', 'create should reject impossible customer birth dates');
   const campaign = await prisma.customerCampaign.create({ data: { code: run + '-CMP', name: 'Summer', isActive: true } });
   const tagA = await prisma.customerTag.create({ data: { name: run + '-TAG-A', isActive: true } });
   const tagB = await prisma.customerTag.create({ data: { name: run + '-TAG-B', isActive: true } });

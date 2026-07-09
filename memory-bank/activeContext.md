@@ -3453,3 +3453,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - CommissionReportsService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip and rejects invalid report dates with BadRequestException before querying.
   - Added RED/GREEN coverage in scripts/test-commission-reports-security.sh for invalid calendar from-date rejection.
   - Verification passed on the VPS: commission reports security/client contracts, CSV formula guard, native XLSX export contract, route permission audit/test, API build/lint, and git diff check.
+
+
+- 2026-07-09 Customers date validation follow-up:
+  - Found customer date parsing accepted impossible calendar dates such as 2026-02-31 for dateOfBirth and customer created-date filters because the shared helper relied on JavaScript Date parsing.
+  - CustomersService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
+  - Added RED/GREEN coverage in scripts/test-customers-service.sh for invalid customer dateOfBirth rejection.
+  - Verification passed on the VPS: customers service/API/DTO contracts, customer permission/debt contracts, CSV formula guard, API build/lint, and git diff check.

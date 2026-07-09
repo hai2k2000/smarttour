@@ -2994,3 +2994,8 @@
 - 2026-07-09 Completed commission report date validation follow-up:
   - Commission report from/to filters now reject impossible calendar dates instead of silently rolling or ignoring invalid values.
   - Verification passed: RED/GREEN scripts/test-commission-reports-security.sh, commission client contract, CSV formula guard, native XLSX export contract, route permission audit/test, API build/lint, and git diff check.
+
+
+- 2026-07-09 Completed customers date validation follow-up:
+  - Customer dateOfBirth and created-date filters now reject impossible calendar dates instead of allowing JavaScript Date rollover.
+  - Verification passed: RED/GREEN scripts/test-customers-service.sh, customers API/DTO contracts, customer permission/debt contracts, CSV formula guard, API build/lint, and git diff check.
