@@ -29,9 +29,15 @@ assert "status: 'LOCKED'" in service and 'supplierAllotmentAllocation.updateMany
 assert 'idempotent: true' in service and 'idempotent: false' in service, 'repeat transition result must be explicit'
 assert "status: { in: ['LOCKED', 'CONFIRMED'] }" in service, 'active allocations must protect inventory replacement and overrides'
 assert 'allocationSummary' in service and 'activeAllocationCount' in service, 'inventory response must expose allocation summaries'
-assert 'return this.allotmentInventoryById(tx, updated.id)' in service, 'override response must include the newly written audit log'
+assert 'return this.allotmentInventoryById(tx, updated.id, user)' in service, 'override response must include the newly written audit log with user scope'
 assert "const computedStatus = item.status === 'STOP_SELL'" in service and "? 'STOP_SELL'" in service and "!isSellable" in service, 'explicit stop-sell and sold-out inventory must take priority over computed cutoff status'
 assert "if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text)) return this.parseDateOnly(text, fieldName)" in service, 'hotel child date-only values must be calendar validated'
+assert 'allotmentInventory(@Query() query: AllotmentInventoryQueryDto, @Req() request: { user?: RequestUser })' in controller, 'inventory endpoint must receive authenticated user for allocation scope filtering'
+assert 'return this.suppliersService.listAllotmentInventory(query, request.user)' in controller, 'inventory endpoint must pass user scope to service'
+assert 'async listAllotmentInventory(query: { supplierId?: string; startDate?: string; endDate?: string }, user?: RequestUser)' in service, 'inventory service must accept user scope'
+assert "allocations: { where: this.allotmentAllocationScopeWhere({}, user), orderBy: { createdAt: 'desc' } }" in service, 'inventory must filter allocation details by user data scope'
+assert 'private async allotmentInventoryById(tx: Prisma.TransactionClient, id: string, user?: RequestUser)' in service, 'single inventory reload must accept user scope'
+assert 'this.allotmentInventoryById(tx, allocation.allotmentId, user)' in service, 'allocation transition responses must not leak out-of-scope allocation details'
 actor = "return this.optionalText(user?.id) || this.optionalText(user?.email) || this.optionalText(user?.username) || this.optionalText(dtoActor) || null;"
 assert actor in service, 'authenticated actor must take precedence over payload actor'
 

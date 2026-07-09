@@ -647,7 +647,7 @@ export class SuppliersService {
     };
   }
 
-  async listAllotmentInventory(query: { supplierId?: string; startDate?: string; endDate?: string }) {
+  async listAllotmentInventory(query: { supplierId?: string; startDate?: string; endDate?: string }, user?: RequestUser) {
     const startDate = query.startDate ? this.parseDateOnly(query.startDate, 'Ngày bắt đầu') : null;
     const endDate = query.endDate ? this.parseDateOnly(query.endDate, 'Ngày kết thúc') : null;
     if (startDate && endDate && startDate > endDate) {
@@ -670,7 +670,7 @@ export class SuppliersService {
       include: {
         supplier: true,
         logs: { orderBy: { createdAt: 'desc' }, take: 5 },
-        allocations: { orderBy: { createdAt: 'desc' } },
+        allocations: { where: this.allotmentAllocationScopeWhere({}, user), orderBy: { createdAt: 'desc' } },
       },
       orderBy: [{ startDate: 'asc' }, { updatedAt: 'desc' }],
     });
@@ -741,7 +741,7 @@ export class SuppliersService {
           actor,
         },
       });
-      return this.allotmentInventoryById(tx, updated.id);
+      return this.allotmentInventoryById(tx, updated.id, user);
     });
   }
 
@@ -829,7 +829,7 @@ export class SuppliersService {
           actor,
         },
       });
-      const inventory = await this.allotmentInventoryById(tx, id);
+      const inventory = await this.allotmentInventoryById(tx, id, user);
       return { allocation, inventory };
     });
   }
@@ -880,7 +880,7 @@ export class SuppliersService {
       if (!allocation) throw new NotFoundException(SUPPLIER_ERRORS.allocationNotFound);
       if (!previousStatus) {
         if (allocation.status === nextStatus) {
-          const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId);
+          const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId, user);
           return { allocation, inventory, idempotent: true };
         }
         if (nextStatus === 'CONFIRMED') throw new ConflictException('Chỉ phân bổ đang khóa mới được xác nhận');
@@ -921,7 +921,7 @@ export class SuppliersService {
           actor,
         },
       });
-      const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId);
+      const inventory = await this.allotmentInventoryById(tx, allocation.allotmentId, user);
       return { allocation, inventory, idempotent: false };
     });
   }
@@ -1417,13 +1417,13 @@ export class SuppliersService {
       .map((field) => ({ field, oldValue: current[field], newValue: next[field] }));
   }
 
-  private async allotmentInventoryById(tx: Prisma.TransactionClient, id: string) {
+  private async allotmentInventoryById(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
     const item = await tx.supplierAllotment.findUniqueOrThrow({
       where: { id },
       include: {
         supplier: true,
         logs: { orderBy: { createdAt: 'desc' }, take: 5 },
-        allocations: { orderBy: { createdAt: 'desc' } },
+        allocations: { where: this.allotmentAllocationScopeWhere({}, user), orderBy: { createdAt: 'desc' } },
       },
     });
     return this.toAllotmentInventory(item, new Date());

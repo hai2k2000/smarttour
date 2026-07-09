@@ -83,8 +83,8 @@ export class SuppliersController {
   }
 
   @Get('hotel-allotments/inventory')
-  allotmentInventory(@Query() query: AllotmentInventoryQueryDto) {
-    return this.suppliersService.listAllotmentInventory(query);
+  allotmentInventory(@Query() query: AllotmentInventoryQueryDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listAllotmentInventory(query, request.user);
   }
 
   @Patch('hotel-allotments/:id/override')

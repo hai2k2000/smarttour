@@ -92,7 +92,7 @@ assert "acc.stopSellAllotments += computedStatus === 'STOP_SELL' ? 1 : 0" in ser
 assert "acc.codLockedAllotments += computedStatus === 'COD_LOCKED' ? 1 : 0" in service, 'dashboard status buckets must be mutually exclusive'
 assert 'const today = this.startOfUtcDay(new Date())' in service, 'inventory and dashboard must use UTC-day calculations'
 assert "logs: { orderBy: { createdAt: 'desc' }, take: 5 }" in service
-assert "allocations: { orderBy: { createdAt: 'desc' } }" in service
+assert "allocations: { where: this.allotmentAllocationScopeWhere({}, user), orderBy: { createdAt: 'desc' } }" in service, 'inventory allocations must be filtered by user data scope'
 
 assert 'private allotmentChanges(' in service
 assert "throw new BadRequestException('Không có giá trị quỹ phòng nào thay đổi')" in service
