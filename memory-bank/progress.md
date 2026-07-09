@@ -3011,3 +3011,7 @@
 - 2026-07-09 Completed quotes ISO date validation follow-up:
   - Quote tour dates and quote combo item checkIn now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/smoke-quotes-quotations.sh, quotes backend/test-coverage contracts, quote tour/combo client contracts, quotation SmartLink expiry contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed suppliers ISO date/datetime validation follow-up:
+  - Supplier typed metadata datetime fields and contact birthday now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/smoke-suppliers.sh, supplier common/controller/helper/i18n/hotel/typed/DTO/client/file/generic contracts, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.

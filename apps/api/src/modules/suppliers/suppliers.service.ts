@@ -1513,7 +1513,7 @@ export class SuppliersService {
       if (fieldType === 'time' && !SUPPLIER_TIME_PATTERN.test(value)) {
         throw new BadRequestException(`Trường dịch vụ ${key} phải là giờ hợp lệ`);
       }
-      if (fieldType === 'datetime' && Number.isNaN(new Date(value).getTime())) {
+      if (fieldType === 'datetime' && (!this.isValidDatePrefix(value) || Number.isNaN(new Date(value).getTime()))) {
         throw new BadRequestException(`Trường dịch vụ ${key} phải là ngày giờ hợp lệ`);
       }
       if (/email/i.test(key) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
@@ -1529,6 +1529,16 @@ export class SuppliersService {
   private isValidDateOnly(value: string) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
     if (!match) return false;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  }
+
+  private isValidDatePrefix(value: string) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value.trim());
+    if (!match) return true;
     const year = Number(match[1]);
     const month = Number(match[2]);
     const day = Number(match[3]);
@@ -1972,6 +1982,7 @@ export class SuppliersService {
     const text = this.optionalText(value, fieldName);
     if (!text) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return this.parseDateOnly(text, fieldName);
+    if (!this.isValidDatePrefix(text)) throw new BadRequestException(`${fieldName} kh\u00f4ng h\u1ee3p l\u1ec7`);
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) throw new BadRequestException(`${fieldName} không hợp lệ`);
     return date;

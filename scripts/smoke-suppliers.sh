@@ -228,7 +228,8 @@ async function request(token, method, path, body, ok = [200, 201]) {
         return data;
       }
       if (![502, 503, 504].includes(response.status) || attempt === 30) {
-        throw new Error(`${method} ${path} -> ${response.status} ${String(text).slice(0, 500)}`);
+        const context = body && typeof body === 'object' ? ` body=${JSON.stringify({ supplierCode: body.supplierCode, name: body.name })}` : '';
+        throw new Error(`${method} ${path} -> ${response.status}${context} ${String(text).slice(0, 500)}`);
       }
       lastError = new Error(`${method} ${path} -> ${response.status}`);
     } catch (error) {
@@ -824,6 +825,12 @@ function typedMatrixPayload(type, suffix) {
     services: [{ serviceName: 'Vé máy bay', metadata: { departureDate: '2026-02-30' } }],
   }, [400]);
   assert(messageOf(invalidTypedDate).includes('departureDate phải là ngày hợp lệ'), 'typed metadata should validate real calendar dates');
+  const invalidTypedDateTime = await request(manageToken, 'POST', '/suppliers/flights', {
+    supplierCode: `${run}-FLIGHT-BAD-DATETIME-${Date.now()}`, name: `${run} Flight Bad DateTime`, phone: '0907777888',
+    services: [{ serviceName: 'Ve may bay deadline', metadata: { depositDeadline: '2026-02-31T00:00:00.000Z' } }],
+  }, [400]);
+  assert(messageOf(invalidTypedDateTime).includes('depositDeadline'), 'typed metadata should reject impossible ISO datetime fields');
+
   const duplicateTypedServiceSkuError = await request(manageToken, 'POST', '/suppliers/flights', {
     supplierCode: `${run}-FLIGHT-DUP-SERVICE-SKU`, name: `${run} Flight Duplicate Service SKU`, phone: '0907777888',
     services: [
@@ -1257,6 +1264,16 @@ function typedMatrixPayload(type, suffix) {
   assert(contactValidationMessage.includes('Ng\u00e0y sinh ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact birthday validation must be Vietnamese');
   assert(contactValidationMessage.includes('S\u1ed1 \u0111i\u1ec7n tho\u1ea1i ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact phone validation must be Vietnamese');
   assert(contactValidationMessage.includes('Email ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact email validation must be Vietnamese');
+  const contactIsoBirthdayError = await request(manageToken, 'POST', '/suppliers/hotels', {
+    supplierCode: `${run}-HOTEL-BAD-CONTACT-ISO-${Date.now()}`,
+    name: `${run} Hotel Bad Contact ISO`,
+    phone: '0905555777',
+    classHotel: '4 sao',
+    hotelProject: `${run} Hotel Bad Contact ISO Project`,
+    contacts: [{ fullName: 'Valid Contact', birthday: '2026-02-31T00:00:00.000Z', phone: '0905555778', email: `${run.toLowerCase()}-contact-iso@example.com` }],
+  }, [400]);
+  assert(messageOf(contactIsoBirthdayError).includes('Ng\u00e0y sinh ng\u01b0\u1eddi li\u00ean h\u1ec7'), 'contact birthday should reject impossible ISO calendar dates');
+
 
   const filteredInventory = await request(manageToken, 'GET', `/suppliers/hotel-allotments/inventory?supplierId=${ownedDataHotel.id}&startDate=2099-01-01&endDate=2099-01-31`);
   const initialInventory = filteredInventory.find((item) => item.id === ownedAllotmentId);

@@ -3478,3 +3478,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - QuotesService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
   - Added RED/GREEN API smoke coverage in scripts/smoke-quotes-quotations.sh for invalid ISO tour bookingDate and combo checkIn rejection.
   - Verification/deploy passed on the VPS: smoke quotes/quotations, quotes backend/test-coverage contracts, quote tour/combo client contracts, quotation SmartLink expiry contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Suppliers ISO date/datetime validation follow-up:
+  - Found supplier typed metadata datetime fields and contact birthday accepted impossible ISO calendar dates because validation relied on JavaScript Date parsing.
+  - SuppliersService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip for datetime metadata and optional contact dates before Date construction.
+  - Added RED/GREEN smoke coverage in scripts/smoke-suppliers.sh for invalid ISO depositDeadline and contact birthday rejection; smoke error output now includes supplierCode/name context for failed supplier requests.
+  - Verification/deploy passed on the VPS: smoke suppliers, supplier common/controller/helper/i18n/hotel/typed/DTO/client/file/generic contracts, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
