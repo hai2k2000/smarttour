@@ -413,6 +413,7 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-QTY`), costItems: [{ ...tourPayload().costItems[0], quantity: 0 }] }, [400]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-COUNT`), costItems: [{ ...tourPayload().costItems[0], serviceCount: 0 }] }, [400]);
   await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-RATE`), costItems: [{ ...tourPayload().costItems[0], exchangeRate: 0 }] }, [400]);
+  await request(admin, 'POST', '/quotes/tours', { ...tourPayload(`${run}-TOUR-BAD-DATE-ISO`), bookingDate: '2026-02-31T00:00:00.000Z' }, [400]);
 
   const tour = await request(admin, 'POST', '/quotes/tours', tourPayload());
   assertTourTotals(tour);
@@ -437,6 +438,7 @@ function assertLoadableQuotation(row) {
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-MISSING`), comboCode: '' }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-NUM`), items: [{ serviceName: 'Bad combo', netPricePerService: 'abc' }] }, [400]);
   await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-ITEMS`), items: [] }, [400]);
+  await request(admin, 'POST', '/quotes/combos', { ...comboPayload(`${run}-COMBO-BAD-DATE-ISO`), items: [{ ...comboPayload().items[0], checkIn: '2026-02-31T00:00:00.000Z' }] }, [400]);
 
   const scopedCombo = await request(scopedA, 'POST', '/quotes/combos', comboPayload(`${run}-COMBO-SCOPED`));
   assert(scopedCombo.branch === 'SMOKE-BR-A' && scopedCombo.department === 'SMOKE-DEP-A', 'scoped combo create did not persist creator branch/department');

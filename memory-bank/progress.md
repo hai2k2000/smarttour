@@ -3007,3 +3007,7 @@
 - 2026-07-09 Completed operations ISO date validation follow-up:
   - Operation form task dueDate and supplier payment request paymentDate now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/test-operations-service-flows.sh, operations controller contract, operation payment request concurrency contract, business logic guard contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed quotes ISO date validation follow-up:
+  - Quote tour dates and quote combo item checkIn now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/smoke-quotes-quotations.sh, quotes backend/test-coverage contracts, quote tour/combo client contracts, quotation SmartLink expiry contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.

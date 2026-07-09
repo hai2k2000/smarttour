@@ -3472,3 +3472,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationsService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
   - Added RED/GREEN coverage in scripts/test-operations-service-flows.sh for invalid ISO dueDate/paymentDate rejection.
   - Verification/deploy passed on the VPS: operations service flows, operations controller contract, operation payment request concurrency contract, business logic guard contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Quotes ISO date validation follow-up:
+  - Found quote tour dates and quote combo item checkIn accepted impossible ISO calendar dates because QuotesService.dateValue() relied on JavaScript Date parsing.
+  - QuotesService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
+  - Added RED/GREEN API smoke coverage in scripts/smoke-quotes-quotations.sh for invalid ISO tour bookingDate and combo checkIn rejection.
+  - Verification/deploy passed on the VPS: smoke quotes/quotations, quotes backend/test-coverage contracts, quote tour/combo client contracts, quotation SmartLink expiry contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
