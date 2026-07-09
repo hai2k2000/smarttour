@@ -2974,3 +2974,8 @@
 - 2026-07-08 Completed auth profile date validation follow-up:
   - Auth user create/update now rejects impossible `dateOfBirth` calendar dates instead of storing JavaScript rollover dates.
   - Verification/deploy passed: RED/GREEN `scripts/test-auth-service-flows.sh`, auth/RBAC contract suite, API build/lint, git diff check, Docker API rebuild/restart, `scripts/smoke-rbac-workflows.sh`, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 Completed reports date validation follow-up:
+  - Report date filters now reject impossible calendar dates instead of silently querying rolled-over dates.
+  - Verification passed: RED/GREEN scripts/test-report-query-validation.sh, reports CSV helper, reports finance-hybrid/permissions contracts, smoke-reports-business-rules, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.

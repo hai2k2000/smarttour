@@ -292,6 +292,7 @@ async function main() {
   await assertBadRequest(() => service.revenue('by-created-date', { dateField: 'closedAt' }), 'service must reject Tour-only dateField on Order report');
   await assertBadRequest(() => service.finance({ type: 'FIT' }), 'service must reject Tour-only type on hybrid Finance report');
   await assertBadRequest(() => service.finance({ dateField: 'closedAt' }), 'service must reject Tour-only dateField on hybrid Finance report');
+  await assertBadRequest(() => service.revenue('by-created-date', { dateFrom: '2026-02-31', dateTo: '2026-02-31' }), 'service must reject impossible calendar report dates before querying Prisma');
   await service.finance({ type: 'HOTEL_BOOKING', dateField: 'documentDate', costStatus: 'PENDING' });
   await service.exportCsv('finance', { type: 'HOTEL_BOOKING', dateField: 'documentDate' });
   await assertBadRequest(() => service.customerDebt({ dateField: 'paymentDate' }), 'debt report must reject misleading Order dateField');

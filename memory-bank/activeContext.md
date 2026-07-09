@@ -3425,3 +3425,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found auth profile `dateOfBirth` accepted impossible date-only values because `Date.UTC` rolled invalid calendar days forward.
   - Auth date parsing now validates YYYY-MM-DD and DD/MM/YYYY style inputs by round-tripping year/month/day before persisting.
   - Added RED/GREEN coverage in `scripts/test-auth-service-flows.sh` for invalid `dateOfBirth` rejection.
+
+
+- 2026-07-09 Reports date validation follow-up:
+  - Found reports date filters accepted impossible calendar values such as 2026-02-31 because JavaScript Date parsing rolled them forward before DB filtering.
+  - ReportsService now validates the YYYY-MM-DD calendar prefix before Date construction and preserves local start/end-of-day behavior for valid date-only filters.
+  - Added RED/GREEN coverage in scripts/test-report-query-validation.sh for invalid report date rejection before Prisma query work.
+  - Verification passed on the VPS: report query validation, reports CSV helper, finance-hybrid and permission contracts, reports business smoke, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.
