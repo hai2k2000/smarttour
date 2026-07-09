@@ -3484,3 +3484,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - SuppliersService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip for datetime metadata and optional contact dates before Date construction.
   - Added RED/GREEN smoke coverage in scripts/smoke-suppliers.sh for invalid ISO depositDeadline and contact birthday rejection; smoke error output now includes supplierCode/name context for failed supplier requests.
   - Verification/deploy passed on the VPS: smoke suppliers, supplier common/controller/helper/i18n/hotel/typed/DTO/client/file/generic contracts, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Order mapper ISO date validation follow-up:
+  - Found order root/nested dates accepted impossible ISO calendar dates because order-data-mapper parseOrderDate() relied on JavaScript Date parsing.
+  - parseOrderDate() now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
+  - Added RED/GREEN coverage in scripts/test-order-service-flows.sh for invalid ISO startDate rejection and non-persistence.
+  - Verification/deploy passed on the VPS: order service flows, business logic guard, order-center query/permission contracts, data-scope module flows, tour type APIs, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

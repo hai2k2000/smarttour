@@ -277,6 +277,17 @@ function positiveNumber(value: unknown, field: string) {
 
 function parseOrderDate(value: unknown, field: string) {
   if (value === null || value === undefined || value === '') return null;
+  if (!(value instanceof Date)) {
+    const raw = String(value).trim();
+    const datePrefix = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(raw);
+    if (datePrefix) {
+      const year = Number(datePrefix[1]);
+      const month = Number(datePrefix[2]);
+      const day = Number(datePrefix[3]);
+      const utc = new Date(Date.UTC(year, month - 1, day));
+      if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) throw new BadRequestException(`${field} is invalid`);
+    }
+  }
   const parsed = value instanceof Date ? value : new Date(String(value));
   if (!Number.isFinite(parsed.getTime())) throw new BadRequestException(`${field} is invalid`);
   return parsed;

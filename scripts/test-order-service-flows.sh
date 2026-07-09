@@ -185,11 +185,16 @@ async function main() {
     startDate: 'not-a-date',
   }), 'create should reject an invalid date value');
   await rejects(() => service.create('single-services', {
+    systemCode: run + '-INVALID-ISO-DATE',
+    name: 'Invalid ISO date order',
+    startDate: '2026-02-31T00:00:00.000Z',
+  }), 'create should reject an impossible ISO date value');
+  await rejects(() => service.create('single-services', {
     systemCode: run + '-BAD-RATE',
     name: 'Bad exchange rate order',
     exchangeRate: 0,
   }), 'create should reject zero exchangeRate instead of defaulting it to one');
-  assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE', run + '-BAD-RATE'] } } }) === 0, 'invalid create inputs should not persist orders');
+  assert(await prisma.order.count({ where: { systemCode: { in: [run + '-BAD-DATE', run + '-BAD-PAYMENT-DATE', run + '-INVALID-DATE', run + '-INVALID-ISO-DATE', run + '-BAD-RATE'] } } }) === 0, 'invalid create inputs should not persist orders');
   await rejects(() => service.create('single-services', {
     systemCode: run + '-BAD-SALES-QTY',
     name: 'Bad sales quantity order',

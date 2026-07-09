@@ -3015,3 +3015,7 @@
 - 2026-07-09 Completed suppliers ISO date/datetime validation follow-up:
   - Supplier typed metadata datetime fields and contact birthday now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/smoke-suppliers.sh, supplier common/controller/helper/i18n/hotel/typed/DTO/client/file/generic contracts, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed order mapper ISO date validation follow-up:
+  - Order root/nested dates now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/test-order-service-flows.sh, business logic guard, order-center query/permission contracts, data-scope module flows, tour type APIs, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
