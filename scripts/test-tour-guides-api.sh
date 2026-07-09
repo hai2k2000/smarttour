@@ -124,6 +124,7 @@ async function main() {
     const noGuideRole = `${run}_no_guide`;
     const branchGuideRole = `${run}_guide_branch`;
     const departmentGuideRole = `${run}_guide_department`;
+    const branchDepartmentGuideRole = `${run}_guide_branch_department`;
     await request('POST', '/auth/roles', {
       token: adminToken,
       body: { code: viewRole, name: 'Guide Viewer', permissions: ['guide.view', 'data.scope.all'] },
@@ -142,6 +143,11 @@ async function main() {
     await request('POST', '/auth/roles', {
       token: adminToken,
       body: { code: departmentGuideRole, name: 'Department Guide Manager', permissions: ['guide.view', 'guide.manage', 'data.scope.department'] },
+      status: 201,
+    });
+    await request('POST', '/auth/roles', {
+      token: adminToken,
+      body: { code: branchDepartmentGuideRole, name: 'Branch Department Guide Manager', permissions: ['guide.view', 'guide.manage', 'data.scope.branch', 'data.scope.department'] },
       status: 201,
     });
     await request('POST', '/auth/users', {
@@ -164,10 +170,16 @@ async function main() {
       body: { email: `${run}_department@smarttour.local`, username: `${run}_department`, password, name: 'Department Guide User', branch: 'BR-X', department: 'DEP-B', roleCodes: [departmentGuideRole] },
       status: 201,
     });
+    await request('POST', '/auth/users', {
+      token: adminToken,
+      body: { email: `${run}_branch_department@smarttour.local`, username: `${run}_branch_department`, password, name: 'Branch Department Guide User', branch: 'BR-A', department: 'DEP-B', roleCodes: [branchDepartmentGuideRole] },
+      status: 201,
+    });
     const viewToken = await login(`${run}_viewer`);
     const noGuideToken = await login(`${run}_noguide`);
     const branchGuideToken = await login(`${run}_branch`);
     const departmentGuideToken = await login(`${run}_department`);
+    const branchDepartmentGuideToken = await login(`${run}_branch_department`);
 
     await request('GET', '/tour-guides', { token: noGuideToken, status: 403 });
     await request('GET', '/tour-guides/not-a-real-guide', { token: noGuideToken, status: 403 });
@@ -367,6 +379,19 @@ async function main() {
       }),
       status: 201,
     });
+    const scopedGuideSplit = await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: guidePayload(`${run}_SCOPED_SPLIT`, {
+        phone: '0900000013',
+        email: `${run}_scoped_split@smarttour.local`,
+        schedules: [
+          { title: 'Scoped split branch schedule', orderId: scopedOrderA.id, startDate: '2030-04-04T08:00:00.000Z', endDate: '2030-04-04T17:00:00.000Z', status: 'BUSY' },
+          { title: 'Scoped split department schedule', orderId: scopedOrderB.id, startDate: '2030-04-05T08:00:00.000Z', endDate: '2030-04-05T17:00:00.000Z', status: 'BUSY' },
+        ],
+      }),
+      status: 201,
+    });
+
     const scopedListBranch = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: branchGuideToken });
     const scopedListDepartment = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: departmentGuideToken });
     const scopedListAll = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED`)}`, { token: viewToken });
@@ -374,6 +399,11 @@ async function main() {
     assert(scopedListDepartment.some((row) => row.id === scopedGuideB.id) && !scopedListDepartment.some((row) => row.id === scopedGuideA.id), 'department guide user should list only guides linked to department-scoped orders');
     assert(scopedListAll.some((row) => row.id === scopedGuideA.id) && scopedListAll.some((row) => row.id === scopedGuideB.id), 'unrestricted guide user should list all scoped guide records');
     await request('GET', `/tour-guides/${scopedGuideA.id}`, { token: branchGuideToken });
+    const splitDetailForBranch = await request('GET', `/tour-guides/${scopedGuideSplit.id}`, { token: branchGuideToken });
+    assert(splitDetailForBranch.schedules.length === 1 && splitDetailForBranch.schedules[0].orderId === scopedOrderA.id, 'branch-scoped guide detail must hide schedules outside the user data scope');
+    const scopedListBranchDepartment = await request('GET', `/tour-guides?search=${encodeURIComponent(`${run}_SCOPED_SPLIT`)}`, { token: branchDepartmentGuideToken });
+    assert(!scopedListBranchDepartment.some((row) => row.id === scopedGuideSplit.id), 'branch+department guide scope must require the same linked order/tour to match both scope dimensions');
+    await request('GET', `/tour-guides/${scopedGuideSplit.id}`, { token: branchDepartmentGuideToken, status: 404 });
     await request('GET', `/tour-guides/${scopedGuideB.id}`, { token: branchGuideToken, status: 404 });
     await request('GET', `/tour-guides/${scopedGuideB.id}`, { token: departmentGuideToken });
     await request('GET', `/tour-guides/${scopedGuideA.id}`, { token: departmentGuideToken, status: 404 });
