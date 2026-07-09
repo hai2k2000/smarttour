@@ -3432,3 +3432,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - ReportsService now validates the YYYY-MM-DD calendar prefix before Date construction and preserves local start/end-of-day behavior for valid date-only filters.
   - Added RED/GREEN coverage in scripts/test-report-query-validation.sh for invalid report date rejection before Prisma query work.
   - Verification passed on the VPS: report query validation, reports CSV helper, finance-hybrid and permission contracts, reports business smoke, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.
+
+
+- 2026-07-09 Order-center date validation follow-up:
+  - Found order-center date filters used JavaScript Date parsing after DTO validation, so impossible calendar values could roll forward before filtering orders.
+  - OrderCenterService now validates the YYYY-MM-DD calendar prefix with UTC round-trip checks before Date construction while preserving existing filter boundary behavior.
+  - Extended scripts/test-order-center-query-contract.js to guard calendar rollover protection in queryDate().
+  - Verification passed on the VPS: order-center query/permission contracts, list limit alias, performance guard, API build/lint, and git diff check.

@@ -25,6 +25,7 @@ if (service.includes('paymentStatus: query.paymentStatus as any')) failures.push
 if (service.includes('costStatus: query.costStatus as any')) failures.push('OrderCenterService must not cast costStatus as any');
 if (service.includes('new Date(from)') || service.includes('new Date(to)')) failures.push('OrderCenterService dateRange must not construct Invalid Date from raw query values');
 if (!service.includes('private queryDate(') || !service.includes('Number.isNaN(date.getTime())')) failures.push('OrderCenterService must reject invalid query dates with BadRequestException');
+if (!service.includes('Date.UTC') || !service.includes('getUTCFullYear()') || !service.includes('getUTCMonth()') || !service.includes('getUTCDate()')) failures.push('OrderCenterService must reject impossible calendar dates before JavaScript Date rollover');
 
 if (failures.length) {
   console.error('FAIL_ORDER_CENTER_QUERY_CONTRACT');

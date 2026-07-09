@@ -2979,3 +2979,8 @@
 - 2026-07-09 Completed reports date validation follow-up:
   - Report date filters now reject impossible calendar dates instead of silently querying rolled-over dates.
   - Verification passed: RED/GREEN scripts/test-report-query-validation.sh, reports CSV helper, reports finance-hybrid/permissions contracts, smoke-reports-business-rules, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.
+
+
+- 2026-07-09 Completed order-center date validation follow-up:
+  - Order-center created/start/end/payment date filters now reject impossible calendar dates instead of allowing JavaScript Date rollover.
+  - Verification passed: RED/GREEN scripts/test-order-center-query-contract.js, order-center permissions, list limit alias, performance guard, API build/lint, and git diff check.
