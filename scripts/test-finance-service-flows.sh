@@ -966,6 +966,7 @@ async function main() {
   const dateFilterCustomerDebt = await finance.customerDebt({ customerId: paginationCustomer.id, from: '2026-10-05', to: '2026-10-05', take: '1000' });
   assert(dateFilterCustomerDebt.entries.some((entry) => entry.id === dateFilterCustomerAdjustment.id), 'customer debt date filter should include entries throughout the to date');
   await rejectsWithStatus(() => finance.customerDebt({ customerId: paginationCustomer.id, from: 'bad-date' }), 400, 'customer debt should reject invalid from date');
+  await rejectsWithStatus(() => finance.customerDebt({ customerId: paginationCustomer.id, from: '2026-02-31' }), 400, 'customer debt should reject impossible calendar from date');
   const searchedCustomerDebt = await finance.customerDebt({ search: 'Pagination Customer', take: '1000' });
   assert(searchedCustomerDebt.rows.some((row) => row.id === paginationCustomer.id) && !searchedCustomerDebt.rows.some((row) => row.id === customer.id), 'customer debt search should filter by customer name/code/phone');
   const branchCustomerDebt = await finance.customerDebt({ customerId: customer.id, take: '1000' }, branchUser);

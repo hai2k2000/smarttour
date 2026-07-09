@@ -3439,3 +3439,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OrderCenterService now validates the YYYY-MM-DD calendar prefix with UTC round-trip checks before Date construction while preserving existing filter boundary behavior.
   - Extended scripts/test-order-center-query-contract.js to guard calendar rollover protection in queryDate().
   - Verification passed on the VPS: order-center query/permission contracts, list limit alias, performance guard, API build/lint, and git diff check.
+
+
+- 2026-07-09 Finance query date validation follow-up:
+  - Found finance query filters accepted impossible calendar dates such as 2026-02-31 because queryDate() relied on JavaScript Date parsing, which can roll invalid dates forward.
+  - FinanceService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction, covering receipts, payments, invoices, cashflow, and debt reports through the shared helper.
+  - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for customer debt invalid calendar from-date rejection.
+  - Verification passed on the VPS: finance service flows, finance query/controller/DTO/rules/side-effect/high-B contracts, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.
