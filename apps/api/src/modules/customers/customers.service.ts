@@ -3,6 +3,7 @@ import { CustomerStatus, Prisma } from '@prisma/client';
 import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { bookingScopeWhere } from '../bookings/booking-scope';
 import { FilesService } from '../files/files.service';
 import { containsSearch, normalizeListSearch } from '../list-search';
 
@@ -374,16 +375,16 @@ export class CustomersService {
       await tx.customerTimeline.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerTimeline.create({ data: { customerId: targetId, eventType: 'MERGE', title: `Merge ${source.code}`, content: this.text(dto.note), actor } });
       await tx.customer.update({ where: { id: sourceId }, data: { status: CustomerStatus.MERGED, mergedIntoId: targetId, owner: this.text(dto.transferOwner) || source.owner } });
-      await tx.order.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.booking.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.quotation.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.tourQuote.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.tourCustomer.updateMany({ where: { crmCustomerId: sourceId }, data: { crmCustomerId: targetId } });
-      await tx.fitTour.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.financeReceipt.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.financeInvoice.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.financeCashflowEntry.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
-      await tx.customerLedgerEntry.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+      await tx.order.updateMany({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.booking.updateMany({ where: bookingScopeWhere({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.quotation.updateMany({ where: branchDepartmentScopeWhere<Prisma.QuotationWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.tourQuote.updateMany({ where: this.tourQuoteScopeWhere({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.tourCustomer.updateMany({ where: this.tourCustomerScopeWhere({ crmCustomerId: sourceId }, user), data: { crmCustomerId: targetId } });
+      await tx.fitTour.updateMany({ where: this.fitTourScopeWhere({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.financeReceipt.updateMany({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.financeInvoice.updateMany({ where: this.financeInvoiceScopeWhere({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.financeCashflowEntry.updateMany({ where: branchDepartmentScopeWhere<Prisma.FinanceCashflowEntryWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
+      await tx.customerLedgerEntry.updateMany({ where: branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
     });
     return this.detail(targetId, user);
   }
@@ -758,6 +759,49 @@ export class CustomersService {
     };
   }
 
+  private tourCustomerScopeWhere(where: Prisma.TourCustomerWhereInput, user?: RequestUser): Prisma.TourCustomerWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        { tour: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) },
+      ],
+    };
+  }
+
+  private fitTourScopeWhere(where: Prisma.FitTourWhereInput, user?: RequestUser): Prisma.FitTourWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) },
+            { order: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) },
+            { tour: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) },
+          ],
+        },
+      ],
+    };
+  }
+
+  private financeInvoiceScopeWhere(where: Prisma.FinanceInvoiceWhereInput, user?: RequestUser): Prisma.FinanceInvoiceWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) },
+            { order: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) },
+            { tour: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) },
+            { receipt: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ deletedAt: null }, user) },
+          ],
+        },
+      ],
+    };
+  }
+
   private customerBookingOr(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }): Prisma.BookingWhereInput[] {
     return [
       { customerId: customer.id },
@@ -817,12 +861,12 @@ export class CustomersService {
     await Promise.all([
       tx.order.updateMany({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
       tx.quotation.updateMany({ where: branchDepartmentScopeWhere<Prisma.QuotationWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
-      tx.tourQuote.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
-      tx.booking.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
-      tx.tourCustomer.updateMany({ where: { crmCustomerId: null, OR: tourCustomerOr }, data: { crmCustomerId: customerId } }),
-      tx.fitTour.updateMany({ where: { customerId: null, OR: fitTourOr }, data: { customerId } }),
+      tx.tourQuote.updateMany({ where: this.tourQuoteScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
+      tx.booking.updateMany({ where: bookingScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
+      tx.tourCustomer.updateMany({ where: this.tourCustomerScopeWhere({ crmCustomerId: null, OR: tourCustomerOr }, user), data: { crmCustomerId: customerId } }),
+      tx.fitTour.updateMany({ where: this.fitTourScopeWhere({ customerId: null, OR: fitTourOr }, user), data: { customerId } }),
       tx.financeReceipt.updateMany({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ customerId: null, OR: receiptOr }, user), data: { customerId } }),
-      tx.financeInvoice.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.financeInvoice.updateMany({ where: this.financeInvoiceScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
     ]);
   }
 

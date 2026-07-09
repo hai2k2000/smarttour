@@ -5,6 +5,7 @@ REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 TEST_DB="${TEST_DB:-smarttour_tour_guides_test}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
 POSTGRES_USER="${POSTGRES_USER:-smarttour}"
+BOOTSTRAP_KEY="${BOOTSTRAP_KEY:-smarttour-api-test-bootstrap-key}"
 
 cd "$REPO_DIR"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(grep -E '^POSTGRES_PASSWORD=' .env | tail -1 | cut -d= -f2-)}"
@@ -27,6 +28,7 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   -e SMARTTOUR_ENV=development \
   -e SMARTTOUR_AUTH_ENFORCE=true \
+  -e SMARTTOUR_BOOTSTRAP_KEY="$BOOTSTRAP_KEY" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { ValidationPipe } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
@@ -111,7 +113,7 @@ async function main() {
 
     const adminUsername = `${run}_admin`;
     const bootstrapSession = await request('POST', '/auth/bootstrap', {
-      body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Guide Admin' },
+      body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Guide Admin', bootstrapKey: process.env.SMARTTOUR_BOOTSTRAP_KEY },
       status: 201,
       withToken: true,
     });
@@ -561,7 +563,7 @@ assert(generatedCodes.size === 5000, 'new guide code generation should not colli
 assert([...generatedCodes].every((code) => /^HDV-[A-Z0-9]+-[A-Z0-9]{8}$/.test(code)), 'new guide code should keep the expected HDV timestamp-random format');
 assert(source.includes("const appTimeZone = 'Asia/Bangkok'") && source.includes('timeZone: appTimeZone'), 'TourGuidesClient should display schedule datetimes in Asia/Bangkok');
 assert(source.includes('buildPayload') && source.includes('costServices') && source.includes('netPrice: numberOrZero(row.netPrice)'), 'TourGuidesClient should submit guide price-book rows as explicit numbers');
-assert(source.includes("import { authHeaders, authJsonHeaders } from '../authFetch'"), 'TourGuidesClient should send auth headers for reload/detail/save requests');
+assert(source.includes("import { authFetch, authHeaders, authJsonHeaders } from '../authFetch'") && source.includes('authFetch('), 'TourGuidesClient should send auth headers for reload/detail/save requests');
 assert(source.includes('function tourGuidesPath') && source.includes("params.set('search'") && source.includes("params.set('status'"), 'TourGuidesClient reload should pass sanitized search/status query to /tour-guides');
 assert(source.includes('const [statusFilter, setStatusFilter]') && source.includes('L\u1ecdc tr\u1ea1ng th\u00e1i h\u01b0\u1edbng d\u1eabn vi\u00ean'), 'TourGuidesClient should expose a status filter for the guide list');
 assert(source.includes('guideStatusOptions') && source.includes('scheduleStatusOptions') && source.includes('currencyOptions'), 'TourGuidesClient should use controlled options for guide status, schedule status, and currency');

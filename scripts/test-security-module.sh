@@ -5,6 +5,7 @@ REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 TEST_DB="${TEST_DB:-smarttour_security_module_test}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-smarttour-postgres-1}"
 POSTGRES_USER="${POSTGRES_USER:-smarttour}"
+BOOTSTRAP_KEY="${BOOTSTRAP_KEY:-smarttour-api-test-bootstrap-key}"
 
 cd "$REPO_DIR"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(grep -E '^POSTGRES_PASSWORD=' .env | tail -1 | cut -d= -f2-)}"
@@ -27,6 +28,7 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   -e SMARTTOUR_ENV=development \
   -e SMARTTOUR_AUTH_ENFORCE=true \
+  -e SMARTTOUR_BOOTSTRAP_KEY="$BOOTSTRAP_KEY" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { ValidationPipe } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
@@ -98,7 +100,7 @@ async function main() {
 
     const adminUsername = `${run}_admin`;
     const bootstrapSession = await request('POST', '/auth/bootstrap', {
-      body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Security Admin' },
+      body: { email: `${adminUsername}@smarttour.local`, username: adminUsername, password, name: 'Security Admin', bootstrapKey: process.env.SMARTTOUR_BOOTSTRAP_KEY },
       status: 201,
       withCookie: true,
     });
@@ -106,7 +108,7 @@ async function main() {
     assertPublicSessionPayload(bootstrap, 'bootstrap');
     assert(bootstrapSession.cookie && bootstrap.user.dataScope === 'all', 'bootstrap should issue wildcard admin cookie with all data scope');
     await request('POST', '/auth/bootstrap', {
-      body: { email: `${run}_second@smarttour.local`, username: `${run}_second`, password, name: 'Second Admin' },
+      body: { email: `${run}_second@smarttour.local`, username: `${run}_second`, password, name: 'Second Admin', bootstrapKey: process.env.SMARTTOUR_BOOTSTRAP_KEY },
       status: 401,
     });
 
