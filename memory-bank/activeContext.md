@@ -3466,3 +3466,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationVouchersService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
   - Added RED/GREEN coverage in scripts/test-operation-vouchers-service.sh for invalid ISO serviceDate/paymentDate rejection.
   - Verification/deploy passed on the VPS: operation vouchers service, operation vouchers client/auth contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Operations ISO date validation follow-up:
+  - Found operation form task dueDate and supplier payment request paymentDate accepted impossible ISO calendar dates because OperationsService.date() relied on JavaScript Date parsing.
+  - OperationsService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
+  - Added RED/GREEN coverage in scripts/test-operations-service-flows.sh for invalid ISO dueDate/paymentDate rejection.
+  - Verification/deploy passed on the VPS: operations service flows, operations controller contract, operation payment request concurrency contract, business logic guard contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

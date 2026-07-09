@@ -230,6 +230,7 @@ async function main() {
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-SERVICE-NAME'), services: [{ supplierId: supplierA.id, supplierServiceId: supplierServiceA.id, serviceType: 'HOTEL', expectedCost: 100, actualCost: 80 }] }, undefined), 'Cần nhập tên dịch vụ điều hành', 'form service should require service name');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-CONFIRMATION'), services: [{ supplierId: supplierA.id, supplierServiceId: supplierServiceA.id, serviceType: 'HOTEL', serviceName: 'Sai trạng thái', confirmationStatus: 'SAI', expectedCost: 100, actualCost: 80 }] }, undefined), 'Trạng thái xác nhận dịch vụ không hợp lệ', 'form service should validate confirmation status');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TASK-DATE'), tasks: [{ title: 'Sai ngày', dueDate: 'not-a-date', status: 'PENDING' }] }, undefined), 'Hạn công việc không hợp lệ', 'form task should validate due date');
+  await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TASK-DATE-ISO'), tasks: [{ title: 'Bad ISO date', dueDate: '2026-02-31T00:00:00.000Z', status: 'PENDING' }] }, undefined), 'H\u1ea1n c\u00f4ng vi\u1ec7c kh\u00f4ng h\u1ee3p l\u1ec7', 'form task should reject invalid ISO due date');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-TASK-STATUS'), tasks: [{ title: 'Sai trạng thái', dueDate: yesterday.toISOString(), status: 'SAI' }] }, undefined), 'Trạng thái công việc điều hành không hợp lệ', 'form task should validate status');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-COST-NAME'), costs: [{ expectedAmount: 100, actualAmount: 80 }] }, undefined), 'Cần nhập tên chi phí', 'form cost should require cost name');
   await rejectsMessage(() => service.createForm({ ...formPayload(bookingA, supplierA, supplierServiceA, 'BAD-COST-AMOUNT'), costs: [{ costName: 'Sai tiền', expectedAmount: 0, actualAmount: 0 }] }, undefined), 'Số tiền dự kiến phải lớn hơn 0', 'form cost should validate expected amount');
@@ -405,6 +406,12 @@ async function main() {
   assert(approvedLedger.documentDate.getTime() === approved.requestedAt.getTime(), 'approve payment request ledger date should match request date');
   await rejectsMessage(() => service.approvePaymentRequest(request.id, { actor: 'approver-a' }), 'Chỉ yêu cầu đã gửi mới được duyệt', 'approve approved payment request should be blocked');
 
+  await rejectsMessage(() => service.createFinancePaymentForRequest(request.id, {
+    actor: 'finance-bad-date',
+    paymentDate: '2026-02-31T00:00:00.000Z',
+    paymentMethod: 'bank_transfer',
+    reason: 'Bad payment date',
+  }, branchAUser), 'Ng\u00e0y thanh to\u00e1n kh\u00f4ng h\u1ee3p l\u1ec7', 'create finance payment should reject invalid ISO paymentDate');
   const linked = await service.createFinancePaymentForRequest(request.id, {
     actor: 'finance-a',
     paymentDate: tomorrow.toISOString(),

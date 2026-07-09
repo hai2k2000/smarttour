@@ -3003,3 +3003,7 @@
 - 2026-07-09 Completed operation voucher ISO date validation follow-up:
   - Operation voucher serviceDate and paymentDate now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/test-operation-vouchers-service.sh, operation vouchers client/auth contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed operations ISO date validation follow-up:
+  - Operation form task dueDate and supplier payment request paymentDate now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/test-operations-service-flows.sh, operations controller contract, operation payment request concurrency contract, business logic guard contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

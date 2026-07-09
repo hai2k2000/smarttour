@@ -1354,6 +1354,16 @@ export class OperationsService {
       return value;
     }
     if (typeof value === 'string' || typeof value === 'number') {
+      if (typeof value === 'string') {
+        const datePrefix = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value.trim());
+        if (datePrefix) {
+          const year = Number(datePrefix[1]);
+          const month = Number(datePrefix[2]);
+          const day = Number(datePrefix[3]);
+          const utc = new Date(Date.UTC(year, month - 1, day));
+          if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) throw new BadRequestException(message);
+        }
+      }
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) throw new BadRequestException(message);
       return date;
