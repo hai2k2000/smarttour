@@ -241,6 +241,14 @@ async function main() {
     details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
   }), 'ngày dịch vụ không hợp lệ', 'create should reject invalid serviceDate with Vietnamese message');
   await rejectsMessage(() => service.create({
+    voucherCode: run + '-BAD-DATE-ISO',
+    supplierName: supplier.name,
+    serviceType: 'Hotel',
+    serviceName: 'Bad ISO date voucher',
+    serviceDate: '2026-02-31T00:00:00.000Z',
+    details: [{ serviceName: 'Room', quantity: 1, netPrice: 1000, vat: 0 }],
+  }), 'ng\u00e0y d\u1ecbch v\u1ee5 kh\u00f4ng h\u1ee3p l\u1ec7', 'create should reject invalid ISO serviceDate with Vietnamese message');
+  await rejectsMessage(() => service.create({
     voucherCode: run + '-BAD-DEADLINE',
     supplierName: supplier.name,
     serviceType: 'Hotel',
@@ -324,6 +332,7 @@ async function main() {
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: -1, paymentDate: '2026-12-02' }), 'Số tiền thanh toán phải lớn hơn 0', 'add payment should reject negative paymentAmount with Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 631, paymentDate: '2026-12-02' }), 'Số tiền thanh toán không được vượt quá công nợ còn lại', 'add payment should reject amount above remaining amount with Vietnamese message');
   await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1, paymentDate: '2026-02-31' }), 'ngày thanh toán không hợp lệ', 'add payment should reject invalid paymentDate with Vietnamese message');
+  await rejectsMessage(() => service.addPayment(created.id, { paymentAmount: 1, paymentDate: '2026-02-31T00:00:00.000Z' }), 'ng\u00e0y thanh to\u00e1n kh\u00f4ng h\u1ee3p l\u1ec7', 'add payment should reject invalid ISO paymentDate with Vietnamese message');
   await rejects(() => service.addPayment(created.id, { paymentAmount: 200, paymentDate: '2026-12-02' }), 'add payment should require an approved finance payment');
 
   const partialFinancePayment = await prisma.financePayment.create({

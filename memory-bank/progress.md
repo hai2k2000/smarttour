@@ -2999,3 +2999,7 @@
 - 2026-07-09 Completed customers date validation follow-up:
   - Customer dateOfBirth and created-date filters now reject impossible calendar dates instead of allowing JavaScript Date rollover.
   - Verification passed: RED/GREEN scripts/test-customers-service.sh, customers API/DTO contracts, customer permission/debt contracts, CSV formula guard, API build/lint, and git diff check.
+
+- 2026-07-09 Completed operation voucher ISO date validation follow-up:
+  - Operation voucher serviceDate and paymentDate now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/test-operation-vouchers-service.sh, operation vouchers client/auth contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
