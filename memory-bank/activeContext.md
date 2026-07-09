@@ -3510,3 +3510,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - finance-import importDate() now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before accepting import row dates, adding defense before FinanceService write validation.
   - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for direct receipt/payment import-row helper rejection and CSV import rejection of impossible paymentDate.
   - Verification/deploy passed on the VPS: finance service flows, finance helper/controller/XLSX/query contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 TourKit finance voucher import date validation follow-up:
+  - Found TourKit finance voucher import accepted impossible DMY/YMD dates such as 31/02/2026 because parseDate() used Date.UTC without calendar round-trip validation.
+  - scripts/import-tourkit-finance-vouchers.js now validates parsed day/month/year before creating UTC-noon dates, preventing silent rollover in imported receipt/payment voucher data.
+  - Added RED/GREEN coverage in scripts/test-tourkit-finance-vouchers-import.sh for bad receipt payment-date rejection before normal dry-run/import/idempotency assertions.
+  - Verification passed on the VPS: TourKit finance vouchers import test, import script syntax check, finance helper contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.

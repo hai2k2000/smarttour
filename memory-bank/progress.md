@@ -3033,3 +3033,8 @@
 - 2026-07-09 Completed finance import date validation follow-up:
   - Finance receipt/payment import row date helpers now reject impossible calendar dates before rows reach service writes.
   - Verification/deploy passed: RED/GREEN scripts/test-finance-service-flows.sh, finance helper/controller/XLSX/query contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 Completed TourKit finance voucher import date validation follow-up:
+  - TourKit finance voucher import now rejects impossible DMY/YMD dates instead of silently rolling them forward into finance receipt/payment data.
+  - Verification passed: RED/GREEN scripts/test-tourkit-finance-vouchers-import.sh, node --check import script, finance helper contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -126,6 +126,7 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && NODE_PATH=/app/node_modules node" <<'NODE'
 const { execFileSync } = require('child_process');
+const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
 function assert(condition, label) {
@@ -193,20 +194,51 @@ async function seed() {
   }
 }
 
-function runImport(args = []) {
+function runImportFiles(receiptsPath, paymentsPath, args = [], stdio = 'inherit') {
   execFileSync(process.execPath, [
     '/workspace/scripts/import-tourkit-finance-vouchers.js',
-    '--receipts=/tmp/tourkit-receipts.json',
-    '--payments=/tmp/tourkit-payments.json',
+    `--receipts=${receiptsPath}`,
+    `--payments=${paymentsPath}`,
     ...args,
   ], {
-    stdio: 'inherit',
+    stdio,
     env: { ...process.env, NODE_PATH: '/app/node_modules' },
   });
 }
 
+function runImport(args = []) {
+  runImportFiles('/tmp/tourkit-receipts.json', '/tmp/tourkit-payments.json', args);
+}
+
+function expectImportFailure(action, label) {
+  try {
+    action();
+  } catch {
+    return;
+  }
+  throw new Error(label);
+}
+
 async function main() {
   await seed();
+
+  fs.writeFileSync('/tmp/tourkit-bad-receipts.json', JSON.stringify({
+    records: [{
+      ['T\u00ean Phi\u1ebfu thu']: 'Thu ngay loi',
+      ['M\u00e3 Phi\u1ebfu thu']: 'PT_BAD_DATE',
+      ['M\u00e3 tour']: 'ORDER-FIN-001',
+      ['M\u00e3 gi\u1eef ch\u1ed7']: 'BKG-FIN-001',
+      ['Ng\u00e0y thanh to\u00e1n']: '31/02/2026',
+      ['S\u1ed1 ti\u1ec1n thu']: '1,000',
+      ['Ng\u01b0\u1eddi \u0111\u00f3ng']: 'Khach test',
+      ['S\u1ed1 \u0111i\u1ec7n tho\u1ea1i']: '0901234567',
+      ['Tr\u1ea1ng th\u00e1i duy\u1ec7t']: 'Cho duyet',
+    }],
+  }), 'utf8');
+  expectImportFailure(
+    () => runImportFiles('/tmp/tourkit-bad-receipts.json', '/tmp/tourkit-payments.json', [], 'pipe'),
+    'TourKit finance voucher import should reject impossible receipt payment dates',
+  );
 
   runImport(['--dry-run']);
   let prisma = new PrismaClient();
