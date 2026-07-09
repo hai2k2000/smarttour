@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Download, Eye, RefreshCcw, Search, WalletCards, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 import { viStatus } from '../i18n';
@@ -101,7 +101,7 @@ export default function CommissionReportsClient() {
     setLoading(true);
     setLoadError('');
     try {
-      const response = await fetch(`${API_URL}/api/commission-reports?${query}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${API_URL}/api/commission-reports?${query}`, { cache: 'no-store', headers: authHeaders() });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(typeof data.message === 'string' ? data.message : 'Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o hoa h\u1ed3ng');
@@ -132,7 +132,7 @@ export default function CommissionReportsClient() {
     if (!confirmCommissionAction(path)) return;
     const payload: Record<string, unknown> = { id, actor: 'accounting' };
     if (path === 'pay') payload.voucherNo = `PC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
-    const response = await fetch(`${API_URL}/api/commission-reports/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
+    const response = await authFetch(`${API_URL}/api/commission-reports/${path}`, { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       setMessage(data.message || 'Không thực hiện được');
@@ -148,7 +148,7 @@ export default function CommissionReportsClient() {
       setMessage('T\u00e0i kho\u1ea3n hi\u1ec7n t\u1ea1i ch\u01b0a c\u00f3 quy\u1ec1n \u0111\u1ed3ng b\u1ed9 hoa h\u1ed3ng.');
       return;
     }
-    const response = await fetch(`${API_URL}/api/commission-reports/sync`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+    const response = await authFetch(`${API_URL}/api/commission-reports/sync`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       setMessage(data.message || 'Kh\u00f4ng \u0111\u1ed3ng b\u1ed9 \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o hoa h\u1ed3ng');

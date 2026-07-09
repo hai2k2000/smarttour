@@ -6,7 +6,7 @@ import { AlertCircle, Check, Pencil, Plus, RefreshCcw, Save, Search, ShoppingCar
 import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, UseFormSetValue, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../../authFetch';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
 
 type SupplierService = { id: string; serviceName: string; netPrice: string | number | null };
@@ -318,7 +318,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     setListLoading(true);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos?take=100`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/quotes/combos?take=100`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được danh sách combo.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho danh sách combo.');
@@ -348,7 +348,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
       reset(freshDefaultValues());
     }
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${id}`, { headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/quotes/combos/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết combo.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho chi tiết combo.');
@@ -395,7 +395,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
       return;
     }
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos${editingId ? `/${editingId}` : ''}`, {
+      const response = await authFetch(`${browserApiBase()}/api/quotes/combos${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify(payload),
@@ -425,7 +425,7 @@ export default function QuoteCombosClient({ initialCombos, suppliers }: { initia
     setActionLoading(path);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/combos/${currentId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
+      const response = await authFetch(`${browserApiBase()}/api/quotes/combos/${currentId}/${path}`, { method: 'POST', headers: authJsonHeaders(), body: '{}' });
       if (!response.ok) throw new Error(await responseError(response, `Không thể ${actionLabels[path]}.`));
       await reload(false);
       await loadCombo(currentId, false);

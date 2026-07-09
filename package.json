@@ -39,6 +39,8 @@
     "test:suppliers:hotel": "scripts/test-suppliers-hotel.sh",
     "test:core-workflows": "scripts/test-core-business-workflows-contract.sh",
     "test:ux-ui": "scripts/test-ux-ui-contract.sh",
+    "test:browser-auth-fetch": "node scripts/test-browser-auth-fetch-contract.js",
+    "test:health-controller-public": "node scripts/test-health-controller-public-contract.js",
     "test:role-permissions": "node scripts/test-role-permission-contract.js",
     "test:data-scope": "node scripts/test-data-scope-contract.js && scripts/test-data-scope-module-flows.sh && scripts/test-data-scope-api-flows.sh",
     "test:list-table-compact": "node scripts/audit-list-table-compact.js",

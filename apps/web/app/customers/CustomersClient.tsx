@@ -2,7 +2,7 @@
 
 import { Download, Eye, FileUp, Plus, RefreshCcw, Save, Search, Tags, Trash2, UserRoundCheck } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -171,7 +171,7 @@ export default function CustomersClient() {
     listRequestRef.current = requestId;
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/customers${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${API_URL}/api/customers${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được danh sách khách hàng'));
       const data = await response.json();
       if (listRequestRef.current !== requestId) return;
@@ -214,7 +214,7 @@ export default function CustomersClient() {
 
     let saved: Customer;
     try {
-      const response = await fetch(`${API_URL}/api/customers`, {
+      const response = await authFetch(`${API_URL}/api/customers`, {
         method: 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify(payload),
@@ -257,7 +257,7 @@ export default function CustomersClient() {
     setSelected(null);
     setModal('detail');
     try {
-      const response = await fetch(`${API_URL}/api/customers/${id}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${API_URL}/api/customers/${id}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được chi tiết khách hàng'));
       const data = await response.json();
       if (detailRequestRef.current !== requestId) return;
@@ -277,7 +277,7 @@ export default function CustomersClient() {
     for (const file of files) {
       const body = new FormData();
       body.append('file', file);
-      const response = await fetch(`${API_URL}/api/customers/${customerId}/files`, { method: 'POST', headers: authHeaders(), body });
+      const response = await authFetch(`${API_URL}/api/customers/${customerId}/files`, { method: 'POST', headers: authHeaders(), body });
       if (!response.ok) throw new Error(`${file.name}: ${await responseMessage(response, 'upload file thất bại')}`);
     }
   }
@@ -300,7 +300,7 @@ export default function CustomersClient() {
       setMessage({ type: 'error', text: 'B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n customer.manage \u0111\u1ec3 x\u00f3a t\u00e0i li\u1ec7u kh\u00e1ch h\u00e0ng.' });
       return;
     }
-    const response = await fetch(`${API_URL}/api/customers/${customerId}/files/${fileId}`, { method: 'DELETE', headers: authHeaders() });
+    const response = await authFetch(`${API_URL}/api/customers/${customerId}/files/${fileId}`, { method: 'DELETE', headers: authHeaders() });
     if (!response.ok) {
       setMessage({ type: 'error', text: await responseMessage(response, 'Không xóa được tài liệu khách hàng') });
       return;
@@ -368,7 +368,7 @@ export default function CustomersClient() {
     }
     setExporting(true);
     try {
-      const response = await fetch(`${API_URL}/api/customers/export${query ? `?${query}` : ''}`, { headers: authHeaders() });
+      const response = await authFetch(`${API_URL}/api/customers/export${query ? `?${query}` : ''}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không export được CSV'));
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

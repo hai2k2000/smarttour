@@ -4,6 +4,13 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-/opt/smarttour}"
 cd "$REPO_DIR"
 
+cleanup_docker_builder_cache() {
+  if [[ "${SMARTTOUR_TEST_PRUNE_DOCKER_CACHE:-1}" == "1" ]]; then
+    docker builder prune -af >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_docker_builder_cache EXIT
+
 docker compose build api >/dev/null
 docker compose run --rm --entrypoint node api <<'NODE'
 const { AuthController } = require('./apps/api/dist/modules/auth/auth.controller');

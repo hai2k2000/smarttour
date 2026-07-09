@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FieldArrayWithId, FieldErrors, useFieldArray, useForm, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 
 type Supplier = { id: string; name: string };
 type FitTourSummary = { id: string; quoteCode: string; tourCode: string; customerName: string };
@@ -938,7 +938,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
       : mode === 'confirm'
         ? `${apiBase}/api/fit-tours/${payload.id}/steps/${step}/confirm`
         : `${apiBase}/api/fit-tours/${payload.id}/steps/${step}`;
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
       method: creating || !step ? 'POST' : mode === 'confirm' ? 'POST' : 'PATCH',
       headers: authJsonHeaders(),
       body: JSON.stringify(creating ? createPayload(payload) : !step ? payload : stepPayload(payload, step)),
@@ -1012,7 +1012,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
     setSelectedTourId(id);
     setSaveState('Đang tải tour...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}`, { headers: authHeaders() });
+      const response = await authFetch(`${apiBase}/api/fit-tours/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const defaults = toFormDefaults(await response.json());
       if (requestId !== loadRequestId.current) return;
@@ -1066,7 +1066,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
     if (!window.confirm(`Sao chép dự toán từ ${sourceLabel} sẽ ghi đè toàn bộ dự toán hiện tại của tour này. Tiếp tục?`)) return;
     setSaveState('Đang sao chép dự toán...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
+      const response = await authFetch(`${apiBase}/api/fit-tours/${id}/copy-budget`, {
         method: 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify({ sourceTourId: sourceTour.id }),
@@ -1114,7 +1114,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
     if (!window.confirm(`Sao chép điều hành từ ${sourceLabel} sẽ ghi đè toàn bộ dòng điều hành hiện tại. Tiếp tục?`)) return;
     setSaveState('Đang sao chép điều hành...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
+      const response = await authFetch(`${apiBase}/api/fit-tours/${id}/copy-operation`, {
         method: 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify({ sourceTourId }),
@@ -1153,7 +1153,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
     const body = new FormData();
     body.append('file', file);
     body.append('step', step);
-    const response = await fetch(`${apiBase}/api/fit-tours/${id}/attachments`, {
+    const response = await authFetch(`${apiBase}/api/fit-tours/${id}/attachments`, {
       method: 'POST',
       headers: authHeaders(),
       body,
@@ -1209,7 +1209,7 @@ export default function FitTourWizard({ suppliers, tours, canManageTours, initia
     if (!window.confirm(`Xóa file ${attachment.fileName || 'đính kèm'} khỏi tour FIT?`)) return;
     setSaveState('Đang xóa file đính kèm...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`, {
+      const response = await authFetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });

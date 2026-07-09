@@ -28,6 +28,11 @@ const packageJson = JSON.parse(read('package.json'));
 const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
 const readinessTracker = read('docs/production-readiness-tracker.md');
 const backupRunbook = read('docs/operations-backup-reinstall.md');
+const buildHeavyTestScripts = [
+  'scripts/test-auth-token-extraction.sh',
+  'scripts/test-high-a-data-access.sh',
+  'scripts/test-backend-critical-flows.sh',
+];
 
 assertExecutable('scripts/docker-cache-maintenance.sh');
 
@@ -99,5 +104,13 @@ if (packageJson.scripts['test:docker-cache-maintenance'] !== 'node scripts/test-
 assertIncludes('.github/workflows/smarttour-ci.yml', ciWorkflow, 'node scripts/test-docker-cache-maintenance-contract.js');
 assertIncludes('docs/production-readiness-tracker.md', readinessTracker, 'smarttour-docker-cache-maintenance.timer');
 assertIncludes('docs/operations-backup-reinstall.md', backupRunbook, 'scripts/docker-cache-maintenance.sh');
+
+for (const file of buildHeavyTestScripts) {
+  const source = read(file);
+  assertIncludes(file, source, 'docker compose build api');
+  assertIncludes(file, source, 'SMARTTOUR_TEST_PRUNE_DOCKER_CACHE');
+  assertIncludes(file, source, 'docker builder prune -af');
+  assertIncludes(file, source, 'trap');
+}
 
 console.log('TEST_DOCKER_CACHE_MAINTENANCE_CONTRACT_OK');

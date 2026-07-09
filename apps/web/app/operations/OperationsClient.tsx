@@ -2,7 +2,7 @@
 
 import { CheckCircle2, ClipboardCheck, FileCheck2, HandCoins, Plus, RefreshCcw, Search, Send, WalletCards, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { authJsonHeaders } from '../authFetch';
+import { authFetch, authJsonHeaders } from '../authFetch';
 import { viPermission, viStatus } from '../i18n';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
@@ -469,7 +469,7 @@ export default function OperationsClient() {
 
   async function post<T = unknown>(path: string, payload: unknown, actionLabel: string, reloadAfter: LoadOptions = {}) {
     setNotice(null);
-    const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const response = await authFetch(`${API_URL}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await parseResponse(response);
     if (!response.ok) {
       showError(apiFailureMessage(actionLabel, response, data));
@@ -1145,7 +1145,7 @@ function Metric({ label, value, title, muted }: { label: string; value: string |
 }
 
 async function fetchJson<T>(path: string, label: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, { cache: 'no-store', headers: authHeaders() });
+  const response = await authFetch(`${API_URL}${path}`, { cache: 'no-store', headers: authHeaders() });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(`${label}: ${messageOf(data) || response.statusText || 'không tải được dữ liệu'}`);
   return data as T;

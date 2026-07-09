@@ -3,7 +3,7 @@
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Download, Loader2, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { authHeaders } from '../authFetch';
+import { authFetch, authHeaders } from '../authFetch';
 import { viStatus } from '../i18n';
 type Dashboard = { total: number; upcoming: number; running: number; completed: number; cancelled: number; unpaid: number; unpaidCost: number; revenue: number; cost: number; profit: number };
 type OrderRow = {
@@ -119,8 +119,8 @@ export default function OrderCenterClient({
     const orderListQuery = listQs(nextFilters);
     try {
       const [dashboardResponse, ordersResponse] = await Promise.all([
-        fetch(`${browserApiBase()}/api/order-center/dashboard${dashboardQuery ? `?${dashboardQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }),
-        fetch(`${browserApiBase()}/api/order-center?${orderListQuery}`, { cache: 'no-store', headers: authHeaders() }),
+        authFetch(`${browserApiBase()}/api/order-center/dashboard${dashboardQuery ? `?${dashboardQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }),
+        authFetch(`${browserApiBase()}/api/order-center?${orderListQuery}`, { cache: 'no-store', headers: authHeaders() }),
       ]);
       if (!dashboardResponse.ok || !ordersResponse.ok) {
         throw new Error(await responseMessage(!ordersResponse.ok ? ordersResponse : dashboardResponse, 'Không tải được dữ liệu trung tâm đơn hàng'));
@@ -155,7 +155,7 @@ export default function OrderCenterClient({
     setExporting(true);
     try {
       const query = qs(filters);
-      const response = await fetch(`${browserApiBase()}/api/order-center/export${query ? `?${query}` : ''}`, { headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/order-center/export${query ? `?${query}` : ''}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không xuất được CSV trung tâm đơn hàng'));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

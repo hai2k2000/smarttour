@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertTriangle, CheckCircle2, Info, Trash2 } from 'lucide-react';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 import { SupplierFile, supplierFileHref } from './uploadSupplierFiles';
 
 export type SupplierNotice = { type: 'success' | 'error' | 'info'; text: string };
@@ -15,7 +15,7 @@ export function browserSupplierApiBase() {
 
 export async function supplierApi<T>(path: string, init: RequestInit = {}, label = 'Thao tác') {
   const hasBody = init.body !== undefined && !(init.body instanceof FormData);
-  const response = await fetch(`${browserSupplierApiBase()}${path}`, {
+  const response = await authFetch(`${browserSupplierApiBase()}${path}`, {
     cache: 'no-store',
     ...init,
     headers: {

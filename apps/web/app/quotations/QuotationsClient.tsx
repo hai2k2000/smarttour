@@ -6,7 +6,7 @@ import { AlertCircle, Check, Copy, Link as LinkIcon, Pencil, Plus, RefreshCcw, S
 import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 type Dashboard = {
@@ -648,8 +648,8 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
     setError('');
     const failures: string[] = [];
     const [dashResult, listResult] = await Promise.allSettled([
-      fetch(`${browserApiBase()}/api/quotations/dashboard`, { cache: 'no-store', headers: authHeaders() }),
-      fetch(`${browserApiBase()}/api/quotations?take=100`, { cache: 'no-store', headers: authHeaders() }),
+      authFetch(`${browserApiBase()}/api/quotations/dashboard`, { cache: 'no-store', headers: authHeaders() }),
+      authFetch(`${browserApiBase()}/api/quotations?take=100`, { cache: 'no-store', headers: authHeaders() }),
     ]);
 
     if (dashResult.status === 'fulfilled') {
@@ -703,7 +703,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
       reset(freshDefaultValues());
     }
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotations/${id}`, { headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/quotations/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết báo giá.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho chi tiết báo giá.');
@@ -739,7 +739,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
     }
 
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotations${editingId ? `/${editingId}` : ''}`, {
+      const response = await authFetch(`${browserApiBase()}/api/quotations${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify(payload),
@@ -775,7 +775,7 @@ export default function QuotationsClient({ initialDashboard, initialQuotations }
     setError('');
     setMessage('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotations/${currentId}/${path}`, {
+      const response = await authFetch(`${browserApiBase()}/api/quotations/${currentId}/${path}`, {
         method,
         headers: authJsonHeaders(),
         body: JSON.stringify(body),

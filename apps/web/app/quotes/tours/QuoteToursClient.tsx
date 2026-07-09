@@ -6,7 +6,7 @@ import { AlertCircle, Check, Copy, Pencil, Plus, RefreshCcw, Save, Search, Trash
 import { useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../../authFetch';
 import { PermissionNotice, usePermissions } from '../../usePermissions';
 
 type QuoteSummary = {
@@ -437,7 +437,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     setListLoading(true);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours?take=100`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/quotes/tours?take=100`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được danh sách báo giá tour.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho danh sách báo giá tour.');
@@ -467,7 +467,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
       reset(freshDefaultValues());
     }
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours/${id}`, { headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/quotes/tours/${id}`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, 'Không tải được chi tiết báo giá tour.'));
       const data = await response.json().catch(() => {
         throw new Error('API không trả về JSON hợp lệ cho chi tiết báo giá tour.');
@@ -536,7 +536,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     setMessage('');
     const payload = buildPayload(data);
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours${editingId ? `/${editingId}` : ''}`, {
+      const response = await authFetch(`${browserApiBase()}/api/quotes/tours${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify(payload),
@@ -571,7 +571,7 @@ export default function QuoteToursClient({ initialQuotes }: { initialQuotes: Quo
     setActionLoading(path);
     setError('');
     try {
-      const response = await fetch(`${browserApiBase()}/api/quotes/tours/${currentId}/${path}`, {
+      const response = await authFetch(`${browserApiBase()}/api/quotes/tours/${currentId}/${path}`, {
         method: 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify({ approvedBy: 'Operator' }),

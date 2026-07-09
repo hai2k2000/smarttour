@@ -2,7 +2,7 @@
 
 import { Download, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { authHeaders } from '../authFetch';
+import { authFetch, authHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 import FitTourWizard from './FitTourWizard';
 
@@ -172,7 +172,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
       if (normalizedSearch) params.set('search', normalizedSearch);
       if (workflowFilter) params.set('status', workflowFilter);
       const query = params.size ? `?${params.toString()}` : '';
-      const response = await fetch(`${apiBase}/api/fit-tours${query}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${apiBase}/api/fit-tours${query}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const data = await response.json();
       if (!Array.isArray(data)) throw new Error('API danh sách tour FIT trả dữ liệu không hợp lệ');
@@ -192,7 +192,7 @@ export default function FitToursClient({ suppliers, tours, initialError = '' }: 
     }
     setListMessage('Đang xuất file tour FIT...');
     try {
-      const response = await fetch(`${apiBase}/api/fit-tours/${tour.id}/export`, { headers: authHeaders() });
+      const response = await authFetch(`${apiBase}/api/fit-tours/${tour.id}/export`, { headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

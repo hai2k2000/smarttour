@@ -9,6 +9,13 @@ RUN_LIVE_API_SMOKES="${RUN_LIVE_API_SMOKES:-0}"
 
 cd "$REPO_DIR"
 
+cleanup_docker_builder_cache() {
+  if [[ "${SMARTTOUR_TEST_PRUNE_DOCKER_CACHE:-1}" == "1" ]]; then
+    docker builder prune -af >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_docker_builder_cache EXIT
+
 run_step() {
   local name="$1"
   shift

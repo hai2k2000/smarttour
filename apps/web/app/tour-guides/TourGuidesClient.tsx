@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'luci
 import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { authHeaders, authJsonHeaders } from '../authFetch';
+import { authFetch, authHeaders, authJsonHeaders } from '../authFetch';
 import { PermissionNotice, usePermissions } from '../usePermissions';
 
 type GuideSummary = {
@@ -445,7 +445,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     if (announce) setMessage({ kind: 'info', text: 'Đang tải lại danh sách hướng dẫn viên...' });
     try {
       const path = tourGuidesPath(query, statusFilter);
-      const response = await fetch(`${browserApiBase()}${path}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}${path}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, `Không tải được danh sách hướng dẫn viên từ ${path}`));
       const data = await response.json();
       setGuides(Array.isArray(data) ? data : []);
@@ -468,7 +468,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     setMessage({ kind: 'info', text: 'Đang tải hồ sơ hướng dẫn viên...' });
     reset(newGuideDefaults());
     try {
-      const response = await fetch(`${browserApiBase()}/api/tour-guides/${id}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/tour-guides/${id}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseMessage(response, 'Không tải được hồ sơ hướng dẫn viên'));
       const guide = await response.json();
       reset(mapGuideToForm(guide));
@@ -494,7 +494,7 @@ export default function TourGuidesClient({ initialHDVs }: { initialHDVs: GuideSu
     }
     const payload = buildPayload(data);
     try {
-      const response = await fetch(`${browserApiBase()}/api/tour-guides${editingId ? `/${editingId}` : ''}`, {
+      const response = await authFetch(`${browserApiBase()}/api/tour-guides${editingId ? `/${editingId}` : ''}`, {
         method: editingId ? 'PUT' : 'POST',
         headers: authJsonHeaders(),
         body: JSON.stringify(payload),

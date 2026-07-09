@@ -19,6 +19,7 @@ const pkg = JSON.parse(read('package.json'));
 const customers = read('apps/web/app/customers/CustomersClient.tsx');
 const permissions = read('apps/web/app/usePermissions.tsx');
 const orderCenter = read('apps/web/app/order-center/OrderCenterClient.tsx');
+const csvExport = read('apps/api/src/common/csv-export.ts');
 const exports = [
   'apps/api/src/modules/customers/customers.service.ts',
   'apps/api/src/modules/reports/report-csv.ts',
@@ -29,6 +30,18 @@ const exports = [
 ].map((file) => [file, read(file)]);
 const browserSmoke = read('scripts/smoke-ux-ui.js');
 const smokeWrapper = read('scripts/smoke-ux-ui.sh');
+
+function hasCsvBom(source) {
+  return source.includes('\\uFEFF') || source.includes('\\ufeff') || source.includes(String.fromCharCode(0xfeff));
+}
+
+function hasCsvCrlf(source) {
+  return source.includes('\\r\\n') || source.includes("'\\r\\n'");
+}
+
+function usesSharedCsvExport(source) {
+  return source.includes('../../common/csv-export') && (source.includes('csvRows(') || source.includes('csvTable('));
+}
 
 assert(pkg.scripts?.['test:ux-ui'] === 'scripts/test-ux-ui-contract.sh', 'package.json must expose test:ux-ui');
 assert(pkg.scripts?.['smoke:ux-ui'] === 'scripts/smoke-ux-ui.sh', 'package.json must expose smoke:ux-ui');
@@ -69,9 +82,15 @@ for (const token of [
   assert(orderCenter.includes(token), `OrderCenterClient.tsx missing ${token}`);
 }
 
+assert(hasCsvBom(csvExport), 'apps/api/src/common/csv-export.ts must prefix CSV with UTF-8 BOM');
+assert(hasCsvCrlf(csvExport), 'apps/api/src/common/csv-export.ts must use CRLF for Excel');
+
 for (const [file, source] of exports) {
-  assert(source.includes('\\uFEFF') || source.includes('\\ufeff') || source.includes('﻿'), `${file} must prefix CSV with UTF-8 BOM`);
-  assert(source.includes("\\r\\n") || source.includes("'\\r\\n'"), `${file} must use CRLF for Excel`);
+  const hasLocalCsvFormatting = hasCsvBom(source) && hasCsvCrlf(source);
+  assert(
+    hasLocalCsvFormatting || usesSharedCsvExport(source),
+    `${file} must prefix CSV with UTF-8 BOM and use CRLF directly or via common csv-export helper`,
+  );
 }
 
 for (const token of [

@@ -3,7 +3,7 @@
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Download, Loader2, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import { authHeaders } from '../authFetch';
+import { authFetch, authHeaders } from '../authFetch';
 
 type ReportTabKey = 'revenue' | 'profit' | 'finance' | 'customer-debt' | 'supplier-debt' | 'employees';
 type GroupKey =
@@ -520,12 +520,12 @@ export default function ReportsClient({
 
     try {
       const overviewRequest = shouldLoadOverview
-        ? fetch(`${apiBase}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+        ? authFetch(`${apiBase}/api/reports/overview${overviewQuery ? `?${overviewQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
           if (!response.ok) throw new Error(await responseError(response, 'Không tải được Tổng quan'));
           return response.json() as Promise<Overview>;
         })
         : Promise.resolve(null);
-      const reportRequest = fetch(`${apiBase}/api${endpoint}${reportQuery ? `?${reportQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
+      const reportRequest = authFetch(`${apiBase}/api${endpoint}${reportQuery ? `?${reportQuery}` : ''}`, { cache: 'no-store', headers: authHeaders() }).then(async (response) => {
         if (!response.ok) throw new Error(await responseError(response, `Không tải được báo cáo ${tabLabels[nextActive]}`));
         return response.json() as Promise<ReportData>;
       });
@@ -604,7 +604,7 @@ export default function ReportsClient({
     setMessage({ tone: 'info', text: `Đang xuất CSV báo cáo ${tabLabels[active]}...` });
     try {
       const query = qs(queryFor(active, filters, groupBy, true));
-      const response = await fetch(`${browserApiBase()}/api/reports/export/${active}${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
+      const response = await authFetch(`${browserApiBase()}/api/reports/export/${active}${query ? `?${query}` : ''}`, { cache: 'no-store', headers: authHeaders() });
       if (!response.ok) throw new Error(await responseError(response, `Export CSV ${tabLabels[active]} lỗi`));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

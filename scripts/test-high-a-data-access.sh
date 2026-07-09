@@ -10,14 +10,21 @@ cd "$REPO_DIR"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(grep -E '^POSTGRES_PASSWORD=' .env | tail -1 | cut -d= -f2-)}"
 test -n "$POSTGRES_PASSWORD"
 
-docker compose build api >/dev/null
-docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
-docker exec "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$TEST_DB"
+cleanup_docker_builder_cache() {
+  if [[ "${SMARTTOUR_TEST_PRUNE_DOCKER_CACHE:-1}" == "1" ]]; then
+    docker builder prune -af >/dev/null 2>&1 || true
+  fi
+}
 
 cleanup() {
   docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+  cleanup_docker_builder_cache
 }
 trap cleanup EXIT
+
+docker compose build api >/dev/null
+docker exec "$POSTGRES_CONTAINER" dropdb -U "$POSTGRES_USER" --if-exists "$TEST_DB" >/dev/null 2>&1 || true
+docker exec "$POSTGRES_CONTAINER" createdb -U "$POSTGRES_USER" "$TEST_DB"
 
 docker compose run --rm \
   -v "$PWD:/workspace:ro" \
