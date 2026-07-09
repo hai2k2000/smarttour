@@ -3038,3 +3038,8 @@
 - 2026-07-09 Completed TourKit finance voucher import date validation follow-up:
   - TourKit finance voucher import now rejects impossible DMY/YMD dates instead of silently rolling them forward into finance receipt/payment data.
   - Verification passed: RED/GREEN scripts/test-tourkit-finance-vouchers-import.sh, node --check import script, finance helper contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 Completed TourKit operation form import date validation follow-up:
+  - TourKit operation form import now rejects impossible DMY/YMD service/tour dates instead of silently rolling them forward into operation form/voucher data.
+  - Verification passed: RED/GREEN scripts/test-tourkit-operation-forms-import.sh, node --check import script, operations service flows, business logic guard contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -115,6 +115,7 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && NODE_PATH=/app/node_modules node" <<'NODE'
 const { execFileSync } = require('child_process');
+const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
 function assert(condition, label) {
@@ -180,8 +181,40 @@ async function seed() {
   }
 }
 
+function expectImportFailure(action, label) {
+  try {
+    action();
+  } catch {
+    return;
+  }
+  throw new Error(label);
+}
+
 async function main() {
   await seed();
+
+  fs.writeFileSync('/tmp/tourkit-operation-forms-bad-date.json', JSON.stringify({
+    records: [{
+      ['M\u00e3 phi\u1ebfu']: 'PDV_BAD_DATE',
+      ['M\u00e3 NCC']: 'NCC62',
+      ['Nh\u00e0 cung c\u1ea5p']: '\u0110\u1ea5t Vi\u1ec7t',
+      ['T\u00ean d\u1ecbch v\u1ee5']: 'Ngay loi',
+      ['Ng\u00e0y s\u1eed d\u1ee5ng']: '31/02/2026',
+      ['T\u1ed5ng ti\u1ec1n chi']: '1,000',
+      ['\u0110\u00e3 thanh to\u00e1n']: '0',
+      ['M\u00e3 tour']: 'BKG-OP-001',
+      ['Ng\u00e0y \u0111i']: '12/08/2026',
+      ['Ng\u00e0y v\u1ec1']: '14/08/2026',
+      ['Tr\u1ea1ng th\u00e1i']: 'Chua thanh toan',
+    }],
+  }), 'utf8');
+  expectImportFailure(
+    () => execFileSync(process.execPath, ['/workspace/scripts/import-tourkit-operation-forms.js', '--file=/tmp/tourkit-operation-forms-bad-date.json', '--dry-run'], {
+      stdio: 'pipe',
+      env: { ...process.env, NODE_PATH: '/app/node_modules' },
+    }),
+    'TourKit operation form import should reject impossible service dates',
+  );
 
   execFileSync(process.execPath, ['/workspace/scripts/import-tourkit-operation-forms.js', '--file=/tmp/tourkit-operation-forms.json', '--dry-run'], {
     stdio: 'inherit',

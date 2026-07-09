@@ -3517,3 +3517,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - scripts/import-tourkit-finance-vouchers.js now validates parsed day/month/year before creating UTC-noon dates, preventing silent rollover in imported receipt/payment voucher data.
   - Added RED/GREEN coverage in scripts/test-tourkit-finance-vouchers-import.sh for bad receipt payment-date rejection before normal dry-run/import/idempotency assertions.
   - Verification passed on the VPS: TourKit finance vouchers import test, import script syntax check, finance helper contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 TourKit operation form import date validation follow-up:
+  - Found TourKit operation form import accepted impossible DMY/YMD dates such as 31/02/2026 because parseDate() used Date.UTC without calendar round-trip validation.
+  - scripts/import-tourkit-operation-forms.js now validates parsed day/month/year before creating UTC-noon dates, preventing silent rollover in imported operation services/vouchers.
+  - Added RED/GREEN coverage in scripts/test-tourkit-operation-forms-import.sh for bad service-date rejection before normal dry-run/import/idempotency assertions.
+  - Verification passed on the VPS: TourKit operation forms import test, import script syntax check, operations service flows, business logic guard contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
