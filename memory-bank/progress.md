@@ -3048,3 +3048,7 @@
   - TourKit bookings/orders/customers/users/finance-services imports now reject impossible DMY/YMD dates instead of silently rolling them forward into imported CRM/order/booking/finance-service data.
   - Finance-services dry-run now validates receipt/payment/service date fields before audit output, catching bad import payloads before write execution.
   - Verification passed: RED/GREEN scripts/test-tourkit-import-date-validation.sh, TourKit bookings preserve-existing, TourKit orders tour-sync, finance-services dry-run on real payloads, node --check changed scripts, API build/lint, and git diff check.
+
+- 2026-07-09 Completed auth ISO dateOfBirth validation follow-up:
+  - Auth user create/update dateOfBirth now rejects impossible ISO datetime calendar dates instead of allowing JavaScript Date rollover.
+  - Verification passed: RED/GREEN scripts/test-auth-service-flows.sh, auth DTO contract, smoke RBAC workflows, API build/lint, and git diff check.

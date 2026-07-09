@@ -897,7 +897,7 @@ export class AuthService {
   private optionalDate(value: unknown, label: string) {
     const valueText = this.text(value);
     if (!valueText) return null;
-    const ymd = valueText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const ymd = valueText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|T)/);
     if (ymd) {
       const [, year, month, day] = ymd;
       return this.dateFromParts(Number(year), Number(month), Number(day), label);

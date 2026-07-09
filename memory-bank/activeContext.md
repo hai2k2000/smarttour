@@ -3530,3 +3530,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added UTC-noon round-trip validation to those remaining TourKit import scripts; finance-services now validates receipt/payment/service date fields before audit/dry-run as well as during write paths.
   - Added RED/GREEN coverage in scripts/test-tourkit-import-date-validation.sh for bad date rejection across the five remaining import scripts.
   - Verification passed on the VPS: node --check for changed import scripts, TourKit import date validation contract, TourKit bookings preserve-existing test, TourKit orders tour-sync test, finance-services dry-run against real import payloads, API build/lint, and git diff check.
+
+- 2026-07-09 Auth ISO dateOfBirth validation follow-up:
+  - Found AuthService user profile dateOfBirth still accepted impossible ISO datetime values such as 2026-02-31T00:00:00.000Z because optionalDate() only round-tripped date-only YYYY-MM-DD before falling back to JavaScript Date parsing.
+  - AuthService optionalDate() now validates YYYY-MM-DD prefixes followed by either end-of-string or T, covering ISO datetime user payloads before Date construction.
+  - Added RED/GREEN coverage in scripts/test-auth-service-flows.sh for impossible ISO dateOfBirth rejection.
+  - Verification passed on the VPS: auth service flows, auth DTO contract, smoke RBAC workflows, API build/lint, and git diff check.
