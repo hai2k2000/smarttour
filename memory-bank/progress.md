@@ -3060,3 +3060,7 @@
 - 2026-07-09 Completed typed tour lifecycle follow-up:
   - GIT and LandTour typed endpoints now keep the shared Tour CANCELLED status terminal instead of reopening cancelled tours through module-specific PATCH flows.
   - Verification/deploy passed: RED/GREEN scripts/test-tour-type-apis.sh, route permissions, phase4 cleanup contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed operation voucher active finance payment guard follow-up:
+  - Operation vouchers with linked active FinancePayment rows can no longer be edited or deleted before the finance payment is resolved.
+  - Verification passed: RED/GREEN scripts/test-operation-vouchers-service.sh, operation voucher client/auth contracts, business logic guard contract, API build/lint, and git diff check.

@@ -626,7 +626,11 @@ export class OperationVouchersService {
 
   private assertEditable(voucher: Awaited<ReturnType<OperationVouchersService['detail']>>, action: 'update' | 'delete') {
     if (voucher.status === OperationVoucherStatus.PAID || Number(voucher.paidAmount) > 0 || voucher.payments.length > 0) {
-      throw new BadRequestException(action === 'update' ? 'Chỉ phiếu chưa thanh toán mới được chỉnh sửa' : 'Chỉ phiếu chưa thanh toán mới được xóa');
+      throw new BadRequestException(action === 'update' ? 'Ch\u1ec9 phi\u1ebfu ch\u01b0a thanh to\u00e1n m\u1edbi \u0111\u01b0\u1ee3c ch\u1ec9nh s\u1eeda' : 'Ch\u1ec9 phi\u1ebfu ch\u01b0a thanh to\u00e1n m\u1edbi \u0111\u01b0\u1ee3c x\u00f3a');
+    }
+    const hasActiveFinancePayment = voucher.financePayments.some((payment) => !payment.deletedAt && ['DRAFT', 'PENDING', 'APPROVED'].includes(payment.approvalStatus));
+    if (hasActiveFinancePayment) {
+      throw new BadRequestException(action === 'update' ? 'Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 c\u00f3 phi\u1ebfu chi t\u00e0i ch\u00ednh \u0111ang x\u1eed l\u00fd, kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda' : 'Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 c\u00f3 phi\u1ebfu chi t\u00e0i ch\u00ednh \u0111ang x\u1eed l\u00fd, kh\u00f4ng th\u1ec3 x\u00f3a');
     }
   }
 

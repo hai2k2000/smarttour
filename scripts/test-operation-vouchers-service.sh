@@ -477,6 +477,8 @@ async function main() {
   assert(financeLinked.financePayments[0].reason === `Thanh toán phiếu điều hành ${financeSource.voucherCode}`, 'createPaymentVoucher should use Vietnamese finance payment reason');
   assert(financeLinked.payments.length === 0, 'createPaymentVoucher should not create operation voucher payment history before finance approval');
   await rejects(() => service.addPayment(financeSource.id, { paymentVoucherId: financeLinked.financePayments[0].id, paymentAmount: 300 }, actorUser), 'addPayment should reject pending finance payment');
+  await rejectsMessage(() => service.update(financeSource.id, { serviceName: 'Blocked by pending finance payment' }, actorUser), 'phi\u1ebfu chi t\u00e0i ch\u00ednh \u0111ang x\u1eed l\u00fd', 'update should reject vouchers with an active finance payment');
+  await rejectsMessage(() => service.remove(financeSource.id, actorUser), 'phi\u1ebfu chi t\u00e0i ch\u00ednh \u0111ang x\u1eed l\u00fd', 'delete should reject vouchers with an active finance payment');
   await rejects(() => service.createPaymentVoucher(financeSource.id, actorUser), 'createPaymentVoucher should reject another active pending finance payment');
   await rejectsMessage(() => service.createPaymentVoucher(created.id), 'Phiếu điều hành đã thanh toán đủ', 'createPaymentVoucher should reject paid vouchers before creating finance payment');
 

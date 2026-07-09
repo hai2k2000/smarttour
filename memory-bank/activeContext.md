@@ -3548,3 +3548,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - TourCoreService.updateRoot now rejects status changes out of CANCELLED before updating the shared Tour root, so typed tour modules inherit the same terminal cancellation behavior.
   - Added RED/GREEN coverage in scripts/test-tour-type-apis.sh for GIT and LandTour cancel-then-reopen attempts through typed endpoints.
   - Verification/deploy passed on the VPS: tour type API suite, route permissions, phase4 cleanup contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Operation voucher active finance payment guard follow-up:
+  - Found operation vouchers could still be edited/deleted after createPaymentVoucher created an active FinancePayment in PENDING state because assertEditable only checked paid operation voucher history.
+  - OperationVouchersService now blocks update/delete while linked non-deleted FinancePayment rows are DRAFT, PENDING, or APPROVED, preventing stale pending payment amount/scope from drifting away from the source voucher.
+  - Added RED/GREEN coverage in scripts/test-operation-vouchers-service.sh for update/delete rejection when an active finance payment exists.
+  - Verification passed on the VPS: operation vouchers service, operation voucher client/auth contracts, business logic guard contract, API build/lint, and git diff check.
