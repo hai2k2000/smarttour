@@ -298,7 +298,7 @@ export class CommissionReportsService {
     if (query.branch) where.branch = { contains: query.branch, mode: 'insensitive' };
     if (query.market) where.marketGroup = { contains: query.market, mode: 'insensitive' };
     if (query.productType) where.orderType = query.productType as OrderType;
-    if (query.from || query.to) where.milestoneDate = { gte: this.date(query.from), lte: this.date(query.to) };
+    if (query.from || query.to) where.milestoneDate = { gte: this.date(query.from, 'from'), lte: this.date(query.to, 'to') };
     if (contains) {
       where.OR = [
         { orderCode: contains },
@@ -359,10 +359,21 @@ export class CommissionReportsService {
     return Math.min(Math.max(Number.isFinite(parsed) ? parsed : 100, 1), 1000);
   }
 
-  private date(value: unknown) {
+  private date(value: unknown, label: string) {
     if (!value || typeof value !== 'string') return undefined;
+    const datePrefix = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value);
+    if (datePrefix) {
+      const year = Number(datePrefix[1]);
+      const month = Number(datePrefix[2]);
+      const day = Number(datePrefix[3]);
+      const utc = new Date(Date.UTC(year, month - 1, day));
+      if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) {
+        throw new BadRequestException(`${label} is not a valid calendar date`);
+      }
+    }
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${label} is not a valid date`);
+    return date;
   }
 
   private text(value: unknown) {

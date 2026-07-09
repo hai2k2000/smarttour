@@ -51,6 +51,16 @@ async function rejects(action, label) {
   assert(rejected, label);
 }
 
+async function rejectsWithStatus(action, status, label) {
+  try {
+    await action();
+  } catch (error) {
+    assert(error?.status === status, `${label}: expected status ${status}, got ${error?.status || '<none>'}`);
+    return;
+  }
+  assert(false, label);
+}
+
 function role(...permissions) {
   return { role: { permissions: permissions.map((permission) => ({ permission })) } };
 }
@@ -136,6 +146,7 @@ for (const helper of ['summaryFromDb', 'groupingFromDb']) {
   const run = 'COMM-SEC-' + Date.now();
   const user = scopedUser('user-a', 'accounting-a', 'BR-A', 'DEP-A', 'data.scope.branch', 'data.scope.department');
   const otherUser = scopedUser('user-b', 'accounting-b', 'BR-B', 'DEP-B', 'data.scope.branch', 'data.scope.department');
+  await rejectsWithStatus(() => service.list({ from: '2026-02-31' }, user), 400, 'commission list should reject impossible calendar from date');
 
   const controllerCalls = [];
   const controller = new CommissionReportsController({

@@ -2989,3 +2989,8 @@
 - 2026-07-09 Completed finance query date validation follow-up:
   - Finance list/export/cashflow/debt date filters now reject impossible calendar dates instead of silently querying rolled-over dates.
   - Verification passed: RED/GREEN scripts/test-finance-service-flows.sh, finance query/controller/DTO/rules/side-effect/high-B contracts, CSV formula guard, native XLSX export contract, API build/lint, and git diff check.
+
+
+- 2026-07-09 Completed commission report date validation follow-up:
+  - Commission report from/to filters now reject impossible calendar dates instead of silently rolling or ignoring invalid values.
+  - Verification passed: RED/GREEN scripts/test-commission-reports-security.sh, commission client contract, CSV formula guard, native XLSX export contract, route permission audit/test, API build/lint, and git diff check.
