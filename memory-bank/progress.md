@@ -3028,3 +3028,8 @@
 - 2026-07-09 Completed tour guides ISO/date validation follow-up:
   - Tour guide birthday/card/document/schedule date inputs now reject impossible calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/test-tour-guides-api.sh, data-scope module flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 Completed finance import date validation follow-up:
+  - Finance receipt/payment import row date helpers now reject impossible calendar dates before rows reach service writes.
+  - Verification/deploy passed: RED/GREEN scripts/test-finance-service-flows.sh, finance helper/controller/XLSX/query contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -3503,3 +3503,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - TourGuidesService now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction for guide profile, card/document, and schedule dates.
   - Added RED/GREEN coverage in scripts/test-tour-guides-api.sh for invalid birthday and schedule calendar dates.
   - Verification/deploy passed on the VPS: tour guides API/client contracts, data-scope module flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-09 Finance import date validation follow-up:
+  - Found finance import row helpers accepted impossible calendar payment/document/transfer dates because importDate() only used JavaScript Date parsing.
+  - finance-import importDate() now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before accepting import row dates, adding defense before FinanceService write validation.
+  - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for direct receipt/payment import-row helper rejection and CSV import rejection of impossible paymentDate.
+  - Verification/deploy passed on the VPS: finance service flows, finance helper/controller/XLSX/query contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

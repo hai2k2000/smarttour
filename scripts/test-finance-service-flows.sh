@@ -34,6 +34,7 @@ const { FinanceLedgerService } = require('./apps/api/dist/modules/finance/financ
 const { FinancePaymentService } = require('./apps/api/dist/modules/finance/finance-payment.service');
 const { FinanceReceiptService } = require('./apps/api/dist/modules/finance/finance-receipt.service');
 const { FinanceService } = require('./apps/api/dist/modules/finance/finance.service');
+const { validatePaymentImportRow, validateReceiptImportRow } = require('./apps/api/dist/modules/finance/finance-import');
 const { OperationVouchersService } = require('./apps/api/dist/modules/operation-vouchers/operation-vouchers.service');
 
 function assert(condition, label) {
@@ -99,6 +100,8 @@ async function cashflowNet(prisma, where) {
 }
 
 async function main() {
+  await rejects(() => validateReceiptImportRow({ receiptName: 'Bad Date', paymentDate: '2026-02-31', totalAmount: 100, receiptAmount: 1 }, 2), 'receipt import row helper should reject impossible paymentDate');
+  await rejects(() => validatePaymentImportRow({ voucherName: 'Bad Date', paymentDate: '2026-02-31', totalAmount: 100, paymentAmount: 1 }, 2), 'payment import row helper should reject impossible paymentDate');
   const prisma = new PrismaService();
   await prisma.$connect();
   await prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CodeSequence_scope_prefix_year_month_branch_expr_key" ON "CodeSequence"("scope", "prefix", "year", COALESCE("month", 0), COALESCE("branch", \'\'))');
@@ -896,6 +899,7 @@ async function main() {
   assert(receiptImport.rows[0].branch === 'FIN-BR' && receiptImport.rows[0].department === 'FIN-DEP', 'receipt CSV import should map branch and department');
   await rejects(() => finance.importReceipts({ csv: receiptImportCsv }), 'receipt CSV import should reject existing code');
   await rejects(() => finance.importReceipts({ csv: 'receiptCode,receiptName,totalAmount,receiptAmount\nBAD,Bad,-1,1' }), 'receipt CSV import should reject negative amount');
+  await rejects(() => finance.importReceipts({ csv: `receiptCode,receiptName,paymentDate,totalAmount,receiptAmount\n${run}-IMP-RCPT-BAD-DATE,Bad Date,2026-02-31,100,1` }), 'receipt CSV import should reject impossible paymentDate');
 
   const paymentImportCsv = [
     'voucherCode,voucherName,voucherType,paymentMethod,paymentDate,totalAmount,paymentAmount,receiverName,branch,department,tourId,supplierId',
@@ -908,6 +912,7 @@ async function main() {
   assert(paymentImport.rows[0].branch === 'FIN-BR' && paymentImport.rows[0].department === 'FIN-DEP', 'payment CSV import should map branch and department');
   await rejects(() => finance.importReceipts({ csv: 'x'.repeat(5 * 1024 * 1024 + 1) }), 'receipt CSV import should reject payloads over 5 MB');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,totalAmount,paymentAmount\nBAD,Bad,100,200' }), 'payment CSV import should reject amount over total');
+  await rejects(() => finance.importPayments({ csv: `voucherCode,voucherName,paymentDate,totalAmount,paymentAmount\n${run}-IMP-PAY-BAD-DATE,Bad Date,2026-02-31,100,1` }), 'payment CSV import should reject impossible paymentDate');
   await rejects(() => finance.importPayments({ csv: 'voucherCode,voucherName,voucherName,totalAmount,paymentAmount\nA,B,C,1,1' }), 'payment CSV import should reject duplicate headers');
 
   const controller = new FinanceController(
