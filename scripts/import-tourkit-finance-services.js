@@ -64,16 +64,52 @@ function digits(value) {
   return text(value).replace(/\D+/g, '');
 }
 
+function utcNoonDate(year, month, day, source) {
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`Invalid TourKit finance service date: ${source}`);
+  }
+  return date;
+}
+
 function parseDate(value) {
   const valueText = text(value);
   if (!valueText) return null;
   const dmy = valueText.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
-    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    return utcNoonDate(Number(year), Number(month), Number(day), valueText);
+  }
+  const ymd = valueText.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (ymd) {
+    const [, year, month, day] = ymd;
+    return utcNoonDate(Number(year), Number(month), Number(day), valueText);
   }
   const parsed = new Date(valueText);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function validateDateFields(values, fields) {
+  for (const row of values) {
+    for (const field of fields) parseDate(row[field]);
+  }
+}
+
+function validateImportDates(receipts, payments, services) {
+  validateDateFields(receipts, [
+    'Ng\u00e0y thanh to\u00e1n',
+  ]);
+  validateDateFields(payments, [
+    'Ng\u00e0y ch\u1ee9ng t\u1eeb',
+    'Ng\u00e0y t\u1ea1o tour',
+    'Ng\u00e0y thanh to\u00e1n',
+  ]);
+  validateDateFields(services, [
+    'Ng\u00e0y \u0111i',
+    'Ng\u00e0y s\u1eed d\u1ee5ng',
+    'Ng\u00e0y v\u1ec1',
+    'Ng\u00e0y t\u1ea1o tour',
+  ]);
 }
 
 function dateKey(date) {
@@ -830,6 +866,7 @@ async function main() {
   const payments = rows(paymentFile);
   const rawServices = rows(serviceFile);
   const services = validServiceRows(rawServices);
+  validateImportDates(receipts, payments, services);
   const refs = await loadReferenceData(receipts, payments, services);
   const audit = auditPayload(receipts, payments, services, refs);
   audit.skippedInvalidServiceRows = rawServices.length - services.length;

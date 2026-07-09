@@ -3043,3 +3043,8 @@
 - 2026-07-09 Completed TourKit operation form import date validation follow-up:
   - TourKit operation form import now rejects impossible DMY/YMD service/tour dates instead of silently rolling them forward into operation form/voucher data.
   - Verification passed: RED/GREEN scripts/test-tourkit-operation-forms-import.sh, node --check import script, operations service flows, business logic guard contract, API build/lint, git diff check, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed TourKit remaining import date validation follow-up:
+  - TourKit bookings/orders/customers/users/finance-services imports now reject impossible DMY/YMD dates instead of silently rolling them forward into imported CRM/order/booking/finance-service data.
+  - Finance-services dry-run now validates receipt/payment/service date fields before audit output, catching bad import payloads before write execution.
+  - Verification passed: RED/GREEN scripts/test-tourkit-import-date-validation.sh, TourKit bookings preserve-existing, TourKit orders tour-sync, finance-services dry-run on real payloads, node --check changed scripts, API build/lint, and git diff check.

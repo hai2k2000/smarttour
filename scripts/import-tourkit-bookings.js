@@ -56,18 +56,26 @@ function money(value) {
   return new Intl.NumberFormat('vi-VN').format(numberValue(value));
 }
 
+function utcNoonDate(year, month, day, source) {
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`Invalid TourKit booking date: ${source}`);
+  }
+  return date;
+}
+
 function parseDate(value) {
   const valueText = text(value);
   if (!valueText) return null;
   const dmy = valueText.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
-    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    return utcNoonDate(Number(year), Number(month), Number(day), valueText);
   }
-  const ymd = valueText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const ymd = valueText.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
   if (ymd) {
     const [, year, month, day] = ymd;
-    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    return utcNoonDate(Number(year), Number(month), Number(day), valueText);
   }
   const parsed = new Date(valueText);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
