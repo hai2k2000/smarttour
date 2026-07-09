@@ -116,8 +116,25 @@ export class TourCoreService {
   async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;
+    await this.ensureLifecycleUpdateAllowed(tx, tourId, data as AnyRecord, user);
     await this.ensureUpdatedDateRange(tx, tourId, data as AnyRecord);
     return tx.tour.update({ where: { id: tourId }, data });
+  }
+
+  private async ensureLifecycleUpdateAllowed(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord, user?: RequestUser) {
+    if (!Object.prototype.hasOwnProperty.call(data, 'status')) return;
+    const nextStatus = data.status as TourStatus | undefined;
+    if (nextStatus === undefined) return;
+    const current = await tx.tour.findFirst({ where: this.scopeWhere({ id: tourId }, user), select: { status: true } });
+    if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
+    this.assertLifecycleUpdateAllowed(current.status, nextStatus);
+  }
+
+  private assertLifecycleUpdateAllowed(currentStatus: TourStatus, nextStatus: TourStatus) {
+    if (nextStatus === currentStatus) return;
+    if (currentStatus === TourStatus.CANCELLED) {
+      throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y');
+    }
   }
 
   ensureDateRange(startDate: unknown, endDate: unknown) {

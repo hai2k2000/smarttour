@@ -3542,3 +3542,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - ToursService now rejects status changes out of CANCELLED and rejects close on CANCELLED tours, keeping cancelled tours terminal.
   - Added RED/GREEN coverage in scripts/test-tour-type-apis.sh for common tour cancel, blocked reopen, and blocked close after cancellation.
   - Verification passed on the VPS: Tour type API suite, API build/lint, and git diff check.
+
+- 2026-07-09 Typed tour lifecycle follow-up:
+  - Found GIT and LandTour typed endpoints could reopen a common Tour from CANCELLED back to RUNNING because TourCoreService.updateRoot did not enforce the lifecycle rule used by the generic ToursService endpoint.
+  - TourCoreService.updateRoot now rejects status changes out of CANCELLED before updating the shared Tour root, so typed tour modules inherit the same terminal cancellation behavior.
+  - Added RED/GREEN coverage in scripts/test-tour-type-apis.sh for GIT and LandTour cancel-then-reopen attempts through typed endpoints.
+  - Verification/deploy passed on the VPS: tour type API suite, route permissions, phase4 cleanup contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -1121,6 +1121,20 @@ async function main() {
   assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
   const invalidGitStatusQuery = await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
   assertMessage(invalidGitStatusQuery, 'Trạng thái tour GIT không hợp lệ', 'GIT invalid status query should use Vietnamese validation message');
+  const cancelledGitTour = await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
+    200,
+    'cancel GIT tour through typed endpoint',
+  );
+  assert(cancelledGitTour.status === 'CANCELLED', 'GIT PATCH should allow cancellation through typed endpoint');
+  const reopenedGitTour = await expect(
+    `/api/git-tours/${gitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'GIT typed endpoint should not reopen CANCELLED tour',
+  );
+  assertMessage(reopenedGitTour, 'Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y', 'GIT cancelled terminal message should match common Tour rule');
   const gitLinkedOrder = await prisma.order.create({ data: { type: 'GIT_COMBO', systemCode: `${run}-ORDER-GIT`, name: 'Tour type API linked order' } });
   const gitOrderLinkedTour = await expect(
     '/api/git-tours',
@@ -1501,6 +1515,20 @@ async function main() {
   assert(spacedLandStatusRows.some((row) => row.id === landTour.id), 'LandTour status query DTO should trim and normalize status');
   const invalidLandStatusQuery = await expect('/api/landtours?status=WRONG', {}, 400, 'LandTour invalid status query');
   assertMessage(invalidLandStatusQuery, 'Trạng thái LandTour không hợp lệ', 'LandTour invalid status query should use Vietnamese validation message');
+  const cancelledLandTour = await expect(
+    `/api/landtours/${landTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
+    200,
+    'cancel LandTour through typed endpoint',
+  );
+  assert(cancelledLandTour.status === 'CANCELLED', 'LandTour PATCH should allow cancellation through typed endpoint');
+  const reopenedLandTour = await expect(
+    `/api/landtours/${landTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'LandTour typed endpoint should not reopen CANCELLED tour',
+  );
+  assertMessage(reopenedLandTour, 'Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y', 'LandTour cancelled terminal message should match common Tour rule');
   const landLinkedOrder = await prisma.order.create({ data: { type: 'LANDTOUR', systemCode: `${run}-ORDER-LAND`, name: 'Tour type API linked LandTour order' } });
   const landOrderLinkedTour = await expect(
     '/api/landtours',

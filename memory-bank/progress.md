@@ -3056,3 +3056,7 @@
 - 2026-07-09 Completed common tour lifecycle follow-up:
   - Common Tour CANCELLED status is now terminal for generic PATCH and close flows, preventing cancelled tours from being reopened or completed.
   - Verification passed: RED/GREEN scripts/test-tour-type-apis.sh, API build/lint, and git diff check.
+
+- 2026-07-09 Completed typed tour lifecycle follow-up:
+  - GIT and LandTour typed endpoints now keep the shared Tour CANCELLED status terminal instead of reopening cancelled tours through module-specific PATCH flows.
+  - Verification/deploy passed: RED/GREEN scripts/test-tour-type-apis.sh, route permissions, phase4 cleanup contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
