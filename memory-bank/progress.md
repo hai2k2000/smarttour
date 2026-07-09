@@ -3019,3 +3019,7 @@
 - 2026-07-09 Completed order mapper ISO date validation follow-up:
   - Order root/nested dates now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
   - Verification/deploy passed: RED/GREEN scripts/test-order-service-flows.sh, business logic guard, order-center query/permission contracts, data-scope module flows, tour type APIs, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Completed finance write-date ISO validation follow-up:
+  - Finance write DTO dates now reject impossible ISO calendar dates instead of allowing JavaScript Date rollover.
+  - Verification/deploy passed: RED/GREEN scripts/test-finance-service-flows.sh, finance query/controller/DTO/rules/audit/export/file contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

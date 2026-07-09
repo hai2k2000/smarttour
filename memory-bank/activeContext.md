@@ -3490,3 +3490,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - parseOrderDate() now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction.
   - Added RED/GREEN coverage in scripts/test-order-service-flows.sh for invalid ISO startDate rejection and non-persistence.
   - Verification/deploy passed on the VPS: order service flows, business logic guard, order-center query/permission contracts, data-scope module flows, tour type APIs, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-09 Finance write-date ISO validation follow-up:
+  - Found finance write DTO dates such as invoice issuedDate accepted impossible ISO calendar dates because FinanceService.date() relied on JavaScript Date parsing.
+  - FinanceService.date() now validates YYYY-MM-DD/ISO date prefixes with a UTC round-trip before Date construction while preserving valid ISO datetime inputs.
+  - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for invalid ISO invoice issuedDate rejection.
+  - Verification/deploy passed on the VPS: finance service flows, finance query/controller/DTO/rules/audit/export/file contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
