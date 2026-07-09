@@ -26,6 +26,7 @@ const securityRunbook = read('docs/security-hardening-runbook.md');
 const readinessTracker = read('docs/production-readiness-tracker.md');
 const packageJson = JSON.parse(read('package.json'));
 const ciWorkflow = read('.github/workflows/smarttour-ci.yml');
+const apiMain = read('apps/api/src/main.ts');
 
 [
   'AUDIT_COMMAND_TIMEOUT="${AUDIT_COMMAND_TIMEOUT:-10s}"',
@@ -124,6 +125,12 @@ assertRegex(
   securityAudit,
   /if \[\[ "\$authorized_keys_mode" == "600 root:root" \]\]/,
   'must require authorized_keys to be 600 root:root',
+);
+
+assertIncludes(
+  'apps/api/src/main.ts',
+  apiMain,
+  "app.disable('x-powered-by')",
 );
 
 [

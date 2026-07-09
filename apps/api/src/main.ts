@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertSecureRuntimeConfig, configuredCorsOrigins, smartTourEnvironment } from './config/runtime-env';
@@ -11,7 +12,8 @@ import { validationExceptionFactory } from './validation-exception.factory';
 
 async function bootstrap() {
   assertSecureRuntimeConfig();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.disable('x-powered-by');
   const corsOrigins = configuredCorsOrigins();
   app.setGlobalPrefix('api');
   app.use(createCorrelationIdMiddleware());
