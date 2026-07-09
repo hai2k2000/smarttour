@@ -421,10 +421,24 @@ export class TourGuidesService {
     return trimmed ? trimmed : null;
   }
 
+
+  private assertValidCalendarDate(value: string, label: string) {
+    const datePrefix = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value);
+    if (!datePrefix) return;
+    const year = Number(datePrefix[1]);
+    const month = Number(datePrefix[2]);
+    const day = Number(datePrefix[3]);
+    const utc = new Date(Date.UTC(year, month - 1, day));
+    if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) {
+      throw new BadRequestException(`${label} kh\u00f4ng h\u1ee3p l\u1ec7`);
+    }
+  }
+
   private dateOnly(value?: string | null, label = 'Ngày') {
     const trimmed = this.text(value);
     if (!trimmed) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      this.assertValidCalendarDate(trimmed, label);
       const parsed = new Date(`${trimmed}T00:00:00.000Z`);
       if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`${label} không hợp lệ`);
       return parsed;
@@ -435,6 +449,7 @@ export class TourGuidesService {
   private dateTime(value?: string | null, label = 'Ngày') {
     if (!value) return null;
     const trimmed = value.trim();
+    this.assertValidCalendarDate(trimmed, label);
     const localDateTime = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
     const parsed = localDateTime
       ? new Date(Date.UTC(

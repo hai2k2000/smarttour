@@ -217,6 +217,11 @@ async function main() {
     });
     await request('POST', '/tour-guides', {
       token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_BIRTHDAY_ISO`), birthday: '2026-02-31' },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
       body: { ...guidePayload(`${run}_BAD_CARD_DATE`), cards: [{ cardType: 'Thẻ HDV', issueDate: 'wrong-date' }] },
       status: 400,
     });
@@ -239,6 +244,11 @@ async function main() {
     await request('POST', '/tour-guides', {
       token: adminToken,
       body: { ...guidePayload(`${run}_BAD_SCHEDULE_DATE`), schedules: [{ title: 'Invalid date', startDate: 'not-a-date', endDate: '2030-03-01T17:00', status: 'BUSY' }] },
+      status: 400,
+    });
+    await request('POST', '/tour-guides', {
+      token: adminToken,
+      body: { ...guidePayload(`${run}_BAD_SCHEDULE_ISO`), schedules: [{ title: 'Invalid calendar date', startDate: '2026-02-31T08:00', endDate: '2026-02-31T17:00', status: 'BUSY' }] },
       status: 400,
     });
     await request('POST', '/tour-guides', {
