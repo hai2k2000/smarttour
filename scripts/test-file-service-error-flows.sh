@@ -288,14 +288,14 @@ async function assertTourGuideDeleteRollback() {
   const files = filesService({ failRemove: true });
   const guideFile = { id: 'guide-file-1', guideId: 'guide-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
   const restored = [];
-  const service = new TourGuidesService({
+  const service = new TourGuidesService(withTransaction({
     guideProfile: { findFirst: async () => ({ id: 'guide-1', deletedAt: null }) },
     guideFile: {
       findFirst: async () => guideFile,
       delete: async () => guideFile,
       create: async ({ data }) => { restored.push(data); return data; },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteFile('guide-1', 'guide-file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);

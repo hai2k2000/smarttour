@@ -3223,3 +3223,8 @@
   - Customer bulkTag/bulkUpdate now lock/re-read all target Customer rows inside the transaction before tag/update/timeline writes, preventing stale bulk writes to MERGED customers after concurrent merge.
   - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed tour guide write-lock follow-up:
+  - Tour guide update/remove and guide file metadata writes now lock/re-read GuideProfile inside the transaction before mutating profile, child rows, or GuideFile metadata, preventing stale writes after concurrent soft delete/scope changes.
+  - Verification passed: RED/GREEN node scripts/test-tour-guides-write-lock-contract.js, node scripts/test-tour-guides-client-contract.js, scripts/test-file-service-error-flows.sh, scripts/test-tour-guides-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

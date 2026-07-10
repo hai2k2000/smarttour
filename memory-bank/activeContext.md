@@ -3759,3 +3759,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - bulkTag now runs metadata tag writes inside a transaction after locking writable customers; bulkUpdate now locks writable customers before updateMany, tag createMany, and timeline createMany.
   - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional bulk customer writes, no pre-transaction scope snapshots, deterministic multi-row locks, and mutation ordering after locks.
   - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Tour guide write-lock follow-up:
+  - Found TourGuidesService.update/remove/addFile/deleteFile checked guide visibility with a pre-transaction detail snapshot, then mutated GuideProfile or GuideFile rows without locking the GuideProfile row.
+  - Concurrent soft delete or scope-changing schedule replacement could happen between the pre-check and write; file delete also read GuideFile ownership before delete-by-id, risking stale metadata/object deletion after a concurrent state change.
+  - Added lockGuideForWrite to lock GuideProfile with SELECT ... FOR UPDATE, re-read through guide data scope and deletedAt guard, and block writes to deleted/out-of-scope guide records inside the write transaction.
+  - Guide update/remove now lock before uniqueness checks, schedule link validation, child replacement, or soft delete; guide add/delete file metadata writes now lock before GuideFile create/find/delete while preserving uploaded-object cleanup and metadata restore on object delete failure.
+  - Added scripts/test-tour-guides-write-lock-contract.js and updated scripts/test-file-service-error-flows.sh for transactional guide file delete rollback mocks.
+  - Verification/deploy passed on the VPS: tour guides write-lock contract, tour guides client contract, file service error flows, tour guides API flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

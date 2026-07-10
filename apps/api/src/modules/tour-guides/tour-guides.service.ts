@@ -51,14 +51,17 @@ export class TourGuidesService {
     await this.detail(guideId, user);
     const upload = await this.filesService.upload(file, `tour-guides/${guideId}`, user?.id);
     try {
-      return await this.prisma.guideFile.create({
-        data: {
-          guideId,
-          fileName: upload.fileName,
-          fileUrl: upload.url,
-          fileType: upload.mimeType,
-          uploadedBy: user?.id,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockGuideForWrite(tx, guideId, user);
+        return tx.guideFile.create({
+          data: {
+            guideId,
+            fileName: upload.fileName,
+            fileUrl: upload.url,
+            fileType: upload.mimeType,
+            uploadedBy: user?.id,
+          },
+        });
       });
     } catch (error) {
       await this.filesService.removeQuietly(upload.objectKey);
@@ -67,11 +70,14 @@ export class TourGuidesService {
   }
 
   async deleteFile(guideId: string, fileId: string, user?: RequestUser) {
-    await this.detail(guideId, user);
-    const file = await this.prisma.guideFile.findFirst({ where: { id: fileId, guideId } });
-    if (!file) throw new NotFoundException('Không tìm thấy file hướng dẫn viên');
-    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    const deleted = await this.prisma.guideFile.delete({ where: { id: file.id } });
+    const { deleted, objectKey } = await this.prisma.$transaction(async (tx) => {
+      await this.lockGuideForWrite(tx, guideId, user);
+      const file = await tx.guideFile.findFirst({ where: { id: fileId, guideId } });
+      if (!file) throw new NotFoundException('Không tìm thấy file hướng dẫn viên');
+      const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+      const deleted = await tx.guideFile.delete({ where: { id: file.id } });
+      return { deleted, objectKey };
+    });
     try {
       await this.filesService.removeIfPresent(objectKey);
       return deleted;
@@ -110,12 +116,12 @@ export class TourGuidesService {
   }
 
   async update(id: string, dto: UpdateTourGuideDto, user?: RequestUser) {
-    await this.detail(id, user);
     this.validateGuidePayload(dto);
     if (dto.schedules) this.validateSchedules(dto.schedules);
     if (dto.schedules !== undefined) this.assertScopedGuideWriteHasLinkedSchedule(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await this.lockGuideForWrite(tx, id, user);
         await this.assertUniqueGuide(tx, dto, id);
         const scheduleContext = await this.validateScheduleLinks(tx, dto.schedules ?? [], user);
         await tx.guideProfile.update({ where: { id }, data: this.toGuideData(dto) as Prisma.GuideProfileUpdateInput });
@@ -129,8 +135,21 @@ export class TourGuidesService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    await this.detail(id, user);
-    return this.prisma.guideProfile.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockGuideForWrite(tx, id, user);
+      return tx.guideProfile.update({ where: { id }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+    });
+  }
+
+  private async lockGuideForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "GuideProfile" WHERE "id" = ${id} FOR UPDATE`;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy hồ sơ hướng dẫn viên');
+    const guide = await tx.guideProfile.findFirst({
+      where: this.guideScopeWhere({ id, deletedAt: null }, user),
+      select: { id: true },
+    });
+    if (!guide) throw new NotFoundException('Không tìm thấy hồ sơ hướng dẫn viên');
+    return guide;
   }
 
   private guideScopeWhere(where: Prisma.GuideProfileWhereInput, user?: RequestUser): Prisma.GuideProfileWhereInput {
