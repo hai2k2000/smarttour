@@ -3680,3 +3680,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier file upload scope and supplier file access now use branchDepartmentScopeWhere on Supplier parent lookups, so scoped users cannot upload/access/delete files for suppliers outside their data scope or without required scope values.
   - Expanded scripts/test-file-upload-scope-contract.js with RED/GREEN source and behavior coverage for supplier file data-scope enforcement.
   - Verification/deploy passed on the VPS: file upload scope contract, files controller contract, files service core, file service error flows, suppliers file contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Supplier file scope regression correction:
+  - Review found the previous supplier file data-scope follow-up injected branchDepartmentScopeWhere<Prisma.SupplierWhereInput> into generic FilesService supplier parent lookups. Supplier has no branch/department columns, so scoped users could hit Prisma runtime validation errors on /files upload/download/delete for supplier files.
+  - FilesService supplier parent/file lookups now use Supplier id + deletedAt only; supplier files remain protected by supplier.view/supplier.manage permissions and metadata ownership checks.
+  - scripts/test-file-upload-scope-contract.js now asserts supplier file lookups never inject branch/department fields and covers scoped supplier upload with/without a user branch value.
+  - Verification/deploy passed on the VPS: file upload scope contract, files controller contract, files service core, file service error flows, suppliers file contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

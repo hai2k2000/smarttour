@@ -3168,3 +3168,8 @@
   - Supplier file upload/download/delete authorization now applies branch/department data scope to Supplier parent lookups, closing a file access gap for scoped users.
   - Verification passed: RED/GREEN node scripts/test-file-upload-scope-contract.js, node scripts/test-files-controller-contract.js, scripts/test-files-service-core.sh, scripts/test-file-service-error-flows.sh, scripts/test-suppliers-file-contract.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed supplier file scope regression correction:
+  - Generic FilesService supplier upload/download/delete no longer applies branch/department data scope to Supplier parent lookups because Supplier has no branch/department columns. This fixes the runtime Prisma validation regression for scoped users while preserving supplier.view/supplier.manage and file metadata ownership checks.
+  - Verification passed: RED/GREEN node scripts/test-file-upload-scope-contract.js, node scripts/test-files-controller-contract.js, scripts/test-files-service-core.sh, scripts/test-file-service-error-flows.sh, scripts/test-suppliers-file-contract.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
