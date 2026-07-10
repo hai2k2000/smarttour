@@ -81,15 +81,10 @@ export class QuotesService {
   }
 
   async updateTourQuote(id: string, dto: UpdateQuoteTourDto, user?: RequestUser) {
-    const currentQuote = await this.getTourQuote(id, user);
-    this.assertTourQuoteEditable(currentQuote.status);
     const input = this.prepareTourQuoteDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const current = await tx.tourQuote.findUniqueOrThrow({
-          where: { id },
-          include: { costItems: true, itineraries: true },
-        });
+        const current = await this.lockTourQuoteForWrite(tx, id, user);
         this.assertTourQuoteEditable(current.status);
         const currentDto = this.toTourQuoteDto(current);
         const merged = {
@@ -121,36 +116,46 @@ export class QuotesService {
   }
 
   async deleteTourQuote(id: string, user?: RequestUser) {
-    const quote = await this.getTourQuote(id, user);
-    this.assertTourQuoteEditable(quote.status);
-    return this.prisma.tourQuote.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await this.lockTourQuoteForWrite(tx, id, user);
+      this.assertTourQuoteEditable(quote.status);
+      return tx.tourQuote.delete({ where: { id } });
+    });
   }
 
   async approveTourQuote(id: string, dto: QuoteApprovalDto, user?: RequestUser) {
-    const quote = await this.getTourQuote(id, user);
-    if (quote.status === 'APPROVED') return quote;
-    this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING', 'REJECTED'], 'approve');
-    return this.prisma.tourQuote.update({
-      where: { id },
-      data: { status: 'APPROVED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await this.lockTourQuoteForWrite(tx, id, user);
+      if (quote.status === 'APPROVED') return quote;
+      this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING', 'REJECTED'], 'approve');
+      return tx.tourQuote.update({
+        where: { id },
+        data: { status: 'APPROVED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
+        include: { costItems: true, itineraries: true },
+      });
     });
   }
 
   async rejectTourQuote(id: string, dto: QuoteApprovalDto, user?: RequestUser) {
-    const quote = await this.getTourQuote(id, user);
-    if (quote.status === 'REJECTED') return quote;
-    this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING'], 'reject');
-    return this.prisma.tourQuote.update({
-      where: { id },
-      data: { status: 'REJECTED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await this.lockTourQuoteForWrite(tx, id, user);
+      if (quote.status === 'REJECTED') return quote;
+      this.assertTourQuoteStatus(quote.status, ['DRAFT', 'PENDING'], 'reject');
+      return tx.tourQuote.update({
+        where: { id },
+        data: { status: 'REJECTED', approvedBy: this.actor(user), approvalNote: this.optionalText(dto.approvalNote) },
+        include: { costItems: true, itineraries: true },
+      });
     });
   }
 
   async convertTourQuote(id: string, user?: RequestUser) {
-    const quote = await this.getTourQuote(id, user);
-    if (quote.status === 'CONVERTED') return quote;
-    this.assertTourQuoteStatus(quote.status, ['APPROVED'], 'convert');
-    return this.prisma.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' } });
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await this.lockTourQuoteForWrite(tx, id, user);
+      if (quote.status === 'CONVERTED') return quote;
+      this.assertTourQuoteStatus(quote.status, ['APPROVED'], 'convert');
+      return tx.tourQuote.update({ where: { id }, data: { status: 'CONVERTED' }, include: { costItems: true, itineraries: true } });
+    });
   }
 
   listComboQuotes(query: ListQuotesQueryDto = {}, user?: RequestUser) {
@@ -206,12 +211,10 @@ export class QuotesService {
   }
 
   async updateComboQuote(id: string, dto: UpdateQuoteComboDto, user?: RequestUser) {
-    const currentCombo = await this.getComboQuote(id, user);
-    this.assertComboEditable(currentCombo.status);
     const input = await this.prepareComboDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const current = await tx.quoteCombo.findFirstOrThrow({ where: this.quoteComboScopeWhere({ id }, user), include: { items: true } });
+        const current = await this.lockQuoteComboForWrite(tx, id, user);
         this.assertComboEditable(current.status);
         const currentDto = this.toComboDto(current);
         const merged = {
@@ -238,41 +241,49 @@ export class QuotesService {
   }
 
   async deleteComboQuote(id: string, user?: RequestUser) {
-    const combo = await this.getComboQuote(id, user);
-    this.assertComboEditable(combo.status);
-    return this.prisma.quoteCombo.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      const combo = await this.lockQuoteComboForWrite(tx, id, user);
+      this.assertComboEditable(combo.status);
+      return tx.quoteCombo.delete({ where: { id } });
+    });
   }
 
   async createQuoteFromCombo(id: string, user?: RequestUser) {
-    const combo = await this.getComboQuote(id, user);
-    if (combo.status === 'QUOTED') return combo;
-    this.assertComboStatus(combo.status, ['DRAFT'], 'quote');
-    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'QUOTED' }, include: { items: true } });
+    return this.prisma.$transaction(async (tx) => {
+      const combo = await this.lockQuoteComboForWrite(tx, id, user);
+      if (combo.status === 'QUOTED') return combo;
+      this.assertComboStatus(combo.status, ['DRAFT'], 'quote');
+      return tx.quoteCombo.update({ where: { id }, data: { status: 'QUOTED' }, include: { items: true } });
+    });
   }
 
   async createOrderFromCombo(id: string, user?: RequestUser) {
-    const combo = await this.getComboQuote(id, user);
-    if (combo.status === 'ORDER_CREATED') return combo;
-    this.assertComboStatus(combo.status, ['QUOTED'], 'create order');
-    return this.prisma.quoteCombo.update({ where: { id }, data: { status: 'ORDER_CREATED' }, include: { items: true } });
+    return this.prisma.$transaction(async (tx) => {
+      const combo = await this.lockQuoteComboForWrite(tx, id, user);
+      if (combo.status === 'ORDER_CREATED') return combo;
+      this.assertComboStatus(combo.status, ['QUOTED'], 'create order');
+      return tx.quoteCombo.update({ where: { id }, data: { status: 'ORDER_CREATED' }, include: { items: true } });
+    });
   }
 
   async recalculateCombo(id: string, user?: RequestUser) {
-    const combo = await this.getComboQuote(id, user);
-    this.assertComboEditable(combo.status);
-    const dto = {
-      comboCode: combo.comboCode,
-      comboType: combo.comboType,
-      profitPerPax: Number(combo.profitPerPax),
-      childPricePercent: Number(combo.childPricePercent),
-      items: combo.items.map((item) => ({
-        serviceName: item.serviceName,
-        netPricePerService: Number(item.netPricePerService),
-        nightCount: Number(item.nightCount),
-        paxCount: Number(item.paxCount),
-      })),
-    };
-    return this.prisma.quoteCombo.update({ where: { id }, data: this.calculateCombo(dto) });
+    return this.prisma.$transaction(async (tx) => {
+      const combo = await this.lockQuoteComboForWrite(tx, id, user);
+      this.assertComboEditable(combo.status);
+      const dto = {
+        comboCode: combo.comboCode,
+        comboType: combo.comboType,
+        profitPerPax: Number(combo.profitPerPax),
+        childPricePercent: Number(combo.childPricePercent),
+        items: combo.items.map((item) => ({
+          serviceName: item.serviceName,
+          netPricePerService: Number(item.netPricePerService),
+          nightCount: Number(item.nightCount),
+          paxCount: Number(item.paxCount),
+        })),
+      };
+      return tx.quoteCombo.update({ where: { id }, data: this.calculateCombo(dto), include: { items: true } });
+    });
   }
 
   private prepareTourQuoteDto<T extends Partial<CreateQuoteTourDto>>(dto: T, requireCostItems: boolean): T {
@@ -535,6 +546,41 @@ export class QuotesService {
   private quoteComboScopeWhere(where: Prisma.QuoteComboWhereInput, user?: RequestUser): Prisma.QuoteComboWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
     return branchDepartmentScopeWhere(where, user);
+  }
+
+  private async lockTourQuoteForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "TourQuote"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy báo giá tour.');
+    const quote = await tx.tourQuote.findFirst({
+      where: this.tourQuoteScopeWhere({ id }, user),
+      include: {
+        costItems: { orderBy: [{ costType: 'asc' }, { sortOrder: 'asc' }] },
+        itineraries: { orderBy: [{ sortOrder: 'asc' }, { dayNo: 'asc' }] },
+      },
+    });
+    if (!quote) throw new NotFoundException('Không tìm thấy báo giá tour.');
+    return quote;
+  }
+
+  private async lockQuoteComboForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "QuoteCombo"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy báo giá combo.');
+    const combo = await tx.quoteCombo.findFirst({
+      where: this.quoteComboScopeWhere({ id }, user),
+      include: { items: { include: { supplier: true, supplierService: true }, orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!combo) throw new NotFoundException('Không tìm thấy báo giá combo.');
+    return combo;
   }
 
   private async scopedTourQuoteCustomerId(dto: Partial<CreateQuoteTourDto>, user?: RequestUser) {

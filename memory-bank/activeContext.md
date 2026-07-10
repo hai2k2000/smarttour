@@ -3686,3 +3686,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - FilesService supplier parent/file lookups now use Supplier id + deletedAt only; supplier files remain protected by supplier.view/supplier.manage permissions and metadata ownership checks.
   - scripts/test-file-upload-scope-contract.js now asserts supplier file lookups never inject branch/department fields and covers scoped supplier upload with/without a user branch value.
   - Verification/deploy passed on the VPS: file upload scope contract, files controller contract, files service core, file service error flows, suppliers file contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Legacy quotes write-lock follow-up:
+  - Found legacy QuotesService tour quote and combo quote write/status paths checked status from a pre-write snapshot or unblocked transaction read before update/delete/status changes.
+  - TourQuote update/delete/approve/reject/convert now lock the TourQuote row with FOR UPDATE, re-read scoped state inside the transaction, and run status guards after the lock.
+  - QuoteCombo update/delete/create-quote/create-order/recalculate now lock the QuoteCombo row with FOR UPDATE, re-read scoped state inside the transaction, and run status guards after the lock.
+  - Expanded scripts/test-quotes-backend-contract.js with RED/GREEN coverage for legacy quote row-lock helpers and in-transaction re-read usage.
+  - Verification/deploy passed on the VPS: quotes backend/client/coverage contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

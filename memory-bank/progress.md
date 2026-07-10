@@ -3173,3 +3173,8 @@
   - Generic FilesService supplier upload/download/delete no longer applies branch/department data scope to Supplier parent lookups because Supplier has no branch/department columns. This fixes the runtime Prisma validation regression for scoped users while preserving supplier.view/supplier.manage and file metadata ownership checks.
   - Verification passed: RED/GREEN node scripts/test-file-upload-scope-contract.js, node scripts/test-files-controller-contract.js, scripts/test-files-service-core.sh, scripts/test-file-service-error-flows.sh, scripts/test-suppliers-file-contract.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed legacy quotes write-lock follow-up:
+  - Legacy tour quote and combo quote write/status/recalculate flows now lock and re-check scoped row state inside the write transaction before mutating records.
+  - Verification passed: RED/GREEN node scripts/test-quotes-backend-contract.js, quote combo/tour client contracts, quote test coverage contract, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

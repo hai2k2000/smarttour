@@ -207,6 +207,41 @@ for (const [name, block] of [
 includes(quotationsService, 'return this.number(item.quantity, 1) * this.number(item.nightCount, 1) * this.number(item.netPrice) * exchangeRate * (1 + this.number(item.vat) / 100);', 'Quotation backend itemCost must match frontend quantity * nightCount * netPrice * exchangeRate * VAT percent.');
 includes(quotationsService, 'return this.number(item.markupAmount) + cost * (this.number(item.markupPercent) / 100);', 'Quotation backend itemMarkup must match frontend fixed markup plus percent of cost.');
 includes(quotesService, '(item.quantity ?? 1) * (item.serviceCount ?? 1) * (item.unitPrice ?? 0) * (item.exchangeRate ?? 1) + (item.vat ?? 0)', 'Quote tour backend amount must match frontend VAT/phụ thu as absolute add-on.');
+
+const quoteTourUpdateBlock = sliceBetween(quotesService, 'async updateTourQuote', '  async deleteTourQuote');
+const quoteTourDeleteBlock = sliceBetween(quotesService, 'async deleteTourQuote', '  async approveTourQuote');
+const quoteTourApproveBlock = sliceBetween(quotesService, 'async approveTourQuote', '  async rejectTourQuote');
+const quoteTourRejectBlock = sliceBetween(quotesService, 'async rejectTourQuote', '  async convertTourQuote');
+const quoteTourConvertBlock = sliceBetween(quotesService, 'async convertTourQuote', '  listComboQuotes');
+const quoteComboUpdateBlock = sliceBetween(quotesService, 'async updateComboQuote', '  async deleteComboQuote');
+const quoteComboDeleteBlock = sliceBetween(quotesService, 'async deleteComboQuote', '  async createQuoteFromCombo');
+const quoteComboQuoteBlock = sliceBetween(quotesService, 'async createQuoteFromCombo', '  async createOrderFromCombo');
+const quoteComboOrderBlock = sliceBetween(quotesService, 'async createOrderFromCombo', '  async recalculateCombo');
+const quoteComboRecalculateBlock = sliceBetween(quotesService, 'async recalculateCombo', '  private prepareTourQuoteDto');
+
+includes(quotesService, 'private async lockTourQuoteForWrite', 'Legacy tour quote write/status flows should have a row-lock helper.');
+includes(quotesService, 'FROM "TourQuote"', 'Legacy tour quote lock should target the TourQuote row.');
+includes(quotesService, 'private async lockQuoteComboForWrite', 'Legacy combo quote write/status flows should have a row-lock helper.');
+includes(quotesService, 'FROM "QuoteCombo"', 'Legacy combo quote lock should target the QuoteCombo row.');
+for (const [name, block] of [
+  ['tour update', quoteTourUpdateBlock],
+  ['tour delete', quoteTourDeleteBlock],
+  ['tour approve', quoteTourApproveBlock],
+  ['tour reject', quoteTourRejectBlock],
+  ['tour convert', quoteTourConvertBlock],
+]) {
+  includes(block, 'this.lockTourQuoteForWrite(tx, id, user)', `Legacy quote ${name} must lock and re-read scoped TourQuote state inside the transaction before writing.`);
+}
+for (const [name, block] of [
+  ['combo update', quoteComboUpdateBlock],
+  ['combo delete', quoteComboDeleteBlock],
+  ['combo quote', quoteComboQuoteBlock],
+  ['combo order', quoteComboOrderBlock],
+  ['combo recalculate', quoteComboRecalculateBlock],
+]) {
+  includes(block, 'this.lockQuoteComboForWrite(tx, id, user)', `Legacy quote ${name} must lock and re-read scoped QuoteCombo state inside the transaction before writing.`);
+}
+
 includes(quotesService, 'return sum + ((item.netPricePerService ?? 0) * nights) / pax;', 'Quote combo backend net per pax must match frontend.');
 
 includes(quoteToursClient, 'return quantity * serviceCount * unitPrice * exchangeRate + vat;', 'Quote tour frontend lineAmount must match backend VAT/phụ thu as absolute add-on.');
