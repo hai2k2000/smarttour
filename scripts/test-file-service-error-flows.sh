@@ -52,6 +52,16 @@ function filesService(options = {}) {
   };
 }
 
+
+function withTransaction(prisma) {
+  return {
+    ...prisma,
+    async $transaction(callback) {
+      return callback({ ...prisma, $queryRaw: async () => [] });
+    },
+  };
+}
+
 async function assertCustomerUploadCleanup() {
   const files = filesService();
   const service = new CustomersService({
@@ -84,12 +94,12 @@ async function assertCustomerDeleteRollback() {
 
 async function assertFinanceReceiptUploadCleanup() {
   const files = filesService();
-  const service = new FinanceService({
+  const service = new FinanceService(withTransaction({
     financeReceipt: {
       findFirst: async () => ({ id: 'receipt-1', attachmentName: 'old.txt', attachmentUrl: oldUrl }),
       update: async () => { throw new Error('receipt update failed'); },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.uploadReceiptFile('receipt-1', testFile, 'actor-1'), /receipt update failed/);
   assert.deepEqual(files.calls.removeIfPresent, [upload.objectKey]);
@@ -107,7 +117,7 @@ async function assertFinanceAttachmentDeleteRollback(kind) {
     },
   };
   const prisma = kind === 'receipt' ? { financeReceipt: model } : { financePayment: model };
-  const service = new FinanceService(prisma, files);
+  const service = new FinanceService(withTransaction(prisma), files);
 
   if (kind === 'receipt') await assert.rejects(() => service.deleteReceiptFile('receipt-1'), /remove failed/);
   else await assert.rejects(() => service.deletePaymentFile('payment-1'), /remove failed/);
@@ -121,10 +131,10 @@ async function assertFinanceAttachmentDeleteRollback(kind) {
 
 async function assertFinanceInvoiceUploadCleanup() {
   const files = filesService();
-  const service = new FinanceService({
+  const service = new FinanceService(withTransaction({
     financeInvoice: { findFirst: async () => ({ id: 'invoice-1', files: [] }) },
     financeInvoiceFile: { create: async () => { throw new Error('invoice file create failed'); } },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.uploadInvoiceFile('invoice-1', testFile, 'actor-1'), /invoice file create failed/);
   assert.deepEqual(files.calls.removeIfPresent, [upload.objectKey]);
@@ -134,14 +144,14 @@ async function assertFinanceInvoiceDeleteRollback() {
   const files = filesService({ failRemove: true });
   const invoiceFile = { id: 'invoice-file-1', invoiceId: 'invoice-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
   const restored = [];
-  const service = new FinanceService({
+  const service = new FinanceService(withTransaction({
     financeInvoice: { findFirst: async () => ({ id: 'invoice-1', files: [invoiceFile] }) },
     financeInvoiceFile: {
       findFirst: async () => invoiceFile,
       delete: async () => invoiceFile,
       create: async ({ data }) => { restored.push(data); return data; },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteInvoiceFile('invoice-1', 'invoice-file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);

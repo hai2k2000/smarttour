@@ -3634,3 +3634,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Finance receipt/payment/invoice update/delete now lock the row with FOR UPDATE, re-read scoped state inside the transaction, and run final-state guards before updating data, unlinking supplier payment requests, or soft-deleting.
   - Added RED/GREEN coverage in scripts/test-finance-write-lock-contract.js for in-transaction row locking and scoped re-read behavior on all six draft write paths.
   - Verification/deploy passed on the VPS: finance write-lock contract, finance helper contract, finance service flows, finance DTO/controller contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Finance attachment write-lock follow-up:
+  - Found finance receipt/payment/invoice attachment upload/delete paths checked final-state guards from a pre-write snapshot and then changed attachment metadata/file rows without locking the finance document.
+  - Attachment metadata writes now lock the owning finance row with FOR UPDATE, re-read scoped state inside the transaction, and run final-state guards before updating receipt/payment attachment metadata or creating/deleting invoice file rows.
+  - Updated attachment/file error-flow contracts to cover transaction-client writes while preserving object cleanup and rollback behavior.
+  - Verification/deploy passed on the VPS: finance attachment write-lock contract, phase1/phase2 attachment contracts, finance draft write-lock contract, finance service flows, file-service error flows, finance DTO/controller contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

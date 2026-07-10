@@ -147,8 +147,14 @@ export class FinanceService {
     assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
     const upload = await this.filesService.upload(file, `finance/receipts/${id}`, actorId);
     try {
-      const updated = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
-      const previousKey = this.objectKey(current.attachmentUrl);
+      const { updated, previousKey } = await this.prisma.$transaction(async (tx) => {
+        await lockFinanceReceipt(tx, id);
+        const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
+        if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu thu');
+        assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
+        const updated = await tx.financeReceipt.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
+        return { updated, previousKey: this.objectKey(current.attachmentUrl) };
+      });
       if (previousKey && previousKey !== upload.objectKey) await this.filesService.removeIfPresent(previousKey).catch(() => undefined);
       return updated;
     } catch (error) {
@@ -158,15 +164,20 @@ export class FinanceService {
   }
 
   async deleteReceiptFile(id: string, user?: RequestUser) {
-    const current = await this.receiptDetail(id, user);
-    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
-    const objectKey = this.objectKey(current.attachmentUrl);
-    const receipt = await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const { receipt, objectKey, attachmentName, attachmentUrl } = await this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
+      if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu thu');
+      assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu thu');
+      const objectKey = this.objectKey(current.attachmentUrl);
+      const receipt = await tx.financeReceipt.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+      return { receipt, objectKey, attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl };
+    });
     try {
       if (objectKey) await this.filesService.removeIfPresent(objectKey);
       return receipt;
     } catch (error) {
-      await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl } }).catch(() => {
+      await this.prisma.financeReceipt.update({ where: { id }, data: { attachmentName, attachmentUrl } }).catch(() => {
         throw new BadRequestException('Xoa file phieu thu that bai va khong khoi phuc duoc metadata file');
       });
       throw error;
@@ -357,8 +368,14 @@ export class FinanceService {
     assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
     const upload = await this.filesService.upload(file, `finance/payments/${id}`, actorId);
     try {
-      const updated = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
-      const previousKey = this.objectKey(current.attachmentUrl);
+      const { updated, previousKey } = await this.prisma.$transaction(async (tx) => {
+        await lockFinancePayment(tx, id);
+        const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
+        if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu chi');
+        assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
+        const updated = await tx.financePayment.update({ where: { id }, data: { attachmentName: upload.fileName, attachmentUrl: upload.url } });
+        return { updated, previousKey: this.objectKey(current.attachmentUrl) };
+      });
       if (previousKey && previousKey !== upload.objectKey) await this.filesService.removeIfPresent(previousKey).catch(() => undefined);
       return updated;
     } catch (error) {
@@ -368,15 +385,20 @@ export class FinanceService {
   }
 
   async deletePaymentFile(id: string, user?: RequestUser) {
-    const current = await this.paymentDetail(id, user);
-    assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
-    const objectKey = this.objectKey(current.attachmentUrl);
-    const payment = await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+    const { payment, objectKey, attachmentName, attachmentUrl } = await this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
+      if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu chi');
+      assertCanUpdateFinanceEntity(current, 'Phi\u1ebfu chi');
+      const objectKey = this.objectKey(current.attachmentUrl);
+      const payment = await tx.financePayment.update({ where: { id }, data: { attachmentName: null, attachmentUrl: null } });
+      return { payment, objectKey, attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl };
+    });
     try {
       if (objectKey) await this.filesService.removeIfPresent(objectKey);
       return payment;
     } catch (error) {
-      await this.prisma.financePayment.update({ where: { id }, data: { attachmentName: current.attachmentName, attachmentUrl: current.attachmentUrl } }).catch(() => {
+      await this.prisma.financePayment.update({ where: { id }, data: { attachmentName, attachmentUrl } }).catch(() => {
         throw new BadRequestException('Xoa file phieu chi that bai va khong khoi phuc duoc metadata file');
       });
       throw error;
@@ -502,8 +524,14 @@ export class FinanceService {
     assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
     const upload = await this.filesService.upload(file, `finance/invoices/${id}`, actorId);
     try {
-      return await this.prisma.financeInvoiceFile.create({
-        data: { invoiceId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+      return await this.prisma.$transaction(async (tx) => {
+        await lockFinanceInvoice(tx, id);
+        const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
+        if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y h\u00f3a \u0111\u01a1n');
+        assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
+        return tx.financeInvoiceFile.create({
+          data: { invoiceId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+        });
       });
     } catch (error) {
       await this.filesService.removeIfPresent(upload.objectKey).catch(() => undefined);
@@ -512,12 +540,17 @@ export class FinanceService {
   }
 
   async deleteInvoiceFile(id: string, fileId: string, user?: RequestUser) {
-    const current = await this.invoiceDetail(id, user);
-    assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
-    const file = await this.prisma.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
-    if (!file) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y file h\u00f3a \u0111\u01a1n');
-    const objectKey = this.objectKey(file.fileUrl);
-    const deleted = await this.prisma.financeInvoiceFile.delete({ where: { id: fileId } });
+    const { deleted, objectKey } = await this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
+      const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user) });
+      if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y h\u00f3a \u0111\u01a1n');
+      assertCanUpdateFinanceEntity(current, 'H\u00f3a \u0111\u01a1n');
+      const file = await tx.financeInvoiceFile.findFirst({ where: { id: fileId, invoiceId: id } });
+      if (!file) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y file h\u00f3a \u0111\u01a1n');
+      const objectKey = this.objectKey(file.fileUrl);
+      const deleted = await tx.financeInvoiceFile.delete({ where: { id: fileId } });
+      return { deleted, objectKey };
+    });
     try {
       if (objectKey) await this.filesService.removeIfPresent(objectKey);
       return deleted;

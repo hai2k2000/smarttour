@@ -3124,3 +3124,8 @@
   - Finance receipt/payment/invoice update/delete now lock and re-check scoped state inside the transaction before draft writes or soft deletes, preventing stale edits after concurrent finance status transitions.
   - Verification passed: node scripts/test-finance-write-lock-contract.js, scripts/test-finance-helper-contracts.sh, scripts/test-finance-service-flows.sh, node scripts/test-finance-dto-contract.js, scripts/test-finance-controller-permissions.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed finance attachment write-lock follow-up:
+  - Finance receipt/payment/invoice attachment upload/delete now lock and re-check scoped finance state inside the transaction before metadata/file-row writes, preventing stale attachment edits after concurrent approval/rejection/cancel/delete transitions.
+  - Verification passed: node scripts/test-finance-attachment-write-lock-contract.js, node scripts/test-phase1-finance-attachment-contract.js, node scripts/test-phase2-finance-file-delete-contract.js, node scripts/test-finance-write-lock-contract.js, scripts/test-finance-service-flows.sh, scripts/test-file-service-error-flows.sh, finance DTO/controller contracts, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

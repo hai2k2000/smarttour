@@ -25,12 +25,12 @@ function methodSection(sourceText, startToken, endToken) {
 }
 
 const financeFileGuardChecks = [
-  { name: 'uploadReceiptFile', start: 'async uploadReceiptFile', end: 'async deleteReceiptFile', before: 'this.filesService.upload(' },
-  { name: 'deleteReceiptFile', start: 'async deleteReceiptFile', end: 'async createReceipt', before: 'this.prisma.financeReceipt.update(' },
-  { name: 'uploadPaymentFile', start: 'async uploadPaymentFile', end: 'async deletePaymentFile', before: 'this.filesService.upload(' },
-  { name: 'deletePaymentFile', start: 'async deletePaymentFile', end: 'async createPayment', before: 'this.prisma.financePayment.update(' },
-  { name: 'uploadInvoiceFile', start: 'async uploadInvoiceFile', end: 'async deleteInvoiceFile', before: 'this.filesService.upload(' },
-  { name: 'deleteInvoiceFile', start: 'async deleteInvoiceFile', end: 'async createInvoice', before: 'this.prisma.financeInvoiceFile.findFirst(' },
+  { name: 'uploadReceiptFile', start: 'async uploadReceiptFile', end: 'async deleteReceiptFile', before: 'tx.financeReceipt.update(' },
+  { name: 'deleteReceiptFile', start: 'async deleteReceiptFile', end: 'async createReceipt', before: 'tx.financeReceipt.update(' },
+  { name: 'uploadPaymentFile', start: 'async uploadPaymentFile', end: 'async deletePaymentFile', before: 'tx.financePayment.update(' },
+  { name: 'deletePaymentFile', start: 'async deletePaymentFile', end: 'async createPayment', before: 'tx.financePayment.update(' },
+  { name: 'uploadInvoiceFile', start: 'async uploadInvoiceFile', end: 'async deleteInvoiceFile', before: 'tx.financeInvoiceFile.create(' },
+  { name: 'deleteInvoiceFile', start: 'async deleteInvoiceFile', end: 'async createInvoice', before: 'tx.financeInvoiceFile.delete(' },
 ];
 
 assert(!/assertCanUpdateFinanceEntity\(current, '[^']*\?/.test(service), 'Finance final-state guard labels must not contain mojibake placeholders');
