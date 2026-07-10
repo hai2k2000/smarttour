@@ -3605,3 +3605,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Updated booking status lock contract to cover update/remove write-lock behavior; also made the SmartLink guard contract whitespace-insensitive after the quotation transaction follow-up.
   - Verification passed on the VPS: booking status lock contract, bookings service flow, business logic guard, quotes backend contract, quotation SmartLink expiry contract, API build/lint, and git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, docker builder prune to 0B; smoke-business-workflows skipped because ADMIN_PASSWORD is not set in .env.
+
+
+- 2026-07-10 Customer MERGED status and legacy link follow-up:
+  - Found Customer create/update allowed direct status MERGED, bypassing the merge endpoint that sets mergedIntoId and transfers related business rows.
+  - CustomerBodyDto now exposes only ACTIVE/INACTIVE for create/update bodies; CustomersService rejects direct MERGED status while merge() remains the only path that marks a source customer MERGED.
+  - While verifying the customer service flow, the existing orphan legacy link assertions exposed that scoped customer creation could not claim unlinked TourQuote/Booking/FitTour/FinanceInvoice rows because the scope helpers required relations that are null on orphan rows.
+  - linkExistingData now still scopes rows that already have order/tour/customer/receipt relations, but can claim fully orphan legacy rows by matching phone/email/name inside the create/update transaction.
+  - Verification passed on the VPS: customer DTO contract, customer service flow, customer API flow, API build/lint, and git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

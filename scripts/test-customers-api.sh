@@ -164,6 +164,11 @@ async function main() {
       body: { code: `${run}-B`, fullName: 'API Customer B', phone: `091${String(Date.now()).slice(-7)}`, branch: 'BR-B', department: 'DEP-B' },
       status: 201,
     });
+    await request('POST', '/customers', {
+      token: manageToken,
+      body: { code: `${run}-BAD-MERGED`, fullName: 'API Bad Merged', phone: `089${String(Date.now()).slice(-7)}`, status: 'MERGED' },
+      status: 400,
+    });
 
     const scopedList = await request('GET', `/customers?search=${run}`, { token: viewToken });
     assert(scopedList.data.rows.length === 1 && scopedList.data.rows[0].id === branchCustomer.id, 'GET /customers should only return customers inside branch scope');
@@ -184,6 +189,11 @@ async function main() {
       body: { fullName: 'API Customer A Updated', latestComment: 'Updated through API' },
     });
     assert(updated.data.fullName === 'API Customer A Updated' && updated.data.latestComment === 'Updated through API', 'PUT /customers/:id should update customer');
+
+    await request('PUT', `/customers/${branchCustomer.id}`, { token: manageToken, body: { status: 'MERGED' }, status: 400 });
+    const afterRejectedMergeStatus = await prisma.customer.findUnique({ where: { id: branchCustomer.id } });
+    assert(afterRejectedMergeStatus.status !== 'MERGED', 'PUT /customers/:id must not mark a customer MERGED without merge endpoint');
+    assert(afterRejectedMergeStatus.mergedIntoId === null, 'rejected direct MERGED status must not create merge metadata');
 
     const { data: removable } = await request('POST', '/customers', {
       token: manageToken,

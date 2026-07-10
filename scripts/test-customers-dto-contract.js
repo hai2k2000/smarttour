@@ -34,12 +34,15 @@ if (!fs.existsSync(dtoPath)) {
     'IsOptional',
     'IsString',
     'MaxLength',
-    "['ACTIVE', 'INACTIVE', 'MERGED']",
+    "['ACTIVE', 'INACTIVE']",
     "['INDIVIDUAL', 'COMPANY', 'AGENCY']",
     "['PENDING', 'DONE', 'CANCELLED']",
     'replaceNestedCollections',
   ]) {
     if (!dto.includes(token)) failures.push(`customer DTO validation missing ${token}`);
+  }
+  if (dto.includes("['ACTIVE', 'INACTIVE', 'MERGED']")) {
+    failures.push('CustomerBodyDto must not allow MERGED through create/update; use merge endpoint');
   }
 }
 

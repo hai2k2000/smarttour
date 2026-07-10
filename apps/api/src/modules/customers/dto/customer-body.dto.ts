@@ -1,6 +1,6 @@
 import { Allow, IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
-const customerStatuses = ['ACTIVE', 'INACTIVE', 'MERGED'] as const;
+const customerStatuses = ['ACTIVE', 'INACTIVE'] as const;
 const customerKinds = ['INDIVIDUAL', 'COMPANY', 'AGENCY'] as const;
 const careTaskStatuses = ['PENDING', 'DONE', 'CANCELLED'] as const;
 

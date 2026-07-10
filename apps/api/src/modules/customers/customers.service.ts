@@ -858,15 +858,44 @@ export class CustomersService {
     const tourCustomerOr = [{ phone }, ...(email ? [{ email }] : []), { name: fullName }];
     const fitTourOr = [{ phone }, ...(email ? [{ email }] : []), { customerName: fullName }];
     const receiptOr = [{ payerPhone: phone }, ...(email ? [{ payerEmail: email }] : []), { payerName: fullName }];
+    const bookingWhere = { customerId: null, OR: customerOr } satisfies Prisma.BookingWhereInput;
+    const fitTourWhere = { customerId: null, OR: fitTourOr } satisfies Prisma.FitTourWhereInput;
+    const financeInvoiceWhere = { customerId: null, OR: customerOr } satisfies Prisma.FinanceInvoiceWhereInput;
+    const scopedLegacyClaim = !user || hasUnrestrictedDataScope(user)
+      ? {
+          booking: bookingWhere,
+          fitTour: fitTourWhere,
+          financeInvoice: financeInvoiceWhere,
+        }
+      : {
+          booking: {
+            OR: [
+              bookingScopeWhere(bookingWhere, user),
+              { customerId: null, orderId: null, tourId: null, OR: customerOr },
+            ],
+          } satisfies Prisma.BookingWhereInput,
+          fitTour: {
+            OR: [
+              this.fitTourScopeWhere(fitTourWhere, user),
+              { customerId: null, orderId: null, tourId: null, OR: fitTourOr },
+            ],
+          } satisfies Prisma.FitTourWhereInput,
+          financeInvoice: {
+            OR: [
+              this.financeInvoiceScopeWhere(financeInvoiceWhere, user),
+              { customerId: null, orderId: null, tourId: null, receiptId: null, OR: customerOr },
+            ],
+          } satisfies Prisma.FinanceInvoiceWhereInput,
+        };
     await Promise.all([
       tx.order.updateMany({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
       tx.quotation.updateMany({ where: branchDepartmentScopeWhere<Prisma.QuotationWhereInput>({ customerId: null, OR: customerOr }, user), data: { customerId } }),
-      tx.tourQuote.updateMany({ where: this.tourQuoteScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
-      tx.booking.updateMany({ where: bookingScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
+      tx.tourQuote.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } }),
+      tx.booking.updateMany({ where: scopedLegacyClaim.booking, data: { customerId } }),
       tx.tourCustomer.updateMany({ where: this.tourCustomerScopeWhere({ crmCustomerId: null, OR: tourCustomerOr }, user), data: { crmCustomerId: customerId } }),
-      tx.fitTour.updateMany({ where: this.fitTourScopeWhere({ customerId: null, OR: fitTourOr }, user), data: { customerId } }),
+      tx.fitTour.updateMany({ where: scopedLegacyClaim.fitTour, data: { customerId } }),
       tx.financeReceipt.updateMany({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ customerId: null, OR: receiptOr }, user), data: { customerId } }),
-      tx.financeInvoice.updateMany({ where: this.financeInvoiceScopeWhere({ customerId: null, OR: customerOr }, user), data: { customerId } }),
+      tx.financeInvoice.updateMany({ where: scopedLegacyClaim.financeInvoice, data: { customerId } }),
     ]);
   }
 
@@ -1015,7 +1044,10 @@ export class CustomersService {
   }
 
   private status(value: unknown) {
-    return value === CustomerStatus.INACTIVE || value === CustomerStatus.MERGED ? value : CustomerStatus.ACTIVE;
+    if (value === CustomerStatus.MERGED) {
+      throw new BadRequestException('D\u00f9ng endpoint g\u1ed9p kh\u00e1ch h\u00e0ng \u0111\u1ec3 chuy\u1ec3n tr\u1ea1ng th\u00e1i MERGED');
+    }
+    return value === CustomerStatus.INACTIVE ? CustomerStatus.INACTIVE : CustomerStatus.ACTIVE;
   }
 
   private take(value: unknown) {

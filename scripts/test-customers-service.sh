@@ -134,6 +134,11 @@ async function main() {
 
   const type = await prisma.customerTypeConfig.create({ data: { code: run + '-TYPE', name: 'VIP', isActive: true } });
   await rejectsMessage(() => service.create({ code: run + '-BAD-DOB', fullName: 'Bad Date Customer', phone: '098' + String(Date.now()).slice(-7), dateOfBirth: '2026-02-31' }, branchUser), 'Date is invalid', 'create should reject impossible customer birth dates');
+  await rejectsMessage(
+    () => service.create({ code: run + '-BAD-MERGED-CREATE', fullName: 'Bad Merged Customer', phone: '089' + String(Date.now()).slice(-7), status: 'MERGED' }, branchUser),
+    'MERGED',
+    'create should reject direct MERGED customer status',
+  );
   const campaign = await prisma.customerCampaign.create({ data: { code: run + '-CMP', name: 'Summer', isActive: true } });
   const tagA = await prisma.customerTag.create({ data: { name: run + '-TAG-A', isActive: true } });
   const tagB = await prisma.customerTag.create({ data: { name: run + '-TAG-B', isActive: true } });
@@ -193,6 +198,12 @@ async function main() {
   const partialUpdate = await service.update(customer.id, { latestComment: 'Partial only', note: 'partial update' }, branchUser);
   assert(partialUpdate.contacts.length === 1 && partialUpdate.tags.length === 1, 'partial update should not drop contacts or tags');
   assert(partialUpdate.latestComment === 'Partial only', 'partial update should update scalar field');
+  await rejectsMessage(
+    () => service.update(customer.id, { status: 'MERGED' }, branchUser),
+    'MERGED',
+    'update should reject direct MERGED customer status',
+  );
+  assert((await prisma.customer.findUnique({ where: { id: customer.id } })).status !== 'MERGED', 'rejected direct MERGED update must preserve customer status');
 
   await rejectsMessage(() => service.update(customer.id, { comments: [] }, branchUser), 'replaceNestedCollections', 'update should reject comment replacement without explicit replaceNestedCollections flag');
   assert(await prisma.customerComment.count({ where: { customerId: customer.id } }) === 1, 'rejected comment replacement must preserve existing comments');

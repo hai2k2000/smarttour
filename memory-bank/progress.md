@@ -3100,3 +3100,10 @@
   - Contract coverage now verifies booking update/remove write locking and transactional usage checks; SmartLink business guard contract no longer fails on harmless transaction indentation changes.
   - Verification passed: node scripts/test-phase2-booking-status-lock-contract.js, scripts/test-bookings-service.sh, node scripts/test-business-logic-guard-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-quotations-smartlink-expiry-contract.js, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, docker builder prune to 0B; smoke-business-workflows skipped because ADMIN_PASSWORD is not set in .env.
+
+
+- 2026-07-10 Completed customer MERGED status and legacy link follow-up:
+  - Customer create/update can no longer mark records MERGED directly; MERGED is reserved for the merge endpoint so mergedIntoId and related data transfers stay consistent.
+  - Scoped customer create/update can again claim fully orphan legacy TourQuote/Booking/FitTour/FinanceInvoice rows by phone/email/name while preserving scope checks for rows already linked to scoped relations.
+  - Verification passed: node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
