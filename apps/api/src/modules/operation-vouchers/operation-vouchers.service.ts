@@ -226,12 +226,12 @@ export class OperationVouchersService {
     const paymentVoucherId = this.text(dto.paymentVoucherId);
     const paymentDate = this.optionalDate(dto.paymentDate, 'ngày thanh toán') ?? new Date();
     return this.prisma.$transaction(async (tx) => {
+      if (paymentVoucherId) await this.lockFinancePaymentForVoucherRecording(tx, paymentVoucherId);
       const voucher = await this.lockVoucherForPayment(tx, id, user);
       if (!paymentVoucherId) {
         if (requestedPaymentAmount !== undefined) this.assertPayable(voucher, requestedPaymentAmount);
         throw new BadRequestException('Cần chọn phiếu chi tài chính đã duyệt để ghi nhận thanh toán');
       }
-      await tx.$queryRawUnsafe('SELECT id FROM "FinancePayment" WHERE id = $1 FOR UPDATE', paymentVoucherId);
       const payment = await tx.financePayment.findFirst({
         where: branchDepartmentScopeWhere({ id: paymentVoucherId }, user),
         select: { id: true, approvalStatus: true, operationVoucherId: true, paymentAmount: true, supplierId: true, orderId: true, tourId: true },
@@ -404,6 +404,11 @@ export class OperationVouchersService {
 
   private async lockVoucherForPayment(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
     return this.lockVoucherForWrite(tx, id, user);
+  }
+
+  private async lockFinancePaymentForVoucherRecording(tx: Prisma.TransactionClient, paymentVoucherId: string) {
+    const locked = await tx.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM "FinancePayment" WHERE id = $1 FOR UPDATE', paymentVoucherId);
+    if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu chi t\u00e0i ch\u00ednh');
   }
 
   private async nextAvailableFinancePaymentCode(tx: Prisma.TransactionClient) {

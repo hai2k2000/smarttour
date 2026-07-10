@@ -3183,3 +3183,8 @@
   - Finance order side effects now lock the linked Order row before recomputing paidAmount/paidCost snapshots from receipts/payments, preventing lost updates under concurrent finance approvals or cancellations.
   - Verification passed: RED/GREEN node scripts/test-finance-write-lock-contract.js, finance attachment write-lock contract, scripts/test-finance-helper-contracts.sh, scripts/test-finance-service-flows.sh, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed operation voucher payment lock-order follow-up:
+  - Operation voucher manual payment recording now locks FinancePayment before OperationVoucher, matching finance approve/cancel reconciliation and avoiding deadlocks under concurrent voucher payment actions.
+  - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-operation-vouchers-service.sh, node scripts/test-operation-vouchers-client-contract.js, scripts/test-finance-service-flows.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -3700,3 +3700,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - finance-order-links now locks the Order row with SELECT ... FOR UPDATE before reading and recomputing receipt/payment snapshots in applyOrderReceipt/applyOrderPayment.
   - Expanded scripts/test-finance-write-lock-contract.js with RED/GREEN coverage for the shared Order row lock and lock-before-read order.
   - Verification/deploy passed on the VPS: finance write-lock contract, finance attachment write-lock contract, finance helper contracts, finance service flows, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Operation voucher payment lock-order follow-up:
+  - Found OperationVouchersService.addPayment locked OperationVoucher before FinancePayment, while FinanceService approve/cancel payment locks FinancePayment before reconciling OperationVoucher.
+  - Concurrent manual voucher payment recording and finance approval/cancellation could deadlock due to inverted lock order.
+  - addPayment now locks FinancePayment through lockFinancePaymentForVoucherRecording before locking/re-reading the OperationVoucher row, matching finance reconciliation lock order.
+  - Expanded scripts/test-business-logic-guard-contract.js with RED/GREEN coverage for FinancePayment -> OperationVoucher lock ordering.
+  - Verification/deploy passed on the VPS: business logic guard, operation voucher service/schema/client contracts, finance service flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

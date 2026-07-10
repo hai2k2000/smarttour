@@ -89,6 +89,7 @@ for (const needle of [
 
 const operationVoucherUpdate = sliceBetween(operationVouchers, 'async update', '  async remove');
 const operationVoucherRemove = sliceBetween(operationVouchers, 'async remove', '  async addPayment');
+const operationVoucherAddPayment = sliceBetween(operationVouchers, 'async addPayment', '  async createPaymentVoucher');
 
 includes(
   operationVouchers,
@@ -109,6 +110,22 @@ includes(operationVoucherUpdate, 'this.lockVoucherForWrite(tx, id, user)', 'Oper
 includes(operationVoucherRemove, 'this.lockVoucherForWrite(tx, id, user)', 'Operation voucher delete must lock and re-read the voucher inside the transaction before delete checks.');
 includes(operationVoucherUpdate, "this.assertEditable(current, 'update')", 'Operation voucher update must check editability after acquiring the row lock.');
 includes(operationVoucherRemove, "this.assertEditable(current, 'delete')", 'Operation voucher delete must check editability after acquiring the row lock.');
+
+
+includes(
+  operationVouchers,
+  'private async lockFinancePaymentForVoucherRecording',
+  'Operation voucher manual payment recording should lock FinancePayment through a named helper.',
+);
+includes(
+  operationVoucherAddPayment,
+  'await this.lockFinancePaymentForVoucherRecording(tx, paymentVoucherId)',
+  'Operation voucher addPayment must lock the finance payment before locking the operation voucher.',
+);
+assert(
+  operationVoucherAddPayment.indexOf('await this.lockFinancePaymentForVoucherRecording(tx, paymentVoucherId)') < operationVoucherAddPayment.indexOf('this.lockVoucherForPayment(tx, id, user)'),
+  'Operation voucher addPayment must use FinancePayment -> OperationVoucher lock order to match finance approval/cancel reconciliation.',
+);
 
 includes(
   operationVouchers,
