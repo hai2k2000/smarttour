@@ -3087,3 +3087,9 @@
 - 2026-07-10 Completed operation voucher write-lock follow-up:
   - Operation voucher update/delete now lock and re-check scoped voucher state inside the transaction before edit/delete checks, preventing races with active finance payments or payment history.
   - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-operation-vouchers-service.sh, operation voucher client/auth contracts, API build/lint.
+
+
+- 2026-07-10 Completed quotation write-lock follow-up:
+  - Quotation update/delete/submit/approve/reject/SmartLink now lock and re-check scoped quotation state inside the transaction before writes, preventing races with approval/conversion/status changes.
+  - Quote smoke auth now prefers seeded ADMIN_PASSWORD over bootstrap from .env, so default VPS smoke can log in reliably.
+  - Verification passed: API build/lint, quotes backend contract, quotation SmartLink/date contracts, smoke quotes quotations.

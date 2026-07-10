@@ -16,6 +16,14 @@ function excludes(source, needle, message) {
   assert(!source.includes(needle), `${message}\nFound: ${needle}`);
 }
 
+function sliceBetween(source, startNeedle, endNeedle) {
+  const start = source.indexOf(startNeedle);
+  assert(start >= 0, `${startNeedle} must exist`);
+  const end = source.indexOf(endNeedle, start + startNeedle.length);
+  assert(end > start, `${endNeedle} must exist after ${startNeedle}`);
+  return source.slice(start, end);
+}
+
 const quotesController = read('apps/api/src/modules/quotes/quotes.controller.ts');
 const quotesService = read('apps/api/src/modules/quotes/quotes.service.ts');
 const quoteListQueryDto = read('apps/api/src/modules/quotes/dto/list-quotes-query.dto.ts');
@@ -26,6 +34,7 @@ const validationFactory = read('apps/api/src/validation-exception.factory.ts');
 const quoteToursClient = read('apps/web/app/quotes/tours/QuoteToursClient.tsx');
 const quoteCombosClient = read('apps/web/app/quotes/combos/QuoteCombosClient.tsx');
 const quotationsClient = read('apps/web/app/quotations/QuotationsClient.tsx');
+const quotesSmoke = read('scripts/smoke-quotes-quotations.sh');
 
 for (const permission of [
   "@RequirePermissions('quote.view')",
@@ -81,6 +90,12 @@ for (const permission of [
 includes(quotationDto, 'class ListQuotationsQueryDto', 'Quotations list query DTO must exist.');
 includes(quotationDto, 'take?: number', 'Quotations list query DTO must accept bounded take.');
 includes(quotationDto, 'MAX_QUOTATIONS_TAKE', 'Quotations list query DTO must cap take.');
+
+includes(
+  quotesSmoke,
+  'if (bootstrapKey && !process.env.ADMIN_PASSWORD) {',
+  'Quote smoke should prefer the seeded/admin password login path when ADMIN_PASSWORD is available, even if .env contains a bootstrap key.',
+);
 includes(quotationsController, 'list(@Query() query: ListQuotationsQueryDto', 'Quotation list route must use the validated list query DTO.');
 includes(quotationsService, 'take: this.listTake(query.take)', 'Quotation list service must apply bounded take.');
 {
@@ -167,6 +182,27 @@ includes(quotationsService, 'smartLinkEnabled: false', 'Create quotation must fo
 includes(quotationsService, "this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit')", 'Submit must only run from DRAFT/REJECTED.');
 includes(quotationsService, "this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve')", 'Approve must only run from PENDING_APPROVAL.');
 includes(quotationsService, "if (quote.status !== 'APPROVED')", 'Convert must only run from APPROVED.');
+
+const quotationUpdateBlock = sliceBetween(quotationsService, 'async update', '  async remove');
+const quotationRemoveBlock = sliceBetween(quotationsService, 'async remove', '  async submit');
+const quotationSubmitBlock = sliceBetween(quotationsService, 'async submit', '  async approve');
+const quotationApproveBlock = sliceBetween(quotationsService, 'async approve', '  async reject');
+const quotationRejectBlock = sliceBetween(quotationsService, 'async reject', '  async smartLink');
+const quotationSmartLinkBlock = sliceBetween(quotationsService, 'async smartLink', '  async convert');
+
+includes(quotationsService, 'private async lockQuotationForWrite', 'Quotation write/status flows should have a row-lock helper.');
+includes(quotationsService, 'FROM "Quotation"', 'Quotation write/status lock should target the Quotation row.');
+includes(quotationsService, 'FOR UPDATE', 'Quotation write/status lock should use SELECT ... FOR UPDATE.');
+for (const [name, block] of [
+  ['update', quotationUpdateBlock],
+  ['remove', quotationRemoveBlock],
+  ['submit', quotationSubmitBlock],
+  ['approve', quotationApproveBlock],
+  ['reject', quotationRejectBlock],
+  ['smartLink', quotationSmartLinkBlock],
+]) {
+  includes(block, 'this.lockQuotationForWrite(tx, id, user)', `Quotation ${name} must lock and re-read scoped quotation state inside the transaction before writing.`);
+}
 
 includes(quotationsService, 'return this.number(item.quantity, 1) * this.number(item.nightCount, 1) * this.number(item.netPrice) * exchangeRate * (1 + this.number(item.vat) / 100);', 'Quotation backend itemCost must match frontend quantity * nightCount * netPrice * exchangeRate * VAT percent.');
 includes(quotationsService, 'return this.number(item.markupAmount) + cost * (this.number(item.markupPercent) / 100);', 'Quotation backend itemMarkup must match frontend fixed markup plus percent of cost.');

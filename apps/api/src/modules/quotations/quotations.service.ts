@@ -141,8 +141,8 @@ export class QuotationsService {
     });
   }
 
-  async detail(id: string, user?: RequestUser) {
-    const quote = await this.prisma.quotation.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: this.includeAll() });
+  async detail(id: string, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const quote = await client.quotation.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: this.includeAll() });
     if (!quote) throw new NotFoundException('Không tìm thấy báo giá.');
     return quote;
   }
@@ -212,12 +212,12 @@ export class QuotationsService {
   }
 
   async update(id: string, dto: UpdateQuotationDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
     dto = applyWriteDataScope(dto, user);
-    this.assertEditable(current.status);
     dto = this.prepareDto(dto, false);
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const current = await this.lockQuotationForWrite(tx, id, user);
+        this.assertEditable(current.status);
         const items = dto.items ?? current.items.map((item) => ({
           serviceType: item.serviceType,
           supplierId: item.supplierId ?? undefined,
@@ -248,50 +248,60 @@ export class QuotationsService {
         return tx.quotation.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã báo giá đã tồn tại.');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('M\u00e3 b\u00e1o gi\u00e1 \u0111\u00e3 t\u1ed3n t\u1ea1i.');
       throw error;
     }
   }
 
   async remove(id: string, user?: RequestUser) {
-    const quote = await this.detail(id, user);
-    this.assertDeletable(quote.status);
-    return this.prisma.quotation.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await this.lockQuotationForWrite(tx, id, user);
+      this.assertDeletable(quote.status);
+      return tx.quotation.delete({ where: { id } });
+    });
   }
 
   async submit(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    if (current.status === 'PENDING_APPROVAL') return current;
-    this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit');
-    return this.statusFromCurrent(current, 'PENDING_APPROVAL', 'SUBMIT', dto, user);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockQuotationForWrite(tx, id, user);
+      if (current.status === 'PENDING_APPROVAL') return current;
+      this.assertStatus(current.status, ['DRAFT', 'REJECTED'], 'submit');
+      return this.statusFromCurrent(tx, current, 'PENDING_APPROVAL', 'SUBMIT', dto, user);
+    });
   }
 
   async approve(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    if (current.status === 'APPROVED') return current;
-    this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve');
-    return this.statusFromCurrent(current, 'APPROVED', 'APPROVE', dto, user);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockQuotationForWrite(tx, id, user);
+      if (current.status === 'APPROVED') return current;
+      this.assertStatus(current.status, ['PENDING_APPROVAL'], 'approve');
+      return this.statusFromCurrent(tx, current, 'APPROVED', 'APPROVE', dto, user);
+    });
   }
 
   async reject(id: string, dto: QuotationActionDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    if (current.status === 'REJECTED') return current;
-    this.assertStatus(current.status, ['PENDING_APPROVAL'], 'reject');
-    return this.statusFromCurrent(current, 'REJECTED', 'REJECT', dto, user);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockQuotationForWrite(tx, id, user);
+      if (current.status === 'REJECTED') return current;
+      this.assertStatus(current.status, ['PENDING_APPROVAL'], 'reject');
+      return this.statusFromCurrent(tx, current, 'REJECTED', 'REJECT', dto, user);
+    });
   }
 
   async smartLink(id: string, enabled = true, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    if (enabled) {
-      this.assertStatus(current.status, ['APPROVED'], 'toggle smartlink');
-      this.assertSmartLinkPublishable(current);
-    }
-    return this.prisma.quotation.update({
-      where: { id },
-      data: enabled
-        ? { smartLinkEnabled: true, smartLinkToken: this.secureSmartLinkToken(current.smartLinkToken, current.smartLinkEnabled) }
-        : { smartLinkEnabled: false },
-      include: this.includeAll(),
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockQuotationForWrite(tx, id, user);
+      if (enabled) {
+        this.assertStatus(current.status, ['APPROVED'], 'toggle smartlink');
+        this.assertSmartLinkPublishable(current);
+      }
+      return tx.quotation.update({
+        where: { id },
+        data: enabled
+          ? { smartLinkEnabled: true, smartLinkToken: this.secureSmartLinkToken(current.smartLinkToken, current.smartLinkEnabled) }
+          : { smartLinkEnabled: false },
+        include: this.includeAll(),
+      });
     });
   }
 
@@ -358,9 +368,21 @@ export class QuotationsService {
       throw error;
     }
   }
-  private async statusFromCurrent(current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto, user?: RequestUser) {
-    const quote = await this.prisma.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
-    await this.prisma.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.actor(user), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
+  private async statusFromCurrent(tx: Prisma.TransactionClient, current: Awaited<ReturnType<QuotationsService['detail']>>, status: QuotationStatus, action: string, dto: QuotationActionDto, user?: RequestUser) {
+    const quote = await tx.quotation.update({ where: { id: current.id }, data: { status }, include: this.includeAll() });
+    await tx.quotationApprovalLog.create({ data: { quotationId: current.id, action, actor: this.actor(user), note: this.text(dto.note), oldStatus: current.status, newStatus: status } });
+    return quote;
+  }
+
+  private async lockQuotationForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "Quotation"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y b\u00e1o gi\u00e1.');
+    const quote = await this.detail(id, user, tx);
     return quote;
   }
 

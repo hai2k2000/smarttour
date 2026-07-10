@@ -3588,3 +3588,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - resolveLinks and ensureLinksScoped can now use the transaction client for update write flows.
   - Added RED/GREEN coverage in scripts/test-business-logic-guard-contract.js for operation voucher update/delete row locking.
   - Verification passed on the VPS: business logic guard contract, operation vouchers service flow/schema test, operation vouchers client/auth contracts, API build/lint.
+
+
+- 2026-07-10 Quotation write-lock follow-up:
+  - Found QuotationsService update/remove/submit/approve/reject/smartLink read quotation status before writing without locking the row, while convert already used FOR UPDATE.
+  - Quotation write/status flows now lock the Quotation row with FOR UPDATE, re-read scoped quotation state inside the transaction, and write status logs through the same transaction client.
+  - Updated SmartLink expiry contract test to mock the new transaction path.
+  - Found quote smoke auth could prefer SMARTTOUR_BOOTSTRAP_KEY from .env over an already seeded ADMIN_PASSWORD and fail before fallback login; smoke now uses bootstrap only when ADMIN_PASSWORD is absent.
+  - Added RED/GREEN coverage in scripts/test-quotes-backend-contract.js for quotation write/status row locking and quote smoke admin fallback behavior.
+  - Verification passed on the VPS: API build/lint, quotes backend contract, quotation SmartLink expiry/date contracts, and scripts/smoke-quotes-quotations.sh.

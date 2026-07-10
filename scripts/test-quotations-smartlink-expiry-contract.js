@@ -51,7 +51,8 @@ async function main() {
   assert(capturedWhere.expiredDate && capturedWhere.expiredDate.gt instanceof Date, 'public SmartLink must require expiredDate greater than now');
 
   let updateCalled = false;
-  const noExpiryService = new QuotationsService({
+  const noExpiryTx = {
+    $queryRaw: async () => [{ id: 'quote-no-expiry' }],
     quotation: {
       findFirst: async () => ({
         id: 'quote-no-expiry',
@@ -67,6 +68,10 @@ async function main() {
         return {};
       },
     },
+  };
+  const noExpiryService = new QuotationsService({
+    $transaction: async (callback) => callback(noExpiryTx),
+    quotation: noExpiryTx.quotation,
   });
   try {
     await noExpiryService.smartLink('quote-no-expiry', true);

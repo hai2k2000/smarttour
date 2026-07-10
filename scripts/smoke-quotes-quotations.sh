@@ -215,7 +215,7 @@ async function login(identifier, password) {
 
 async function adminToken() {
   const bootstrapKey = process.env.SMARTTOUR_BOOTSTRAP_KEY || process.env.BOOTSTRAP_KEY;
-  if (bootstrapKey) {
+  if (bootstrapKey && !process.env.ADMIN_PASSWORD) {
     const email = `quote-admin-${lowerRun}@smarttour.local`;
     const username = `quote-admin-${lowerRun}`.replace(/[^a-z0-9._-]/g, '-');
     const response = await fetch(api + '/auth/bootstrap', {
