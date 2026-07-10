@@ -86,11 +86,21 @@ for (const [value, label] of [
   ['tx.financeInvoice.updateMany({ where: this.financeInvoiceScopeWhere({ customerId: sourceId }, user)', 'merge finance invoice scope'],
 ]) requireBlockText(customersService, 'async merge(', 'async transferOwner(', value, `Customer service ${label}`);
 for (const [value, label] of [
-  ['tx.tourQuote.updateMany({ where: this.tourQuoteScopeWhere({ customerId: null, OR: customerOr }, user)', 'link tour quote scope'],
-  ['tx.booking.updateMany({ where: bookingScopeWhere({ customerId: null, OR: customerOr }, user)', 'link booking scope'],
+  ['const bookingWhere = { customerId: null, OR: customerOr } satisfies Prisma.BookingWhereInput;', 'link booking base scope'],
+  ['const fitTourWhere = { customerId: null, OR: fitTourOr } satisfies Prisma.FitTourWhereInput;', 'link FIT tour base scope'],
+  ['const financeInvoiceWhere = { customerId: null, OR: customerOr } satisfies Prisma.FinanceInvoiceWhereInput;', 'link finance invoice base scope'],
+  ['const scopedLegacyClaim = !user || hasUnrestrictedDataScope(user)', 'link scoped legacy claim'],
+  ['bookingScopeWhere(bookingWhere, user)', 'link booking scoped legacy claim'],
+  ['{ customerId: null, orderId: null, tourId: null, OR: customerOr }', 'link booking orphan legacy claim'],
+  ['this.fitTourScopeWhere(fitTourWhere, user)', 'link FIT tour scoped legacy claim'],
+  ['{ customerId: null, orderId: null, tourId: null, OR: fitTourOr }', 'link FIT tour orphan legacy claim'],
+  ['this.financeInvoiceScopeWhere(financeInvoiceWhere, user)', 'link finance invoice scoped legacy claim'],
+  ['{ customerId: null, orderId: null, tourId: null, receiptId: null, OR: customerOr }', 'link finance invoice orphan legacy claim'],
+  ['tx.tourQuote.updateMany({ where: { customerId: null, OR: customerOr }, data: { customerId } })', 'link orphan tour quote claim'],
+  ['tx.booking.updateMany({ where: scopedLegacyClaim.booking, data: { customerId } })', 'link booking scoped claim usage'],
   ['tx.tourCustomer.updateMany({ where: this.tourCustomerScopeWhere({ crmCustomerId: null, OR: tourCustomerOr }, user)', 'link tour customer scope'],
-  ['tx.fitTour.updateMany({ where: this.fitTourScopeWhere({ customerId: null, OR: fitTourOr }, user)', 'link FIT tour scope'],
-  ['tx.financeInvoice.updateMany({ where: this.financeInvoiceScopeWhere({ customerId: null, OR: customerOr }, user)', 'link finance invoice scope'],
+  ['tx.fitTour.updateMany({ where: scopedLegacyClaim.fitTour, data: { customerId } })', 'link FIT tour scoped claim usage'],
+  ['tx.financeInvoice.updateMany({ where: scopedLegacyClaim.financeInvoice, data: { customerId } })', 'link finance invoice scoped claim usage'],
 ]) requireBlockText(customersService, 'private async linkExistingData(', 'private canViewDebt(', value, `Customer service ${label}`);
 
 if (failures.length) {

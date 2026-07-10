@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Customer merged terminal write hardening:
+  - Blocked direct writes to customers marked MERGED or carrying mergedIntoId across update/remove/owner transfer/files/comments/care tasks/calls/opportunities and prevented merging an already merged source or target.
+  - Added merged-customer terminal contract coverage and service-flow regressions; refreshed the data-scope contract to match scopedLegacyClaim legacy orphan-link behavior.
+  - Verification passed for customer/data-scope/file-service contracts and flows, API build/lint, diff-check, Docker API rebuild/restart, production healthcheck, and Docker build-cache prune.
+
 - Security hardening installer file command timeout hardening:
   - Hardened `scripts/install-security-hardening.sh` so root-level SSH/env permission and config install commands run through `SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s`.
   - Extended `scripts/test-security-audit-contract.js`, the security runbook, and production readiness tracker so security installer file commands cannot regress to unbounded raw calls.

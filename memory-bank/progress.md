@@ -1,5 +1,11 @@
 # Progress
 
+- Hardened merged customer terminal behavior:
+  - Customers marked MERGED or carrying mergedIntoId now reject direct write paths, including update/remove/owner transfer/files/comments/care tasks/calls/opportunities and repeat merge attempts.
+  - Added scripts/test-customers-merged-terminal-contract.js and extended scripts/test-customers-service.sh to prove merged sources remain terminal after merge.
+  - Updated scripts/test-data-scope-contract.js so legacy orphan linking is guarded through scopedLegacyClaim for Booking/FIT/FinanceInvoice while preserving the existing orphan TourQuote claim behavior.
+  - Verified customer/data-scope/file-service contracts and flows, API build/lint, diff-check, Docker API rebuild/restart, healthcheck, and Docker build-cache prune.
+
 - Hardened security installer file command timeout:
   - `scripts/install-security-hardening.sh` now runs root-level SSH/env permission and config install commands through `SECURITY_INSTALL_FILE_COMMAND_TIMEOUT=10s`.
   - Extended the security audit contract, security runbook, and production readiness tracker so security installer file commands remain bounded.

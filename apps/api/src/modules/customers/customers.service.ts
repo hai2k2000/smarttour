@@ -238,7 +238,7 @@ export class CustomersService {
     actorId?: string,
     user?: RequestUser,
   ) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const upload = await this.filesService.upload(file, `customers/${id}`, actorId);
     try {
       return await this.prisma.customerFile.create({
@@ -251,7 +251,7 @@ export class CustomersService {
   }
 
   async deleteFile(id: string, fileId: string, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const file = await this.prisma.customerFile.findFirst({ where: { id: fileId, customerId: id } });
     if (!file) throw new NotFoundException('Customer file not found');
     const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
@@ -295,8 +295,7 @@ export class CustomersService {
 
   async update(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.actorName(user);
-    const existing = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
-    if (!existing) throw new NotFoundException('Customer not found');
+    const existing = await this.getWritableCustomer(id, user);
     dto = applyWriteDataScope(dto, user);
     this.assertNestedReplaceAllowed(dto);
     const nextPhone = dto.phone !== undefined ? this.required(dto.phone, 'phone') : existing.phone;
@@ -335,8 +334,7 @@ export class CustomersService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
-    if (!customer) throw new NotFoundException('Customer not found');
+    const customer = await this.getWritableCustomer(id, user);
     const customerWhere = this.customerRelationWhere(customer);
     const [orderCount, quotationCount, tourQuoteCount, bookingCount, tourCustomerCount, fitTourCount, ledgerCount, receiptCount, invoiceCount] = await Promise.all([
       this.prisma.order.count({ where: customerWhere.order }),
@@ -362,6 +360,8 @@ export class CustomersService {
       this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: sourceId }, user) }),
     ]);
     if (!target || !source) throw new NotFoundException('Customer not found');
+    this.assertCustomerWritable(target);
+    this.assertCustomerWritable(source);
     const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
       await tx.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
@@ -390,7 +390,7 @@ export class CustomersService {
   }
 
   async transferOwner(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const owner = this.required(dto.owner, 'owner');
     const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
@@ -401,7 +401,7 @@ export class CustomersService {
   }
 
   async addComment(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const actor = this.actorName(user);
     const comment = await this.prisma.customerComment.create({ data: { ...this.comments([dto], actor)[0], customerId: id } });
     await this.prisma.customer.update({ where: { id }, data: { latestComment: comment.content } });
@@ -410,28 +410,28 @@ export class CustomersService {
   }
 
   async addCareTask(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const task = await this.prisma.customerCareTask.create({ data: { ...this.careTasks([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
   async addCallLog(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const call = await this.prisma.customerCallLog.create({ data: { ...this.callLogs([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
   async addOpportunity(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const opportunity = await this.prisma.customerOpportunity.create({ data: { ...this.opportunitiesInput([dto])[0], customerId: id } });
     await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
   async updateCareTask(id: string, taskId: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getCustomer(id, user);
+    await this.getWritableCustomer(id, user);
     const existing = await this.prisma.customerCareTask.findFirst({ where: { id: taskId, customerId: id } });
     if (!existing) throw new NotFoundException('Care task not found');
     const task = await this.prisma.customerCareTask.update({
@@ -912,6 +912,18 @@ export class CustomersService {
     const customer = await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
     if (!customer) throw new NotFoundException('Customer not found');
     return customer;
+  }
+
+  private async getWritableCustomer(id: string, user?: RequestUser) {
+    const customer = await this.getCustomer(id, user);
+    this.assertCustomerWritable(customer);
+    return customer;
+  }
+
+  private assertCustomerWritable(customer: { status?: CustomerStatus | null; mergedIntoId?: string | null }) {
+    if (customer.status === CustomerStatus.MERGED || customer.mergedIntoId) {
+      throw new BadRequestException('Khách hàng đã được gộp, không thể cập nhật trực tiếp');
+    }
   }
 
   private async customerDebtSummaryFromDb(customer: { id: string; phone?: string | null; email?: string | null; fullName?: string | null }, user?: RequestUser) {

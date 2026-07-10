@@ -311,6 +311,13 @@ async function main() {
   assert(await prisma.order.count({ where: { customerId: customer.id, systemCode: run + '-ORD-SRC' } }) === 1, 'merge should move source orders');
   await rejects(() => service.merge(customer.id, { sourceId: outOfScope.id }, branchUser), 'merge should reject source outside scope');
 
+  await rejectsMessage(() => service.update(source.id, { fullName: 'Merged Source Edited' }, branchUser), 'đã được gộp', 'update should reject writes on merged customers');
+  await rejectsMessage(() => service.transferOwner(source.id, { owner: 'merged-owner' }, branchUser), 'đã được gộp', 'transferOwner should reject writes on merged customers');
+  await rejectsMessage(() => service.addComment(source.id, { content: 'merged comment' }, branchUser), 'đã được gộp', 'addComment should reject writes on merged customers');
+  await rejectsMessage(() => service.addFile(source.id, { originalname: 'merged.txt', mimetype: 'text/plain', size: 4, buffer: Buffer.from('test') }, branchUser.id, branchUser), 'đã được gộp', 'addFile should reject writes on merged customers');
+  await rejectsMessage(() => service.merge(customer.id, { sourceId: source.id }, branchUser), 'đã được gộp', 'merge should reject already merged source customers');
+  assert((await prisma.customer.findUnique({ where: { id: source.id } })).status === 'MERGED', 'rejected merged-customer writes must preserve MERGED status');
+
   await service.transferOwner(customer.id, { owner: 'new-owner', reason: 'handover' }, branchUser);
   assert((await prisma.customer.findUnique({ where: { id: customer.id } })).owner === 'new-owner', 'transferOwner should update owner');
   assert(await prisma.customerTimeline.count({ where: { customerId: customer.id, eventType: 'TRANSFER_OWNER', actor: 'Branch User' } }) === 1, 'transferOwner should write timeline actor');
