@@ -710,6 +710,28 @@ async function main() {
     'updateItineraryDay should reject dayNumber changes when tour program has bookings',
   );
   assert(bookedDayNumberMessage === bookedItineraryRemoveMessage, 'dayNumber update and itinerary remove should use the same booking conflict message');
+  const partialBookedProgram = await service.create({
+    code: `${run}-PARTIAL-BOOKED`,
+    name: 'Partial Booked Tour Program',
+    durationDays: 3,
+  });
+  await service.createItineraryDay(partialBookedProgram.id, { dayNumber: 1, title: 'Partial day 1' });
+  await service.createItineraryDay(partialBookedProgram.id, { dayNumber: 2, title: 'Partial day 2' });
+  await prisma.booking.create({
+    data: {
+      code: `${run}-PARTIAL-BOOKING`,
+      tourProgramId: partialBookedProgram.id,
+      customerName: 'Partial Program Booking Customer',
+      paxCount: 2,
+      startDate: new Date('2027-02-01T00:00:00.000Z'),
+      endDate: new Date('2027-02-03T00:00:00.000Z'),
+    },
+  });
+  const bookedCreateDayMessage = await rejectMessage(
+    () => service.createItineraryDay(partialBookedProgram.id, { dayNumber: 3, title: 'Late added day' }),
+    'createItineraryDay should reject structural changes when tour program has bookings',
+  );
+  assert(bookedCreateDayMessage === bookedItineraryRemoveMessage, 'createItineraryDay and itinerary remove should use the same booking conflict message');
   const bookedDayTextUpdate = await service.updateItineraryDay(linkedUnoperatedDay.id, { title: 'Ngày đã cập nhật nội dung' });
   assert(bookedDayTextUpdate.title === 'Ngày đã cập nhật nội dung', 'updateItineraryDay should allow non-structural text changes when bookings exist');
   await rejects(

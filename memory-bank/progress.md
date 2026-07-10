@@ -3129,3 +3129,9 @@
   - Finance receipt/payment/invoice attachment upload/delete now lock and re-check scoped finance state inside the transaction before metadata/file-row writes, preventing stale attachment edits after concurrent approval/rejection/cancel/delete transitions.
   - Verification passed: node scripts/test-finance-attachment-write-lock-contract.js, node scripts/test-phase1-finance-attachment-contract.js, node scripts/test-phase2-finance-file-delete-contract.js, node scripts/test-finance-write-lock-contract.js, scripts/test-finance-service-flows.sh, scripts/test-file-service-error-flows.sh, finance DTO/controller contracts, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed tour program structure write-lock follow-up:
+  - Tour program structural writes now lock and re-check the owning TourProgram inside the transaction before duration changes, program deletion, itinerary day creation, day-number changes, or itinerary deletion.
+  - createItineraryDay now rejects structural changes when the tour program already has bookings, matching update/remove itinerary behavior.
+  - Verification passed: node scripts/test-tour-programs-write-lock-contract.js, scripts/test-tour-programs-service.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

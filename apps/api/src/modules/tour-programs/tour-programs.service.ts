@@ -109,17 +109,27 @@ export class TourProgramsService {
   }
 
   async update(id: string, dto: UpdateTourProgramDto) {
-    const current = await this.detail(id);
     this.validateTourProgramInput(dto);
-    if (dto.durationDays !== undefined) {
-      this.ensureDurationChangeAllowed(dto.durationDays, current.durationDays, current._count.bookings);
-      this.ensureDurationCoversItinerary(dto.durationDays, current.itineraryDays);
-    }
     try {
-      return await this.prisma.tourProgram.update({
-        where: { id },
-        data: this.toTourProgramData(dto) as Prisma.TourProgramUpdateInput,
-        include: { itineraryDays: { orderBy: { dayNumber: 'asc' } } },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockTourProgram(tx, id);
+        const current = await tx.tourProgram.findUnique({
+          where: { id },
+          include: {
+            itineraryDays: { orderBy: { dayNumber: 'asc' } },
+            _count: { select: { bookings: true } },
+          },
+        });
+        if (!current) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
+        if (dto.durationDays !== undefined) {
+          this.ensureDurationChangeAllowed(dto.durationDays, current.durationDays, current._count.bookings);
+          this.ensureDurationCoversItinerary(dto.durationDays, current.itineraryDays);
+        }
+        return tx.tourProgram.update({
+          where: { id },
+          data: this.toTourProgramData(dto) as Prisma.TourProgramUpdateInput,
+          include: { itineraryDays: { orderBy: { dayNumber: 'asc' } } },
+        });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -130,40 +140,47 @@ export class TourProgramsService {
   }
 
   async remove(id: string) {
-    const tourProgram = await this.prisma.tourProgram.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        _count: { select: { bookings: true, itineraryDays: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockTourProgram(tx, id);
+      const tourProgram = await tx.tourProgram.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          _count: { select: { bookings: true, itineraryDays: true } },
+        },
+      });
+      if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
+      if (tourProgram._count.bookings > 0) {
+        throw new ConflictException(`Không thể xóa chương trình tour vì đang có ${tourProgram._count.bookings} booking liên quan`);
+      }
+      if (tourProgram._count.itineraryDays > 0) {
+        throw new ConflictException(`Không thể xóa chương trình tour vì còn ${tourProgram._count.itineraryDays} ngày hành trình`);
+      }
+      return tx.tourProgram.delete({ where: { id } });
     });
-    if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
-    if (tourProgram._count.bookings > 0) {
-      throw new ConflictException(`Không thể xóa chương trình tour vì đang có ${tourProgram._count.bookings} booking liên quan`);
-    }
-    if (tourProgram._count.itineraryDays > 0) {
-      throw new ConflictException(`Không thể xóa chương trình tour vì còn ${tourProgram._count.itineraryDays} ngày hành trình`);
-    }
-    return this.prisma.tourProgram.delete({ where: { id } });
   }
 
   async createItineraryDay(tourProgramId: string, dto: CreateItineraryDayDto) {
-    const tourProgram = await this.prisma.tourProgram.findUnique({
-      where: { id: tourProgramId },
-      select: { id: true, durationDays: true },
-    });
-    if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
     this.validateItineraryDayInput(dto);
-    this.ensureDayNumberWithinDuration(dto.dayNumber, tourProgram.durationDays);
-    await this.ensureUniqueItineraryDay(tourProgramId, dto.dayNumber);
     try {
-      return await this.prisma.tourItineraryDay.create({
-        data: {
-          tourProgramId,
-          dayNumber: dto.dayNumber,
-          title: dto.title.trim(),
-          description: this.optionalText(dto.description),
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockTourProgram(tx, tourProgramId);
+        const tourProgram = await tx.tourProgram.findUnique({
+          where: { id: tourProgramId },
+          select: { id: true, durationDays: true, _count: { select: { bookings: true } } },
+        });
+        if (!tourProgram) throw new NotFoundException(TOUR_PROGRAM_NOT_FOUND);
+        this.ensureItineraryStructureChangeAllowed(tourProgram._count.bookings);
+        this.ensureDayNumberWithinDuration(dto.dayNumber, tourProgram.durationDays);
+        await this.ensureUniqueItineraryDay(tx, tourProgramId, dto.dayNumber);
+        return tx.tourItineraryDay.create({
+          data: {
+            tourProgramId,
+            dayNumber: dto.dayNumber,
+            title: dto.title.trim(),
+            description: this.optionalText(dto.description),
+          },
+        });
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
@@ -174,22 +191,26 @@ export class TourProgramsService {
   }
 
   async updateItineraryDay(id: string, dto: UpdateItineraryDayDto) {
-    const current = await this.ensureItineraryDay(id);
     this.validateItineraryDayInput(dto);
-    const nextDayNumber = dto.dayNumber ?? current.dayNumber;
-    this.ensureDayNumberWithinDuration(nextDayNumber, current.tourProgram.durationDays);
-    if (dto.dayNumber !== undefined && dto.dayNumber !== current.dayNumber) {
-      this.ensureItineraryStructureChangeAllowed(current.tourProgram._count.bookings);
-      await this.ensureUniqueItineraryDay(current.tourProgramId, dto.dayNumber, id);
-    }
     try {
-      return await this.prisma.tourItineraryDay.update({
-        where: { id },
-        data: {
-          ...(dto.dayNumber !== undefined ? { dayNumber: dto.dayNumber } : {}),
-          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-          ...(dto.description !== undefined ? { description: this.optionalText(dto.description) } : {}),
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const current = await this.ensureItineraryDay(id, tx);
+        await this.lockTourProgram(tx, current.tourProgramId);
+        const lockedCurrent = await this.ensureItineraryDay(id, tx);
+        const nextDayNumber = dto.dayNumber ?? lockedCurrent.dayNumber;
+        this.ensureDayNumberWithinDuration(nextDayNumber, lockedCurrent.tourProgram.durationDays);
+        if (dto.dayNumber !== undefined && dto.dayNumber !== lockedCurrent.dayNumber) {
+          this.ensureItineraryStructureChangeAllowed(lockedCurrent.tourProgram._count.bookings);
+          await this.ensureUniqueItineraryDay(tx, lockedCurrent.tourProgramId, dto.dayNumber, id);
+        }
+        return tx.tourItineraryDay.update({
+          where: { id },
+          data: {
+            ...(dto.dayNumber !== undefined ? { dayNumber: dto.dayNumber } : {}),
+            ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+            ...(dto.description !== undefined ? { description: this.optionalText(dto.description) } : {}),
+          },
+        });
       });
     } catch (error) {
       if (this.isUniqueError(error)) {
@@ -200,24 +221,30 @@ export class TourProgramsService {
   }
 
   async removeItineraryDay(id: string) {
-    const day = await this.prisma.tourItineraryDay.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        _count: { select: { services: true } },
-        tourProgram: { select: { _count: { select: { bookings: true } } } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const day = await tx.tourItineraryDay.findUnique({ where: { id }, select: { tourProgramId: true } });
+      if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
+      await this.lockTourProgram(tx, day.tourProgramId);
+      const lockedDay = await tx.tourItineraryDay.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          tourProgramId: true,
+          _count: { select: { services: true } },
+          tourProgram: { select: { _count: { select: { bookings: true } } } },
+        },
+      });
+      if (!lockedDay) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
+      if (lockedDay._count.services > 0) {
+        throw new ConflictException(`Không thể xóa ngày hành trình vì đang có ${lockedDay._count.services} dịch vụ điều hành liên quan`);
+      }
+      this.ensureItineraryStructureChangeAllowed(lockedDay.tourProgram._count.bookings);
+      return tx.tourItineraryDay.delete({ where: { id } });
     });
-    if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
-    if (day._count.services > 0) {
-      throw new ConflictException(`Không thể xóa ngày hành trình vì đang có ${day._count.services} dịch vụ điều hành liên quan`);
-    }
-    this.ensureItineraryStructureChangeAllowed(day.tourProgram._count.bookings);
-    return this.prisma.tourItineraryDay.delete({ where: { id } });
   }
 
-  private async ensureItineraryDay(id: string) {
-    const day = await this.prisma.tourItineraryDay.findUnique({
+  private async ensureItineraryDay(id: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const day = await client.tourItineraryDay.findUnique({
       where: { id },
       include: {
         tourProgram: {
@@ -230,6 +257,10 @@ export class TourProgramsService {
     });
     if (!day) throw new NotFoundException(ITINERARY_DAY_NOT_FOUND);
     return day;
+  }
+
+  private async lockTourProgram(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "TourProgram" WHERE "id" = ${id} FOR UPDATE`;
   }
 
   private validateTourProgramInput(dto: UpdateTourProgramDto) {
@@ -294,8 +325,8 @@ export class TourProgramsService {
     }
   }
 
-  private async ensureUniqueItineraryDay(tourProgramId: string, dayNumber: number, excludeId?: string) {
-    const duplicate = await this.prisma.tourItineraryDay.findFirst({
+  private async ensureUniqueItineraryDay(client: Prisma.TransactionClient | PrismaService, tourProgramId: string, dayNumber: number, excludeId?: string) {
+    const duplicate = await client.tourItineraryDay.findFirst({
       where: {
         tourProgramId,
         dayNumber,

@@ -3640,3 +3640,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Attachment metadata writes now lock the owning finance row with FOR UPDATE, re-read scoped state inside the transaction, and run final-state guards before updating receipt/payment attachment metadata or creating/deleting invoice file rows.
   - Updated attachment/file error-flow contracts to cover transaction-client writes while preserving object cleanup and rollback behavior.
   - Verification/deploy passed on the VPS: finance attachment write-lock contract, phase1/phase2 attachment contracts, finance draft write-lock contract, finance service flows, file-service error flows, finance DTO/controller contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Tour program structure write-lock follow-up:
+  - Found TourProgramsService structural writes checked booking/itinerary/service counts before writes without locking the TourProgram row, and createItineraryDay did not block structural changes when the tour program already had bookings.
+  - Tour program update/remove and itinerary create/update/remove now run inside transactions, lock the owning TourProgram row with FOR UPDATE, and re-check structural guards before duration changes, deletes, day-number changes, or itinerary creation.
+  - Added RED/GREEN coverage in scripts/test-tour-programs-write-lock-contract.js and scripts/test-tour-programs-service.sh for locked structural writes and createItineraryDay booking conflicts.
+  - Verification/deploy passed on the VPS: tour programs write-lock contract, tour programs service flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
