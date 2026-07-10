@@ -3721,3 +3721,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added lockWritableCustomerForWrite to lock the Customer row with SELECT ... FOR UPDATE, re-read through data scope, and reject MERGED/mergedIntoId customers inside the write transaction.
   - Customer interaction writes now run in one transaction and call the lock helper before mutating owner, comments, care tasks, call logs, opportunities, latestComment, or timeline rows.
   - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Customer deletion write-lock follow-up:
+  - Found CustomersService.remove checked customer writability and related business records before delete without a transaction or Customer row lock.
+  - A concurrent order/quote/booking/finance link could be inserted between the relation counts and hard delete, risking SetNull/Cascade side effects or stale deletion of a customer that just became business-linked.
+  - Customer remove now locks and re-reads the Customer row with SELECT ... FOR UPDATE inside the transaction, uses the locked phone/email/fullName snapshot for relation checks, counts related records through the transaction client, and deletes through the transaction client only after the checks pass.
+  - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional customer deletion, no pre-transaction writable snapshot, locked relation checks, and tx-based delete.
+  - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

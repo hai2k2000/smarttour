@@ -334,22 +334,24 @@ export class CustomersService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    const customer = await this.getWritableCustomer(id, user);
-    const customerWhere = this.customerRelationWhere(customer);
-    const [orderCount, quotationCount, tourQuoteCount, bookingCount, tourCustomerCount, fitTourCount, ledgerCount, receiptCount, invoiceCount] = await Promise.all([
-      this.prisma.order.count({ where: customerWhere.order }),
-      this.prisma.quotation.count({ where: customerWhere.quotation }),
-      this.prisma.tourQuote.count({ where: customerWhere.tourQuote }),
-      this.prisma.booking.count({ where: customerWhere.booking }),
-      this.prisma.tourCustomer.count({ where: customerWhere.tourCustomer }),
-      this.prisma.fitTour.count({ where: customerWhere.fitTour }),
-      this.prisma.customerLedgerEntry.count({ where: { customerId: id } }),
-      this.prisma.financeReceipt.count({ where: { customerId: id, deletedAt: null } }),
-      this.prisma.financeInvoice.count({ where: { customerId: id, deletedAt: null } }),
-    ]);
-    if (orderCount || quotationCount || tourQuoteCount || bookingCount || tourCustomerCount || fitTourCount || ledgerCount || receiptCount || invoiceCount) throw new BadRequestException('Khong xoa khach hang da phat sinh bao gia, don hang, booking, tour, cong no hoac chung tu tai chinh');
-    await this.prisma.customer.delete({ where: { id } });
-    return { deleted: true };
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await this.lockWritableCustomerForWrite(tx, id, user);
+      const customerWhere = this.customerRelationWhere(customer);
+      const [orderCount, quotationCount, tourQuoteCount, bookingCount, tourCustomerCount, fitTourCount, ledgerCount, receiptCount, invoiceCount] = await Promise.all([
+        tx.order.count({ where: customerWhere.order }),
+        tx.quotation.count({ where: customerWhere.quotation }),
+        tx.tourQuote.count({ where: customerWhere.tourQuote }),
+        tx.booking.count({ where: customerWhere.booking }),
+        tx.tourCustomer.count({ where: customerWhere.tourCustomer }),
+        tx.fitTour.count({ where: customerWhere.fitTour }),
+        tx.customerLedgerEntry.count({ where: { customerId: id } }),
+        tx.financeReceipt.count({ where: { customerId: id, deletedAt: null } }),
+        tx.financeInvoice.count({ where: { customerId: id, deletedAt: null } }),
+      ]);
+      if (orderCount || quotationCount || tourQuoteCount || bookingCount || tourCustomerCount || fitTourCount || ledgerCount || receiptCount || invoiceCount) throw new BadRequestException('Khong xoa khach hang da phat sinh bao gia, don hang, booking, tour, cong no hoac chung tu tai chinh');
+      await tx.customer.delete({ where: { id } });
+      return { deleted: true };
+    });
   }
 
   async merge(targetId: string, dto: AnyRecord, user?: RequestUser) {
@@ -939,7 +941,7 @@ export class CustomersService {
     if (!locked.length) throw new NotFoundException('Customer not found');
     const customer = await tx.customer.findFirst({
       where: branchDepartmentScopeWhere({ id }, user),
-      select: { id: true, status: true, mergedIntoId: true },
+      select: { id: true, status: true, mergedIntoId: true, phone: true, email: true, fullName: true },
     });
     if (!customer) throw new NotFoundException('Customer not found');
     this.assertCustomerWritable(customer);

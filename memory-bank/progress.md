@@ -3198,3 +3198,8 @@
   - Customer interaction sub-actions now lock and re-check the Customer row inside a single transaction before writing child/timeline/customer activity rows, preventing stale writes to MERGED customers and partial activity persistence.
   - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed customer deletion write-lock follow-up:
+  - Customer delete now runs in one transaction, locks/re-reads the Customer row before relation checks, and performs relation counts plus delete via the transaction client to prevent stale hard deletes after concurrent business links.
+  - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -57,6 +57,24 @@ for (const [name, start, end] of interactionWriteMethods) {
   if (!transactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push(`${name}: must lock and re-read writable customer inside the transaction`);
 }
 
+const removeBlock = sliceBetween(service, '  async remove(', '  async merge(');
+const removeTransactionIndex = removeBlock.indexOf('this.prisma.$transaction(async (tx) => {');
+if (removeTransactionIndex === -1) failures.push('remove: customer deletion must run in one transaction');
+const removeBeforeTransaction = removeTransactionIndex === -1 ? removeBlock : removeBlock.slice(0, removeTransactionIndex);
+if (removeBeforeTransaction.includes('getWritableCustomer')) failures.push('remove: must not use a pre-transaction customer writability snapshot');
+const removeTransactionBlock = removeTransactionIndex === -1 ? '' : removeBlock.slice(removeTransactionIndex);
+if (!removeTransactionBlock.includes('const customer = await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push('remove: must lock and re-read writable customer inside the transaction before relation checks');
+const removeLockIndex = removeTransactionBlock.indexOf('lockWritableCustomerForWrite(tx, id, user)');
+const removeRelationWhereIndex = removeTransactionBlock.indexOf('this.customerRelationWhere(customer)');
+const removeCountIndex = removeTransactionBlock.indexOf('await Promise.all([');
+const removeDeleteIndex = removeTransactionBlock.indexOf('await tx.customer.delete({ where: { id } })');
+if (removeLockIndex === -1 || removeRelationWhereIndex === -1 || removeRelationWhereIndex < removeLockIndex) failures.push('remove: relation checks must use the locked customer snapshot');
+if (removeCountIndex === -1 || removeDeleteIndex === -1 || removeDeleteIndex < removeCountIndex) failures.push('remove: must check related records before deleting inside the same transaction');
+for (const model of ['order', 'quotation', 'tourQuote', 'booking', 'tourCustomer', 'fitTour', 'customerLedgerEntry', 'financeReceipt', 'financeInvoice']) {
+  if (!removeTransactionBlock.includes(`tx.${model}.count`)) failures.push(`remove: related ${model} count must run on the transaction client`);
+}
+if (removeBlock.includes('this.prisma.customer.delete')) failures.push('remove: customer delete must use the transaction client');
+
 const mergeBlock = sliceBetween(service, '  async merge(', '  async transferOwner(');
 if ((mergeBlock.match(/assertCustomerWritable/g) || []).length < 2) failures.push('merge: must reject MERGED target and source customers');
 
