@@ -3662,3 +3662,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Tour program update/remove and itinerary create/update/remove now run inside transactions, lock the owning TourProgram row with FOR UPDATE, and re-check structural guards before duration changes, deletes, day-number changes, or itinerary creation.
   - Added RED/GREEN coverage in scripts/test-tour-programs-write-lock-contract.js and scripts/test-tour-programs-service.sh for locked structural writes and createItineraryDay booking conflicts.
   - Verification/deploy passed on the VPS: tour programs write-lock contract, tour programs service flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Tour terminal data-edit guard follow-up:
+  - Found TourCore only guarded terminal lifecycle changes when status was present, so completed/cancelled/settled tours could still receive non-status data edits through common Tour updates; typed GIT/LandTour detail fields had the same gap.
+  - TourCore now rejects non-status data edits when the current Tour status is COMPLETED, CANCELLED, or SETTLED, while still allowing status-only COMPLETED -> SETTLED settlement.
+  - Follow-up RED exposed scoped users were blocked from status-only settlement because applyWriteDataScope stamps branch/department into the update payload; TourCore and typed/FIT callers now pass the original client-requested fields into terminal guards so server-applied scope fields do not count as data edits.
+  - Verification/deploy passed on the VPS: scripts/test-tour-type-apis.sh, node scripts/test-business-logic-guard-contract.js, scripts/test-data-scope-module-flows.sh, scripts/test-fit-tour-root-contract.sh, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

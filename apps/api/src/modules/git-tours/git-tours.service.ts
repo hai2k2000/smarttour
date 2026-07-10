@@ -3,7 +3,7 @@ import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
+import { assertTourTerminalDataUpdateAllowed, TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateGitTourDto } from './dto/create-git-tour.dto';
 import { DEFAULT_GIT_TOURS_TAKE, ListGitToursQueryDto } from './dto/list-git-tours-query.dto';
 import { UpdateGitTourDto } from './dto/update-git-tour.dto';
@@ -105,11 +105,13 @@ export class GitToursService {
   }
 
   async update(id: string, dto: UpdateGitTourDto, user?: RequestUser) {
-    await this.detail(id, user);
+    const requestedFields = Object.keys(dto as Row);
+    const current = await this.detail(id, user);
     dto = this.prepareGitDto(applyWriteDataScope(dto, user), false);
+    assertTourTerminalDataUpdateAllowed(current.status, this.nonStatusFields(requestedFields));
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
+        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user, requestedFields);
         await tx.gitTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toGitDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.GitTourDetailUncheckedCreateInput,
@@ -286,6 +288,10 @@ export class GitToursService {
     if (normalized.paymentStatus !== undefined) normalized.paymentStatus = this.toPaymentStatus(normalized.paymentStatus);
     if (normalized.workflowStep !== undefined) normalized.workflowStep = this.toGitWorkflowStep(normalized.workflowStep);
     return normalized as unknown as T;
+  }
+
+  private nonStatusFields(fields: string[]) {
+    return fields.filter((field) => field !== 'status');
   }
 
   private toGitDetailData(dto: UpdateGitTourDto): Prisma.GitTourDetailUncheckedCreateInput | Prisma.GitTourDetailUncheckedUpdateInput {

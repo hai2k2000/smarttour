@@ -29,6 +29,11 @@ const operations = read('apps/api/src/modules/operations/operations.service.ts')
 const operationVouchers = read('apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts');
 const orderLifecycle = read('apps/api/src/modules/orders/order-lifecycle.ts');
 const orderAllotments = read('apps/api/src/modules/orders/order-allotment-sync.ts');
+const tourCore = read('apps/api/src/modules/tours/tour-core.service.ts');
+const commonTours = read('apps/api/src/modules/tours/tours.service.ts');
+const gitTours = read('apps/api/src/modules/git-tours/git-tours.service.ts');
+const landTours = read('apps/api/src/modules/landtours/landtours.service.ts');
+const fitTours = read('apps/api/src/modules/fit-tours/fit-tours.service.ts');
 const suppliers = read('apps/api/src/modules/suppliers/suppliers.service.ts');
 
 excludes(
@@ -129,6 +134,70 @@ includes(
   orderLifecycle,
   "COMPLETED: new Set(['COMPLETED', 'SETTLED'])",
   'Completed orders should only remain completed or be settled.',
+);
+
+includes(
+  tourCore,
+  'export function isTerminalTourStatus(status: TourStatus)',
+  'TourCore update must identify terminal tour statuses for non-status write guards.',
+);
+includes(
+  tourCore,
+  'export function assertTourTerminalDataUpdateAllowed(currentStatus: TourStatus, dataFields: string[])',
+  'TourCore terminal data edit guard should be shared by typed tour services.',
+);
+includes(
+  tourCore,
+  'const fieldsForTerminalGuard = guardFields || changedFields',
+  'TourCore update must distinguish client-requested fields from server-applied write-scope fields.',
+);
+includes(
+  tourCore,
+  "const dataFields = fieldsForTerminalGuard.filter((field) => field !== 'status')",
+  'TourCore update must distinguish lifecycle status changes from other data edits.',
+);
+includes(
+  tourCore,
+  'assertTourTerminalDataUpdateAllowed(current.status, dataFields)',
+  'TourCore update must reject non-status data edits after terminal tour status.',
+);
+includes(
+  commonTours,
+  'const requestedFields = Object.keys(dto as Record<string, unknown>)',
+  'Common tour updates should capture client-requested fields before write-scope stamping.',
+);
+includes(
+  commonTours,
+  'this.tourCore.updateRoot(tx, id, dto as Record<string, unknown>, { type: current.type }, user, requestedFields)',
+  'Common tour updates should pass client-requested fields into TourCore terminal guards.',
+);
+for (const pair of [['GIT', gitTours], ['LandTour', landTours]]) {
+  const label = pair[0];
+  const moduleSource = pair[1];
+  includes(moduleSource, 'const requestedFields = Object.keys(dto as Row)', label + ' updates should capture client-requested fields before write-scope stamping.');
+  includes(moduleSource, 'assertTourTerminalDataUpdateAllowed(current.status, this.nonStatusFields(requestedFields))', label + ' updates should guard terminal detail edits using client-requested fields.');
+  includes(moduleSource, 'private nonStatusFields(fields: string[])', label + ' terminal detail guard should operate on a field list, not the scope-stamped DTO.');
+  includes(moduleSource, 'this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user, requestedFields)', label + ' updates should pass client-requested fields into TourCore terminal guards.');
+}
+includes(
+  fitTours,
+  'const requestedFields = Object.keys(dto as Row)',
+  'FIT tour updates should capture client-requested fields before write-scope stamping.',
+);
+includes(
+  fitTours,
+  'requestedFields?: string[]',
+  'FIT tour update options should carry client-requested fields into TourCore sync.',
+);
+includes(
+  fitTours,
+  'this.tourCore.updateRoot(tx, current.tourId, dto as unknown as Row, this.tourConfig(), user, guardFields)',
+  'FIT tour root sync should pass client-requested fields into TourCore terminal guards.',
+);
+includes(
+  tourCore,
+  'Kh\\u00f4ng th\\u1ec3 ch\\u1ec9nh s\\u1eeda tour \\u0111\\u00e3 \\u1edf tr\\u1ea1ng th\\u00e1i cu\\u1ed1i',
+  'TourCore terminal data edit guard should return a business-facing message.',
 );
 
 const supplierUpdate = sliceBetween(suppliers, 'async updateSupplier(id: string', '  async deleteSupplier');

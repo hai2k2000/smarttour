@@ -456,10 +456,40 @@ async function main() {
     },
   });
 
+  const scopedToken = `tour-type-api-scoped-test.${crypto.randomBytes(24).toString('base64url')}`;
+  const scopedBranch = `${run}-SCOPED-BRANCH`;
+  const scopedDepartment = `${run}-SCOPED-DEPT`;
+  const scopedRole = await prisma.role.create({
+    data: {
+      code: `${run.toLowerCase()}-scoped-role`,
+      name: 'Tour Type API Scoped Role',
+      permissions: { create: [{ permission: 'tour.view' }, { permission: 'tour.manage' }, { permission: 'data.scope.branch' }, { permission: 'data.scope.department' }] },
+    },
+  });
+  const scopedUser = await prisma.user.create({
+    data: {
+      username: `${run.toLowerCase()}-scoped-user`,
+      email: `${run.toLowerCase()}-scoped@smarttour.local`,
+      name: 'Tour Type API Scoped User',
+      passwordHash: 'not-used',
+      branch: scopedBranch,
+      department: scopedDepartment,
+      roles: { create: { roleId: scopedRole.id } },
+    },
+  });
+  await prisma.userSession.create({
+    data: {
+      userId: scopedUser.id,
+      tokenHash: tokenHash(scopedToken),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+
   const address = app.getHttpServer().address();
   const baseUrl = `http://127.0.0.1:${address.port}`;
   const headers = { authorization: `Bearer ${token}` };
   const viewHeaders = { authorization: `Bearer ${viewToken}` };
+  const scopedHeaders = { authorization: `Bearer ${scopedToken}` };
 
   async function api(path, options = {}) {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -631,6 +661,13 @@ async function main() {
     'common tour should allow completion',
   );
   assert(completedCommonTourDone.status === 'COMPLETED', 'common tour should reach COMPLETED status');
+  const editedCompletedCommonTour = await expect(
+    `/api/tours/${completedCommonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ name: 'Edited completed common tour' }) },
+    400,
+    'common completed tour should reject non-status data edits',
+  );
+  assertMessage(editedCompletedCommonTour, 'Kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda tour \u0111\u00e3 \u1edf tr\u1ea1ng th\u00e1i cu\u1ed1i', 'common completed edit message should match Tour rule');
   const reopenedCompletedCommonTour = await expect(
     `/api/tours/${completedCommonTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -659,6 +696,36 @@ async function main() {
     'common tour close should not reopen SETTLED tour',
   );
   assertMessage(closedSettledCommonTour, 'Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'common close should reject settled tours');
+
+  const scopedCompletedCommonTour = await expect(
+    '/api/tours',
+    {
+      method: 'POST',
+      headers: scopedHeaders,
+      body: JSON.stringify({
+        type: 'FIT',
+        systemCode: `${run}-SCOPED-COMPLETE-SYS`,
+        tourCode: `${run}-SCOPED-COMPLETE-TOUR`,
+        name: 'Tour type API scoped completed common tour',
+      }),
+    },
+    201,
+    'scoped common tour create should stamp data scope',
+  );
+  assert(scopedCompletedCommonTour.branch === scopedBranch && scopedCompletedCommonTour.department === scopedDepartment, 'scoped common tour should be written into user scope');
+  await expect(
+    `/api/tours/${scopedCompletedCommonTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'scoped common tour should allow completion',
+  );
+  const scopedSettledCommonTour = await expect(
+    `/api/tours/${scopedCompletedCommonTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'scoped common completed tour should allow status-only settlement despite write scope stamping',
+  );
+  assert(scopedSettledCommonTour.status === 'SETTLED', 'scoped common tour should reach SETTLED status');
   const cancelledCommonTour = await expect(
     `/api/tours/${commonTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
@@ -1222,6 +1289,13 @@ async function main() {
     'GIT tour should allow completion through typed endpoint',
   );
   assert(completedGitTourDone.status === 'COMPLETED', 'GIT tour should reach COMPLETED status');
+  const editedCompletedGitTour = await expect(
+    `/api/git-tours/${completedGitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ holdCode: 'Edited completed GIT hold code' }) },
+    400,
+    'GIT completed tour should reject detail data edits',
+  );
+  assertMessage(editedCompletedGitTour, 'Kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda tour \u0111\u00e3 \u1edf tr\u1ea1ng th\u00e1i cu\u1ed1i', 'GIT completed detail edit message should match Tour rule');
   const reopenedCompletedGitTour = await expect(
     `/api/git-tours/${completedGitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -1243,6 +1317,35 @@ async function main() {
     'GIT typed endpoint should not reopen SETTLED tour',
   );
   assertMessage(reopenedSettledGitTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'GIT settled terminal message should match common Tour rule');
+
+  const scopedCompletedGitTour = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      headers: scopedHeaders,
+      body: JSON.stringify({
+        systemCode: `${run}-SCOPED-GIT-COMPLETE-SYS`,
+        tourCode: `${run}-SCOPED-GIT-COMPLETE`,
+        name: 'Tour type API scoped completed GIT tour',
+      }),
+    },
+    201,
+    'create scoped GIT tour for settlement lifecycle guard',
+  );
+  assert(scopedCompletedGitTour.branch === scopedBranch && scopedCompletedGitTour.department === scopedDepartment, 'scoped GIT tour should be written into user scope');
+  await expect(
+    `/api/git-tours/${scopedCompletedGitTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'scoped GIT tour should allow completion through typed endpoint',
+  );
+  const scopedSettledGitTour = await expect(
+    `/api/git-tours/${scopedCompletedGitTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'scoped GIT completed tour should allow status-only settlement despite write scope stamping',
+  );
+  assert(scopedSettledGitTour.status === 'SETTLED', 'scoped GIT tour should reach SETTLED status');
   const cancelledGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
@@ -1658,6 +1761,13 @@ async function main() {
     'LandTour should allow completion through typed endpoint',
   );
   assert(completedLandTourDone.status === 'COMPLETED', 'LandTour should reach COMPLETED status');
+  const editedCompletedLandTour = await expect(
+    `/api/landtours/${completedLandTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ comboType: 'Edited completed LandTour combo' }) },
+    400,
+    'LandTour completed tour should reject detail data edits',
+  );
+  assertMessage(editedCompletedLandTour, 'Kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda tour \u0111\u00e3 \u1edf tr\u1ea1ng th\u00e1i cu\u1ed1i', 'LandTour completed detail edit message should match Tour rule');
   const reopenedCompletedLandTour = await expect(
     `/api/landtours/${completedLandTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
@@ -1679,6 +1789,35 @@ async function main() {
     'LandTour typed endpoint should not reopen SETTLED tour',
   );
   assertMessage(reopenedSettledLandTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'LandTour settled terminal message should match common Tour rule');
+
+  const scopedCompletedLandTour = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      headers: scopedHeaders,
+      body: JSON.stringify({
+        systemCode: `${run}-SCOPED-LAND-COMPLETE-SYS`,
+        tourCode: `${run}-SCOPED-LAND-COMPLETE`,
+        name: 'Tour type API scoped completed LandTour',
+      }),
+    },
+    201,
+    'create scoped LandTour for settlement lifecycle guard',
+  );
+  assert(scopedCompletedLandTour.branch === scopedBranch && scopedCompletedLandTour.department === scopedDepartment, 'scoped LandTour should be written into user scope');
+  await expect(
+    `/api/landtours/${scopedCompletedLandTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'scoped LandTour should allow completion through typed endpoint',
+  );
+  const scopedSettledLandTour = await expect(
+    `/api/landtours/${scopedCompletedLandTour.id}`,
+    { method: 'PATCH', headers: scopedHeaders, body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'scoped LandTour completed tour should allow status-only settlement despite write scope stamping',
+  );
+  assert(scopedSettledLandTour.status === 'SETTLED', 'scoped LandTour should reach SETTLED status');
   const cancelledLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },

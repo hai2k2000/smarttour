@@ -3,7 +3,7 @@ import { PaymentStatus, Prisma, TourServiceStatus, TourStatus, TourType } from '
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
+import { assertTourTerminalDataUpdateAllowed, TourCommonChildren, TourCoreService, TourRootConfig } from '../tours/tour-core.service';
 import { CreateLandTourDto } from './dto/create-landtour.dto';
 import { DEFAULT_LANDTOURS_TAKE, ListLandToursQueryDto } from './dto/list-landtours-query.dto';
 import { UpdateLandTourDto } from './dto/update-landtour.dto';
@@ -108,12 +108,14 @@ export class LandToursService {
   }
 
   async update(id: string, dto: UpdateLandTourDto, user?: RequestUser) {
-    await this.detail(id, user);
+    const requestedFields = Object.keys(dto as Row);
+    const current = await this.detail(id, user);
     dto = this.prepareLandTourDto(applyWriteDataScope(dto as UpdateLandTourDto & { branch?: string | null; department?: string | null }, user), false);
+    assertTourTerminalDataUpdateAllowed(current.status, this.nonStatusFields(requestedFields));
     try {
       await this.prisma.$transaction(async (tx) => {
         await this.ensureCodeUniqueness(tx, dto, id);
-        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user);
+        await this.tourCore.updateRoot(tx, id, this.toTourRootDto(dto), this.tourConfig(), user, requestedFields);
         await tx.landTourDetail.upsert({
           where: { tourId: id },
           create: { ...(this.toLandDetailData(dto) as Record<string, unknown>), tourId: id } as Prisma.LandTourDetailUncheckedCreateInput,
@@ -275,6 +277,10 @@ export class LandToursService {
     if (normalized.paymentStatus !== undefined) normalized.paymentStatus = this.toPaymentStatus(normalized.paymentStatus);
     if (normalized.workflowStep !== undefined) normalized.workflowStep = this.toLandTourWorkflowStep(normalized.workflowStep);
     return normalized as unknown as T;
+  }
+
+  private nonStatusFields(fields: string[]) {
+    return fields.filter((field) => field !== 'status');
   }
 
   private toLandDetailData(dto: UpdateLandTourDto): Prisma.LandTourDetailUncheckedCreateInput | Prisma.LandTourDetailUncheckedUpdateInput {

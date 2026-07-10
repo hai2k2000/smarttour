@@ -125,12 +125,13 @@ export class ToursService {
   }
 
   async update(id: string, dto: UpdateTourDto, user?: RequestUser) {
+    const requestedFields = Object.keys(dto as Record<string, unknown>);
     const current = await this.detail(id, user);
     assertTourLifecycleUpdateAllowed(current.status, dto.status);
     dto = applyWriteDataScope(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.tourCore.updateRoot(tx, id, dto as Record<string, unknown>, { type: current.type }, user);
+        await this.tourCore.updateRoot(tx, id, dto as Record<string, unknown>, { type: current.type }, user, requestedFields);
         await this.tourCore.logAction(tx, id, 'UPDATE_TOUR', { user, module: 'tours' });
         return tx.tour.findUniqueOrThrow({ where: { id }, include: tourInclude });
       });

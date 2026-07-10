@@ -16,7 +16,7 @@ type Row = Record<string, unknown>;
 type FitCostGroupField = 'commonCosts' | 'hotelCosts' | 'privateCosts';
 type RootFitCostGroups = Record<FitCostGroupField, Row[]>;
 type FitTourStep = keyof typeof FIT_TOUR_STEP_FIELDS;
-type FitUpdateOptions = { step?: FitTourStep; confirm?: boolean };
+type FitUpdateOptions = { step?: FitTourStep; confirm?: boolean; requestedFields?: string[] };
 type FitCreateOptions = { allowAttachmentMetadata?: boolean };
 type UploadedFitFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
 
@@ -187,10 +187,11 @@ export class FitToursService {
   }
 
   async update(id: string, dto: UpdateFitTourDto, user?: RequestUser) {
+    const requestedFields = Object.keys(dto as Row);
     const current = await this.detail(id, user);
     const scopedDto = applyWriteDataScope(dto as UpdateFitTourDto & { branch?: string | null; department?: string | null }, user) as UpdateFitTourDto;
     try {
-      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, scopedDto, user));
+      await this.prisma.$transaction((tx) => this.updateFitTourAggregate(tx, id, current, scopedDto, user, { requestedFields }));
       return this.detail(id, user);
     } catch (error) {
       this.rethrowFitUniqueConflict(error);
@@ -346,7 +347,7 @@ export class FitToursService {
   ) {
     const { patch, merged } = await this.prepareUpdateFitDto(tx, current, dto, user, options);
     const rootDto = current.tourId ? patch : merged;
-    const tourId = await this.syncTourRootFromFit(tx, current, rootDto, user);
+    const tourId = await this.syncTourRootFromFit(tx, current, rootDto, user, options.requestedFields);
     await this.syncTourCoreFromFit(tx, tourId, merged, patch);
     await this.updateLegacyFitDetail(tx, id, current, patch, tourId);
     await this.legacyCompat.syncChildren(tx, id, patch, this.totalPax(merged));
@@ -966,12 +967,13 @@ export class FitToursService {
     current: Pick<Awaited<ReturnType<FitToursService['detail']>>, 'tourId'>,
     dto: UpdateFitTourDto,
     user?: RequestUser,
+    guardFields?: string[],
   ) {
     if (!current.tourId) {
       const tour = await this.tourCore.createRoot(tx, dto as unknown as Row, this.tourConfig(), user);
       return tour.id;
     }
-    await this.tourCore.updateRoot(tx, current.tourId, dto as unknown as Row, this.tourConfig(), user);
+    await this.tourCore.updateRoot(tx, current.tourId, dto as unknown as Row, this.tourConfig(), user, guardFields);
     return current.tourId;
   }
 

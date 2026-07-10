@@ -31,6 +31,16 @@ export function assertTourCloseAllowed(currentStatus: TourStatus) {
   }
 }
 
+export function isTerminalTourStatus(status: TourStatus) {
+  return status === TourStatus.COMPLETED || status === TourStatus.CANCELLED || status === TourStatus.SETTLED;
+}
+
+export function assertTourTerminalDataUpdateAllowed(currentStatus: TourStatus, dataFields: string[]) {
+  if (dataFields.length && isTerminalTourStatus(currentStatus)) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 ch\u1ec9nh s\u1eeda tour \u0111\u00e3 \u1edf tr\u1ea1ng th\u00e1i cu\u1ed1i');
+  }
+}
+
 export type TourRootConfig = {
   type: TourType;
   systemCodeField?: string;
@@ -135,21 +145,27 @@ export class TourCoreService {
     return tx.tour.create({ data });
   }
 
-  async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser) {
+  async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser, guardFields?: string[]) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;
-    await this.ensureLifecycleUpdateAllowed(tx, tourId, data as AnyRecord, user);
+    await this.ensureLifecycleUpdateAllowed(tx, tourId, data as AnyRecord, user, guardFields);
     await this.ensureUpdatedDateRange(tx, tourId, data as AnyRecord);
     return tx.tour.update({ where: { id: tourId }, data });
   }
 
-  private async ensureLifecycleUpdateAllowed(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord, user?: RequestUser) {
-    if (!Object.prototype.hasOwnProperty.call(data, 'status')) return;
-    const nextStatus = data.status as TourStatus | undefined;
-    if (nextStatus === undefined) return;
+  private async ensureLifecycleUpdateAllowed(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord, user?: RequestUser, guardFields?: string[]) {
+    const changedFields = Object.keys(data);
+    if (!changedFields.length) return;
+    const fieldsForTerminalGuard = guardFields || changedFields;
     const current = await tx.tour.findFirst({ where: this.scopeWhere({ id: tourId }, user), select: { status: true } });
     if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
-    assertTourLifecycleUpdateAllowed(current.status, nextStatus);
+
+    const hasStatusChange = Object.prototype.hasOwnProperty.call(data, 'status');
+    const nextStatus = hasStatusChange ? data.status as TourStatus | undefined : undefined;
+    if (hasStatusChange && nextStatus !== undefined) assertTourLifecycleUpdateAllowed(current.status, nextStatus);
+
+    const dataFields = fieldsForTerminalGuard.filter((field) => field !== 'status');
+    assertTourTerminalDataUpdateAllowed(current.status, dataFields);
   }
 
   ensureDateRange(startDate: unknown, endDate: unknown) {

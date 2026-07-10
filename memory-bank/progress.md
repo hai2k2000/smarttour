@@ -3152,3 +3152,9 @@
   - createItineraryDay now rejects structural changes when the tour program already has bookings, matching update/remove itinerary behavior.
   - Verification passed: node scripts/test-tour-programs-write-lock-contract.js, scripts/test-tour-programs-service.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed tour terminal data-edit guard follow-up:
+  - Common Tour, GIT, LandTour, and FIT-root updates now block non-status edits after terminal tour statuses while preserving scoped users' status-only COMPLETED -> SETTLED settlement.
+  - Guard checks use client-requested fields instead of write-scope-stamped branch/department fields, preventing false terminal data-edit conflicts for scoped writes.
+  - Verification passed: RED/GREEN scripts/test-tour-type-apis.sh, node scripts/test-business-logic-guard-contract.js, scripts/test-data-scope-module-flows.sh, scripts/test-fit-tour-root-contract.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
