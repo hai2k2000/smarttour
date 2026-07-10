@@ -3614,3 +3614,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - linkExistingData now still scopes rows that already have order/tour/customer/receipt relations, but can claim fully orphan legacy rows by matching phone/email/name inside the create/update transaction.
   - Verification passed on the VPS: customer DTO contract, customer service flow, customer API flow, API build/lint, and git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Supplier allotment row-lock follow-up:
+  - Found supplier deactivate/delete and hotel allotment lock flows did not share a supplier row lock, so a manual/order allotment allocation could race with supplier INACTIVE/soft-delete and leave active allocations on an inactive/deleted supplier.
+  - SuppliersService now locks the Supplier row with FOR UPDATE before status transitions, hotel deactivation guards, manual allotment locks, and soft-delete usage checks.
+  - Order hotel auto-lock now filters active suppliers and locks the owning Supplier row before reserving SupplierAllotment inventory.
+  - Added RED/GREEN coverage in scripts/test-business-logic-guard-contract.js and updated supplier contracts to expect locked.status transition checks.
+  - Verification/deploy passed on the VPS: business logic guard, supplier common/typed/generic/hotel suites, order service flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

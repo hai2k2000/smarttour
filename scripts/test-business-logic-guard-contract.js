@@ -29,6 +29,7 @@ const operations = read('apps/api/src/modules/operations/operations.service.ts')
 const operationVouchers = read('apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts');
 const orderLifecycle = read('apps/api/src/modules/orders/order-lifecycle.ts');
 const orderAllotments = read('apps/api/src/modules/orders/order-allotment-sync.ts');
+const suppliers = read('apps/api/src/modules/suppliers/suppliers.service.ts');
 
 excludes(
   quotations,
@@ -128,6 +129,43 @@ includes(
   orderLifecycle,
   "COMPLETED: new Set(['COMPLETED', 'SETTLED'])",
   'Completed orders should only remain completed or be settled.',
+);
+
+const supplierUpdate = sliceBetween(suppliers, 'async updateSupplier(id: string', '  async deleteSupplier');
+const supplierStatusUpdate = sliceBetween(suppliers, 'async updateSupplierStatus', '  async listTypedSuppliers');
+const typedSupplierUpdate = sliceBetween(suppliers, 'async updateTypedSupplier', '  async updateTypedSupplierStatus');
+const typedSupplierStatusUpdate = sliceBetween(suppliers, 'async updateTypedSupplierStatus', '  async deleteTypedSupplier');
+const hotelSupplierUpdate = sliceBetween(suppliers, 'async updateHotelSupplier', '  async allotmentDashboard');
+const supplierManualAllotmentLock = sliceBetween(suppliers, 'async lockAllotment', '  async confirmAllotmentAllocation');
+const supplierDeleteRecord = sliceBetween(suppliers, 'private async deleteSupplierRecord', '  private async supplierUsage');
+
+includes(
+  suppliers,
+  'private async lockSupplierForStatusWrite',
+  'Supplier status/deactivation write flows should lock the supplier row before checking transitions and active allocations.',
+);
+includes(
+  suppliers,
+  'private async lockSupplierForAllotmentWrite',
+  'Manual allotment lock should share the supplier row lock with supplier deactivation flows.',
+);
+includes(supplierUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Generic supplier update must re-read and lock supplier status inside the transaction.');
+includes(supplierStatusUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Generic supplier status endpoint must lock supplier row before transition checks.');
+includes(typedSupplierUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Typed supplier update must re-read and lock supplier status inside the transaction.');
+includes(typedSupplierStatusUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Typed supplier status endpoint must lock supplier row before transition checks.');
+includes(hotelSupplierUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Hotel supplier update must re-read and lock supplier status inside the transaction.');
+includes(supplierManualAllotmentLock, 'this.lockSupplierForAllotmentWrite(tx, current.supplierId)', 'Manual allotment lock must lock the owning supplier before reserving inventory.');
+includes(supplierDeleteRecord, 'this.lockSupplierForStatusWrite(tx, id)', 'Supplier soft delete must lock the supplier row before usage checks.');
+includes(supplierDeleteRecord, 'const usage = await this.supplierUsage(id)', 'Supplier soft delete must re-check usage after acquiring the supplier row lock.');
+includes(
+  orderAllotments,
+  'lockSupplierForAutoAllotmentWrite(tx, allotment.supplierId)',
+  'Order hotel auto-lock must lock the owning supplier before reserving allotment inventory.',
+);
+includes(
+  orderAllotments,
+  'supplier.status !== \'ACTIVE\' || supplier.deletedAt',
+  'Order hotel auto-lock must reject inactive or soft-deleted suppliers after acquiring the supplier row lock.',
 );
 
 

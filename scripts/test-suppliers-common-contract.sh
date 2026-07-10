@@ -51,8 +51,8 @@ assert "@IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không
 assert 'ensureSupplierCodeAvailable(dto.supplierCode)' in service
 assert 'return code ? code.toUpperCase() : null' in service, 'supplier codes must be normalized before persistence'
 assert "dto.categoryId !== undefined" in service and "dto.name !== undefined" in service, 'partial updates must only write supplied fields'
-assert 'const statusChange = this.requestedSupplierStatusChange(current.status, dto.status)' in service, 'common supplier updates must validate inline status changes'
-assert 'statusChange === SupplierStatus.INACTIVE && current.hotelProfile' in service, 'generic updates must not bypass hotel allocation deactivation guards'
+assert 'const statusChange = this.requestedSupplierStatusChange(locked.status, dto.status)' in service, 'common supplier updates must validate inline status changes after locking the row'
+assert 'statusChange === SupplierStatus.INACTIVE && locked.hotelProfileId' in service, 'generic updates must not bypass hotel allocation deactivation guards'
 assert "dto.pricePolicy !== undefined" in service and "dto.debtNote !== undefined" in service
 for field in [
     "dto.taxCode !== undefined",

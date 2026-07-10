@@ -69,8 +69,8 @@ for order_fragment in ["{ createdAt: 'asc' }", "{ sku: 'asc' }", "{ id: 'asc' }"
 
 assert 'const hotelProfileData = this.toHotelProfileData(dto)' in service
 assert 'this.validateHotelProfilePayload(dto)' in service and 'this.validateHotelProfilePayload(dto, true)' in service, 'hotel create/update must validate required profile fields in the service layer'
-assert 'const statusChange = this.requestedSupplierStatusChange(current.status, dto.status)' in service
-assert 'if (statusChange === SupplierStatus.INACTIVE)' in service, 'hotel update status must use the shared transition guard'
+assert 'const statusChange = this.requestedSupplierStatusChange(locked.status, dto.status)' in service
+assert 'if (statusChange === SupplierStatus.INACTIVE && locked.hotelProfileId)' in service, 'hotel update status must use the shared transition guard after locking the row'
 assert "Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}" in service
 assert 'Hotel update contract: omitted child arrays preserve existing rows; provided arrays are full snapshots.' in service
 assert "const contactsInput = this.optionalArray(dto.contacts, 'Danh sách người liên hệ');" in service

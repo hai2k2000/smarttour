@@ -272,10 +272,11 @@ export class SuppliersService {
       }
     }
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
-    const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
       return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
-        if (statusChange === SupplierStatus.INACTIVE && current.hotelProfile) {
+        const locked = await this.lockSupplierForStatusWrite(tx, id);
+        const statusChange = this.requestedSupplierStatusChange(locked.status, dto.status);
+        if (statusChange === SupplierStatus.INACTIVE && locked.hotelProfileId) {
           await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
         return tx.supplier.update({
@@ -350,11 +351,11 @@ export class SuppliersService {
   }
 
   async updateSupplierStatus(id: string, status: SupplierStatus, user?: RequestUser) {
-    const supplier = await this.getSupplier(id, user);
     const nextStatus = this.toSupplierStatus(status);
-    this.ensureSupplierStatusTransition(supplier.status, nextStatus);
     return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
-      if (supplier.hotelProfile && nextStatus === SupplierStatus.INACTIVE) {
+      const supplier = await this.lockSupplierForStatusWrite(tx, id);
+      this.ensureSupplierStatusTransition(supplier.status, nextStatus);
+      if (supplier.hotelProfileId && nextStatus === SupplierStatus.INACTIVE) {
         await this.ensureHotelSupplierCanDeactivate(tx, id);
       }
       return tx.supplier.update({
@@ -439,15 +440,16 @@ export class SuppliersService {
 
   async updateTypedSupplier(type: string, id: string, dto: UpdateGenericSupplierDto, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
-    const current = await this.ensureTypedSupplier(typedRoute, id);
+    await this.ensureTypedSupplier(typedRoute, id);
     this.validateSupplierPayload(dto, true, false);
     this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto, true);
     this.validateTypedSupplierPayload(typedRoute, dto);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
-    this.requestedSupplierStatusChange(current.status, dto.status);
     try {
       return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+        const locked = await this.lockSupplierForStatusWrite(tx, id);
+        this.requestedSupplierStatusChange(locked.status, dto.status);
         await tx.supplier.update({
           where: { id },
           data: this.toSupplierData(dto) as Prisma.SupplierUncheckedUpdateInput,
@@ -465,10 +467,17 @@ export class SuppliersService {
 
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
-    const supplier = await this.ensureTypedSupplier(typedRoute, id);
+    await this.ensureTypedSupplier(typedRoute, id);
     const nextStatus = this.toSupplierStatus(status);
-    this.ensureSupplierStatusTransition(supplier.status, nextStatus);
-    return maskSupplierFinancialFields(await this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() }), user);
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, id);
+      this.ensureSupplierStatusTransition(locked.status, nextStatus);
+      return tx.supplier.update({
+        where: { id },
+        data: { status: nextStatus },
+        include: this.genericInclude(),
+      });
+    }), user);
   }
 
   async deleteTypedSupplier(type: string, id: string, user?: RequestUser) {
@@ -561,17 +570,18 @@ export class SuppliersService {
   }
 
   async updateHotelSupplier(id: string, dto: UpdateHotelSupplierDto, user?: RequestUser) {
-    const current = await this.getHotelSupplier(id, user);
+    await this.getHotelSupplier(id, user);
     this.validateSupplierPayload(dto, true, false);
     this.assertCanWriteSupplierFinancialFields(dto, user);
     this.validateSpecializedSupplierIdentity(dto, true);
     this.validateHotelProfilePayload(dto, true);
     if (dto.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.supplierCode, id);
     const hotelProfileData = this.toHotelProfileData(dto);
-    const statusChange = this.requestedSupplierStatusChange(current.status, dto.status);
     try {
       return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
-        if (statusChange === SupplierStatus.INACTIVE) {
+        const locked = await this.lockSupplierForStatusWrite(tx, id);
+        const statusChange = this.requestedSupplierStatusChange(locked.status, dto.status);
+        if (statusChange === SupplierStatus.INACTIVE && locked.hotelProfileId) {
           await this.ensureHotelSupplierCanDeactivate(tx, id);
         }
         await tx.supplier.update({
@@ -751,14 +761,9 @@ export class SuppliersService {
     const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
     await this.ensureAllocationLinks(dto, user);
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.supplierAllotment.findUnique({
-        where: { id },
-        include: { supplier: { select: { status: true, deletedAt: true } } },
-      });
+      const current = await tx.supplierAllotment.findUnique({ where: { id } });
       if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
-      if (current.supplier.deletedAt || current.supplier.status !== SupplierStatus.ACTIVE) {
-        throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động');
-      }
+      await this.lockSupplierForAllotmentWrite(tx, current.supplierId);
       if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
       const today = this.startOfUtcDay(new Date());
       if (current.endDate && current.endDate < today) {
@@ -1139,6 +1144,32 @@ export class SuppliersService {
         });
       }
     }
+  }
+
+  private async lockSupplierForStatusWrite(tx: Prisma.TransactionClient, id: string) {
+    const rows = await tx.$queryRaw<Array<{
+      id: string;
+      status: SupplierStatus;
+      deletedAt: Date | null;
+      hotelProfileId: string | null;
+    }>>(Prisma.sql`
+      SELECT s.id, s.status, s."deletedAt", h.id AS "hotelProfileId"
+      FROM "Supplier" s
+      LEFT JOIN "HotelSupplier" h ON h."supplierId" = s.id
+      WHERE s.id = ${id}
+      FOR UPDATE OF s
+    `);
+    const supplier = rows[0];
+    if (!supplier || supplier.deletedAt) throw new NotFoundException(SUPPLIER_ERRORS.supplierNotFound);
+    return supplier;
+  }
+
+  private async lockSupplierForAllotmentWrite(tx: Prisma.TransactionClient, supplierId: string) {
+    const supplier = await this.lockSupplierForStatusWrite(tx, supplierId);
+    if (supplier.status !== SupplierStatus.ACTIVE) {
+      throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động');
+    }
+    return supplier;
   }
 
   private async ensureHotelSupplierCanDeactivate(tx: Prisma.TransactionClient, supplierId: string) {
@@ -1676,14 +1707,17 @@ export class SuppliersService {
   }
 
   private async deleteSupplierRecord(id: string) {
-    const usage = await this.supplierUsage(id);
-    if (usage.total > 0) {
-      throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
-    }
-    return this.prisma.supplier.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'INACTIVE' },
-      include: this.supplierListInclude(),
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierForStatusWrite(tx, id);
+      const usage = await this.supplierUsage(id);
+      if (usage.total > 0) {
+        throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
+      }
+      return tx.supplier.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: 'INACTIVE' },
+        include: this.supplierListInclude(),
+      });
     });
   }
 

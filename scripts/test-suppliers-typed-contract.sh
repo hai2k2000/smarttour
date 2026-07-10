@@ -122,8 +122,8 @@ assert 'private async ensureTypedSupplier(type: TypedSupplierRoute, id: string)'
 assert 'deletedAt: null' in service and "category: { name: { in: supplierTypeCategoryNames(type), mode: 'insensitive' } }" in service
 assert service.count('await this.ensureTypedSupplier(typedRoute, id)') >= 3, 'typed update/status/delete must verify id belongs to the route type'
 assert service.count('this.assertCanWriteSupplierFinancialFields(dto, user)') >= 4, 'typed supplier mutations must enforce supplier financial write permission'
-assert 'return maskSupplierFinancialFields(await this.prisma.supplier.update({ where: { id }, data: { status: nextStatus }, include: this.genericInclude() }), user)' in service
-assert 'this.requestedSupplierStatusChange(current.status, dto.status)' in service, 'typed PUT updates must not bypass supplier status transitions'
+assert 'this.lockSupplierForStatusWrite(tx, id)' in service and 'data: { status: nextStatus }' in service, 'typed supplier status updates must lock the row before updating status'
+assert 'this.requestedSupplierStatusChange(locked.status, dto.status)' in service, 'typed PUT updates must not bypass supplier status transitions after locking the row'
 assert 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user)' in service
 assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
 assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service, 'typed child replacement must not hard-delete supplier services'

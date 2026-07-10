@@ -125,12 +125,14 @@ export async function syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orde
       where: {
         serviceId,
         status: 'ACTIVE',
+        supplier: { is: { deletedAt: null, status: 'ACTIVE' } },
         OR: [{ startDate: null }, { startDate: { lte: serviceDate } }],
         AND: [{ OR: [{ endDate: null }, { endDate: { gte: serviceDate } }] }],
       },
       orderBy: [{ startDate: 'desc' }, { updatedAt: 'desc' }],
     });
     if (!allotment) continue;
+    await lockSupplierForAutoAllotmentWrite(tx, allotment.supplierId);
     const reservedRows = await tx.$queryRaw<Array<{ supplierId: string; lockedQty: number }>>(Prisma.sql`
       UPDATE "SupplierAllotment"
       SET "lockedQty" = "lockedQty" + ${quantity},
@@ -246,6 +248,21 @@ export async function unconfirmAutoAllotmentLocks(tx: Prisma.TransactionClient, 
       },
     });
   }
+}
+
+
+async function lockSupplierForAutoAllotmentWrite(tx: Prisma.TransactionClient, supplierId: string) {
+  const rows = await tx.$queryRaw<Array<{ status: string; deletedAt: Date | null }>>(Prisma.sql`
+    SELECT status, "deletedAt"
+    FROM "Supplier"
+    WHERE id = ${supplierId}
+    FOR UPDATE
+  `);
+  const supplier = rows[0];
+  if (!supplier || supplier.status !== 'ACTIVE' || supplier.deletedAt) {
+    throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động');
+  }
+  return supplier;
 }
 
 function text(value?: string | null) {

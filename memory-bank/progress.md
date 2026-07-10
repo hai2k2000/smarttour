@@ -3107,3 +3107,9 @@
   - Scoped customer create/update can again claim fully orphan legacy TourQuote/Booking/FitTour/FinanceInvoice rows by phone/email/name while preserving scope checks for rows already linked to scoped relations.
   - Verification passed: node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed supplier allotment row-lock follow-up:
+  - Supplier status/deactivation, soft-delete, manual hotel allotment lock, and order hotel auto-lock now coordinate through Supplier row locks before checking usage/status or reserving room inventory.
+  - This prevents ACTIVE allotment allocations from being created while the owning supplier is being deactivated or soft-deleted.
+  - Verification passed: node scripts/test-business-logic-guard-contract.js, supplier common/typed/generic/hotel suites, scripts/test-order-service-flows.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
