@@ -3093,3 +3093,10 @@
   - Quotation update/delete/submit/approve/reject/SmartLink now lock and re-check scoped quotation state inside the transaction before writes, preventing races with approval/conversion/status changes.
   - Quote smoke auth now prefers seeded ADMIN_PASSWORD over bootstrap from .env, so default VPS smoke can log in reliably.
   - Verification passed: API build/lint, quotes backend contract, quotation SmartLink/date contracts, smoke quotes quotations.
+
+
+- 2026-07-10 Completed booking write-lock follow-up:
+  - Booking update/delete now lock and re-check scoped booking state inside the transaction before changing booking data or soft-deleting, preventing races with operation forms, operation vouchers, and allotment locks.
+  - Contract coverage now verifies booking update/remove write locking and transactional usage checks; SmartLink business guard contract no longer fails on harmless transaction indentation changes.
+  - Verification passed: node scripts/test-phase2-booking-status-lock-contract.js, scripts/test-bookings-service.sh, node scripts/test-business-logic-guard-contract.js, node scripts/test-quotes-backend-contract.js, node scripts/test-quotations-smartlink-expiry-contract.js, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, docker builder prune to 0B; smoke-business-workflows skipped because ADMIN_PASSWORD is not set in .env.

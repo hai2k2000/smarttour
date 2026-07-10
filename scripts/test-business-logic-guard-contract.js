@@ -50,9 +50,8 @@ includes(
   'this.assertSmartLinkPublishable(current)',
   'Quotation SmartLink should reject expired approved quotations before publishing.',
 );
-includes(
-  quotations,
-  "if (enabled) {\n      this.assertStatus(current.status, ['APPROVED'], 'toggle smartlink');\n      this.assertSmartLinkPublishable(current);\n    }",
+assert(
+  /if\s*\(enabled\)\s*{\s*this\.assertStatus\(current\.status,\s*\['APPROVED'\],\s*'toggle smartlink'\);\s*this\.assertSmartLinkPublishable\(current\);\s*}/.test(quotations),
   'Quotation SmartLink enable path should require approved non-expired quotations without blocking disable.',
 );
 includes(

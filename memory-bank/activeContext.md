@@ -3597,3 +3597,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Found quote smoke auth could prefer SMARTTOUR_BOOTSTRAP_KEY from .env over an already seeded ADMIN_PASSWORD and fail before fallback login; smoke now uses bootstrap only when ADMIN_PASSWORD is absent.
   - Added RED/GREEN coverage in scripts/test-quotes-backend-contract.js for quotation write/status row locking and quote smoke admin fallback behavior.
   - Verification passed on the VPS: API build/lint, quotes backend contract, quotation SmartLink expiry/date contracts, and scripts/smoke-quotes-quotations.sh.
+
+
+- 2026-07-10 Booking write-lock follow-up:
+  - Found BookingsService.update/remove checked operationForm/usage guards from a pre-write snapshot, so operation forms, operation vouchers, or allotment locks could race in before the booking write/delete.
+  - Booking update/delete now lock the Booking row with FOR UPDATE, re-read scoped mutation state inside the transaction, and resolve linked references plus usage checks through the same transaction client.
+  - Updated booking status lock contract to cover update/remove write-lock behavior; also made the SmartLink guard contract whitespace-insensitive after the quotation transaction follow-up.
+  - Verification passed on the VPS: booking status lock contract, bookings service flow, business logic guard, quotes backend contract, quotation SmartLink expiry contract, API build/lint, and git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, docker builder prune to 0B; smoke-business-workflows skipped because ADMIN_PASSWORD is not set in .env.

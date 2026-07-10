@@ -225,33 +225,35 @@ export class BookingsService {
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
     this.ensureNoStatusInBookingUpdate(dto);
-    this.ensureAllowedBookingPayload(dto, BOOKING_UPDATE_FIELDS, 'cập nhật');
+    this.ensureAllowedBookingPayload(dto, BOOKING_UPDATE_FIELDS, 'c\u1eadp nh\u1eadt');
     this.ensureNoNullBookingUpdate(dto);
-    const current = await this.loadForMutation(id, user);
-    this.ensureOperationFormEditAllowed(current, dto);
-    const references = await this.resolveBookingReferences(dto, user, { creating: false, current });
-    await this.ensureOperationalDataEditAllowed(current, dto, references.values);
-    this.ensureBookingValues(
-      {
-        startDate: dto.startDate !== undefined ? dto.startDate : current.startDate,
-        endDate: dto.endDate !== undefined ? dto.endDate : current.endDate,
-        paxCount: dto.paxCount ?? current.paxCount,
-        totalSellPrice: dto.totalSellPrice ?? current.totalSellPrice,
-      },
-      references.tourProgram.durationDays,
-    );
-    try {
-      return await this.prisma.booking.update({
-        where: { id },
-        data: this.toUpdateData(dto, references.values),
-        select: this.detailSelect(),
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockBookingForWrite(tx, id, user);
+      this.ensureOperationFormEditAllowed(current, dto);
+      const references = await this.resolveBookingReferences(dto, user, { creating: false, current }, tx);
+      await this.ensureOperationalDataEditAllowed(current, dto, references.values, tx);
+      this.ensureBookingValues(
+        {
+          startDate: dto.startDate !== undefined ? dto.startDate : current.startDate,
+          endDate: dto.endDate !== undefined ? dto.endDate : current.endDate,
+          paxCount: dto.paxCount ?? current.paxCount,
+          totalSellPrice: dto.totalSellPrice ?? current.totalSellPrice,
+        },
+        references.tourProgram.durationDays,
+      );
+      try {
+        return await tx.booking.update({
+          where: { id },
+          data: this.toUpdateData(dto, references.values),
+          select: this.detailSelect(),
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   async updateStatus(id: string, status: string | BookingStatus, user?: RequestUser) {
@@ -285,15 +287,8 @@ export class BookingsService {
   }
 
   async remove(id: string, user?: RequestUser) {
-    const booking = await this.loadForMutation(id, user);
     return this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT "id"
-        FROM "Booking"
-        WHERE "id" = ${booking.id} AND "deletedAt" IS NULL
-        FOR UPDATE
-      `;
-      if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
+      const booking = await this.lockBookingForWrite(tx, id, user);
       await this.ensureCanDelete(booking.id, tx);
       const deletedAt = new Date();
       const softDeleted = await tx.booking.update({
@@ -331,6 +326,18 @@ export class BookingsService {
     return booking;
   }
 
+
+  private async lockBookingForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "Booking"
+      WHERE "id" = ${id} AND "deletedAt" IS NULL
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.booking);
+    return this.loadForMutation(id, user, tx);
+  }
+
   private searchText(search?: string) {
     return normalizeListSearch(search);
   }
@@ -365,18 +372,19 @@ export class BookingsService {
     input: BookingReferenceInput,
     user: RequestUser | undefined,
     options: { creating: true; current?: never } | { creating: false; current: BookingMutationState },
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
     const values = this.normalizedBookingReferences(input, options.creating);
     const tourProgram =
       values.tourProgramId !== undefined
-        ? await this.ensureTourProgram(values.tourProgramId)
+        ? await this.ensureTourProgram(values.tourProgramId, client)
         : options.current?.tourProgram;
     if (!tourProgram) throw new BadRequestException('Tour mẫu không được để trống');
 
-    await this.ensureBookingLinks(values, user);
+    await this.ensureBookingLinks(values, user, client);
 
     const finalLinks = this.finalLinkedReferences(options.creating ? undefined : options.current, values);
-    await this.ensureScopedLinkedReferences(finalLinks, user, options.creating);
+    await this.ensureScopedLinkedReferences(finalLinks, user, options.creating, client);
 
     return {
       values,
@@ -399,28 +407,31 @@ export class BookingsService {
     };
   }
 
-  private async ensureTourProgram(id: string | null | undefined): Promise<BookingTourProgramSnapshot> {
-    if (!id) throw new BadRequestException('Tour mẫu không được để trống');
-    const tourProgram = await this.ensureExists('tourProgramId', id);
+  private async ensureTourProgram(
+    id: string | null | undefined,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<BookingTourProgramSnapshot> {
+    if (!id) throw new BadRequestException('Tour m\u1eabu kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1ec3 tr\u1ed1ng');
+    const tourProgram = await this.ensureExists('tourProgramId', id, undefined, client);
     this.ensureTourProgramItineraryComplete(tourProgram);
     return tourProgram;
   }
 
-  private async ensureBookingLinks(values: BookingReferenceValues, user?: RequestUser) {
+  private async ensureBookingLinks(values: BookingReferenceValues, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     await Promise.all(
       BOOKING_LINKED_REFERENCE_KEYS
         .filter((key) => values[key] !== undefined && values[key])
-        .map((key) => this.ensureExists(key, values[key] as string, user)),
+        .map((key) => this.ensureExists(key, values[key] as string, user, client)),
     );
   }
 
-  private async ensureExists(key: 'tourProgramId', id: string, user?: RequestUser): Promise<BookingTourProgramSnapshot>;
-  private async ensureExists(key: BookingLinkedReferenceKey, id: string, user?: RequestUser): Promise<{ id: string }>;
-  private async ensureExists(key: BookingReferenceKey, id: string, user?: RequestUser) {
+  private async ensureExists(key: 'tourProgramId', id: string, user?: RequestUser, client?: Prisma.TransactionClient | PrismaService): Promise<BookingTourProgramSnapshot>;
+  private async ensureExists(key: BookingLinkedReferenceKey, id: string, user?: RequestUser, client?: Prisma.TransactionClient | PrismaService): Promise<{ id: string }>;
+  private async ensureExists(key: BookingReferenceKey, id: string, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     const config = this.referenceConfig(key);
     const row =
       config.model === 'tourProgram'
-        ? await this.prisma.tourProgram.findUnique({
+        ? await client.tourProgram.findUnique({
             where: { id },
             select: {
               id: true,
@@ -429,10 +440,10 @@ export class BookingsService {
             },
           })
         : config.model === 'customer'
-          ? await this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
+          ? await client.customer.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
           : config.model === 'order'
-            ? await this.prisma.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
-            : await this.prisma.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
+            ? await client.order.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } })
+            : await client.tour.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true } });
     if (!row) throw new NotFoundException(config.notFoundMessage);
     return row;
   }
@@ -478,7 +489,12 @@ export class BookingsService {
     };
   }
 
-  private async ensureScopedLinkedReferences(links: BookingLinkedReferenceValues, user: RequestUser | undefined, creating: boolean) {
+  private async ensureScopedLinkedReferences(
+    links: BookingLinkedReferenceValues,
+    user: RequestUser | undefined,
+    creating: boolean,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     if (!this.requiresScopedLink(user)) return;
     if (!this.hasAnyLinkedReference(links)) {
       throw new BadRequestException(
@@ -490,7 +506,7 @@ export class BookingsService {
 
     const scopedMatches = await Promise.all(
       BOOKING_LINKED_REFERENCE_KEYS.map((key) =>
-        links[key] ? this.ensureScopedLinkedReferenceExists(key, links[key] as string, user) : Promise.resolve(null),
+        links[key] ? this.ensureScopedLinkedReferenceExists(key, links[key] as string, user, client) : Promise.resolve(null),
       ),
     );
     if (!scopedMatches.some(Boolean)) {
@@ -498,8 +514,13 @@ export class BookingsService {
     }
   }
 
-  private async ensureScopedLinkedReferenceExists(key: BookingLinkedReferenceKey, id: string, user?: RequestUser) {
-    return this.ensureExists(key, id, user).catch((error) => {
+  private async ensureScopedLinkedReferenceExists(
+    key: BookingLinkedReferenceKey,
+    id: string,
+    user?: RequestUser,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    return this.ensureExists(key, id, user, client).catch((error) => {
       if (error instanceof NotFoundException) return null;
       throw error;
     });
@@ -626,8 +647,13 @@ export class BookingsService {
     return changed;
   }
 
-  private async ensureOperationalDataEditAllowed(current: BookingMutationState, dto: UpdateBookingDto, references: BookingReferenceValues) {
-    const usage = await this.bookingUsage(current.id);
+  private async ensureOperationalDataEditAllowed(
+    current: BookingMutationState,
+    dto: UpdateBookingDto,
+    references: BookingReferenceValues,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const usage = await this.bookingUsage(current.id, client);
     if (!usage.total) return;
     const changed = this.changedOperationalFieldLabels(current, dto, references);
     if (changed.length) {
