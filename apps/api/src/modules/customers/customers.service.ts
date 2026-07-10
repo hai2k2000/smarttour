@@ -390,10 +390,10 @@ export class CustomersService {
   }
 
   async transferOwner(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
     const owner = this.required(dto.owner, 'owner');
     const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
       await tx.customer.update({ where: { id }, data: { owner } });
       await tx.customerTimeline.create({ data: { customerId: id, eventType: 'TRANSFER_OWNER', title: 'Chuyen nhan vien phu trach', content: this.text(dto.reason) || this.text(dto.note), actor, metadata: { owner } } });
     });
@@ -401,49 +401,63 @@ export class CustomersService {
   }
 
   async addComment(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
     const actor = this.actorName(user);
-    const comment = await this.prisma.customerComment.create({ data: { ...this.comments([dto], actor)[0], customerId: id } });
-    await this.prisma.customer.update({ where: { id }, data: { latestComment: comment.content } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'COMMENT', title: 'Them binh luan', content: comment.content, actor } });
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const comment = await tx.customerComment.create({ data: { ...this.comments([dto], actor)[0], customerId: id } });
+      await tx.customer.update({ where: { id }, data: { latestComment: comment.content } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'COMMENT', title: 'Them binh luan', content: comment.content, actor } });
+    });
     return this.detail(id, user);
   }
 
   async addCareTask(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
-    const task = await this.prisma.customerCareTask.create({ data: { ...this.careTasks([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor: this.actorName(user) } });
+    const actor = this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const task = await tx.customerCareTask.create({ data: { ...this.careTasks([dto])[0], customerId: id } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'CARE', title: `CSKH ${task.channel}`, content: task.note, actor } });
+    });
     return this.detail(id, user);
   }
 
   async addCallLog(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
-    const call = await this.prisma.customerCallLog.create({ data: { ...this.callLogs([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor: this.actorName(user) } });
+    const actor = this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const call = await tx.customerCallLog.create({ data: { ...this.callLogs([dto])[0], customerId: id } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'CALL', title: 'Ghi nhan cuoc goi', content: call.note, actor } });
+    });
     return this.detail(id, user);
   }
 
   async addOpportunity(id: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
-    const opportunity = await this.prisma.customerOpportunity.create({ data: { ...this.opportunitiesInput([dto])[0], customerId: id } });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor: this.actorName(user) } });
+    const actor = this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const opportunity = await tx.customerOpportunity.create({ data: { ...this.opportunitiesInput([dto])[0], customerId: id } });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'OPPORTUNITY', title: opportunity.title, content: opportunity.note, actor } });
+    });
     return this.detail(id, user);
   }
 
   async updateCareTask(id: string, taskId: string, dto: AnyRecord, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
-    const existing = await this.prisma.customerCareTask.findFirst({ where: { id: taskId, customerId: id } });
-    if (!existing) throw new NotFoundException('Care task not found');
-    const task = await this.prisma.customerCareTask.update({
-      where: { id: taskId },
-      data: {
-        ...(dto.status !== undefined ? { status: this.text(dto.status) || 'PENDING' } : {}),
-        ...(dto.result !== undefined ? { result: this.text(dto.result) } : {}),
-        ...(dto.completedAt !== undefined ? { completedAt: this.date(dto.completedAt) } : {}),
-        ...(dto.note !== undefined ? { note: this.text(dto.note) } : {}),
-      },
+    const actor = this.actorName(user);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const existing = await tx.customerCareTask.findFirst({ where: { id: taskId, customerId: id } });
+      if (!existing) throw new NotFoundException('Care task not found');
+      const task = await tx.customerCareTask.update({
+        where: { id: taskId },
+        data: {
+          ...(dto.status !== undefined ? { status: this.text(dto.status) || 'PENDING' } : {}),
+          ...(dto.result !== undefined ? { result: this.text(dto.result) } : {}),
+          ...(dto.completedAt !== undefined ? { completedAt: this.date(dto.completedAt) } : {}),
+          ...(dto.note !== undefined ? { note: this.text(dto.note) } : {}),
+        },
+      });
+      await tx.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor } });
     });
-    await this.prisma.customerTimeline.create({ data: { customerId: id, eventType: 'CARE_UPDATE', title: `Cap nhat CSKH ${task.status}`, content: task.result || task.note, actor: this.actorName(user) } });
     return this.detail(id, user);
   }
 
@@ -916,6 +930,18 @@ export class CustomersService {
 
   private async getWritableCustomer(id: string, user?: RequestUser) {
     const customer = await this.getCustomer(id, user);
+    this.assertCustomerWritable(customer);
+    return customer;
+  }
+
+  private async lockWritableCustomerForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Customer" WHERE "id" = ${id} FOR UPDATE`;
+    if (!locked.length) throw new NotFoundException('Customer not found');
+    const customer = await tx.customer.findFirst({
+      where: branchDepartmentScopeWhere({ id }, user),
+      select: { id: true, status: true, mergedIntoId: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
     this.assertCustomerWritable(customer);
     return customer;
   }

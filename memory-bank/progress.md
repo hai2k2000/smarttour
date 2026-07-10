@@ -3193,3 +3193,8 @@
   - Order update/delete/status/settle/unlock now lock and re-read the Order row inside the transaction before lifecycle checks and writes, preventing stale writes after concurrent settlement/status transitions.
   - Verification passed: RED/GREEN node scripts/test-orders-write-lock-contract.js, scripts/test-order-service-flows.sh, node scripts/test-action-endpoint-status-contract.js, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed customer interaction write-lock follow-up:
+  - Customer interaction sub-actions now lock and re-check the Customer row inside a single transaction before writing child/timeline/customer activity rows, preventing stale writes to MERGED customers and partial activity persistence.
+  - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

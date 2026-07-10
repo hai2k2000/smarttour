@@ -3714,3 +3714,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OrdersService now locks the Order row with SELECT ... FOR UPDATE and re-reads through branch/department data scope inside the transaction before lifecycle guards, totals recalculation, allotment release/resync, status changes, settlement, or unlock.
   - Added scripts/test-orders-write-lock-contract.js with RED/GREEN coverage for lockOrderForWrite and all five write/lifecycle paths avoiding pre-transaction mutable reads.
   - Verification/deploy passed on the VPS: orders write-lock contract, order service flows, action endpoint contract, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Customer interaction write-lock follow-up:
+  - Found customer interaction writes transferOwner/addComment/addCareTask/addCallLog/addOpportunity/updateCareTask checked getWritableCustomer before writing and several wrote child/timeline/customer rows outside one transaction.
+  - A concurrent merge could make the customer terminal between the pre-check and write, and partial child/timeline writes could leave customer activity state inconsistent.
+  - Added lockWritableCustomerForWrite to lock the Customer row with SELECT ... FOR UPDATE, re-read through data scope, and reject MERGED/mergedIntoId customers inside the write transaction.
+  - Customer interaction writes now run in one transaction and call the lock helper before mutating owner, comments, care tasks, call logs, opportunities, latestComment, or timeline rows.
+  - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
