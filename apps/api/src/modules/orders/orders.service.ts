@@ -165,13 +165,13 @@ export class OrdersService {
   }
 
   async update(typePath: string, id: string, dto: UpdateOrderDto, user?: RequestUser) {
-    const current = await this.loadForEdit(typePath, id, user);
     const scopedDto = applyWriteDataScope(dto as ScopedOrderDto, user) as ScopedOrderDto;
     if (scopedDto.status !== undefined) throw new BadRequestException('Order status must be changed through the status action endpoint');
-    this.lifecycle.assertEditable(current);
-    validateOrderDates(mergeOrderDateInput(current, scopedDto));
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const current = await this.lockOrderForWrite(tx, typePath, id, user);
+        this.lifecycle.assertEditable(current);
+        validateOrderDates(mergeOrderDateInput(current, scopedDto));
         const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto, user)) as ScopedOrderDto;
         const hotelNeedsAllotmentResync = current.type === 'HOTEL_BOOKING' && shouldResyncHotelAllotments(orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.releaseAutoLocks(tx, id, 'UPDATE_RELEASE');
@@ -204,9 +204,9 @@ export class OrdersService {
   }
 
   async remove(typePath: string, id: string, user?: RequestUser) {
-    const order = await this.loadForEdit(typePath, id, user);
-    this.lifecycle.assertNotSettled(order, 'deleted');
     return this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOrderForWrite(tx, typePath, id, user);
+      this.lifecycle.assertNotSettled(order, 'deleted');
       if (order.type === 'HOTEL_BOOKING') await this.allotments.releaseAutoLocks(tx, id, 'DELETE_RELEASE');
       await tx.orderLog.create({ data: { orderId: id, action: 'DELETE', oldValue: { status: order.status } } });
       return tx.order.update({ where: { id }, data: { deletedAt: new Date() } });
@@ -214,8 +214,8 @@ export class OrdersService {
   }
 
   async updateStatus(typePath: string, id: string, status: OrderStatus, user?: RequestUser) {
-    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOrderForWrite(tx, typePath, id, user);
       return this.lifecycle.applyStatus(tx, order, status, this.editInclude());
     });
   }
@@ -226,17 +226,28 @@ export class OrdersService {
   }
 
   async settle(typePath: string, id: string, user?: RequestUser) {
-    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOrderForWrite(tx, typePath, id, user);
       return this.lifecycle.settle(tx, order, this.editInclude());
     });
   }
 
   async unlock(typePath: string, id: string, dto: UnlockOrderDto, user?: RequestUser) {
-    const order = await this.loadForEdit(typePath, id, user);
     return this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOrderForWrite(tx, typePath, id, user);
       return this.lifecycle.unlock(tx, order, dto, user?.id);
     });
+  }
+
+  private async lockOrderForWrite(tx: Prisma.TransactionClient, typePath: string, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Order" WHERE "id" = ${id} AND "deletedAt" IS NULL FOR UPDATE`;
+    if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
+    const order = await tx.order.findFirst({
+      where: branchDepartmentScopeWhere({ id, type: this.resolveType(typePath), deletedAt: null }, user),
+      include: this.editInclude(),
+    });
+    if (!order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
+    return order;
   }
 
   private detailInclude() {

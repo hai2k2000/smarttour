@@ -3707,3 +3707,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - addPayment now locks FinancePayment through lockFinancePaymentForVoucherRecording before locking/re-reading the OperationVoucher row, matching finance reconciliation lock order.
   - Expanded scripts/test-business-logic-guard-contract.js with RED/GREEN coverage for FinancePayment -> OperationVoucher lock ordering.
   - Verification/deploy passed on the VPS: business logic guard, operation voucher service/schema/client contracts, finance service flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Orders write/lifecycle row-lock follow-up:
+  - Found OrdersService update/remove/updateStatus/settle/unlock loaded mutable order state before the transaction and then ran lifecycle guards/actions from that stale snapshot.
+  - Concurrent settlement/status/delete/update actions could edit an already settled order or leave status/settledAt inconsistent.
+  - OrdersService now locks the Order row with SELECT ... FOR UPDATE and re-reads through branch/department data scope inside the transaction before lifecycle guards, totals recalculation, allotment release/resync, status changes, settlement, or unlock.
+  - Added scripts/test-orders-write-lock-contract.js with RED/GREEN coverage for lockOrderForWrite and all five write/lifecycle paths avoiding pre-transaction mutable reads.
+  - Verification/deploy passed on the VPS: orders write-lock contract, order service flows, action endpoint contract, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

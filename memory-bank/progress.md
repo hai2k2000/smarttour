@@ -3188,3 +3188,8 @@
   - Operation voucher manual payment recording now locks FinancePayment before OperationVoucher, matching finance approve/cancel reconciliation and avoiding deadlocks under concurrent voucher payment actions.
   - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-operation-vouchers-service.sh, node scripts/test-operation-vouchers-client-contract.js, scripts/test-finance-service-flows.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed orders write/lifecycle row-lock follow-up:
+  - Order update/delete/status/settle/unlock now lock and re-read the Order row inside the transaction before lifecycle checks and writes, preventing stale writes after concurrent settlement/status transitions.
+  - Verification passed: RED/GREEN node scripts/test-orders-write-lock-contract.js, scripts/test-order-service-flows.sh, node scripts/test-action-endpoint-status-contract.js, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
