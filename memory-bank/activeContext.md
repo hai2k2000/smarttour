@@ -3573,3 +3573,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationsService.cancelForm now locks the OperationForm row with FOR UPDATE, re-reads the scoped form inside the transaction, and checks active supplier payment requests through the same transaction client before writing CANCELLED.
   - Added RED/GREEN coverage in scripts/test-phase1-operation-payment-request-concurrency-contract.js for cancel row locking and transactional blocking-request checks.
   - Verification passed on the VPS: operation payment request concurrency contract, business logic guard contract, operations service flows, API build/lint.
+
+
+- 2026-07-10 Supplier payment request concurrency follow-up:
+  - Found SupplierPaymentRequest update/delete/submit/reject/approve/create-finance-payment flows could read scope/status before the transaction and then write without locking the request row.
+  - OperationsService now locks SupplierPaymentRequest rows with FOR UPDATE and re-reads scoped request data inside the transaction before status checks, item replacement, deletion, ledger posting, or finance-payment linking.
+  - Expanded scripts/test-phase1-operation-payment-request-concurrency-contract.js with RED/GREEN coverage for request row locking and scoped in-transaction re-reads.
+  - Verification passed on the VPS: operation payment request concurrency contract, operations service flows, business logic guard contract, API build/lint.

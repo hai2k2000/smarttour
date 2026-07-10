@@ -56,4 +56,41 @@ assert(
   'ensureFormCanBeCancelled must query through the provided transaction client',
 );
 
+const updatePaymentRequest = sliceBetween(service, 'async updatePaymentRequest', '  submitPaymentRequest');
+const approvePaymentRequest = sliceBetween(service, 'async approvePaymentRequest', '  rejectPaymentRequest');
+const createFinancePaymentForRequest = sliceBetween(service, 'async createFinancePaymentForRequest', '  private async resolveFinancePaymentTourId');
+const deletePaymentRequest = sliceBetween(service, 'async deletePaymentRequest', '  private async changePaymentRequestStatus');
+const changePaymentRequestStatus = sliceBetween(service, 'private async changePaymentRequestStatus', '  private async replaceFormChildren');
+
+assert(
+  /private\s+async\s+lockSupplierPaymentRequest/.test(service),
+  'OperationsService must provide a SupplierPaymentRequest row lock helper',
+);
+assert(
+  /FROM\s+"SupplierPaymentRequest"[\s\S]*FOR UPDATE/.test(service),
+  'SupplierPaymentRequest lifecycle locking must use SELECT ... FOR UPDATE',
+);
+for (const [name, body] of [
+  ['updatePaymentRequest', updatePaymentRequest],
+  ['approvePaymentRequest', approvePaymentRequest],
+  ['createFinancePaymentForRequest', createFinancePaymentForRequest],
+  ['deletePaymentRequest', deletePaymentRequest],
+  ['changePaymentRequestStatus', changePaymentRequestStatus],
+]) {
+  assert(
+    /lockSupplierPaymentRequest\(tx,\s*id\)/.test(body),
+    `${name} must lock the SupplierPaymentRequest row before checking status or writing`,
+  );
+}
+for (const [name, body] of [
+  ['updatePaymentRequest', updatePaymentRequest],
+  ['deletePaymentRequest', deletePaymentRequest],
+  ['changePaymentRequestStatus', changePaymentRequestStatus],
+]) {
+  assert(
+    /paymentRequestDetail\(id,\s*user,\s*tx\)/.test(body),
+    `${name} must re-read the scoped SupplierPaymentRequest inside the transaction after locking`,
+  );
+}
+
 console.log('TEST_PHASE1_OPERATION_PAYMENT_REQUEST_CONCURRENCY_CONTRACT_OK');

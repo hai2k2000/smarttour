@@ -3077,3 +3077,8 @@
 - 2026-07-10 Completed operations cancel concurrency follow-up:
   - Operation form cancel now locks and re-checks the form inside the transaction before cancelling, preventing races with DONE/status changes or active supplier payment requests.
   - Verification passed: RED/GREEN node scripts/test-phase1-operation-payment-request-concurrency-contract.js, business logic guard contract, scripts/test-operations-service-flows.sh, API build/lint.
+
+
+- 2026-07-10 Completed supplier payment request concurrency follow-up:
+  - Supplier payment request lifecycle/actions now lock the request row and re-check scoped status inside the transaction before update/delete/approve/reject/submit/create-finance-payment writes.
+  - Verification passed: RED/GREEN node scripts/test-phase1-operation-payment-request-concurrency-contract.js, scripts/test-operations-service-flows.sh, business logic guard contract, API build/lint.

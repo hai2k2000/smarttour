@@ -390,8 +390,8 @@ export class OperationsService {
     });
   }
 
-  async paymentRequestDetail(id: string, user?: RequestUser) {
-    const row = await this.prisma.supplierPaymentRequest.findFirst({ where: this.paymentRequestScopeWhere({ id }, user), include: this.paymentRequestDetailInclude() });
+  async paymentRequestDetail(id: string, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const row = await client.supplierPaymentRequest.findFirst({ where: this.paymentRequestScopeWhere({ id }, user), include: this.paymentRequestDetailInclude() });
     if (!row) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
     return row;
   }
@@ -424,17 +424,18 @@ export class OperationsService {
 
   async updatePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
-    const current = await this.paymentRequestDetail(id, user);
-    if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được chỉnh sửa');
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
-    if (dto.status !== undefined && this.supplierPaymentStatus(dto.status, current.status) !== current.status) {
-      throw new BadRequestException('Vui l\u00f2ng d\u00f9ng \u0111\u01b0\u1eddng d\u1eabn h\u00e0nh \u0111\u1ed9ng \u0111\u1ec3 \u0111\u1ed5i tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
-    }
     if (items) {
-      if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
+      if (!items.length) throw new BadRequestException('C\u1ea7n \u00edt nh\u1ea5t m\u1ed9t d\u00f2ng thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
       await this.ensurePaymentItemsScoped(items, user);
     }
     return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierPaymentRequest(tx, id);
+      const current = await this.paymentRequestDetail(id, user, tx);
+      if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Ch\u1ec9 y\u00eau c\u1ea7u \u1edf tr\u1ea1ng th\u00e1i nh\u00e1p ho\u1eb7c b\u1ecb t\u1eeb ch\u1ed1i m\u1edbi \u0111\u01b0\u1ee3c ch\u1ec9nh s\u1eeda');
+      if (dto.status !== undefined && this.supplierPaymentStatus(dto.status, current.status) !== current.status) {
+        throw new BadRequestException('Vui l\u00f2ng d\u00f9ng \u0111\u01b0\u1eddng d\u1eabn h\u00e0nh \u0111\u1ed9ng \u0111\u1ec3 \u0111\u1ed5i tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
+      }
       if (items) {
         await this.lockPaymentItemCosts(tx, items);
         await this.validatePaymentItems(items, id, tx);
@@ -443,7 +444,7 @@ export class OperationsService {
       const request = await tx.supplierPaymentRequest.update({
         where: { id },
         data: {
-          ...(dto.code !== undefined ? { code: this.requiredText(dto.code, 'Cần nhập mã yêu cầu thanh toán') } : {}),
+          ...(dto.code !== undefined ? { code: this.requiredText(dto.code, 'C\u1ea7n nh\u1eadp m\u00e3 y\u00eau c\u1ea7u thanh to\u00e1n') } : {}),
           ...(dto.requestedBy !== undefined || dto.actor !== undefined ? { requestedBy: actor } : {}),
           ...(items ? { items: { create: items } } : {}),
         },
@@ -459,14 +460,13 @@ export class OperationsService {
   }
 
   async approvePaymentRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    await this.paymentRequestDetail(id, user);
     const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.supplierPaymentRequest.findUnique({ where: { id }, include: { items: true } });
-      if (!request) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
+      await this.lockSupplierPaymentRequest(tx, id);
+      const request = await this.paymentRequestDetail(id, user, tx);
       if (request.status === SupplierPaymentStatus.PAID) throw new BadRequestException('Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p \u0111\u00e3 thanh to\u00e1n kh\u00f4ng th\u1ec3 duy\u1ec7t l\u1ea1i');
-      if (request.status !== SupplierPaymentStatus.REQUESTED) throw new BadRequestException('Chỉ yêu cầu đã gửi mới được duyệt');
-      if (!request.items.length) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp chưa có dòng nào');
+      if (request.status !== SupplierPaymentStatus.REQUESTED) throw new BadRequestException('Ch\u1ec9 y\u00eau c\u1ea7u \u0111\u00e3 g\u1eedi m\u1edbi \u0111\u01b0\u1ee3c duy\u1ec7t');
+      if (!request.items.length) throw new BadRequestException('Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p ch\u01b0a c\u00f3 d\u00f2ng n\u00e0o');
       const approved = await tx.supplierPaymentRequest.update({ where: { id }, data: { status: SupplierPaymentStatus.APPROVED, approvedBy: actor }, include: this.paymentRequestDetailInclude() });
       for (const item of request.items) {
         await tx.supplierLedgerEntry.upsert({
@@ -479,7 +479,7 @@ export class OperationsService {
             creditAmount: item.amount,
             documentCode: request.code,
             documentDate: request.requestedAt,
-            description: item.notes || `Yêu cầu thanh toán nhà cung cấp ${request.code}`,
+            description: item.notes || `Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p ${request.code}`,
             createdBy: actor,
           },
           update: {
@@ -487,7 +487,7 @@ export class OperationsService {
             creditAmount: item.amount,
             documentCode: request.code,
             documentDate: request.requestedAt,
-            description: item.notes || `Yêu cầu thanh toán nhà cung cấp ${request.code}`,
+            description: item.notes || `Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p ${request.code}`,
           },
         });
       }
@@ -501,9 +501,10 @@ export class OperationsService {
   }
 
   async createFinancePaymentForRequest(id: string, dto: AnyRecord = {}, user?: RequestUser) {
-    await this.paymentRequestDetail(id, user);
     const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierPaymentRequest(tx, id);
+      await this.paymentRequestDetail(id, user, tx);
       const request = await tx.supplierPaymentRequest.findUnique({
         where: { id },
         include: {
@@ -632,10 +633,11 @@ export class OperationsService {
 
   async deletePaymentRequest(id: string, user?: RequestUser) {
     const actor = this.userActor(user);
-    const current = await this.paymentRequestDetail(id, user);
-    if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Chỉ yêu cầu ở trạng thái nháp hoặc bị từ chối mới được xóa');
-    if (current.financePaymentId) throw new BadRequestException('Không thể xóa yêu cầu thanh toán nhà cung cấp đã có phiếu chi tài chính');
     return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierPaymentRequest(tx, id);
+      const current = await this.paymentRequestDetail(id, user, tx);
+      if (current.status !== SupplierPaymentStatus.DRAFT && current.status !== SupplierPaymentStatus.REJECTED) throw new BadRequestException('Ch\u1ec9 y\u00eau c\u1ea7u \u1edf tr\u1ea1ng th\u00e1i nh\u00e1p ho\u1eb7c b\u1ecb t\u1eeb ch\u1ed1i m\u1edbi \u0111\u01b0\u1ee3c x\u00f3a');
+      if (current.financePaymentId) throw new BadRequestException('Kh\u00f4ng th\u1ec3 x\u00f3a y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p \u0111\u00e3 c\u00f3 phi\u1ebfu chi t\u00e0i ch\u00ednh');
       await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
       const deleted = await tx.supplierPaymentRequest.delete({ where: { id } });
       await this.audit(tx, 'DELETE', 'SupplierPaymentRequest', id, { actor, status: current.status, code: current.code }, user);
@@ -644,18 +646,14 @@ export class OperationsService {
   }
 
   private async changePaymentRequestStatus(id: string, status: SupplierPaymentStatus, dto: AnyRecord = {}, user?: RequestUser) {
-    await this.paymentRequestDetail(id, user);
     const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.supplierPaymentRequest.findUnique({
-        where: { id },
-        include: { items: { include: { cost: { include: { operationForm: { select: { status: true } } } } } } },
-      });
-      if (!current) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán nhà cung cấp');
+      await this.lockSupplierPaymentRequest(tx, id);
+      const current = await this.paymentRequestDetail(id, user, tx);
       this.assertSupplierPaymentTransition(current.status, status);
       if (status === SupplierPaymentStatus.REQUESTED) {
-        if (!current.items.length) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp chưa có dòng nào');
-        if (current.items.some((item) => !item.costId || !item.cost?.operationForm)) throw new BadRequestException('Các dòng yêu cầu thanh toán nhà cung cấp phải liên kết với chi phí điều hành');
+        if (!current.items.length) throw new BadRequestException('Y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p ch\u01b0a c\u00f3 d\u00f2ng n\u00e0o');
+        if (current.items.some((item) => !item.costId || !item.cost?.operationForm)) throw new BadRequestException('C\u00e1c d\u00f2ng y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p ph\u1ea3i li\u00ean k\u1ebft v\u1edbi chi ph\u00ed \u0111i\u1ec1u h\u00e0nh');
         if (current.items.some((item) => item.cost?.operationForm.status === OperationStatus.CANCELLED)) throw new BadRequestException('Kh\u00f4ng th\u1ec3 y\u00eau c\u1ea7u thanh to\u00e1n cho phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 h\u1ee7y');
       }
       const request = await tx.supplierPaymentRequest.update({
@@ -828,6 +826,16 @@ export class OperationsService {
       const activeDuplicate = cost.paymentItems.find((paymentItem) => paymentItem.requestId !== currentRequestId && paymentItem.request.status !== SupplierPaymentStatus.REJECTED);
       if (activeDuplicate) throw new BadRequestException('Chi phí điều hành đã có yêu cầu thanh toán nhà cung cấp');
     }
+  }
+
+  private async lockSupplierPaymentRequest(tx: Prisma.TransactionClient, id: string) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "SupplierPaymentRequest"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
   }
 
   private async lockPaymentItemCosts(tx: Prisma.TransactionClient, items: ParsedPaymentItem[]) {
