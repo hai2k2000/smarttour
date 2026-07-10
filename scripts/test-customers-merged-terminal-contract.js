@@ -57,6 +57,28 @@ for (const [name, start, end] of interactionWriteMethods) {
   if (!transactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push(`${name}: must lock and re-read writable customer inside the transaction`);
 }
 
+const bulkWriteMethods = [
+  ['bulkTag', '  async bulkTag(', '  async bulkUpdate('],
+  ['bulkUpdate', '  async bulkUpdate(', '  campaigns()'],
+];
+
+for (const [name, start, end] of bulkWriteMethods) {
+  const block = sliceBetween(service, start, end);
+  const transactionIndex = block.indexOf('this.prisma.$transaction(async (tx) => {');
+  if (transactionIndex === -1) failures.push(`${name}: bulk customer writes must run in one transaction`);
+  const beforeTransaction = transactionIndex === -1 ? block : block.slice(0, transactionIndex);
+  if (beforeTransaction.includes('scopedCustomerIds')) failures.push(`${name}: must not use a pre-transaction customer scope/writability snapshot`);
+  const transactionBlock = transactionIndex === -1 ? '' : block.slice(transactionIndex);
+  if (!transactionBlock.includes('const scopedCustomerIds = await this.lockWritableCustomersForWrite(tx, customerIds, user)')) failures.push(`${name}: must lock and re-read all writable customers inside the transaction`);
+  const lockIndex = transactionBlock.indexOf('lockWritableCustomersForWrite(tx, customerIds, user)');
+  for (const mutation of ['tx.customer.updateMany', 'tx.customerTagMap.createMany', 'tx.customerTimeline.createMany']) {
+    const mutationIndex = transactionBlock.indexOf(mutation);
+    if (mutationIndex !== -1 && (lockIndex === -1 || mutationIndex < lockIndex)) failures.push(`${name}: ${mutation} must happen after locking writable customers`);
+  }
+}
+if (!service.includes('private async lockWritableCustomersForWrite')) failures.push('bulk customer writes must share a row-lock helper for all target customers');
+if (!service.includes('[...uniqueCustomerIds].sort()')) failures.push('bulk customer row locks must happen in deterministic order');
+
 const addFileBlock = sliceBetween(service, '  async addFile(', '  async deleteFile(');
 const addFileTransactionIndex = addFileBlock.indexOf('this.prisma.$transaction(async (tx) => {');
 if (addFileTransactionIndex === -1) failures.push('addFile: customer file metadata create must run in one transaction');

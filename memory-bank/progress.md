@@ -3218,3 +3218,8 @@
   - Customer add/delete file metadata writes now lock/re-read the Customer row inside a transaction before creating/deleting CustomerFile rows, preventing stale writes or stale delete-by-id after concurrent merge.
   - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, scripts/test-file-service-error-flows.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed customer bulk write-lock follow-up:
+  - Customer bulkTag/bulkUpdate now lock/re-read all target Customer rows inside the transaction before tag/update/timeline writes, preventing stale bulk writes to MERGED customers after concurrent merge.
+  - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

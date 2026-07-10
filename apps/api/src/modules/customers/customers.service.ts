@@ -171,11 +171,13 @@ export class CustomersService {
     const customerIds = this.stringArray(dto.customerIds);
     const tagIds = this.stringArray(dto.tagIds);
     if (!customerIds.length || !tagIds.length) throw new BadRequestException('customerIds and tagIds are required');
-    const scopedCustomerIds = await this.scopedCustomerIds(customerIds, user);
     await this.assertTagsExist(tagIds);
-    const data = scopedCustomerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId })));
-    await this.prisma.customerTagMap.createMany({ data, skipDuplicates: true });
-    return { affectedCustomers: scopedCustomerIds.length, tagCount: tagIds.length };
+    return this.prisma.$transaction(async (tx) => {
+      const scopedCustomerIds = await this.lockWritableCustomersForWrite(tx, customerIds, user);
+      const data = scopedCustomerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId })));
+      await tx.customerTagMap.createMany({ data, skipDuplicates: true });
+      return { affectedCustomers: scopedCustomerIds.length, tagCount: tagIds.length };
+    });
   }
 
   async bulkUpdate(dto: AnyRecord, user?: RequestUser) {
@@ -188,18 +190,18 @@ export class CustomersService {
     if (dto.department !== undefined) data.department = applyWriteDataScope({ department: this.text(dto.department) }, user).department;
     const tagIds = this.stringArray(dto.tagIds);
     if (!Object.keys(data).length && !tagIds.length) throw new BadRequestException('No bulk update fields provided');
-    const scopedCustomerIds = await this.scopedCustomerIds(customerIds, user);
     if (tagIds.length) await this.assertTagsExist(tagIds);
     const actor = this.actorName(user);
     const note = this.text(dto.note);
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
+      const scopedCustomerIds = await this.lockWritableCustomersForWrite(tx, customerIds, user);
       if (Object.keys(data).length) await tx.customer.updateMany({ where: { id: { in: scopedCustomerIds } }, data });
       if (tagIds.length) await tx.customerTagMap.createMany({ data: scopedCustomerIds.flatMap((customerId) => tagIds.map((tagId) => ({ customerId, tagId }))), skipDuplicates: true });
       await tx.customerTimeline.createMany({
         data: scopedCustomerIds.map((customerId) => ({ customerId, eventType: 'BULK_UPDATE', title: 'Cap nhat hang loat', actor, content: note })),
       });
+      return { affectedCustomers: scopedCustomerIds.length };
     });
-    return { affectedCustomers: scopedCustomerIds.length };
   }
 
   campaigns() {
@@ -712,6 +714,21 @@ export class CustomersService {
     });
     if (rows.length !== uniqueCustomerIds.length) throw new BadRequestException('Cannot update customers outside your data scope');
     return rows.map((row) => row.id);
+  }
+
+  private async lockWritableCustomersForWrite(tx: Prisma.TransactionClient, customerIds: string[], user?: RequestUser) {
+    const uniqueCustomerIds = Array.from(new Set(customerIds));
+    const lockedCustomerIds: string[] = [];
+    for (const customerId of [...uniqueCustomerIds].sort()) {
+      try {
+        const customer = await this.lockWritableCustomerForWrite(tx, customerId, user);
+        lockedCustomerIds.push(customer.id);
+      } catch (error) {
+        if (error instanceof NotFoundException) throw new BadRequestException('Cannot update customers outside your data scope');
+        throw error;
+      }
+    }
+    return lockedCustomerIds;
   }
 
   private async restoreDeletedFileMetadata(file: { id: string; customerId: string; fileName: string; fileUrl: string; fileType: string | null; uploadedBy: string | null; createdAt: Date }) {
