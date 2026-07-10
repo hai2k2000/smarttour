@@ -57,6 +57,19 @@ for (const [name, start, end] of interactionWriteMethods) {
   if (!transactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push(`${name}: must lock and re-read writable customer inside the transaction`);
 }
 
+const updateBlock = sliceBetween(service, '  async update(', '  async remove(');
+const updateTransactionIndex = updateBlock.indexOf('this.prisma.$transaction(async (tx) => {');
+if (updateTransactionIndex === -1) failures.push('update: customer update must run in one transaction');
+const updateBeforeTransaction = updateTransactionIndex === -1 ? updateBlock : updateBlock.slice(0, updateTransactionIndex);
+if (updateBeforeTransaction.includes('getWritableCustomer')) failures.push('update: must not use a pre-transaction customer writability snapshot');
+const updateTransactionBlock = updateTransactionIndex === -1 ? '' : updateBlock.slice(updateTransactionIndex);
+if (!updateTransactionBlock.includes('const existing = await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push('update: must lock and re-read writable customer inside the transaction');
+const updateLockIndex = updateTransactionBlock.indexOf('lockWritableCustomerForWrite(tx, id, user)');
+for (const mutation of ['tx.customerContact.deleteMany', 'tx.customerTagMap.deleteMany', 'tx.customerCareTask.deleteMany', 'tx.customerComment.deleteMany', 'tx.customerCallLog.deleteMany', 'tx.customerOpportunity.deleteMany', 'tx.customerTimeline.create', 'tx.customer.update', 'this.linkExistingData(tx']) {
+  const mutationIndex = updateTransactionBlock.indexOf(mutation);
+  if (mutationIndex !== -1 && (updateLockIndex === -1 || mutationIndex < updateLockIndex)) failures.push(`update: ${mutation} must happen after the customer row lock`);
+}
+
 const removeBlock = sliceBetween(service, '  async remove(', '  async merge(');
 const removeTransactionIndex = removeBlock.indexOf('this.prisma.$transaction(async (tx) => {');
 if (removeTransactionIndex === -1) failures.push('remove: customer deletion must run in one transaction');

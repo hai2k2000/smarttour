@@ -295,13 +295,13 @@ export class CustomersService {
 
   async update(id: string, dto: AnyRecord, user?: RequestUser) {
     const actor = this.actorName(user);
-    const existing = await this.getWritableCustomer(id, user);
     dto = applyWriteDataScope(dto, user);
     this.assertNestedReplaceAllowed(dto);
-    const nextPhone = dto.phone !== undefined ? this.required(dto.phone, 'phone') : existing.phone;
-    if (nextPhone !== existing.phone) await this.assertPhoneUnique(nextPhone, id);
     await this.assertCustomerReferences(dto);
     return this.prisma.$transaction(async (tx) => {
+      const existing = await this.lockWritableCustomerForWrite(tx, id, user);
+      const nextPhone = dto.phone !== undefined ? this.required(dto.phone, 'phone') : existing.phone;
+      if (nextPhone !== existing.phone) await this.assertPhoneUnique(nextPhone, id);
       if (dto.contacts !== undefined) {
         await tx.customerContact.deleteMany({ where: { customerId: id } });
         await tx.customerContact.createMany({ data: this.contacts(dto.contacts).map((row) => ({ ...row, customerId: id })) });

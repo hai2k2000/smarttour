@@ -3728,3 +3728,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Customer remove now locks and re-reads the Customer row with SELECT ... FOR UPDATE inside the transaction, uses the locked phone/email/fullName snapshot for relation checks, counts related records through the transaction client, and deletes through the transaction client only after the checks pass.
   - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional customer deletion, no pre-transaction writable snapshot, locked relation checks, and tx-based delete.
   - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Customer update write-lock follow-up:
+  - Found CustomersService.update still read getWritableCustomer before the write transaction, then replaced child rows, wrote timeline/customer data, and linked legacy data from a stale customer snapshot.
+  - A concurrent merge could mark the customer terminal between the pre-check and the update transaction, allowing writes to a MERGED customer after the terminal guard had already passed.
+  - Customer update now applies DTO/scope validation before writes, then locks and re-reads the Customer row with SELECT ... FOR UPDATE at the start of the transaction before phone uniqueness checks, nested replacements, timeline writes, customer update, and legacy linkExistingData side effects.
+  - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional customer update locking and mutation ordering after the lock.
+  - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
