@@ -3668,3 +3668,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - TourCore now rejects non-status data edits when the current Tour status is COMPLETED, CANCELLED, or SETTLED, while still allowing status-only COMPLETED -> SETTLED settlement.
   - Follow-up RED exposed scoped users were blocked from status-only settlement because applyWriteDataScope stamps branch/department into the update payload; TourCore and typed/FIT callers now pass the original client-requested fields into terminal guards so server-applied scope fields do not count as data edits.
   - Verification/deploy passed on the VPS: scripts/test-tour-type-apis.sh, node scripts/test-business-logic-guard-contract.js, scripts/test-data-scope-module-flows.sh, scripts/test-fit-tour-root-contract.sh, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Commission sync write-lock follow-up:
+  - Found CommissionReportsService.syncFromOrders read existing CommissionEntry status/paymentStatus before updating without a transaction or row lock, while approve/pay/reject/revoke already coordinate through FOR UPDATE.
+  - Existing commission sync updates now run inside a transaction, lock the CommissionEntry row by orderId with FOR UPDATE, re-read it inside data scope, and re-check PENDING/UNPAID before recalculating commissionAmount/remainingAmount.
+  - syncData centralizes commission row calculation so both create and locked update paths use the same formula while update remainingAmount is based on the locked paidAmount.
+  - Verification/deploy passed on the VPS: scripts/test-commission-reports-security.sh, node scripts/test-commission-reports-client-contract.js, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

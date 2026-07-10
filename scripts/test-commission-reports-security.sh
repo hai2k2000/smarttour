@@ -125,6 +125,14 @@ for (const helper of ['summaryFromDb', 'groupingFromDb']) {
   assert(block.includes('aggregate({') || block.includes('groupBy({'), `${helper} should aggregate in the database`);
 }
 
+{
+  const start = serviceSource.indexOf('async syncFromOrders(');
+  const next = serviceSource.indexOf('\n  private async changeStatus', start + 1);
+  const block = start === -1 ? '' : serviceSource.slice(start, next === -1 ? serviceSource.length : next);
+  assert(block.includes('this.prisma.$transaction'), 'syncFromOrders should update existing commission entries inside a transaction');
+  assert(block.includes('scopedEntryForSync') || block.includes('scopedEntryForUpdate(tx'), 'syncFromOrders should lock and re-read existing commission entries before checking status/paymentStatus');
+}
+
   const invalidGroupByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { groupBy: 'not-a-group' }));
   assert(invalidGroupByErrors.some((error) => error.property === 'groupBy'), 'query DTO should reject invalid groupBy');
   const invalidSortByErrors = validateSync(plainToInstance(CommissionReportsQueryDto, { sortBy: 'not-a-sort' }));

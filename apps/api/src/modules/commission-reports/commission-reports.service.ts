@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CommissionPaymentStatus, CommissionRule, CommissionStatus, OrderStatus, OrderType, Prisma } from '@prisma/client';
+import { CommissionPaymentStatus, CommissionRule, CommissionStatus, Order, OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
@@ -217,39 +217,17 @@ export class CommissionReportsService {
     let updated = 0;
     for (const order of orders) {
       const rule = this.pickRule(rules, order.type, Number(order.totalRevenue));
-      const rate = Number(order.commission) > 0 && Number(order.totalRevenue) > 0 ? (Number(order.commission) / Number(order.totalRevenue)) * 100 : Number(rule?.ratePercent ?? 0);
-      const basis = rule?.basis || 'REVENUE';
-      const baseAmount = basis === 'PROFIT' ? Number(order.profit) : Number(order.totalRevenue);
-      const commissionAmount = Number(order.commission) > 0 ? Number(order.commission) : Math.max(baseAmount * rate / 100, 0);
-      const milestoneType = rule?.milestoneType || 'CHECK_IN';
-      const existing = await this.prisma.commissionEntry.findUnique({ where: { orderId: order.id } });
-      const data = {
-        orderCode: order.systemCode,
-        orderType: order.type,
-        tourCode: order.tourCode,
-        customerName: order.customerName,
-        salesOwner: order.createdBy || order.operatorOwner || order.collaborator,
-        team: order.department,
-        department: order.department,
-        branch: order.branch,
-        marketGroup: order.marketGroup,
-        milestoneType,
-        milestoneDate: this.milestoneDate(order, milestoneType),
-        revenue: order.totalRevenue,
-        profit: order.profit,
-        basis,
-        ratePercent: rate,
-        commissionAmount,
-        remainingAmount: existing ? Math.max(commissionAmount - Number(existing.paidAmount), 0) : commissionAmount,
-        formula: `${basis} x ${rate}%`,
-      };
+      const existing = await this.prisma.commissionEntry.findUnique({ where: { orderId: order.id }, select: { id: true } });
       if (existing) {
-        if (existing.status !== CommissionStatus.PENDING || existing.paymentStatus !== CommissionPaymentStatus.UNPAID) {
-          continue;
-        }
-        await this.prisma.commissionEntry.update({ where: { id: existing.id }, data });
-        updated += 1;
+        const didUpdate = await this.prisma.$transaction(async (tx) => {
+          const row = await this.scopedEntryForSync(tx, order.id, user);
+          if (!row || row.status !== CommissionStatus.PENDING || row.paymentStatus !== CommissionPaymentStatus.UNPAID) return false;
+          await tx.commissionEntry.update({ where: { id: row.id }, data: this.syncData(order, rule, Number(row.paidAmount)) });
+          return true;
+        });
+        if (didUpdate) updated += 1;
       } else {
+        const data = this.syncData(order, rule, 0);
         await this.prisma.commissionEntry.create({ data: { ...data, orderId: order.id, logs: { create: { action: 'SYNC', note: 'Created from order' } } } });
         created += 1;
       }
@@ -310,6 +288,33 @@ export class CommissionReportsService {
     return where;
   }
 
+  private syncData(order: Order, rule: CommissionRule | undefined, paidAmount: number) {
+    const rate = Number(order.commission) > 0 && Number(order.totalRevenue) > 0 ? (Number(order.commission) / Number(order.totalRevenue)) * 100 : Number(rule?.ratePercent ?? 0);
+    const basis = rule?.basis || 'REVENUE';
+    const baseAmount = basis === 'PROFIT' ? Number(order.profit) : Number(order.totalRevenue);
+    const commissionAmount = Number(order.commission) > 0 ? Number(order.commission) : Math.max(baseAmount * rate / 100, 0);
+    const milestoneType = rule?.milestoneType || 'CHECK_IN';
+    return {
+      orderCode: order.systemCode,
+      orderType: order.type,
+      tourCode: order.tourCode,
+      customerName: order.customerName,
+      salesOwner: order.createdBy || order.operatorOwner || order.collaborator,
+      team: order.department,
+      department: order.department,
+      branch: order.branch,
+      marketGroup: order.marketGroup,
+      milestoneType,
+      milestoneDate: this.milestoneDate(order, milestoneType),
+      revenue: order.totalRevenue,
+      profit: order.profit,
+      basis,
+      ratePercent: rate,
+      commissionAmount,
+      remainingAmount: Math.max(commissionAmount - paidAmount, 0),
+      formula: `${basis} x ${rate}%`,
+    };
+  }
   private pickRule(rules: CommissionRule[], type: unknown, revenue: number) {
     return rules.find((rule) => rule.productType === type && (rule.minRevenue == null || Number(rule.minRevenue) <= revenue) && (rule.maxRevenue == null || Number(rule.maxRevenue) >= revenue))
       || rules.find((rule) => rule.productType === type)
@@ -387,6 +392,10 @@ export class CommissionReportsService {
     return amount;
   }
 
+  private async scopedEntryForSync(tx: Prisma.TransactionClient, orderId: string, user?: RequestUser) {
+    await tx.$queryRaw`SELECT "id" FROM "CommissionEntry" WHERE "orderId" = ${orderId} FOR UPDATE`;
+    return tx.commissionEntry.findFirst({ where: branchDepartmentScopeWhere({ orderId }, user) });
+  }
   private async scopedEntryForUpdate(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
     await tx.$queryRaw`SELECT "id" FROM "CommissionEntry" WHERE "id" = ${id} FOR UPDATE`;
     const row = await tx.commissionEntry.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });

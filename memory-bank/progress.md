@@ -3158,3 +3158,8 @@
   - Guard checks use client-requested fields instead of write-scope-stamped branch/department fields, preventing false terminal data-edit conflicts for scoped writes.
   - Verification passed: RED/GREEN scripts/test-tour-type-apis.sh, node scripts/test-business-logic-guard-contract.js, scripts/test-data-scope-module-flows.sh, scripts/test-fit-tour-root-contract.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed commission sync write-lock follow-up:
+  - Commission report sync now locks and re-checks existing CommissionEntry rows before updating pending/unpaid calculated commission data, preventing stale sync writes from overwriting paid/approved state after concurrent approval/payment.
+  - Verification passed: RED/GREEN scripts/test-commission-reports-security.sh, node scripts/test-commission-reports-client-contract.js, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
