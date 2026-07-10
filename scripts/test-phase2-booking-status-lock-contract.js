@@ -32,6 +32,8 @@ assert(
   /ensureOperationalDataEditAllowed\(current,\s*dto,\s*references\.values,\s*tx\)/.test(updateBody),
   'Booking update must check operation usage through the same transaction client after locking',
 );
+assert(service.includes('private ensureTerminalStatusEditAllowed'), 'BookingsService must expose a terminal status edit guard');
+assert(updateBody.includes('ensureTerminalStatusEditAllowed(current, dto)'), 'Booking update must reject terminal COMPLETED/CANCELLED booking edits after locking');
 assert(/tx\.booking\.update/.test(updateBody), 'Booking update must write through the transaction client');
 
 const removeBody = methodBody('remove');

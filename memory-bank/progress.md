@@ -1,5 +1,10 @@
 # Progress
 
+- Hardened booking terminal edit behavior:
+  - Bookings in COMPLETED or CANCELLED status now reject non-empty data updates after the row is locked for mutation.
+  - Extended scripts/test-bookings-service.sh with a cancelled-booking terminal regression and scripts/test-phase2-booking-status-lock-contract.js with a terminal guard assertion.
+  - Verified booking lock/controller/service flows, API build/lint, diff-check, Docker API rebuild/restart, healthcheck, and Docker build-cache prune.
+
 - Hardened merged customer terminal behavior:
   - Customers marked MERGED or carrying mergedIntoId now reject direct write paths, including update/remove/owner transfer/files/comments/care tasks/calls/opportunities and repeat merge attempts.
   - Added scripts/test-customers-merged-terminal-contract.js and extended scripts/test-customers-service.sh to prove merged sources remain terminal after merge.

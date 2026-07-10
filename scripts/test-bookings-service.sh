@@ -937,6 +937,22 @@ async function main() {
   await rejects(() => service.updateStatus(created.id, 'COMPLETED'), 'updateStatus should reject skipping directly from CONFIRMED to COMPLETED');
   await rejects(() => service.updateStatus(created.id, 'OPERATING'), 'updateStatus should reject OPERATING before operationForm exists');
 
+  const cancelledTerminalBooking = await service.create(bookingDto(run, 'CANCELLED-TERMINAL', tourProgram, links, {
+    orderId: undefined,
+    tourId: undefined,
+    startDate: '2026-10-24',
+    endDate: '2026-10-26',
+  }));
+  await service.updateStatus(cancelledTerminalBooking.id, 'CANCELLED');
+  await rejects(
+    () => service.update(cancelledTerminalBooking.id, { customerName: 'Edited cancelled booking' }),
+    'update should reject editing a cancelled terminal booking',
+  );
+  assert(
+    (await prisma.booking.findUnique({ where: { id: cancelledTerminalBooking.id } }))?.customerName !== 'Edited cancelled booking',
+    'rejected cancelled booking update should preserve customer snapshot',
+  );
+
   const deletable = await service.create(bookingDto(run, 'DELETE', tourProgram, links, {
     orderId: undefined,
     tourId: undefined,

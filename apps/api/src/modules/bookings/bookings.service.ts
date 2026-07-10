@@ -53,6 +53,7 @@ type BookingMutationState = {
   customerId: string | null;
   orderId: string | null;
   tourId: string | null;
+  status: BookingStatus;
   customerName: string;
   customerPhone: string | null;
   customerEmail: string | null;
@@ -229,6 +230,7 @@ export class BookingsService {
     this.ensureNoNullBookingUpdate(dto);
     return this.prisma.$transaction(async (tx) => {
       const current = await this.lockBookingForWrite(tx, id, user);
+      this.ensureTerminalStatusEditAllowed(current, dto);
       this.ensureOperationFormEditAllowed(current, dto);
       const references = await this.resolveBookingReferences(dto, user, { creating: false, current }, tx);
       await this.ensureOperationalDataEditAllowed(current, dto, references.values, tx);
@@ -565,6 +567,12 @@ export class BookingsService {
     }
   }
 
+  private ensureTerminalStatusEditAllowed(current: BookingMutationState, dto: UpdateBookingDto) {
+    if (!this.hasBookingUpdatePayload(dto)) return;
+    if (current.status === BookingStatus.COMPLETED || current.status === BookingStatus.CANCELLED) {
+      throw new ConflictException('Booking terminal status cannot be edited.');
+    }
+  }
   private ensureOperationFormEditAllowed(current: BookingMutationState, dto: UpdateBookingDto) {
     if (!current.operationForm || !this.hasBookingUpdatePayload(dto)) return;
     throw new ConflictException('Booking đã có phiếu điều hành, không thể chỉnh sửa booking.');

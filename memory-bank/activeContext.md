@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Booking terminal edit hardening:
+  - Blocked data edits on Booking rows already in terminal COMPLETED or CANCELLED status while preserving empty update no-op behavior.
+  - Added a service-flow regression for cancelled bookings and extended the booking status lock contract so update keeps the terminal guard after row locking.
+  - Verification passed for booking lock/controller/service flows, API build/lint, diff-check, Docker API rebuild/restart, production healthcheck, and Docker build-cache prune.
+
 - Customer merged terminal write hardening:
   - Blocked direct writes to customers marked MERGED or carrying mergedIntoId across update/remove/owner transfer/files/comments/care tasks/calls/opportunities and prevented merging an already merged source or target.
   - Added merged-customer terminal contract coverage and service-flow regressions; refreshed the data-scope contract to match scopedLegacyClaim legacy orphan-link behavior.
