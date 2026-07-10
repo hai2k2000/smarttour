@@ -89,7 +89,20 @@ for (const model of ['order', 'quotation', 'tourQuote', 'booking', 'tourCustomer
 if (removeBlock.includes('this.prisma.customer.delete')) failures.push('remove: customer delete must use the transaction client');
 
 const mergeBlock = sliceBetween(service, '  async merge(', '  async transferOwner(');
-if ((mergeBlock.match(/assertCustomerWritable/g) || []).length < 2) failures.push('merge: must reject MERGED target and source customers');
+const mergeTransactionIndex = mergeBlock.indexOf('this.prisma.$transaction(async (tx) => {');
+if (mergeTransactionIndex === -1) failures.push('merge: customer merge must run in one transaction');
+const mergeBeforeTransaction = mergeTransactionIndex === -1 ? mergeBlock : mergeBlock.slice(0, mergeTransactionIndex);
+if (mergeBeforeTransaction.includes('this.prisma.customer.findFirst')) failures.push('merge: must not use pre-transaction customer snapshots for target/source writability');
+if (mergeBeforeTransaction.includes('assertCustomerWritable')) failures.push('merge: target/source terminal guards must run after row locks');
+const mergeTransactionBlock = mergeTransactionIndex === -1 ? '' : mergeBlock.slice(mergeTransactionIndex);
+if (!mergeTransactionBlock.includes('[targetId, sourceId].sort()')) failures.push('merge: must lock target/source customers in deterministic order');
+if (!mergeTransactionBlock.includes('await this.lockWritableCustomerForWrite(tx, customerId, user)')) failures.push('merge: must lock and re-read both target/source customers inside the transaction');
+const mergeLockIndex = mergeTransactionBlock.indexOf('lockWritableCustomerForWrite(tx, customerId, user)');
+for (const mutation of ['tx.customerContact.updateMany', 'tx.customerCareTask.updateMany', 'tx.customerComment.updateMany', 'tx.customerCallLog.updateMany', 'tx.customerOpportunity.updateMany', 'tx.customerFile.updateMany', 'tx.customerTagMap.createMany', 'tx.customerTimeline.updateMany', 'tx.customerTimeline.create', 'tx.customer.update({ where: { id: sourceId }', 'tx.order.updateMany', 'tx.booking.updateMany', 'tx.quotation.updateMany', 'tx.tourQuote.updateMany', 'tx.tourCustomer.updateMany', 'tx.fitTour.updateMany', 'tx.financeReceipt.updateMany', 'tx.financeInvoice.updateMany', 'tx.financeCashflowEntry.updateMany', 'tx.customerLedgerEntry.updateMany']) {
+  const mutationIndex = mergeTransactionBlock.indexOf(mutation);
+  if (mutationIndex !== -1 && (mergeLockIndex === -1 || mutationIndex < mergeLockIndex)) failures.push(`merge: ${mutation} must happen after locking target/source customers`);
+}
+if (!service.includes('select: { id: true, code: true, status: true, mergedIntoId: true, owner: true, phone: true, email: true, fullName: true }')) failures.push('customer row-lock helper must return code/owner for locked merge source metadata');
 
 if (failures.length) {
   console.error('TEST_CUSTOMERS_MERGED_TERMINAL_CONTRACT_FAILED');

@@ -357,15 +357,14 @@ export class CustomersService {
   async merge(targetId: string, dto: AnyRecord, user?: RequestUser) {
     const sourceId = this.required(dto.sourceId, 'sourceId');
     if (sourceId === targetId) throw new BadRequestException('sourceId must be different from target customer');
-    const [target, source] = await Promise.all([
-      this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: targetId }, user) }),
-      this.prisma.customer.findFirst({ where: branchDepartmentScopeWhere({ id: sourceId }, user) }),
-    ]);
-    if (!target || !source) throw new NotFoundException('Customer not found');
-    this.assertCustomerWritable(target);
-    this.assertCustomerWritable(source);
     const actor = this.actorName(user);
     await this.prisma.$transaction(async (tx) => {
+      const lockedCustomers = new Map<string, { code: string; owner: string | null }>();
+      for (const customerId of [targetId, sourceId].sort()) {
+        lockedCustomers.set(customerId, await this.lockWritableCustomerForWrite(tx, customerId, user));
+      }
+      const source = lockedCustomers.get(sourceId);
+      if (!source) throw new NotFoundException('Customer not found');
       await tx.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerCareTask.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerComment.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
@@ -941,7 +940,7 @@ export class CustomersService {
     if (!locked.length) throw new NotFoundException('Customer not found');
     const customer = await tx.customer.findFirst({
       where: branchDepartmentScopeWhere({ id }, user),
-      select: { id: true, status: true, mergedIntoId: true, phone: true, email: true, fullName: true },
+      select: { id: true, code: true, status: true, mergedIntoId: true, owner: true, phone: true, email: true, fullName: true },
     });
     if (!customer) throw new NotFoundException('Customer not found');
     this.assertCustomerWritable(customer);

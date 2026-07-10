@@ -3735,3 +3735,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Customer update now applies DTO/scope validation before writes, then locks and re-reads the Customer row with SELECT ... FOR UPDATE at the start of the transaction before phone uniqueness checks, nested replacements, timeline writes, customer update, and legacy linkExistingData side effects.
   - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional customer update locking and mutation ordering after the lock.
   - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Customer merge write-lock follow-up:
+  - Found CustomersService.merge read target/source customers and ran terminal guards before the transaction, then moved child rows and business links without first locking the Customer rows.
+  - Concurrent customer writes could lock and mutate the source customer while merge was moving existing data but before the source was marked MERGED, leaving new child/file/timeline rows behind on a terminal customer.
+  - Customer merge now locks and re-reads both target/source customers with SELECT ... FOR UPDATE inside the transaction, in deterministic id order, before moving contacts, care tasks, comments, call logs, opportunities, files, tags, timeline, business links, finance rows, and ledger rows.
+  - lockWritableCustomerForWrite now returns locked code/owner metadata so merge audit text and owner transfer use the locked source snapshot.
+  - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional merge locking, deterministic lock order, no pre-transaction target/source snapshots, and mutation ordering after the locks.
+  - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

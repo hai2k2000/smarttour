@@ -3208,3 +3208,8 @@
   - Customer update now locks/re-reads the Customer row inside the transaction before phone checks, nested child-row replacement, timeline/customer writes, and legacy data linking, preventing stale updates after concurrent merge.
   - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed customer merge write-lock follow-up:
+  - Customer merge now locks/re-reads target and source Customer rows inside the transaction, in deterministic id order, before moving child data and business links or marking the source MERGED.
+  - Verification passed: RED/GREEN node scripts/test-customers-merged-terminal-contract.js, node scripts/test-customers-dto-contract.js, scripts/test-customers-service.sh, scripts/test-customers-api.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
