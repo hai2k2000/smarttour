@@ -316,9 +316,28 @@ async function main() {
   const scopedSupplierHistoryWhereJson = JSON.stringify(scopedSupplierHistoryWhere);
   assert(scopedSupplierHistoryWhereJson.includes('"supplierId":"supplier-1"'), 'supplier history must keep the requested supplier filter');
   assert(scopedSupplierHistoryWhereJson.includes('"serviceDate"'), 'supplier history must keep the serviceDate filter');
-  assert(scopedSupplierHistoryWhereJson.includes('"order":{"branch":"OV-BR"}'), 'supplier history must scope operation vouchers through linked order branch');
-  assert(scopedSupplierHistoryWhereJson.includes('"tour":{"branch":"OV-BR"}'), 'supplier history must scope operation vouchers through linked tour branch');
-  assert(scopedSupplierHistoryWhereJson.includes('"booking":{"customer":{"branch":"OV-BR"}}'), 'supplier history must scope operation vouchers through linked booking customer branch');
+  assert(scopedSupplierHistoryWhereJson.includes('"order":{"is":{"AND"') && scopedSupplierHistoryWhereJson.includes('"branch":"OV-BR"'), 'supplier history must scope operation vouchers through linked order branch');
+  assert(scopedSupplierHistoryWhereJson.includes('"tour":{"is":{"AND"') && scopedSupplierHistoryWhereJson.includes('"branch":"OV-BR"'), 'supplier history must scope operation vouchers through linked tour branch');
+  assert(scopedSupplierHistoryWhereJson.includes('"booking":{"is":{"AND"') && scopedSupplierHistoryWhereJson.includes('"customer":{"is":{"AND"') && scopedSupplierHistoryWhereJson.includes('"branch":"OV-BR"'), 'supplier history must scope operation vouchers through linked booking customer branch');
+  let scopedSupplierHistoryBranchDepartmentWhere;
+  const scopedSupplierHistoryBranchDepartmentUser = {
+    id: 'reports-supplier-history-branch-department-user',
+    username: 'reports-supplier-history-branch-department-user',
+    branch: 'OV-BR',
+    department: 'OV-OTHER-DEP',
+    roles: [{ role: { permissions: [{ permission: 'data.scope.branch' }, { permission: 'data.scope.department' }] } }],
+  };
+  const scopedSupplierHistoryBranchDepartmentService = new ReportsService({
+    operationVoucher: {
+      findMany: async (args) => { scopedSupplierHistoryBranchDepartmentWhere = args.where; return []; },
+    },
+  });
+  await scopedSupplierHistoryBranchDepartmentService.supplierHistory('supplier-1', { dateFrom: '2026-01-01', dateTo: '2026-01-31' }, scopedSupplierHistoryBranchDepartmentUser);
+  const scopedSupplierHistoryBranchDepartmentWhereJson = JSON.stringify(scopedSupplierHistoryBranchDepartmentWhere);
+  assert(scopedSupplierHistoryBranchDepartmentWhereJson.includes('"order":{"is":{"AND"'), 'branch+department supplier history must scope the same linked order relation with branchDepartmentScopeWhere');
+  assert(scopedSupplierHistoryBranchDepartmentWhereJson.includes('"tour":{"is":{"AND"'), 'branch+department supplier history must scope the same linked tour relation with branchDepartmentScopeWhere');
+  assert(scopedSupplierHistoryBranchDepartmentWhereJson.includes('"department":"OV-OTHER-DEP"'), 'branch+department supplier history must keep department scope in relation filters');
+
 
   assert.equal(orderCalls, 2, 'valid hybrid finance report and export must query orders exactly twice');
   assert.equal(tourCalls, 0, 'invalid Tour filters must be rejected before querying Prisma');

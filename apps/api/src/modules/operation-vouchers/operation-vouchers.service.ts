@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { OperationVoucherStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
+import { applyWriteDataScope, branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
 import { AddOperationVoucherPaymentDto, CreateOperationVoucherDto, OPERATION_VOUCHER_LIST_DEFAULT_TAKE, OPERATION_VOUCHER_LIST_MAX_TAKE, UpdateOperationVoucherDto } from './dto/operation-voucher.dto';
 
@@ -334,13 +334,33 @@ export class OperationVouchersService {
 
   private scopeWhere(where: Prisma.OperationVoucherWhereInput, user?: RequestUser): Prisma.OperationVoucherWhereInput {
     if (!user || hasUnrestrictedDataScope(user)) return where;
-    const permissions = userPermissions(user);
-    if (this.hasMissingScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
-    const AND: Prisma.OperationVoucherWhereInput[] = [where];
-    if (permissions.has('data.scope.branch') && user.branch) AND.push({ OR: [{ order: { branch: user.branch } }, { tour: { branch: user.branch } }, { booking: { customer: { branch: user.branch } } }] });
-    if (permissions.has('data.scope.department') && user.department) AND.push({ OR: [{ order: { department: user.department } }, { tour: { department: user.department } }, { booking: { customer: { department: user.department } } }] });
-    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
-    return { AND };
+    return { AND: [where, this.operationVoucherLinkScopeWhere(user)] };
+  }
+
+  private operationVoucherLinkScopeWhere(user: RequestUser): Prisma.OperationVoucherWhereInput {
+    return {
+      OR: [
+        { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+        { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+        { booking: { is: this.bookingScopeWhere({}, user) } },
+      ],
+    };
+  }
+
+  private bookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { customer: { is: branchDepartmentScopeWhere<Prisma.CustomerWhereInput>({ mergedIntoId: null }, user) } },
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+          ],
+        },
+      ],
+    };
   }
 
   private async ensureLinksScoped(links: OperationVoucherLinks, user?: RequestUser) {
@@ -349,18 +369,9 @@ export class OperationVouchersService {
     if (!links.bookingId && !links.tourId && !links.orderId) {
       throw new BadRequestException('C\u1ea7n g\u1eafn booking, \u0111\u01a1n h\u00e0ng ho\u1eb7c tour trong ph\u1ea1m vi d\u1eef li\u1ec7u \u0111\u1ec3 t\u1ea1o phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
     }
-    const permissions = userPermissions(user);
-    const orderWhere = links.orderId ? { id: links.orderId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
-    const tourWhere = links.tourId ? { id: links.tourId, ...(permissions.has('data.scope.branch') && user.branch ? { branch: user.branch } : {}), ...(permissions.has('data.scope.department') && user.department ? { department: user.department } : {}) } : undefined;
-    const bookingWhere = links.bookingId
-      ? {
-          AND: [
-            { id: links.bookingId },
-            ...(permissions.has('data.scope.branch') && user.branch ? [{ OR: [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] }] : []),
-            ...(permissions.has('data.scope.department') && user.department ? [{ OR: [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] }] : []),
-          ],
-        }
-      : undefined;
+    const orderWhere = links.orderId ? branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ id: links.orderId, deletedAt: null }, user) : undefined;
+    const tourWhere = links.tourId ? branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id: links.tourId, deletedAt: null }, user) : undefined;
+    const bookingWhere = links.bookingId ? this.bookingScopeWhere({ id: links.bookingId }, user) : undefined;
     const [order, tour, booking] = await Promise.all([
       orderWhere ? this.prisma.order.findFirst({ where: orderWhere, select: { id: true } }) : null,
       tourWhere ? this.prisma.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
@@ -370,11 +381,6 @@ export class OperationVouchersService {
     if (links.orderId && !order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng trong ph\u1ea1m vi d\u1eef li\u1ec7u');
     if (links.tourId && !tour) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour trong ph\u1ea1m vi d\u1eef li\u1ec7u');
   }
-
-  private hasMissingScopeValue(permissions: Set<string>, user: RequestUser) {
-    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
-  }
-
 
   private take(value?: number) {
     if (value === undefined || value === null) return OPERATION_VOUCHER_LIST_DEFAULT_TAKE;

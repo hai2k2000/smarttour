@@ -69,6 +69,7 @@ async function main() {
   const run = 'OV-SVC-' + Date.now();
   const actorUser = { id: 'operation-voucher-user', username: 'operation-voucher-server-actor', roles: [{ role: { permissions: [{ permission: 'data.scope.all' }] } }] };
   const scopedBranchUser = { id: 'operation-voucher-branch-user', username: 'operation-voucher-branch-actor', branch: 'OV-BR', roles: [{ role: { permissions: [{ permission: 'data.scope.branch' }] } }] };
+  const scopedBranchDepartmentUser = { id: 'operation-voucher-branch-department-user', username: 'operation-voucher-branch-department-actor', branch: 'OV-BR', department: 'OV-OTHER-DEP', roles: [{ role: { permissions: [{ permission: 'data.scope.branch' }, { permission: 'data.scope.department' }] } }] };
 
   const customer = await prisma.customer.create({
     data: {
@@ -303,6 +304,26 @@ async function main() {
   assert((await service.list(undefined, 'PENDING')).some((row) => row.id === created.id), 'status filter should match pending voucher');
   assert((await service.list(run, undefined, undefined, 1)).length === 1, 'list should honor take limit');
   await rejectsMessage(() => service.list(undefined, 'BAD_STATUS'), 'Trạng thái phiếu điều hành không hợp lệ', 'list should reject invalid status filter with Vietnamese message');
+
+  const splitScopedVoucher = await prisma.operationVoucher.create({
+    data: {
+      voucherCode: run + '-SPLIT-SCOPE',
+      orderId: order.id,
+      tourId: otherTour.id,
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      serviceType: 'Hotel',
+      serviceName: 'Split scope legacy voucher',
+      serviceDate: new Date('2026-11-07T00:00:00.000Z'),
+      totalAmount: 100,
+      paidAmount: 0,
+      remainAmount: 100,
+      status: 'PENDING',
+    },
+  });
+  const splitScopedRows = await service.list(run + '-SPLIT-SCOPE', undefined, scopedBranchDepartmentUser);
+  assert(!splitScopedRows.some((row) => row.id === splitScopedVoucher.id), 'branch+department voucher scope must require the same linked order/tour/booking to match both dimensions');
+  await rejects(() => service.detail(splitScopedVoucher.id, scopedBranchDepartmentUser), 'branch+department voucher detail must reject split relation scope matches');
 
   const detail = await service.detail(created.id);
   assert(detail.id === created.id && detail.details.length === 2, 'detail should load details');
