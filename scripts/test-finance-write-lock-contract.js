@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const service = fs.readFileSync(path.join(process.cwd(), 'apps/api/src/modules/finance/finance.service.ts'), 'utf8');
+const orderLinks = fs.readFileSync(path.join(process.cwd(), 'apps/api/src/modules/finance/finance-order-links.ts'), 'utf8');
 
 function sliceBetween(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -101,6 +102,32 @@ for (const item of cases) {
   if (lockIndex !== -1 && findIndex !== -1 && lockIndex > findIndex) failures.push(`${item.name}: row lock must happen before scoped re-read`);
   if (findIndex !== -1 && assertIndex !== -1 && findIndex > assertIndex) failures.push(`${item.name}: scoped re-read must happen before final-state guard`);
   if (assertIndex !== -1 && updateIndex !== -1 && assertIndex > updateIndex) failures.push(`${item.name}: final-state guard must happen before write`);
+}
+
+const orderSideEffectCases = [
+  {
+    name: 'applyOrderReceipt',
+    start: 'export async function applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {',
+    end: 'export async function applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {',
+  },
+  {
+    name: 'applyOrderPayment',
+    start: 'export async function applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {',
+    end: 'export async function resolveReceiptCustomer',
+  },
+];
+
+if (!orderLinks.includes('function lockOrderForFinanceWrite')) failures.push('finance order side effects: missing shared order row lock helper');
+if (!orderLinks.includes('FROM "Order"') || !orderLinks.includes('FOR UPDATE')) failures.push('finance order side effects: order row lock must use SELECT ... FOR UPDATE');
+
+for (const item of orderSideEffectCases) {
+  const block = sliceBetween(orderLinks, item.start, item.end);
+  const lockIndex = block.indexOf('await lockOrderForFinanceWrite(tx, orderId);');
+  const findIndex = block.indexOf('tx.order.findFirst');
+  const updateIndex = block.indexOf('tx.order.update');
+  if (lockIndex === -1) failures.push(`${item.name}: must lock the order row before recomputing payment snapshots`);
+  if (lockIndex !== -1 && findIndex !== -1 && lockIndex > findIndex) failures.push(`${item.name}: order row lock must happen before reading the order snapshot`);
+  if (findIndex !== -1 && updateIndex !== -1 && findIndex > updateIndex) failures.push(`${item.name}: order snapshot read must happen before update`);
 }
 
 if (failures.length) {

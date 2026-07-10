@@ -3693,3 +3693,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - QuoteCombo update/delete/create-quote/create-order/recalculate now lock the QuoteCombo row with FOR UPDATE, re-read scoped state inside the transaction, and run status guards after the lock.
   - Expanded scripts/test-quotes-backend-contract.js with RED/GREEN coverage for legacy quote row-lock helpers and in-transaction re-read usage.
   - Verification/deploy passed on the VPS: quotes backend/client/coverage contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Finance order snapshot row-lock follow-up:
+  - Found finance receipt/payment approval and cancellation side effects recomputed Order paidAmount/paidCost from an unlocked Order snapshot.
+  - Concurrent approvals/cancellations for the same order could lose one update and leave order payment/cost snapshots inconsistent with approved finance documents.
+  - finance-order-links now locks the Order row with SELECT ... FOR UPDATE before reading and recomputing receipt/payment snapshots in applyOrderReceipt/applyOrderPayment.
+  - Expanded scripts/test-finance-write-lock-contract.js with RED/GREEN coverage for the shared Order row lock and lock-before-read order.
+  - Verification/deploy passed on the VPS: finance write-lock contract, finance attachment write-lock contract, finance helper contracts, finance service flows, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

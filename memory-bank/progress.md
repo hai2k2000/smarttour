@@ -3178,3 +3178,8 @@
   - Legacy tour quote and combo quote write/status/recalculate flows now lock and re-check scoped row state inside the write transaction before mutating records.
   - Verification passed: RED/GREEN node scripts/test-quotes-backend-contract.js, quote combo/tour client contracts, quote test coverage contract, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed finance order snapshot row-lock follow-up:
+  - Finance order side effects now lock the linked Order row before recomputing paidAmount/paidCost snapshots from receipts/payments, preventing lost updates under concurrent finance approvals or cancellations.
+  - Verification passed: RED/GREEN node scripts/test-finance-write-lock-contract.js, finance attachment write-lock contract, scripts/test-finance-helper-contracts.sh, scripts/test-finance-service-flows.sh, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

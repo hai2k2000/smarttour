@@ -2,7 +2,12 @@ import { BadRequestException } from '@nestjs/common';
 import { OrderCostStatus, OrderPaymentStatus, Prisma } from '@prisma/client';
 import { branchDepartmentScopeWhere, RequestUser } from '../auth/data-scope';
 
+async function lockOrderForFinanceWrite(tx: Prisma.TransactionClient, orderId: string) {
+  await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} AND "deletedAt" IS NULL FOR UPDATE`;
+}
+
 export async function applyOrderReceipt(tx: Prisma.TransactionClient, orderId: string, amount: number) {
+  await lockOrderForFinanceWrite(tx, orderId);
   const order = await tx.order.findFirst({ where: { id: orderId, deletedAt: null } });
   if (!order) throw new BadRequestException('Không tìm thấy booking liên kết với phiếu thu');
 
@@ -19,6 +24,7 @@ export async function applyOrderReceipt(tx: Prisma.TransactionClient, orderId: s
 }
 
 export async function applyOrderPayment(tx: Prisma.TransactionClient, orderId: string, amount: number) {
+  await lockOrderForFinanceWrite(tx, orderId);
   const order = await tx.order.findFirst({ where: { id: orderId, deletedAt: null } });
   if (!order) throw new BadRequestException('Không tìm thấy booking liên kết với phiếu chi');
 
