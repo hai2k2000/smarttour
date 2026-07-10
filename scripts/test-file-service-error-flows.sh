@@ -161,10 +161,10 @@ async function assertFinanceInvoiceDeleteRollback() {
 
 async function assertSupplierUploadCleanup() {
   const files = filesService();
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: { create: async () => { throw new Error('supplier file create failed'); } },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.addSupplierFile('supplier-1', testFile, 'actor-1'), /supplier file create failed/);
   assert.deepEqual(files.calls.remove, [upload.objectKey]);
@@ -172,10 +172,10 @@ async function assertSupplierUploadCleanup() {
 
 async function assertSupplierUploadCleanupFailure() {
   const files = filesService({ failRemove: true });
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: { create: async () => { throw new Error('supplier file create failed'); } },
-  }, files);
+  }), files);
 
   await assert.rejects(
     () => service.addSupplierFile('supplier-1', testFile, 'actor-1'),
@@ -197,14 +197,14 @@ async function assertSupplierDeleteRollback() {
   const files = filesService({ failRemove: true });
   const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
   const restored = [];
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => supplierFile,
       deleteMany: async () => ({ count: 1 }),
       create: async ({ data }) => { restored.push(data); return data; },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteSupplierFile('supplier-1', 'supplier-file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);
@@ -216,14 +216,14 @@ async function assertSupplierDeleteRollback() {
 async function assertSupplierDeleteRestoreFailureIsExplicit() {
   const files = filesService({ failRemove: true });
   const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => supplierFile,
       deleteMany: async () => ({ count: 1 }),
       create: async () => { throw new Error('restore failed'); },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(
     () => service.deleteSupplierFile('supplier-1', 'supplier-file-1'),
@@ -235,13 +235,13 @@ async function assertSupplierDeleteRejectsInvalidStorageMetadata() {
   const files = filesService();
   let deleteCalled = false;
   const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: 'invalid-file-url', fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => supplierFile,
       deleteMany: async () => { deleteCalled = true; return { count: 1 }; },
     },
-  }, {
+  }), {
     ...files,
     objectKeyFromUrl: () => null,
   });
@@ -256,13 +256,13 @@ async function assertSupplierDeleteRejectsInvalidStorageMetadata() {
 async function assertSupplierDeleteKeepsStorageOnDatabaseFailure() {
   const files = filesService();
   const supplierFile = { id: 'supplier-file-1', supplierId: 'supplier-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-1', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => supplierFile,
       deleteMany: async () => { throw new Error('db delete failed'); },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteSupplierFile('supplier-1', 'supplier-file-1'), /db delete failed/);
   assert.deepEqual(files.calls.removeIfPresent, []);
@@ -271,13 +271,13 @@ async function assertSupplierDeleteKeepsStorageOnDatabaseFailure() {
 async function assertSupplierFileOwnership() {
   const files = filesService();
   let deleteCalled = false;
-  const service = new SuppliersService({
+  const service = new SuppliersService(withTransaction({
     supplier: { findUnique: async () => ({ id: 'supplier-2', deletedAt: null }) },
     supplierFile: {
       findFirst: async () => null,
       deleteMany: async () => { deleteCalled = true; return { count: 0 }; },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteSupplierFile('supplier-2', 'supplier-file-1'), /Không tìm thấy file nhà cung cấp/);
   assert.equal(deleteCalled, false);

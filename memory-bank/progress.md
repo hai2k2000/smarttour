@@ -3228,3 +3228,8 @@
   - Tour guide update/remove and guide file metadata writes now lock/re-read GuideProfile inside the transaction before mutating profile, child rows, or GuideFile metadata, preventing stale writes after concurrent soft delete/scope changes.
   - Verification passed: RED/GREEN node scripts/test-tour-guides-write-lock-contract.js, node scripts/test-tour-guides-client-contract.js, scripts/test-file-service-error-flows.sh, scripts/test-tour-guides-api.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed supplier file metadata write-lock follow-up:
+  - Supplier upload/delete file metadata writes now lock the Supplier row inside the transaction before SupplierFile create/find/delete, preventing stale file writes after concurrent supplier state changes.
+  - Verification passed: RED/GREEN scripts/test-suppliers-file-contract.sh, scripts/test-suppliers-typed-contract.sh, scripts/test-file-service-error-flows.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

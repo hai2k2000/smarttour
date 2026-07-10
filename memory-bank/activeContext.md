@@ -3767,3 +3767,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Guide update/remove now lock before uniqueness checks, schedule link validation, child replacement, or soft delete; guide add/delete file metadata writes now lock before GuideFile create/find/delete while preserving uploaded-object cleanup and metadata restore on object delete failure.
   - Added scripts/test-tour-guides-write-lock-contract.js and updated scripts/test-file-service-error-flows.sh for transactional guide file delete rollback mocks.
   - Verification/deploy passed on the VPS: tour guides write-lock contract, tour guides client contract, file service error flows, tour guides API flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Supplier file metadata write-lock follow-up:
+  - Found SuppliersService.addSupplierFile created SupplierFile metadata after only a pre-upload getSupplier check, and deleteSupplierFile read file ownership/deleted metadata before any supplier row lock.
+  - A concurrent supplier soft-delete/status write could happen between the pre-check and metadata write; delete-by-id also risked stale ownership/metadata deletion after concurrent supplier state changes.
+  - Supplier file upload now re-locks the Supplier row with lockSupplierForStatusWrite inside a transaction before SupplierFile metadata create, while preserving uploaded-object rollback and explicit rollback-failure errors.
+  - Supplier file delete now locks the Supplier row before file ownership read, object-key validation, and SupplierFile deleteMany in the same transaction, while preserving metadata restore if storage deletion fails.
+  - Expanded scripts/test-suppliers-file-contract.sh with RED/GREEN coverage for transactional supplier file metadata writes and lock ordering; updated scripts/test-file-service-error-flows.sh supplier mocks for transactional file write paths.
+  - Verification/deploy passed on the VPS: supplier file contract, supplier typed contract, file service error flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

@@ -300,14 +300,17 @@ export class SuppliersService {
     const uploadedBy = this.requiredText(actorId, 'Không xác định được người tải file');
     const upload = await this.filesService.upload(file, `suppliers/${id}`, uploadedBy);
     try {
-      return await this.prisma.supplierFile.create({
-        data: {
-          supplierId: id,
-          fileName: upload.fileName,
-          fileUrl: upload.url,
-          fileType: upload.mimeType,
-          uploadedBy,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockSupplierForStatusWrite(tx, id);
+        return tx.supplierFile.create({
+          data: {
+            supplierId: id,
+            fileName: upload.fileName,
+            fileUrl: upload.url,
+            fileType: upload.mimeType,
+            uploadedBy,
+          },
+        });
       });
     } catch (error) {
       try {
@@ -321,12 +324,16 @@ export class SuppliersService {
 
   async deleteSupplierFile(id: string, fileId: string, user?: RequestUser) {
     await this.getSupplier(id, user);
-    const file = await this.prisma.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
-    if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
-    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    if (!objectKey) throw new InternalServerErrorException('Không xác định được khóa lưu trữ của file nhà cung cấp');
-    const deleted = await this.prisma.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
-    if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
+    const { file, objectKey } = await this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierForStatusWrite(tx, id);
+      const file = await tx.supplierFile.findFirst({ where: { id: fileId, supplierId: id } });
+      if (!file) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
+      const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+      if (!objectKey) throw new InternalServerErrorException('Không xác định được khóa lưu trữ của file nhà cung cấp');
+      const deleted = await tx.supplierFile.deleteMany({ where: { id: fileId, supplierId: id } });
+      if (deleted.count !== 1) throw new NotFoundException(SUPPLIER_ERRORS.fileNotFound);
+      return { file, objectKey };
+    });
     try {
       await this.filesService.removeIfPresent(objectKey);
       return file;
