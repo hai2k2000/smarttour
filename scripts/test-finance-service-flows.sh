@@ -377,6 +377,7 @@ async function main() {
   await rejects(() => finance.receiptDetail(draftReceipt.id, outOfScopeUser), 'receipt detail should be hidden outside branch scope');
   const deletedReceipt = await finance.deleteReceipt(draftReceipt.id);
   assert(deletedReceipt.deletedAt, 'receipt delete should soft delete draft');
+  await rejectsWithStatus(() => finance.approveReceipt(deletedReceipt.id, { actor: 'finance-test' }), 404, 'deleted receipt should not be approved');
 
   const draftPayment = await finance.createPayment({
     voucherCode: run + '-CRUD-PAY',
@@ -404,6 +405,7 @@ async function main() {
   await rejects(() => finance.paymentDetail(draftPayment.id, outOfScopeUser), 'payment detail should be hidden outside branch scope');
   const deletedPayment = await finance.deletePayment(draftPayment.id);
   assert(deletedPayment.deletedAt, 'payment delete should soft delete draft');
+  await rejectsWithStatus(() => finance.approvePayment(deletedPayment.id, { actor: 'finance-test' }), 404, 'deleted payment should not be approved');
 
   const draftInvoice = await finance.createInvoice({
     invoiceCode: run + '-CRUD-INV',

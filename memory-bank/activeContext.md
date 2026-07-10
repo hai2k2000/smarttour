@@ -3560,3 +3560,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Tour lifecycle checks now live in shared TourCore helpers so generic ToursService, GIT/LandTour typed endpoints, and workflow-derived FIT root updates enforce COMPLETED -> SETTLED only, CANCELLED terminal, and SETTLED terminal.
   - Added RED/GREEN API contract coverage in scripts/test-tour-type-apis.sh for common Tour, FIT cross-endpoint root settlement, GIT, and LandTour terminal lifecycle behavior.
   - Verification/deploy passed on the VPS: tour type API suite, FIT root contract, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Finance soft-delete action follow-up:
+  - Found soft-deleted draft FinanceReceipt/FinancePayment rows could still be approved because approve/reject/cancel action lookups used scoped id filters without deletedAt: null.
+  - Finance receipt/payment approve, reject, and cancel action reads now require deletedAt: null, matching detail/list behavior and preventing postings/ledger side effects on deleted documents.
+  - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for deleted receipt/payment approve rejection.
+  - Verification passed on the VPS: finance service flows, finance rules/helper/controller/reject-audit/write-allowlist contracts, API build/lint.

@@ -3068,3 +3068,7 @@
 - 2026-07-10 Completed tour terminal lifecycle follow-up:
   - Common, FIT-root, GIT, and LandTour flows now keep COMPLETED from reopening except SETTLED, keep CANCELLED terminal, and keep SETTLED terminal across generic and typed update paths.
   - Verification/deploy passed: RED/GREEN scripts/test-tour-type-apis.sh, scripts/test-fit-tour-root-contract.sh, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed finance soft-delete action follow-up:
+  - Finance receipt/payment approve/reject/cancel actions now ignore soft-deleted documents, preventing deleted drafts from being approved and posted.
+  - Verification passed: RED/GREEN scripts/test-finance-service-flows.sh, finance rules/helper/controller/reject-audit/write-allowlist contracts, API build/lint.

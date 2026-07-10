@@ -219,7 +219,7 @@ export class FinanceService {
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
-      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       assertCanApproveFinanceEntity(current, 'Phiếu thu');
       this.assertReceiptOrderAllocation(this.decimal(current.receiptAmount), current.orders);
@@ -252,7 +252,7 @@ export class FinanceService {
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu thu đã duyệt';
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
-      const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), include: { orders: true } });
+      const receipt = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true } });
       if (!receipt) throw new NotFoundException('Không tìm thấy phiếu thu');
       assertCanCancelFinanceEntity(receipt, 'Phiếu thu');
       this.assertReceiptOrderAllocation(this.decimal(receipt.receiptAmount), receipt.orders);
@@ -416,7 +416,7 @@ export class FinanceService {
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
-      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
       assertCanApproveFinanceEntity(current, 'Phiếu chi');
       await assertPaymentLinks(tx, { supplierId: current.supplierId, orderId: current.orderId, operationVoucherId: current.operationVoucherId, tourId: current.tourId }, user);
@@ -446,7 +446,7 @@ export class FinanceService {
     const reason = this.text(dto.reason) || this.text(dto.note) || 'Hủy phiếu chi đã duyệt';
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
-      const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user) });
+      const payment = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
       if (!payment) throw new NotFoundException('Không tìm thấy phiếu chi');
       assertCanCancelFinanceEntity(payment, 'Phiếu chi');
       await assertPaymentLinks(tx, { supplierId: payment.supplierId, orderId: payment.orderId, operationVoucherId: payment.operationVoucherId, tourId: payment.tourId }, user);
@@ -1044,7 +1044,7 @@ export class FinanceService {
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinanceReceipt(tx, id);
-      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu thu');
       const changedAt = new Date();
@@ -1063,7 +1063,7 @@ export class FinanceService {
     const actor = this.actor(user);
     return this.prisma.$transaction(async (tx) => {
       await lockFinancePayment(tx, id);
-      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
       if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
       if (status === FinanceApprovalStatus.REJECTED) assertCanRejectFinanceEntity(current, 'Phiếu chi');
       const changedAt = new Date();
