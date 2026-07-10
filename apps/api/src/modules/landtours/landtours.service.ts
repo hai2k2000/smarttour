@@ -138,7 +138,7 @@ export class LandToursService {
     await this.detail(id, user);
     return this.prisma.$transaction(async (tx) => {
       await this.ensureRemovable(tx, id, user);
-      return this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system');
+      return this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system', undefined, user);
     });
   }
 

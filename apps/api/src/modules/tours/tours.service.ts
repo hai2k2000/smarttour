@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { assertTourCloseAllowed, assertTourLifecycleUpdateAllowed, TourCoreService } from './tour-core.service';
+import { assertTourLifecycleUpdateAllowed, TourCoreService } from './tour-core.service';
 import { CreateTourDto } from './dto/create-tour.dto';
 import { ListToursQueryDto } from './dto/list-tours-query.dto';
 import { CloseTourDto } from './dto/tour-action.dto';
@@ -147,7 +147,7 @@ export class ToursService {
     await this.detail(id, user);
     return this.prisma.$transaction(async (tx) => {
       await this.ensureRemovable(tx, id, user);
-      return this.tourCore.softDelete(tx, id, this.actor(user));
+      return this.tourCore.softDelete(tx, id, this.actor(user), undefined, user);
     });
   }
 
@@ -180,9 +180,7 @@ export class ToursService {
   }
 
   async close(id: string, dto: CloseTourDto = {}, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    assertTourCloseAllowed(current.status);
-    return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
+    return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note, user));
   }
 
   private optionalText(value?: unknown) {

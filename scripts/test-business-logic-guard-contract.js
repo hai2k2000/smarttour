@@ -217,6 +217,79 @@ includes(
   'TourCore terminal data edit guard should return a business-facing message.',
 );
 
+includes(
+  tourCore,
+  'async lockTourForWrite(',
+  'TourCore write flows should share a row-lock helper for Tour root state.',
+);
+includes(
+  tourCore,
+  'FROM "Tour"',
+  'TourCore write lock should target the Tour row.',
+);
+includes(
+  tourCore,
+  'AND "deletedAt" IS NULL',
+  'TourCore write lock should avoid deleted Tour rows before lifecycle checks.',
+);
+includes(
+  tourCore,
+  'FOR UPDATE',
+  'TourCore write lock should use SELECT ... FOR UPDATE.',
+);
+includes(
+  tourCore,
+  'async ensureTourDataWriteAllowed(',
+  'TourCore child-row write flows should share locked terminal data-edit checks.',
+);
+const tourCoreUpdateRoot = sliceBetween(tourCore, 'async updateRoot', '  private ensureLifecycleUpdateAllowed');
+includes(
+  tourCoreUpdateRoot,
+  'const current = await this.lockTourForWrite(tx, tourId, user, config.type)',
+  'TourCore.updateRoot must lock and re-read the Tour before lifecycle/date guards.',
+);
+includes(
+  tourCoreUpdateRoot,
+  'this.ensureLifecycleUpdateAllowed(current, data as AnyRecord, guardFields)',
+  'TourCore.updateRoot must run lifecycle and terminal data guards on the locked Tour snapshot.',
+);
+assert(
+  tourCoreUpdateRoot.indexOf('lockTourForWrite(tx, tourId, user, config.type)') < tourCoreUpdateRoot.indexOf('ensureLifecycleUpdateAllowed(current'),
+  'TourCore.updateRoot must acquire the Tour lock before lifecycle checks.',
+);
+const tourCoreSoftDelete = sliceBetween(tourCore, 'async softDelete', '  async close');
+includes(tourCoreSoftDelete, 'const current = await this.lockTourForWrite(tx, tourId, user)', 'TourCore.softDelete must lock and re-read Tour state before cancelling.');
+includes(tourCoreSoftDelete, 'assertTourLifecycleUpdateAllowed(current.status, TourStatus.CANCELLED)', 'TourCore.softDelete must reject cancelling terminal tours through lifecycle rules.');
+const tourCoreClose = sliceBetween(tourCore, 'async close', '  async log(');
+includes(tourCoreClose, 'const current = await this.lockTourForWrite(tx, tourId, user)', 'TourCore.close must lock and re-read Tour state before completion.');
+includes(tourCoreClose, 'assertTourCloseAllowed(current.status)', 'TourCore.close must check close rules on the locked Tour snapshot.');
+const tourCoreAddAttachment = sliceBetween(tourCore, 'async addAttachment', '  async replaceSurveys');
+includes(tourCoreAddAttachment, "await this.ensureTourDataWriteAllowed(tx, tourId, user, type, ['attachments'])", 'Tour attachment writes must reject terminal Tour data edits after locking.');
+const tourCoreCopyServices = sliceBetween(tourCore, 'async copyServicesFromTour', '  async copyServices(');
+includes(tourCoreCopyServices, "await this.ensureTourDataWriteAllowed(tx, targetTourId, user, type, ['services'])", 'Tour service copy must reject terminal target Tour data edits after locking.');
+includes(
+  commonTours,
+  'this.tourCore.close(tx, id, this.actor(user), dto?.note, user)',
+  'Common Tour close should pass user scope into the locked TourCore close path.',
+);
+includes(
+  commonTours,
+  'this.tourCore.softDelete(tx, id, this.actor(user), undefined, user)',
+  'Common Tour remove should pass user scope into the locked TourCore delete path.',
+);
+for (const pair of [['GIT', gitTours], ['LandTour', landTours]]) {
+  const label = pair[0];
+  const moduleSource = pair[1];
+  includes(moduleSource, "this.tourCore.softDelete(tx, id, user?.username || user?.email || user?.id || 'system', undefined, user)", label + ' remove should pass user scope into the locked TourCore delete path.');
+}
+const fitAddAttachment = sliceBetween(fitTours, 'async uploadAttachment', '  async removeAttachment');
+includes(fitAddAttachment, 'this.tourCore.addAttachment(tx, tourId, tourAttachment, user, TourType.FIT)', 'FIT attachment upload should pass user scope/type into locked TourCore attachment writes.');
+const fitRemoveAttachment = sliceBetween(fitTours, 'async removeAttachment', '  async remove(');
+includes(fitRemoveAttachment, "this.tourCore.ensureTourDataWriteAllowed(tx, tourId, user, TourType.FIT, ['attachments'])", 'FIT attachment delete should lock and guard terminal Tour state before metadata deletion.');
+const fitReplaceServices = sliceBetween(fitTours, 'private async replaceFitTourServices', '  private tourConfig');
+includes(fitReplaceServices, "this.tourCore.ensureTourDataWriteAllowed(tx, tourId, user, TourType.FIT, ['services'])", 'FIT copy budget/operation should lock and guard terminal target Tour before replacing services.');
+includes(fitTours, 'this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user), undefined, user)', 'FIT remove should pass user scope into the locked TourCore delete path.');
+
 const supplierUpdate = sliceBetween(suppliers, 'async updateSupplier(id: string', '  async deleteSupplier');
 const supplierStatusUpdate = sliceBetween(suppliers, 'async updateSupplierStatus', '  async listTypedSuppliers');
 const typedSupplierUpdate = sliceBetween(suppliers, 'async updateTypedSupplier', '  async updateTypedSupplierStatus');

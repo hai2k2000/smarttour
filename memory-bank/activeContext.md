@@ -3775,3 +3775,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier file delete now locks the Supplier row before file ownership read, object-key validation, and SupplierFile deleteMany in the same transaction, while preserving metadata restore if storage deletion fails.
   - Expanded scripts/test-suppliers-file-contract.sh with RED/GREEN coverage for transactional supplier file metadata writes and lock ordering; updated scripts/test-file-service-error-flows.sh supplier mocks for transactional file write paths.
   - Verification/deploy passed on the VPS: supplier file contract, supplier typed contract, file service error flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-10 Tour root write-lock and terminal child-action follow-up:
+  - Found TourCoreService.updateRoot re-read Tour status inside a transaction without locking the Tour row first; close/softDelete also updated from pre-transaction service checks, and service-copy/FIT attachment/copy actions could mutate child rows without terminal Tour data-edit guards.
+  - Added TourCoreService.lockTourForWrite using SELECT ... FOR UPDATE plus scoped re-read, and routed root update, close, softDelete, service copy, and FIT attachment/service-copy actions through locked lifecycle or terminal data-write checks.
+  - Common Tour, GIT, LandTour, and FIT delete/close callers now pass user scope into the locked TourCore paths; FIT attachment delete and copy budget/operation now guard terminal target Tour state before mutating child rows.
+  - Expanded scripts/test-business-logic-guard-contract.js with RED/GREEN coverage for Tour row locking and terminal child-action guards.
+  - Verification/deploy passed on the VPS: business logic guard, tour type APIs, FIT root/client contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

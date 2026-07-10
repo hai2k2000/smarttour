@@ -252,7 +252,7 @@ export class FitToursService {
     try {
       await this.prisma.$transaction(async (tx) => {
         const [tourAttachment] = this.tourCore.mapAttachments([attachment]);
-        await this.tourCore.addAttachment(tx, tourId, tourAttachment);
+        await this.tourCore.addAttachment(tx, tourId, tourAttachment, user, TourType.FIT);
         await this.legacyCompat.addAttachment(tx, id, attachment);
         await this.logFitTourAction(tx, tourId, 'UPLOAD_FIT_ATTACHMENT', user, { fitTourId: id, workflowStep, fileName: upload.fileName, fileUrl: upload.url });
       });
@@ -272,6 +272,7 @@ export class FitToursService {
     if (!attachment) throw new NotFoundException('Không tìm thấy file đính kèm của tour FIT');
 
     await this.prisma.$transaction(async (tx) => {
+      await this.tourCore.ensureTourDataWriteAllowed(tx, tourId, user, TourType.FIT, ['attachments']);
       if (attachment.commonId) await tx.tourAttachment.deleteMany({ where: { id: attachment.commonId, tourId } });
       await this.legacyCompat.removeAttachment(tx, fitTourId, attachment);
       await this.logFitTourAction(tx, tourId, 'DELETE_FIT_ATTACHMENT', user, { fitTourId, attachmentId: targetAttachmentId, fileName: attachment.fileName, fileUrl: attachment.fileUrl });
@@ -363,7 +364,7 @@ export class FitToursService {
   ) {
     if (fitTour.tourId) {
       await this.ensureRemovable(tx, fitTour.tourId, user);
-      await this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user));
+      await this.tourCore.softDelete(tx, fitTour.tourId, this.actor(user), undefined, user);
     }
     return tx.fitTour.update({ where: { id }, data: { workflowStatus: FitTourWorkflowStatus.CANCELLED } });
   }
@@ -404,7 +405,7 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const targetRootId = this.requiredTourRootId(target);
-    await this.replaceFitTourServices(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto);
+    await this.replaceFitTourServices(tx, targetRootId, { ...target, budgetServices: budgetRows } as unknown as UpdateFitTourDto, user);
     await this.legacyCompat.replaceBudgetServices(tx, target.id, budgetRows);
     await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_BUDGET', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
   }
@@ -417,7 +418,7 @@ export class FitToursService {
     user?: RequestUser,
   ) {
     const targetRootId = this.requiredTourRootId(target);
-    await this.replaceFitTourServices(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto);
+    await this.replaceFitTourServices(tx, targetRootId, { ...target, operationServices: rows } as unknown as UpdateFitTourDto, user);
     await this.legacyCompat.replaceOperationServices(tx, target.id, rows);
     await this.logFitTourAction(tx, targetRootId, 'COPY_FIT_OPERATION', user, { sourceFitTourId: source.id, targetFitTourId: target.id });
   }
@@ -1009,7 +1010,8 @@ export class FitToursService {
     await this.tourCore.replaceCommonChildren(tx, tourId, children);
   }
 
-  private async replaceFitTourServices(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto) {
+  private async replaceFitTourServices(tx: Prisma.TransactionClient, tourId: string, dto: UpdateFitTourDto, user?: RequestUser) {
+    await this.tourCore.ensureTourDataWriteAllowed(tx, tourId, user, TourType.FIT, ['services']);
     await this.tourCore.replaceServicesAndSuppliers(tx, tourId, this.mapTourServices(dto), 'FIT_SERVICE');
   }
 

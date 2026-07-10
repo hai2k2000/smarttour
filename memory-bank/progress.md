@@ -3233,3 +3233,10 @@
   - Supplier upload/delete file metadata writes now lock the Supplier row inside the transaction before SupplierFile create/find/delete, preventing stale file writes after concurrent supplier state changes.
   - Verification passed: RED/GREEN scripts/test-suppliers-file-contract.sh, scripts/test-suppliers-typed-contract.sh, scripts/test-file-service-error-flows.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+
+- 2026-07-10 Completed Tour root write-lock and terminal child-action follow-up:
+  - Tour root update/close/delete and service-copy/FIT child-action writes now lock and re-check the Tour row before lifecycle or terminal data-edit guards.
+  - Terminal Tours can no longer be mutated through copy-services, FIT attachment upload/delete, or FIT budget/operation copy paths.
+  - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-tour-type-apis.sh, scripts/test-fit-tour-root-contract.sh, node scripts/test-fit-tours-client-contract.js, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

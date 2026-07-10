@@ -148,17 +148,16 @@ export class TourCoreService {
   async updateRoot(tx: Prisma.TransactionClient, tourId: string, dto: AnyRecord, config: TourRootConfig, user?: RequestUser, guardFields?: string[]) {
     await this.ensureOrder(tx, dto.orderId, user);
     const data = this.toTourData(dto, false, config) as Prisma.TourUncheckedUpdateInput;
-    await this.ensureLifecycleUpdateAllowed(tx, tourId, data as AnyRecord, user, guardFields);
-    await this.ensureUpdatedDateRange(tx, tourId, data as AnyRecord);
-    return tx.tour.update({ where: { id: tourId }, data });
+    const current = await this.lockTourForWrite(tx, tourId, user, config.type);
+    this.ensureLifecycleUpdateAllowed(current, data as AnyRecord, guardFields);
+    await this.ensureUpdatedDateRange(tx, tourId, data as AnyRecord, current);
+    return tx.tour.update({ where: { id: current.id }, data });
   }
 
-  private async ensureLifecycleUpdateAllowed(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord, user?: RequestUser, guardFields?: string[]) {
+  private ensureLifecycleUpdateAllowed(current: { status: TourStatus }, data: AnyRecord, guardFields?: string[]) {
     const changedFields = Object.keys(data);
     if (!changedFields.length) return;
     const fieldsForTerminalGuard = guardFields || changedFields;
-    const current = await tx.tour.findFirst({ where: this.scopeWhere({ id: tourId }, user), select: { status: true } });
-    if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
 
     const hasStatusChange = Object.prototype.hasOwnProperty.call(data, 'status');
     const nextStatus = hasStatusChange ? data.status as TourStatus | undefined : undefined;
@@ -166,6 +165,29 @@ export class TourCoreService {
 
     const dataFields = fieldsForTerminalGuard.filter((field) => field !== 'status');
     assertTourTerminalDataUpdateAllowed(current.status, dataFields);
+  }
+
+  async lockTourForWrite(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser, type?: TourType) {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "Tour"
+      WHERE "id" = ${tourId}
+        AND "deletedAt" IS NULL
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy tour');
+    const tour = await tx.tour.findFirst({
+      where: this.scopeWhere({ id: tourId, ...(type ? { type } : {}) }, user),
+      select: { id: true, status: true, startDate: true, endDate: true },
+    });
+    if (!tour) throw new NotFoundException('Không tìm thấy tour');
+    return tour;
+  }
+
+  async ensureTourDataWriteAllowed(tx: Prisma.TransactionClient, tourId: string, user?: RequestUser, type?: TourType, dataFields: string[] = []) {
+    const current = await this.lockTourForWrite(tx, tourId, user, type);
+    assertTourTerminalDataUpdateAllowed(current.status, dataFields);
+    return current;
   }
 
   ensureDateRange(startDate: unknown, endDate: unknown) {
@@ -177,7 +199,7 @@ export class TourCoreService {
     }
   }
 
-  async ensureUpdatedDateRange(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord) {
+  async ensureUpdatedDateRange(tx: Prisma.TransactionClient, tourId: string, data: AnyRecord, current?: { startDate: Date | null; endDate: Date | null }) {
     const hasStartDate = Object.prototype.hasOwnProperty.call(data, 'startDate');
     const hasEndDate = Object.prototype.hasOwnProperty.call(data, 'endDate');
     if (!hasStartDate && !hasEndDate) return;
@@ -185,25 +207,29 @@ export class TourCoreService {
     let startDate = data.startDate;
     let endDate = data.endDate;
     if (!hasStartDate || !hasEndDate) {
-      const current = await tx.tour.findUnique({ where: { id: tourId }, select: { startDate: true, endDate: true } });
-      startDate = hasStartDate ? startDate : current?.startDate;
-      endDate = hasEndDate ? endDate : current?.endDate;
+      const persisted = current || await tx.tour.findUnique({ where: { id: tourId }, select: { startDate: true, endDate: true } });
+      startDate = hasStartDate ? startDate : persisted?.startDate;
+      endDate = hasEndDate ? endDate : persisted?.endDate;
     }
     this.ensureDateRange(startDate, endDate);
   }
 
-  async softDelete(tx: Prisma.TransactionClient, tourId: string, actor?: string, reason?: string) {
+  async softDelete(tx: Prisma.TransactionClient, tourId: string, actor?: string, reason?: string, user?: RequestUser) {
+    const current = await this.lockTourForWrite(tx, tourId, user);
+    assertTourLifecycleUpdateAllowed(current.status, TourStatus.CANCELLED);
     const tour = await tx.tour.update({
-      where: { id: tourId },
+      where: { id: current.id },
       data: { status: TourStatus.CANCELLED, deletedAt: new Date() },
     });
     await this.logAction(tx, tourId, 'DELETE_TOUR', { actor, metadata: { reason, status: TourStatus.CANCELLED } });
     return tour;
   }
 
-  async close(tx: Prisma.TransactionClient, tourId: string, actor?: string, note?: string) {
+  async close(tx: Prisma.TransactionClient, tourId: string, actor?: string, note?: string, user?: RequestUser) {
+    const current = await this.lockTourForWrite(tx, tourId, user);
+    assertTourCloseAllowed(current.status);
     const tour = await tx.tour.update({
-      where: { id: tourId },
+      where: { id: current.id },
       data: { status: TourStatus.COMPLETED, closedAt: new Date(), closedBy: actor || null },
     });
     await this.logAction(tx, tourId, 'CLOSE_TOUR', { actor, metadata: { note, status: TourStatus.COMPLETED } });
@@ -284,7 +310,8 @@ export class TourCoreService {
     await this.replaceRows(tx.tourAttachment, tourId, attachments);
   }
 
-  async addAttachment(tx: Prisma.TransactionClient, tourId: string, attachment: Prisma.TourAttachmentCreateManyInput) {
+  async addAttachment(tx: Prisma.TransactionClient, tourId: string, attachment: Prisma.TourAttachmentCreateManyInput, user?: RequestUser, type?: TourType) {
+    await this.ensureTourDataWriteAllowed(tx, tourId, user, type, ['attachments']);
     const { tourId: _ignoredTourId, ...data } = attachment as Prisma.TourAttachmentCreateManyInput & { tourId?: string };
     return tx.tourAttachment.create({ data: { ...data, tourId } });
   }
@@ -471,6 +498,7 @@ export class TourCoreService {
     supplierRole = 'SERVICE',
     user?: RequestUser,
   ) {
+    await this.ensureTourDataWriteAllowed(tx, targetTourId, user, type, ['services']);
     const source = await tx.tour.findFirst({ where: this.scopeWhere({ id: sourceTourId, type }, user), include: { services: true } });
     if (!source) throw new NotFoundException('Không tìm thấy tour nguồn');
     await this.copyServices(tx, targetTourId, source.services, supplierRole);
