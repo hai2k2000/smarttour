@@ -3064,3 +3064,7 @@
 - 2026-07-09 Completed operation voucher active finance payment guard follow-up:
   - Operation vouchers with linked active FinancePayment rows can no longer be edited or deleted before the finance payment is resolved.
   - Verification passed: RED/GREEN scripts/test-operation-vouchers-service.sh, operation voucher client/auth contracts, business logic guard contract, API build/lint, and git diff check.
+
+- 2026-07-10 Completed tour terminal lifecycle follow-up:
+  - Common, FIT-root, GIT, and LandTour flows now keep COMPLETED from reopening except SETTLED, keep CANCELLED terminal, and keep SETTLED terminal across generic and typed update paths.
+  - Verification/deploy passed: RED/GREEN scripts/test-tour-type-apis.sh, scripts/test-fit-tour-root-contract.sh, node scripts/test-business-logic-guard-contract.js, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

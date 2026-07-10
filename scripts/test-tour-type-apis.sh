@@ -609,6 +609,56 @@ async function main() {
   );
   assert(workflowPatchedCommonTour.workflowStep === 'COMMON_REVIEW', 'common tour PATCH should update workflowStep');
   assert(workflowPatchedCommonTour.status === 'RUNNING', 'common tour workflowStep PATCH should not change lifecycle status');
+
+  const completedCommonTour = await expect(
+    '/api/tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'FIT',
+        systemCode: `${run}-COMPLETE-SYS`,
+        tourCode: `${run}-COMPLETE-TOUR`,
+        name: 'Tour type API completed common tour',
+      }),
+    },
+    201,
+    'create common tour for completed lifecycle guard',
+  );
+  const completedCommonTourDone = await expect(
+    `/api/tours/${completedCommonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'common tour should allow completion',
+  );
+  assert(completedCommonTourDone.status === 'COMPLETED', 'common tour should reach COMPLETED status');
+  const reopenedCompletedCommonTour = await expect(
+    `/api/tours/${completedCommonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'common tour should not reopen from COMPLETED status',
+  );
+  assertMessage(reopenedCompletedCommonTour, 'Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 ho\u00e0n th\u00e0nh', 'common completed terminal message should match Tour rule');
+  const settledCommonTour = await expect(
+    `/api/tours/${completedCommonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'common completed tour should allow settlement',
+  );
+  assert(settledCommonTour.status === 'SETTLED', 'common tour should reach SETTLED status');
+  const reopenedSettledCommonTour = await expect(
+    `/api/tours/${completedCommonTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    400,
+    'common tour should not reopen from SETTLED status',
+  );
+  assertMessage(reopenedSettledCommonTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'common settled terminal message should match Tour rule');
+  const closedSettledCommonTour = await expect(
+    `/api/tours/${completedCommonTour.id}/close`,
+    { method: 'POST', body: JSON.stringify({ note: 'cannot close settled tour' }) },
+    400,
+    'common tour close should not reopen SETTLED tour',
+  );
+  assertMessage(closedSettledCommonTour, 'Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'common close should reject settled tours');
   const cancelledCommonTour = await expect(
     `/api/tours/${commonTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
@@ -650,6 +700,36 @@ async function main() {
     'patch FIT tour',
   );
   assert(patchedFitTour.workflowStatus === 'PRICING', 'FIT PATCH should update workflowStatus');
+
+  const settledFitTour = await expect(
+    '/api/fit-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteCode: `${run}-FIT-SETTLED-Q`,
+        tourCode: `${run}-FIT-SETTLED`,
+        customerName: 'Tour type API settled FIT customer',
+        adultCount: 1,
+      }),
+    },
+    201,
+    'create FIT tour for settled lifecycle guard',
+  );
+  assert(settledFitTour.tourId, 'FIT create should return linked common tour id');
+  const settledFitRoot = await expect(
+    `/api/tours/${settledFitTour.tourId}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'FIT root should allow settlement through common endpoint',
+  );
+  assert(settledFitRoot.status === 'SETTLED', 'FIT root should reach SETTLED status');
+  const reopenedSettledFitTour = await expect(
+    `/api/fit-tours/${settledFitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ workflowStatus: 'PRICING' }) },
+    400,
+    'FIT workflow update should not reopen SETTLED root status',
+  );
+  assertMessage(reopenedSettledFitTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'FIT settled terminal message should match common Tour rule');
   await expect('/api/fit-tours?status=pricing', {}, 200, 'FIT lowercase workflow status query');
   await expect('/api/fit-tours?status=WRONG', {}, 400, 'FIT invalid workflow status query');
 
@@ -1121,6 +1201,48 @@ async function main() {
   assert(spacedGitStatusRows.some((row) => row.id === gitTour.id), 'GIT status query DTO should trim and normalize status');
   const invalidGitStatusQuery = await expect('/api/git-tours?status=WRONG', {}, 400, 'GIT invalid status query');
   assertMessage(invalidGitStatusQuery, 'Trạng thái tour GIT không hợp lệ', 'GIT invalid status query should use Vietnamese validation message');
+
+  const completedGitTour = await expect(
+    '/api/git-tours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-GIT-COMPLETE-SYS`,
+        tourCode: `${run}-GIT-COMPLETE`,
+        name: 'Tour type API completed GIT tour',
+      }),
+    },
+    201,
+    'create GIT tour for completed lifecycle guard',
+  );
+  const completedGitTourDone = await expect(
+    `/api/git-tours/${completedGitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'GIT tour should allow completion through typed endpoint',
+  );
+  assert(completedGitTourDone.status === 'COMPLETED', 'GIT tour should reach COMPLETED status');
+  const reopenedCompletedGitTour = await expect(
+    `/api/git-tours/${completedGitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'GIT typed endpoint should not reopen COMPLETED tour',
+  );
+  assertMessage(reopenedCompletedGitTour, 'Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 ho\u00e0n th\u00e0nh', 'GIT completed terminal message should match common Tour rule');
+  const settledGitTour = await expect(
+    `/api/git-tours/${completedGitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'GIT completed tour should allow settlement through typed endpoint',
+  );
+  assert(settledGitTour.status === 'SETTLED', 'GIT tour should reach SETTLED status');
+  const reopenedSettledGitTour = await expect(
+    `/api/git-tours/${completedGitTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    400,
+    'GIT typed endpoint should not reopen SETTLED tour',
+  );
+  assertMessage(reopenedSettledGitTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'GIT settled terminal message should match common Tour rule');
   const cancelledGitTour = await expect(
     `/api/git-tours/${gitTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },
@@ -1515,6 +1637,48 @@ async function main() {
   assert(spacedLandStatusRows.some((row) => row.id === landTour.id), 'LandTour status query DTO should trim and normalize status');
   const invalidLandStatusQuery = await expect('/api/landtours?status=WRONG', {}, 400, 'LandTour invalid status query');
   assertMessage(invalidLandStatusQuery, 'Trạng thái LandTour không hợp lệ', 'LandTour invalid status query should use Vietnamese validation message');
+
+  const completedLandTour = await expect(
+    '/api/landtours',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        systemCode: `${run}-LAND-COMPLETE-SYS`,
+        tourCode: `${run}-LAND-COMPLETE`,
+        name: 'Tour type API completed LandTour',
+      }),
+    },
+    201,
+    'create LandTour for completed lifecycle guard',
+  );
+  const completedLandTourDone = await expect(
+    `/api/landtours/${completedLandTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    200,
+    'LandTour should allow completion through typed endpoint',
+  );
+  assert(completedLandTourDone.status === 'COMPLETED', 'LandTour should reach COMPLETED status');
+  const reopenedCompletedLandTour = await expect(
+    `/api/landtours/${completedLandTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'RUNNING' }) },
+    400,
+    'LandTour typed endpoint should not reopen COMPLETED tour',
+  );
+  assertMessage(reopenedCompletedLandTour, 'Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 ho\u00e0n th\u00e0nh', 'LandTour completed terminal message should match common Tour rule');
+  const settledLandTour = await expect(
+    `/api/landtours/${completedLandTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'SETTLED' }) },
+    200,
+    'LandTour completed tour should allow settlement through typed endpoint',
+  );
+  assert(settledLandTour.status === 'SETTLED', 'LandTour should reach SETTLED status');
+  const reopenedSettledLandTour = await expect(
+    `/api/landtours/${completedLandTour.id}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) },
+    400,
+    'LandTour typed endpoint should not reopen SETTLED tour',
+  );
+  assertMessage(reopenedSettledLandTour, 'Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n', 'LandTour settled terminal message should match common Tour rule');
   const cancelledLandTour = await expect(
     `/api/landtours/${landTour.id}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) },

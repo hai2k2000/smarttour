@@ -9,6 +9,28 @@ type TourChildDelegate<T extends AnyRecord> = {
   createMany(args: { data: T[] }): Promise<unknown>;
 };
 
+export function assertTourLifecycleUpdateAllowed(currentStatus: TourStatus, nextStatus?: TourStatus) {
+  if (nextStatus === undefined || nextStatus === currentStatus) return;
+  if (currentStatus === TourStatus.CANCELLED) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y');
+  }
+  if (currentStatus === TourStatus.COMPLETED && nextStatus !== TourStatus.SETTLED) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 ho\u00e0n th\u00e0nh');
+  }
+  if (currentStatus === TourStatus.SETTLED) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 s\u1eeda tr\u1ea1ng th\u00e1i tour \u0111\u00e3 quy\u1ebft to\u00e1n');
+  }
+}
+
+export function assertTourCloseAllowed(currentStatus: TourStatus) {
+  if (currentStatus === TourStatus.CANCELLED) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 h\u1ee7y');
+  }
+  if (currentStatus === TourStatus.SETTLED) {
+    throw new BadRequestException('Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 quy\u1ebft to\u00e1n');
+  }
+}
+
 export type TourRootConfig = {
   type: TourType;
   systemCodeField?: string;
@@ -127,14 +149,7 @@ export class TourCoreService {
     if (nextStatus === undefined) return;
     const current = await tx.tour.findFirst({ where: this.scopeWhere({ id: tourId }, user), select: { status: true } });
     if (!current) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
-    this.assertLifecycleUpdateAllowed(current.status, nextStatus);
-  }
-
-  private assertLifecycleUpdateAllowed(currentStatus: TourStatus, nextStatus: TourStatus) {
-    if (nextStatus === currentStatus) return;
-    if (currentStatus === TourStatus.CANCELLED) {
-      throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y');
-    }
+    assertTourLifecycleUpdateAllowed(current.status, nextStatus);
   }
 
   ensureDateRange(startDate: unknown, endDate: unknown) {

@@ -3,7 +3,7 @@ import { Prisma, TourStatus, TourType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { applyWriteDataScope, RequestUser } from '../auth/data-scope';
 import { containsSearch, normalizeListSearch } from '../list-search';
-import { TourCoreService } from './tour-core.service';
+import { assertTourCloseAllowed, assertTourLifecycleUpdateAllowed, TourCoreService } from './tour-core.service';
 import { CreateTourDto } from './dto/create-tour.dto';
 import { ListToursQueryDto } from './dto/list-tours-query.dto';
 import { CloseTourDto } from './dto/tour-action.dto';
@@ -126,7 +126,7 @@ export class ToursService {
 
   async update(id: string, dto: UpdateTourDto, user?: RequestUser) {
     const current = await this.detail(id, user);
-    this.assertLifecycleUpdateAllowed(current.status, dto.status);
+    assertTourLifecycleUpdateAllowed(current.status, dto.status);
     dto = applyWriteDataScope(dto, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -180,15 +180,8 @@ export class ToursService {
 
   async close(id: string, dto: CloseTourDto = {}, user?: RequestUser) {
     const current = await this.detail(id, user);
-    if (current.status === TourStatus.CANCELLED) throw new BadRequestException('Kh\u00f4ng th\u1ec3 ho\u00e0n th\u00e0nh tour \u0111\u00e3 h\u1ee7y');
+    assertTourCloseAllowed(current.status);
     return this.prisma.$transaction((tx) => this.tourCore.close(tx, id, this.actor(user), dto?.note));
-  }
-
-  private assertLifecycleUpdateAllowed(currentStatus: TourStatus, nextStatus?: TourStatus) {
-    if (nextStatus === undefined || nextStatus === currentStatus) return;
-    if (currentStatus === TourStatus.CANCELLED) {
-      throw new BadRequestException('Kh\u00f4ng th\u1ec3 m\u1edf l\u1ea1i tour \u0111\u00e3 h\u1ee7y');
-    }
   }
 
   private optionalText(value?: unknown) {

@@ -3554,3 +3554,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationVouchersService now blocks update/delete while linked non-deleted FinancePayment rows are DRAFT, PENDING, or APPROVED, preventing stale pending payment amount/scope from drifting away from the source voucher.
   - Added RED/GREEN coverage in scripts/test-operation-vouchers-service.sh for update/delete rejection when an active finance payment exists.
   - Verification passed on the VPS: operation vouchers service, operation voucher client/auth contracts, business logic guard contract, API build/lint, and git diff check.
+
+- 2026-07-10 Tour lifecycle terminal-status follow-up:
+  - Found common Tour PATCH could reopen COMPLETED tours to RUNNING and SETTLED tour roots could be pulled back by generic close/update or typed module updates.
+  - Tour lifecycle checks now live in shared TourCore helpers so generic ToursService, GIT/LandTour typed endpoints, and workflow-derived FIT root updates enforce COMPLETED -> SETTLED only, CANCELLED terminal, and SETTLED terminal.
+  - Added RED/GREEN API contract coverage in scripts/test-tour-type-apis.sh for common Tour, FIT cross-endpoint root settlement, GIT, and LandTour terminal lifecycle behavior.
+  - Verification/deploy passed on the VPS: tour type API suite, FIT root contract, business logic guard, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
