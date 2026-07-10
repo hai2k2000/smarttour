@@ -57,17 +57,17 @@ function withTransaction(prisma) {
   return {
     ...prisma,
     async $transaction(callback) {
-      return callback({ ...prisma, $queryRaw: async () => [] });
+      return callback({ ...prisma, $queryRaw: async () => [{ id: 'locked-row' }] });
     },
   };
 }
 
 async function assertCustomerUploadCleanup() {
   const files = filesService();
-  const service = new CustomersService({
+  const service = new CustomersService(withTransaction({
     customer: { findFirst: async () => ({ id: 'cus-1' }) },
     customerFile: { create: async () => { throw new Error('db create failed'); } },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.addFile('cus-1', testFile, 'actor-1'), /db create failed/);
   assert.deepEqual(files.calls.removeQuietly, [upload.objectKey]);
@@ -77,14 +77,14 @@ async function assertCustomerDeleteRollback() {
   const files = filesService({ failRemove: true });
   const file = { id: 'file-1', customerId: 'cus-1', fileName: 'old.txt', fileUrl: oldUrl, fileType: 'text/plain', uploadedBy: 'actor-1', createdAt: new Date('2027-01-01T00:00:00Z') };
   const restored = [];
-  const service = new CustomersService({
+  const service = new CustomersService(withTransaction({
     customer: { findFirst: async () => ({ id: 'cus-1' }) },
     customerFile: {
       findFirst: async () => file,
       delete: async () => file,
       create: async ({ data }) => { restored.push(data); return data; },
     },
-  }, files);
+  }), files);
 
   await assert.rejects(() => service.deleteFile('cus-1', 'file-1'), /remove failed/);
   assert.deepEqual(files.calls.removeIfPresent, [oldKey]);

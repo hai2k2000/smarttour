@@ -3743,3 +3743,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - lockWritableCustomerForWrite now returns locked code/owner metadata so merge audit text and owner transfer use the locked source snapshot.
   - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN coverage for transactional merge locking, deterministic lock order, no pre-transaction target/source snapshots, and mutation ordering after the locks.
   - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Customer file metadata write-lock follow-up:
+  - Found CustomersService.addFile uploaded an object and created CustomerFile metadata after only a pre-upload customer writability check; a concurrent merge could mark the customer MERGED before metadata creation.
+  - Found CustomersService.deleteFile read file ownership before deleting metadata outside a Customer row lock; a concurrent merge could move the file to the target customer between the ownership read and delete-by-id, causing deletion of target-owned metadata/object.
+  - Customer addFile now re-locks and re-reads the Customer row inside a transaction before CustomerFile metadata creation, while preserving uploaded-object cleanup if lock or metadata create fails.
+  - Customer deleteFile now locks and re-reads the Customer row inside a transaction before file ownership read and metadata delete, while preserving metadata restore if object removal fails.
+  - Expanded scripts/test-customers-merged-terminal-contract.js with RED/GREEN source coverage for addFile/deleteFile metadata lock ordering and cleanup/restore invariants; updated scripts/test-file-service-error-flows.sh mocks for transactional customer file metadata writes.
+  - Verification/deploy passed on the VPS: customers merged terminal contract, customers DTO contract, customers service/API flows, file service error flows, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

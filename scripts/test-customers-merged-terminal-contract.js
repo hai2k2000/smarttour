@@ -57,6 +57,31 @@ for (const [name, start, end] of interactionWriteMethods) {
   if (!transactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push(`${name}: must lock and re-read writable customer inside the transaction`);
 }
 
+const addFileBlock = sliceBetween(service, '  async addFile(', '  async deleteFile(');
+const addFileTransactionIndex = addFileBlock.indexOf('this.prisma.$transaction(async (tx) => {');
+if (addFileTransactionIndex === -1) failures.push('addFile: customer file metadata create must run in one transaction');
+const addFileTransactionBlock = addFileTransactionIndex === -1 ? '' : addFileBlock.slice(addFileTransactionIndex);
+if (!addFileTransactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push('addFile: must lock and re-read writable customer before creating file metadata');
+const addFileLockIndex = addFileTransactionBlock.indexOf('lockWritableCustomerForWrite(tx, id, user)');
+const addFileCreateIndex = addFileTransactionBlock.indexOf('tx.customerFile.create');
+if (addFileCreateIndex === -1 || addFileLockIndex === -1 || addFileCreateIndex < addFileLockIndex) failures.push('addFile: file metadata create must happen after the customer row lock');
+if (!addFileBlock.includes('await this.filesService.removeQuietly(upload.objectKey)')) failures.push('addFile: uploaded object must be cleaned up when metadata create/lock fails');
+
+const deleteFileBlock = sliceBetween(service, '  async deleteFile(', '  async create(');
+const deleteFileTransactionIndex = deleteFileBlock.indexOf('this.prisma.$transaction(async (tx) => {');
+if (deleteFileTransactionIndex === -1) failures.push('deleteFile: customer file metadata delete must run in one transaction');
+const deleteFileBeforeTransaction = deleteFileTransactionIndex === -1 ? deleteFileBlock : deleteFileBlock.slice(0, deleteFileTransactionIndex);
+if (deleteFileBeforeTransaction.includes('this.prisma.customerFile.findFirst')) failures.push('deleteFile: must not read file ownership from a pre-transaction snapshot');
+if (deleteFileBeforeTransaction.includes('this.prisma.customerFile.delete')) failures.push('deleteFile: must not delete file metadata outside the transaction');
+const deleteFileTransactionBlock = deleteFileTransactionIndex === -1 ? '' : deleteFileBlock.slice(deleteFileTransactionIndex);
+if (!deleteFileTransactionBlock.includes('await this.lockWritableCustomerForWrite(tx, id, user)')) failures.push('deleteFile: must lock and re-read writable customer before deleting file metadata');
+const deleteFileLockIndex = deleteFileTransactionBlock.indexOf('lockWritableCustomerForWrite(tx, id, user)');
+const deleteFileFindIndex = deleteFileTransactionBlock.indexOf('tx.customerFile.findFirst');
+const deleteFileDeleteIndex = deleteFileTransactionBlock.indexOf('tx.customerFile.delete');
+if (deleteFileFindIndex === -1 || deleteFileLockIndex === -1 || deleteFileFindIndex < deleteFileLockIndex) failures.push('deleteFile: file ownership read must happen after the customer row lock');
+if (deleteFileDeleteIndex === -1 || deleteFileFindIndex === -1 || deleteFileDeleteIndex < deleteFileFindIndex) failures.push('deleteFile: file metadata delete must happen after locked ownership check');
+if (!deleteFileBlock.includes('await this.restoreDeletedFileMetadata(deleted)')) failures.push('deleteFile: DB metadata must be restored if object removal fails');
+
 const updateBlock = sliceBetween(service, '  async update(', '  async remove(');
 const updateTransactionIndex = updateBlock.indexOf('this.prisma.$transaction(async (tx) => {');
 if (updateTransactionIndex === -1) failures.push('update: customer update must run in one transaction');

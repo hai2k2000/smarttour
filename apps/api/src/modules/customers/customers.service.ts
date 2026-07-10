@@ -241,8 +241,11 @@ export class CustomersService {
     await this.getWritableCustomer(id, user);
     const upload = await this.filesService.upload(file, `customers/${id}`, actorId);
     try {
-      return await this.prisma.customerFile.create({
-        data: { customerId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockWritableCustomerForWrite(tx, id, user);
+        return tx.customerFile.create({
+          data: { customerId: id, fileName: upload.fileName, fileUrl: upload.url, fileType: upload.mimeType, uploadedBy: actorId },
+        });
       });
     } catch (error) {
       await this.filesService.removeQuietly(upload.objectKey);
@@ -251,11 +254,14 @@ export class CustomersService {
   }
 
   async deleteFile(id: string, fileId: string, user?: RequestUser) {
-    await this.getWritableCustomer(id, user);
-    const file = await this.prisma.customerFile.findFirst({ where: { id: fileId, customerId: id } });
-    if (!file) throw new NotFoundException('Customer file not found');
-    const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
-    const deleted = await this.prisma.customerFile.delete({ where: { id: fileId } });
+    const { deleted, objectKey } = await this.prisma.$transaction(async (tx) => {
+      await this.lockWritableCustomerForWrite(tx, id, user);
+      const file = await tx.customerFile.findFirst({ where: { id: fileId, customerId: id } });
+      if (!file) throw new NotFoundException('Customer file not found');
+      const objectKey = this.filesService.objectKeyFromUrl(file.fileUrl);
+      const deleted = await tx.customerFile.delete({ where: { id: fileId } });
+      return { deleted, objectKey };
+    });
     try {
       await this.filesService.removeIfPresent(objectKey);
       return deleted;
