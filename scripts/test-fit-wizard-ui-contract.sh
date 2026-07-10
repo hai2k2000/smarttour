@@ -55,7 +55,7 @@ const fieldBlock = functionBlock('Field', 'function EditableTable');
 // Load tour into wizard.
 assertIncludesAll(loadTourBlock, [
   'loadRequestId.current',
-  "fetch(`${apiBase}/api/fit-tours/${id}`",
+  "authFetch(`${apiBase}/api/fit-tours/${id}`",
   'authHeaders()',
   'toFormDefaults(await response.json())',
   'if (requestId !== loadRequestId.current) return',
@@ -169,7 +169,7 @@ assertIncludesAll(copyBudgetBlock, [
   'findTourSummary(tours, copySourceTourId)',
   "setSaveState('Tour nguồn dự toán không còn trong danh sách, hãy chọn lại tour nguồn')",
   'window.confirm',
-  "fetch(`${apiBase}/api/fit-tours/${id}/copy-budget`",
+  "authFetch(`${apiBase}/api/fit-tours/${id}/copy-budget`",
   'sourceTourId: sourceTour.id',
   'setSelectedTourId(savedId)',
   "setCopySourceTourId('')",
@@ -182,7 +182,7 @@ assertIncludesAll(copyOperationBlock, [
   "setSaveState('Tour nguồn điều hành không còn trong danh sách, hãy chọn lại tour nguồn')",
   'sourceTourId = sourceTour.id',
   'window.confirm',
-  "fetch(`${apiBase}/api/fit-tours/${id}/copy-operation`",
+  "authFetch(`${apiBase}/api/fit-tours/${id}/copy-operation`",
   'sourceTourId }',
   'setSelectedTourId(savedId)',
   "setCopySourceTourId('')",
@@ -204,7 +204,7 @@ assertIncludesAll(uploadAttachmentBlock, [
   'new FormData()',
   "body.append('file', file)",
   "body.append('step', step)",
-  "fetch(`${apiBase}/api/fit-tours/${id}/attachments`",
+  "authFetch(`${apiBase}/api/fit-tours/${id}/attachments`",
   'authHeaders()',
 ], 'FIT wizard uploadAttachmentFile should create draft if needed and post multipart step metadata');
 assertIncludesAll(addFilesBlock, [
@@ -220,7 +220,7 @@ assertIncludesAll(addFilesBlock, [
 assertIncludesAll(removeAttachmentBlock, [
   'window.confirm',
   "method: 'DELETE'",
-  "fetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`",
+  "authFetch(`${apiBase}/api/fit-tours/${id}/attachments/${attachment.id}`",
   "onSaved?.(saved, 'delete-attachment')",
 ], 'FIT wizard removeAttachment should confirm and delete file metadata');
 assertIncludesAll(wizard, ['AttachmentList', 'fileHref(attachment.fileUrl)', 'attachmentMetaText(attachment)', 'formatFileSize(attachment.size)', 'trimText(attachment.mimeType)'], 'FIT wizard should render loaded attachment step, mime type, and size metadata');

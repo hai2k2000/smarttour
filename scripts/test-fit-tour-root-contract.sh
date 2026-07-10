@@ -136,6 +136,7 @@ function assertLegacyCompatBoundary() {
   assert(actionDtoSource.includes('IsEnum(FitTourWorkflowStatus)'), 'FIT upload action DTO should validate workflow step enum');
   assert(createDtoSource.includes('@IsInt()') && createDtoSource.includes('adultCount?: number') && createDtoSource.includes('seatCount?: number'), 'FIT pax and seat DTO fields should require integers');
   assert(serviceSource.includes('async saveStep') && serviceSource.includes('async confirmStep'), 'FIT service should expose separate step draft and confirm orchestration');
+  assert(serviceSource.includes('assertTerminalWorkflowEditable') && serviceSource.includes('this.assertTerminalWorkflowEditable(current.workflowStatus, patch)'), 'FIT service should reject non-idempotent edits after terminal workflow status');
   assert(serviceSource.includes('SAVE_FIT_STEP_DRAFT') && serviceSource.includes('CONFIRM_FIT_STEP'), 'FIT step draft and confirm actions should be logged separately');
   assert(serviceSource.includes('async uploadAttachment') && serviceSource.includes('UPLOAD_FIT_ATTACHMENT'), 'FIT service should expose attachment upload orchestration and log it');
   assert(serviceSource.includes('async removeAttachment') && serviceSource.includes('DELETE_FIT_ATTACHMENT'), 'FIT service should delete attachment metadata through a dedicated action');
@@ -695,6 +696,16 @@ async function main() {
   await fitTours.confirmStep(source.id, FitTourWorkflowStatus.SURVEY, {});
   const stepSurveyConfirmed = await fitTours.detail(source.id);
   assert(stepSurveyConfirmed.workflowStatus === FitTourWorkflowStatus.SURVEY, 'confirmStep SURVEY should advance workflow');
+  await fitTours.update(source.id, { workflowStatus: FitTourWorkflowStatus.COMPLETED });
+  await assertRejects(
+    () => fitTours.update(source.id, { tourName: 'Edited completed FIT tour' }),
+    'Tour FIT terminal workflow cannot be edited',
+    'FIT update should reject editing a completed terminal workflow',
+  );
+  assert(
+    (await fitTours.detail(source.id)).tourName !== 'Edited completed FIT tour',
+    'rejected completed FIT update should preserve tour snapshot',
+  );
   assert(stepSurveyConfirmed.surveyQuestions.some((row) => row.question === 'Khách hài lòng với chương trình tour?'), 'confirmStep SURVEY should keep drafted survey rows');
 
   const pricingOnlySource = await fitTours.create({

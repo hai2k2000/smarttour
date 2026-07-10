@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- FIT tour terminal workflow hardening:
+  - Blocked non-idempotent data edits once a FIT tour reaches terminal COMPLETED or CANCELLED workflow status.
+  - Added FIT root regression coverage for completed workflow edits and a source contract assertion for the terminal workflow guard.
+  - Refreshed the FIT wizard UI contract to require authFetch for existing auth-aware load/copy/upload/delete calls instead of stale raw fetch literals.
+  - Verification passed for FIT root/client/wizard contracts, data-scope module flows, API build/lint, diff-check, Docker API rebuild/restart, production healthcheck, and Docker build-cache prune.
+
 - Booking terminal edit hardening:
   - Blocked data edits on Booking rows already in terminal COMPLETED or CANCELLED status while preserving empty update no-op behavior.
   - Added a service-flow regression for cancelled bookings and extended the booking status lock contract so update keeps the terminal guard after row locking.

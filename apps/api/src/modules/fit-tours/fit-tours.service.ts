@@ -438,6 +438,7 @@ export class FitToursService {
     options: FitUpdateOptions = {},
   ) {
     const patch = this.dropAttachmentPatch(await this.withCustomerSnapshot(tx, dto, user));
+    this.assertTerminalWorkflowEditable(current.workflowStatus, patch);
     const merged = { ...current, ...patch } as unknown as UpdateFitTourDto;
     if (options.step) {
       this.validateStepPatch(options.step, patch, merged);
@@ -449,6 +450,12 @@ export class FitToursService {
     this.validateChildPatches(patch);
     this.validateWorkflowTransition(current.workflowStatus, patch.workflowStatus, false);
     return { patch, merged };
+  }
+
+  private assertTerminalWorkflowEditable(currentStatus: FitTourWorkflowStatus | null | undefined, patch: UpdateFitTourDto) {
+    if (!terminalWorkflowStatuses.has(currentStatus || FitTourWorkflowStatus.DRAFT)) return;
+    const changedFields = Object.keys(patch as Row).filter((field) => field !== 'workflowStatus' || patch.workflowStatus !== currentStatus);
+    if (changedFields.length) throw new ConflictException('Tour FIT terminal workflow cannot be edited');
   }
 
   private dropAttachmentPatch(dto: UpdateFitTourDto): UpdateFitTourDto {

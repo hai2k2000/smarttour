@@ -1,5 +1,11 @@
 # Progress
 
+- Hardened FIT tour terminal workflow edits:
+  - FIT tours in COMPLETED or CANCELLED workflow status now reject non-idempotent update/save/confirm payloads before syncing common Tour and legacy FIT data.
+  - Extended scripts/test-fit-tour-root-contract.sh with completed-workflow mutation regression and terminal guard source coverage.
+  - Updated scripts/test-fit-wizard-ui-contract.sh to match the current authFetch-based FIT wizard API calls.
+  - Verified FIT root/client/wizard contracts, data-scope module flows, API build/lint, diff-check, Docker API rebuild/restart, healthcheck, and Docker build-cache prune.
+
 - Hardened booking terminal edit behavior:
   - Bookings in COMPLETED or CANCELLED status now reject non-empty data updates after the row is locked for mutation.
   - Extended scripts/test-bookings-service.sh with a cancelled-booking terminal regression and scripts/test-phase2-booking-status-lock-contract.js with a terminal guard assertion.
