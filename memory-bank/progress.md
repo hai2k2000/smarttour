@@ -3163,3 +3163,8 @@
   - Commission report sync now locks and re-checks existing CommissionEntry rows before updating pending/unpaid calculated commission data, preventing stale sync writes from overwriting paid/approved state after concurrent approval/payment.
   - Verification passed: RED/GREEN scripts/test-commission-reports-security.sh, node scripts/test-commission-reports-client-contract.js, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed supplier file data-scope follow-up:
+  - Supplier file upload/download/delete authorization now applies branch/department data scope to Supplier parent lookups, closing a file access gap for scoped users.
+  - Verification passed: RED/GREEN node scripts/test-file-upload-scope-contract.js, node scripts/test-files-controller-contract.js, scripts/test-files-service-core.sh, scripts/test-file-service-error-flows.sh, scripts/test-suppliers-file-contract.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

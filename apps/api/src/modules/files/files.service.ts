@@ -269,7 +269,7 @@ export class FilesService {
     }
     if (root === 'suppliers') {
       this.assertPermission(user, 'supplier.manage');
-      const parent = await this.prisma.supplier.findFirst({ where: { id: entityId, deletedAt: null }, select: { id: true } });
+      const parent = await this.prisma.supplier.findFirst({ where: branchDepartmentScopeWhere<Prisma.SupplierWhereInput>({ id: entityId, deletedAt: null }, user), select: { id: true } });
       this.assertUploadParent(parent);
       return;
     }
@@ -340,7 +340,7 @@ export class FilesService {
   private async assertSupplierFile(key: string, supplierId: string, user: RequestUser | undefined, action: FileAccessAction) {
     this.assertPermission(user, action === 'view' ? 'supplier.view' : 'supplier.manage');
     const [parent, metadata] = await Promise.all([
-      this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true } }),
+      this.prisma.supplier.findFirst({ where: branchDepartmentScopeWhere<Prisma.SupplierWhereInput>({ id: supplierId, deletedAt: null }, user), select: { id: true } }),
       this.prisma.supplierFile.findMany({ where: { supplierId }, select: { id: true, fileUrl: true } }),
     ]);
     this.assertParentAndMetadata(parent, this.metadataForKey(metadata, key));

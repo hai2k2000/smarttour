@@ -3674,3 +3674,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Existing commission sync updates now run inside a transaction, lock the CommissionEntry row by orderId with FOR UPDATE, re-read it inside data scope, and re-check PENDING/UNPAID before recalculating commissionAmount/remainingAmount.
   - syncData centralizes commission row calculation so both create and locked update paths use the same formula while update remainingAmount is based on the locked paidAmount.
   - Verification/deploy passed on the VPS: scripts/test-commission-reports-security.sh, node scripts/test-commission-reports-client-contract.js, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Supplier file data-scope follow-up:
+  - Found FilesService supplier upload/download/delete parent lookups checked supplier.manage/supplier.view permissions but did not apply branch/department data scope, unlike customer, guide, fit-tour, and finance file handlers.
+  - Supplier file upload scope and supplier file access now use branchDepartmentScopeWhere on Supplier parent lookups, so scoped users cannot upload/access/delete files for suppliers outside their data scope or without required scope values.
+  - Expanded scripts/test-file-upload-scope-contract.js with RED/GREEN source and behavior coverage for supplier file data-scope enforcement.
+  - Verification/deploy passed on the VPS: file upload scope contract, files controller contract, files service core, file service error flows, suppliers file contract, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

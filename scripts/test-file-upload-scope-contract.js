@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 const { BadRequestException, ForbiddenException, NotFoundException } = require('@nestjs/common');
+const fs = require('fs');
 const { FilesService } = require('../apps/api/dist/modules/files/files.service');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
-function userWith(permissions) {
+function userWith(permissions, scope = {}) {
   return {
     id: 'user-file-upload-scope-contract',
     username: 'file-upload-scope-contract',
+    branch: scope.branch,
+    department: scope.department,
     roles: [{ role: { permissions: permissions.map((permission) => ({ permission })) } }],
   };
 }
@@ -57,10 +60,21 @@ async function expectUploadRejectedBeforeStorage(scope, user, label, file = uplo
 }
 
 async function main() {
+  const serviceSource = fs.readFileSync('apps/api/src/modules/files/files.service.ts', 'utf8');
+  const supplierUploadStart = serviceSource.indexOf("if (root === 'suppliers')");
+  const supplierUploadEnd = serviceSource.indexOf("if (root === 'tour-guides')", supplierUploadStart);
+  const supplierUploadBlock = supplierUploadStart === -1 ? '' : serviceSource.slice(supplierUploadStart, supplierUploadEnd === -1 ? serviceSource.length : supplierUploadEnd);
+  assert(supplierUploadBlock.includes('branchDepartmentScopeWhere<Prisma.SupplierWhereInput>'), 'supplier upload parent lookup must apply branch/department data scope');
+  const supplierAccessStart = serviceSource.indexOf('private async assertSupplierFile');
+  const supplierAccessEnd = serviceSource.indexOf('private async assertGuideFile', supplierAccessStart);
+  const supplierAccessBlock = supplierAccessStart === -1 ? '' : serviceSource.slice(supplierAccessStart, supplierAccessEnd === -1 ? serviceSource.length : supplierAccessEnd);
+  assert(supplierAccessBlock.includes('branchDepartmentScopeWhere<Prisma.SupplierWhereInput>'), 'supplier file access must apply branch/department data scope');
+
   await expectUploadRejectedBeforeStorage('evil/root', userWith(['file.manage', '*']), 'unknown upload scope');
   await expectUploadRejectedBeforeStorage('suppliers', userWith(['file.manage', '*']), 'scope missing entity id');
   await expectUploadRejectedBeforeStorage('suppliers/missing-id', userWith(['file.manage', 'supplier.manage']), 'missing parent entity');
   await expectUploadRejectedBeforeStorage('suppliers/existing-id', userWith(['file.manage', 'supplier.view']), 'missing manage permission');
+  await expectUploadRejectedBeforeStorage('suppliers/existing-id', userWith(['file.manage', 'supplier.manage', 'data.scope.branch']), 'branch-scoped supplier upload without branch value');
   await expectUploadRejectedBeforeStorage(
     'suppliers/existing-id',
     userWith(['file.manage', 'supplier.manage']),
@@ -69,7 +83,7 @@ async function main() {
   );
 
   const { service, putObjectCalls } = serviceWithFakeClient();
-  const uploaded = await service.uploadAuthorized(uploadFile(), 'suppliers/existing-id', userWith(['file.manage', 'supplier.manage']));
+  const uploaded = await service.uploadAuthorized(uploadFile(), 'suppliers/existing-id', userWith(['file.manage', 'supplier.manage', 'data.scope.all']));
   assert(uploaded.objectKey.startsWith('suppliers/existing-id/'), 'valid supplier upload must keep the authorized entity scope');
   assert(putObjectCalls() === 1, 'valid authorized upload should write exactly one MinIO object');
 
