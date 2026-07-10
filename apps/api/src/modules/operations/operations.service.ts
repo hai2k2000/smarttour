@@ -329,12 +329,19 @@ export class OperationsService {
   async cancelForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
     const reason = this.text(dto.reason) ?? this.text(dto.notes);
-    const current = await this.formDetail(id, user);
-    if (current.status === OperationStatus.CANCELLED) return current;
-    if (!reason) throw new BadRequestException('C\u1ea7n nh\u1eadp l\u00fd do h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 l\u01b0u l\u1ecbch s\u1eed x\u1eed l\u00fd');
-    if (current.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 h\u1ee7y');
-    await this.ensureFormCanBeCancelled(id);
     return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "OperationForm"
+        WHERE "id" = ${id}
+        FOR UPDATE
+      `;
+      if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
+      const current = await this.formDetail(id, user, tx);
+      if (current.status === OperationStatus.CANCELLED) return current;
+      if (!reason) throw new BadRequestException('C\u1ea7n nh\u1eadp l\u00fd do h\u1ee7y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 l\u01b0u l\u1ecbch s\u1eed x\u1eed l\u00fd');
+      if (current.status === OperationStatus.DONE) throw new BadRequestException('Phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 ho\u00e0n t\u1ea5t kh\u00f4ng th\u1ec3 h\u1ee7y');
+      await this.ensureFormCanBeCancelled(id, tx);
       const form = await tx.operationForm.update({
         where: { id },
         data: { status: OperationStatus.CANCELLED, ...(reason !== null ? { notes: reason } : {}) },
@@ -773,8 +780,8 @@ export class OperationsService {
     }
   }
 
-  private async ensureFormCanBeCancelled(formId: string) {
-    const blockingRequest = await this.prisma.supplierPaymentItem.findFirst({
+  private async ensureFormCanBeCancelled(formId: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const blockingRequest = await client.supplierPaymentItem.findFirst({
       where: {
         cost: { operationFormId: formId },
         request: { status: { in: [SupplierPaymentStatus.REQUESTED, SupplierPaymentStatus.APPROVED, SupplierPaymentStatus.PAID] } },

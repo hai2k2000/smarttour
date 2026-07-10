@@ -3072,3 +3072,8 @@
 - 2026-07-10 Completed finance soft-delete action follow-up:
   - Finance receipt/payment approve/reject/cancel actions now ignore soft-deleted documents, preventing deleted drafts from being approved and posted.
   - Verification passed: RED/GREEN scripts/test-finance-service-flows.sh, finance rules/helper/controller/reject-audit/write-allowlist contracts, API build/lint.
+
+
+- 2026-07-10 Completed operations cancel concurrency follow-up:
+  - Operation form cancel now locks and re-checks the form inside the transaction before cancelling, preventing races with DONE/status changes or active supplier payment requests.
+  - Verification passed: RED/GREEN node scripts/test-phase1-operation-payment-request-concurrency-contract.js, business logic guard contract, scripts/test-operations-service-flows.sh, API build/lint.

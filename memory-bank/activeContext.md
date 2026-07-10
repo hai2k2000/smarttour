@@ -3566,3 +3566,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Finance receipt/payment approve, reject, and cancel action reads now require deletedAt: null, matching detail/list behavior and preventing postings/ledger side effects on deleted documents.
   - Added RED/GREEN coverage in scripts/test-finance-service-flows.sh for deleted receipt/payment approve rejection.
   - Verification passed on the VPS: finance service flows, finance rules/helper/controller/reject-audit/write-allowlist contracts, API build/lint.
+
+
+- 2026-07-10 Operations cancel concurrency follow-up:
+  - Found OperationForm cancel still checked terminal status and active supplier payment requests before opening the write transaction, unlike status changes that already lock the row.
+  - OperationsService.cancelForm now locks the OperationForm row with FOR UPDATE, re-reads the scoped form inside the transaction, and checks active supplier payment requests through the same transaction client before writing CANCELLED.
+  - Added RED/GREEN coverage in scripts/test-phase1-operation-payment-request-concurrency-contract.js for cancel row locking and transactional blocking-request checks.
+  - Verification passed on the VPS: operation payment request concurrency contract, business logic guard contract, operations service flows, API build/lint.
