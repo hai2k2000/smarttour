@@ -20,6 +20,7 @@ const quotations = read('apps/api/src/modules/quotations/quotations.service.ts')
 const operations = read('apps/api/src/modules/operations/operations.service.ts');
 const operationVouchers = read('apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts');
 const orderLifecycle = read('apps/api/src/modules/orders/order-lifecycle.ts');
+const orderAllotments = read('apps/api/src/modules/orders/order-allotment-sync.ts');
 
 excludes(
   quotations,
@@ -97,6 +98,23 @@ includes(
   orderLifecycle,
   "COMPLETED: new Set(['COMPLETED', 'SETTLED'])",
   'Completed orders should only remain completed or be settled.',
+);
+
+
+includes(
+  orderAllotments,
+  'UPDATE "SupplierAllotment"',
+  'Order hotel auto-lock should reserve supplier allotment inventory atomically.',
+);
+includes(
+  orderAllotments,
+  '"bookedQty" + "lockedQty" + ${quantity} <= "allotmentQty"',
+  'Order hotel auto-lock should only reserve when booked plus locked quantity still fits the allotment.',
+);
+excludes(
+  orderAllotments,
+  "tx.supplierAllotment.update({ where: { id: allotment.id }, data: { lockedQty: { increment: quantity } } })",
+  'Order hotel auto-lock must not check capacity and increment lockedQty in separate statements.',
 );
 
 console.log('TEST_BUSINESS_LOGIC_GUARD_CONTRACT_OK');

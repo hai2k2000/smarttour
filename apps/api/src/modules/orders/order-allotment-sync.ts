@@ -131,14 +131,24 @@ export async function syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orde
       orderBy: [{ startDate: 'desc' }, { updatedAt: 'desc' }],
     });
     if (!allotment) continue;
-    const allotmentQty = allotment.allotmentQty || allotment.quantityLock || 0;
-    if (allotment.bookedQty + allotment.lockedQty + quantity > allotmentQty) {
+    const reservedRows = await tx.$queryRaw<Array<{ supplierId: string; lockedQty: number }>>(Prisma.sql`
+      UPDATE "SupplierAllotment"
+      SET "lockedQty" = "lockedQty" + ${quantity},
+          "quantityLock" = "lockedQty" + ${quantity},
+          "updatedAt" = NOW()
+      WHERE id = ${allotment.id}
+        AND status = 'ACTIVE'
+        AND "bookedQty" + "lockedQty" + ${quantity} <= "allotmentQty"
+      RETURNING "supplierId", "lockedQty"
+    `);
+    const reserved = reservedRows[0];
+    if (!reserved) {
       throw new BadRequestException(`Not enough hotel allotment for ${item.bookingCode || item.serviceType || serviceId}`);
     }
     const allocation = await tx.supplierAllotmentAllocation.create({
       data: {
         allotmentId: allotment.id,
-        supplierId: allotment.supplierId,
+        supplierId: reserved.supplierId,
         serviceId,
         orderOperationItemId: operationRows[index]?.id,
         orderId,
@@ -149,13 +159,12 @@ export async function syncHotelAllotmentLocks(tx: Prisma.TransactionClient, orde
         createdBy: 'ORDER_AUTO',
       },
     });
-    await tx.supplierAllotment.update({ where: { id: allotment.id }, data: { lockedQty: { increment: quantity } } });
     await tx.supplierAllotmentLog.create({
       data: {
         allotmentId: allotment.id,
-        supplierId: allotment.supplierId,
+        supplierId: reserved.supplierId,
         action,
-        oldValue: { lockedQty: allotment.lockedQty },
+        oldValue: { lockedQty: reserved.lockedQty - quantity },
         newValue: { allocationId: allocation.id, orderId, serviceId, quantity },
         actor: 'ORDER_AUTO',
       },
