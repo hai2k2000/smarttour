@@ -3621,3 +3621,10 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Order hotel auto-lock now filters active suppliers and locks the owning Supplier row before reserving SupplierAllotment inventory.
   - Added RED/GREEN coverage in scripts/test-business-logic-guard-contract.js and updated supplier contracts to expect locked.status transition checks.
   - Verification/deploy passed on the VPS: business logic guard, supplier common/typed/generic/hotel suites, order service flow, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Auth management write-lock follow-up:
+  - Found AuthService.updateUser and updateRole used pre-transaction User/Role snapshots for scope, permission, system-role, and super_admin guards before writing management changes.
+  - updateUser now locks and re-reads the target User row with FOR UPDATE inside the transaction before manageability/scope/role checks and role replacement.
+  - updateRole now locks and re-reads the target Role row with FOR UPDATE inside the transaction before system-role, super_admin wildcard, and permission mutation checks.
+  - Added RED/GREEN coverage in scripts/test-auth-management-write-lock-contract.js for auth management row locking and in-transaction re-read behavior.
+  - Verification/deploy passed on the VPS: auth management write-lock contract, auth DTO/controller contracts, auth service flows, auth management data, security module, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

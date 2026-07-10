@@ -3113,3 +3113,9 @@
   - This prevents ACTIVE allotment allocations from being created while the owning supplier is being deactivated or soft-deleted.
   - Verification passed: node scripts/test-business-logic-guard-contract.js, supplier common/typed/generic/hotel suites, scripts/test-order-service-flows.sh, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Completed auth management write-lock follow-up:
+  - Auth user/role management updates now lock and re-read target User/Role rows inside the write transaction before checking scope, permissions, system-role status, or super_admin wildcard constraints.
+  - This prevents stale RBAC snapshots from authorizing writes after concurrent scope/permission changes.
+  - Verification passed: node scripts/test-auth-management-write-lock-contract.js, node scripts/test-auth-dto-contract.js, scripts/test-auth-controller-permissions.sh, scripts/test-auth-service-flows.sh, scripts/test-auth-management-data.sh, scripts/test-security-module.sh, API build/lint, git diff check.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.

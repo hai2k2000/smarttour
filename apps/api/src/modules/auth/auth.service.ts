@@ -337,9 +337,6 @@ export class AuthService {
   }
 
   async updateUser(id: string, dto: AnyRecord, actorInput?: ActorInput) {
-    const current = await this.prisma.user.findUnique({ where: { id }, select: SAFE_USER_SELECT });
-    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
-
     const roleCodes = dto.roleCodes === undefined ? undefined : this.requiredRoleCodes(dto.roleCodes);
     const nextPassword = dto.password === undefined ? undefined : this.requiredSecret(dto.password, 'Cần nhập mật khẩu');
     const nextStatus = dto.status === undefined ? undefined : this.normalizeStatus(dto.status, USER_STATUSES, 'trạng thái người dùng');
@@ -350,6 +347,7 @@ export class AuthService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const actor = await this.resolveManagementActor(tx, actorInput, 'auth.user.manage');
+        const current = await this.lockUserForManagementWrite(tx, id);
         const nextBranch = dto.branch === undefined ? current.branch : this.scopedText(dto.branch, actor, 'branch');
         const nextDepartment = dto.department === undefined ? current.department : this.scopedText(dto.department, actor, 'department');
         this.assertManageableCurrentUser(actor, current);
@@ -448,18 +446,16 @@ export class AuthService {
   }
 
   async updateRole(id: string, dto: AnyRecord, actorInput?: ActorInput) {
-    const current = await this.prisma.role.findUnique({ where: { id }, select: ROLE_MANAGEMENT_SELECT });
-    if (!current) throw new NotFoundException('Không tìm thấy vai trò');
     const permissions = dto.permissions === undefined ? undefined : this.requiredPermissions(dto.permissions);
     const nextName = dto.name === undefined ? undefined : this.requiredText(dto.name, 'Cần nhập tên vai trò');
     const nextStatus = dto.status === undefined ? undefined : this.normalizeStatus(dto.status, ROLE_STATUSES, 'trạng thái vai trò');
-    if (current.isSystem && nextStatus === 'INACTIVE') throw new BadRequestException('Không thể ngừng hoạt động vai trò hệ thống');
-    if (current.code === 'super_admin' && permissions && !permissions.includes('*')) {
-      throw new BadRequestException('Vai trò super_admin phải giữ quyền toàn hệ thống (*)');
-    }
-
     return this.prisma.$transaction(async (tx) => {
       const actor = await this.resolveManagementActor(tx, actorInput, 'auth.role.manage');
+      const current = await this.lockRoleForManagementWrite(tx, id);
+      if (current.isSystem && nextStatus === 'INACTIVE') throw new BadRequestException('Không thể ngừng hoạt động vai trò hệ thống');
+      if (current.code === 'super_admin' && permissions && !permissions.includes('*')) {
+        throw new BadRequestException('Vai trò super_admin phải giữ quyền toàn hệ thống (*)');
+      }
       this.assertCanMutateRole(actor, current.permissions.map((permission) => permission.permission));
       if (permissions) this.assertCanMutateRole(actor, permissions);
       if (permissions) {
@@ -488,6 +484,28 @@ export class AuthService {
       });
       return role;
     });
+  }
+
+  private async lockUserForManagementWrite(tx: Prisma.TransactionClient, id: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id
+      FROM "User"
+      WHERE id = ${id}
+      FOR UPDATE
+    `);
+    if (!rows[0]) throw new NotFoundException('Không tìm thấy người dùng');
+    return tx.user.findUniqueOrThrow({ where: { id }, select: SAFE_USER_SELECT });
+  }
+
+  private async lockRoleForManagementWrite(tx: Prisma.TransactionClient, id: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id
+      FROM "Role"
+      WHERE id = ${id}
+      FOR UPDATE
+    `);
+    if (!rows[0]) throw new NotFoundException('Không tìm thấy vai trò');
+    return tx.role.findUniqueOrThrow({ where: { id }, select: ROLE_MANAGEMENT_SELECT });
   }
 
   private assertLoginNotThrottled(identifier: string, request?: SessionRequest) {
