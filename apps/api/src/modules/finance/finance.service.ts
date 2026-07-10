@@ -189,10 +189,12 @@ export class FinanceService {
   }
 
   async updateReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
-    const current = await this.receiptDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto), user);
-    assertCanUpdateFinanceEntity(current, 'Phiếu thu');
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), include: { orders: true } });
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
+      assertCanUpdateFinanceEntity(current, 'Phiếu thu');
       const hasOrders = Object.prototype.hasOwnProperty.call(dto, 'orders');
       const orders = hasOrders ? this.receiptOrders(dto) : current.orders;
       this.assertReceiptOrderAllocation(this.decimal(dto.receiptAmount ?? current.receiptAmount), orders);
@@ -210,9 +212,13 @@ export class FinanceService {
   }
 
   async deleteReceipt(id: string, user?: RequestUser) {
-    const current = await this.receiptDetail(id, user);
-    assertCanDeleteFinanceEntity(current, 'Phiếu thu');
-    return this.prisma.financeReceipt.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.prisma.$transaction(async (tx) => {
+      await lockFinanceReceipt(tx, id);
+      const current = await tx.financeReceipt.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu thu');
+      assertCanDeleteFinanceEntity(current, 'Phiếu thu');
+      return tx.financeReceipt.update({ where: { id }, data: { deletedAt: new Date() } });
+    });
   }
 
   async approveReceipt(id: string, dto: AnyRecord, user?: RequestUser) {
@@ -391,10 +397,12 @@ export class FinanceService {
   }
 
   async updatePayment(id: string, dto: AnyRecord, user?: RequestUser) {
-    const current = await this.paymentDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto), user);
-    assertCanUpdateFinanceEntity(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user) });
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
+      assertCanUpdateFinanceEntity(current, 'Phiếu chi');
       await assertPaymentLinks(tx, { supplierId: this.text(dto.supplierId) || current.supplierId, orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user);
       const tourId = this.paymentTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId) || current.orderId, operationVoucherId: this.text(dto.operationVoucherId) || current.operationVoucherId }, user) || current.tourId, { ...current, ...dto });
       const payment = await tx.financePayment.update({ where: { id }, data: this.paymentData({ ...current, ...dto, voucherCode: this.text(dto.voucherCode) || current.voucherCode, tourId }) });
@@ -404,9 +412,11 @@ export class FinanceService {
   }
 
   async deletePayment(id: string, user?: RequestUser) {
-    const current = await this.paymentDetail(id, user);
-    assertCanDeleteFinanceEntity(current, 'Phiếu chi');
     return this.prisma.$transaction(async (tx) => {
+      await lockFinancePayment(tx, id);
+      const current = await tx.financePayment.findFirst({ where: branchDepartmentScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
+      if (!current) throw new NotFoundException('Không tìm thấy phiếu chi');
+      assertCanDeleteFinanceEntity(current, 'Phiếu chi');
       await tx.supplierPaymentRequest.updateMany({ where: { financePaymentId: id }, data: { financePaymentId: null, status: 'APPROVED' } });
       return tx.financePayment.update({ where: { id }, data: { deletedAt: new Date() } });
     });
@@ -545,10 +555,12 @@ export class FinanceService {
   }
 
   async updateInvoice(id: string, dto: AnyRecord, user?: RequestUser) {
-    const current = await this.invoiceDetail(id, user);
     dto = applyWriteDataScope(this.financeWriteInput(dto) as AnyRecord & { branch?: string | null; department?: string | null }, user);
-    assertCanUpdateFinanceEntity(current, 'Hóa đơn');
     return this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
+      const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), include: { items: true } });
+      if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
+      assertCanUpdateFinanceEntity(current, 'Hóa đơn');
       const hasItems = Object.prototype.hasOwnProperty.call(dto, 'items');
       await assertInvoiceLinks(tx, { customerId: this.text(dto.customerId) || current.customerId, orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user);
       const tourId = this.requireFinanceTourId(await resolveTourId(tx, { tourId: this.text(dto.tourId) || current.tourId, tourCode: this.text(dto.tourCode), orderId: this.text(dto.orderId) || current.orderId, receiptId: this.text(dto.receiptId) || current.receiptId }, user) || current.tourId, 'Hóa đơn');
@@ -570,9 +582,13 @@ export class FinanceService {
   }
 
   async deleteInvoice(id: string, user?: RequestUser) {
-    const current = await this.invoiceDetail(id, user);
-    assertCanDeleteFinanceEntity(current, 'Hóa đơn');
-    return this.prisma.financeInvoice.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.prisma.$transaction(async (tx) => {
+      await lockFinanceInvoice(tx, id);
+      const current = await tx.financeInvoice.findFirst({ where: this.invoiceScopeWhere({ id, deletedAt: null }, user), select: { id: true, approvalStatus: true, cancelledAt: true } });
+      if (!current) throw new NotFoundException('Không tìm thấy hóa đơn');
+      assertCanDeleteFinanceEntity(current, 'Hóa đơn');
+      return tx.financeInvoice.update({ where: { id }, data: { deletedAt: new Date() } });
+    });
   }
 
   async approveInvoice(id: string, dto: AnyRecord, user?: RequestUser) {

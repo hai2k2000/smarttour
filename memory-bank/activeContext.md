@@ -3628,3 +3628,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - updateRole now locks and re-reads the target Role row with FOR UPDATE inside the transaction before system-role, super_admin wildcard, and permission mutation checks.
   - Added RED/GREEN coverage in scripts/test-auth-management-write-lock-contract.js for auth management row locking and in-transaction re-read behavior.
   - Verification/deploy passed on the VPS: auth management write-lock contract, auth DTO/controller contracts, auth service flows, auth management data, security module, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-10 Finance draft write-lock follow-up:
+  - Found FinanceReceipt/FinancePayment/FinanceInvoice draft update/delete paths checked status from a pre-transaction detail snapshot before writing, so approve/reject/cancel/delete could race in before the draft write.
+  - Finance receipt/payment/invoice update/delete now lock the row with FOR UPDATE, re-read scoped state inside the transaction, and run final-state guards before updating data, unlinking supplier payment requests, or soft-deleting.
+  - Added RED/GREEN coverage in scripts/test-finance-write-lock-contract.js for in-transaction row locking and scoped re-read behavior on all six draft write paths.
+  - Verification/deploy passed on the VPS: finance write-lock contract, finance helper contract, finance service flows, finance DTO/controller contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
