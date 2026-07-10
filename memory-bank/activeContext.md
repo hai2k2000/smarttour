@@ -3580,3 +3580,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - OperationsService now locks SupplierPaymentRequest rows with FOR UPDATE and re-reads scoped request data inside the transaction before status checks, item replacement, deletion, ledger posting, or finance-payment linking.
   - Expanded scripts/test-phase1-operation-payment-request-concurrency-contract.js with RED/GREEN coverage for request row locking and scoped in-transaction re-reads.
   - Verification passed on the VPS: operation payment request concurrency contract, operations service flows, business logic guard contract, API build/lint.
+
+
+- 2026-07-10 Operation voucher write-lock follow-up:
+  - Found OperationVouchersService.update/remove checked editability from a pre-transaction detail snapshot, so active finance payments or payment history could race in before the write.
+  - Operation voucher update/delete now lock the voucher row with FOR UPDATE, re-read scoped voucher state inside the transaction, and run assertEditable after the lock before changing voucher data or soft-deleting.
+  - resolveLinks and ensureLinksScoped can now use the transaction client for update write flows.
+  - Added RED/GREEN coverage in scripts/test-business-logic-guard-contract.js for operation voucher update/delete row locking.
+  - Verification passed on the VPS: business logic guard contract, operation vouchers service flow/schema test, operation vouchers client/auth contracts, API build/lint.

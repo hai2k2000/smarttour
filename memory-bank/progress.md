@@ -3082,3 +3082,8 @@
 - 2026-07-10 Completed supplier payment request concurrency follow-up:
   - Supplier payment request lifecycle/actions now lock the request row and re-check scoped status inside the transaction before update/delete/approve/reject/submit/create-finance-payment writes.
   - Verification passed: RED/GREEN node scripts/test-phase1-operation-payment-request-concurrency-contract.js, scripts/test-operations-service-flows.sh, business logic guard contract, API build/lint.
+
+
+- 2026-07-10 Completed operation voucher write-lock follow-up:
+  - Operation voucher update/delete now lock and re-check scoped voucher state inside the transaction before edit/delete checks, preventing races with active finance payments or payment history.
+  - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-operation-vouchers-service.sh, operation voucher client/auth contracts, API build/lint.

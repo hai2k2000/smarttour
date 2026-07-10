@@ -153,36 +153,36 @@ export class OperationVouchersService {
   }
 
   async update(id: string, dto: UpdateOperationVoucherDto, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    this.assertEditable(current, 'update');
-    const mergedDto: CreateOperationVoucherDto = {
-      voucherCode: dto.voucherCode ?? current.voucherCode,
-      tourId: dto.tourId !== undefined ? dto.tourId : current.tourId ?? undefined,
-      bookingId: dto.bookingId !== undefined ? dto.bookingId : current.bookingId ?? undefined,
-      orderId: dto.orderId !== undefined ? dto.orderId : current.orderId ?? undefined,
-      supplierId: dto.supplierId !== undefined ? dto.supplierId : current.supplierId ?? undefined,
-      supplierName: dto.supplierName !== undefined ? dto.supplierName : current.supplierName ?? undefined,
-      serviceType: dto.serviceType ?? current.serviceType,
-      serviceName: dto.serviceName ?? current.serviceName,
-      serviceDate: dto.serviceDate ?? current.serviceDate.toISOString(),
-      paymentDeadline: dto.paymentDeadline !== undefined ? dto.paymentDeadline : current.paymentDeadline?.toISOString(),
-      note: dto.note !== undefined ? dto.note : current.note ?? undefined,
-      createdBy: dto.createdBy !== undefined ? dto.createdBy : current.createdBy ?? undefined,
-      details: dto.details ?? current.details.map((item) => ({
-        sku: item.sku ?? undefined,
-        serviceName: item.serviceName,
-        quantity: Number(item.quantity),
-        unit: item.unit ?? undefined,
-        netPrice: Number(item.netPrice),
-        vat: Number(item.vat),
-        note: item.note ?? undefined,
-      })),
-    };
-    const links = await this.resolveLinks(mergedDto);
-    const payload = this.normalizeVoucherPayload(mergedDto, links);
-    await this.ensureLinksScoped(links, user);
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const current = await this.lockVoucherForWrite(tx, id, user);
+        this.assertEditable(current, 'update');
+        const mergedDto: CreateOperationVoucherDto = {
+          voucherCode: dto.voucherCode ?? current.voucherCode,
+          tourId: dto.tourId !== undefined ? dto.tourId : current.tourId ?? undefined,
+          bookingId: dto.bookingId !== undefined ? dto.bookingId : current.bookingId ?? undefined,
+          orderId: dto.orderId !== undefined ? dto.orderId : current.orderId ?? undefined,
+          supplierId: dto.supplierId !== undefined ? dto.supplierId : current.supplierId ?? undefined,
+          supplierName: dto.supplierName !== undefined ? dto.supplierName : current.supplierName ?? undefined,
+          serviceType: dto.serviceType ?? current.serviceType,
+          serviceName: dto.serviceName ?? current.serviceName,
+          serviceDate: dto.serviceDate ?? current.serviceDate.toISOString(),
+          paymentDeadline: dto.paymentDeadline !== undefined ? dto.paymentDeadline : current.paymentDeadline?.toISOString(),
+          note: dto.note !== undefined ? dto.note : current.note ?? undefined,
+          createdBy: dto.createdBy !== undefined ? dto.createdBy : current.createdBy ?? undefined,
+          details: dto.details ?? current.details.map((item) => ({
+            sku: item.sku ?? undefined,
+            serviceName: item.serviceName,
+            quantity: Number(item.quantity),
+            unit: item.unit ?? undefined,
+            netPrice: Number(item.netPrice),
+            vat: Number(item.vat),
+            note: item.note ?? undefined,
+          })),
+        };
+        const links = await this.resolveLinks(mergedDto, tx);
+        const payload = this.normalizeVoucherPayload(mergedDto, links);
+        await this.ensureLinksScoped(links, user, tx);
         const paidAmount = Number(current.paidAmount);
         const totals = this.calculate(payload.details, paidAmount);
         await tx.operationVoucher.update({
@@ -208,15 +208,17 @@ export class OperationVouchersService {
         return tx.operationVoucher.findUniqueOrThrow({ where: { id }, include: this.includeAll() });
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Mã phiếu điều hành đã tồn tại');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('M\u00e3 phi\u1ebfu \u0111i\u1ec1u h\u00e0nh \u0111\u00e3 t\u1ed3n t\u1ea1i');
       throw error;
     }
   }
 
   async remove(id: string, user?: RequestUser) {
-    const current = await this.detail(id, user);
-    this.assertEditable(current, 'delete');
-    return this.prisma.operationVoucher.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockVoucherForWrite(tx, id, user);
+      this.assertEditable(current, 'delete');
+      return tx.operationVoucher.update({ where: { id }, data: { deletedAt: new Date() } });
+    });
   }
 
   async addPayment(id: string, dto: AddOperationVoucherPaymentDto, user?: RequestUser) {
@@ -290,7 +292,7 @@ export class OperationVouchersService {
     });
   }
 
-  private async resolveLinks(dto: Partial<CreateOperationVoucherDto>): Promise<OperationVoucherLinks> {
+  private async resolveLinks(dto: Partial<CreateOperationVoucherDto>, client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<OperationVoucherLinks> {
     let bookingId = this.text(dto.bookingId);
     let tourId = this.text(dto.tourId);
     let orderId = this.text(dto.orderId);
@@ -302,7 +304,7 @@ export class OperationVouchersService {
     let bookingOrderId: string | null = null;
     let tourOrderId: string | null = null;
     if (bookingId) {
-      const booking = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, tourId: true, orderId: true } });
+      const booking = await client.booking.findUnique({ where: { id: bookingId }, select: { id: true, tourId: true, orderId: true } });
       if (!booking) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y booking');
       bookingTourId = booking.tourId;
       bookingOrderId = booking.orderId;
@@ -311,7 +313,7 @@ export class OperationVouchersService {
       orderId = orderId ?? bookingOrderId;
     }
     if (tourId) {
-      const tour = await this.prisma.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
+      const tour = await client.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
       if (!tour) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y tour');
       tourOrderId = tour.orderId;
       orderId = orderId ?? tourOrderId;
@@ -320,11 +322,11 @@ export class OperationVouchersService {
     if (requestedOrderId && bookingOrderId && requestedOrderId !== bookingOrderId) throw new BadRequestException('\u0110\u01a1n h\u00e0ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c booking \u0111\u00e3 ch\u1ecdn');
     if (requestedOrderId && tourOrderId && requestedOrderId !== tourOrderId) throw new BadRequestException('\u0110\u01a1n h\u00e0ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng thu\u1ed9c tour \u0111\u00e3 ch\u1ecdn');
     if (orderId) {
-      const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
+      const order = await client.order.findUnique({ where: { id: orderId }, select: { id: true } });
       if (!order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
     }
     if (supplierId) {
-      const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true, name: true } });
+      const supplier = await client.supplier.findFirst({ where: { id: supplierId, deletedAt: null }, select: { id: true, name: true } });
       if (!supplier) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y nh\u00e0 cung c\u1ea5p');
       supplierId = supplier.id;
       supplierName = supplierName ?? supplier.name;
@@ -363,7 +365,7 @@ export class OperationVouchersService {
     };
   }
 
-  private async ensureLinksScoped(links: OperationVoucherLinks, user?: RequestUser) {
+  private async ensureLinksScoped(links: OperationVoucherLinks, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     if (!user || hasUnrestrictedDataScope(user)) return;
     applyWriteDataScope({ branch: undefined, department: undefined }, user);
     if (!links.bookingId && !links.tourId && !links.orderId) {
@@ -373,9 +375,9 @@ export class OperationVouchersService {
     const tourWhere = links.tourId ? branchDepartmentScopeWhere<Prisma.TourWhereInput>({ id: links.tourId, deletedAt: null }, user) : undefined;
     const bookingWhere = links.bookingId ? this.bookingScopeWhere({ id: links.bookingId }, user) : undefined;
     const [order, tour, booking] = await Promise.all([
-      orderWhere ? this.prisma.order.findFirst({ where: orderWhere, select: { id: true } }) : null,
-      tourWhere ? this.prisma.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
-      bookingWhere ? this.prisma.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
+      orderWhere ? client.order.findFirst({ where: orderWhere, select: { id: true } }) : null,
+      tourWhere ? client.tour.findFirst({ where: tourWhere, select: { id: true } }) : null,
+      bookingWhere ? client.booking.findFirst({ where: bookingWhere, select: { id: true } }) : null,
     ]);
     if (links.bookingId && !booking) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y booking trong ph\u1ea1m vi d\u1eef li\u1ec7u');
     if (links.orderId && !order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng trong ph\u1ea1m vi d\u1eef li\u1ec7u');
@@ -392,12 +394,16 @@ export class OperationVouchersService {
     return Math.max(Number(value) || 0, 0);
   }
 
-  private async lockVoucherForPayment(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+  private async lockVoucherForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
     const locked = await tx.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM "OperationVoucher" WHERE id = $1 AND "deletedAt" IS NULL FOR UPDATE', id);
-    if (!locked.length) throw new NotFoundException('Không tìm thấy phiếu điều hành dịch vụ');
+    if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5');
     const voucher = await tx.operationVoucher.findFirst({ where: this.scopeWhere({ id, deletedAt: null }, user), include: this.includeAll() });
-    if (!voucher) throw new NotFoundException('Không tìm thấy phiếu điều hành dịch vụ');
+    if (!voucher) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y phi\u1ebfu \u0111i\u1ec1u h\u00e0nh d\u1ecbch v\u1ee5');
     return voucher;
+  }
+
+  private async lockVoucherForPayment(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    return this.lockVoucherForWrite(tx, id, user);
   }
 
   private async nextAvailableFinancePaymentCode(tx: Prisma.TransactionClient) {

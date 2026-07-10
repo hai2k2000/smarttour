@@ -16,6 +16,14 @@ function excludes(source, needle, message) {
   assert(!source.includes(needle), `${message}\nFound: ${needle}`);
 }
 
+function sliceBetween(source, startNeedle, endNeedle) {
+  const start = source.indexOf(startNeedle);
+  assert(start >= 0, `${startNeedle} must exist`);
+  const end = source.indexOf(endNeedle, start + startNeedle.length);
+  assert(end > start, `${endNeedle} must exist after ${startNeedle}`);
+  return source.slice(start, end);
+}
+
 const quotations = read('apps/api/src/modules/quotations/quotations.service.ts');
 const operations = read('apps/api/src/modules/operations/operations.service.ts');
 const operationVouchers = read('apps/api/src/modules/operation-vouchers/operation-vouchers.service.ts');
@@ -73,6 +81,29 @@ for (const needle of [
 ]) {
   includes(operationVouchers, needle, 'Operation voucher payment reconciliation must validate finance payment links and scope.');
 }
+
+const operationVoucherUpdate = sliceBetween(operationVouchers, 'async update', '  async remove');
+const operationVoucherRemove = sliceBetween(operationVouchers, 'async remove', '  async addPayment');
+
+includes(
+  operationVouchers,
+  'private async lockVoucherForWrite',
+  'Operation voucher write flows should have a row-lock helper for lifecycle checks.',
+);
+includes(
+  operationVouchers,
+  'FROM "OperationVoucher"',
+  'Operation voucher write lock should target the OperationVoucher row.',
+);
+includes(
+  operationVouchers,
+  'FOR UPDATE',
+  'Operation voucher write lock should use SELECT ... FOR UPDATE.',
+);
+includes(operationVoucherUpdate, 'this.lockVoucherForWrite(tx, id, user)', 'Operation voucher update must lock and re-read the voucher inside the transaction before edit checks.');
+includes(operationVoucherRemove, 'this.lockVoucherForWrite(tx, id, user)', 'Operation voucher delete must lock and re-read the voucher inside the transaction before delete checks.');
+includes(operationVoucherUpdate, "this.assertEditable(current, 'update')", 'Operation voucher update must check editability after acquiring the row lock.');
+includes(operationVoucherRemove, "this.assertEditable(current, 'delete')", 'Operation voucher delete must check editability after acquiring the row lock.');
 
 includes(
   operationVouchers,
