@@ -83,7 +83,6 @@ INSERT INTO "RolePermission" (id, "roleId", permission, "createdAt")
 VALUES
   ('${MANAGE_ROLE_ID}_rp_supplier_view', '${MANAGE_ROLE_ID}', 'supplier.view', now()),
   ('${MANAGE_ROLE_ID}_rp_supplier_manage', '${MANAGE_ROLE_ID}', 'supplier.manage', now()),
-  ('${MANAGE_ROLE_ID}_rp_file_view', '${MANAGE_ROLE_ID}', 'file.view', now()),
   ('${MANAGE_ROLE_ID}_rp_finance_payment_view', '${MANAGE_ROLE_ID}', 'finance.payment.view', now()),
   ('${MANAGE_ROLE_ID}_rp_scope_all', '${MANAGE_ROLE_ID}', 'data.scope.all', now()),
   ('${VIEW_ROLE_ID}_rp_supplier_view', '${VIEW_ROLE_ID}', 'supplier.view', now());
@@ -660,10 +659,14 @@ function typedMatrixPayload(type, suffix) {
   assert(uploadedFile.createdAt && uploadedFile.fileUrl.includes('/api/files/download?key='), 'supplier upload should expose createdAt and a download URL with an object key');
   let uploadedDownload = await fetch(new URL(uploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${manageToken}` } });
   assert(uploadedDownload.status === 200 && await uploadedDownload.text() === 'supplier file smoke', 'uploaded supplier object must be downloadable');
+  const viewDownload = await fetch(new URL(uploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${viewToken}` } });
+  assert(viewDownload.status === 200 && await viewDownload.text() === 'supplier file smoke', 'supplier.view user must download supplier-owned files without generic file.view');
   const wrongSupplierFileError = await request(manageToken, 'DELETE', `/suppliers/${usedSupplierId}/files/${uploadedFile.id}`, undefined, [404]);
   assert(messageOf(wrongSupplierFileError).includes('Kh\u00f4ng t\u00ecm th\u1ea5y file nh\u00e0 cung c\u1ea5p'), 'supplier file delete must enforce file ownership');
   uploadedDownload = await fetch(new URL(uploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${manageToken}` } });
   assert(uploadedDownload.status === 200, 'wrong-supplier delete must not remove the storage object');
+  const viewDownloadAfterWrongDelete = await fetch(new URL(uploadedFile.fileUrl, api), { headers: { Authorization: `Bearer ${viewToken}` } });
+  assert(viewDownloadAfterWrongDelete.status === 200, 'supplier.view download must remain available after failed wrong-supplier delete');
   const fileUsageDeleteError = await request(manageToken, 'DELETE', `/suppliers/${supplier.id}`, undefined, [409]);
   assert(messageOf(fileUsageDeleteError).includes('file nhà cung cấp'), 'supplier delete should be blocked while files remain');
   await request(viewToken, 'DELETE', `/suppliers/${supplier.id}/files/${uploadedFile.id}`, undefined, [403]);
