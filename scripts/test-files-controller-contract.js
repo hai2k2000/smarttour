@@ -5,6 +5,14 @@ const tourGuidesController = fs.readFileSync('apps/api/src/modules/tour-guides/t
 const dtoPath = 'apps/api/src/modules/files/dto/file-query.dto.ts';
 const failures = [];
 
+function decoratorBlockBefore(source, methodSignature) {
+  const methodIndex = source.indexOf(methodSignature);
+  if (methodIndex === -1) return '';
+  const before = source.slice(0, methodIndex);
+  const lastBlank = before.lastIndexOf('\n\n');
+  return before.slice(lastBlank === -1 ? 0 : lastBlank);
+}
+
 if (!fs.existsSync(dtoPath)) {
   failures.push('File query DTO is missing');
 } else {
@@ -24,7 +32,9 @@ if (!fs.existsSync(dtoPath)) {
 for (const token of [
   "import type { ServerResponse } from 'node:http';",
   "import { FileObjectKeyQueryDto, FileUploadBodyDto } from './dto/file-query.dto';",
+  "import { RequirePermissions } from '../auth/permissions.decorator';",
   'upload(',
+  "@RequirePermissions('file.manage')",
   '@Body() dto: FileUploadBodyDto',
   'this.filesService.uploadAuthorized(file, dto.scope, request.user)',
   'async download(@Query() query: FileObjectKeyQueryDto',
@@ -37,12 +47,23 @@ for (const token of [
   if (!controller.includes(token)) failures.push(`FilesController missing ${token}`);
 }
 
+const downloadDecorators = decoratorBlockBefore(controller, 'async download(');
+const removeDecorators = decoratorBlockBefore(controller, 'remove(@Query() query: FileObjectKeyQueryDto');
+if (downloadDecorators.includes('@RequirePermissions')) {
+  failures.push('FilesController download must not require generic file.view; FilesService enforces entity-specific view permission');
+}
+if (removeDecorators.includes('@RequirePermissions')) {
+  failures.push('FilesController delete must not require generic file.manage; FilesService enforces entity-specific manage permission');
+}
+
 for (const unsafe of [
   "@Body('scope')",
   "@Query('key')",
   'response: any',
+  "@RequirePermissions('file.view')\n  async download",
+  "@RequirePermissions('file.manage')\n  remove",
 ]) {
-  if (controller.includes(unsafe)) failures.push(`FilesController must not use loose contract ${unsafe}`);
+  if (controller.includes(unsafe)) failures.push(`FilesController must not use loose or generic file contract ${unsafe}`);
 }
 
 for (const token of [
