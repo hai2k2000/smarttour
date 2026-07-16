@@ -72,12 +72,13 @@ for field in ['supplierCode', 'name', 'taxCode', 'contactPerson', 'phone', 'emai
     assert f'{{ {field}: contains }}' in service, f'common supplier search must include {field}'
 assert 'deletedAt: null' in service and 'include: this.supplierListInclude()' in service
 assert 'take: this.listTake(query.take ?? query.limit)' in service, 'common supplier list must apply bounded take'
+assert 'private async supplierUsage(client: Prisma.TransactionClient | PrismaService, id: string)' in service
 assert 'category: true' in service and 'supplierServices: { where: { deletedAt: null }' in service
-assert "this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: null } })" in service
-assert "this.prisma.supplierAllotment.count({ where: { supplierId: id } })" in service
-assert "this.prisma.supplierFile.count({ where: { supplierId: id } })" in service
-assert "this.prisma.supplierPaymentItem.count({ where: { supplierId: id } })" in service
-assert "this.prisma.operationService.count({ where: { supplierId: id } })" in service
+assert "client.supplierService.count({ where: { supplierId: id, deletedAt: null } })" in service
+assert "client.supplierAllotment.count({ where: { supplierId: id } })" in service
+assert "client.supplierFile.count({ where: { supplierId: id } })" in service
+assert "client.supplierPaymentItem.count({ where: { supplierId: id } })" in service
+assert "client.operationService.count({ where: { supplierId: id } })" in service
 assert "['supplierServices', 'dịch vụ nhà cung cấp']" in service
 assert "['allotments', 'quỹ phòng']" in service
 assert "['files', 'file nhà cung cấp']" in service

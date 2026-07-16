@@ -3240,3 +3240,8 @@
   - Terminal Tours can no longer be mutated through copy-services, FIT attachment upload/delete, or FIT budget/operation copy paths.
   - Verification passed: RED/GREEN node scripts/test-business-logic-guard-contract.js, scripts/test-tour-type-apis.sh, scripts/test-fit-tour-root-contract.sh, node scripts/test-fit-tours-client-contract.js, API build/lint, git diff check.
   - Deploy verification passed on the VPS: Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-16 Completed supplier delete usage transaction follow-up:
+  - Supplier soft delete now locks the Supplier row and counts all related usage through the transaction client before marking the supplier INACTIVE/deleted.
+  - This prevents stale delete eligibility checks from using a root Prisma client outside the delete transaction.
+  - Verification passed: node scripts/test-business-logic-guard-contract.js, supplier common/typed/file/helper contracts, scripts/test-suppliers-generic.sh, scripts/test-suppliers-hotel.sh, API build/lint, and git diff check.

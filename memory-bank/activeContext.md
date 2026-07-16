@@ -3783,3 +3783,9 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Common Tour, GIT, LandTour, and FIT delete/close callers now pass user scope into the locked TourCore paths; FIT attachment delete and copy budget/operation now guard terminal target Tour state before mutating child rows.
   - Expanded scripts/test-business-logic-guard-contract.js with RED/GREEN coverage for Tour row locking and terminal child-action guards.
   - Verification/deploy passed on the VPS: business logic guard, tour type APIs, FIT root/client contracts, API build/lint, git diff check, Docker API rebuild/restart, HEALTHCHECK_OK, and docker builder prune to 0B.
+
+- 2026-07-16 Supplier delete usage transaction follow-up:
+  - Found SuppliersService.deleteSupplierRecord locked the Supplier row in a transaction but supplierUsage() still counted related records through the root Prisma client.
+  - Supplier soft delete usage checks now run through the same transaction client after the Supplier row lock, avoiding stale relation checks before soft delete.
+  - Updated scripts/test-business-logic-guard-contract.js and scripts/test-suppliers-common-contract.sh to guard tx-based supplier usage counting.
+  - Verification on VPS passed: business logic guard, supplier common/typed/file/helper contracts, supplier generic and hotel API/service smokes, API build/lint, and git diff check before deploy restart.

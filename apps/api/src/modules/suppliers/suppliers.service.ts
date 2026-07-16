@@ -1716,7 +1716,7 @@ export class SuppliersService {
   private async deleteSupplierRecord(id: string) {
     return this.prisma.$transaction(async (tx) => {
       await this.lockSupplierForStatusWrite(tx, id);
-      const usage = await this.supplierUsage(id);
+      const usage = await this.supplierUsage(tx, id);
       if (usage.total > 0) {
         throw new ConflictException(`Không thể xóa nhà cung cấp đang được sử dụng (${this.usageSummary(usage)}). Hãy kiểm tra đơn hàng, điều hành, tài chính hoặc yêu cầu thanh toán liên quan trước khi xóa.`);
       }
@@ -1728,7 +1728,7 @@ export class SuppliersService {
     });
   }
 
-  private async supplierUsage(id: string) {
+  private async supplierUsage(client: Prisma.TransactionClient | PrismaService, id: string) {
     const [
       orderSalesItems,
       orderOperationItems,
@@ -1750,25 +1750,25 @@ export class SuppliersService {
       allotments,
       files,
     ] = await Promise.all([
-      this.prisma.orderSalesItem.count({ where: { supplierId: id } }),
-      this.prisma.orderOperationItem.count({ where: { supplierId: id } }),
-      this.prisma.operationVoucher.count({ where: { supplierId: id, deletedAt: null } }),
-      this.prisma.financePayment.count({ where: { supplierId: id, deletedAt: null } }),
-      this.prisma.financeCashflowEntry.count({ where: { supplierId: id } }),
-      this.prisma.supplierLedgerEntry.count({ where: { supplierId: id } }),
-      this.prisma.supplierPaymentItem.count({ where: { supplierId: id } }),
-      this.prisma.operationService.count({ where: { supplierId: id } }),
-      this.prisma.quoteComboItem.count({ where: { supplierId: id } }),
-      this.prisma.quotationItem.count({ where: { supplierId: id } }),
-      this.prisma.tourSupplier.count({ where: { supplierId: id } }),
-      this.prisma.tourService.count({ where: { supplierId: id } }),
-      this.prisma.tourCost.count({ where: { supplierId: id } }),
-      this.prisma.fitBudgetService.count({ where: { supplierId: id } }),
-      this.prisma.fitOperationService.count({ where: { supplierId: id } }),
-      this.prisma.supplierAllotmentAllocation.count({ where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
-      this.prisma.supplierService.count({ where: { supplierId: id, deletedAt: null } }),
-      this.prisma.supplierAllotment.count({ where: { supplierId: id } }),
-      this.prisma.supplierFile.count({ where: { supplierId: id } }),
+      client.orderSalesItem.count({ where: { supplierId: id } }),
+      client.orderOperationItem.count({ where: { supplierId: id } }),
+      client.operationVoucher.count({ where: { supplierId: id, deletedAt: null } }),
+      client.financePayment.count({ where: { supplierId: id, deletedAt: null } }),
+      client.financeCashflowEntry.count({ where: { supplierId: id } }),
+      client.supplierLedgerEntry.count({ where: { supplierId: id } }),
+      client.supplierPaymentItem.count({ where: { supplierId: id } }),
+      client.operationService.count({ where: { supplierId: id } }),
+      client.quoteComboItem.count({ where: { supplierId: id } }),
+      client.quotationItem.count({ where: { supplierId: id } }),
+      client.tourSupplier.count({ where: { supplierId: id } }),
+      client.tourService.count({ where: { supplierId: id } }),
+      client.tourCost.count({ where: { supplierId: id } }),
+      client.fitBudgetService.count({ where: { supplierId: id } }),
+      client.fitOperationService.count({ where: { supplierId: id } }),
+      client.supplierAllotmentAllocation.count({ where: { supplierId: id, status: { in: ['LOCKED', 'CONFIRMED'] } } }),
+      client.supplierService.count({ where: { supplierId: id, deletedAt: null } }),
+      client.supplierAllotment.count({ where: { supplierId: id } }),
+      client.supplierFile.count({ where: { supplierId: id } }),
     ]);
     const usage = {
       orderSalesItems,

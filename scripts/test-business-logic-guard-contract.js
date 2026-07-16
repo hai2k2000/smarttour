@@ -297,6 +297,7 @@ const typedSupplierStatusUpdate = sliceBetween(suppliers, 'async updateTypedSupp
 const hotelSupplierUpdate = sliceBetween(suppliers, 'async updateHotelSupplier', '  async allotmentDashboard');
 const supplierManualAllotmentLock = sliceBetween(suppliers, 'async lockAllotment', '  async confirmAllotmentAllocation');
 const supplierDeleteRecord = sliceBetween(suppliers, 'private async deleteSupplierRecord', '  private async supplierUsage');
+const supplierUsage = sliceBetween(suppliers, 'private async supplierUsage', '  private usageSummary');
 
 includes(
   suppliers,
@@ -315,7 +316,8 @@ includes(typedSupplierStatusUpdate, 'this.lockSupplierForStatusWrite(tx, id)', '
 includes(hotelSupplierUpdate, 'this.lockSupplierForStatusWrite(tx, id)', 'Hotel supplier update must re-read and lock supplier status inside the transaction.');
 includes(supplierManualAllotmentLock, 'this.lockSupplierForAllotmentWrite(tx, current.supplierId)', 'Manual allotment lock must lock the owning supplier before reserving inventory.');
 includes(supplierDeleteRecord, 'this.lockSupplierForStatusWrite(tx, id)', 'Supplier soft delete must lock the supplier row before usage checks.');
-includes(supplierDeleteRecord, 'const usage = await this.supplierUsage(id)', 'Supplier soft delete must re-check usage after acquiring the supplier row lock.');
+includes(supplierDeleteRecord, 'const usage = await this.supplierUsage(tx, id)', 'Supplier soft delete must re-check usage through the transaction client after acquiring the supplier row lock.');
+excludes(supplierUsage, 'this.prisma.', 'Supplier usage checks during delete must use the transaction client, not the root Prisma client.');
 includes(
   orderAllotments,
   'lockSupplierForAutoAllotmentWrite(tx, allotment.supplierId)',
