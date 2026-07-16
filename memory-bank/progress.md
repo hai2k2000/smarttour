@@ -1,5 +1,10 @@
 # Progress
 
+- Completed Supplier attachments Phase 1 permission deepening:
+  - Shared file download/delete routes now delegate permission decisions to FilesService entity-specific access checks, allowing supplier.view users to download supplier-owned files without generic file.view.
+  - Supplier smoke coverage now proves supplier managers can upload/download without generic file.view, supplier viewers can download, supplier viewers cannot delete, wrong-supplier deletes preserve storage objects, and final delete removes the object.
+  - Verification passed: node scripts/test-files-controller-contract.js, bash scripts/test-suppliers-file-contract.sh, node scripts/test-file-upload-scope-contract.js, API build/lint, Docker API rebuild/restart, bash scripts/smoke-suppliers.sh, and npm run ops:health.
+
 - Hardened FIT tour terminal workflow edits:
   - FIT tours in COMPLETED or CANCELLED workflow status now reject non-idempotent update/save/confirm payloads before syncing common Tour and legacy FIT data.
   - Extended scripts/test-fit-tour-root-contract.sh with completed-workflow mutation regression and terminal guard source coverage.

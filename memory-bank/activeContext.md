@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier attachment permission deepening:
+  - File download/delete now rely on entity-scoped file access in FilesService instead of requiring generic file.view/file.manage on the shared FilesController routes.
+  - Supplier-owned file downloads now work for users with supplier.view only, while supplier file upload/delete still require supplier.manage through supplier routes and metadata ownership checks.
+  - Verification passed for files controller contract, supplier file contract, file upload scope contract, API build/lint, Docker API rebuild/restart, supplier smoke, and production healthcheck.
+
 - FIT tour terminal workflow hardening:
   - Blocked non-idempotent data edits once a FIT tour reaches terminal COMPLETED or CANCELLED workflow status.
   - Added FIT root regression coverage for completed workflow edits and a source contract assertion for the terminal workflow guard.
