@@ -26,7 +26,6 @@ export class FilesController {
   }
 
   @Get('download')
-  @RequirePermissions('file.view')
   async download(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }, @Res() response: ServerResponse) {
     const key = query.key;
     const file = await this.filesService.downloadAuthorized(key, request.user);
@@ -37,7 +36,6 @@ export class FilesController {
   }
 
   @Delete()
-  @RequirePermissions('file.manage')
   remove(@Query() query: FileObjectKeyQueryDto, @Req() request: { user?: RequestUser }) {
     const key = query.key;
     return this.filesService.removeAuthorized(key, request.user);
