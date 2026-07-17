@@ -20,6 +20,12 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier finance links Phase 3:
+  - Added supplier-owned read APIs for finance summaries: batch `GET /suppliers/finance-summaries?ids=...` and detail `GET /suppliers/:id/finance-summary`, guarded by `supplier.view` plus the existing supplier financial permission `finance.payment.view`.
+  - Summaries derive payable/paid/balance from `SupplierLedgerEntry`, payment totals from `FinancePayment`, voucher exposure from `OperationVoucher`, and pending request exposure from `SupplierPaymentItem`/`SupplierPaymentRequest`; Supplier still stores no duplicate debt totals and owns no finance write action.
+  - Common Supplier list now batch-loads summaries for visible suppliers and links to Finance debt/payments, Operation vouchers, and Supplier payment requests while preserving financial-field masking for users without `finance.payment.view`.
+  - Verification passed for supplier finance links contract, supplier UI permission contract, supplier sensitive/export/import/controller contracts, API build/lint, web typecheck, and diff check. Phase 4 dedicated child-row APIs remain next.
+
 - Supplier import Phase 2 foundation:
   - Added `POST /suppliers/import/preview` and `POST /suppliers/import` for common/root supplier rows using CSV, XLSX, JSON rows, or inline CSV.
   - Import parsing uses the shared native XLSX parser, caps payloads at 5 MB and 500 rows, maps exported `category` to `categoryName`, rejects unsupported columns, and preserves finance-sensitive field protection behind `finance.payment.view`.

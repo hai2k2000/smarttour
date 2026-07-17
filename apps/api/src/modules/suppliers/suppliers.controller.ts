@@ -170,6 +170,18 @@ export class SuppliersController {
     return this.suppliersService.importSuppliers(dto, file, request.user);
   }
 
+  @Get('finance-summaries')
+  @RequirePermissions('supplier.view', 'finance.payment.view')
+  financeSummaries(@Query('ids') ids: string | undefined, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listSupplierFinanceSummaries(ids?.split(',') || [], request.user);
+  }
+
+  @Get(':id/finance-summary')
+  @RequirePermissions('supplier.view', 'finance.payment.view')
+  financeSummary(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.supplierFinanceSummary(id, request.user);
+  }
+
   @Get(':type/export')
   async exportTyped(@Param('type') type: string, @Query() query: TypedSupplierListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
     const csv = await this.suppliersService.exportTypedSuppliersCsv(type, query, request.user);

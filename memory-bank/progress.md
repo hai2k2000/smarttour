@@ -1,5 +1,11 @@
 # Progress
 
+- Completed Supplier finance links Phase 3:
+  - Added read-only supplier finance summary endpoints for batch and detail views, using authoritative ledger, finance payment, operation voucher, and supplier payment request sources instead of cached Supplier debt fields.
+  - Endpoint access requires `supplier.view` and `finance.payment.view`; transaction rows keep branch/department data-scope filtering where applicable.
+  - Common Supplier list now shows real payable/paid/balance context plus navigation links to Finance debt, Finance payments, Operation vouchers, and Supplier payment requests for users allowed to see supplier financial fields.
+  - Verification passed: node scripts/test-suppliers-finance-links-contract.js, node scripts/test-supplier-ui-permission-contract.js, node scripts/test-suppliers-sensitive-fields-contract.js, node scripts/test-suppliers-export-contract.js, node scripts/test-suppliers-import-contract.js, bash scripts/test-suppliers-controller-contract.sh, API build/lint, web typecheck, and git diff check.
+
 - Completed Supplier import Phase 2 foundation:
   - Added supplier import preview and all-or-nothing write endpoints for common/root supplier rows: `POST /suppliers/import/preview` and `POST /suppliers/import`.
   - Added supplier import DTO/helper/size filter with CSV/XLSX/JSON/inline CSV parsing, native XLSX reuse, 5 MB and 500-row caps, `category` to `categoryName` aliasing, unsupported-column errors, and finance-sensitive field protection.

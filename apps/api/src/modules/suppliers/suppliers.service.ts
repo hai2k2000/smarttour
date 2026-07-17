@@ -85,6 +85,36 @@ type SupplierImportPreviewRow = {
   categoryName?: string;
   valid: boolean;
 };
+const MAX_SUPPLIER_FINANCE_SUMMARY_IDS = 100;
+
+type SupplierFinanceLinks = {
+  financeDebt: string;
+  financePayments: string;
+  operationVouchers: string;
+  supplierPaymentRequests: string;
+};
+
+type SupplierFinanceMoneyTotals = {
+  count: number;
+  totalAmount: number;
+  paymentAmount: number;
+  remainingAmount: number;
+};
+
+type SupplierFinanceSummary = {
+  supplierId: string;
+  summary: { payable: number; paid: number; balance: number; ledgerCount: number };
+  payments: SupplierFinanceMoneyTotals & { byStatus: Record<string, SupplierFinanceMoneyTotals> };
+  vouchers: { count: number; totalAmount: number; paidAmount: number; remainingAmount: number };
+  paymentRequests: { count: number; amount: number };
+  links: SupplierFinanceLinks;
+  recent?: {
+    ledgerEntries: Array<Record<string, unknown>>;
+    payments: Array<Record<string, unknown>>;
+    operationVouchers: Array<Record<string, unknown>>;
+    supplierPaymentRequests: Array<Record<string, unknown>>;
+  };
+};
 
 @Injectable()
 export class SuppliersService {
@@ -367,6 +397,310 @@ export class SuppliersService {
   getSupplierFromRouteKey(routeKey: string, user?: RequestUser) {
     if (!SUPPLIER_ID_PATTERN.test(routeKey)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
     return this.getSupplier(routeKey, user);
+  }
+
+  async listSupplierFinanceSummaries(ids: string[] = [], user?: RequestUser): Promise<SupplierFinanceSummary[]> {
+    this.assertCanViewSupplierFinance(user);
+    const supplierIds = this.supplierFinanceIds(ids);
+    if (!supplierIds.length) return [];
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: supplierIds }, deletedAt: null },
+      select: { id: true },
+    });
+    const foundIds = new Set(suppliers.map((supplier) => supplier.id));
+    const visibleIds = supplierIds.filter((id) => foundIds.has(id));
+    if (!visibleIds.length) return [];
+
+    const ledgerWhere = branchDepartmentScopeWhere<Prisma.SupplierLedgerEntryWhereInput>({ supplierId: { in: visibleIds } }, user);
+    const paymentWhere = branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ supplierId: { in: visibleIds }, deletedAt: null }, user);
+    const voucherWhere = this.operationVoucherScopeWhere({ supplierId: { in: visibleIds }, deletedAt: null }, user);
+    const requestWhere = this.supplierPaymentRequestScopeWhere({}, user);
+
+    const [ledgerRows, paymentRows, voucherRows, requestRows] = await Promise.all([
+      this.prisma.supplierLedgerEntry.groupBy({
+        by: ['supplierId'],
+        where: ledgerWhere,
+        _sum: { creditAmount: true, debitAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.financePayment.groupBy({
+        by: ['supplierId', 'approvalStatus'],
+        where: paymentWhere,
+        _sum: { totalAmount: true, paymentAmount: true, remainingAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.operationVoucher.groupBy({
+        by: ['supplierId'],
+        where: voucherWhere,
+        _sum: { totalAmount: true, paidAmount: true, remainAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.supplierPaymentItem.groupBy({
+        by: ['supplierId'],
+        where: { supplierId: { in: visibleIds }, request: requestWhere },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const ledgerBySupplier = new Map(ledgerRows.map((row) => [row.supplierId, row]));
+    const paymentsBySupplier = this.supplierFinanceRowsBySupplier(paymentRows, (row) => row.supplierId);
+    const voucherBySupplier = new Map(voucherRows.filter((row) => row.supplierId).map((row) => [row.supplierId as string, row]));
+    const requestBySupplier = new Map(requestRows.map((row) => [row.supplierId, row]));
+
+    return visibleIds.map((supplierId) => this.toSupplierFinanceSummary(
+      supplierId,
+      ledgerBySupplier.get(supplierId),
+      paymentsBySupplier.get(supplierId) || [],
+      voucherBySupplier.get(supplierId),
+      requestBySupplier.get(supplierId),
+    ));
+  }
+
+  async supplierFinanceSummary(id: string, user?: RequestUser): Promise<SupplierFinanceSummary> {
+    const [summary] = await this.listSupplierFinanceSummaries([id], user);
+    if (!summary) throw new NotFoundException(SUPPLIER_ERRORS.supplierNotFound);
+
+    const ledgerWhere = branchDepartmentScopeWhere<Prisma.SupplierLedgerEntryWhereInput>({ supplierId: id }, user);
+    const paymentWhere = branchDepartmentScopeWhere<Prisma.FinancePaymentWhereInput>({ supplierId: id, deletedAt: null }, user);
+    const voucherWhere = this.operationVoucherScopeWhere({ supplierId: id, deletedAt: null }, user);
+    const requestWhere = this.supplierPaymentRequestScopeWhere({ items: { some: { supplierId: id } } }, user);
+
+    const [ledgerEntries, payments, operationVouchers, supplierPaymentRequests] = await Promise.all([
+      this.prisma.supplierLedgerEntry.findMany({
+        where: ledgerWhere,
+        select: {
+          id: true,
+          sourceType: true,
+          entryType: true,
+          debitAmount: true,
+          creditAmount: true,
+          documentCode: true,
+          documentDate: true,
+          dueDate: true,
+          description: true,
+          orderId: true,
+          tourId: true,
+          operationVoucherId: true,
+          paymentId: true,
+          order: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+          tour: { select: { id: true, systemCode: true, tourCode: true, name: true } },
+          operationVoucher: { select: { id: true, voucherCode: true, status: true, serviceName: true } },
+          payment: { select: { id: true, voucherCode: true, approvalStatus: true, paymentAmount: true, paymentDate: true } },
+        },
+        orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
+      this.prisma.financePayment.findMany({
+        where: paymentWhere,
+        select: { id: true, voucherCode: true, approvalStatus: true, voucherType: true, totalAmount: true, paymentAmount: true, remainingAmount: true, paymentDate: true, operationVoucherId: true, orderId: true, tourId: true },
+        orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
+      this.prisma.operationVoucher.findMany({
+        where: voucherWhere,
+        select: { id: true, voucherCode: true, serviceType: true, serviceName: true, serviceDate: true, status: true, totalAmount: true, paidAmount: true, remainAmount: true, orderId: true, tourId: true, bookingId: true },
+        orderBy: [{ serviceDate: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
+      this.prisma.supplierPaymentRequest.findMany({
+        where: requestWhere,
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          financePaymentId: true,
+          requestedAt: true,
+          financePayment: { select: { id: true, voucherCode: true, approvalStatus: true, paymentAmount: true } },
+          items: {
+            where: { supplierId: id },
+            select: { id: true, amount: true, notes: true, cost: { select: { id: true, costName: true } } },
+            take: 5,
+          },
+        },
+        orderBy: [{ requestedAt: 'desc' }, { code: 'desc' }],
+        take: 5,
+      }),
+    ]);
+
+    return {
+      ...summary,
+      recent: {
+        ledgerEntries: ledgerEntries as Array<Record<string, unknown>>,
+        payments: payments as Array<Record<string, unknown>>,
+        operationVouchers: operationVouchers as Array<Record<string, unknown>>,
+        supplierPaymentRequests: supplierPaymentRequests as Array<Record<string, unknown>>,
+      },
+    };
+  }
+
+  private assertCanViewSupplierFinance(user?: RequestUser) {
+    if (!canViewSupplierFinancialFields(user)) throw new ForbiddenException('Thiếu quyền xem tài chính nhà cung cấp');
+  }
+
+  private supplierFinanceIds(ids: string[]) {
+    return Array.from(new Set(ids.map((id) => this.optionalText(id, 'Mã nhà cung cấp')).filter((id): id is string => Boolean(id))))
+      .slice(0, MAX_SUPPLIER_FINANCE_SUMMARY_IDS);
+  }
+
+  private toSupplierFinanceSummary(
+    supplierId: string,
+    ledger: { _sum?: { creditAmount?: unknown; debitAmount?: unknown }; _count?: { _all?: number } } | undefined,
+    paymentRows: Array<{ approvalStatus?: string | null; _sum?: { totalAmount?: unknown; paymentAmount?: unknown; remainingAmount?: unknown }; _count?: { _all?: number } }>,
+    voucher: { _sum?: { totalAmount?: unknown; paidAmount?: unknown; remainAmount?: unknown }; _count?: { _all?: number } } | undefined,
+    request: { _sum?: { amount?: unknown }; _count?: { _all?: number } } | undefined,
+  ): SupplierFinanceSummary {
+    const payable = this.financeAmount(ledger?._sum?.creditAmount);
+    const paid = this.financeAmount(ledger?._sum?.debitAmount);
+    return {
+      supplierId,
+      summary: {
+        payable,
+        paid,
+        balance: payable - paid,
+        ledgerCount: ledger?._count?._all || 0,
+      },
+      payments: this.supplierFinancePaymentTotals(paymentRows),
+      vouchers: {
+        count: voucher?._count?._all || 0,
+        totalAmount: this.financeAmount(voucher?._sum?.totalAmount),
+        paidAmount: this.financeAmount(voucher?._sum?.paidAmount),
+        remainingAmount: this.financeAmount(voucher?._sum?.remainAmount),
+      },
+      paymentRequests: {
+        count: request?._count?._all || 0,
+        amount: this.financeAmount(request?._sum?.amount),
+      },
+      links: this.financeLinksForSupplier(supplierId),
+    };
+  }
+
+  private supplierFinancePaymentTotals(
+    rows: Array<{ approvalStatus?: string | null; _sum?: { totalAmount?: unknown; paymentAmount?: unknown; remainingAmount?: unknown }; _count?: { _all?: number } }>,
+  ): SupplierFinanceMoneyTotals & { byStatus: Record<string, SupplierFinanceMoneyTotals> } {
+    const byStatus: Record<string, SupplierFinanceMoneyTotals> = {};
+    const total: SupplierFinanceMoneyTotals & { byStatus: Record<string, SupplierFinanceMoneyTotals> } = {
+      count: 0,
+      totalAmount: 0,
+      paymentAmount: 0,
+      remainingAmount: 0,
+      byStatus,
+    };
+    for (const row of rows) {
+      const status = row.approvalStatus || 'UNKNOWN';
+      const item = {
+        count: row._count?._all || 0,
+        totalAmount: this.financeAmount(row._sum?.totalAmount),
+        paymentAmount: this.financeAmount(row._sum?.paymentAmount),
+        remainingAmount: this.financeAmount(row._sum?.remainingAmount),
+      };
+      byStatus[status] = item;
+      total.count += item.count;
+      total.totalAmount += item.totalAmount;
+      total.paymentAmount += item.paymentAmount;
+      total.remainingAmount += item.remainingAmount;
+    }
+    return total;
+  }
+
+  private supplierFinanceRowsBySupplier<T>(rows: T[], supplierIdOf: (row: T) => string | null | undefined) {
+    const grouped = new Map<string, T[]>();
+    for (const row of rows) {
+      const supplierId = supplierIdOf(row);
+      if (!supplierId) continue;
+      const current = grouped.get(supplierId) || [];
+      current.push(row);
+      grouped.set(supplierId, current);
+    }
+    return grouped;
+  }
+
+  private financeLinksForSupplier(supplierId: string): SupplierFinanceLinks {
+    const encoded = encodeURIComponent(supplierId);
+    return {
+      financeDebt: '/finance?tab=debt&supplierId=' + encoded,
+      financePayments: '/finance?tab=payments&supplierId=' + encoded,
+      operationVouchers: '/operation-vouchers?supplierId=' + encoded,
+      supplierPaymentRequests: '/operations?tab=payment-requests&supplierId=' + encoded,
+    };
+  }
+
+  private operationVoucherScopeWhere(where: Prisma.OperationVoucherWhereInput, user?: RequestUser): Prisma.OperationVoucherWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { order: { is: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ deletedAt: null }, user) } },
+            { tour: { is: branchDepartmentScopeWhere<Prisma.TourWhereInput>({ deletedAt: null }, user) } },
+            { booking: { is: this.supplierFinanceBookingScopeWhere({}, user) } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private supplierPaymentRequestScopeWhere(where: Prisma.SupplierPaymentRequestWhereInput, user?: RequestUser): Prisma.SupplierPaymentRequestWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    if (this.hasMissingSupplierFinanceReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const financeScope: Prisma.FinancePaymentWhereInput = {};
+    const formScopes: Prisma.OperationFormWhereInput[] = [];
+    if (permissions.has('data.scope.branch') && user.branch) {
+      financeScope.branch = user.branch;
+      formScopes.push(this.supplierFinanceOperationFormBranchScope(user.branch));
+    }
+    if (permissions.has('data.scope.department') && user.department) {
+      financeScope.department = user.department;
+      formScopes.push(this.supplierFinanceOperationFormDepartmentScope(user.department));
+    }
+    if (!formScopes.length && !Object.keys(financeScope).length) return { AND: [where, { id: '__no_data_scope__' }] };
+    const formScope: Prisma.OperationFormWhereInput = formScopes.length ? { AND: formScopes } : {};
+    return {
+      AND: [
+        where,
+        {
+          OR: [
+            { financePayment: financeScope },
+            { items: { some: { cost: { operationForm: formScope } } } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private supplierFinanceBookingScopeWhere(where: Prisma.BookingWhereInput, user?: RequestUser): Prisma.BookingWhereInput {
+    if (!user || hasUnrestrictedDataScope(user)) return where;
+    const permissions = userPermissions(user);
+    if (this.hasMissingSupplierFinanceReadScopeValue(permissions, user)) return { AND: [where, { id: '__no_data_scope__' }] };
+    const AND: Prisma.BookingWhereInput[] = [where];
+    if (permissions.has('data.scope.branch') && user.branch) AND.push({ OR: [{ customer: { branch: user.branch } }, { order: { branch: user.branch } }, { tour: { branch: user.branch } }] });
+    if (permissions.has('data.scope.department') && user.department) AND.push({ OR: [{ customer: { department: user.department } }, { order: { department: user.department } }, { tour: { department: user.department } }] });
+    if (AND.length === 1) return { AND: [where, { id: '__no_data_scope__' }] };
+    return { AND };
+  }
+
+  private supplierFinanceOperationFormBranchScope(branch: string): Prisma.OperationFormWhereInput {
+    return { OR: [{ booking: { customer: { branch } } }, { order: { branch } }, { tour: { branch } }] };
+  }
+
+  private supplierFinanceOperationFormDepartmentScope(department: string): Prisma.OperationFormWhereInput {
+    return { OR: [{ booking: { customer: { department } } }, { order: { department } }, { tour: { department } }] };
+  }
+
+  private hasMissingSupplierFinanceReadScopeValue(permissions: Set<string>, user: RequestUser) {
+    return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
+  }
+
+  private financeAmount(value: unknown) {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'object' && 'toNumber' in value && typeof (value as { toNumber: () => number }).toNumber === 'function') {
+      return (value as { toNumber: () => number }).toNumber();
+    }
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : 0;
   }
 
   async createSupplier(dto: CreateSupplierDto, user?: RequestUser) {

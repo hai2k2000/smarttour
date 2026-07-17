@@ -29,6 +29,20 @@ type Supplier = {
   updatedAt: string;
 };
 
+type SupplierFinanceSummary = {
+  supplierId: string;
+  summary: { payable: number; paid: number; balance: number; ledgerCount: number };
+  payments: { count: number; totalAmount: number; paymentAmount: number; remainingAmount: number };
+  vouchers: { count: number; totalAmount: number; paidAmount: number; remainingAmount: number };
+  paymentRequests: { count: number; amount: number };
+  links: {
+    financeDebt: string;
+    financePayments: string;
+    operationVouchers: string;
+    supplierPaymentRequests: string;
+  };
+};
+
 type ApiResult<T> = { data: T; error?: string };
 type MutationResult = { ok: boolean; message: string };
 type SuppliersPageProps = {
@@ -235,6 +249,29 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
+function formatMoney(value: number | null | undefined) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function SupplierFinanceSummaryBlock({ summary }: { summary?: SupplierFinanceSummary }) {
+  if (!summary) return <span className="supplierDebtNote mutedText">Chưa có phát sinh tài chính.</span>;
+  return (
+    <div className="supplierFinanceSummary">
+      <span><strong>Phải trả:</strong> {formatMoney(summary.summary.payable)}</span>
+      <span><strong>Đã trả:</strong> {formatMoney(summary.summary.paid)}</span>
+      <span><strong>Còn phải trả:</strong> {formatMoney(summary.summary.balance)}</span>
+      <span><strong>Phiếu điều hành:</strong> {summary.vouchers.count} / {formatMoney(summary.vouchers.remainingAmount)}</span>
+      <span><strong>Đề nghị thanh toán:</strong> {summary.paymentRequests.count} / {formatMoney(summary.paymentRequests.amount)}</span>
+      <div className="supplierFinanceLinks">
+        <a href={summary.links.financeDebt}>Công nợ</a>
+        <a href={summary.links.financePayments}>Phiếu chi</a>
+        <a href={summary.links.operationVouchers}>Phiếu điều hành</a>
+        <a href={summary.links.supplierPaymentRequests}>Đề nghị thanh toán</a>
+      </div>
+    </div>
+  );
+}
+
 export default async function SuppliersPage({ searchParams }: SuppliersPageProps) {
   const params = searchParams ? await searchParams : {};
   const notice = singleParam(params.notice);
@@ -256,7 +293,11 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
   const categories = categoriesResult.data;
   const allCategories = allCategoriesResult.data;
   const suppliers = suppliersResult.data;
-  const loadErrors = [currentUserResult.error, categoriesResult.error, allCategoriesResult.error, suppliersResult.error].filter(Boolean);
+  const supplierFinanceSummariesResult = canViewSuppliers && canViewSupplierFinancialFields && suppliers.length
+    ? await apiGet<SupplierFinanceSummary[]>(`/suppliers/finance-summaries?ids=${suppliers.map((supplier) => supplier.id).join(',')}`, [], 'Tải tổng hợp tài chính nhà cung cấp')
+    : { data: [] as SupplierFinanceSummary[] };
+  const supplierFinanceSummaryById = new Map(supplierFinanceSummariesResult.data.map((summary) => [summary.supplierId, summary]));
+  const loadErrors = [currentUserResult.error, categoriesResult.error, allCategoriesResult.error, suppliersResult.error, supplierFinanceSummariesResult.error].filter(Boolean);
 
   return (
     <section className="workspace suppliersPage">
@@ -346,7 +387,8 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                         <div className="supplierDebtBlock">
                           {canViewSupplierFinancialFields ? (
                             <>
-                              {supplier.debtNote ? <span><strong>Công nợ:</strong> {supplier.debtNote}</span> : null}
+                              <SupplierFinanceSummaryBlock summary={supplierFinanceSummaryById.get(supplier.id)} />
+                              {supplier.debtNote ? <span><strong>Ghi chú công nợ:</strong> {supplier.debtNote}</span> : null}
                               {supplier.pricePolicy ? <span><strong>Chính sách giá:</strong> {supplier.pricePolicy}</span> : null}
                             </>
                           ) : null}
