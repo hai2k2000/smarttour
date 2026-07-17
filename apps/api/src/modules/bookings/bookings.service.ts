@@ -209,19 +209,21 @@ export class BookingsService {
 
   async create(dto: CreateBookingDto, user?: RequestUser) {
     this.ensureAllowedBookingPayload(dto, BOOKING_CREATE_FIELDS, 'tạo');
-    const references = await this.resolveBookingReferences(dto, user, { creating: true });
-    this.ensureBookingValues(dto, references.tourProgram.durationDays);
-    try {
-      return await this.prisma.booking.create({
-        data: this.toCreateData(dto, references.values),
-        select: this.detailSelect(),
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
+    return this.prisma.$transaction(async (tx) => {
+      const references = await this.resolveBookingReferences(dto, user, { creating: true }, tx);
+      this.ensureBookingValues(dto, references.tourProgram.durationDays);
+      try {
+        return await tx.booking.create({
+          data: this.toCreateData(dto, references.values),
+          select: this.detailSelect(),
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictException(BOOKING_CODE_CONFLICT_MESSAGE);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   async update(id: string, dto: UpdateBookingDto, user?: RequestUser) {
@@ -374,9 +376,12 @@ export class BookingsService {
     input: BookingReferenceInput,
     user: RequestUser | undefined,
     options: { creating: true; current?: never } | { creating: false; current: BookingMutationState },
-    client: Prisma.TransactionClient | PrismaService = this.prisma,
+    client: Prisma.TransactionClient,
   ) {
     const values = this.normalizedBookingReferences(input, options.creating);
+    if (values.tourProgramId !== undefined) {
+      await this.lockTourProgramForBooking(values.tourProgramId, client);
+    }
     const tourProgram =
       values.tourProgramId !== undefined
         ? await this.ensureTourProgram(values.tourProgramId, client)
@@ -407,6 +412,17 @@ export class BookingsService {
       tourId:
         input.tourId !== undefined ? this.optionalId(input.tourId, this.referenceConfig('tourId').label) : undefined,
     };
+  }
+
+  private async lockTourProgramForBooking(id: string | null | undefined, client: Prisma.TransactionClient) {
+    if (!id) throw new BadRequestException('Tour mẫu không được để trống');
+    const locked = await client.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "TourProgram"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException(BOOKING_NOT_FOUND_MESSAGES.tourProgram);
   }
 
   private async ensureTourProgram(
