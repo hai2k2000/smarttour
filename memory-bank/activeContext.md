@@ -3858,3 +3858,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Operation form update now locks/re-reads the OperationForm row inside the transaction before edit guards; replacement booking links are locked and re-resolved before update writes, and child-link/replaceability guards now use the transaction client.
   - Added docs/superpowers/specs/2026-07-17-operation-form-booking-lock-design.md, docs/superpowers/plans/2026-07-17-operation-form-booking-lock.md, and RED/GREEN source coverage in scripts/test-operation-form-booking-lock-contract.js.
   - Verification/deploy passed on the VPS: operation form booking-lock contract, operations controller contract, payment request concurrency contract, operations service flow, API lint/build, Docker API restart, and HEALTHCHECK_OK.
+
+- 2026-07-17 OperationService/Supplier reference lock follow-up:
+  - Found OperationsService.createForm/updateForm validated operation service Supplier and SupplierService references before the write transaction, then replaceFormChildren created OperationService rows later from that stale snapshot.
+  - A concurrent Supplier or SupplierService deactivate/soft-delete could complete between validation and child-row writes, leaving new operation services linked to inactive or deleted supply records.
+  - Operation form create/update now validate payloads inside the existing Prisma transactions; update keeps edit guards after the OperationForm row lock before validating child references.
+  - Operation service validation now locks referenced Supplier and SupplierService rows with SELECT ... FOR UPDATE through the transaction client, rejects missing/soft-deleted/inactive suppliers or services, and keeps supplier-service ownership checks.
+  - Added docs/superpowers/specs/2026-07-17-operation-service-supplier-lock-design.md, docs/superpowers/plans/2026-07-17-operation-service-supplier-lock.md, and RED/GREEN source coverage in scripts/test-operation-service-supplier-lock-contract.js.
+  - Verification/deploy passed on the VPS: operation service supplier-lock contract, operation form booking-lock contract, operations controller contract, payment request concurrency contract, operations service flow, API lint/build, Docker API rebuild/restart, and HEALTHCHECK_OK.

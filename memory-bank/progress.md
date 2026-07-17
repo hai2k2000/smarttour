@@ -3317,3 +3317,10 @@
   - This closes stale handoff races between Booking delete/update and OperationForm create/update while preserving existing routes, DTOs, UI behavior, and lifecycle status rules.
   - Verification passed: `node scripts/test-operation-form-booking-lock-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, `bash scripts/test-operations-service-flows.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
   - Deploy verification passed on the VPS: Docker API restart and `npm run ops:health` with HEALTHCHECK_OK.
+
+- 2026-07-17 Completed OperationService/Supplier reference lock follow-up:
+  - Operation form create/update now validate services/tasks/costs inside the write transaction instead of validating operation service Supplier/SupplierService links from a pre-transaction snapshot.
+  - Operation service validation locks referenced Supplier and SupplierService rows with SELECT ... FOR UPDATE through the transaction client, rejects soft-deleted or inactive supply records, and preserves supplier-service ownership validation.
+  - This closes stale child-row races where a concurrent supplier/service deactivate or soft-delete could land between validation and OperationService creation/replacement.
+  - Verification passed: `node scripts/test-operation-service-supplier-lock-contract.js`, `node scripts/test-operation-form-booking-lock-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, `bash scripts/test-operations-service-flows.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart and `npm run ops:health` with HEALTHCHECK_OK.
