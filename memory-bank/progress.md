@@ -1,5 +1,12 @@
 # Progress
 
+- Completed Supplier export Phase 2 foundation:
+  - Added `GET /suppliers/export`, `GET /suppliers/hotels/export`, and `GET /suppliers/:type/export` with CSV default and native XLSX via `format=xlsx`.
+  - Added supplier export source/runtime contract coverage plus live export smoke entries for common, hotel, and typed supplier exports.
+  - Export output applies existing supplier financial masking before selecting fields, so tax/bank/debt/price-policy values remain hidden without `finance.payment.view`.
+  - Focused verification passed: API build, supplier export contract, native XLSX contract, supplier controller/typed contracts, supplier sensitive-fields contract, API lint, and diff check.
+  - Supplier import preview/write remains next in Phase 2.
+
 - Completed Supplier attachments Phase 1 permission deepening:
   - Shared file download/delete routes now delegate permission decisions to FilesService entity-specific access checks, allowing supplier.view users to download supplier-owned files without generic file.view.
   - Supplier smoke coverage now proves supplier managers can upload/download without generic file.view, supplier viewers can download, supplier viewers cannot delete, wrong-supplier deletes preserve storage objects, and final delete removes the object.
@@ -506,7 +513,7 @@
   - Quotation convert now locks the quotation row and is idempotent for repeated/concurrent convert requests.
   - Added regression coverage in tour guide API, High-A data access, and operation voucher service tests.
 - Continued name-first and Vietnamese UI cleanup beyond Finance:
-  - Customer table removed the first `Mã` column and now starts directly with the customer name.
+  - Customer table removed the first `MÃƒÆ’Ã‚Â£` column and now starts directly with the customer name.
   - Workspace page cards and quick actions use Vietnamese labels, and pending receipts show receipt/customer names before codes.
   - Commission report order cells now use the linked order name as the primary label and move order/tour codes to secondary text.
   - Added regression assertions to UX, workspace, and localized dropdown contracts.
@@ -611,7 +618,7 @@
     validated reports `paymentStatus` mapping and frontend filter controls.
 
 - Fixed FinancePayment company expense vouchers without tour links:
-  - `INTERNAL_EXPENSE` and `OTHER` phiếu chi can now be created, approved,
+  - `INTERNAL_EXPENSE` and `OTHER` phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u chi can now be created, approved,
     posted to cashflow, cancelled, and reversed without a Tour/Order/
     OperationVoucher link.
   - Supplier/tour payment flows still require valid tour resolution, preserving
@@ -1020,7 +1027,7 @@
     the shared `Tour` root fields used by FIT, GIT, and LandTour.
   - Classified product detail-only fields versus compatibility aliases and
     legacy snapshots for FIT, GIT, and LandTour.
-  - Chốt common child ownership for `tourCustomer`, `tourService`,
+  - ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœt common child ownership for `tourCustomer`, `tourService`,
     `tourRevenue`, `tourCost`, `tourGuide`, `tourTerm`, `tourAttachment`,
     `tourSurvey`, and `tourLog`, with FIT handover/survey-description gaps
     called out for the next cleanup pass.
@@ -1082,7 +1089,7 @@
   - Draft step saves are step-scoped and do not advance workflow; confirm step
     saves reuse the same step field boundary and then advance workflow only by
     the permitted next step.
-  - FIT wizard buttons now separate `Lưu nháp` from `Xác nhận bước`, while
+  - FIT wizard buttons now separate `LÃƒâ€ Ã‚Â°u nhÃƒÆ’Ã‚Â¡p` from `XÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n bÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc`, while
     autosave continues to write draft payloads only.
   - Regression verifies static endpoint/frontend contracts plus runtime behavior
     where `saveStep()` does not advance TOUR_INFO/BUDGET but `confirmStep()`
@@ -2844,7 +2851,7 @@
   - Admin credential was shared only in the operator chat and must be changed after first login.
 
 - 2026-06-25 Completed profile page follow-up:
-  - Top-right account menu now sends `Thông tin người dùng` to `/profile`; `Quản trị & phân quyền` remains `/security`.
+  - Top-right account menu now sends `ThÃƒÆ’Ã‚Â´ng tin ngÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi dÃƒÆ’Ã‚Â¹ng` to `/profile`; `QuÃƒÂ¡Ã‚ÂºÃ‚Â£n trÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ & phÃƒÆ’Ã‚Â¢n quyÃƒÂ¡Ã‚Â»Ã‚Ân` remains `/security`.
   - Verification passed: `node scripts/test-profile-page-contract.js`, `npm run lint --workspace apps/web`, and `npm run build --workspace apps/web`; build output includes dynamic route `/profile`.
 
 

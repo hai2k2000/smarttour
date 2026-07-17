@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, Res, StreamableFile, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ServerResponse } from 'node:http';
+import { csvToXlsxWorkbook, XLSX_MIME } from '../../common/xlsx-workbook';
 import { RequestUser } from '../auth/data-scope';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { FileUploadSizeExceptionFilter } from '../files/file-upload-size-exception.filter';
@@ -55,9 +57,33 @@ export class SuppliersController {
     return this.suppliersService.listSuppliers(query, request.user);
   }
 
+
+  @Get('export')
+  async exportSuppliers(@Query() query: SupplierListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.suppliersService.exportSuppliersCsv(query, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-suppliers.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('suppliers', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-suppliers.csv');
+    return csv;
+  }
+
   @Get('hotels')
   listHotels(@Query() query: HotelSupplierListQueryDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.listHotelSuppliers(query, request.user);
+  }
+
+
+  @Get('hotels/export')
+  async exportHotels(@Query() query: HotelSupplierListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.suppliersService.exportHotelSuppliersCsv(query, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, 'smarttour-hotel-suppliers.xlsx');
+      return new StreamableFile(csvToXlsxWorkbook('supplier-hotels', csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', 'smarttour-hotel-suppliers.csv');
+    return csv;
   }
 
   @Get('hotels/:id')
@@ -113,6 +139,18 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   releaseAllotment(@Param('id') id: string, @Body() dto: ReleaseAllotmentDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.releaseAllotmentAllocation(id, dto, request.user);
+  }
+
+
+  @Get(':type/export')
+  async exportTyped(@Param('type') type: string, @Query() query: TypedSupplierListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
+    const csv = await this.suppliersService.exportTypedSuppliersCsv(type, query, request.user);
+    if (query.format === 'xlsx') {
+      this.setExportHeaders(response, XLSX_MIME, `smarttour-suppliers-${type}.xlsx`);
+      return new StreamableFile(csvToXlsxWorkbook(`supplier-${type}`, csv));
+    }
+    this.setExportHeaders(response, 'text/csv; charset=utf-8', `smarttour-suppliers-${type}.csv`);
+    return csv;
   }
 
   @Get(':routeKey')
@@ -193,5 +231,11 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   remove(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.deleteSupplier(id, request.user);
+  }
+
+
+  private setExportHeaders(response: ServerResponse, contentType: string, filename: string) {
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
 }

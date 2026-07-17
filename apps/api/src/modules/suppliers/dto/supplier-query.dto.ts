@@ -1,6 +1,7 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SupplierStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 
 export const DEFAULT_SUPPLIERS_TAKE = 100;
 export const MAX_SUPPLIERS_TAKE = 200;
@@ -32,6 +33,12 @@ export class SupplierCategoryListQueryDto {
 }
 
 export class SupplierListQueryDto {
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
+
   @Transform(trimOptional)
   @IsOptional()
   @IsString({ message: 'Từ khóa tìm kiếm phải là chuỗi ký tự' })
@@ -76,6 +83,12 @@ export class SupplierListQueryDto {
 }
 
 export class HotelSupplierListQueryDto {
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
+
   @Transform(trimOptional)
   @IsOptional()
   @IsString({ message: 'Từ khóa tìm kiếm phải là chuỗi ký tự' })
@@ -127,6 +140,12 @@ export class HotelSupplierListQueryDto {
 }
 
 export class TypedSupplierListQueryDto {
+  @ApiPropertyOptional({ enum: ['csv', 'xlsx'] })
+  @Transform(trimOptional)
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: string;
+
   @Transform(trimOptional)
   @IsOptional()
   @IsString({ message: 'Từ khóa tìm kiếm phải là chuỗi ký tự' })

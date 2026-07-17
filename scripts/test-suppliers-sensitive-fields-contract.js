@@ -27,7 +27,7 @@ function supplierRow() {
     bankName: 'Secret Bank',
     debtNote: 'Secret debt note',
     pricePolicy: 'Secret price policy',
-    category: { id: 'category-1', name: 'Khách sạn' },
+    category: { id: 'category-1', name: 'KhÃ¡ch sáº¡n' },
     hotelProfile: {
       id: 'hotel-profile-1',
       hotelProject: 'Hotel Project',
@@ -88,9 +88,13 @@ function fakePrismaForWrites(calls = []) {
     findFirst: async (args = {}) => { calls.push({ model: 'supplier', action: 'findFirst', args }); return supplierRow(); },
     update: async (args = {}) => { calls.push({ model: 'supplier', action: 'update', args }); return { ...supplierRow(), ...(args.data || {}) }; },
   };
+  const tx = {
+    supplier,
+    $queryRaw: async () => [{ id: 'supplier-sensitive-row', status: 'ACTIVE', deletedAt: null, hotelProfileId: null }],
+  };
   return {
     supplier,
-    $transaction: async (callback) => callback({ supplier }),
+    $transaction: async (callback) => callback(tx),
   };
 }
 

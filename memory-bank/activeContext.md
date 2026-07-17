@@ -20,6 +20,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier export Phase 2:
+  - Added CSV/XLSX export endpoints for common suppliers, hotel suppliers, and typed supplier lists while keeping Supplier as global master data.
+  - Export row shaping uses a focused supplier export helper and applies existing finance masking before selecting tax/bank/debt/price-policy fields.
+  - Live export smoke coverage now includes supplier CSV/XLSX paths; supplier import preview/write remains the next Phase 2 sub-step.
+
 - Supplier attachment permission deepening:
   - File download/delete now rely on entity-scoped file access in FilesService instead of requiring generic file.view/file.manage on the shared FilesController routes.
   - Supplier-owned file downloads now work for users with supplier.view only, while supplier file upload/delete still require supplier.manage through supplier routes and metadata ownership checks.
@@ -1307,7 +1312,7 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added `POST /api/fit-tours/:id/steps/:step/confirm` and
     `FitToursService.confirmStep()` so workflow advancement happens only on an
     explicit confirm action.
-  - The FIT wizard now exposes separate `Lưu nháp` and `Xác nhận bước` actions;
+  - The FIT wizard now exposes separate `LÃƒâ€ Ã‚Â°u nhÃƒÆ’Ã‚Â¡p` and `XÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n bÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc` actions;
     autosave remains draft-only.
   - VPS verification passed on 2026-06-09: API/web Docker build,
     `TEST_FIT_TOUR_ROOT_CONTRACT_OK`, `TEST_TOUR_TYPE_APIS_OK`,
@@ -3208,7 +3213,7 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 - 2026-06-24 Phase 1 code-review remediation:
   - Started execution of `docs/superpowers/plans/2026-06-24-code-review-remediation-phases.md` on branch `fix/phase-1-remediation`.
-  - Auth login hardening now returns one sanitized `401` message (`Thông tin đăng nhập không hợp lệ`) for missing users and wrong passwords, verifies passwords before exposing locked/inactive account states, and throttles repeated invalid attempts by IP plus normalized identifier.
+  - Auth login hardening now returns one sanitized `401` message (`ThÃƒÆ’Ã‚Â´ng tin Ãƒâ€žÃ¢â‚¬ËœÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p khÃƒÆ’Ã‚Â´ng hÃƒÂ¡Ã‚Â»Ã‚Â£p lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡`) for missing users and wrong passwords, verifies passwords before exposing locked/inactive account states, and throttles repeated invalid attempts by IP plus normalized identifier.
   - Finance reject audit now has explicit `rejectedBy`/`rejectedAt` fields on receipts, payments, and invoices; reject paths derive the actor from the request user and no longer write approval audit fields.
   - Legacy `NOT VALID` constraints were audited with 0 FK/check violations, then validated through migration `20260624194500_validate_legacy_constraints`; finance reject audit columns were deployed through migration `20260624193000_finance_reject_audit_fields`.
   - Added focused contracts: `scripts/test-auth-login-security-contract.js`, `scripts/test-finance-reject-audit-contract.js`, and `scripts/test-db-constraint-validation-contract.js`; updated existing auth/finance service flow scripts for the new expectations.
@@ -3243,7 +3248,7 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - The credential itself is intentionally not stored in repo or Memory Bank; rotate/change it after handoff.
 
 - 2026-06-25 Profile page follow-up:
-  - Added `/profile` as a dedicated account profile page reachable from the top-right account menu item `Thông tin người dùng`.
+  - Added `/profile` as a dedicated account profile page reachable from the top-right account menu item `ThÃƒÆ’Ã‚Â´ng tin ngÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi dÃƒÆ’Ã‚Â¹ng`.
   - The page loads `/api/auth/me`, shows account/role/data-scope details, and provides an inline change-password form using `/api/auth/change-password` with current/new/confirm password fields.
   - Added `scripts/test-profile-page-contract.js` to guard the route, dropdown link, password form, and scoped profile styles.
 

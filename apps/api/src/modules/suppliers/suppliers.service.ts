@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma, SupplierDayType, SupplierStatus } from '@prisma/client';
+import { csvRows } from '../../common/csv-export';
 import { PrismaService } from '../../database/prisma.service';
 import { branchDepartmentScopeWhere, hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
 import { FilesService } from '../files/files.service';
@@ -11,6 +12,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
+import { SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows } from './supplier-export';
 import { canViewSupplierFinancialFields, maskSupplierFinancialFields } from './supplier-projection';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
@@ -171,6 +173,22 @@ export class SuppliersService {
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
     return maskSupplierFinancialFields(suppliers, user);
+  }
+
+
+  async exportSuppliersCsv(query: SupplierListQueryDto = {}, user?: RequestUser) {
+    const rows = await this.listSuppliers(query, user);
+    return csvRows(SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows(rows, user));
+  }
+
+  async exportTypedSuppliersCsv(type: string, query: TypedSupplierListQueryDto = {}, user?: RequestUser) {
+    const rows = await this.listTypedSuppliers(type, query, user);
+    return csvRows(SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows(rows, user));
+  }
+
+  async exportHotelSuppliersCsv(query: HotelSupplierListQueryDto = {}, user?: RequestUser) {
+    const rows = await this.listHotelSuppliers(query, user);
+    return csvRows(SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows(rows, user));
   }
 
   private listTake(take?: number) {
