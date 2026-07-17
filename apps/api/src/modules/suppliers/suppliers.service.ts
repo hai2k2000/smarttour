@@ -454,6 +454,7 @@ export class SuppliersService {
     return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
       const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
       const service = this.normalizeChildSupplierService(locked, dto);
+      await this.ensureChildServiceSkuAvailable(tx, supplierId, service.sku);
       await tx.supplierService.create({ data: { supplierId, ...service } });
       return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
     }), user);
@@ -466,6 +467,7 @@ export class SuppliersService {
       if (!current) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
       if (locked.hotelProfileId) await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, serviceId);
       const service = this.normalizeChildSupplierService(locked, this.mergeSupplierServiceRow(dto, current));
+      await this.ensureChildServiceSkuAvailable(tx, supplierId, service.sku, serviceId);
       await tx.supplierService.update({ where: { id: serviceId }, data: service });
       return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
     }), user);
@@ -477,6 +479,7 @@ export class SuppliersService {
       const current = await tx.supplierService.findFirst({ where: { id: serviceId, supplierId, deletedAt: null } });
       if (!current) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
       if (locked.hotelProfileId) await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, serviceId);
+      await tx.supplierAllotment.updateMany({ where: { supplierId, serviceId }, data: { serviceId: null } });
       await tx.supplierService.update({ where: { id: serviceId }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
       return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
     }), user);
@@ -1741,7 +1744,10 @@ export class SuppliersService {
     supplier: { hotelProfileId: string | null; categoryName: string | null },
     dto: SupplierChildServiceInputDto,
   ) {
-    if (supplier.hotelProfileId) return this.normalizeHotelServices([dto])[0];
+    if (supplier.hotelProfileId) {
+      this.rejectHotelServiceUnsupportedFields(dto);
+      return this.normalizeHotelServices([dto])[0];
+    }
     return this.normalizeGenericServices([dto], this.typedRouteForSupplierCategory(supplier.categoryName))[0];
   }
 
@@ -1802,6 +1808,29 @@ export class SuppliersService {
     });
     if (activeAllocations > 0) {
       throw new ConflictException('Không thể sửa hoặc xóa dịch vụ khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
+    }
+  }
+
+  private async ensureChildServiceSkuAvailable(tx: Prisma.TransactionClient, supplierId: string, sku?: string | null, excludedServiceId?: string) {
+    if (!sku) return;
+    const existing = await tx.supplierService.findFirst({
+      where: {
+        supplierId,
+        deletedAt: null,
+        sku: { equals: sku, mode: 'insensitive' },
+        ...(excludedServiceId ? { id: { not: excludedServiceId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Mã dịch vụ không được trùng trong cùng nhà cung cấp');
+  }
+
+  private rejectHotelServiceUnsupportedFields(dto: object) {
+    const unsupportedFields = ['quantity', 'metadata'].filter((field) => (
+      Object.prototype.hasOwnProperty.call(dto, field) && (dto as Record<string, unknown>)[field] !== undefined
+    ));
+    if (unsupportedFields.length) {
+      throw new BadRequestException('Dịch vụ khách sạn không hỗ trợ số lượng hoặc metadata');
     }
   }
 

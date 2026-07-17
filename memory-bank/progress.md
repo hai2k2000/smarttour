@@ -6,6 +6,7 @@
   - Read routes inherit `supplier.view`; child-row write routes require `supplier.manage` and are declared before dynamic typed supplier routes.
   - Contact writes keep existing hard-delete row semantics for deletes, while service deletes keep existing soft-delete behavior by setting `deletedAt` and `INACTIVE`.
   - Child-row write paths lock the parent Supplier row and re-read the updated parent with generic or hotel includes; hotel service update/delete is blocked while locked/confirmed allotment allocations reference that service.
+  - Code review remediation added active sibling SKU duplicate checks for single-row service create/update, clears hotel allotment `serviceId` links before service soft-delete, and rejects hotel child-service-only no-op fields (`quantity`, `metadata`).
   - Existing parent-level create/update nested child payloads remain supported during UI migration; hotel allotment child CRUD is deferred to a separate allocation-aware Phase 4 slice.
   - Verification passed: node scripts/test-suppliers-child-row-apis-contract.js, bash scripts/test-suppliers-controller-contract.sh, bash scripts/test-suppliers-typed-contract.sh, bash scripts/test-suppliers-hotel-contract.sh, node scripts/test-suppliers-sensitive-fields-contract.js, API build/lint, and git diff check.
 

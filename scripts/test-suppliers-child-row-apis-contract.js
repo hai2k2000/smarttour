@@ -73,11 +73,20 @@ for (const snippet of [
   'await this.lockSupplierForStatusWrite(tx, supplierId)',
   'where: { id: contactId, supplierId }',
   'where: { id: serviceId, supplierId, deletedAt: null }',
+  'await this.ensureChildServiceSkuAvailable(tx, supplierId, service.sku)',
+  'await this.ensureChildServiceSkuAvailable(tx, supplierId, service.sku, serviceId)',
   "data: { deletedAt: new Date(), status: 'INACTIVE' }",
+  'await tx.supplierAllotment.updateMany({ where: { supplierId, serviceId }, data: { serviceId: null } })',
   'return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId)',
   'private typedRouteForSupplierCategory(categoryName: string | null)',
   'private normalizeChildSupplierService',
+  'this.rejectHotelServiceUnsupportedFields(dto)',
   'private async ensureServiceHasNoActiveHotelAllocations',
+  'private async ensureChildServiceSkuAvailable',
+  "sku: { equals: sku, mode: 'insensitive' }",
+  "id: { not: excludedServiceId }",
+  'private rejectHotelServiceUnsupportedFields',
+  "['quantity', 'metadata']",
 ]) {
   assert(service.includes(snippet), `missing child-row safety snippet: ${snippet}`);
 }

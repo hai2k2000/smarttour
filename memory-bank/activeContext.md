@@ -24,6 +24,7 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Added dedicated Supplier contact CRUD endpoints: `GET/POST /suppliers/:id/contacts` and `PUT/DELETE /suppliers/:id/contacts/:contactId`, with read routes under `supplier.view` and write routes requiring `supplier.manage`.
   - Added dedicated Supplier service CRUD endpoints: `GET/POST /suppliers/:id/services` and `PUT/DELETE /suppliers/:id/services/:serviceId`, reusing existing generic/hotel service normalization and preserving service soft-delete semantics.
   - Write paths lock the parent Supplier row before mutating child rows, re-read the parent with the appropriate generic/hotel include, keep parent create/update nested array compatibility, and block hotel service edits/deletes while active allotment allocations reference the service.
+  - Code review remediation added active sibling SKU checks for single service create/update, nulls hotel allotment `serviceId` links before service soft-delete, and rejects hotel child service `quantity`/`metadata` fields instead of silently ignoring them.
   - Allotment create/update/delete child APIs remain deferred inside Phase 4 because existing override/lock/release flows protect allocation-sensitive writes and need a separate allocation-aware slice.
   - Verification passed for the new child-row API contract, supplier controller/typed/hotel/sensitive contracts, API build/lint, and diff check.
 
