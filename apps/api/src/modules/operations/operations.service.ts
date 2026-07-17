@@ -48,6 +48,11 @@ type LinkedOperationForm = {
   order?: ScopeMeta | null;
   tour?: ScopeMeta | null;
 };
+type OperationBookingLinkSnapshot = {
+  id: string;
+  orderId: string | null;
+  tourId: string | null;
+};
 type FinancePaymentOperationForm = LinkedOperationForm & {
   id: string;
   bookingId: string;
@@ -250,11 +255,12 @@ export class OperationsService {
       throw new BadRequestException('Phiếu điều hành phải được tạo ở trạng thái chờ xử lý; dùng action endpoint để cập nhật trạng thái');
     }
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
-    const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) });
-    await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
     await this.validateFormPayload(dto, 'create');
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const lockedBooking = await this.lockBookingForOperationForm(tx, bookingId, user);
+        const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) }, tx, lockedBooking);
+        await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user, tx);
         const form = await tx.operationForm.create({
           data: {
             bookingId,
@@ -277,19 +283,20 @@ export class OperationsService {
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
     if (dto.status !== undefined) throw new BadRequestException('D\u00f9ng action endpoint \u0111\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
-    const current = await this.formDetail(id, user);
-    this.assertFormEditable(current, 'update');
-    const bookingId = this.text(dto.bookingId) ?? current.bookingId;
-    const links = await this.resolveBookingOrderTour({
-      bookingId,
-      orderId: dto.orderId !== undefined ? this.text(dto.orderId) : current.orderId,
-      tourId: dto.tourId !== undefined ? this.text(dto.tourId) : current.tourId,
-    });
-    await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user);
     await this.validateFormPayload(dto, 'update');
-    await this.ensureFormCostServiceLinks(id, dto);
-    await this.ensureFormChildrenReplaceable(id, dto);
     return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockOperationFormForWrite(tx, id, user);
+      this.assertFormEditable(current, 'update');
+      const bookingId = this.text(dto.bookingId) ?? current.bookingId;
+      const lockedBooking = dto.bookingId !== undefined ? await this.lockBookingForOperationForm(tx, bookingId, user) : undefined;
+      const links = await this.resolveBookingOrderTour({
+        bookingId,
+        orderId: dto.orderId !== undefined ? this.text(dto.orderId) : current.orderId,
+        tourId: dto.tourId !== undefined ? this.text(dto.tourId) : current.tourId,
+      }, tx, lockedBooking);
+      await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user, tx);
+      await this.ensureFormCostServiceLinks(id, dto, tx);
+      await this.ensureFormChildrenReplaceable(id, dto, tx);
       await tx.operationForm.update({
         where: { id },
         data: {
@@ -696,15 +703,46 @@ export class OperationsService {
     }
   }
 
-  private async resolveBookingOrderTour(input: { bookingId: string; orderId?: string | null; tourId?: string | null }) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: input.bookingId }, select: { id: true, orderId: true, tourId: true } });
+  private async lockBookingForOperationForm(tx: Prisma.TransactionClient, bookingId: string, user?: RequestUser): Promise<OperationBookingLinkSnapshot> {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "Booking"
+      WHERE "id" = ${bookingId} AND "deletedAt" IS NULL
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy booking');
+    const booking = await tx.booking.findFirst({
+      where: this.bookingScopeWhere({ id: bookingId, deletedAt: null }, user),
+      select: { id: true, orderId: true, tourId: true },
+    });
+    if (!booking) throw new NotFoundException('Không tìm thấy booking');
+    return booking;
+  }
+
+  private async lockOperationFormForWrite(tx: Prisma.TransactionClient, id: string, user?: RequestUser) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "OperationForm"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+    if (!locked.length) throw new NotFoundException('Không tìm thấy phiếu điều hành');
+    return this.formDetail(id, user, tx);
+  }
+
+  private async resolveBookingOrderTour(
+    input: { bookingId: string; orderId?: string | null; tourId?: string | null },
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+    lockedBooking?: OperationBookingLinkSnapshot,
+  ) {
+    const booking = lockedBooking ?? await client.booking.findFirst({ where: { id: input.bookingId, deletedAt: null }, select: { id: true, orderId: true, tourId: true } });
     if (!booking) throw new NotFoundException('Không tìm thấy booking');
     let orderId = input.orderId ?? booking.orderId;
     let tourId = input.tourId ?? booking.tourId;
     if (input.tourId && booking.tourId && input.tourId !== booking.tourId) throw new BadRequestException('Tour đã chọn không thuộc booking đã chọn');
     let tourOrderId: string | null = null;
     if (tourId) {
-      const tour = await this.prisma.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
+      const tour = await client.tour.findUnique({ where: { id: tourId }, select: { id: true, orderId: true } });
       if (!tour) throw new NotFoundException('Không tìm thấy tour');
       tourOrderId = tour.orderId;
       orderId = orderId ?? tour.orderId;
@@ -713,7 +751,7 @@ export class OperationsService {
     if (input.orderId && booking.orderId && input.orderId !== booking.orderId) throw new BadRequestException('Đơn hàng đã chọn không thuộc booking đã chọn');
     if (input.orderId && tourOrderId && input.orderId !== tourOrderId) throw new BadRequestException('Đơn hàng đã chọn không thuộc tour đã chọn');
     if (orderId) {
-      const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
+      const order = await client.order.findUnique({ where: { id: orderId }, select: { id: true } });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     }
     return { orderId, tourId };
@@ -752,11 +790,11 @@ export class OperationsService {
     }
   }
 
-  private async ensureFormCostServiceLinks(formId: string, dto: AnyRecord) {
+  private async ensureFormCostServiceLinks(formId: string, dto: AnyRecord, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     if (dto.costs === undefined || dto.services !== undefined) return;
     const serviceIds = Array.from(new Set(this.formCosts(dto).map((item) => item.serviceId).filter((id): id is string => Boolean(id))));
     if (!serviceIds.length) return;
-    const count = await this.prisma.operationService.count({ where: { id: { in: serviceIds }, operationFormId: formId } });
+    const count = await client.operationService.count({ where: { id: { in: serviceIds }, operationFormId: formId } });
     if (count !== serviceIds.length) throw new BadRequestException('Chi phí điều hành chỉ được liên kết với dịch vụ thuộc cùng phiếu điều hành');
   }
 
@@ -767,13 +805,13 @@ export class OperationsService {
     return costs.map((item) => ({ ...item, serviceId: null }));
   }
 
-  private async ensureFormChildrenReplaceable(formId: string, dto: AnyRecord) {
+  private async ensureFormChildrenReplaceable(formId: string, dto: AnyRecord, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     if (dto.costs !== undefined) {
-      const linkedPaymentItem = await this.prisma.supplierPaymentItem.findFirst({ where: { cost: { operationFormId: formId } }, select: { id: true } });
+      const linkedPaymentItem = await client.supplierPaymentItem.findFirst({ where: { cost: { operationFormId: formId } }, select: { id: true } });
       if (linkedPaymentItem) throw new BadRequestException('Không thể thay thế chi phí điều hành sau khi đã phát sinh yêu cầu thanh toán nhà cung cấp');
     }
     if (dto.services !== undefined && dto.costs === undefined) {
-      const linkedCost = await this.prisma.operationCost.findFirst({ where: { operationFormId: formId, serviceId: { not: null } }, select: { id: true } });
+      const linkedCost = await client.operationCost.findFirst({ where: { operationFormId: formId, serviceId: { not: null } }, select: { id: true } });
       if (linkedCost) throw new BadRequestException('Kh\u00f4ng th\u1ec3 thay th\u1ebf d\u1ecbch v\u1ee5 \u0111i\u1ec1u h\u00e0nh khi chi ph\u00ed \u0111ang li\u00ean k\u1ebft v\u1edbi d\u1ecbch v\u1ee5');
     }
   }
@@ -1017,13 +1055,13 @@ export class OperationsService {
     return (permissions.has('data.scope.branch') && !user.branch) || (permissions.has('data.scope.department') && !user.department);
   }
 
-  private async ensureLinksScoped(links: { bookingId?: string | null; orderId?: string | null; tourId?: string | null }, user?: RequestUser) {
+  private async ensureLinksScoped(links: { bookingId?: string | null; orderId?: string | null; tourId?: string | null }, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     if (!user || hasUnrestrictedDataScope(user)) return;
     this.assertScopedWriteUser(user);
     const [booking, order, tour] = await Promise.all([
-      links.bookingId ? this.prisma.booking.findFirst({ where: this.bookingScopeWhere({ id: links.bookingId }, user), select: { id: true } }) : Promise.resolve(null),
-      links.orderId ? this.prisma.order.findFirst({ where: this.orderScopeWhere({ id: links.orderId }, user), select: { id: true } }) : Promise.resolve(null),
-      links.tourId ? this.prisma.tour.findFirst({ where: this.tourScopeWhere({ id: links.tourId }, user), select: { id: true } }) : Promise.resolve(null),
+      links.bookingId ? client.booking.findFirst({ where: this.bookingScopeWhere({ id: links.bookingId }, user), select: { id: true } }) : Promise.resolve(null),
+      links.orderId ? client.order.findFirst({ where: this.orderScopeWhere({ id: links.orderId }, user), select: { id: true } }) : Promise.resolve(null),
+      links.tourId ? client.tour.findFirst({ where: this.tourScopeWhere({ id: links.tourId }, user), select: { id: true } }) : Promise.resolve(null),
     ]);
     if (links.bookingId && !booking) throw new NotFoundException('Không tìm thấy booking');
     if (links.orderId && !order) throw new NotFoundException('Không tìm thấy đơn hàng');
