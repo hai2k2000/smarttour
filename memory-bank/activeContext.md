@@ -3850,3 +3850,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Booking update already locked the Booking row; when a payload changes tourProgramId, reference resolution now locks the target TourProgram in the same transaction before duration and operational-data guards.
   - Added docs/superpowers/specs/2026-07-17-booking-tour-program-lock-design.md, docs/superpowers/plans/2026-07-17-booking-tour-program-lock.md, and RED/GREEN source coverage in scripts/test-booking-tour-program-lock-contract.js.
   - Verification/deploy passed on the VPS: booking status lock contract, booking/TourProgram lock contract, tour programs write-lock contract, bookings controller contract, bookings service flow, API lint/build, Docker API restart, and HEALTHCHECK_OK.
+
+- 2026-07-17 OperationForm/Booking handoff lock follow-up:
+  - Found OperationsService.createForm resolved Booking/Order/Tour links and data scope before the write transaction, then created OperationForm rows later; updateForm also read form state and replacement booking links before locking.
+  - A concurrent Booking update/delete could pass operational usage checks while an OperationForm was being created from a stale booking snapshot, or a form relink could use stale replacement booking/order/tour links.
+  - Operation form create now locks the selected Booking row with SELECT ... FOR UPDATE and deletedAt IS NULL inside the transaction, re-reads through data scope, resolves order/tour links through the transaction client, scope-checks links through the same transaction client, then creates the form and child rows.
+  - Operation form update now locks/re-reads the OperationForm row inside the transaction before edit guards; replacement booking links are locked and re-resolved before update writes, and child-link/replaceability guards now use the transaction client.
+  - Added docs/superpowers/specs/2026-07-17-operation-form-booking-lock-design.md, docs/superpowers/plans/2026-07-17-operation-form-booking-lock.md, and RED/GREEN source coverage in scripts/test-operation-form-booking-lock-contract.js.
+  - Verification/deploy passed on the VPS: operation form booking-lock contract, operations controller contract, payment request concurrency contract, operations service flow, API lint/build, Docker API restart, and HEALTHCHECK_OK.

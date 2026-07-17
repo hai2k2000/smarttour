@@ -3310,3 +3310,10 @@
   - This closes the race where TourProgram structural changes could pass a zero-booking guard while a concurrent booking create was between itinerary validation and insert.
   - Verification passed: `node scripts/test-phase2-booking-status-lock-contract.js`, `node scripts/test-booking-tour-program-lock-contract.js`, `node scripts/test-tour-programs-write-lock-contract.js`, `bash scripts/test-bookings-controller-contract.sh`, `bash scripts/test-bookings-service.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
   - Deploy verification passed on the VPS: Docker API restart and `npm run ops:health` with HEALTHCHECK_OK.
+
+- 2026-07-17 Completed OperationForm/Booking handoff lock follow-up:
+  - Operation form create now locks/re-reads the selected Booking row inside the transaction before resolving order/tour links, checking data scope, and creating the OperationForm plus services/tasks/costs.
+  - Operation form update now locks/re-reads the OperationForm row before edit guards, locks any replacement Booking row before relinking, and runs link/child replacement guards through the transaction client.
+  - This closes stale handoff races between Booking delete/update and OperationForm create/update while preserving existing routes, DTOs, UI behavior, and lifecycle status rules.
+  - Verification passed: `node scripts/test-operation-form-booking-lock-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, `bash scripts/test-operations-service-flows.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
+  - Deploy verification passed on the VPS: Docker API restart and `npm run ops:health` with HEALTHCHECK_OK.
