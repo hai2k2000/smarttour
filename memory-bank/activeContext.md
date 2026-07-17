@@ -3842,3 +3842,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Common `/suppliers` page keeps its server-rendered hash-modal pattern, adds a status column and lifecycle confirmation modal, and wraps delete/status block errors with guidance to check Orders, Operations, Finance, and supplier payment request references.
   - Hotel list action-column CSS was tightened after Playwright caught overlap from the new lifecycle action; `SITE_URL=http://localhost:3001 bash scripts/test-suppliers-hotel-client-ui.sh` now passes against a temporary Next dev server.
   - Worktree verification passed before deployment: supplier client contract, supplier UI permission contract, supplier controller/common/hotel contracts, hotel client UI script, and `npm run lint --workspace @smarttour/web`.
+
+- 2026-07-17 Booking/TourProgram reference lock follow-up:
+  - Found BookingsService.create validated TourProgram itinerary completeness before inserting Booking without holding the TourProgram row lock used by TourProgramsService structural writes.
+  - A concurrent itinerary day delete/duration change could pass its zero-booking guard before the booking insert landed, leaving a Booking attached to a TourProgram that was no longer structurally complete.
+  - Booking create now runs inside a Prisma transaction, resolves references through the transaction client, locks the target TourProgram with SELECT ... FOR UPDATE, re-validates itinerary completeness from the locked snapshot, then writes through tx.booking.create.
+  - Booking update already locked the Booking row; when a payload changes tourProgramId, reference resolution now locks the target TourProgram in the same transaction before duration and operational-data guards.
+  - Added docs/superpowers/specs/2026-07-17-booking-tour-program-lock-design.md, docs/superpowers/plans/2026-07-17-booking-tour-program-lock.md, and RED/GREEN source coverage in scripts/test-booking-tour-program-lock-contract.js.
+  - Verification/deploy passed on the VPS: booking status lock contract, booking/TourProgram lock contract, tour programs write-lock contract, bookings controller contract, bookings service flow, API lint/build, Docker API restart, and HEALTHCHECK_OK.

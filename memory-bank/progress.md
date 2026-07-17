@@ -3303,3 +3303,10 @@
   - Common `/suppliers` now has a lifecycle status column and hash-modal confirmation flow for activate/deactivate, preserving the server-rendered page pattern and soft-delete behavior.
   - Hotel list action-column spacing was tightened after the hotel client UI script caught lifecycle-action overlap in the compact table.
   - Verification passed in the Phase 5 worktree: `bash scripts/test-suppliers-client-contract.sh`, `node scripts/test-supplier-ui-permission-contract.js`, `bash scripts/test-suppliers-controller-contract.sh`, `bash scripts/test-suppliers-common-contract.sh`, `bash scripts/test-suppliers-hotel-contract.sh`, `SITE_URL=http://localhost:3001 bash scripts/test-suppliers-hotel-client-ui.sh`, and `npm run lint --workspace @smarttour/web`.
+
+- 2026-07-17 Completed Booking/TourProgram reference lock follow-up:
+  - Booking create now runs inside a transaction, locks the selected TourProgram row with SELECT ... FOR UPDATE, re-checks itinerary completeness from the locked snapshot, and creates the Booking through the transaction client.
+  - Booking update now locks any replacement TourProgram in the existing Booking write transaction before validating duration and operational-data edit guards.
+  - This closes the race where TourProgram structural changes could pass a zero-booking guard while a concurrent booking create was between itinerary validation and insert.
+  - Verification passed: `node scripts/test-phase2-booking-status-lock-contract.js`, `node scripts/test-booking-tour-program-lock-contract.js`, `node scripts/test-tour-programs-write-lock-contract.js`, `bash scripts/test-bookings-controller-contract.sh`, `bash scripts/test-bookings-service.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
+  - Deploy verification passed on the VPS: Docker API restart and `npm run ops:health` with HEALTHCHECK_OK.
