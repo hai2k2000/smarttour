@@ -16,12 +16,15 @@ import {
   supplierLifecycleStatusOptions,
   supplierLifecycleStatuses,
   supplierApi,
+  syncSupplierAllotments,
+  syncSupplierContacts,
+  syncSupplierServices,
   type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
 import { SupplierFile } from '../uploadSupplierFiles';
 
-type ContactLine = { fullName: string; position?: string; birthday?: string; phone?: string; email?: string };
+type ContactLine = { id?: string; fullName: string; position?: string; birthday?: string; phone?: string; email?: string };
 type ServiceLine = {
   id?: string;
   sku?: string;
@@ -172,6 +175,7 @@ const optionalDateOnly = (label: string) => z.string().trim().refine(isOptionalD
 const optionalText = (maxLength: number, label: string) => z.string().trim().max(maxLength, `${label} không được vượt quá ${maxLength.toLocaleString('vi-VN')} ký tự`).default('');
 const optionalInternalNotes = z.string().trim().max(2000, 'Ghi chú nội bộ không được vượt quá 2.000 ký tự').default('');
 const contactSchema = z.object({
+  id: z.string().optional(),
   fullName: z.string().default(''),
   position: z.string().default(''),
   birthday: z.string().trim().refine(isOptionalDateOnly, 'Ngày sinh người liên hệ không hợp lệ').default(''),
@@ -179,6 +183,7 @@ const contactSchema = z.object({
   email: z.string().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
+  id: z.string().optional(),
   sku: z.string().trim().max(80, 'Mã dịch vụ không được vượt quá 80 ký tự').default(''),
   serviceName: z.string().trim().max(180, 'Tên dịch vụ không được vượt quá 180 ký tự').default(''),
   startDate: optionalDateOnly('Ngày bắt đầu dịch vụ'),
@@ -206,6 +211,8 @@ function hasServiceRowData(item: ServiceFormRow) {
   );
 }
 const allotmentSchema = z.object({
+  id: z.string().optional(),
+  serviceId: z.string().nullable().optional(),
   sku: z.string().trim().max(80, 'Mã quỹ phòng không được vượt quá 80 ký tự').default(''),
   serviceName: z.string().trim().max(180, 'Tên quỹ phòng không được vượt quá 180 ký tự').default(''),
   startDate: optionalDateOnly('Ngày bắt đầu quỹ phòng'),
@@ -392,6 +399,60 @@ function shouldSendCollection(mode: 'create' | 'update', dirtyFields: DirtyColle
   return mode === 'create' || dirtyFields[name] !== undefined;
 }
 
+function contactPayloadRows(contacts: HotelForm['contacts']) {
+  return contacts
+    .map((item) => ({
+      id: item.id,
+      fullName: item.fullName.trim(),
+      position: item.position?.trim() || '',
+      birthday: item.birthday?.trim() || '',
+      phone: item.phone?.trim() || '',
+      email: item.email?.trim() || '',
+    }))
+    .filter((item) => item.fullName);
+}
+
+function servicePayloadRows(services: HotelForm['services']) {
+  return services
+    .filter(hasServiceRowData)
+    .map((item) => ({
+      id: item.id,
+      sku: item.sku.trim(),
+      serviceName: item.serviceName.trim(),
+      startDate: item.startDate.trim(),
+      endDate: item.endDate.trim(),
+      dayType: item.dayType,
+      accountingPrice: item.accountingPrice,
+      netPrice: item.netPrice,
+      sellingPrice: item.sellingPrice,
+      description: item.description.trim(),
+      note: item.note.trim(),
+    }));
+}
+
+function allotmentPayloadRows(allotments: HotelForm['allotments']) {
+  return allotments
+    .filter(hasAllotmentRowData)
+    .map((item) => ({
+      id: item.id,
+      serviceId: item.serviceId || null,
+      sku: item.sku.trim(),
+      serviceName: item.serviceName.trim(),
+      startDate: item.startDate.trim(),
+      endDate: item.endDate.trim(),
+      dayType: item.dayType,
+      allotmentQty: item.allotmentQty,
+      bookedQty: item.bookedQty,
+      lockedQty: item.lockedQty,
+      cutoffDays: item.cutoffDays,
+      netCostPerDay: item.netCostPerDay,
+      sellingPricePerDay: item.sellingPricePerDay,
+      status: item.status,
+      description: item.description.trim(),
+      note: item.note.trim(),
+    }));
+}
+
 function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirtyFields: DirtyCollections, canViewSupplierFinancialFields: boolean) {
   const { contacts, services, allotments, taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values;
   return {
@@ -399,9 +460,17 @@ function hotelSupplierPayload(values: HotelForm, mode: 'create' | 'update', dirt
     ...(canViewSupplierFinancialFields ? { taxCode, bankAccountName, bankAccountNumber, bankName } : {}),
     builtYear: values.builtYear ?? undefined,
     rating: values.rating ?? undefined,
-    ...(shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: contacts.filter((item) => item.fullName.trim()) } : {}),
-    ...(shouldSendCollection(mode, dirtyFields, 'services') ? { services: services.filter(hasServiceRowData) } : {}),
-    ...(mode === 'create' ? { allotments: allotments.filter(hasAllotmentRowData) } : {}),
+    ...(mode === 'create' && shouldSendCollection(mode, dirtyFields, 'contacts') ? { contacts: contactPayloadRows(contacts) } : {}),
+    ...(mode === 'create' && shouldSendCollection(mode, dirtyFields, 'services') ? { services: servicePayloadRows(services) } : {}),
+    ...(mode === 'create' ? { allotments: allotmentPayloadRows(allotments) } : {}),
+  };
+}
+
+function hotelChildPayload(values: HotelForm, dirtyFields: DirtyCollections) {
+  return {
+    ...(dirtyFields.contacts !== undefined ? { contacts: contactPayloadRows(values.contacts) } : {}),
+    ...(dirtyFields.services !== undefined ? { services: servicePayloadRows(values.services) } : {}),
+    ...(dirtyFields.allotments !== undefined ? { allotments: allotmentPayloadRows(values.allotments) } : {}),
   };
 }
 
@@ -490,6 +559,7 @@ function toForm(hotel: HotelSupplier): HotelForm {
     link: textValue(hotelProfile.link ?? hotel.link),
     status: asSupplierLifecycleStatus(hotel.status),
     contacts: Array.isArray(hotel.contacts) && hotel.contacts.length ? hotel.contacts.map((item) => ({
+      id: item.id,
       fullName: textValue(item.fullName),
       position: textValue(item.position),
       birthday: dateOnly(item.birthday),
@@ -497,6 +567,7 @@ function toForm(hotel: HotelSupplier): HotelForm {
       email: textValue(item.email),
     })) : [createFieldArrayRow(emptyContact) as HotelForm['contacts'][number]],
     services: Array.isArray(hotel.supplierServices) && hotel.supplierServices.length ? hotel.supplierServices.map((item) => ({
+      id: item.id,
       sku: textValue(item.sku),
       serviceName: textValue(item.serviceName),
       startDate: dateOnly(item.startDate),
@@ -511,6 +582,8 @@ function toForm(hotel: HotelSupplier): HotelForm {
     allotments: Array.isArray(hotel.allotments) && hotel.allotments.length ? hotel.allotments.map((item) => {
       const lockedQty = numberValue(item.lockedQty ?? item.quantityLock);
       return {
+        id: item.id,
+        serviceId: item.serviceId ?? null,
         sku: textValue(item.sku),
         serviceName: textValue(item.serviceName),
         startDate: dateOnly(item.startDate),
@@ -559,6 +632,9 @@ export default function HotelSuppliersClient({
   const [inventoryFilters, setInventoryFilters] = useState(defaultInventoryFilters);
   const [inventoryRows, setInventoryRows] = useState<AllotmentInventoryLine[]>([]);
   const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+  const [originalContactRows, setOriginalContactRows] = useState<HotelForm['contacts']>([]);
+  const [originalServiceRows, setOriginalServiceRows] = useState<HotelForm['services']>([]);
+  const [originalAllotmentRows, setOriginalAllotmentRows] = useState<HotelForm['allotments']>([]);
   const {
     register,
     control,
@@ -566,9 +642,9 @@ export default function HotelSuppliersClient({
     reset,
     formState: { errors, isSubmitting, dirtyFields },
   } = useForm<HotelForm>({ resolver: zodResolver(hotelSchema) as any, defaultValues: freshDefaultValues() });
-  const contacts = useFieldArray({ control, name: 'contacts' });
-  const services = useFieldArray({ control, name: 'services' });
-  const allotments = useFieldArray({ control, name: 'allotments' });
+  const contacts = useFieldArray({ control, name: 'contacts', keyName: 'fieldId' });
+  const services = useFieldArray({ control, name: 'services', keyName: 'fieldId' });
+  const allotments = useFieldArray({ control, name: 'allotments', keyName: 'fieldId' });
 
   useEffect(() => {
     if (!permissionsReady || !canViewSuppliers) {
@@ -722,7 +798,9 @@ export default function HotelSuppliersClient({
 
   async function onSubmit(values: HotelForm) {
     setNotice(null);
-    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections, canViewSupplierFinancialFields);
+    const collectionDirtyFields = dirtyFields as DirtyCollections;
+    const childPayload = hotelChildPayload(values, collectionDirtyFields);
+    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', collectionDirtyFields, canViewSupplierFinancialFields);
     let saved: HotelSupplier;
     try {
       saved = await supplierApi<HotelSupplier>(
@@ -733,6 +811,16 @@ export default function HotelSuppliersClient({
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không lưu được nhà cung cấp khách sạn.') });
       return;
+    }
+    if (editingId) {
+      try {
+        if (childPayload.contacts) await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts);
+        if (childPayload.services) await syncSupplierServices(editingId, originalServiceRows, childPayload.services);
+        if (childPayload.allotments) await syncSupplierAllotments(editingId, originalAllotmentRows, childPayload.allotments);
+      } catch (error) {
+        setNotice({ type: 'error', text: errorText(error, 'Không đồng bộ được dòng con nhà cung cấp khách sạn.') });
+        return;
+      }
     }
     if (pendingFiles.length) {
       try {
@@ -758,13 +846,20 @@ export default function HotelSuppliersClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
+    setOriginalContactRows([]);
+    setOriginalServiceRows([]);
+    setOriginalAllotmentRows([]);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     try {
       const detail = await supplierApi<HotelSupplier>(`/api/suppliers/hotels/${hotel.id}`, {}, 'Tải thông tin nhà cung cấp khách sạn');
+      const formValues = toForm(detail);
       setEditingId(detail.id);
       setFiles(detail.files || []);
       setPendingFiles([]);
-      reset(toForm(detail), { keepDirty: false, keepTouched: false });
+      setOriginalContactRows(formValues.contacts.filter((item) => item.id));
+      setOriginalServiceRows(formValues.services.filter((item) => item.id));
+      setOriginalAllotmentRows(formValues.allotments.filter((item) => item.id));
+      reset(formValues, { keepDirty: false, keepTouched: false });
       setFormOpen(true);
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không tải được thông tin nhà cung cấp khách sạn.') });
@@ -935,6 +1030,9 @@ export default function HotelSuppliersClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
+    setOriginalContactRows([]);
+    setOriginalServiceRows([]);
+    setOriginalAllotmentRows([]);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     if (clearNotice) setNotice(null);
   }
@@ -943,6 +1041,9 @@ export default function HotelSuppliersClient({
     setEditingId(null);
     setFiles([]);
     setPendingFiles([]);
+    setOriginalContactRows([]);
+    setOriginalServiceRows([]);
+    setOriginalAllotmentRows([]);
     setNotice(null);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     setFormOpen(true);
@@ -1298,7 +1399,7 @@ function DynamicRows<T extends ArrayName>({
   name: T;
   register: UseFormRegister<HotelForm>;
   errors: FieldErrors<HotelForm>;
-  fieldArray: UseFieldArrayReturn<HotelForm, T, 'id'>;
+  fieldArray: UseFieldArrayReturn<HotelForm, T, 'fieldId'>;
   columns: ColumnSpec[];
   emptyRow: Record<string, unknown>;
 }) {
@@ -1309,9 +1410,9 @@ function DynamicRows<T extends ArrayName>({
 
   const table = useReactTable({
     data: fieldArray.fields,
-    getRowId: (row) => row.id,
+    getRowId: (row) => row.fieldId,
     columns: useMemo(() => {
-      const helper = createColumnHelper<FieldArrayWithId<HotelForm, T, 'id'>>();
+      const helper = createColumnHelper<FieldArrayWithId<HotelForm, T, 'fieldId'>>();
       return [
         helper.display({ id: 'stt', header: 'Thứ tự', cell: ({ row }) => row.index + 1 }),
         ...columns.map((column) => helper.display({ id: column.key, header: () => <span title={column.tooltip}>{column.label}</span>, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} errors={errors} /> })),

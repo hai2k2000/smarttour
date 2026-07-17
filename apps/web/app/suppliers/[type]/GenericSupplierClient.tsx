@@ -15,6 +15,8 @@ import {
   supplierLifecycleStatusOptions,
   supplierLifecycleStatuses,
   supplierApi,
+  syncSupplierContacts,
+  syncSupplierServices,
   type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
@@ -246,8 +248,9 @@ export const supplierConfigs: Record<SupplierType, SupplierConfig> = {
   },
 };
 
-type Contact = { fullName: string; position: string; birthday: string; phone: string; email: string };
+type Contact = { id?: string; fullName: string; position: string; birthday: string; phone: string; email: string };
 type Service = {
+  id?: string;
   sku: string;
   serviceName: string;
   quantity: number;
@@ -287,6 +290,7 @@ const optionalUrl = (label: string) => z.string().trim().url(`${label} phải l�
 const optionalText = () => z.string().trim().default('');
 
 const contactSchema = z.object({
+  id: z.string().optional(),
   fullName: optionalText(),
   position: optionalText(),
   birthday: optionalText(),
@@ -294,6 +298,7 @@ const contactSchema = z.object({
   email: z.string().trim().email('Email người liên hệ không hợp lệ').or(z.literal('')).default(''),
 });
 const serviceSchema = z.object({
+  id: z.string().optional(),
   sku: optionalText(),
   serviceName: optionalText(),
   quantity: z.coerce.number().min(0, 'Số lượng không được âm').default(1),
@@ -326,6 +331,7 @@ const supplierSchema = z.object({
 });
 type SupplierForm = z.infer<typeof supplierSchema>;
 type ArrayName = 'contacts' | 'services';
+type DirtyCollections = Partial<Record<ArrayName, unknown>>;
 
 const emptyContact: Contact = { fullName: '', position: '', birthday: '', phone: '', email: '' };
 const emptyService: Service = { sku: '', serviceName: '', quantity: 1, accountingPrice: 0, netPrice: 0, sellingPrice: 0, description: '', note: '', metadata: {} };
@@ -388,14 +394,22 @@ function metadataPayload(value: Record<string, string | number>) {
   );
 }
 
-function supplierPayload(values: SupplierForm, canViewSupplierFinancialFields: boolean) {
-  const { taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values;
+function supplierRootPayload(values: SupplierForm, canViewSupplierFinancialFields: boolean) {
+  const { contacts, services, taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values;
+  void contacts;
+  void services;
   return {
     ...baseValues,
     ...(canViewSupplierFinancialFields ? { taxCode, bankAccountName, bankAccountNumber, bankName } : {}),
     rating: Number.isFinite(values.rating) ? values.rating : undefined,
+  };
+}
+
+function supplierChildPayload(values: SupplierForm) {
+  return {
     contacts: values.contacts
       .map((item) => ({
+        id: item.id,
         fullName: item.fullName.trim(),
         position: item.position.trim(),
         birthday: item.birthday.trim(),
@@ -406,6 +420,7 @@ function supplierPayload(values: SupplierForm, canViewSupplierFinancialFields: b
     services: values.services
       .map((item) => ({
         ...item,
+        id: item.id,
         sku: item.sku.trim(),
         serviceName: item.serviceName.trim(),
         description: item.description.trim(),
@@ -450,10 +465,11 @@ function toForm(supplier: Supplier): SupplierForm {
     notes: supplier.notes || '',
     status: supplier.status,
     contacts: supplier.contacts?.length
-      ? supplier.contacts.map((item) => ({ fullName: item.fullName || '', position: item.position || '', birthday: dateOnly(item.birthday), phone: item.phone || '', email: item.email || '' }))
+      ? supplier.contacts.map((item) => ({ id: item.id, fullName: item.fullName || '', position: item.position || '', birthday: dateOnly(item.birthday), phone: item.phone || '', email: item.email || '' }))
       : [freshContact()],
     services: supplier.supplierServices?.length
       ? supplier.supplierServices.map((item) => ({
+          id: item.id,
           sku: item.sku || '',
           serviceName: item.serviceName || '',
           quantity: Number(item.quantity ?? 1),
@@ -493,15 +509,17 @@ export default function GenericSupplierClient({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [busyAction, setBusyAction] = useState('');
+  const [originalContactRows, setOriginalContactRows] = useState<Contact[]>([]);
+  const [originalServiceRows, setOriginalServiceRows] = useState<Service[]>([]);
   const {
     register,
     control,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting, isValid, dirtyFields },
   } = useForm<SupplierForm>({ resolver: zodResolver(supplierSchema) as any, defaultValues, mode: 'onChange' });
-  const contacts = useFieldArray({ control, name: 'contacts' });
-  const services = useFieldArray({ control, name: 'services' });
+  const contacts = useFieldArray({ control, name: 'contacts', keyName: 'fieldId' });
+  const services = useFieldArray({ control, name: 'services', keyName: 'fieldId' });
 
   useEffect(() => {
     if (!permissionsReady || !canViewSuppliers) {
@@ -591,7 +609,10 @@ export default function GenericSupplierClient({
 
   async function onSubmit(values: SupplierForm) {
     setNotice(null);
-    const payload = supplierPayload(values, canViewSupplierFinancialFields);
+    const rootPayload = supplierRootPayload(values, canViewSupplierFinancialFields);
+    const childPayload = supplierChildPayload(values);
+    const collectionDirtyFields = dirtyFields as DirtyCollections;
+    const payload = editingId ? rootPayload : { ...rootPayload, ...childPayload };
     let saved: Supplier;
     try {
       saved = await supplierApi<Supplier>(
@@ -602,6 +623,16 @@ export default function GenericSupplierClient({
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không lưu được nhà cung cấp.') });
       return;
+    }
+
+    if (editingId) {
+      try {
+        if (collectionDirtyFields.contacts !== undefined) await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts);
+        if (collectionDirtyFields.services !== undefined) await syncSupplierServices(editingId, originalServiceRows, childPayload.services);
+      } catch (error) {
+        setNotice({ type: 'error', text: errorText(error, 'Không đồng bộ được dòng con nhà cung cấp.') });
+        return;
+      }
     }
 
     if (pendingFiles.length) {
@@ -626,10 +657,13 @@ export default function GenericSupplierClient({
     setNotice(null);
     try {
       const detail = await supplierApi<Supplier>(`/api/suppliers/${type}/${supplier.id}`, {}, 'Tải thông tin nhà cung cấp');
+      const formValues = toForm(detail);
       setEditingId(detail.id);
       setFiles(detail.files || []);
       setPendingFiles([]);
-      reset(toForm(detail));
+      setOriginalContactRows(formValues.contacts.filter((item) => item.id));
+      setOriginalServiceRows(formValues.services.filter((item) => item.id));
+      reset(formValues);
       setFormOpen(true);
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không tải được thông tin nhà cung cấp.') });
@@ -673,6 +707,8 @@ export default function GenericSupplierClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
+    setOriginalContactRows([]);
+    setOriginalServiceRows([]);
     reset(defaultValues);
     if (clearNotice) setNotice(null);
   }
@@ -681,6 +717,8 @@ export default function GenericSupplierClient({
     setEditingId(null);
     setFiles([]);
     setPendingFiles([]);
+    setOriginalContactRows([]);
+    setOriginalServiceRows([]);
     setNotice(null);
     reset(defaultValues);
     setFormOpen(true);
@@ -808,7 +846,7 @@ export default function GenericSupplierClient({
   );
 }
 
-function ContactRows({ register, fieldArray }: { register: UseFormRegister<SupplierForm>; fieldArray: UseFieldArrayReturn<SupplierForm, 'contacts', 'id'> }) {
+function ContactRows({ register, fieldArray }: { register: UseFormRegister<SupplierForm>; fieldArray: UseFieldArrayReturn<SupplierForm, 'contacts', 'fieldId'> }) {
   return (
     <DynamicRows
       title="Người liên hệ"
@@ -827,7 +865,7 @@ function ContactRows({ register, fieldArray }: { register: UseFormRegister<Suppl
   );
 }
 
-function ServiceRows({ config, register, fieldArray }: { config: SupplierConfig; register: UseFormRegister<SupplierForm>; fieldArray: UseFieldArrayReturn<SupplierForm, 'services', 'id'> }) {
+function ServiceRows({ config, register, fieldArray }: { config: SupplierConfig; register: UseFormRegister<SupplierForm>; fieldArray: UseFieldArrayReturn<SupplierForm, 'services', 'fieldId'> }) {
   return (
     <DynamicRows
       title={config.serviceTitle}
@@ -856,14 +894,15 @@ function DynamicRows<T extends ArrayName>({
   title: string;
   name: T;
   register: UseFormRegister<SupplierForm>;
-  fieldArray: UseFieldArrayReturn<SupplierForm, T, 'id'>;
+  fieldArray: UseFieldArrayReturn<SupplierForm, T, 'fieldId'>;
   columns: ServiceField[];
   emptyRow: Record<string, unknown>;
 }) {
   const table = useReactTable({
     data: fieldArray.fields,
+    getRowId: (row) => row.fieldId,
     columns: useMemo(() => {
-      const helper = createColumnHelper<FieldArrayWithId<SupplierForm, T, 'id'>>();
+      const helper = createColumnHelper<FieldArrayWithId<SupplierForm, T, 'fieldId'>>();
       return [
         helper.display({ id: 'stt', header: 'STT', cell: ({ row }) => row.index + 1 }),
         ...columns.map((column) => helper.display({ id: column.key, header: column.label, cell: ({ row }) => <RowInput name={name} index={row.index} column={column} register={register} /> })),

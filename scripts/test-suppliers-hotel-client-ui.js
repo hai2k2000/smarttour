@@ -71,6 +71,7 @@ function baseHotel() {
       link: 'https://hotel-old.example.com/ref',
     },
     contacts: [{
+      id: 'contact-1',
       fullName: 'Nguyễn Lan',
       position: 'Sales',
       birthday: '1990-01-02T23:00:00-05:00',
@@ -184,7 +185,7 @@ function fromPayload(payload, id) {
       market: payload.market || null,
       link: payload.link || null,
     },
-    contacts: (payload.contacts || []).map((item) => ({ ...item })),
+    contacts: (payload.contacts || []).map((item, index) => ({ id: item.id || `created-contact-${index + 1}`, ...item })),
     supplierServices: (payload.services || []).map((item, index) => ({ id: `created-service-${index + 1}`, ...item })),
     allotments: (payload.allotments || []).map((item, index) => ({
       id: `created-allotment-${index + 1}`,
@@ -248,6 +249,15 @@ function makeState() {
       listQueries: [],
       createPayloads: [],
       updatePayloads: [],
+      contactCreates: [],
+      contactUpdates: [],
+      contactDeletes: [],
+      serviceCreates: [],
+      serviceUpdates: [],
+      serviceDeletes: [],
+      allotmentCreates: [],
+      allotmentUpdates: [],
+      allotmentDeletes: [],
       uploads: [],
       deletes: [],
       overrides: [],
@@ -356,6 +366,96 @@ async function installApiMock(page, state) {
       }
       normalizeHotel(hotel);
       return responseJson(route, clone(hotel));
+    }
+
+    const contactMatch = apiPath.match(/^\/api\/suppliers\/([^/]+)\/contacts(?:\/([^/]+))?$/);
+    if (contactMatch) {
+      const supplierId = contactMatch[1];
+      const contactId = contactMatch[2];
+      const hotel = state.hotels.find((item) => item.id === supplierId);
+      if (!hotel) return messageResponse(route, 'Không tìm thấy nhà cung cấp', 404);
+      hotel.contacts = hotel.contacts || [];
+      if (method === 'POST' && !contactId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const contact = { id: `created-contact-${state.calls.contactCreates.length + 1}`, ...payload };
+        state.calls.contactCreates.push({ supplierId, payload });
+        hotel.contacts.push(contact);
+        return responseJson(route, clone(contact), 201);
+      }
+      if (method === 'PUT' && contactId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const index = hotel.contacts.findIndex((item) => item.id === contactId);
+        if (index < 0) return messageResponse(route, 'Không tìm thấy liên hệ', 404);
+        const contact = { ...hotel.contacts[index], ...payload, id: contactId };
+        state.calls.contactUpdates.push({ supplierId, contactId, payload });
+        hotel.contacts[index] = contact;
+        return responseJson(route, clone(contact));
+      }
+      if (method === 'DELETE' && contactId) {
+        state.calls.contactDeletes.push({ supplierId, contactId });
+        hotel.contacts = hotel.contacts.filter((item) => item.id !== contactId);
+        return responseJson(route, { ok: true });
+      }
+    }
+
+    const serviceMatch = apiPath.match(/^\/api\/suppliers\/([^/]+)\/services(?:\/([^/]+))?$/);
+    if (serviceMatch) {
+      const supplierId = serviceMatch[1];
+      const serviceId = serviceMatch[2];
+      const hotel = state.hotels.find((item) => item.id === supplierId);
+      if (!hotel) return messageResponse(route, 'Không tìm thấy nhà cung cấp', 404);
+      hotel.supplierServices = hotel.supplierServices || [];
+      if (method === 'POST' && !serviceId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const service = { id: `created-service-${state.calls.serviceCreates.length + 1}`, ...payload };
+        state.calls.serviceCreates.push({ supplierId, payload });
+        hotel.supplierServices.push(service);
+        return responseJson(route, clone(service), 201);
+      }
+      if (method === 'PUT' && serviceId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const index = hotel.supplierServices.findIndex((item) => item.id === serviceId);
+        if (index < 0) return messageResponse(route, 'Không tìm thấy dịch vụ', 404);
+        const service = { ...hotel.supplierServices[index], ...payload, id: serviceId };
+        state.calls.serviceUpdates.push({ supplierId, serviceId, payload });
+        hotel.supplierServices[index] = service;
+        return responseJson(route, clone(service));
+      }
+      if (method === 'DELETE' && serviceId) {
+        state.calls.serviceDeletes.push({ supplierId, serviceId });
+        hotel.supplierServices = hotel.supplierServices.filter((item) => item.id !== serviceId);
+        return responseJson(route, { ok: true });
+      }
+    }
+
+    const allotmentMatch = apiPath.match(/^\/api\/suppliers\/([^/]+)\/allotments(?:\/([^/]+))?$/);
+    if (allotmentMatch) {
+      const supplierId = allotmentMatch[1];
+      const allotmentId = allotmentMatch[2];
+      const hotel = state.hotels.find((item) => item.id === supplierId);
+      if (!hotel) return messageResponse(route, 'Không tìm thấy nhà cung cấp', 404);
+      hotel.allotments = hotel.allotments || [];
+      if (method === 'POST' && !allotmentId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const allotment = normalizeHotel({ allotments: [{ id: `created-allotment-${state.calls.allotmentCreates.length + 1}`, ...payload }] }).allotments[0];
+        state.calls.allotmentCreates.push({ supplierId, payload });
+        hotel.allotments.push(allotment);
+        return responseJson(route, clone(allotment), 201);
+      }
+      if (method === 'PUT' && allotmentId) {
+        const payload = JSON.parse(request.postData() || '{}');
+        const index = hotel.allotments.findIndex((item) => item.id === allotmentId);
+        if (index < 0) return messageResponse(route, 'Không tìm thấy quỹ phòng', 404);
+        const allotment = normalizeHotel({ allotments: [{ ...hotel.allotments[index], ...payload, id: allotmentId }] }).allotments[0];
+        state.calls.allotmentUpdates.push({ supplierId, allotmentId, payload });
+        hotel.allotments[index] = allotment;
+        return responseJson(route, clone(allotment));
+      }
+      if (method === 'DELETE' && allotmentId) {
+        state.calls.allotmentDeletes.push({ supplierId, allotmentId });
+        hotel.allotments = hotel.allotments.filter((item) => item.id !== allotmentId);
+        return responseJson(route, { ok: true });
+      }
     }
 
     const uploadMatch = apiPath.match(/^\/api\/suppliers\/([^/]+)\/files$/);
@@ -712,6 +812,27 @@ async function loadMockedList(page) {
       await visibleText(page, 'Đã xóa file "hotel-upload-test.txt"');
       assert(state.calls.deletes.some((item) => item.fileId === 'uploaded-file-1'), 'file delete must call supplier file endpoint');
       await editAgain.getByRole('button', { name: 'Đóng' }).click();
+
+      const contactUpdatesBefore = state.calls.contactUpdates.length;
+      const serviceUpdatesBefore = state.calls.serviceUpdates.length;
+      await oldRow.getByRole('button', { name: 'Sửa khách sạn' }).click();
+      const childDialog = await selectDialog(page, 'Cập nhật nhà cung cấp khách sạn');
+      const contactRow = dynamicSection(childDialog, 'Người liên hệ').locator('tbody tr').first();
+      await contactRow.locator('input').nth(0).fill('Nguyễn Lan cập nhật');
+      const serviceRow = dynamicSection(childDialog, 'Dịch vụ khách sạn').locator('tbody tr').first();
+      await serviceRow.locator('input').nth(1).fill('Phòng tiêu chuẩn cập nhật');
+      await childDialog.getByRole('button', { name: 'Lưu thay đổi' }).click();
+      await visibleText(page, 'Đã cập nhật nhà cung cấp khách sạn');
+      const childParentPayload = state.calls.updatePayloads.at(-1);
+      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'contacts'), 'dirty contacts must not be sent through parent hotel edit');
+      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'services'), 'dirty services must not be sent through parent hotel edit');
+      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'allotments'), 'hotel edit must not replace allotments while syncing other child rows');
+      assert(state.calls.contactUpdates.length === contactUpdatesBefore + 1, 'dirty contact edit must call contact child endpoint');
+      assert(state.calls.contactUpdates.at(-1).contactId === 'contact-1' && state.calls.contactUpdates.at(-1).payload.fullName === 'Nguyễn Lan cập nhật', 'contact child endpoint must receive the existing contact id and payload');
+      assert(state.calls.serviceUpdates.length === serviceUpdatesBefore + 1, 'dirty service edit must call service child endpoint');
+      assert(state.calls.serviceUpdates.at(-1).serviceId === 'service-1' && state.calls.serviceUpdates.at(-1).payload.serviceName === 'Phòng tiêu chuẩn cập nhật', 'service child endpoint must receive the existing service id and payload');
+      assert(state.calls.contactCreates.length === 0 && state.calls.contactDeletes.length === 0, 'editing an existing contact must not create/delete contact rows');
+      assert(state.calls.serviceCreates.length === 0 && state.calls.serviceDeletes.length === 0, 'editing an existing service must not create/delete service rows');
 
       await page.locator('.supplierFilterPanel').getByRole('button', { name: 'Xóa bộ lọc' }).click();
       await visibleText(page, 'Khách sạn Không Có Hồ Sơ');

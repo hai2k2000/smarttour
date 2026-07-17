@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier UI child-row API migration Phase 4 slice:
+  - Added shared Supplier UI child-row sync helpers for contacts, services, and hotel allotments. The helpers delete removed persisted rows, update rows with an existing child `id`, and create new rows through `/suppliers/:id/contacts`, `/suppliers/:id/services`, and `/suppliers/:id/allotments`.
+  - Generic typed supplier edit now sends only root supplier fields to the parent typed `PUT`, preserves child ids in React Hook Form rows using `fieldId` as the form-array key, and syncs dirty contact/service collections through child APIs after the parent update succeeds.
+  - Hotel supplier edit now sends only root/profile fields to the parent hotel `PUT`, preserves contact/service/allotment ids plus allotment `serviceId`, and syncs dirty contacts/services/allotments through child APIs. Hotel create still sends nested contacts/services/allotments in the parent `POST` for compatibility.
+  - Hotel UI smoke coverage now proves dirty contact/service edits use child endpoints while parent edit payloads omit child arrays; source contracts guard the shared helper names, endpoint paths, and root/child payload split.
+  - Verification passed: bash scripts/test-suppliers-client-contract.sh, npm run lint --workspace @smarttour/web, SITE_URL=http://127.0.0.1:3001 bash scripts/test-suppliers-hotel-client-ui.sh, node scripts/test-supplier-ui-permission-contract.js, node scripts/test-suppliers-child-row-apis-contract.js, bash scripts/test-suppliers-controller-contract.sh, and git diff --check.
+
 - Supplier allotment child-row APIs Phase 4 slice:
   - Added dedicated hotel allotment child APIs under Supplier: `GET/POST /suppliers/:id/allotments` and `PUT/DELETE /suppliers/:id/allotments/:allotmentId`, declared before the dynamic typed supplier routes.
   - Create/update reuse `normalizeHotelAllotments`, support optional `serviceId` linking to an active same-supplier hotel service, and check persisted sibling date/day overlap.

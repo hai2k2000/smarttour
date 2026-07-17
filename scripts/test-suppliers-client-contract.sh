@@ -40,6 +40,12 @@ assert "supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const" in shared
 assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared and "INACTIVE: 'Ngừng hoạt động'" in shared
 assert 'title={label}' in shared, 'supplier status badges should expose the Vietnamese label as a concise tooltip'
 assert 'uploadSupplierFiles' in shared
+assert 'syncSupplierContacts(' in shared, 'shared supplier UI helper must expose contact child-row sync'
+assert 'syncSupplierServices(' in shared, 'shared supplier UI helper must expose service child-row sync'
+assert 'syncSupplierAllotments(' in shared, 'shared supplier UI helper must expose allotment child-row sync'
+assert '/contacts/${row.id}' in shared, 'contact edits/deletes must use dedicated child-row endpoints'
+assert '/services/${row.id}' in shared, 'service edits/deletes must use dedicated child-row endpoints'
+assert '/allotments/${row.id}' in shared, 'allotment edits/deletes must use dedicated child-row endpoints'
 assert '/files/${file.id}' in hotel and '/files/${file.id}' in generic
 assert "method: 'DELETE'" in hotel and "method: 'DELETE'" in generic
 assert '/hotel-allotments/${allotment.id}/override' in hotel
@@ -49,6 +55,16 @@ assert 'Cần nhập lý do giải phóng phân bổ quỹ phòng' in hotel
 assert 'Quỹ phòng được quản lý riêng' in hotel
 assert "mode === 'create' ? { allotments:" in hotel, 'hotel edits must not replace allotments implicitly'
 assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== undefined" in hotel, 'hotel edits must only send dirty child collection snapshots'
+assert 'function supplierRootPayload(' in generic, 'generic supplier edits must split root payload from child rows'
+assert 'function supplierChildPayload(' in generic, 'generic supplier edits must build child-row payloads separately'
+generic_root_slice = generic[generic.index('function supplierRootPayload('):generic.index('function supplierChildPayload(')]
+assert 'contacts:' not in generic_root_slice, 'generic parent update payload must not include contacts'
+assert 'services:' not in generic_root_slice, 'generic parent update payload must not include services'
+assert 'await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts' in generic
+assert 'await syncSupplierServices(editingId, originalServiceRows, childPayload.services' in generic
+assert 'await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts' in hotel
+assert 'await syncSupplierServices(editingId, originalServiceRows, childPayload.services' in hotel
+assert 'await syncSupplierAllotments(editingId, originalAllotmentRows, childPayload.allotments' in hotel
 assert 'Mã dịch vụ' in hotel and 'Mã dịch vụ' in generic
 assert 'Giá NET' in hotel and 'Giá NET' in generic
 assert 'initialError' in hotel_page and 'initialError' in typed_page

@@ -1,5 +1,12 @@
 # Progress
 
+- Completed Supplier UI child-row API migration Phase 4 slice:
+  - Added shared Supplier UI child-row sync helpers for contact, service, and hotel allotment rows, using dedicated child endpoints for create/update/delete instead of replacing nested arrays during edits.
+  - Generic typed supplier edit now splits root payload from child payload, keeps child ids in form state without colliding with React Hook Form field-array keys, and syncs dirty contacts/services after the parent update succeeds.
+  - Hotel supplier edit now keeps parent `PUT /suppliers/hotels/:id` root/profile-only, preserves child row ids and allotment `serviceId`, and syncs dirty contacts/services/allotments through the dedicated child APIs. Hotel create remains compatible with nested child arrays in the parent `POST`.
+  - Extended source and hotel client UI coverage so dirty child edits cannot regress to parent array replacement.
+  - Verification passed: bash scripts/test-suppliers-client-contract.sh, npm run lint --workspace @smarttour/web, SITE_URL=http://127.0.0.1:3001 bash scripts/test-suppliers-hotel-client-ui.sh, node scripts/test-supplier-ui-permission-contract.js, node scripts/test-suppliers-child-row-apis-contract.js, bash scripts/test-suppliers-controller-contract.sh, and git diff --check.
+
 - Completed Supplier allotment child-row APIs Phase 4 slice:
   - Added dedicated hotel allotment CRUD APIs under Supplier: `GET/POST /suppliers/:id/allotments` and `PUT/DELETE /suppliers/:id/allotments/:allotmentId`.
   - Read routes inherit `supplier.view`; write routes require `supplier.manage` and stay before dynamic typed supplier route dispatch.
