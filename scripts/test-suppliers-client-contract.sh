@@ -39,6 +39,11 @@ assert 'HTTP ${response.status}' in shared
 assert "supplierLifecycleStatuses = ['ACTIVE', 'INACTIVE'] as const" in shared
 assert 'supplierStatusLabels' in shared and 'supplierLifecycleStatusOptions' in shared and "INACTIVE: 'Ngừng hoạt động'" in shared
 assert 'title={label}' in shared, 'supplier status badges should expose the Vietnamese label as a concise tooltip'
+assert 'supplierLifecycleAction(' in shared, 'shared supplier UI helper must expose lifecycle action labels'
+assert 'nextSupplierLifecycleStatus(' in shared, 'shared supplier UI helper must compute activate/deactivate target status'
+assert 'supplierLifecycleBlockedText(' in shared, 'shared supplier UI helper must enrich blocked lifecycle errors'
+assert 'supplierLifecycleGuidanceLinks' in shared, 'blocked lifecycle errors must guide users to related modules'
+assert 'Đơn hàng' in shared and 'Điều hành' in shared and 'Tài chính' in shared and 'Yêu cầu thanh toán' in shared
 assert 'uploadSupplierFiles' in shared
 assert 'syncSupplierContacts(' in shared, 'shared supplier UI helper must expose contact child-row sync'
 assert 'syncSupplierServices(' in shared, 'shared supplier UI helper must expose service child-row sync'
@@ -57,6 +62,16 @@ assert "mode === 'create' ? { allotments:" in hotel, 'hotel edits must not repla
 assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== undefined" in hotel, 'hotel edits must only send dirty child collection snapshots'
 assert 'function supplierRootPayload(' in generic, 'generic supplier edits must split root payload from child rows'
 assert 'function supplierChildPayload(' in generic, 'generic supplier edits must build child-row payloads separately'
+assert 'changeSupplierLifecycleStatus(' in generic, 'generic typed supplier list must expose quick lifecycle status action'
+assert '/api/suppliers/${type}/${supplier.id}/status' in generic, 'generic typed lifecycle action must use the typed status endpoint'
+assert "method: 'PATCH'" in generic and "body: JSON.stringify({ status: action.nextStatus })" in generic
+assert 'supplierLifecycleBlockedText(errorText(error' in generic, 'generic lifecycle block errors must include operational guidance'
+assert 'supplierLifecycleAction(row.original.name, row.original.status' in generic, 'generic lifecycle action must confirm with supplier name and current status'
+assert 'changeSupplierLifecycleStatus(' in hotel, 'hotel supplier list must expose quick lifecycle status action'
+assert '/api/suppliers/${hotel.id}/status' in hotel, 'hotel lifecycle action must use the common status endpoint'
+assert 'await loadInventory(inventoryFilters)' in hotel, 'hotel lifecycle action must refresh inventory after status changes'
+assert 'supplierLifecycleBlockedText(errorText(error' in hotel, 'hotel lifecycle block errors must include operational guidance'
+assert 'supplierLifecycleAction(row.original.name, row.original.status' in hotel, 'hotel lifecycle action must confirm with hotel name and current status'
 generic_root_slice = generic[generic.index('function supplierRootPayload('):generic.index('function supplierChildPayload(')]
 assert 'contacts:' not in generic_root_slice, 'generic parent update payload must not include contacts'
 assert 'services:' not in generic_root_slice, 'generic parent update payload must not include services'
@@ -73,6 +88,11 @@ assert 'supplierPageConfigs' in typed_page
 assert 'supplierConfigs' not in typed_page, 'server page must not import runtime values from a client module'
 assert 'const config = supplierConfigs[type]' in generic
 assert 'td.tableEmptyState { display: table-cell;' in styles
+assert 'updateSupplierStatus(formData' in supplier_page, 'common supplier page must expose server action for lifecycle status changes'
+assert '/suppliers/${encodeURIComponent(id)}/status' in supplier_page, 'common supplier lifecycle action must use common status endpoint'
+assert 'LifecycleStatusModal' in supplier_page, 'common supplier lifecycle action must require modal confirmation'
+assert 'supplierLifecycleBlockedText(result.message)' in supplier_page, 'common supplier delete/status block errors must include guidance'
+assert 'supplierLifecycleAction(supplier.name, supplier.status' in supplier_page, 'common supplier lifecycle action must show supplier-specific action copy'
 assert 'updateCategory(formData' in supplier_page
 assert 'editCategoryModalId' in supplier_page
 
