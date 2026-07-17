@@ -1,11 +1,17 @@
 # Progress
 
+- Completed Supplier import Phase 2 foundation:
+  - Added supplier import preview and all-or-nothing write endpoints for common/root supplier rows: `POST /suppliers/import/preview` and `POST /suppliers/import`.
+  - Added supplier import DTO/helper/size filter with CSV/XLSX/JSON/inline CSV parsing, native XLSX reuse, 5 MB and 500-row caps, `category` to `categoryName` aliasing, unsupported-column errors, and finance-sensitive field protection.
+  - Import preview resolves existing categories by id/name, validates supplier payloads, checks duplicate/existing supplier codes, and returns row-level errors without writing.
+  - Import write rejects any preview with blocking errors and creates all rows inside one Prisma transaction.
+  - Supplier smoke now guards preview/write and all-or-nothing behavior; typed child fields, contacts/services, hotel profile data, and allotments remain later import scope.
+
 - Completed Supplier export Phase 2 foundation:
   - Added `GET /suppliers/export`, `GET /suppliers/hotels/export`, and `GET /suppliers/:type/export` with CSV default and native XLSX via `format=xlsx`.
   - Added supplier export source/runtime contract coverage plus live export smoke entries for common, hotel, and typed supplier exports.
   - Export output applies existing supplier financial masking before selecting fields, so tax/bank/debt/price-policy values remain hidden without `finance.payment.view`.
   - Focused verification passed: API build, supplier export contract, native XLSX contract, supplier controller/typed contracts, supplier sensitive-fields contract, API lint, and diff check.
-  - Supplier import preview/write remains next in Phase 2.
 
 - Completed Supplier attachments Phase 1 permission deepening:
   - Shared file download/delete routes now delegate permission decisions to FilesService entity-specific access checks, allowing supplier.view users to download supplier-owned files without generic file.view.

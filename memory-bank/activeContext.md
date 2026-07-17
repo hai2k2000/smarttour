@@ -20,10 +20,16 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier import Phase 2 foundation:
+  - Added `POST /suppliers/import/preview` and `POST /suppliers/import` for common/root supplier rows using CSV, XLSX, JSON rows, or inline CSV.
+  - Import parsing uses the shared native XLSX parser, caps payloads at 5 MB and 500 rows, maps exported `category` to `categoryName`, rejects unsupported columns, and preserves finance-sensitive field protection behind `finance.payment.view`.
+  - Write execution reuses preview validation and runs all supplier creates in one Prisma transaction; rows with blocking errors reject before any supplier is written.
+  - Supplier smoke now covers preview success, import write, preview blocking errors, and all-or-nothing rejection. Typed child fields, contacts/services, hotel profiles, and allotments remain later import scope.
+
 - Supplier export Phase 2:
   - Added CSV/XLSX export endpoints for common suppliers, hotel suppliers, and typed supplier lists while keeping Supplier as global master data.
   - Export row shaping uses a focused supplier export helper and applies existing finance masking before selecting tax/bank/debt/price-policy fields.
-  - Live export smoke coverage now includes supplier CSV/XLSX paths; supplier import preview/write remains the next Phase 2 sub-step.
+  - Live export smoke coverage now includes supplier CSV/XLSX paths.
 
 - Supplier attachment permission deepening:
   - File download/delete now rely on entity-scoped file access in FilesService instead of requiring generic file.view/file.manage on the shared FilesController routes.

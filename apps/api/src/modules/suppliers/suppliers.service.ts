@@ -9,10 +9,12 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
+import { SupplierImportDto } from './dto/supplier-import.dto';
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
 import { SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows } from './supplier-export';
+import { normalizeSupplierImportRows, supplierImportRows, type SupplierImportError, type SupplierImportFile, type SupplierImportRecord } from './supplier-import';
 import { canViewSupplierFinancialFields, maskSupplierFinancialFields } from './supplier-projection';
 import { getTypeLabel, isTypedSupplierRoute, SUPPLIER_TYPE_CATEGORY_ALIASES, SUPPLIER_TYPE_LABELS, SUPPLIER_TYPE_METADATA_FIELDS, supplierTypeCategoryNames, TypedSupplierRoute } from './supplier-types';
 
@@ -77,6 +79,12 @@ const SUPPLIER_SERVICE_ORDER_BY = [
   { id: 'asc' },
 ] satisfies Prisma.SupplierServiceOrderByWithRelationInput[];
 type UploadFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
+type SupplierImportPreviewRow = {
+  line: number;
+  dto: CreateSupplierDto;
+  categoryName?: string;
+  valid: boolean;
+};
 
 @Injectable()
 export class SuppliersService {
@@ -189,6 +197,103 @@ export class SuppliersService {
   async exportHotelSuppliersCsv(query: HotelSupplierListQueryDto = {}, user?: RequestUser) {
     const rows = await this.listHotelSuppliers(query, user);
     return csvRows(SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows(rows, user));
+  }
+
+  async previewSupplierImport(dto: SupplierImportDto, file?: SupplierImportFile, user?: RequestUser) {
+    const rows = supplierImportRows(dto as SupplierImportRecord, file);
+    const normalized = normalizeSupplierImportRows(rows, { canWriteFinancialFields: canViewSupplierFinancialFields(user) });
+    const errors: SupplierImportError[] = [...normalized.errors];
+    const previewRows: SupplierImportPreviewRow[] = [];
+    const supplierCodeLines = new Map<string, number>();
+
+    for (const row of normalized.rows) {
+      const rowDto = { ...row.dto } as Partial<CreateSupplierDto>;
+      let valid = true;
+
+      const categoryField = rowDto.categoryId || row.categoryName ? 'categoryId' : 'categoryName';
+      try {
+        if (rowDto.categoryId) {
+          await this.ensureCategory(rowDto.categoryId);
+        } else if (row.categoryName) {
+          const category = await this.findCategoryByName(row.categoryName);
+          if (!category) throw new NotFoundException(SUPPLIER_ERRORS.categoryNotFound);
+          rowDto.categoryId = category.id;
+        }
+      } catch (error) {
+        valid = false;
+        this.addSupplierImportError(errors, row.line, categoryField, error);
+      }
+
+      try {
+        this.validateSupplierPayload(rowDto as CreateSupplierDto);
+      } catch (error) {
+        valid = false;
+        this.addSupplierImportError(errors, row.line, 'payload', error);
+      }
+
+      try {
+        this.assertCanWriteSupplierFinancialFields(rowDto, user);
+      } catch (error) {
+        valid = false;
+        this.addSupplierImportError(errors, row.line, 'financialFields', error);
+      }
+
+      const supplierCodeKey = this.supplierImportCodeKey(rowDto.supplierCode);
+      if (supplierCodeKey) {
+        const firstLine = supplierCodeLines.get(supplierCodeKey);
+        if (firstLine !== undefined) {
+          valid = false;
+          errors.push({
+            line: row.line,
+            field: 'supplierCode',
+            message: `Mã nhà cung cấp trùng với dòng ${firstLine}`,
+          });
+        } else {
+          supplierCodeLines.set(supplierCodeKey, row.line);
+        }
+      }
+
+      try {
+        await this.ensureSupplierCodeAvailable(rowDto.supplierCode);
+      } catch (error) {
+        valid = false;
+        this.addSupplierImportError(errors, row.line, 'supplierCode', error);
+      }
+
+      previewRows.push({
+        line: row.line,
+        dto: rowDto as CreateSupplierDto,
+        categoryName: row.categoryName,
+        valid,
+      });
+    }
+
+    const failedLines = new Set(errors.map((error) => error.line));
+    return {
+      totalRows: normalized.totalRows,
+      validRows: normalized.totalRows - failedLines.size,
+      failedRows: failedLines.size,
+      errors,
+      rows: previewRows,
+    };
+  }
+
+  async importSuppliers(dto: SupplierImportDto, file?: SupplierImportFile, user?: RequestUser) {
+    const preview = await this.previewSupplierImport(dto, file, user);
+    if (preview.failedRows > 0) {
+      throw new BadRequestException({ message: 'Import nhà cung cấp có lỗi, chưa ghi dữ liệu', ...preview });
+    }
+    const created = await this.prisma.$transaction(async (tx) => {
+      const createdRows = [];
+      for (const row of preview.rows) {
+        createdRows.push(await tx.supplier.create({
+          data: this.toSupplierData(row.dto) as Prisma.SupplierUncheckedCreateInput,
+          include: this.supplierListInclude(),
+        }));
+      }
+      return createdRows;
+    });
+    return { created: created.length, rows: maskSupplierFinancialFields(created, user) };
   }
 
   private listTake(take?: number) {
@@ -1850,6 +1955,21 @@ export class SuppliersService {
       throw new ConflictException(SUPPLIER_ERRORS.codeExists);
     }
     throw error;
+  }
+
+  private supplierImportCodeKey(value: unknown) {
+    const code = typeof value === 'string' ? value.trim() : null;
+    return code ? code.toUpperCase() : null;
+  }
+
+  private addSupplierImportError(errors: SupplierImportError[], line: number, field: string, error: unknown) {
+    errors.push({ line, field, message: this.supplierImportErrorMessage(error) });
+  }
+
+  private supplierImportErrorMessage(error: unknown) {
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === 'string') return error;
+    return 'Dữ liệu import nhà cung cấp không hợp lệ';
   }
 
   private toSupplierStatus(value: unknown) {

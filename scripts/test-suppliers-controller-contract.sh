@@ -28,12 +28,13 @@ for alias in ["'Restaurant'", "'Flight'", "'Other Cost'", "'Passport Visa'", "'S
     assert alias in types_source, f'legacy English category alias must remain supported: {alias}'
 
 assert controller.count("@RequirePermissions('supplier.view')") >= 2, 'category and supplier controllers must require supplier.view'
-assert controller.count("@RequirePermissions('supplier.manage')") == 19, 'every supplier mutation endpoint must explicitly require supplier.manage'
+assert controller.count("@RequirePermissions('supplier.manage')") == 21, 'every supplier mutation endpoint must explicitly require supplier.manage'
 manage_methods = {
     'create', 'update', 'remove', 'createHotel', 'updateHotel', 'overrideAllotment',
     'lockAllotment', 'confirmAllotment', 'releaseAllotment', 'createTyped',
     'updateTyped', 'updateTypedStatus', 'removeTyped', 'addSupplierFile',
     'deleteSupplierFile', 'updateStatus',
+    'previewImport', 'importSuppliers',
 }
 for method in manage_methods:
     pattern = rf"@RequirePermissions\('supplier\.manage'\)[\s\S]{{0,240}}?\n\s*{method}\("

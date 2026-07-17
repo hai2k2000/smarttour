@@ -11,8 +11,11 @@ import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
+import { SupplierImportDto } from './dto/supplier-import.dto';
 import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { supplierImportInterceptorOptions, type SupplierImportFile } from './supplier-import';
+import { SupplierImportSizeExceptionFilter } from './supplier-import-size-exception.filter';
 import { isTypedSupplierRoute } from './supplier-types';
 import { SuppliersService } from './suppliers.service';
 
@@ -141,6 +144,31 @@ export class SuppliersController {
     return this.suppliersService.releaseAllotmentAllocation(id, dto, request.user);
   }
 
+  @Post('import/preview')
+  @RequirePermissions('supplier.manage')
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(SupplierImportSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', supplierImportInterceptorOptions()))
+  previewImport(
+    @Body() dto: SupplierImportDto,
+    @UploadedFile() file: SupplierImportFile | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.suppliersService.previewSupplierImport(dto, file, request.user);
+  }
+
+  @Post('import')
+  @RequirePermissions('supplier.manage')
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(SupplierImportSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', supplierImportInterceptorOptions()))
+  importSuppliers(
+    @Body() dto: SupplierImportDto,
+    @UploadedFile() file: SupplierImportFile | undefined,
+    @Req() request: { user?: RequestUser },
+  ) {
+    return this.suppliersService.importSuppliers(dto, file, request.user);
+  }
 
   @Get(':type/export')
   async exportTyped(@Param('type') type: string, @Query() query: TypedSupplierListQueryDto, @Req() request: { user?: RequestUser }, @Res({ passthrough: true }) response: ServerResponse) {
