@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { FileUp, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { Ban, FileUp, Pencil, Plus, RefreshCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,6 +14,8 @@ import {
   SupplierStatus,
   supplierLifecycleStatusOptions,
   supplierLifecycleStatuses,
+  supplierLifecycleAction,
+  supplierLifecycleBlockedText,
   supplierApi,
   syncSupplierContacts,
   syncSupplierServices,
@@ -556,16 +558,22 @@ export default function GenericSupplierClient({
       helper.display({
         id: 'actions',
         header: 'Thao tác',
-        cell: ({ row }) => (
-          <div className="rowActions">
-            <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa nhà cung cấp" aria-label="Sửa nhà cung cấp">
-              <Pencil size={15} />
-            </button>
-            <button type="button" className="dangerButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa nhà cung cấp" aria-label="Xóa nhà cung cấp">
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const action = supplierLifecycleAction(row.original.name, row.original.status, 'nhà cung cấp');
+          return (
+            <div className="rowActions">
+              <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa nhà cung cấp" aria-label="Sửa nhà cung cấp">
+                <Pencil size={15} />
+              </button>
+              <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void changeSupplierLifecycleStatus(row.original)} title={action.title} aria-label={action.title}>
+                {action.nextStatus === 'ACTIVE' ? <RefreshCcw size={15} /> : <Ban size={15} />}
+              </button>
+              <button type="button" className="dangerButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa nhà cung cấp" aria-label="Xóa nhà cung cấp">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          );
+        },
       }),
     ];
   }, [busyAction, canManage]);
@@ -682,6 +690,26 @@ export default function GenericSupplierClient({
       setNotice({ type: 'success', text: `Đã xóa nhà cung cấp "${supplier.name}".` });
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không xóa được nhà cung cấp.') });
+    } finally {
+      setBusyAction('');
+    }
+  }
+
+  async function changeSupplierLifecycleStatus(supplier: Supplier) {
+    const action = supplierLifecycleAction(supplier.name, supplier.status, 'nhà cung cấp');
+    if (!window.confirm(action.confirmText)) return;
+    setBusyAction(`${action.nextStatus === 'ACTIVE' ? 'activate' : 'deactivate'}:${supplier.id}`);
+    setNotice(null);
+    try {
+      await supplierApi(
+        `/api/suppliers/${type}/${supplier.id}/status`,
+        { method: 'PATCH', body: JSON.stringify({ status: action.nextStatus }) },
+        action.title,
+      );
+      await load(filters);
+      setNotice({ type: 'success', text: action.successText });
+    } catch (error) {
+      setNotice({ type: 'error', text: supplierLifecycleBlockedText(errorText(error, `${action.title} thất bại.`)) });
     } finally {
       setBusyAction('');
     }

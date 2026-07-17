@@ -246,7 +246,7 @@ assert 'const { contacts, services, allotments, taxCode, bankAccountName, bankAc
 assert '...values,\n    builtYear:' not in frontend, 'hotel edit payload must not spread all form values because that would send untouched child arrays'
 assert "mode === 'create' ? { allotments:" in frontend, 'hotel edit payload must omit allotments because allotments are managed separately'
 assert 'values.allotments.filter(hasAllotmentRowData).map(syncAllotmentRow)' not in frontend, 'hotel frontend must not send legacy quantityLock in create payload'
-assert 'getRowId: (row) => row.id' in frontend, 'hotel dynamic child rows must use react-hook-form field ids as stable row keys'
+assert 'getRowId: (row) => row.fieldId' in frontend, 'hotel dynamic child rows must use react-hook-form fieldId keys instead of database row ids'
 assert 'createFieldArrayRow(emptyRow)' in frontend, 'hotel dynamic child rows must append cloned default rows'
 assert "column.key === 'dayType'" in frontend and "column.key === 'status'" in frontend, 'hotel dynamic select inputs must distinguish dayType from allotment status'
 assert "{ key: 'phone', label: 'Điện thoại', type: 'tel' }" in frontend and "{ key: 'email', label: 'Email', type: 'email' }" in frontend, 'hotel contact rows must use phone/email input types'

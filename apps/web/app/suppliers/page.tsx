@@ -55,6 +55,7 @@ const editCategoryModalId = (id: string) => `suppliers-edit-category-${id}`;
 const createSupplierModalId = 'suppliers-create-supplier';
 const editSupplierModalId = (id: string) => `suppliers-edit-${id}`;
 const deleteSupplierModalId = (id: string) => `suppliers-delete-${id}`;
+const lifecycleSupplierModalId = (id: string) => `suppliers-lifecycle-${id}`;
 const supplierCategoryLabels: Record<string, string> = {
   'attraction ticket': 'Vé tham quan',
   'attraction tickets': 'Vé tham quan',
@@ -79,12 +80,46 @@ const supplierCategoryLabels: Record<string, string> = {
   vouchers: 'Voucher',
   water: 'Nước suối',
 };
+const supplierStatusLabels: Record<string, string> = {
+  ACTIVE: 'Đang hoạt động',
+  INACTIVE: 'Ngừng hoạt động',
+};
+const supplierLifecycleGuidanceLinks = ['Đơn hàng', 'Điều hành', 'Tài chính', 'Yêu cầu thanh toán'];
 
 function supplierCategoryLabel(value?: string | null) {
   const raw = String(value || '').trim();
   if (!raw) return 'Chưa phân loại';
   const key = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
   return supplierCategoryLabels[key] || raw;
+}
+
+function supplierStatusLabel(status?: string | null) {
+  return supplierStatusLabels[status || ''] || status || 'Chưa rõ';
+}
+
+function nextSupplierLifecycleStatus(status?: string | null) {
+  return status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+}
+
+function supplierLifecycleAction(name: string, status?: string | null, noun = 'nhà cung cấp') {
+  const nextStatus = nextSupplierLifecycleStatus(status);
+  const isReactivation = nextStatus === 'ACTIVE';
+  const label = isReactivation ? 'Kích hoạt lại' : 'Ngừng hoạt động';
+  const capitalizedNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return {
+    nextStatus,
+    label,
+    title: `${label} ${noun}`,
+    confirmText: isReactivation
+      ? `${capitalizedNoun} "${name}" sẽ được mở lại để chọn trong vận hành mới.`
+      : `${capitalizedNoun} "${name}" sẽ không còn được dùng cho lựa chọn mới; giao dịch lịch sử vẫn được giữ và hệ thống sẽ chặn nếu còn tham chiếu vận hành.`,
+    successText: isReactivation ? `Đã kích hoạt lại ${name}.` : `Đã ngừng hoạt động ${name}.`,
+  };
+}
+
+function supplierLifecycleBlockedText(message: string) {
+  const detail = message.trim() || 'Không thực hiện được thao tác lifecycle nhà cung cấp.';
+  return `${detail} Có thể mở các module liên quan (${supplierLifecycleGuidanceLinks.join(', ')}) để gỡ tham chiếu trước khi thử lại.`;
 }
 
 async function responseError(response: Response) {
@@ -221,6 +256,29 @@ async function updateSupplier(formData: FormData) {
   redirectWithResult(result);
 }
 
+async function updateSupplierStatus(formData: FormData) {
+  'use server';
+  const id = field(formData, 'id');
+  const name = field(formData, 'name') || 'nhà cung cấp';
+  const currentStatus = field(formData, 'currentStatus');
+  const status = field(formData, 'status');
+  if (!id) redirectWithResult({ ok: false, message: 'Đổi trạng thái nhà cung cấp thất bại: thiếu ID nhà cung cấp.' });
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) redirectWithResult({ ok: false, message: 'Đổi trạng thái nhà cung cấp thất bại: trạng thái không hợp lệ.' });
+  const action = supplierLifecycleAction(name, currentStatus);
+  if (status !== action.nextStatus) redirectWithResult({ ok: false, message: 'Đổi trạng thái nhà cung cấp thất bại: dữ liệu trạng thái đã thay đổi, vui lòng tải lại danh sách.' });
+  const result = await apiMutation(
+    `/suppliers/${encodeURIComponent(id)}/status`,
+    {
+      method: 'PATCH',
+      headers: await serverAuthJsonHeaders(),
+      body: JSON.stringify({ status }),
+    },
+    action.successText,
+    `${action.title} thất bại`,
+  );
+  redirectWithResult(result.ok ? result : { ...result, message: supplierLifecycleBlockedText(result.message) });
+}
+
 async function deleteSupplier(formData: FormData) {
   'use server';
   const id = field(formData, 'id');
@@ -232,7 +290,7 @@ async function deleteSupplier(formData: FormData) {
     `Đã xóa ${name}.`,
     `Xóa ${name} thất bại`,
   );
-  redirectWithResult(result);
+  redirectWithResult(result.ok ? result : { ...result, message: supplierLifecycleBlockedText(result.message) });
 }
 
 function singleParam(value: string | string[] | undefined) {
@@ -368,6 +426,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                     <th>Email</th>
                     <th>Địa chỉ</th>
                     <th>Công nợ / ghi chú</th>
+                    <th>Trạng thái</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
@@ -397,6 +456,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                           {!canViewSupplierFinancialFields && !supplier.notes ? <span className="supplierDebtNote mutedText">Ghi chú tài chính đang được ẩn.</span> : null}
                         </div>
                       </td>
+                      <td><span className="statusPill">{supplierStatusLabel(supplier.status)}</span></td>
                       <td className="actionsCell">
                         <div className="rowActions">
                           {canManageSuppliers ? (
@@ -404,6 +464,14 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                           <a className="secondaryButton iconOnlyButton" href={`#${editSupplierModalId(supplier.id)}`} title="Sửa nhà cung cấp">
                             <Pencil size={14} />
                           </a>
+                          {(() => {
+                            const action = supplierLifecycleAction(supplier.name, supplier.status);
+                            return (
+                              <a className="secondaryButton iconOnlyButton" href={`#${lifecycleSupplierModalId(supplier.id)}`} title={action.title} aria-label={action.title}>
+                                <CheckCircle2 size={14} />
+                              </a>
+                            );
+                          })()}
                           <a className="dangerButton iconOnlyButton" href={`#${deleteSupplierModalId(supplier.id)}`} title="Xóa nhà cung cấp">
                             <Trash2 size={14} />
                           </a>
@@ -416,7 +484,7 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
                   ))}
                   {suppliers.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>Chưa có nhà cung cấp. Hãy tạo loại nhà cung cấp và nhà cung cấp đầu tiên.</td>
+                      <td colSpan={9}>Chưa có nhà cung cấp. Hãy tạo loại nhà cung cấp và nhà cung cấp đầu tiên.</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -458,6 +526,9 @@ export default async function SuppliersPage({ searchParams }: SuppliersPageProps
           submitLabel="Lưu thay đổi"
           canViewSupplierFinancialFields={canViewSupplierFinancialFields}
         />
+      ))}
+      {suppliers.map((supplier) => (
+        <LifecycleStatusModal key={`lifecycle-${supplier.id}`} supplier={supplier} />
       ))}
       {suppliers.map((supplier) => (
         <DeleteSupplierModal key={`delete-${supplier.id}`} supplier={supplier} />
@@ -656,6 +727,33 @@ function DeleteSupplierModal({ supplier }: { supplier: Supplier }) {
           <input type="hidden" name="name" value={supplier.name} />
           <a className="secondaryButton" href="/suppliers">Hủy</a>
           <button type="submit" className="dangerButton"><Trash2 size={14} /> Xóa nhà cung cấp</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LifecycleStatusModal({ supplier }: { supplier: Supplier }) {
+  const action = supplierLifecycleAction(supplier.name, supplier.status);
+  return (
+    <div id={lifecycleSupplierModalId(supplier.id)} className="hashModal">
+      <a className="hashModalBackdrop" href="/suppliers" aria-label="Đóng modal" />
+      <div className="hashModalPanel">
+        <div className="hashModalHeader">
+          <h2><AlertTriangle size={18} /> {action.title}</h2>
+          <a className="secondaryButton iconOnlyButton" href="/suppliers" aria-label="Đóng"><X size={14} /></a>
+        </div>
+        <div className="supplierDeleteWarning">
+          <strong>{supplier.name}</strong>
+          <p>{action.confirmText}</p>
+        </div>
+        <form action={updateSupplierStatus} className="modalActions">
+          <input type="hidden" name="id" value={supplier.id} />
+          <input type="hidden" name="name" value={supplier.name} />
+          <input type="hidden" name="currentStatus" value={supplier.status || ''} />
+          <input type="hidden" name="status" value={action.nextStatus} />
+          <a className="secondaryButton" href="/suppliers">Hủy</a>
+          <button type="submit" className={action.nextStatus === 'ACTIVE' ? 'secondaryButton' : 'dangerButton'}><CheckCircle2 size={14} /> {action.label}</button>
         </form>
       </div>
     </div>

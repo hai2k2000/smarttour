@@ -3834,3 +3834,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Supplier soft delete usage checks now run through the same transaction client after the Supplier row lock, avoiding stale relation checks before soft delete.
   - Updated scripts/test-business-logic-guard-contract.js and scripts/test-suppliers-common-contract.sh to guard tx-based supplier usage counting.
   - Verification on VPS passed: business logic guard, supplier common/typed/file/helper contracts, supplier generic and hotel API/service smokes, API build/lint, and git diff check before deploy restart.
+
+- 2026-07-17 Supplier lifecycle UI Phase 5:
+  - Added supplier lifecycle UI plan and RED/GREEN source contracts for shared lifecycle helpers, typed/hotel quick status actions, common supplier lifecycle modal, and blocked-operation guidance.
+  - Generic typed supplier lists now expose permission-gated activate/deactivate quick actions that confirm with the supplier name, call `/api/suppliers/:type/:id/status`, refresh the list, and show API conflict reasons with links-to-check guidance text.
+  - Hotel supplier list now exposes the same lifecycle quick action through `/api/suppliers/:id/status` and refreshes both the supplier list and allotment inventory after status changes so dependent inventory views do not go stale.
+  - Common `/suppliers` page keeps its server-rendered hash-modal pattern, adds a status column and lifecycle confirmation modal, and wraps delete/status block errors with guidance to check Orders, Operations, Finance, and supplier payment request references.
+  - Hotel list action-column CSS was tightened after Playwright caught overlap from the new lifecycle action; `SITE_URL=http://localhost:3001 bash scripts/test-suppliers-hotel-client-ui.sh` now passes against a temporary Next dev server.
+  - Worktree verification passed before deployment: supplier client contract, supplier UI permission contract, supplier controller/common/hotel contracts, hotel client UI script, and `npm run lint --workspace @smarttour/web`.

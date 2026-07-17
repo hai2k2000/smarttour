@@ -172,6 +172,39 @@ export const supplierLifecycleStatusOptions = supplierLifecycleStatuses.map((val
   label: supplierStatusLabels[value],
 }));
 
+export const supplierLifecycleGuidanceLinks = [
+  { href: '/orders', label: 'Đơn hàng' },
+  { href: '/operation', label: 'Điều hành' },
+  { href: '/finance/payments', label: 'Tài chính' },
+  { href: '/finance/supplier-payment-requests', label: 'Yêu cầu thanh toán' },
+] as const;
+
+export function nextSupplierLifecycleStatus(status: string): SupplierLifecycleStatus {
+  return status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+}
+
+export function supplierLifecycleAction(name: string, status: string, noun = 'nhà cung cấp') {
+  const nextStatus = nextSupplierLifecycleStatus(status);
+  const isReactivation = nextStatus === 'ACTIVE';
+  const label = isReactivation ? 'Kích hoạt lại' : 'Ngừng hoạt động';
+  const capitalizedNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return {
+    nextStatus,
+    label,
+    title: `${label} ${noun}`,
+    confirmText: isReactivation
+      ? `${label} "${name}"? ${capitalizedNoun} sẽ được mở lại để chọn trong vận hành mới.`
+      : `${label} "${name}"? ${capitalizedNoun} sẽ không còn được dùng cho lựa chọn mới; giao dịch lịch sử vẫn được giữ và hệ thống sẽ chặn nếu còn tham chiếu vận hành.`,
+    successText: isReactivation ? `Đã kích hoạt lại "${name}".` : `Đã ngừng hoạt động "${name}".`,
+  };
+}
+
+export function supplierLifecycleBlockedText(message: string) {
+  const detail = message.trim() || 'Không thực hiện được thao tác lifecycle nhà cung cấp.';
+  const modules = supplierLifecycleGuidanceLinks.map((link) => link.label).join(', ');
+  return `${detail} Có thể mở các module liên quan (${modules}) để gỡ tham chiếu trước khi thử lại.`;
+}
+
 export function supplierStatusLabel(status: string) {
   return supplierStatusLabels[status] || status;
 }

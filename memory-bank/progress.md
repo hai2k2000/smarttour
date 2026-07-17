@@ -3295,3 +3295,11 @@
   - Supplier soft delete now locks the Supplier row and counts all related usage through the transaction client before marking the supplier INACTIVE/deleted.
   - This prevents stale delete eligibility checks from using a root Prisma client outside the delete transaction.
   - Verification passed: node scripts/test-business-logic-guard-contract.js, supplier common/typed/file/helper contracts, scripts/test-suppliers-generic.sh, scripts/test-suppliers-hotel.sh, API build/lint, and git diff check.
+
+- 2026-07-17 Completed supplier lifecycle UI Phase 5:
+  - Supplier lifecycle actions are now visible only behind existing supplier manage permissions across typed, hotel, and common supplier screens.
+  - Typed and hotel supplier lists now provide quick activate/deactivate actions with supplier-specific confirmation text, existing soft-delete/status endpoints, refreshed lists, and blocked-operation messages that keep the API reason while guiding users to related operational modules.
+  - Hotel lifecycle status changes also refresh allotment inventory to keep dependent stock views current after deactivate/reactivate.
+  - Common `/suppliers` now has a lifecycle status column and hash-modal confirmation flow for activate/deactivate, preserving the server-rendered page pattern and soft-delete behavior.
+  - Hotel list action-column spacing was tightened after the hotel client UI script caught lifecycle-action overlap in the compact table.
+  - Verification passed in the Phase 5 worktree: `bash scripts/test-suppliers-client-contract.sh`, `node scripts/test-supplier-ui-permission-contract.js`, `bash scripts/test-suppliers-controller-contract.sh`, `bash scripts/test-suppliers-common-contract.sh`, `bash scripts/test-suppliers-hotel-contract.sh`, `SITE_URL=http://localhost:3001 bash scripts/test-suppliers-hotel-client-ui.sh`, and `npm run lint --workspace @smarttour/web`.

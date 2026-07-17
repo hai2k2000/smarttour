@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { BedDouble, CheckCircle2, FileUp, LockKeyhole, Pencil, Plus, RefreshCcw, Save, Search, Settings2, Trash2, Undo2, X } from 'lucide-react';
+import { Ban, BedDouble, CheckCircle2, FileUp, LockKeyhole, Pencil, Plus, RefreshCcw, Save, Search, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { FieldArrayWithId, FieldErrors, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,6 +15,8 @@ import {
   dayTypeLabel,
   supplierLifecycleStatusOptions,
   supplierLifecycleStatuses,
+  supplierLifecycleAction,
+  supplierLifecycleBlockedText,
   supplierApi,
   syncSupplierAllotments,
   syncSupplierContacts,
@@ -413,8 +415,7 @@ function contactPayloadRows(contacts: HotelForm['contacts']) {
 }
 
 function servicePayloadRows(services: HotelForm['services']) {
-  return services
-    .filter(hasServiceRowData)
+  return services.filter(hasServiceRowData)
     .map((item) => ({
       id: item.id,
       sku: item.sku.trim(),
@@ -431,8 +432,7 @@ function servicePayloadRows(services: HotelForm['services']) {
 }
 
 function allotmentPayloadRows(allotments: HotelForm['allotments']) {
-  return allotments
-    .filter(hasAllotmentRowData)
+  return allotments.filter(hasAllotmentRowData)
     .map((item) => ({
       id: item.id,
       serviceId: item.serviceId || null,
@@ -700,13 +700,19 @@ export default function HotelSuppliersClient({
       helper.display({
         id: 'actions',
         header: 'Thao tác',
-        cell: ({ row }) => (
-          <div className="rowActions">
-            <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa" aria-label="Sửa khách sạn"><Pencil size={15} /> Sửa</button>
-            <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void openAllotments(row.original)} title="Quỹ phòng" aria-label="Quản lý quỹ phòng"><BedDouble size={15} /> Quỹ phòng</button>
-            <button type="button" className="dangerButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa" aria-label="Xóa nhà cung cấp"><Trash2 size={15} /> Xóa</button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const action = supplierLifecycleAction(row.original.name, row.original.status, 'nhà cung cấp khách sạn');
+          return (
+            <div className="rowActions">
+              <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void startEdit(row.original)} title="Sửa" aria-label="Sửa khách sạn"><Pencil size={15} /> Sửa</button>
+              <button type="button" className="secondaryButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void openAllotments(row.original)} title="Quỹ phòng" aria-label="Quản lý quỹ phòng"><BedDouble size={15} /> Quỹ phòng</button>
+              <button type="button" className="secondaryButton iconButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void changeSupplierLifecycleStatus(row.original)} title={action.title} aria-label={action.title}>
+                {action.nextStatus === 'ACTIVE' ? <RefreshCcw size={15} /> : <Ban size={15} />}
+              </button>
+              <button type="button" className="dangerButton iconTextButton compactActionButton" disabled={!canManage || Boolean(busyAction)} onClick={() => void deleteSupplier(row.original)} title="Xóa" aria-label="Xóa nhà cung cấp"><Trash2 size={15} /> Xóa</button>
+            </div>
+          );
+        },
       }),
     ];
   }, [busyAction, canManage]);
@@ -800,7 +806,7 @@ export default function HotelSuppliersClient({
     setNotice(null);
     const collectionDirtyFields = dirtyFields as DirtyCollections;
     const childPayload = hotelChildPayload(values, collectionDirtyFields);
-    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', collectionDirtyFields, canViewSupplierFinancialFields);
+    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections, canViewSupplierFinancialFields);
     let saved: HotelSupplier;
     try {
       saved = await supplierApi<HotelSupplier>(
@@ -879,6 +885,27 @@ export default function HotelSuppliersClient({
       setNotice({ type: 'success', text: `Đã xóa nhà cung cấp khách sạn "${hotel.name}".` });
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không xóa được nhà cung cấp khách sạn.') });
+    } finally {
+      setBusyAction('');
+    }
+  }
+
+  async function changeSupplierLifecycleStatus(hotel: HotelSupplier) {
+    const action = supplierLifecycleAction(hotel.name, hotel.status, 'nhà cung cấp khách sạn');
+    if (!window.confirm(action.confirmText)) return;
+    setBusyAction(`${action.nextStatus === 'ACTIVE' ? 'activate' : 'deactivate'}:${hotel.id}`);
+    setNotice(null);
+    try {
+      await supplierApi(
+        `/api/suppliers/${hotel.id}/status`,
+        { method: 'PATCH', body: JSON.stringify({ status: action.nextStatus }) },
+        action.title,
+      );
+      await load(filters);
+      await loadInventory(inventoryFilters);
+      setNotice({ type: 'success', text: action.successText });
+    } catch (error) {
+      setNotice({ type: 'error', text: supplierLifecycleBlockedText(errorText(error, `${action.title} thất bại.`)) });
     } finally {
       setBusyAction('');
     }

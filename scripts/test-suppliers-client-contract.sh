@@ -93,6 +93,7 @@ assert '/suppliers/${encodeURIComponent(id)}/status' in supplier_page, 'common s
 assert 'LifecycleStatusModal' in supplier_page, 'common supplier lifecycle action must require modal confirmation'
 assert 'supplierLifecycleBlockedText(result.message)' in supplier_page, 'common supplier delete/status block errors must include guidance'
 assert 'supplierLifecycleAction(supplier.name, supplier.status' in supplier_page, 'common supplier lifecycle action must show supplier-specific action copy'
+assert 'status !== action.nextStatus' in supplier_page, 'common supplier lifecycle server action must reject stale or tampered status submissions'
 assert 'updateCategory(formData' in supplier_page
 assert 'editCategoryModalId' in supplier_page
 

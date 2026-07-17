@@ -2061,6 +2061,12 @@ label { min-width: 0; }
   padding-inline: 9px;
   white-space: nowrap;
 }
+.hotelSupplierPage .hotelListTable .rowActions {
+  gap: 4px;
+}
+.hotelSupplierPage .hotelListTable .compactActionButton {
+  padding-inline: 7px;
+}
 .hotelSupplierPage .rowActions {
   flex-wrap: wrap;
 }
