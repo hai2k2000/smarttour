@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, FinancePaymentMethod, OperationStatus, OrderStatus, Prisma, SupplierPaymentStatus, TourStatus, TourType } from '@prisma/client';
+import { BookingStatus, FinancePaymentMethod, OperationStatus, OrderStatus, Prisma, SupplierPaymentStatus, SupplierStatus, TourStatus, TourType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { hasUnrestrictedDataScope, RequestUser, userPermissions } from '../auth/data-scope';
@@ -255,10 +255,10 @@ export class OperationsService {
       throw new BadRequestException('Phiếu điều hành phải được tạo ở trạng thái chờ xử lý; dùng action endpoint để cập nhật trạng thái');
     }
     const bookingId = this.requiredText(dto.bookingId, 'Cần chọn booking để tạo phiếu điều hành');
-    await this.validateFormPayload(dto, 'create');
     try {
       return await this.prisma.$transaction(async (tx) => {
         const lockedBooking = await this.lockBookingForOperationForm(tx, bookingId, user);
+        await this.validateFormPayload(dto, 'create', tx);
         const links = await this.resolveBookingOrderTour({ bookingId, orderId: this.text(dto.orderId), tourId: this.text(dto.tourId) }, tx, lockedBooking);
         await this.ensureLinksScoped({ bookingId, orderId: links.orderId, tourId: links.tourId }, user, tx);
         const form = await tx.operationForm.create({
@@ -283,10 +283,10 @@ export class OperationsService {
   async updateForm(id: string, dto: AnyRecord = {}, user?: RequestUser) {
     const actor = this.userActor(user, dto.actor);
     if (dto.status !== undefined) throw new BadRequestException('D\u00f9ng action endpoint \u0111\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i phi\u1ebfu \u0111i\u1ec1u h\u00e0nh');
-    await this.validateFormPayload(dto, 'update');
     return this.prisma.$transaction(async (tx) => {
       const current = await this.lockOperationFormForWrite(tx, id, user);
       this.assertFormEditable(current, 'update');
+      await this.validateFormPayload(dto, 'update', tx);
       const bookingId = this.text(dto.bookingId) ?? current.bookingId;
       const lockedBooking = dto.bookingId !== undefined ? await this.lockBookingForOperationForm(tx, bookingId, user) : undefined;
       const links = await this.resolveBookingOrderTour({
@@ -757,7 +757,7 @@ export class OperationsService {
     return { orderId, tourId };
   }
 
-  private async validateFormPayload(dto: AnyRecord, mode: FormWriteMode) {
+  private async validateFormPayload(dto: AnyRecord, mode: FormWriteMode, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     const childLabels = { services: 'dòng dịch vụ điều hành', tasks: 'công việc điều hành', costs: 'dòng chi phí điều hành' } satisfies Record<'services' | 'tasks' | 'costs', string>;
     const validateChild = async <T>(key: 'services' | 'tasks' | 'costs', rows: T[], validate?: (rows: T[]) => Promise<void>) => {
       if (mode === 'create' || dto[key] !== undefined) {
@@ -765,29 +765,54 @@ export class OperationsService {
         if (validate) await validate(rows);
       }
     };
-    await validateChild('services', this.formServices(dto), (rows) => this.validateFormServices(rows));
+    await validateChild('services', this.formServices(dto), (rows) => this.validateFormServices(rows, client));
     await validateChild('tasks', this.formTasks(dto));
     await validateChild('costs', this.formCosts(dto));
   }
 
-  private async validateFormServices(services: ParsedOperationService[]) {
+  private async validateFormServices(services: ParsedOperationService[], client: Prisma.TransactionClient | PrismaService = this.prisma) {
     const supplierIds = Array.from(new Set(services.map((item) => item.supplierId)));
     const serviceIds = Array.from(new Set(services.map((item) => item.supplierServiceId)));
     const itineraryDayIds = Array.from(new Set(services.map((item) => item.itineraryDayId).filter((id): id is string => Boolean(id))));
     const [suppliers, supplierServices, itineraryDays] = await Promise.all([
-      this.prisma.supplier.findMany({ where: { id: { in: supplierIds }, deletedAt: null }, select: { id: true } }),
-      this.prisma.supplierService.findMany({ where: { id: { in: serviceIds }, deletedAt: null }, select: { id: true, supplierId: true } }),
-      itineraryDayIds.length ? this.prisma.tourItineraryDay.findMany({ where: { id: { in: itineraryDayIds } }, select: { id: true } }) : Promise.resolve([]),
+      this.lockOperationServiceSuppliers(client, supplierIds),
+      this.lockOperationSupplierServices(client, serviceIds),
+      itineraryDayIds.length ? client.tourItineraryDay.findMany({ where: { id: { in: itineraryDayIds } }, select: { id: true } }) : Promise.resolve([]),
     ]);
-    if (suppliers.length !== supplierIds.length) throw new NotFoundException('Không tìm thấy nhà cung cấp');
-    if (supplierServices.length !== serviceIds.length) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
+    const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+    for (const supplierId of supplierIds) {
+      const supplier = supplierById.get(supplierId);
+      if (!supplier || supplier.deletedAt) throw new NotFoundException('Không tìm thấy nhà cung cấp');
+      if (supplier.status !== SupplierStatus.ACTIVE) throw new BadRequestException('Nhà cung cấp đã ngừng hoạt động');
+    }
     if (itineraryDays.length !== itineraryDayIds.length) throw new NotFoundException('Không tìm thấy ngày hành trình');
     const serviceById = new Map(supplierServices.map((item) => [item.id, item]));
-    for (const service of services) {
-      if (serviceById.get(service.supplierServiceId)?.supplierId !== service.supplierId) {
+    for (const item of services) {
+      const service = serviceById.get(item.supplierServiceId);
+      if (!service || service.deletedAt) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
+      if (service.status !== 'ACTIVE') throw new BadRequestException('Dịch vụ nhà cung cấp đã ngừng hoạt động');
+      if (service.supplierId !== item.supplierId) {
         throw new BadRequestException('D\u1ecbch v\u1ee5 nh\u00e0 cung c\u1ea5p kh\u00f4ng thu\u1ed9c nh\u00e0 cung c\u1ea5p \u0111\u00e3 ch\u1ecdn');
       }
     }
+  }
+
+  private async lockOperationServiceSuppliers(client: Prisma.TransactionClient | PrismaService, supplierIds: string[]) {
+    if (!supplierIds.length) return [];
+    const placeholders = supplierIds.map((_, index) => `$${index + 1}`).join(', ');
+    return client.$queryRawUnsafe<Array<{ id: string; status: SupplierStatus; deletedAt: Date | null }>>(
+      `SELECT "id", "status", "deletedAt" FROM "Supplier" WHERE "id" IN (${placeholders}) FOR UPDATE`,
+      ...supplierIds,
+    );
+  }
+
+  private async lockOperationSupplierServices(client: Prisma.TransactionClient | PrismaService, serviceIds: string[]) {
+    if (!serviceIds.length) return [];
+    const placeholders = serviceIds.map((_, index) => `$${index + 1}`).join(', ');
+    return client.$queryRawUnsafe<Array<{ id: string; supplierId: string; status: string; deletedAt: Date | null }>>(
+      `SELECT "id", "supplierId", "status", "deletedAt" FROM "SupplierService" WHERE "id" IN (${placeholders}) FOR UPDATE`,
+      ...serviceIds,
+    );
   }
 
   private async ensureFormCostServiceLinks(formId: string, dto: AnyRecord, client: Prisma.TransactionClient | PrismaService = this.prisma) {
