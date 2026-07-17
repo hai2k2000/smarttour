@@ -160,13 +160,19 @@ export class SupplierServiceInputDto {
 
 export class UpdateSupplierServiceInputDto extends PartialType(SupplierServiceInputDto) {}
 
-class SupplierAllotmentInputDto {
+export class SupplierAllotmentInputDto {
   @ApiPropertyOptional({ description: 'Mã nội bộ của hạng phòng hoặc gói quỹ phòng khách sạn' })
   @IsOptional()
   @Transform(trimOptional)
   @IsString({ message: 'Mã quỹ phòng phải là chuỗi ký tự' })
   @MaxLength(80, { message: 'Mã quỹ phòng không được vượt quá 80 ký tự' })
   sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trimOptional)
+  @IsUUID('4', { message: 'Mã dịch vụ nhà cung cấp không hợp lệ' })
+  serviceId?: string;
 
   @ApiProperty({ description: 'Tên hạng phòng hoặc gói quỹ phòng của khách sạn, ví dụ Deluxe Twin hoặc Superior Sea View' })
   @Transform(trimRequired)
@@ -266,6 +272,8 @@ class SupplierAllotmentInputDto {
   @IsIn(SUPPLIER_ALLOTMENT_STATUSES, { message: 'Trạng thái quỹ phòng không hợp lệ' })
   status?: SupplierAllotmentStatus;
 }
+
+export class UpdateSupplierAllotmentInputDto extends PartialType(SupplierAllotmentInputDto) {}
 
 export class CreateHotelSupplierDto {
   @ApiProperty()

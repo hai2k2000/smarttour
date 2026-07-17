@@ -20,6 +20,14 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier allotment child-row APIs Phase 4 slice:
+  - Added dedicated hotel allotment child APIs under Supplier: `GET/POST /suppliers/:id/allotments` and `PUT/DELETE /suppliers/:id/allotments/:allotmentId`, declared before the dynamic typed supplier routes.
+  - Create/update reuse `normalizeHotelAllotments`, support optional `serviceId` linking to an active same-supplier hotel service, and check persisted sibling date/day overlap.
+  - Writes lock the parent hotel supplier; update/delete lock the target allotment row with `FOR UPDATE` and reject rows with active `LOCKED` or `CONFIRMED` allocations.
+  - Review remediation masks nested `inventory.supplier` financial fields in allotment inventory responses, fixes new Vietnamese messages, scopes DTO source-contract assertions to `SupplierAllotmentInputDto`, and avoids stale allotment reads in the operational lock flow after child-row edits.
+  - Existing operational hotel allotment dashboard/inventory/override/lock/confirm/release endpoints remain the allocation workflow; remaining Supplier work is UI migration to child-row APIs, lifecycle/manual validation, and deeper import scope for typed/hotel children.
+  - Verification passed for the allotment child-row contract, supplier controller/hotel/typed/sensitive contracts, API build/lint, diff check, and focused code review remediation.
+
 - Supplier child-row APIs Phase 4 first slice:
   - Added dedicated Supplier contact CRUD endpoints: `GET/POST /suppliers/:id/contacts` and `PUT/DELETE /suppliers/:id/contacts/:contactId`, with read routes under `supplier.view` and write routes requiring `supplier.manage`.
   - Added dedicated Supplier service CRUD endpoints: `GET/POST /suppliers/:id/services` and `PUT/DELETE /suppliers/:id/services/:serviceId`, reusing existing generic/hotel service normalization and preserving service soft-delete semantics.

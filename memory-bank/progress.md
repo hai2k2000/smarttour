@@ -1,5 +1,14 @@
 # Progress
 
+- Completed Supplier allotment child-row APIs Phase 4 slice:
+  - Added dedicated hotel allotment CRUD APIs under Supplier: `GET/POST /suppliers/:id/allotments` and `PUT/DELETE /suppliers/:id/allotments/:allotmentId`.
+  - Read routes inherit `supplier.view`; write routes require `supplier.manage` and stay before dynamic typed supplier route dispatch.
+  - Create/update reuse existing hotel allotment normalization, support optional trimmed `serviceId` linking, validate the linked service is active and owned by the same hotel supplier, and reject persisted sibling overlaps by SKU/name, date range, and day type.
+  - Update/delete lock the parent Supplier row, ensure the parent is a hotel supplier, lock the target allotment row with `FOR UPDATE`, and reject changes while `LOCKED` or `CONFIRMED` allocations exist.
+  - Parent hotel create/update nested allotment payloads remain compatible; when `serviceId` is supplied there, it is validated before full-snapshot replacement.
+  - Review remediation masks nested supplier financial fields in allotment inventory responses, fixes new localized messages, hardens the DTO/source contracts, and re-reads allotment rows after parent locking in the operational lock flow to avoid stale child-row reads.
+  - Verification passed: API build/lint, node scripts/test-suppliers-child-row-apis-contract.js, bash scripts/test-suppliers-controller-contract.sh, bash scripts/test-suppliers-hotel-contract.sh, bash scripts/test-suppliers-typed-contract.sh, node scripts/test-suppliers-sensitive-fields-contract.js, and git diff check.
+
 - Completed Supplier child-row APIs Phase 4 first slice:
   - Added dedicated contact CRUD APIs under Supplier: `GET/POST /suppliers/:id/contacts` and `PUT/DELETE /suppliers/:id/contacts/:contactId`.
   - Added dedicated service CRUD APIs under Supplier: `GET/POST /suppliers/:id/services` and `PUT/DELETE /suppliers/:id/services/:serviceId`.

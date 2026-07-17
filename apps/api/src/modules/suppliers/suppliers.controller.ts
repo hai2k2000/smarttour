@@ -10,7 +10,7 @@ import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, SupplierChildServiceInputDto, SupplierContactInputDto, UpdateGenericSupplierDto, UpdateSupplierChildServiceInputDto, UpdateSupplierContactDto } from './dto/generic-supplier.dto';
-import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
+import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, SupplierAllotmentInputDto, UpdateHotelSupplierDto, UpdateSupplierAllotmentInputDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -226,6 +226,29 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   deleteSupplierService(@Param('id') id: string, @Param('serviceId') serviceId: string, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.deleteSupplierService(id, serviceId, request.user);
+  }
+
+  @Get(':id/allotments')
+  listSupplierAllotments(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listSupplierAllotments(id, request.user);
+  }
+
+  @Post(':id/allotments')
+  @RequirePermissions('supplier.manage')
+  createSupplierAllotment(@Param('id') id: string, @Body() dto: SupplierAllotmentInputDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createSupplierAllotment(id, dto, request.user);
+  }
+
+  @Put(':id/allotments/:allotmentId')
+  @RequirePermissions('supplier.manage')
+  updateSupplierAllotment(@Param('id') id: string, @Param('allotmentId') allotmentId: string, @Body() dto: UpdateSupplierAllotmentInputDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateSupplierAllotment(id, allotmentId, dto, request.user);
+  }
+
+  @Delete(':id/allotments/:allotmentId')
+  @RequirePermissions('supplier.manage')
+  deleteSupplierAllotment(@Param('id') id: string, @Param('allotmentId') allotmentId: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteSupplierAllotment(id, allotmentId, request.user);
   }
 
   @Get(':type/export')

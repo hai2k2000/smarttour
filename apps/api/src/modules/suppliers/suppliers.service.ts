@@ -8,7 +8,7 @@ import { containsSearch, InsensitiveContains, normalizeListSearch } from '../lis
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateGenericSupplierDto, SupplierChildServiceInputDto, SupplierContactInputDto, UpdateGenericSupplierDto, UpdateSupplierChildServiceInputDto, UpdateSupplierContactDto } from './dto/generic-supplier.dto';
-import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
+import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, SupplierAllotmentInputDto, UpdateHotelSupplierDto, UpdateSupplierAllotmentInputDto } from './dto/hotel-supplier.dto';
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -114,6 +114,15 @@ type SupplierFinanceSummary = {
     operationVouchers: Array<Record<string, unknown>>;
     supplierPaymentRequests: Array<Record<string, unknown>>;
   };
+};
+
+type NormalizedSupplierAllotmentInput = Omit<Prisma.SupplierAllotmentCreateManyInput, 'supplierId'> & {
+  sku: string | null;
+  serviceId: string | null;
+  serviceName: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  dayType: SupplierDayType;
 };
 
 @Injectable()
@@ -483,6 +492,55 @@ export class SuppliersService {
       await tx.supplierService.update({ where: { id: serviceId }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
       return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
     }), user);
+  }
+
+  async listSupplierAllotments(id: string, user?: RequestUser) {
+    const supplier = await this.getHotelSupplier(id, user);
+    return supplier.allotments;
+  }
+
+  async createSupplierAllotment(supplierId: string, dto: SupplierAllotmentInputDto, user?: RequestUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierForAllotmentWrite(tx, supplierId);
+      await this.ensureHotelSupplierForChildWrite(tx, supplierId);
+      const [allotment] = this.normalizeHotelAllotments([dto]);
+      await this.ensureAllotmentServiceBelongsToSupplier(tx, supplierId, allotment.serviceId);
+      await this.ensureNoOverlappingAllotmentsForSupplier(tx, supplierId, allotment);
+      const created = await tx.supplierAllotment.create({
+        data: { supplierId, ...allotment },
+        select: { id: true },
+      });
+      return this.allotmentInventoryById(tx, created.id, user);
+    });
+  }
+
+  async updateSupplierAllotment(supplierId: string, allotmentId: string, dto: UpdateSupplierAllotmentInputDto, user?: RequestUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierForAllotmentWrite(tx, supplierId);
+      await this.ensureHotelSupplierForChildWrite(tx, supplierId);
+      const current = await this.lockSupplierAllotmentForWrite(tx, supplierId, allotmentId);
+      await this.ensureAllotmentHasNoActiveAllocations(tx, allotmentId);
+      const [allotment] = this.normalizeHotelAllotments([this.mergeSupplierAllotmentRow(dto, current)]);
+      await this.ensureAllotmentServiceBelongsToSupplier(tx, supplierId, allotment.serviceId);
+      await this.ensureNoOverlappingAllotmentsForSupplier(tx, supplierId, allotment, allotmentId);
+      const updated = await tx.supplierAllotment.update({
+        where: { id: allotmentId },
+        data: allotment,
+        select: { id: true },
+      });
+      return this.allotmentInventoryById(tx, updated.id, user);
+    });
+  }
+
+  async deleteSupplierAllotment(supplierId: string, allotmentId: string, user?: RequestUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockSupplierForAllotmentWrite(tx, supplierId);
+      await this.ensureHotelSupplierForChildWrite(tx, supplierId);
+      await this.lockSupplierAllotmentForWrite(tx, supplierId, allotmentId);
+      await this.ensureAllotmentHasNoActiveAllocations(tx, allotmentId);
+      await tx.supplierAllotment.delete({ where: { id: allotmentId } });
+      return { id: allotmentId, deleted: true };
+    });
   }
 
   async listSupplierFinanceSummaries(ids: string[] = [], user?: RequestUser): Promise<SupplierFinanceSummary[]> {
@@ -1234,7 +1292,7 @@ export class SuppliersService {
       },
       orderBy: [{ startDate: 'asc' }, { updatedAt: 'desc' }],
     });
-    return allotments.map((item) => this.toAllotmentInventory(item, today));
+    return allotments.map((item) => this.maskAllotmentInventorySupplier(this.toAllotmentInventory(item, today), user));
   }
 
   async overrideAllotment(id: string, dto: OverrideAllotmentDto, user?: RequestUser) {
@@ -1311,9 +1369,11 @@ export class SuppliersService {
     const actor = this.requiredText(this.actorFrom(dto.actor, user) || undefined, 'Không xác định được người thực hiện');
     await this.ensureAllocationLinks(dto, user);
     return this.prisma.$transaction(async (tx) => {
+      const allotmentPointer = await tx.supplierAllotment.findUnique({ where: { id }, select: { supplierId: true } });
+      if (!allotmentPointer) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+      await this.lockSupplierForAllotmentWrite(tx, allotmentPointer.supplierId);
       const current = await tx.supplierAllotment.findUnique({ where: { id } });
       if (!current) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
-      await this.lockSupplierForAllotmentWrite(tx, current.supplierId);
       if (current.status !== 'ACTIVE') throw new BadRequestException('Quỹ phòng chưa ở trạng thái hoạt động');
       const today = this.startOfUtcDay(new Date());
       if (current.endDate && current.endDate < today) {
@@ -1687,6 +1747,9 @@ export class SuppliersService {
       if (activeAllocations > 0) {
         throw new ConflictException('Không thể thay toàn bộ quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
       }
+      for (const allotment of allotments) {
+        await this.ensureAllotmentServiceBelongsToSupplier(tx, supplierId, allotment.serviceId);
+      }
       await tx.supplierAllotment.deleteMany({ where: { supplierId } });
       if (allotments.length) {
         await tx.supplierAllotment.createMany({
@@ -1722,6 +1785,90 @@ export class SuppliersService {
       throw new BadRequestException('Nhà cung cấp khách sạn đang ngừng hoạt động');
     }
     return supplier;
+  }
+
+  private async ensureHotelSupplierForChildWrite(tx: Prisma.TransactionClient, supplierId: string) {
+    const hotel = await tx.hotelSupplier.findUnique({
+      where: { supplierId },
+      select: { id: true },
+    });
+    if (!hotel) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
+  }
+
+  private async lockSupplierAllotmentForWrite(tx: Prisma.TransactionClient, supplierId: string, allotmentId: string) {
+    const rows = await tx.$queryRaw<Array<{
+      id: string;
+      supplierId: string;
+      serviceId: string | null;
+      sku: string | null;
+      serviceName: string;
+      startDate: Date | null;
+      endDate: Date | null;
+      dayType: SupplierDayType;
+      allotmentQty: number;
+      bookedQty: number;
+      lockedQty: number;
+      quantityLock: number;
+      cutoffDays: number;
+      netCostPerDay: unknown;
+      sellingPricePerDay: unknown;
+      status: string;
+      description: string | null;
+      note: string | null;
+    }>>(Prisma.sql`
+      SELECT id, "supplierId", "serviceId", sku, "serviceName", "startDate", "endDate", "dayType",
+        "allotmentQty", "bookedQty", "lockedQty", "quantityLock", "cutoffDays",
+        "netCostPerDay", "sellingPricePerDay", status, description, note
+      FROM "SupplierAllotment"
+      WHERE id = ${allotmentId}
+      FOR UPDATE
+    `);
+    const allotment = rows[0];
+    if (!allotment || allotment.supplierId !== supplierId) throw new NotFoundException(SUPPLIER_ERRORS.allotmentNotFound);
+    return allotment;
+  }
+
+  private async ensureAllotmentHasNoActiveAllocations(tx: Prisma.TransactionClient, allotmentId: string) {
+    const activeAllocations = await tx.supplierAllotmentAllocation.count({
+      where: { allotmentId, status: { in: ['LOCKED', 'CONFIRMED'] } },
+    });
+    if (activeAllocations > 0) {
+      throw new ConflictException('Không thể sửa hoặc xóa quỹ phòng khi còn phân bổ đang khóa hoặc đã xác nhận');
+    }
+  }
+
+  private async ensureAllotmentServiceBelongsToSupplier(tx: Prisma.TransactionClient, supplierId: string, serviceId?: string | null) {
+    if (!serviceId) return;
+    const service = await tx.supplierService.findFirst({
+      where: { id: serviceId, supplierId, deletedAt: null, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!service) throw new BadRequestException('Dịch vụ quỹ phòng không thuộc nhà cung cấp khách sạn hoặc đã ngừng hoạt động');
+  }
+
+  private async ensureNoOverlappingAllotmentsForSupplier(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    allotment: NormalizedSupplierAllotmentInput,
+    excludedAllotmentId?: string,
+  ) {
+    const candidates = await tx.supplierAllotment.findMany({
+      where: {
+        supplierId,
+        ...(excludedAllotmentId ? { id: { not: excludedAllotmentId } } : {}),
+      },
+      select: { id: true, sku: true, serviceName: true, startDate: true, endDate: true, dayType: true },
+    });
+    const allotmentKey = allotment.sku ? `sku:${String(allotment.sku).toUpperCase()}` : `name:${this.categoryNameKey(allotment.serviceName)}`;
+    for (const candidate of candidates) {
+      const candidateKey = candidate.sku ? `sku:${candidate.sku.toUpperCase()}` : `name:${this.categoryNameKey(candidate.serviceName)}`;
+      if (allotmentKey !== candidateKey || !this.dayTypesOverlap(allotment.dayType as SupplierDayType, candidate.dayType)) continue;
+      const datesOverlap = (!allotment.endDate || !candidate.startDate || allotment.endDate >= candidate.startDate)
+        && (!candidate.endDate || !allotment.startDate || candidate.endDate >= allotment.startDate);
+      if (datesOverlap) {
+        throw new BadRequestException('Khoảng ngày quỹ phòng bị chồng với quỹ phòng đang tồn tại');
+      }
+    }
   }
 
   private async ensureHotelSupplierCanDeactivate(tx: Prisma.TransactionClient, supplierId: string) {
@@ -1784,6 +1931,47 @@ export class SuppliersService {
       description: this.childValue(dto, 'description', current.description ?? undefined),
       note: this.childValue(dto, 'note', current.note ?? undefined),
       metadata: this.childValue(dto, 'metadata', currentMetadata),
+    };
+  }
+
+  private mergeSupplierAllotmentRow(
+    dto: UpdateSupplierAllotmentInputDto,
+    current: {
+      sku: string | null;
+      serviceId: string | null;
+      serviceName: string;
+      startDate: Date | null;
+      endDate: Date | null;
+      dayType: SupplierDayType;
+      allotmentQty: number;
+      bookedQty: number;
+      lockedQty: number;
+      quantityLock: number;
+      cutoffDays: number;
+      netCostPerDay: unknown;
+      sellingPricePerDay: unknown;
+      status: string;
+      description: string | null;
+      note: string | null;
+    },
+  ): SupplierAllotmentInputDto {
+    return {
+      sku: this.childValue(dto, 'sku', current.sku ?? undefined),
+      serviceId: this.childValue(dto, 'serviceId', current.serviceId ?? undefined),
+      serviceName: this.childValue(dto, 'serviceName', current.serviceName),
+      startDate: this.childValue(dto, 'startDate', this.dateOnlyString(current.startDate)),
+      endDate: this.childValue(dto, 'endDate', this.dateOnlyString(current.endDate)),
+      dayType: this.childValue(dto, 'dayType', current.dayType),
+      allotmentQty: this.childValue(dto, 'allotmentQty', current.allotmentQty),
+      bookedQty: this.childValue(dto, 'bookedQty', current.bookedQty),
+      lockedQty: this.childValue(dto, 'lockedQty', current.lockedQty),
+      quantityLock: this.childValue(dto, 'quantityLock', current.quantityLock),
+      cutoffDays: this.childValue(dto, 'cutoffDays', current.cutoffDays),
+      netCostPerDay: this.childValue(dto, 'netCostPerDay', this.financeAmount(current.netCostPerDay)),
+      sellingPricePerDay: this.childValue(dto, 'sellingPricePerDay', this.financeAmount(current.sellingPricePerDay)),
+      status: this.childValue(dto, 'status', this.toAllotmentStatus(current.status)),
+      description: this.childValue(dto, 'description', current.description ?? undefined),
+      note: this.childValue(dto, 'note', current.note ?? undefined),
     };
   }
 
@@ -1962,6 +2150,7 @@ export class SuppliersService {
   private normalizeHotelAllotments(
     items: Array<{
       sku?: string;
+      serviceId?: string;
       serviceName?: string;
       startDate?: string;
       endDate?: string;
@@ -1977,7 +2166,7 @@ export class SuppliersService {
       description?: string;
       note?: string;
     }>,
-  ): Array<Omit<Prisma.SupplierAllotmentCreateManyInput, 'supplierId'>> {
+  ): NormalizedSupplierAllotmentInput[] {
     const allotments = items.map((item, index) => {
       const row = `dòng quỹ phòng ${index + 1}`;
       const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'quỹ phòng');
@@ -1995,6 +2184,7 @@ export class SuppliersService {
       }
       return {
         sku: this.optionalSku(item.sku, `Mã quỹ phòng ${row}`),
+        serviceId: this.optionalText(item.serviceId, 'Mã dịch vụ nhà cung cấp'),
         serviceName: this.requiredAllotmentName(item.serviceName, row),
         startDate,
         endDate,
@@ -2079,6 +2269,13 @@ export class SuppliersService {
     };
   }
 
+  private maskAllotmentInventorySupplier<T extends { supplier: unknown }>(inventory: T, user?: RequestUser): T {
+    return {
+      ...inventory,
+      supplier: maskSupplierFinancialFields(inventory.supplier, user),
+    };
+  }
+
   private allotmentMetrics(item: { allotmentQty: number; quantityLock?: number | null; bookedQty: number; lockedQty?: number | null }) {
     const allotmentQty = item.allotmentQty ?? 0;
     const bookedQty = item.bookedQty || 0;
@@ -2117,7 +2314,7 @@ export class SuppliersService {
         allocations: { where: this.allotmentAllocationScopeWhere({}, user), orderBy: { createdAt: 'desc' } },
       },
     });
-    return this.toAllotmentInventory(item, new Date());
+    return this.maskAllotmentInventorySupplier(this.toAllotmentInventory(item, new Date()), user);
   }
 
   private genericInclude() {

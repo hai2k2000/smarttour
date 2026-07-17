@@ -78,6 +78,36 @@ function fakePrisma(calls = []) {
       findUnique: async () => supplierRow(),
       findFirst: async () => supplierRow(),
     },
+    supplierAllotment: {
+      findMany: async (args = {}) => {
+        calls.push(args);
+        return [{
+          id: 'allotment-sensitive-row',
+          supplierId: 'supplier-sensitive-row',
+          supplier: supplierRow(),
+          serviceId: null,
+          sku: 'ROOM-SENSITIVE',
+          serviceName: 'Sensitive Room',
+          startDate: null,
+          endDate: null,
+          dayType: 'ALL_DAYS',
+          allotmentQty: 2,
+          bookedQty: 0,
+          lockedQty: 0,
+          quantityLock: 0,
+          cutoffDays: 0,
+          netCostPerDay: 0,
+          sellingPricePerDay: 0,
+          status: 'ACTIVE',
+          description: null,
+          note: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          logs: [],
+          allocations: [],
+        }];
+      },
+    },
   };
 }
 
@@ -118,9 +148,11 @@ async function main() {
   assertSensitiveAbsent(await service.getSupplier('supplier-sensitive-row', viewOnly), 'getSupplier supplier.view');
   assertSensitiveAbsent((await service.listHotelSuppliers({}, manageOnly))[0], 'listHotelSuppliers supplier.manage');
   assertSensitiveAbsent(await service.getHotelSupplier('supplier-sensitive-row', manageOnly), 'getHotelSupplier supplier.manage');
+  assertSensitiveAbsent((await service.listAllotmentInventory({}, manageOnly))[0].supplier, 'listAllotmentInventory nested supplier.manage');
 
   assertSensitivePresent((await service.listSuppliers({}, financeViewer))[0], 'listSuppliers finance.payment.view');
   assertSensitivePresent(await service.getHotelSupplier('supplier-sensitive-row', financeViewer), 'getHotelSupplier finance.payment.view');
+  assertSensitivePresent((await service.listAllotmentInventory({}, financeViewer))[0].supplier, 'listAllotmentInventory nested finance.payment.view');
 
   calls.length = 0;
   await service.listSuppliers({ search: 'TAX-SECRET' }, viewOnly);
