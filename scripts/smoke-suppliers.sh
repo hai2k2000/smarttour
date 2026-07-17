@@ -623,24 +623,25 @@ function typedMatrixPayload(type, suffix) {
   assert(supplier.category?.id === category.id, 'created supplier must include category');
   assert(Array.isArray(supplier.supplierServices), 'created supplier must include supplierServices');
 
+  const importCategory = await request(manageToken, 'POST', '/supplier-categories', { name: `${run} Import Category` });
   const importPreviewCode = `${run}-IMPORT-PREVIEW`;
   const importPreview = await request(manageToken, 'POST', '/suppliers/import/preview', {
     rows: [{
       supplierCode: importPreviewCode,
-      category: updatedCategory.name,
+      category: importCategory.name,
       name: `${run} Import Preview Supplier`,
       phone: '0905555000',
       bankAccountNumber: '555000111',
     }],
   });
   assert(importPreview.totalRows === 1 && importPreview.validRows === 1 && importPreview.failedRows === 0, 'supplier import preview should accept a valid root supplier row');
-  assert(importPreview.rows?.[0]?.categoryName === updatedCategory.name, 'supplier import preview should map exported category to categoryName');
-  assert(importPreview.rows?.[0]?.dto?.categoryId === category.id, 'supplier import preview should resolve categoryName to categoryId');
+  assert(importPreview.rows?.[0]?.categoryName === importCategory.name, 'supplier import preview should map exported category to categoryName');
+  assert(importPreview.rows?.[0]?.dto?.categoryId === importCategory.id, 'supplier import preview should resolve categoryName to categoryId');
   const previewSearch = await request(manageToken, 'GET', `/suppliers?search=${encodeURIComponent(importPreviewCode)}`);
   assert(!previewSearch.some((item) => item.supplierCode === importPreviewCode), 'supplier import preview must not write suppliers');
 
   const importWriteCode = `${run}-IMPORT-WRITE`;
-  const importWriteCsv = `supplierCode,category,name,phone,email\n${importWriteCode},${updatedCategory.name},${run} Import Write Supplier,0905555001,import-write-${lowerRun}@smarttour.local`;
+  const importWriteCsv = `supplierCode,category,name,phone,email\n${importWriteCode},${importCategory.name},${run} Import Write Supplier,0905555001,import-write-${lowerRun}@smarttour.local`;
   const importWrite = await request(manageToken, 'POST', '/suppliers/import', { csv: importWriteCsv });
   assert(importWrite.created === 1, 'supplier import write should create one supplier');
   assert(importWrite.rows?.[0]?.supplierCode === importWriteCode, 'supplier import write should return created supplier rows');
@@ -648,7 +649,7 @@ function typedMatrixPayload(type, suffix) {
   assert(importWriteSearch.some((item) => item.supplierCode === importWriteCode), 'supplier import write should persist the imported supplier');
 
   const importPreviewError = await request(manageToken, 'POST', '/suppliers/import/preview', {
-    rows: [{ supplierCode: `${run}-IMPORT-BAD`, category: updatedCategory.name, name: `${run} Import Bad Supplier`, unexpectedColumn: 'nope' }],
+    rows: [{ supplierCode: `${run}-IMPORT-BAD`, category: importCategory.name, name: `${run} Import Bad Supplier`, unexpectedColumn: 'nope' }],
   });
   assert(importPreviewError.failedRows === 1, 'supplier import preview should report blocking row errors');
   assert(importPreviewError.errors?.some((error) => error.field === 'unexpectedColumn'), 'supplier import preview should name unsupported fields');
@@ -656,8 +657,8 @@ function typedMatrixPayload(type, suffix) {
   const partialWriteCode = `${run}-IMPORT-PARTIAL-WRITE`;
   const partialWriteError = await request(manageToken, 'POST', '/suppliers/import', {
     rows: [
-      { supplierCode: partialWriteCode, category: updatedCategory.name, name: `${run} Import Partial Good`, phone: '0905555002' },
-      { supplierCode: `${run}-IMPORT-PARTIAL-BAD`, category: updatedCategory.name, name: `${run} Import Partial Bad`, FAIL_SUPPLIER_IMPORT_PARTIAL_WRITE: 'blocked' },
+      { supplierCode: partialWriteCode, category: importCategory.name, name: `${run} Import Partial Good`, phone: '0905555002' },
+      { supplierCode: `${run}-IMPORT-PARTIAL-BAD`, category: importCategory.name, name: `${run} Import Partial Bad`, FAIL_SUPPLIER_IMPORT_PARTIAL_WRITE: 'blocked' },
     ],
   }, [400]);
   assert(messageOf(partialWriteError).includes('Import nhà cung cấp có lỗi'), 'supplier import write should reject previews with blocking errors');
