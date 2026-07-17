@@ -9,7 +9,7 @@ import { FileUploadSizeExceptionFilter } from '../files/file-upload-size-excepti
 import { fileUploadInterceptorOptions } from '../files/files.service';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
-import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
+import { CreateGenericSupplierDto, SupplierChildServiceInputDto, SupplierContactInputDto, UpdateGenericSupplierDto, UpdateSupplierChildServiceInputDto, UpdateSupplierContactDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto, UpdateSupplierStatusDto } from './dto/hotel-supplier.dto';
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
@@ -180,6 +180,52 @@ export class SuppliersController {
   @RequirePermissions('supplier.view', 'finance.payment.view')
   financeSummary(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.supplierFinanceSummary(id, request.user);
+  }
+
+  @Get(':id/contacts')
+  listSupplierContacts(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listSupplierContacts(id, request.user);
+  }
+
+  @Post(':id/contacts')
+  @RequirePermissions('supplier.manage')
+  createSupplierContact(@Param('id') id: string, @Body() dto: SupplierContactInputDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createSupplierContact(id, dto, request.user);
+  }
+
+  @Put(':id/contacts/:contactId')
+  @RequirePermissions('supplier.manage')
+  updateSupplierContact(@Param('id') id: string, @Param('contactId') contactId: string, @Body() dto: UpdateSupplierContactDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateSupplierContact(id, contactId, dto, request.user);
+  }
+
+  @Delete(':id/contacts/:contactId')
+  @RequirePermissions('supplier.manage')
+  deleteSupplierContact(@Param('id') id: string, @Param('contactId') contactId: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteSupplierContact(id, contactId, request.user);
+  }
+
+  @Get(':id/services')
+  listSupplierServices(@Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.listSupplierServices(id, request.user);
+  }
+
+  @Post(':id/services')
+  @RequirePermissions('supplier.manage')
+  createSupplierService(@Param('id') id: string, @Body() dto: SupplierChildServiceInputDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.createSupplierService(id, dto, request.user);
+  }
+
+  @Put(':id/services/:serviceId')
+  @RequirePermissions('supplier.manage')
+  updateSupplierService(@Param('id') id: string, @Param('serviceId') serviceId: string, @Body() dto: UpdateSupplierChildServiceInputDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateSupplierService(id, serviceId, dto, request.user);
+  }
+
+  @Delete(':id/services/:serviceId')
+  @RequirePermissions('supplier.manage')
+  deleteSupplierService(@Param('id') id: string, @Param('serviceId') serviceId: string, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.deleteSupplierService(id, serviceId, request.user);
   }
 
   @Get(':type/export')

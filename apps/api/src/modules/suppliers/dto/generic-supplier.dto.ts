@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { SupplierStatus } from '@prisma/client';
+import { SupplierDayType, SupplierStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -45,7 +45,7 @@ const supplierDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: true };
 const maxSupplierMoney = 999_999_999_999;
 
-class GenericSupplierContactDto {
+export class SupplierContactInputDto {
   @ApiProperty({ description: 'Họ tên người liên hệ của nhà cung cấp' })
   @Transform(trimRequired)
   @IsNotEmpty({ message: 'Cần nhập tên người liên hệ' })
@@ -84,7 +84,7 @@ class GenericSupplierContactDto {
   email?: string;
 }
 
-class GenericSupplierServiceDto {
+export class GenericSupplierServiceInputDto {
   @ApiPropertyOptional({ description: 'Mã dịch vụ nội bộ, không được trùng trong cùng nhà cung cấp' })
   @IsOptional()
   @Transform(trimOptional)
@@ -150,6 +150,33 @@ class GenericSupplierServiceDto {
   @IsObject({ message: 'Metadata dịch vụ phải là object hợp lệ' })
   metadata?: Record<string, unknown>;
 }
+
+export class UpdateSupplierContactDto extends PartialType(SupplierContactInputDto) {}
+
+export class UpdateGenericSupplierServiceInputDto extends PartialType(GenericSupplierServiceInputDto) {}
+
+export class SupplierChildServiceInputDto extends GenericSupplierServiceInputDto {
+  @ApiPropertyOptional({ description: 'Ngày bắt đầu áp dụng dịch vụ theo định dạng YYYY-MM-DD' })
+  @IsOptional()
+  @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày bắt đầu dịch vụ phải có định dạng YYYY-MM-DD' })
+  @IsDateString({}, { message: 'Ngày bắt đầu dịch vụ không hợp lệ' })
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Ngày kết thúc áp dụng dịch vụ theo định dạng YYYY-MM-DD' })
+  @IsOptional()
+  @Transform(trimOptional)
+  @Matches(supplierDateOnlyPattern, { message: 'Ngày kết thúc dịch vụ phải có định dạng YYYY-MM-DD' })
+  @IsDateString({}, { message: 'Ngày kết thúc dịch vụ không hợp lệ' })
+  endDate?: string;
+
+  @ApiPropertyOptional({ enum: SupplierDayType, description: 'Loại ngày áp dụng dịch vụ' })
+  @IsOptional()
+  @IsEnum(SupplierDayType, { message: 'Loại ngày dịch vụ không hợp lệ' })
+  dayType?: SupplierDayType;
+}
+
+export class UpdateSupplierChildServiceInputDto extends PartialType(SupplierChildServiceInputDto) {}
 
 export class CreateGenericSupplierDto {
   @ApiProperty({ description: 'Mã nhà cung cấp; hệ thống sẽ trim và viết hoa trước khi lưu' })
@@ -266,19 +293,19 @@ export class CreateGenericSupplierDto {
   @IsEnum(SupplierStatus, { message: 'Trạng thái nhà cung cấp không hợp lệ' })
   status?: SupplierStatus;
 
-  @ApiPropertyOptional({ type: [GenericSupplierContactDto], description: 'Danh sách liên hệ; gửi lên thì được validate từng dòng' })
+  @ApiPropertyOptional({ type: [SupplierContactInputDto], description: 'Danh sách liên hệ; gửi lên thì được validate từng dòng' })
   @IsOptional()
   @IsArray({ message: 'Danh sách người liên hệ phải là danh sách hợp lệ' })
   @ValidateNested({ each: true })
-  @Type(() => GenericSupplierContactDto)
-  contacts?: GenericSupplierContactDto[];
+  @Type(() => SupplierContactInputDto)
+  contacts?: SupplierContactInputDto[];
 
-  @ApiPropertyOptional({ type: [GenericSupplierServiceDto], description: 'Danh sách dịch vụ; gửi lên thì được validate từng dòng' })
+  @ApiPropertyOptional({ type: [GenericSupplierServiceInputDto], description: 'Danh sách dịch vụ; gửi lên thì được validate từng dòng' })
   @IsOptional()
   @IsArray({ message: 'Danh sách dịch vụ phải là danh sách hợp lệ' })
   @ValidateNested({ each: true })
-  @Type(() => GenericSupplierServiceDto)
-  services?: GenericSupplierServiceDto[];
+  @Type(() => GenericSupplierServiceInputDto)
+  services?: GenericSupplierServiceInputDto[];
 }
 
 export class UpdateGenericSupplierDto extends PartialType(CreateGenericSupplierDto) {}

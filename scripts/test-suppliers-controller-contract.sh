@@ -28,13 +28,15 @@ for alias in ["'Restaurant'", "'Flight'", "'Other Cost'", "'Passport Visa'", "'S
     assert alias in types_source, f'legacy English category alias must remain supported: {alias}'
 
 assert controller.count("@RequirePermissions('supplier.view')") >= 2, 'category and supplier controllers must require supplier.view'
-assert controller.count("@RequirePermissions('supplier.manage')") == 21, 'every supplier mutation endpoint must explicitly require supplier.manage'
+assert controller.count("@RequirePermissions('supplier.manage')") == 27, 'every supplier mutation endpoint must explicitly require supplier.manage'
 manage_methods = {
     'create', 'update', 'remove', 'createHotel', 'updateHotel', 'overrideAllotment',
     'lockAllotment', 'confirmAllotment', 'releaseAllotment', 'createTyped',
     'updateTyped', 'updateTypedStatus', 'removeTyped', 'addSupplierFile',
     'deleteSupplierFile', 'updateStatus',
     'previewImport', 'importSuppliers',
+    'createSupplierContact', 'updateSupplierContact', 'deleteSupplierContact',
+    'createSupplierService', 'updateSupplierService', 'deleteSupplierService',
 }
 for method in manage_methods:
     pattern = rf"@RequirePermissions\('supplier\.manage'\)[\s\S]{{0,240}}?\n\s*{method}\("
@@ -43,6 +45,8 @@ for method in manage_methods:
 assert "@Get(':id')" not in controller, 'duplicate single-segment detail route must not return'
 for static_route in ["@Get('hotels')", "@Get('hotels/:id')", "@Get('hotel-allotments/dashboard')", "@Get('hotel-allotments/inventory')", "@Patch('hotel-allotments/:id/override')", "@Post('hotel-allotments/:id/lock')", "@Post('hotel-allotment-allocations/:id/confirm')", "@Post('hotel-allotment-allocations/:id/release')"]:
     assert controller.index(static_route) < controller.index("@Get(':routeKey')"), f'{static_route} must be declared before dynamic route dispatch'
+for child_route in ["@Get(':id/contacts')", "@Post(':id/contacts')", "@Put(':id/contacts/:contactId')", "@Delete(':id/contacts/:contactId')", "@Get(':id/services')", "@Post(':id/services')", "@Put(':id/services/:serviceId')", "@Delete(':id/services/:serviceId')"]:
+    assert controller.index(child_route) < controller.index("@Get(':routeKey')"), f'{child_route} must be declared before dynamic route dispatch'
 assert "@Controller('supplier-categories')" in controller, 'supplier category routes must stay outside the dynamic /suppliers/:routeKey namespace'
 assert 'isTypedSupplierRoute(routeKey)' in controller, 'single-segment dispatcher must distinguish typed routes from supplier ids'
 remove_typed_match = re.search(r"removeTyped\([\s\S]*?\n\s*}\n", controller)

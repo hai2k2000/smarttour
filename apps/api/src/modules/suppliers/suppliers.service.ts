@@ -7,7 +7,7 @@ import { FilesService } from '../files/files.service';
 import { containsSearch, InsensitiveContains, normalizeListSearch } from '../list-search';
 import { CreateSupplierCategoryDto } from './dto/create-supplier-category.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
-import { CreateGenericSupplierDto, UpdateGenericSupplierDto } from './dto/generic-supplier.dto';
+import { CreateGenericSupplierDto, SupplierChildServiceInputDto, SupplierContactInputDto, UpdateGenericSupplierDto, UpdateSupplierChildServiceInputDto, UpdateSupplierContactDto } from './dto/generic-supplier.dto';
 import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, ReleaseAllotmentDto, UpdateHotelSupplierDto } from './dto/hotel-supplier.dto';
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
@@ -397,6 +397,89 @@ export class SuppliersService {
   getSupplierFromRouteKey(routeKey: string, user?: RequestUser) {
     if (!SUPPLIER_ID_PATTERN.test(routeKey)) throw new NotFoundException(SUPPLIER_ERRORS.unsupportedType);
     return this.getSupplier(routeKey, user);
+  }
+
+  async listSupplierContacts(id: string, user?: RequestUser) {
+    await this.getSupplier(id, user);
+    return this.prisma.supplierContact.findMany({
+      where: { supplierId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createSupplierContact(supplierId: string, dto: SupplierContactInputDto, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const [contact] = this.normalizeSupplierContacts([dto]);
+      await tx.supplierContact.create({ data: { supplierId, ...contact } });
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
+  }
+
+  async updateSupplierContact(supplierId: string, contactId: string, dto: UpdateSupplierContactDto, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const current = await tx.supplierContact.findFirst({ where: { id: contactId, supplierId } });
+      if (!current) throw new NotFoundException('Không tìm thấy người liên hệ nhà cung cấp');
+      const [contact] = this.normalizeSupplierContacts([{
+        fullName: this.childValue(dto, 'fullName', current.fullName),
+        position: this.childValue(dto, 'position', current.position ?? undefined),
+        birthday: this.childValue(dto, 'birthday', this.dateOnlyString(current.birthday)),
+        phone: this.childValue(dto, 'phone', current.phone ?? undefined),
+        email: this.childValue(dto, 'email', current.email ?? undefined),
+      }]);
+      await tx.supplierContact.update({ where: { id: contactId }, data: contact });
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
+  }
+
+  async deleteSupplierContact(supplierId: string, contactId: string, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const deleted = await tx.supplierContact.deleteMany({ where: { id: contactId, supplierId } });
+      if (deleted.count !== 1) throw new NotFoundException('Không tìm thấy người liên hệ nhà cung cấp');
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
+  }
+
+  async listSupplierServices(id: string, user?: RequestUser) {
+    await this.getSupplier(id, user);
+    return this.prisma.supplierService.findMany({
+      where: { supplierId: id, deletedAt: null },
+      orderBy: SUPPLIER_SERVICE_ORDER_BY,
+    });
+  }
+
+  async createSupplierService(supplierId: string, dto: SupplierChildServiceInputDto, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const service = this.normalizeChildSupplierService(locked, dto);
+      await tx.supplierService.create({ data: { supplierId, ...service } });
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
+  }
+
+  async updateSupplierService(supplierId: string, serviceId: string, dto: UpdateSupplierChildServiceInputDto, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const current = await tx.supplierService.findFirst({ where: { id: serviceId, supplierId, deletedAt: null } });
+      if (!current) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
+      if (locked.hotelProfileId) await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, serviceId);
+      const service = this.normalizeChildSupplierService(locked, this.mergeSupplierServiceRow(dto, current));
+      await tx.supplierService.update({ where: { id: serviceId }, data: service });
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
+  }
+
+  async deleteSupplierService(supplierId: string, serviceId: string, user?: RequestUser) {
+    return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockSupplierForStatusWrite(tx, supplierId);
+      const current = await tx.supplierService.findFirst({ where: { id: serviceId, supplierId, deletedAt: null } });
+      if (!current) throw new NotFoundException('Không tìm thấy dịch vụ nhà cung cấp');
+      if (locked.hotelProfileId) await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, serviceId);
+      await tx.supplierService.update({ where: { id: serviceId }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+      return this.rereadSupplierAfterChildWrite(tx, supplierId, locked.hotelProfileId);
+    }), user);
   }
 
   async listSupplierFinanceSummaries(ids: string[] = [], user?: RequestUser): Promise<SupplierFinanceSummary[]> {
@@ -1616,10 +1699,12 @@ export class SuppliersService {
       status: SupplierStatus;
       deletedAt: Date | null;
       hotelProfileId: string | null;
+      categoryName: string | null;
     }>>(Prisma.sql`
-      SELECT s.id, s.status, s."deletedAt", h.id AS "hotelProfileId"
+      SELECT s.id, s.status, s."deletedAt", h.id AS "hotelProfileId", c.name AS "categoryName"
       FROM "Supplier" s
       LEFT JOIN "HotelSupplier" h ON h."supplierId" = s.id
+      LEFT JOIN "SupplierCategory" c ON c.id = s."categoryId"
       WHERE s.id = ${id}
       FOR UPDATE OF s
     `);
@@ -1642,6 +1727,81 @@ export class SuppliersService {
     });
     if (activeAllocations > 0) {
       throw new ConflictException('Không thể ngừng nhà cung cấp khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
+    }
+  }
+
+  private rereadSupplierAfterChildWrite(tx: Prisma.TransactionClient, supplierId: string, hotelProfileId: string | null) {
+    return tx.supplier.findUniqueOrThrow({
+      where: { id: supplierId },
+      include: hotelProfileId ? this.hotelInclude() : this.genericInclude(),
+    });
+  }
+
+  private normalizeChildSupplierService(
+    supplier: { hotelProfileId: string | null; categoryName: string | null },
+    dto: SupplierChildServiceInputDto,
+  ) {
+    if (supplier.hotelProfileId) return this.normalizeHotelServices([dto])[0];
+    return this.normalizeGenericServices([dto], this.typedRouteForSupplierCategory(supplier.categoryName))[0];
+  }
+
+  private mergeSupplierServiceRow(
+    dto: UpdateSupplierChildServiceInputDto,
+    current: {
+      sku: string | null;
+      serviceName: string;
+      startDate: Date | null;
+      endDate: Date | null;
+      dayType: SupplierDayType;
+      quantity: number;
+      accountingPrice: unknown;
+      netPrice: unknown;
+      sellingPrice: unknown;
+      description: string | null;
+      note: string | null;
+      metadata: Prisma.JsonValue | null;
+    },
+  ): SupplierChildServiceInputDto {
+    const currentMetadata = current.metadata && typeof current.metadata === 'object' && !Array.isArray(current.metadata)
+      ? current.metadata as Record<string, unknown>
+      : undefined;
+    return {
+      sku: this.childValue(dto, 'sku', current.sku ?? undefined),
+      serviceName: this.childValue(dto, 'serviceName', current.serviceName),
+      startDate: this.childValue(dto, 'startDate', this.dateOnlyString(current.startDate)),
+      endDate: this.childValue(dto, 'endDate', this.dateOnlyString(current.endDate)),
+      dayType: this.childValue(dto, 'dayType', current.dayType),
+      quantity: this.childValue(dto, 'quantity', current.quantity),
+      accountingPrice: this.childValue(dto, 'accountingPrice', this.financeAmount(current.accountingPrice)),
+      netPrice: this.childValue(dto, 'netPrice', this.financeAmount(current.netPrice)),
+      sellingPrice: this.childValue(dto, 'sellingPrice', this.financeAmount(current.sellingPrice)),
+      description: this.childValue(dto, 'description', current.description ?? undefined),
+      note: this.childValue(dto, 'note', current.note ?? undefined),
+      metadata: this.childValue(dto, 'metadata', currentMetadata),
+    };
+  }
+
+  private childValue<T>(dto: object, key: string, current: T): T {
+    return Object.prototype.hasOwnProperty.call(dto, key) ? (dto as Record<string, unknown>)[key] as T : current;
+  }
+
+  private dateOnlyString(value?: Date | null) {
+    return value ? value.toISOString().slice(0, 10) : undefined;
+  }
+
+  private typedRouteForSupplierCategory(categoryName: string | null) {
+    if (!categoryName) return null;
+    const key = this.categoryNameKey(categoryName);
+    return (Object.keys(SUPPLIER_TYPE_LABELS) as TypedSupplierRoute[])
+      .find((route) => supplierTypeCategoryNames(route).some((name) => this.categoryNameKey(name) === key)) || null;
+  }
+
+  private async ensureServiceHasNoActiveHotelAllocations(tx: Prisma.TransactionClient, supplierId: string, serviceId: string) {
+    const activeAllocations = await tx.supplierAllotmentAllocation.count({
+      where: { supplierId, serviceId, status: { in: ['LOCKED', 'CONFIRMED'] } },
+    });
+    if (activeAllocations > 0) {
+      throw new ConflictException('Không thể sửa hoặc xóa dịch vụ khách sạn khi còn phân bổ quỹ phòng đang khóa hoặc đã xác nhận');
     }
   }
 
@@ -1704,24 +1864,31 @@ export class SuppliersService {
       accountingPrice?: number;
       netPrice?: number;
       sellingPrice?: number;
+      startDate?: string;
+      endDate?: string;
+      dayType?: SupplierDayType;
       description?: string;
       note?: string;
       metadata?: Record<string, unknown>;
     }>,
-    type: TypedSupplierRoute,
+    type?: TypedSupplierRoute | null,
   ): Array<Omit<Prisma.SupplierServiceCreateManyInput, 'supplierId'>> {
     const services = items.map((item, index) => {
       const row = `dòng dịch vụ ${index + 1}`;
+      const { startDate, endDate } = this.optionalDateRange(item.startDate, item.endDate, 'dịch vụ');
       return {
         sku: this.optionalSku(item.sku, `Mã dịch vụ ${row}`),
         serviceName: this.requiredServiceName(item.serviceName, row),
+        startDate,
+        endDate,
+        dayType: this.toDayType(item.dayType, 'dịch vụ'),
         quantity: this.optionalNonNegativeInt(item.quantity, `Số lượng ${row}`) ?? 1,
         accountingPrice: this.optionalMoney(item.accountingPrice, `Giá kế toán ${row}`) ?? 0,
         netPrice: this.optionalMoney(item.netPrice, `Giá thuần ${row}`) ?? 0,
         sellingPrice: this.optionalMoney(item.sellingPrice, `Giá bán ${row}`) ?? 0,
         description: this.optionalMaxText(item.description, `Mô tả ${row}`, 2000),
         note: this.optionalMaxText(item.note, `Ghi chú ${row}`, 2000),
-        metadata: item.metadata ? (this.normalizeTypedMetadata(type, item.metadata) as Prisma.InputJsonValue) : Prisma.JsonNull,
+        metadata: item.metadata ? (type ? this.normalizeTypedMetadata(type, item.metadata) : this.normalizeUntypedServiceMetadata(item.metadata)) as Prisma.InputJsonValue : Prisma.JsonNull,
       };
     });
     this.ensureUniqueServiceSkus(services);
@@ -2019,6 +2186,16 @@ export class SuppliersService {
       }
       return [key, value];
     }));
+  }
+
+  private normalizeUntypedServiceMetadata(metadata: Record<string, unknown>) {
+    const submittedKeys = Object.entries(metadata)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key]) => key);
+    if (submittedKeys.length) {
+      throw new BadRequestException('Metadata dịch vụ chỉ hỗ trợ cho nhà cung cấp chuyên biệt');
+    }
+    return {};
   }
 
   private isValidDateOnly(value: string) {

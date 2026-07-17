@@ -128,7 +128,8 @@ assert 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), 
 assert "tx.supplierService.updateMany({ where: { supplierId, deletedAt: null }, data: { deletedAt: new Date(), status: 'INACTIVE' } })" in service
 assert 'tx.supplierService.deleteMany({ where: { supplierId } })' not in service, 'typed child replacement must not hard-delete supplier services'
 assert 'service.metadata ? (this.normalizeTypedMetadata(type, service.metadata)' not in service
-assert 'item.metadata ? (this.normalizeTypedMetadata(type, item.metadata)' in service
+assert 'item.metadata ? (type ? this.normalizeTypedMetadata(type, item.metadata)' in service
+assert 'this.normalizeUntypedServiceMetadata(item.metadata)' in service
 assert '@Max(5' in dto and 'Xếp hạng nhà cung cấp không được lớn hơn 5' in dto
 assert 'return trimmed || null' in dto, 'generic supplier optional text fields must clear to null instead of disappearing on partial update'
 assert 'const optionalNumber = ({ value }: { value: unknown })' in dto, 'generic supplier optional numbers must keep blank/null distinct from zero'

@@ -45,7 +45,7 @@ const supplierUrlOptions = { protocols: ['http', 'https'], require_protocol: tru
 const maxSupplierMoney = 999_999_999_999;
 const maxSupplierAllotmentCutoffDays = 365;
 
-class SupplierContactInputDto {
+export class SupplierContactInputDto {
   @ApiProperty()
   @Transform(trimRequired)
   @IsNotEmpty({ message: 'Cần nhập tên người liên hệ' })
@@ -84,7 +84,7 @@ class SupplierContactInputDto {
   email?: string;
 }
 
-class SupplierServiceInputDto {
+export class SupplierServiceInputDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trimOptional)
@@ -157,6 +157,8 @@ class SupplierServiceInputDto {
   @MaxLength(2000, { message: 'Ghi chú dịch vụ không được vượt quá 2.000 ký tự' })
   note?: string;
 }
+
+export class UpdateSupplierServiceInputDto extends PartialType(SupplierServiceInputDto) {}
 
 class SupplierAllotmentInputDto {
   @ApiPropertyOptional({ description: 'Mã nội bộ của hạng phòng hoặc gói quỹ phòng khách sạn' })

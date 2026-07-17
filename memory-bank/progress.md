@@ -1,5 +1,14 @@
 # Progress
 
+- Completed Supplier child-row APIs Phase 4 first slice:
+  - Added dedicated contact CRUD APIs under Supplier: `GET/POST /suppliers/:id/contacts` and `PUT/DELETE /suppliers/:id/contacts/:contactId`.
+  - Added dedicated service CRUD APIs under Supplier: `GET/POST /suppliers/:id/services` and `PUT/DELETE /suppliers/:id/services/:serviceId`.
+  - Read routes inherit `supplier.view`; child-row write routes require `supplier.manage` and are declared before dynamic typed supplier routes.
+  - Contact writes keep existing hard-delete row semantics for deletes, while service deletes keep existing soft-delete behavior by setting `deletedAt` and `INACTIVE`.
+  - Child-row write paths lock the parent Supplier row and re-read the updated parent with generic or hotel includes; hotel service update/delete is blocked while locked/confirmed allotment allocations reference that service.
+  - Existing parent-level create/update nested child payloads remain supported during UI migration; hotel allotment child CRUD is deferred to a separate allocation-aware Phase 4 slice.
+  - Verification passed: node scripts/test-suppliers-child-row-apis-contract.js, bash scripts/test-suppliers-controller-contract.sh, bash scripts/test-suppliers-typed-contract.sh, bash scripts/test-suppliers-hotel-contract.sh, node scripts/test-suppliers-sensitive-fields-contract.js, API build/lint, and git diff check.
+
 - Completed Supplier finance links Phase 3:
   - Added read-only supplier finance summary endpoints for batch and detail views, using authoritative ledger, finance payment, operation voucher, and supplier payment request sources instead of cached Supplier debt fields.
   - Endpoint access requires `supplier.view` and `finance.payment.view`; transaction rows keep branch/department data-scope filtering where applicable.

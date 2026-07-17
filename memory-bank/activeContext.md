@@ -20,6 +20,13 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
 
 ## Latest Session Notes
 
+- Supplier child-row APIs Phase 4 first slice:
+  - Added dedicated Supplier contact CRUD endpoints: `GET/POST /suppliers/:id/contacts` and `PUT/DELETE /suppliers/:id/contacts/:contactId`, with read routes under `supplier.view` and write routes requiring `supplier.manage`.
+  - Added dedicated Supplier service CRUD endpoints: `GET/POST /suppliers/:id/services` and `PUT/DELETE /suppliers/:id/services/:serviceId`, reusing existing generic/hotel service normalization and preserving service soft-delete semantics.
+  - Write paths lock the parent Supplier row before mutating child rows, re-read the parent with the appropriate generic/hotel include, keep parent create/update nested array compatibility, and block hotel service edits/deletes while active allotment allocations reference the service.
+  - Allotment create/update/delete child APIs remain deferred inside Phase 4 because existing override/lock/release flows protect allocation-sensitive writes and need a separate allocation-aware slice.
+  - Verification passed for the new child-row API contract, supplier controller/typed/hotel/sensitive contracts, API build/lint, and diff check.
+
 - Supplier finance links Phase 3:
   - Added supplier-owned read APIs for finance summaries: batch `GET /suppliers/finance-summaries?ids=...` and detail `GET /suppliers/:id/finance-summary`, guarded by `supplier.view` plus the existing supplier financial permission `finance.payment.view`.
   - Summaries derive payable/paid/balance from `SupplierLedgerEntry`, payment totals from `FinancePayment`, voucher exposure from `OperationVoucher`, and pending request exposure from `SupplierPaymentItem`/`SupplierPaymentRequest`; Supplier still stores no duplicate debt totals and owns no finance write action.
