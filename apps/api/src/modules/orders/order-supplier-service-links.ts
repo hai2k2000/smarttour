@@ -1,8 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-type LinkLine = { supplierId?: string | null; serviceId?: string | null };
+type LinkLine = { id?: string | null; supplierId?: string | null; serviceId?: string | null };
 type LinkInput = { salesItems?: LinkLine[]; operationItems?: LinkLine[] };
+type LinkCollection = 'salesItems' | 'operationItems';
+
+const LINK_COLLECTIONS: LinkCollection[] = ['salesItems', 'operationItems'];
 
 function text(value?: string | null) {
   return value?.trim() || '';
@@ -12,10 +15,26 @@ function linkKey(supplierId: string, serviceId: string) {
   return `${supplierId}:${serviceId}`;
 }
 
+function rowKey(collection: LinkCollection, id: string) {
+  return `${collection}:${id}`;
+}
+
+function scopedLinks(input?: LinkInput) {
+  return LINK_COLLECTIONS.flatMap((collection) =>
+    (input?.[collection] || []).map((line) => ({
+      collection,
+      id: text(line.id),
+      supplierId: text(line.supplierId),
+      serviceId: text(line.serviceId),
+    })),
+  );
+}
+
 function existingLinkKeys(current?: LinkInput) {
-  return new Set(
-    [...(current?.salesItems || []), ...(current?.operationItems || [])]
-      .map((line) => linkKey(text(line.supplierId), text(line.serviceId))),
+  return new Map(
+    scopedLinks(current)
+      .filter((line) => line.id)
+      .map((line) => [rowKey(line.collection, line.id), linkKey(line.supplierId, line.serviceId)]),
   );
 }
 
@@ -28,9 +47,7 @@ export async function assertHotelOrderSupplierServiceLinks(
   const isHotelBooking = type === 'HOTEL_BOOKING';
   if (!isHotelBooking) return;
 
-  const lines = [...(input.salesItems || []), ...(input.operationItems || [])]
-    .map((line) => ({ supplierId: text(line.supplierId), serviceId: text(line.serviceId) }))
-    .filter((line) => line.supplierId || line.serviceId);
+  const lines = scopedLinks(input).filter((line) => line.supplierId || line.serviceId);
   if (!lines.length) return;
 
   const existingLinks = existingLinkKeys(current);
@@ -49,18 +66,21 @@ export async function assertHotelOrderSupplierServiceLinks(
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const serviceById = new Map(services.map((service) => [service.id, service]));
 
-  for (const { supplierId, serviceId } of lines) {
+  for (const { collection, id, supplierId, serviceId } of lines) {
     if (!supplierId) throw new BadRequestException('Dịch vụ phòng phải có nhà cung cấp khách sạn');
     const supplier = supplierById.get(supplierId);
     if (!supplier) throw new BadRequestException('Nhà cung cấp dịch vụ phòng không tồn tại');
+    const isUnchangedHistorical = Boolean(
+      id && existingLinks.get(rowKey(collection, id)) === linkKey(supplierId, serviceId),
+    );
 
     if (serviceId) {
       const service = serviceById.get(serviceId);
       if (!service) throw new BadRequestException('Dịch vụ phòng không tồn tại');
       if (service.supplierId !== supplierId) throw new BadRequestException('Dịch vụ phòng không thuộc nhà cung cấp đã chọn');
-      if (existingLinks.has(linkKey(supplierId, serviceId))) continue;
+      if (isUnchangedHistorical) continue;
       if (service.status !== 'ACTIVE' || service.deletedAt) throw new BadRequestException('Dịch vụ phòng đang ngừng hoạt động');
-    } else if (existingLinks.has(linkKey(supplierId, serviceId))) {
+    } else if (isUnchangedHistorical) {
       continue;
     }
 

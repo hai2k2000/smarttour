@@ -143,6 +143,12 @@ async function main() {
     operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 }],
   });
   await prisma.supplierService.update({ where: { id: historicalHotelService.id }, data: { status: 'INACTIVE' } });
+  await rejects(() => service.update('hotel-bookings', historicalOrder.id, {
+    operationItems: [
+      { id: historicalOrder.operationItems[0].id, serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 },
+      { serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 },
+    ],
+  }), 'a new row should not reuse an inactive historical service link');
   const historicalUpdated = await service.update('hotel-bookings', historicalOrder.id, {
     note: 'Keep historical room link',
     operationItems: [{ id: historicalOrder.operationItems[0].id, serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 }],

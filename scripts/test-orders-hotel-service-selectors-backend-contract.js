@@ -29,7 +29,9 @@ requireText(links, 'assertHotelOrderSupplierServiceLinks', 'Hotel Booking writes
 requireText(links, "type === 'HOTEL_BOOKING'", 'link validation must be Hotel Booking specific');
 requireText(links, 'service.supplierId !== supplierId', 'service ownership mismatch must be rejected');
 requireText(links, "service.status !== 'ACTIVE'", 'new inactive services must be rejected');
-requireText(links, 'existingLinks.has(linkKey(supplierId, serviceId))', 'unchanged historical pairs must remain compatible');
+requireText(links, "type LinkCollection = 'salesItems' | 'operationItems';", 'historical links must retain their child collection identity');
+requireText(links, 'rowKey(collection, id)', 'historical links must be scoped to a persisted child row');
+requireText(links, 'existingLinks.get(rowKey(collection, id)) === linkKey(supplierId, serviceId)', 'only exact unchanged historical rows may remain compatible');
 requireText(service, 'await assertHotelOrderSupplierServiceLinks(tx, type, orderDto);', 'create must validate hotel service links');
 requireText(service, 'await assertHotelOrderSupplierServiceLinks(tx, current.type, orderDto, current);', 'update must validate against persisted links');
 if (failures.length) {
