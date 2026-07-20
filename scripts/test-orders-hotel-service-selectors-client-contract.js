@@ -9,6 +9,10 @@ function requireText(source, token, label) {
   if (!source.includes(token)) failures.push(label);
 }
 
+function forbidText(source, token, label) {
+  if (source.includes(token)) failures.push(label);
+}
+
 function requireTypeText(source, typeToken, fieldToken, label) {
   const typeStart = source.indexOf(typeToken);
   const typeEnd = typeStart < 0 ? -1 : source.indexOf('\n};', typeStart);
@@ -32,6 +36,8 @@ requireText(client, 'const showSurvey = isHotelBooking ? activeStep === 4 : acti
 requireText(client, "type === 'supplier'", 'Hotel pricing rows must render supplier selectors');
 requireText(client, "type === 'hotelService'", 'Hotel pricing rows must render hotel service selectors');
 requireText(client, 'setValue(`${name}.${index}.supplierId`', 'Hotel selectors must update the linked supplier ID');
+requireText(client, 'if (!selectedService || selectedService.supplierId === supplierId) return;', 'Clearing a hotel supplier must clear its selected service and derived values');
+forbidText(client, 'if (!supplierId || !selectedService', 'Hotel supplier clearing must not return before stale service values are removed');
 requireText(client, "setValue(`${name}.${index}.serviceType` as any, 'HOTEL'", 'Hotel service selection must mark rows as HOTEL');
 requireText(client, 'setValue(`${name}.${index}.unitPrice`', 'Hotel sales selection must copy the selling price');
 requireText(client, 'setValue(`${name}.${index}.netPrice`', 'Hotel operation selection must copy the NET price');
