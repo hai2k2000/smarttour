@@ -211,13 +211,15 @@ async function main() {
     department: 'DEP-ORD',
   });
   const inScopeDocumentUser = scopedDocumentUser(run + '-DOCUMENT-IN-SCOPE', 'BR-ORD', 'DEP-ORD');
-  const outsideScopeDocumentUser = scopedDocumentUser(run + '-DOCUMENT-OUTSIDE-SCOPE', 'BR-OTHER', 'DEP-OTHER');
+  const wrongBranchDocumentUser = scopedDocumentUser(run + '-DOCUMENT-WRONG-BRANCH', 'BR-OTHER', 'DEP-ORD');
+  const wrongDepartmentDocumentUser = scopedDocumentUser(run + '-DOCUMENT-WRONG-DEPARTMENT', 'BR-ORD', 'DEP-OTHER');
   const unsupportedDocumentMessage = 'Chứng từ hiện chỉ hỗ trợ Booking phòng khách sạn';
   const missingDocumentMessage = 'Không tìm thấy Booking phòng khách sạn';
   await rejectsWithStatus(() => service.document('single-services', documentOrder.id), 400, 'hotel document should reject non-Hotel type paths', unsupportedDocumentMessage, BadRequestException);
   await rejectsWithStatus(() => service.document('hotel-bookings', run + '-MISSING-DOCUMENT'), 404, 'hotel document should reject missing ids', missingDocumentMessage, NotFoundException);
   await rejectsWithStatus(() => service.document('hotel-bookings', differentTypeDocumentOrder.id), 404, 'hotel document should hide persisted Orders of another type', missingDocumentMessage, NotFoundException);
-  await rejectsWithStatus(() => service.document('hotel-bookings', documentOrder.id, outsideScopeDocumentUser), 404, 'hotel document should hide Orders outside branch and department scope', missingDocumentMessage, NotFoundException);
+  await rejectsWithStatus(() => service.document('hotel-bookings', documentOrder.id, wrongBranchDocumentUser), 404, 'hotel document should hide Orders outside branch scope', missingDocumentMessage, NotFoundException);
+  await rejectsWithStatus(() => service.document('hotel-bookings', documentOrder.id, wrongDepartmentDocumentUser), 404, 'hotel document should hide Orders outside department scope', missingDocumentMessage, NotFoundException);
   const documentModel = await service.document('hotel-bookings', documentOrder.id, inScopeDocumentUser);
   assert(documentModel.version === 1 && documentModel.documentTitle === 'PHIẾU BOOKING PHÒNG KHÁCH SẠN', 'hotel document should expose its version and exact documentTitle');
   assert(!Object.prototype.hasOwnProperty.call(documentModel, 'title') && !Object.prototype.hasOwnProperty.call(documentModel, 'totals'), 'hotel document should not retain legacy root model keys');
