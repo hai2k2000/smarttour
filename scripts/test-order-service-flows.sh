@@ -28,6 +28,7 @@ docker compose run --rm \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
 const { OrdersService } = require('./apps/api/dist/modules/orders/orders.service');
+const { BadRequestException, NotFoundException } = require('@nestjs/common');
 
 function assert(condition, label) {
   if (!condition) throw new Error(label);
@@ -41,6 +42,33 @@ async function rejects(action, label) {
     rejected = true;
   }
   assert(rejected, label);
+}
+
+async function rejectsWithStatus(action, status, label, message, ExceptionType) {
+  try {
+    await action();
+  } catch (error) {
+    assert(error instanceof ExceptionType, `${label}: expected ${ExceptionType.name}, got ${error?.constructor?.name || '<none>'}`);
+    assert(error?.status === status, `${label}: expected status ${status}, got ${error?.status || '<none>'}`);
+    if (message) {
+      const actual = String(error?.response?.message || error?.message || '');
+      assert(actual === message, `${label}: expected message ${message}, got ${actual || '<none>'}`);
+    }
+    return;
+  }
+  assert(false, label);
+}
+
+function scopedDocumentUser(id, branch, department) {
+  const permissions = ['order.view', 'order.export', 'data.scope.branch', 'data.scope.department'];
+  return {
+    id,
+    username: id,
+    email: `${id.toLowerCase()}@smarttour.local`,
+    branch,
+    department,
+    roles: [{ role: { permissions: permissions.map((permission) => ({ permission })) } }],
+  };
 }
 
 function money(value) {
@@ -132,6 +160,8 @@ async function main() {
     tourCode: run + '-HOTEL-DOCUMENT-TOUR',
     name: 'Hotel Booking Document Flow',
     customerId: customer.id,
+    branch: 'BR-ORD',
+    department: 'DEP-ORD',
     startDate: '2026-10-10',
     endDate: '2026-10-12',
     roomClass: 'Deluxe',
@@ -163,12 +193,32 @@ async function main() {
       netPrice: 700000,
       vat: 0,
       status: 'WAITING',
+    }, {
+      serviceType: 'OTHER',
+      quantity: 1,
+      netPrice: 0,
+      vat: 0,
+      status: 'WAITING',
     }],
     members: [{ fullName: 'Document Guest', birthday: '1990-01-02', identityNumber: 'DOC-IDENTITY', nationality: 'VN' }],
     terms: [{ language: 'VN', terms: 'Document VN term' }],
     surveyQuestions: [{ question: 'Document survey question?' }],
   });
-  const documentModel = await service.document('hotel-bookings', documentOrder.id);
+  const differentTypeDocumentOrder = await service.create('single-services', {
+    systemCode: run + '-DOCUMENT-WRONG-TYPE',
+    name: 'Document Wrong Type',
+    branch: 'BR-ORD',
+    department: 'DEP-ORD',
+  });
+  const inScopeDocumentUser = scopedDocumentUser(run + '-DOCUMENT-IN-SCOPE', 'BR-ORD', 'DEP-ORD');
+  const outsideScopeDocumentUser = scopedDocumentUser(run + '-DOCUMENT-OUTSIDE-SCOPE', 'BR-OTHER', 'DEP-OTHER');
+  const unsupportedDocumentMessage = 'Chứng từ hiện chỉ hỗ trợ Booking phòng khách sạn';
+  const missingDocumentMessage = 'Không tìm thấy Booking phòng khách sạn';
+  await rejectsWithStatus(() => service.document('single-services', documentOrder.id), 400, 'hotel document should reject non-Hotel type paths', unsupportedDocumentMessage, BadRequestException);
+  await rejectsWithStatus(() => service.document('hotel-bookings', run + '-MISSING-DOCUMENT'), 404, 'hotel document should reject missing ids', missingDocumentMessage, NotFoundException);
+  await rejectsWithStatus(() => service.document('hotel-bookings', differentTypeDocumentOrder.id), 404, 'hotel document should hide persisted Orders of another type', missingDocumentMessage, NotFoundException);
+  await rejectsWithStatus(() => service.document('hotel-bookings', documentOrder.id, outsideScopeDocumentUser), 404, 'hotel document should hide Orders outside branch and department scope', missingDocumentMessage, NotFoundException);
+  const documentModel = await service.document('hotel-bookings', documentOrder.id, inScopeDocumentUser);
   assert(documentModel.version === 1 && documentModel.documentTitle === 'PHIẾU BOOKING PHÒNG KHÁCH SẠN', 'hotel document should expose its version and exact documentTitle');
   assert(!Object.prototype.hasOwnProperty.call(documentModel, 'title') && !Object.prototype.hasOwnProperty.call(documentModel, 'totals'), 'hotel document should not retain legacy root model keys');
   assert(documentModel.order.id === documentOrder.id && documentModel.order.systemCode === run + '-HOTEL-DOCUMENT' && documentModel.order.tourCode === run + '-HOTEL-DOCUMENT-TOUR', 'hotel document should preserve persisted Order identity');
@@ -179,6 +229,8 @@ async function main() {
   assert(documentModel.salesItems[0].description === 'Deluxe Room' && documentModel.salesItems[0].supplier.name === supplier.name && documentModel.salesItems[0].service.serviceName === hotelService.serviceName, 'hotel document should expose minimal sales supplier and service labels');
   assert(Object.keys(documentModel.salesItems[0].supplier).sort().join(',') === 'id,name,supplierCode' && Object.keys(documentModel.salesItems[0].service).sort().join(',') === 'id,serviceName,sku', 'hotel document should not expand Supplier or service projections');
   assert(documentModel.operationItems[0].bookingCode === `${run}-SUP-BOOK` && documentModel.operationItems[0].supplier.supplierCode === supplier.supplierCode && documentModel.operationItems[0].service.sku === hotelService.sku, 'hotel document should preserve persisted operation booking and labels');
+  assert(documentModel.operationItems[1].supplier === null && documentModel.operationItems[1].service === null, 'hotel document should preserve nullable Supplier and service relations');
+  assert(documentModel.operationItems[1].serviceDate === null && documentModel.operationItems[1].quantity === 1 && documentModel.operationItems[1].netPrice === 0 && documentModel.operationItems[1].vat === 0 && documentModel.operationItems[1].amount === 0, 'hotel document should serialize unlinked operation dates and numeric values');
   assert(documentModel.members[0].identityNumber === 'DOC-IDENTITY' && documentModel.members[0].birthday === '1990-01-02T00:00:00.000Z', 'hotel document should preserve and normalize member values');
   assert(documentModel.terms[0].language === 'VN' && documentModel.terms[0].terms === 'Document VN term', 'hotel document should include persisted VN terms');
   assert(documentModel.survey.description === 'Document survey' && documentModel.survey.questions[0].question === 'Document survey question?', 'hotel document should include persisted survey content');
@@ -186,8 +238,8 @@ async function main() {
   assert(documentModel.signatures.map((row) => row.role).join('|') === 'Khách hàng|Nhân viên phụ trách|Điều hành', 'hotel document signatures should expose the required roles');
   assert(documentModel.signatures[0].name === customer.fullName && documentModel.signatures[1].name === 'Order Service Sales' && documentModel.signatures[2].name === 'Order Service Operator', 'hotel document signatures should expose the matching snapshot owners');
   assert(documentModel.signatures.every((row) => Object.keys(row).sort().join(',') === 'name,role'), 'hotel document signatures should expose only role and name');
-  await rejects(() => service.document('single-services', documentOrder.id), 'hotel document should reject non-Hotel type paths');
   await service.remove('hotel-bookings', documentOrder.id);
+  await rejectsWithStatus(() => service.document('hotel-bookings', documentOrder.id, inScopeDocumentUser), 404, 'hotel document should hide soft-deleted Hotel Bookings', missingDocumentMessage, NotFoundException);
 
   await rejects(() => service.create('hotel-bookings', {
     systemCode: run + '-HOTEL-MISMATCH',
