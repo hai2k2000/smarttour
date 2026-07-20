@@ -709,6 +709,46 @@ td svg { vertical-align: -2px; color: var(--dn-muted); }
 .orderListTable td.orderListEmptyCell .tableEmptyState {
   width: 100%;
 }
+.orderFinancePanel { border-top: 1px solid var(--dn-border); padding: 20px; background: var(--dn-surface); }
+.orderFinanceHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.orderFinanceHeader h2, .orderFinanceHistoryHeader h3 { margin: 0; }
+.orderFinanceHeader span, .orderFinanceHistoryHeader span { display: block; margin-top: 4px; color: var(--dn-muted); font-size: 12px; font-weight: 700; }
+.orderFinanceMetrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.orderFinanceMetric { border: 1px solid var(--dn-border); border-radius: var(--dn-radius-md); padding: 10px; background: var(--dn-surface-soft); }
+.orderFinanceMetric span { display: block; color: var(--dn-muted); font-size: 12px; font-weight: 700; }
+.orderFinanceMetric strong { display: block; margin-top: 5px; color: var(--dn-text); font-size: 18px; overflow-wrap: anywhere; }
+.orderFinanceHistoryGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.orderFinanceHistoryCard { min-width: 0; border: 1px solid var(--dn-border); border-radius: var(--dn-radius-md); padding: 12px; background: #fff; }
+.orderFinanceHistoryHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.orderFinanceHistoryActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.orderFinanceLink { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; padding: 9px 11px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 800; }
+.orderFinanceTableWrap { max-width: 100%; overflow-x: auto; }
+.orderFinanceTable { width: 100%; border-collapse: collapse; min-width: 620px; }
+.orderFinanceTable th, .orderFinanceTable td { padding: 8px; border-bottom: 1px solid var(--dn-border); text-align: left; vertical-align: top; }
+.orderFinanceTable th { background: var(--dn-surface-soft); color: #276c72; font-size: 12px; white-space: nowrap; }
+.orderFinanceTable td { color: var(--dn-text); font-size: 13px; }
+.orderFinanceTable td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+.orderFinanceHistoryState { min-height: 92px; display: grid; place-items: center; border: 1px dashed var(--dn-border); border-radius: var(--dn-radius-sm); color: var(--dn-muted); background: var(--dn-surface-soft); text-align: center; padding: 12px; }
+.orderFinanceError, .orderFinanceNotice, .orderFinanceHint { margin: 8px 0; border-radius: var(--dn-radius-sm); padding: 9px 10px; font-size: 13px; font-weight: 700; }
+.orderFinanceError { border: 1px solid #fecaca; background: #fff1f0; color: #b42318; }
+.orderFinanceNotice { border: 1px solid var(--dn-hover-border); background: var(--dn-green-soft); color: var(--dn-primary); }
+.orderFinanceHint { border: 1px solid #f6d28b; background: #fff7ed; color: #9a5b00; }
+.orderFinanceDraftOverlay { z-index: 90; }
+.orderFinanceDraftModal { width: min(680px, calc(100vw - 32px)); }
+.orderFinanceDraftModal header > div { min-width: 0; }
+.orderFinanceDraftModal header span { display: block; margin-top: 4px; color: var(--dn-muted); font-size: 12px; font-weight: 700; }
+.orderFinanceDraftGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) {
+  .orderFinanceMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .orderFinanceHistoryGrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .orderFinancePanel { padding: 14px; }
+  .orderFinanceMetrics, .orderFinanceDraftGrid { grid-template-columns: 1fr; }
+  .orderFinanceHistoryHeader { display: grid; }
+  .orderFinanceHistoryActions { justify-content: stretch; }
+  .orderFinanceHistoryActions > * { width: 100%; }
+}
 .reportWorkspace { display: grid; gap: 14px; }
 .reportsPage .metrics, .reportMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .reportMetrics .metric { min-height: 104px; }
