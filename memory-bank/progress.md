@@ -1,5 +1,13 @@
 # Progress
 
+- Completed Orders Hotel Booking supplier/room selector slice:
+  - Added the Orders-owned `GET /orders/hotel-service-options` endpoint with `order.view`, static route ordering, active hotel/service/allotment data, and a minimal non-sensitive response.
+  - Added transactional Hotel Booking supplier/service validation for required supplier links, ownership, active hotel/service state on new or changed rows, and exact persisted row compatibility for historical inactive links.
+  - Reworked the Hotel Booking form into its configured five steps with dependent hotel/room selectors, selling and NET price fill, stale derived-field cleanup, row-scoped historical options, empty states, and advisory allotment availability.
+  - Kept non-hotel Order workflows unchanged, added backend/client source contracts, runtime ownership/historical regressions, and SmartTour CI wiring.
+  - Verification passed on feature and merged `main`: GitHub Actions, selector, Orders Finance, auth, write-lock, hotel allotment, and Supplier hotel contracts; API/web lint and production builds; Docker API no-cache build; isolated `TEST_ORDER_SERVICE_FLOWS_OK`; and Git diff checks.
+  - Deployed code commit `38f1ec0` with `scripts/deploy-production.sh`; no migration was pending, API/web containers were recreated, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, and `{"ok":true,"service":"smarttour-api"}` passed. Authenticated lifecycle smoke remains pending because `ADMIN_PASSWORD` was unavailable and credentials were not changed.
+
 - Completed Orders Finance integration slice:
   - Added order-scoped Finance receipt/payment history with data-scope preservation and direct supplier/order operation-item integrity checks.
   - Added Finance `orderId` deep-link preservation and a permission-aware Orders finance panel with six persisted snapshots, independent receipt/payment histories, valid operation-item supplier choices, and DRAFT-only receipt/payment creation.

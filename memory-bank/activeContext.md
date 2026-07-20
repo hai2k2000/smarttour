@@ -6,7 +6,7 @@ Tour Management core redesign is now the active implementation area after the fi
 
 ## Immediate Next Tasks
 
-1. Continue Orders module after Finance integration: hotel booking specific supplier/room service selectors, export/Word/PDF, approval UI, and member import/export.
+1. Continue Orders module after hotel supplier/room selectors: export/Word/PDF, approval UI, and member import/export.
 2. Continue Quotes module: quote detail/print/PDF, import/export, convert-to-booking payloads, approval comments UI, and customer lookup.
 3. Continue Supplier module: upload files, import/export, debt/payment links, transaction-aware soft delete, and specialized child tables where needed.
 4. Add real file upload storage for common tour and supplier attachments.
@@ -19,6 +19,14 @@ The repository lives on the VPS under `/opt/smarttour` and tracks `git@github.co
 Docker build remains the verified deploy path for API/web on the VPS because host-level workspace builds still have broken `node_modules/.bin` CLI resolution. Booking service and tour-type APIs have current isolated coverage and production smoke coverage.
 
 ## Latest Session Notes
+
+- Orders Hotel Booking supplier/room selector slice:
+  - Added Orders-owned `GET /orders/hotel-service-options` under `order.view`, returning a minimal active hotel supplier, room service, and allotment projection without Supplier financial/contact/file fields.
+  - Hotel Booking writes now validate supplier/service existence, ownership, active hotel status for new or changed rows, and exact persisted child-row identity for historical inactive links inside the existing create/update transactions.
+  - The Hotel Booking form now follows its configured five steps and provides dependent hotel/room selectors, sales/NET price fill, stale-field clearing, historical unavailable options, and advisory exact-service/date allotment hints; non-hotel Order rendering remains unchanged.
+  - CI runs the backend/client selector contracts. Focused contracts, API/web lint and production builds, Docker API no-cache build, and the isolated Order service flow passed on the feature branch and merged `main`.
+  - Production deployed code commit `38f1ec0` through `BRANCH=main bash scripts/deploy-production.sh`; SmartLink guard, Prisma deploy with no pending migration, API/web rebuild, container recreation, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, and internal API health passed.
+  - Authenticated `smoke-order-lifecycle.sh` remains blocked only because `ADMIN_PASSWORD` was unavailable; production credentials were not changed. Non-blocking follow-ups are cross-order historical option state reset after save, tighter nested option projection limits, and browser interaction coverage.
 
 - Orders Finance integration slice:
   - Finance receipt/payment list queries now accept `orderId` while preserving branch/department data scope; direct Order supplier payments require a non-cancelled operation item for the same supplier.
