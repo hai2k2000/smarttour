@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Copy, Lock, LockOpen, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, useWatch } from 'react-hook-form';
+import { FieldArrayWithId, useFieldArray, useForm, UseFieldArrayReturn, UseFormRegister, UseFormSetValue, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { authFetch, authHeaders, authJsonHeaders } from '../../authFetch';
 import { viStatus } from '../../i18n';
@@ -12,7 +12,7 @@ import { PermissionNotice, usePermissions } from '../../usePermissions';
 import type { OrderConfig, OrderRouteType } from '../order-config';
 import OrderFinancePanel, { type OrderFinanceOrder } from './OrderFinancePanel';
 
-type RowColumn = [string, string, ('text' | 'number' | 'date' | 'datetime-local' | 'textarea' | 'status' | 'passengerType' | 'language')?];
+type RowColumn = [string, string, ('text' | 'number' | 'date' | 'datetime-local' | 'textarea' | 'status' | 'passengerType' | 'language' | 'supplier' | 'hotelService')?];
 
 type OrderSummary = {
   id: string;
@@ -389,8 +389,9 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
   const [message, setMessage] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [financeOrder, setFinanceOrder] = useState<OrderFinanceOrder | null>(null);
-  const { register, control, handleSubmit, reset, formState: { isSubmitting } } = useForm<OrderForm>({ resolver: zodResolver(orderSchema) as any, defaultValues: makeDefaultValues(), shouldUnregister: false });
+  const { register, control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<OrderForm>({ resolver: zodResolver(orderSchema) as any, defaultValues: makeDefaultValues(), shouldUnregister: false });
   const values = useWatch({ control });
+  const hotelServices = useMemo(() => flattenHotelServiceOptions(hotelSuppliers), [hotelSuppliers]);
   const arrays = {
     guides: useFieldArray({ control, name: 'guides', keyName: 'fieldId' }),
     salesItems: useFieldArray({ control, name: 'salesItems', keyName: 'fieldId' }),
@@ -413,6 +414,11 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
   }, [orders, query]);
   const currentStatus = String(values.status || '');
   const isHotelBooking = type === 'hotel-bookings';
+  const showBookingInfo = isHotelBooking ? activeStep === 0 : activeStep === 1;
+  const showHotelPricing = isHotelBooking && activeStep === 1;
+  const showMembers = isHotelBooking ? activeStep === 2 : activeStep === 1;
+  const showTerms = isHotelBooking ? activeStep === 3 : activeStep === 5;
+  const showSurvey = isHotelBooking ? activeStep === 4 : activeStep === 5;
   const canViewOrders = can('order.view') || can('order.manage');
   const canManageOrders = can('order.manage');
   const canChangeStatus = can('order.status.update');
@@ -482,7 +488,7 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
     setOriginalStatus(String(order.status || ''));
     setActiveStep(0);
     setFormOpen(true);
-    if (isHotelBooking) setHotelSuppliers(mergePersistedHotelOptions(hotelSuppliers, order));
+    if (isHotelBooking) setHotelSuppliers((current) => mergePersistedHotelOptions(current, order));
     reset(mapOrderToForm(order));
   }
   async function onSubmit(data: OrderForm) {
@@ -592,7 +598,7 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
                 {activeStep === 0 ? <fieldset><legend>Số lượng / giá trị</legend><div className="quoteFormGrid">
                   <label>Người lớn<input type="number" min={0} {...register('adultQty')} /></label><label>Trẻ em<input type="number" min={0} {...register('childQty')} /></label><label>Em bé<input type="number" min={0} {...register('infantQty')} /></label><label>Số lượng<input type="number" min={0} {...register('quantity')} /></label><label>Tổng chỗ<input type="number" min={0} {...register('seatTotal')} /></label><label>Đã giữ<input type="number" min={0} {...register('seatHeld')} /></label><label>Đã bán<input type="number" min={0} {...register('seatSold')} /></label><label>Đã thu<input type="number" min={0} {...register('paidAmount')} /></label><label>Đã chi<input type="number" min={0} {...register('paidCost')} /></label><label>Hoa hồng<input type="number" {...register('commission')} /></label>
                 </div></fieldset> : null}
-                {activeStep === 1 ? <>
+                {showBookingInfo ? <>
                   <fieldset><legend>Thông tin chung</legend><div className="quoteFormGrid">
                     <label>Mã hệ thống<input required {...register('systemCode')} /></label><label>{config.codeLabel}<input {...register('tourCode')} /></label><label>Mã giữ chỗ<input {...register('holdCode')} /></label><label>{config.nameLabel}<input required {...register('name')} /></label><label>Tuyến / hành trình<input {...register('route')} /></label><label>Thị trường<input {...register('marketGroup')} /></label>
                     <label>Ngày đặt<input type="date" {...register('bookingDate')} /></label><label>Ngày thanh toán<input type="date" {...register('paymentDate')} /></label><label>Ngày đi / check-in<input type="date" {...register('startDate')} /></label><label>Ngày về / check-out<input type="date" {...register('endDate')} /></label><label>Trạng thái<select disabled={Boolean(editingId) && !canChangeStatus} {...register('status')}>{statusOptions.map((status) => <option key={status} value={status}>{viStatus(status)}</option>)}</select></label><label>Chi nhánh<input {...register('branch')} /></label>
@@ -601,32 +607,32 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
                     <label>Họ tên khách<input {...register('customerName')} /></label><label>Loại khách<input {...register('customerType')} /></label><label>Số điện thoại<input {...register('customerPhone')} /></label><label>Email<input type="email" {...register('customerEmail')} /></label><label>Địa chỉ<input {...register('customerAddress')} /></label><label>Đại lý<input {...register('agencyName')} /></label><label>Cộng tác viên<input {...register('collaborator')} /></label><label>Nhân viên điều hành<input {...register('operatorOwner')} /></label>
                   </div></fieldset>
                 </> : null}
-                {activeStep === 3 ? <fieldset><legend>Điều hành</legend><div className="quoteFormGrid">
+                {(isHotelBooking ? showBookingInfo : activeStep === 3) ? <fieldset><legend>Điều hành</legend><div className="quoteFormGrid">
                   <label>Hạng phòng<input {...register('roomClass')} /></label><label>Gói dịch vụ<input {...register('servicePackage')} /></label><label>Phương tiện<input {...register('transportType')} /></label><label>Điểm đón<input {...register('pickupPoint')} /></label><label>Điểm trả<input {...register('dropoffPoint')} /></label><label>Hạn nhận<input type="datetime-local" {...register('receiveDeadline')} /></label><label>Hạn đóng<input type="datetime-local" {...register('closeDeadline')} /></label><label className="span2">Ghi chú<textarea rows={2} {...register('note')} /></label>
                 </div></fieldset> : null}
-                {activeStep === 4 ? <fieldset><legend>Yêu cầu bàn giao</legend><div className="quoteFormGrid">
+                {!isHotelBooking && activeStep === 4 ? <fieldset><legend>Yêu cầu bàn giao</legend><div className="quoteFormGrid">
                   <label className="span2">Nội dung bàn giao<textarea rows={5} {...register('handoverRequest')} /></label>
                 </div></fieldset> : null}
-                {activeStep === 5 ? <fieldset><legend>Mô tả đánh giá</legend><div className="quoteFormGrid">
+                {showSurvey ? <fieldset><legend>Mô tả đánh giá</legend><div className="quoteFormGrid">
                   <label className="span2">Mô tả chung<textarea rows={4} {...register('surveyDescription')} /></label>
                 </div></fieldset> : null}
               </div>
             </section>
-            {activeStep === 0 ? <Rows title="Dịch vụ sales / phần thu" name="salesItems" register={register} fieldArray={arrays.salesItems} emptyRow={emptySales} columns={[['serviceType','Loại dịch vụ'],['description','Diễn giải'],['quantity','Số lượng','number'],['serviceCount','Số lượt','number'],['unitPrice','Đơn giá','number'],['vat','VAT (%)','number'],['note','Ghi chú']]} /> : null}
-            {activeStep === 1 ? <>
-              <Rows title="Lịch trình" name="itineraries" register={register} fieldArray={arrays.itineraries} emptyRow={{ id: '', dayNo: 1, title: '', content: '', period: '', destination: '', meals: '', hotel: '', restaurant: '', services: '', note: '' }} columns={[['dayNo','Ngày','number'],['title','Tiêu đề'],['content','Nội dung','textarea'],['destination','Điểm đến'],['meals','Bữa ăn'],['hotel','Khách sạn'],['restaurant','Nhà hàng'],['note','Ghi chú']]} />
-              <Rows title="Thành viên / hành khách" name="members" register={register} fieldArray={arrays.members} emptyRow={emptyMember} columns={[['fullName','Họ tên'],['gender','Giới tính'],['birthday','Ngày sinh','date'],['phone','Số điện thoại'],['email','Email'],['identityNumber','CCCD / hộ chiếu'],['nationality','Quốc tịch'],['passengerType','Loại khách','passengerType']]} />
+            {!isHotelBooking && activeStep === 0 ? <Rows title="Dịch vụ sales / phần thu" name="salesItems" register={register} fieldArray={arrays.salesItems} emptyRow={emptySales} columns={[['serviceType','Loại dịch vụ'],['description','Diễn giải'],['quantity','Số lượng','number'],['serviceCount','Số lượt','number'],['unitPrice','Đơn giá','number'],['vat','VAT (%)','number'],['note','Ghi chú']]} /> : null}
+            {showHotelPricing ? <>
+              <Rows title="Phòng bán / phần thu" name="salesItems" register={register} setValue={setValue} fieldArray={arrays.salesItems} emptyRow={emptySales} rows={values.salesItems} hotelSuppliers={hotelSuppliers} hotelServices={hotelServices} orderStartDate={values.startDate} columns={[['supplierId','Khách sạn','supplier'],['serviceId','Loại phòng','hotelService'],['quantity','Số lượng','number'],['serviceCount','Số lượt','number'],['unitPrice','Đơn giá','number'],['vat','VAT (%)','number'],['note','Ghi chú']]} />
+              <Rows title="Phòng đặt / phần chi" name="operationItems" register={register} setValue={setValue} fieldArray={arrays.operationItems} emptyRow={emptyOperation} rows={values.operationItems} hotelSuppliers={hotelSuppliers} hotelServices={hotelServices} orderStartDate={values.startDate} columns={[['supplierId','Khách sạn','supplier'],['serviceId','Loại phòng','hotelService'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} />
             </> : null}
-            {activeStep === 2 ? <Rows title="Dự toán dịch vụ / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} /> : null}
-            {activeStep === 3 ? <>
+            {!isHotelBooking && activeStep === 1 ? <Rows title="Lịch trình" name="itineraries" register={register} fieldArray={arrays.itineraries} emptyRow={{ id: '', dayNo: 1, title: '', content: '', period: '', destination: '', meals: '', hotel: '', restaurant: '', services: '', note: '' }} columns={[['dayNo','Ngày','number'],['title','Tiêu đề'],['content','Nội dung','textarea'],['destination','Điểm đến'],['meals','Bữa ăn'],['hotel','Khách sạn'],['restaurant','Nhà hàng'],['note','Ghi chú']]} /> : null}
+            {showMembers ? <Rows title="Thành viên / hành khách" name="members" register={register} fieldArray={arrays.members} emptyRow={emptyMember} columns={[['fullName','Họ tên'],['gender','Giới tính'],['birthday','Ngày sinh','date'],['phone','Số điện thoại'],['email','Email'],['identityNumber','CCCD / hộ chiếu'],['nationality','Quốc tịch'],['passengerType','Loại khách','passengerType']]} /> : null}
+            {!isHotelBooking && activeStep === 2 ? <Rows title="Dự toán dịch vụ / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} /> : null}
+            {!isHotelBooking && activeStep === 3 ? <>
               <Rows title="Điều hành / phần chi" name="operationItems" register={register} fieldArray={arrays.operationItems} emptyRow={emptyOperation} columns={[['serviceType','Loại dịch vụ'],['bookingCode','Mã booking'],['serviceDate','Ngày sử dụng','date'],['quantity','Số lượng','number'],['netPrice','Giá NET','number'],['vat','VAT (%)','number'],['status','Trạng thái','status'],['note','Ghi chú']]} />
               <Rows title="Hướng dẫn viên" name="guides" register={register} fieldArray={arrays.guides} emptyRow={{ id: '', guideName: '', phone: '', language: '', note: '' }} columns={[['guideName','Hướng dẫn viên'],['phone','Số điện thoại'],['language','Ngôn ngữ'],['note','Ghi chú']]} />
             </> : null}
-            {activeStep === 4 ? <Rows title="Bàn giao" name="handoverItems" register={register} fieldArray={arrays.handoverItems} emptyRow={{ id: '', itemName: '', quantity: 1, note: '' }} columns={[['itemName','Tài liệu'],['quantity','Số lượng','number'],['note','Ghi chú']]} /> : null}
-            {activeStep === 5 ? <>
-              <Rows title="Phiếu đánh giá dịch vụ" name="surveyQuestions" register={register} fieldArray={arrays.surveyQuestions} emptyRow={{ id: '', question: '', note: '' }} columns={[['question','Câu hỏi'],['note','Ghi chú']]} />
-              <Rows title="Điều khoản và lưu ý" name="terms" register={register} fieldArray={arrays.terms} emptyRow={{ id: '', language: 'VN', terms: '', notes: '' }} columns={[['language','Ngôn ngữ','language'],['terms','Điều khoản','textarea'],['notes','Lưu ý','textarea']]} />
-            </> : null}
+            {!isHotelBooking && activeStep === 4 ? <Rows title="Bàn giao" name="handoverItems" register={register} fieldArray={arrays.handoverItems} emptyRow={{ id: '', itemName: '', quantity: 1, note: '' }} columns={[['itemName','Tài liệu'],['quantity','Số lượng','number'],['note','Ghi chú']]} /> : null}
+            {showSurvey ? <Rows title="Phiếu đánh giá dịch vụ" name="surveyQuestions" register={register} fieldArray={arrays.surveyQuestions} emptyRow={{ id: '', question: '', note: '' }} columns={[['question','Câu hỏi'],['note','Ghi chú']]} /> : null}
+            {showTerms ? <Rows title="Điều khoản và lưu ý" name="terms" register={register} fieldArray={arrays.terms} emptyRow={{ id: '', language: 'VN', terms: '', notes: '' }} columns={[['language','Ngôn ngữ','language'],['terms','Điều khoản','textarea'],['notes','Lưu ý','textarea']]} /> : null}
           </div>
           <aside className="panel quoteSummaryBox">
             <h2>Tổng hợp đơn hàng</h2>
@@ -642,8 +648,10 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
   );
 }
 
-function Rows<T extends ArrayName>({ title, name, register, fieldArray, columns, emptyRow }: { title: string; name: T; register: UseFormRegister<OrderForm>; fieldArray: UseFieldArrayReturn<OrderForm, T, 'fieldId'>; columns: RowColumn[]; emptyRow: Record<string, unknown> }) {
-  const table = useReactTable({ data: fieldArray.fields, columns: useMemo(() => { const helper = createColumnHelper<FieldArrayWithId<OrderForm, T, 'fieldId'>>(); return [helper.display({ id: 'stt', header: 'STT', cell: ({ row }) => row.index + 1 }), ...columns.map(([key,label,type]) => helper.display({ id: key, header: label, cell: ({ row }) => <Cell name={name} index={row.index} fieldKey={key} type={type} register={register} /> })), helper.display({ id: 'actions', header: 'Thao tác', cell: ({ row }) => <><input type="hidden" {...register(`${name}.${row.index}.id` as any)} /><button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)} aria-label="Xóa dòng"><Trash2 size={15}/></button></> })]; }, [columns, fieldArray, name, register]), getCoreRowModel: getCoreRowModel(), getRowId: (row) => String(row.fieldId) });
+type HotelPricingRow = Partial<OrderForm['salesItems'][number]> & Partial<OrderForm['operationItems'][number]>;
+
+function Rows<T extends ArrayName>({ title, name, register, setValue, fieldArray, columns, emptyRow, rows = [], hotelSuppliers = [], hotelServices = [], orderStartDate = '' }: { title: string; name: T; register: UseFormRegister<OrderForm>; setValue?: UseFormSetValue<OrderForm>; fieldArray: UseFieldArrayReturn<OrderForm, T, 'fieldId'>; columns: RowColumn[]; emptyRow: Record<string, unknown>; rows?: HotelPricingRow[]; hotelSuppliers?: HotelSupplierOption[]; hotelServices?: HotelServiceOption[]; orderStartDate?: string }) {
+  const table = useReactTable({ data: fieldArray.fields, columns: useMemo(() => { const helper = createColumnHelper<FieldArrayWithId<OrderForm, T, 'fieldId'>>(); return [helper.display({ id: 'stt', header: 'STT', cell: ({ row }) => row.index + 1 }), ...columns.map(([key,label,type]) => helper.display({ id: key, header: label, cell: ({ row }) => <Cell name={name} index={row.index} fieldKey={key} type={type} register={register} setValue={setValue} row={rows[row.index]} hotelSuppliers={hotelSuppliers} hotelServices={hotelServices} orderStartDate={orderStartDate} /> })), helper.display({ id: 'actions', header: 'Thao tác', cell: ({ row }) => <><input type="hidden" {...register(`${name}.${row.index}.id` as any)} /><button type="button" className="dangerButton iconButton" onClick={() => fieldArray.remove(row.index)} aria-label="Xóa dòng"><Trash2 size={15}/></button></> })]; }, [columns, fieldArray, hotelServices, hotelSuppliers, name, orderStartDate, register, rows, setValue]), getCoreRowModel: getCoreRowModel(), getRowId: (row) => String(row.fieldId) });
   return <section className="fitTableBlock"><div className="sectionHeader"><h2>{title}</h2><button type="button" className="secondaryButton" onClick={() => fieldArray.append({ ...emptyRow } as any)}><Plus size={16}/> Thêm dòng</button></div><div className="fitTableWrap"><table className="fitTable orderDynamicTable"><thead>{table.getHeaderGroups().map((group)=><tr key={group.id}>{group.headers.map((header)=><th key={header.id}>{flexRender(header.column.columnDef.header,header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row)=><tr key={row.id}>{row.getVisibleCells().map((cell)=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}</tbody></table></div></section>;
 }
 
@@ -652,8 +660,59 @@ function numberInputProps(name: ArrayName, fieldKey: string) {
   return { min: 0, step: '0.01' };
 }
 
-function Cell<T extends ArrayName>({ name, index, fieldKey, type, register }: { name: T; index: number; fieldKey: string; type?: RowColumn[2]; register: UseFormRegister<OrderForm> }) {
+function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setValue, row, hotelSuppliers = [], hotelServices = [], orderStartDate = '' }: { name: T; index: number; fieldKey: string; type?: RowColumn[2]; register: UseFormRegister<OrderForm>; setValue?: UseFormSetValue<OrderForm>; row?: HotelPricingRow; hotelSuppliers?: HotelSupplierOption[]; hotelServices?: HotelServiceOption[]; orderStartDate?: string }) {
   const field = `${name}.${index}.${fieldKey}`;
+  if (type === 'supplier') {
+    const supplierField = register(field as any);
+    const selectedService = hotelServices.find((service) => service.id === text(row?.serviceId));
+    return <select {...supplierField} onChange={(event) => {
+      supplierField.onChange(event);
+      if (!setValue) return;
+      const supplierId = event.target.value;
+      setValue(`${name}.${index}.supplierId` as any, supplierId, { shouldDirty: true });
+      if (!supplierId || !selectedService || selectedService.supplierId === supplierId) return;
+      setValue(`${name}.${index}.serviceId` as any, '', { shouldDirty: true });
+      if (name === 'salesItems') {
+        setValue(`${name}.${index}.description` as any, '', { shouldDirty: true });
+        setValue(`${name}.${index}.unitPrice` as any, 0, { shouldDirty: true });
+      }
+      if (name === 'operationItems') setValue(`${name}.${index}.netPrice` as any, 0, { shouldDirty: true });
+    }}><option value="">Tất cả khách sạn</option>{hotelSuppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select>;
+  }
+  if (type === 'hotelService') {
+    const serviceField = register(field as any);
+    const selectedSupplierId = text(row?.supplierId);
+    const selectedServiceId = text(row?.serviceId);
+    const selectedService = hotelServices.find((service) => service.id === selectedServiceId);
+    const supplierServices = selectedSupplierId ? hotelServices.filter((service) => service.supplierId === selectedSupplierId) : hotelServices;
+    const serviceOptions = selectedService && !supplierServices.some((service) => service.id === selectedService.id) ? [selectedService, ...supplierServices] : supplierServices;
+    const selectedRemaining = selectedService ? hotelAllotmentRemaining(selectedService.allotments, text(row?.serviceDate), orderStartDate) : 0;
+    return <div className="orderHotelServiceCell">
+      <select {...serviceField} onChange={(event) => {
+        serviceField.onChange(event);
+        if (!setValue) return;
+        const service = hotelServices.find((option) => option.id === event.target.value);
+        if (!service) return;
+        setValue(`${name}.${index}.supplierId` as any, service.supplierId, { shouldDirty: true });
+        setValue(`${name}.${index}.serviceType` as any, 'HOTEL', { shouldDirty: true });
+        if (name === 'salesItems') {
+          setValue(`${name}.${index}.description` as any, service.serviceName, { shouldDirty: true });
+          setValue(`${name}.${index}.unitPrice` as any, safeNumber(service.sellingPrice), { shouldDirty: true });
+        }
+        if (name === 'operationItems') setValue(`${name}.${index}.netPrice` as any, safeNumber(service.netPrice), { shouldDirty: true });
+      }}>
+        <option value="">Chọn dịch vụ phòng</option>
+        {serviceOptions.map((service) => {
+          const remaining = hotelAllotmentRemaining(service.allotments, text(row?.serviceDate), orderStartDate);
+          const availability = `Còn ${remaining} phòng`;
+          const label = service.selectable ? `${service.supplierName} - ${service.serviceName} - ${availability}` : `${service.supplierName} - ${service.serviceName} - Dịch vụ không còn hoạt động`;
+          return <option key={service.id} value={service.id} disabled={!service.selectable && service.id !== selectedServiceId}>{label}</option>;
+        })}
+      </select>
+      {serviceOptions.length === 0 ? <span className="orderHotelEmptyOptions">Không có dịch vụ phòng phù hợp.</span> : null}
+      {selectedService ? <span className={`orderHotelServiceHint ${selectedService.selectable && selectedRemaining > 0 ? 'available' : 'unavailable'}`}>{selectedService.selectable ? `Còn ${selectedRemaining} phòng` : 'Dịch vụ không còn hoạt động'}</span> : null}
+    </div>;
+  }
   if (type === 'textarea') return <textarea rows={2} {...register(field as any)} />;
   if (type === 'status') return <select {...register(field as any)}><option value="WAITING">{viStatus('WAITING')}</option><option value="REQUESTED">{viStatus('REQUESTED')}</option><option value="CONFIRMED">{viStatus('CONFIRMED')}</option><option value="OPERATING">{viStatus('OPERATING')}</option><option value="COMPLETED">{viStatus('COMPLETED')}</option><option value="CANCELLED">{viStatus('CANCELLED')}</option></select>;
   if (type === 'passengerType') return <select {...register(field as any)}><option value="ADULT">Người lớn</option><option value="CHILD">Trẻ em</option><option value="INFANT">Em bé</option></select>;
