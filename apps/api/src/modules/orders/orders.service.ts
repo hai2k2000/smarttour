@@ -9,6 +9,7 @@ import { calculateOrderTotals } from './order-calculator';
 import { OrderChildrenSyncService } from './order-children-sync';
 import { OrderCustomerSnapshotService } from './order-customer-snapshot';
 import { mergeOrderDateInput, mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldResyncHotelAllotments, toOrderCopyDto, toOrderData, validateOrderDates } from './order-data-mapper';
+import { listHotelServiceOptions } from './order-hotel-service-options';
 import { OrderLifecycleService } from './order-lifecycle';
 
 const ORDER_TYPES: Record<string, OrderType> = {
@@ -103,6 +104,10 @@ export class OrdersService {
       orderBy: [{ updatedAt: 'desc' }, { systemCode: 'asc' }],
       take: this.listTake(query.take),
     });
+  }
+
+  hotelServiceOptions() {
+    return listHotelServiceOptions(this.prisma);
   }
 
   async detail(typePath: string, id: string, user?: RequestUser) {

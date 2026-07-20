@@ -10,6 +10,12 @@ import { OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Get('hotel-service-options')
+  @RequirePermissions('order.view')
+  hotelServiceOptions() {
+    return this.ordersService.hotelServiceOptions();
+  }
+
   @Get(':type')
   @RequirePermissions('order.view')
   list(@Param('type') type: string, @Query() query: ListOrdersQueryDto, @Req() request: { user?: RequestUser }) {
