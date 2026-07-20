@@ -42,6 +42,8 @@ for (const command of [
   'node scripts/test-query-dto-contract.js',
   'node scripts/test-orders-finance-backend-contract.js',
   'node scripts/test-orders-finance-client-contract.js',
+  'node scripts/test-orders-hotel-service-selectors-backend-contract.js',
+  'node scripts/test-orders-hotel-service-selectors-client-contract.js',
   'node scripts/test-observability-alerting-contract.js',
   'node scripts/test-rollback-runbook-contract.js',
   'node scripts/test-restore-drill-safety-contract.js',
