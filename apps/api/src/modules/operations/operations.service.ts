@@ -409,11 +409,12 @@ export class OperationsService {
     if (status !== SupplierPaymentStatus.DRAFT) throw new BadRequestException('Yêu cầu thanh toán nhà cung cấp phải được tạo ở trạng thái nháp');
     const items = this.paymentItems(dto);
     if (!items.length) throw new BadRequestException('Cần ít nhất một dòng thanh toán nhà cung cấp');
-    await this.ensurePaymentItemsScoped(items, user);
-    const codeBranch = await this.paymentRequestCodeBranch(items, dto, user);
     return this.prisma.$transaction(async (tx) => {
+      await this.lockPaymentItemOperationForms(tx, items);
       await this.lockPaymentItemCosts(tx, items);
+      await this.ensurePaymentItemsScoped(items, user, tx);
       await this.validatePaymentItems(items, undefined, tx);
+      const codeBranch = await this.paymentRequestCodeBranch(items, dto, user, tx);
       const code = this.text(dto.code) || (await this.nextAvailablePaymentRequestCode(tx, new Date(), codeBranch));
       const request = await tx.supplierPaymentRequest.create({
         data: {
@@ -434,7 +435,6 @@ export class OperationsService {
     const items = dto.items === undefined ? undefined : this.paymentItems(dto);
     if (items) {
       if (!items.length) throw new BadRequestException('C\u1ea7n \u00edt nh\u1ea5t m\u1ed9t d\u00f2ng thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
-      await this.ensurePaymentItemsScoped(items, user);
     }
     return this.prisma.$transaction(async (tx) => {
       await this.lockSupplierPaymentRequest(tx, id);
@@ -444,7 +444,9 @@ export class OperationsService {
         throw new BadRequestException('Vui l\u00f2ng d\u00f9ng \u0111\u01b0\u1eddng d\u1eabn h\u00e0nh \u0111\u1ed9ng \u0111\u1ec3 \u0111\u1ed5i tr\u1ea1ng th\u00e1i y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
       }
       if (items) {
+        await this.lockPaymentItemOperationForms(tx, items);
         await this.lockPaymentItemCosts(tx, items);
+        await this.ensurePaymentItemsScoped(items, user, tx);
         await this.validatePaymentItems(items, id, tx);
       }
       if (items) await tx.supplierPaymentItem.deleteMany({ where: { requestId: id } });
@@ -656,6 +658,7 @@ export class OperationsService {
     const actor = this.userActor(user, dto.actor);
     return this.prisma.$transaction(async (tx) => {
       await this.lockSupplierPaymentRequest(tx, id);
+      if (status === SupplierPaymentStatus.REQUESTED) await this.lockPaymentRequestOperationForms(tx, id);
       const current = await this.paymentRequestDetail(id, user, tx);
       this.assertSupplierPaymentTransition(current.status, status);
       if (status === SupplierPaymentStatus.REQUESTED) {
@@ -901,6 +904,31 @@ export class OperationsService {
     if (!locked.length) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y y\u00eau c\u1ea7u thanh to\u00e1n nh\u00e0 cung c\u1ea5p');
   }
 
+  private async lockPaymentItemOperationForms(tx: Prisma.TransactionClient, items: ParsedPaymentItem[]) {
+    const costIds = Array.from(new Set(items.map((item) => item.costId)));
+    if (!costIds.length) return [];
+    const placeholders = costIds.map((_, index) => `$${index + 1}`).join(', ');
+    return tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT "id" FROM "OperationForm" WHERE "id" IN (SELECT DISTINCT "operationFormId" FROM "OperationCost" WHERE "id" IN (${placeholders})) ORDER BY "id" FOR UPDATE`,
+      ...costIds,
+    );
+  }
+
+  private async lockPaymentRequestOperationForms(tx: Prisma.TransactionClient, requestId: string) {
+    return tx.$queryRaw<Array<{ id: string }>>`
+      SELECT f."id"
+      FROM "OperationForm" f
+      WHERE f."id" IN (
+        SELECT DISTINCT c."operationFormId"
+        FROM "SupplierPaymentItem" i
+        JOIN "OperationCost" c ON c."id" = i."costId"
+        WHERE i."requestId" = ${requestId}
+      )
+      ORDER BY f."id"
+      FOR UPDATE
+    `;
+  }
+
   private async lockPaymentItemCosts(tx: Prisma.TransactionClient, items: ParsedPaymentItem[]) {
     const costIds = Array.from(new Set(items.map((item) => item.costId)));
     if (!costIds.length) return;
@@ -1093,32 +1121,32 @@ export class OperationsService {
     if (links.tourId && !tour) throw new NotFoundException('Không tìm thấy tour');
   }
 
-  private async paymentRequestCodeBranch(items: ParsedPaymentItem[], dto: AnyRecord, user?: RequestUser) {
+  private async paymentRequestCodeBranch(items: ParsedPaymentItem[], dto: AnyRecord, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     const explicitBranch = this.text(dto.branch);
     if (user && !hasUnrestrictedDataScope(user)) {
       this.assertScopedWriteUser(user);
       const permissions = userPermissions(user);
       if (permissions.has('data.scope.branch')) return user.branch ?? null;
     }
-    const scope = await this.paymentItemsScope(items);
+    const scope = await this.paymentItemsScope(items, client);
     return explicitBranch || scope.branch;
   }
 
-  private async paymentItemsScope(items: Array<{ costId: string }>): Promise<ScopeMeta> {
+  private async paymentItemsScope(items: Array<{ costId: string }>, client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<ScopeMeta> {
     const costIds = Array.from(new Set(items.map((item) => item.costId)));
     if (!costIds.length) return { branch: null, department: null };
-    const costs = await this.prisma.operationCost.findMany({
+    const costs = await client.operationCost.findMany({
       where: { id: { in: costIds } },
       include: { operationForm: { include: { booking: { include: { customer: true } }, order: true, tour: true } } },
     });
     return this.commonOperationFormScope(costs.map((cost) => cost.operationForm));
   }
 
-  private async ensurePaymentItemsScoped(items: Array<{ costId: string }>, user?: RequestUser) {
+  private async ensurePaymentItemsScoped(items: Array<{ costId: string }>, user?: RequestUser, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     if (!user || hasUnrestrictedDataScope(user)) return;
     this.assertScopedWriteUser(user);
     const costIds = Array.from(new Set(items.map((item) => item.costId)));
-    const count = await this.prisma.operationCost.count({ where: { id: { in: costIds }, operationForm: this.formScopeWhere({}, user) } });
+    const count = await client.operationCost.count({ where: { id: { in: costIds }, operationForm: this.formScopeWhere({}, user) } });
     if (count !== costIds.length) throw new NotFoundException('Không tìm thấy chi phí điều hành');
   }
 
