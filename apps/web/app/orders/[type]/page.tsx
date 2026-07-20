@@ -4,7 +4,7 @@ import { serverAuthHeaders } from '../../serverAuth';
 import { serverApiBase } from '../../serverApiBase';
 import { ServerPermissionNotice, hasPermission, type PermissionUser } from '../../serverPermissions';
 import { isOrderRouteType, orderConfigs } from '../order-config';
-import OrdersClient from './OrdersClient';
+import OrdersClient, { type HotelSupplierOption } from './OrdersClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +52,9 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: s
   const currentUser = await apiGet<PermissionUser | null>('/auth/me', null);
   const canViewOrders = hasPermission(currentUser, 'order.view') || hasPermission(currentUser, 'order.manage');
   const orders = canViewOrders ? await apiGet(`/orders/${type}?take=100`, []) : [];
+  const hotelSuppliers = canViewOrders && type === 'hotel-bookings'
+    ? await apiGet<HotelSupplierOption[]>('/orders/hotel-service-options', [])
+    : [];
 
   return (
     <section className="workspace orderWorkspace">
@@ -67,7 +70,7 @@ export default async function OrdersPage({ params }: { params: Promise<{ type: s
       </header>
       <ServerPermissionNotice allowed={canViewOrders} label={'xem v\u00e0 qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng'} missingPermissions={['order.view']} />
       {canViewOrders ? (
-        <OrdersClient type={type} config={config} initialOrders={orders} />
+        <OrdersClient type={type} config={config} initialOrders={orders} initialHotelSuppliers={hotelSuppliers} />
       ) : null}
     </section>
   );

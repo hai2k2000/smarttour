@@ -35,6 +35,57 @@ type OrderSummary = {
   _count?: { members: number; salesItems: number; operationItems: number };
 };
 
+type SerializedNumber = number | string | null;
+type SerializedDate = string | null;
+
+type HotelProfileOption = {
+  hotelProject: string | null;
+  classHotel: string | null;
+};
+
+type HotelSupplierServiceOption = {
+  id: string;
+  sku: string;
+  serviceName: string;
+  netPrice: SerializedNumber;
+  sellingPrice: SerializedNumber;
+  status: string;
+  selectable?: boolean;
+};
+
+type HotelAllotmentOption = {
+  id: string;
+  serviceId: string | null;
+  serviceName: string;
+  startDate: SerializedDate;
+  endDate: SerializedDate;
+  dayType: string;
+  allotmentQty: SerializedNumber;
+  bookedQty: SerializedNumber;
+  lockedQty: SerializedNumber;
+  cutoffDays: SerializedNumber;
+  netCostPerDay: SerializedNumber;
+  sellingPricePerDay: SerializedNumber;
+  status: string;
+};
+
+export type HotelSupplierOption = {
+  id: string;
+  supplierCode: string;
+  name: string;
+  province: string | null;
+  hotelProfile: HotelProfileOption | null;
+  supplierServices: HotelSupplierServiceOption[];
+  allotments: HotelAllotmentOption[];
+};
+
+type HotelServiceOption = HotelSupplierServiceOption & {
+  supplierId: string;
+  supplierName: string;
+  selectable: boolean;
+  allotments: HotelAllotmentOption[];
+};
+
 const rowId = { id: z.string().default('') };
 const salesSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), description: z.string().default(''), quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), serviceCount: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3t kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), unitPrice: z.coerce.number().min(0, '\u0110\u01a1n gi\u00e1 kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), vat: z.coerce.number().min(0, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), note: z.string().default('') });
 const operationSchema = z.object({ ...rowId, serviceType: z.string().default(''), supplierId: z.string().default(''), serviceId: z.string().default(''), bookingCode: z.string().default(''), serviceDate: z.string().default(''), quantity: z.coerce.number().min(0, 'S\u1ed1 l\u01b0\u1ee3ng kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(1), netPrice: z.coerce.number().min(0, 'Gi\u00e1 NET kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), vat: z.coerce.number().min(0, 'VAT kh\u00f4ng \u0111\u01b0\u1ee3c \u00e2m').default(0), status: z.string().default('WAITING'), note: z.string().default('') });
@@ -199,6 +250,72 @@ async function apiMessage(response: Response) {
 }
 function statusClass(status: string) { return `statusPill status-${status.toLowerCase()}`; }
 
+function hotelAllotmentRemaining(allotments: HotelAllotmentOption[], serviceDate?: string, orderStartDate?: string) {
+  const target = dateOnly(serviceDate || orderStartDate);
+  return allotments
+    .filter((row) => !target || ((!row.startDate || dateOnly(row.startDate) <= target) && (!row.endDate || dateOnly(row.endDate) >= target)))
+    .reduce((sum, row) => sum + Math.max(0, safeNumber(row.allotmentQty) - safeNumber(row.bookedQty) - safeNumber(row.lockedQty)), 0);
+}
+
+function flattenHotelServiceOptions(suppliers: HotelSupplierOption[]): HotelServiceOption[] {
+  return suppliers.flatMap((supplier) => (supplier.supplierServices || []).map((service) => ({
+    ...service,
+    supplierId: supplier.id,
+    supplierName: supplier.name,
+    selectable: service.selectable ?? service.status === 'ACTIVE',
+    allotments: (supplier.allotments || []).filter((row) => row.serviceId === service.id),
+  })));
+}
+
+function mergePersistedHotelOptions(options: HotelSupplierOption[], order: any): HotelSupplierOption[] {
+  const merged = options.map((supplier) => ({
+    ...supplier,
+    supplierServices: [...(supplier.supplierServices || [])],
+    allotments: [...(supplier.allotments || [])],
+  }));
+  const suppliersById = new Map(merged.map((supplier) => [supplier.id, supplier]));
+  const serviceIds = new Set(flattenHotelServiceOptions(merged).map((service) => service.id));
+  const rows = [...(Array.isArray(order?.salesItems) ? order.salesItems : []), ...(Array.isArray(order?.operationItems) ? order.operationItems : [])];
+
+  for (const row of rows) {
+    const persistedSupplier = row?.supplier;
+    const persistedService = row?.service;
+    const supplierId = text(persistedSupplier?.id) || text(row?.supplierId);
+    if (!supplierId) continue;
+
+    let supplier = suppliersById.get(supplierId);
+    if (!supplier) {
+      if (!persistedSupplier) continue;
+      supplier = {
+        id: supplierId,
+        supplierCode: text(persistedSupplier.supplierCode),
+        name: text(persistedSupplier.name) || supplierId,
+        province: text(persistedSupplier.province) || null,
+        hotelProfile: persistedSupplier.hotelProfile || null,
+        supplierServices: [],
+        allotments: [],
+      };
+      merged.push(supplier);
+      suppliersById.set(supplierId, supplier);
+    }
+
+    const serviceId = text(persistedService?.id) || text(row?.serviceId);
+    if (!serviceId || !persistedService || serviceIds.has(serviceId)) continue;
+    supplier.supplierServices.push({
+      id: serviceId,
+      sku: text(persistedService.sku),
+      serviceName: text(persistedService.serviceName) || text(row?.description) || text(row?.serviceType) || serviceId,
+      netPrice: persistedService.netPrice ?? row?.netPrice ?? null,
+      sellingPrice: persistedService.sellingPrice ?? row?.unitPrice ?? null,
+      status: text(persistedService.status),
+      selectable: false,
+    });
+    serviceIds.add(serviceId);
+  }
+
+  return merged;
+}
+
 function mapOrderToForm(order: any): OrderForm {
   const defaults = makeDefaultValues();
   return {
@@ -261,9 +378,10 @@ function buildPayload(data: OrderForm) {
   });
 }
 
-export default function OrdersClient({ type, config, initialOrders }: { type: OrderRouteType; config: OrderConfig; initialOrders: OrderSummary[] }) {
+export default function OrdersClient({ type, config, initialOrders, initialHotelSuppliers }: { type: OrderRouteType; config: OrderConfig; initialOrders: OrderSummary[]; initialHotelSuppliers: HotelSupplierOption[] }) {
   const { can, permissionsReady } = usePermissions();
   const [orders, setOrders] = useState(initialOrders);
+  const [hotelSuppliers, setHotelSuppliers] = useState(initialHotelSuppliers);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [originalStatus, setOriginalStatus] = useState('');
   const [activeStep, setActiveStep] = useState(0);
@@ -294,6 +412,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     return orders.filter((item) => [item.systemCode, item.tourCode, item.name, item.customerName, item.customerPhone].filter(Boolean).some((value) => String(value).toLowerCase().includes(term)));
   }, [orders, query]);
   const currentStatus = String(values.status || '');
+  const isHotelBooking = type === 'hotel-bookings';
   const canViewOrders = can('order.view') || can('order.manage');
   const canManageOrders = can('order.manage');
   const canChangeStatus = can('order.status.update');
@@ -363,6 +482,7 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     setOriginalStatus(String(order.status || ''));
     setActiveStep(0);
     setFormOpen(true);
+    if (isHotelBooking) setHotelSuppliers(mergePersistedHotelOptions(hotelSuppliers, order));
     reset(mapOrderToForm(order));
   }
   async function onSubmit(data: OrderForm) {
@@ -439,8 +559,8 @@ export default function OrdersClient({ type, config, initialOrders }: { type: Or
     reset(mapOrderToForm(updated));
     await reload(query);
   }
-  function closeForm() { setEditingId(null); setOriginalStatus(''); setFinanceOrder(null); setFormOpen(false); setMessage(''); reset(makeDefaultValues()); }
-  function openCreate() { if (!canManageOrders) { setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o \u0111\u01a1n h\u00e0ng.'); return; } setEditingId(null); setOriginalStatus(''); setFinanceOrder(null); setActiveStep(0); setMessage(''); reset(makeDefaultValues()); setFormOpen(true); }
+  function closeForm() { setEditingId(null); setOriginalStatus(''); setFinanceOrder(null); setFormOpen(false); setMessage(''); if (isHotelBooking) setHotelSuppliers(initialHotelSuppliers); reset(makeDefaultValues()); }
+  function openCreate() { if (!canManageOrders) { setMessage('B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n t\u1ea1o \u0111\u01a1n h\u00e0ng.'); return; } setEditingId(null); setOriginalStatus(''); setFinanceOrder(null); setActiveStep(0); setMessage(''); if (isHotelBooking) setHotelSuppliers(initialHotelSuppliers); reset(makeDefaultValues()); setFormOpen(true); }
   return (
     <div className="orderPage">
       <PermissionNotice allowed={!permissionsReady || canViewOrders} label="xem v\u00e0 qu\u1ea3n l\u00fd \u0111\u01a1n h\u00e0ng" />
