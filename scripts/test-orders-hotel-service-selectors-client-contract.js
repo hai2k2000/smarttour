@@ -51,6 +51,14 @@ requireSectionText(client, "if (type === 'supplier') {", "if (type === 'hotelSer
   'disabled={supplier.selectable === false && supplier.id !== selectedSupplierId}',
   'Khách sạn không còn hoạt động',
 ], 'Historical hotel suppliers must only remain enabled for their current row');
+requireSectionText(client, 'if (!supplierId) {', 'if (!selectedService || selectedService.supplierId === supplierId) return;', [
+  'setValue(`${name}.${index}.serviceId` as any, \'\'',
+  'setValue(`${name}.${index}.serviceType` as any, \'\'',
+  'setValue(`${name}.${index}.description` as any, \'\'',
+  'setValue(`${name}.${index}.unitPrice` as any, 0',
+  'setValue(`${name}.${index}.netPrice` as any, 0',
+  'return;',
+], 'Clearing a hotel supplier must remove all ghost-row content');
 requireSectionText(client, 'if (!event.target.value) {', 'const service = hotelServices.find', [
   'setValue(`${name}.${index}.description` as any, \'\'',
   'setValue(`${name}.${index}.unitPrice` as any, 0',

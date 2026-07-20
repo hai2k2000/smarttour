@@ -673,6 +673,16 @@ function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setV
       if (!setValue) return;
       const supplierId = event.target.value;
       setValue(`${name}.${index}.supplierId` as any, supplierId, { shouldDirty: true });
+      if (!supplierId) {
+        setValue(`${name}.${index}.serviceId` as any, '', { shouldDirty: true });
+        setValue(`${name}.${index}.serviceType` as any, '', { shouldDirty: true });
+        if (name === 'salesItems') {
+          setValue(`${name}.${index}.description` as any, '', { shouldDirty: true });
+          setValue(`${name}.${index}.unitPrice` as any, 0, { shouldDirty: true });
+        }
+        if (name === 'operationItems') setValue(`${name}.${index}.netPrice` as any, 0, { shouldDirty: true });
+        return;
+      }
       if (!selectedService || selectedService.supplierId === supplierId) return;
       setValue(`${name}.${index}.serviceId` as any, '', { shouldDirty: true });
       if (name === 'salesItems') {
