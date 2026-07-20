@@ -53,6 +53,7 @@ export default function FinanceClient() {
   const { can, canAny, permissionsReady } = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const orderId = searchParams.get('orderId')?.trim() || '';
   const [tab, setTab] = useState<FinanceTab>('receipts');
   const [modal, setModal] = useState<null | 'receipts' | 'payments' | 'invoices'>(null);
   const [filter, setFilter] = useState({ search: '', status: '', paymentMethod: '', from: '', to: '' });
@@ -74,8 +75,9 @@ export default function FinanceClient() {
     const params = new URLSearchParams();
     params.set('take', '100');
     Object.entries(filter).forEach(([key, value]) => value && params.set(key, value));
+    if (orderId) params.set('orderId', orderId);
     return params.toString();
-  }, [filter]);
+  }, [filter, orderId]);
 
   useEffect(() => { setTab(normalizeTab(searchParams.get('tab'))); }, [searchParams]);
   useEffect(() => {
@@ -85,7 +87,11 @@ export default function FinanceClient() {
 
   function openTab(nextTab: FinanceTab) {
     setTab(nextTab);
-    router.push(nextTab === 'receipts' ? '/finance' : `/finance?tab=${nextTab}`, { scroll: false });
+    const nextParams = new URLSearchParams();
+    if (nextTab !== 'receipts') nextParams.set('tab', nextTab);
+    if (orderId) nextParams.set('orderId', orderId);
+    const suffix = nextParams.toString();
+    router.push(suffix ? `/finance?${suffix}` : '/finance', { scroll: false });
   }
 
   async function load() {
