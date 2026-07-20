@@ -6,7 +6,7 @@ Tour Management core redesign is now the active implementation area after the fi
 
 ## Immediate Next Tasks
 
-1. Continue Orders module after first shared order implementation: hotel booking specific room service selectors, receipts/payments, export/Word/PDF, approval UI, and member import/export.
+1. Continue Orders module after Finance integration: hotel booking specific supplier/room service selectors, export/Word/PDF, approval UI, and member import/export.
 2. Continue Quotes module: quote detail/print/PDF, import/export, convert-to-booking payloads, approval comments UI, and customer lookup.
 3. Continue Supplier module: upload files, import/export, debt/payment links, transaction-aware soft delete, and specialized child tables where needed.
 4. Add real file upload storage for common tour and supplier attachments.
@@ -19,6 +19,14 @@ The repository lives on the VPS under `/opt/smarttour` and tracks `git@github.co
 Docker build remains the verified deploy path for API/web on the VPS because host-level workspace builds still have broken `node_modules/.bin` CLI resolution. Booking service and tour-type APIs have current isolated coverage and production smoke coverage.
 
 ## Latest Session Notes
+
+- Orders Finance integration slice:
+  - Finance receipt/payment list queries now accept `orderId` while preserving branch/department data scope; direct Order supplier payments require a non-cancelled operation item for the same supplier.
+  - Finance deep links preserve `orderId`, and Orders now shows permission-gated persisted finance snapshots/history plus DRAFT-only receipt/payment creation outside the Order edit form.
+  - Supplier choices come only from active Order operation items. Approval, rejection, cancellation, reversals, and settlement remain in Finance; no schema migration was added.
+  - CI now runs the Orders Finance backend/client source contracts. Focused contracts, API/web lint and production builds, Finance/Order service flows, and diff checks passed on the feature branch and merged `main`.
+  - Production deployed commit `f3120d7` through `BRANCH=main bash scripts/deploy-production.sh`; SmartLink guard, Prisma migrate, Docker API/web rebuild, container restart, and `HEALTHCHECK_OK` passed.
+  - `smoke-order-lifecycle.sh` and `smoke-finance-reports.sh` remain credential-dependent because `ADMIN_PASSWORD` was not available; production credentials were not changed.
 
 - Supplier UI child-row API migration Phase 4 slice:
   - Added shared Supplier UI child-row sync helpers for contacts, services, and hotel allotments. The helpers delete removed persisted rows, update rows with an existing child `id`, and create new rows through `/suppliers/:id/contacts`, `/suppliers/:id/services`, and `/suppliers/:id/allotments`.

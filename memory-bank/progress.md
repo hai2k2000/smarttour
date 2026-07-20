@@ -1,5 +1,13 @@
 # Progress
 
+- Completed Orders Finance integration slice:
+  - Added order-scoped Finance receipt/payment history with data-scope preservation and direct supplier/order operation-item integrity checks.
+  - Added Finance `orderId` deep-link preservation and a permission-aware Orders finance panel with six persisted snapshots, independent receipt/payment histories, valid operation-item supplier choices, and DRAFT-only receipt/payment creation.
+  - Kept all approval, rejection, cancellation, reversal, and settlement actions inside Finance; no Prisma schema change or optimistic Order snapshot mutation was introduced.
+  - Added backend/client source contracts and wired both into SmartTour CI.
+  - Verification passed: GitHub Actions/Orders Finance/query/Finance helper contracts, Orders auth and Finance client regressions, API/web lint and production builds, Finance/Order service flows, and Git diff checks on both feature and merged `main`.
+  - Deployed `main` commit `f3120d7` with `scripts/deploy-production.sh`; SmartLink audit, Prisma migration check, API/web image rebuild, container restart, and full healthcheck passed. Authenticated Order/Finance smoke remains pending only because `ADMIN_PASSWORD` was unavailable.
+
 - Completed Supplier UI child-row API migration Phase 4 slice:
   - Added shared Supplier UI child-row sync helpers for contact, service, and hotel allotment rows, using dedicated child endpoints for create/update/delete instead of replacing nested arrays during edits.
   - Generic typed supplier edit now splits root payload from child payload, keeps child ids in form state without colliding with React Hook Form field-array keys, and syncs dirty contacts/services after the parent update succeeds.
