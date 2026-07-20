@@ -3866,3 +3866,11 @@ Docker build remains the verified deploy path for API/web on the VPS because hos
   - Operation service validation now locks referenced Supplier and SupplierService rows with SELECT ... FOR UPDATE through the transaction client, rejects missing/soft-deleted/inactive suppliers or services, and keeps supplier-service ownership checks.
   - Added docs/superpowers/specs/2026-07-17-operation-service-supplier-lock-design.md, docs/superpowers/plans/2026-07-17-operation-service-supplier-lock.md, and RED/GREEN source coverage in scripts/test-operation-service-supplier-lock-contract.js.
   - Verification/deploy passed on the VPS: operation service supplier-lock contract, operation form booking-lock contract, operations controller contract, payment request concurrency contract, operations service flow, API lint/build, Docker API rebuild/restart, and HEALTHCHECK_OK.
+
+- 2026-07-20 OperationPaymentItem/OperationForm lock follow-up:
+  - Found supplier payment request create/update still scope-checked OperationCost items and derived code branch before the write transaction, then locked only OperationCost rows inside the transaction.
+  - Found submit-to-REQUESTED checked cancelled operation forms from payment request detail without locking the referenced OperationForm rows, while operation form update/cancel already lock the parent form first.
+  - Payment request create/update now lock referenced OperationForm rows in deterministic id order from supplied OperationCost ids, then lock OperationCost rows, scope-check items, validate payment items, and derive code branch through the transaction client.
+  - Supplier payment request submit now locks request-linked OperationForm rows before re-reading request detail and checking CANCELLED form guards.
+  - Added docs/superpowers/specs/2026-07-20-operation-payment-item-form-lock-design.md, docs/superpowers/plans/2026-07-20-operation-payment-item-form-lock.md, and RED/GREEN source coverage in scripts/test-operation-payment-item-form-lock-contract.js.
+  - Verification/deploy passed on the VPS: payment item form-lock contract, payment request concurrency contract, operation service supplier-lock contract, operation form booking-lock contract, operations controller contract, operations service flow, API lint/build, Docker API rebuild/restart, and HEALTHCHECK_OK.

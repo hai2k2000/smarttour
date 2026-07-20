@@ -3324,3 +3324,10 @@
   - This closes stale child-row races where a concurrent supplier/service deactivate or soft-delete could land between validation and OperationService creation/replacement.
   - Verification passed: `node scripts/test-operation-service-supplier-lock-contract.js`, `node scripts/test-operation-form-booking-lock-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, `bash scripts/test-operations-service-flows.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
   - Deploy verification passed on the VPS: Docker API rebuild/restart and `npm run ops:health` with HEALTHCHECK_OK.
+
+- 2026-07-20 Completed OperationPaymentItem/OperationForm lock follow-up:
+  - Supplier payment request create/update now lock parent OperationForm rows derived from payment item OperationCost ids before locking OperationCost rows, matching operation form update/cancel lock order.
+  - Payment item data-scope checks and payment request code-branch derivation now run through the transaction client after the shared form/cost locks instead of using pre-transaction snapshots.
+  - Supplier payment request submit now locks request-linked OperationForm rows before re-reading detail and checking cancelled-form guards, preventing stale REQUESTED transitions after a concurrent form cancel.
+  - Verification passed: `node scripts/test-operation-payment-item-form-lock-contract.js`, `node scripts/test-phase1-operation-payment-request-concurrency-contract.js`, `node scripts/test-operation-service-supplier-lock-contract.js`, `node scripts/test-operation-form-booking-lock-contract.js`, `bash scripts/test-operations-controller-contract.sh`, `bash scripts/test-operations-service-flows.sh`, `npm run lint --workspace @smarttour/api`, and `npm run build --workspace @smarttour/api`.
+  - Deploy verification passed on the VPS: Docker API rebuild/restart and `npm run ops:health` with HEALTHCHECK_OK.
