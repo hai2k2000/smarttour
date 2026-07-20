@@ -45,7 +45,7 @@ type HotelProfileOption = {
 
 type HotelSupplierServiceOption = {
   id: string;
-  sku: string;
+  sku: string | null;
   serviceName: string;
   netPrice: SerializedNumber;
   sellingPrice: SerializedNumber;
@@ -71,7 +71,7 @@ type HotelAllotmentOption = {
 
 export type HotelSupplierOption = {
   id: string;
-  supplierCode: string;
+  supplierCode: string | null;
   name: string;
   province: string | null;
   hotelProfile: HotelProfileOption | null;
@@ -288,7 +288,7 @@ function mergePersistedHotelOptions(options: HotelSupplierOption[], order: any):
       if (!persistedSupplier) continue;
       supplier = {
         id: supplierId,
-        supplierCode: text(persistedSupplier.supplierCode),
+        supplierCode: text(persistedSupplier.supplierCode) || null,
         name: text(persistedSupplier.name) || supplierId,
         province: text(persistedSupplier.province) || null,
         hotelProfile: persistedSupplier.hotelProfile || null,
@@ -303,7 +303,7 @@ function mergePersistedHotelOptions(options: HotelSupplierOption[], order: any):
     if (!serviceId || !persistedService || serviceIds.has(serviceId)) continue;
     supplier.supplierServices.push({
       id: serviceId,
-      sku: text(persistedService.sku),
+      sku: text(persistedService.sku) || null,
       serviceName: text(persistedService.serviceName) || text(row?.description) || text(row?.serviceType) || serviceId,
       netPrice: persistedService.netPrice ?? row?.netPrice ?? null,
       sellingPrice: persistedService.sellingPrice ?? row?.unitPrice ?? null,
