@@ -74,6 +74,7 @@ export type HotelSupplierOption = {
   supplierCode: string | null;
   name: string;
   province: string | null;
+  selectable?: boolean;
   hotelProfile: HotelProfileOption | null;
   supplierServices: HotelSupplierServiceOption[];
   allotments: HotelAllotmentOption[];
@@ -291,6 +292,7 @@ function mergePersistedHotelOptions(options: HotelSupplierOption[], order: any):
         supplierCode: text(persistedSupplier.supplierCode) || null,
         name: text(persistedSupplier.name) || supplierId,
         province: text(persistedSupplier.province) || null,
+        selectable: false,
         hotelProfile: persistedSupplier.hotelProfile || null,
         supplierServices: [],
         allotments: [],
@@ -664,6 +666,7 @@ function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setV
   const field = `${name}.${index}.${fieldKey}`;
   if (type === 'supplier') {
     const supplierField = register(field as any);
+    const selectedSupplierId = text(row?.supplierId);
     const selectedService = hotelServices.find((service) => service.id === text(row?.serviceId));
     return <select {...supplierField} onChange={(event) => {
       supplierField.onChange(event);
@@ -677,7 +680,7 @@ function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setV
         setValue(`${name}.${index}.unitPrice` as any, 0, { shouldDirty: true });
       }
       if (name === 'operationItems') setValue(`${name}.${index}.netPrice` as any, 0, { shouldDirty: true });
-    }}><option value="">Tất cả khách sạn</option>{hotelSuppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select>;
+    }}><option value="">Chọn khách sạn</option>{hotelSuppliers.map((supplier) => <option key={supplier.id} value={supplier.id} disabled={supplier.selectable === false && supplier.id !== selectedSupplierId}>{supplier.name}{supplier.selectable === false ? ' - Khách sạn không còn hoạt động' : ''}</option>)}</select>;
   }
   if (type === 'hotelService') {
     const serviceField = register(field as any);
@@ -691,6 +694,14 @@ function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setV
       <select {...serviceField} onChange={(event) => {
         serviceField.onChange(event);
         if (!setValue) return;
+        if (!event.target.value) {
+          if (name === 'salesItems') {
+            setValue(`${name}.${index}.description` as any, '', { shouldDirty: true });
+            setValue(`${name}.${index}.unitPrice` as any, 0, { shouldDirty: true });
+          }
+          if (name === 'operationItems') setValue(`${name}.${index}.netPrice` as any, 0, { shouldDirty: true });
+          return;
+        }
         const service = hotelServices.find((option) => option.id === event.target.value);
         if (!service) return;
         setValue(`${name}.${index}.supplierId` as any, service.supplierId, { shouldDirty: true });
@@ -709,6 +720,7 @@ function Cell<T extends ArrayName>({ name, index, fieldKey, type, register, setV
           return <option key={service.id} value={service.id} disabled={!service.selectable && service.id !== selectedServiceId}>{label}</option>;
         })}
       </select>
+      <span className="orderHotelServiceHint">Tồn quỹ chỉ mang tính tham khảo; hệ thống kiểm tra lại khi lưu.</span>
       {serviceOptions.length === 0 ? <span className="orderHotelEmptyOptions">Không có dịch vụ phòng phù hợp.</span> : null}
       {selectedService ? <span className={`orderHotelServiceHint ${selectedService.selectable && selectedRemaining > 0 ? 'available' : 'unavailable'}`}>{selectedService.selectable ? `Còn ${selectedRemaining} phòng` : 'Dịch vụ không còn hoạt động'}</span> : null}
     </div>;
