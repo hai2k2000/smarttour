@@ -224,6 +224,19 @@ export async function assertPaymentLinks(
     });
     if (!order) throw new BadRequestException('Phiếu chi chứa booking không hợp lệ hoặc ngoài phạm vi dữ liệu được phép');
   }
+  if (payment.supplierId && payment.orderId && !payment.operationVoucherId) {
+    const linkedOperationItem = await tx.orderOperationItem.findFirst({
+      where: {
+        orderId: payment.orderId,
+        supplierId: payment.supplierId,
+        status: { not: 'CANCELLED' },
+      },
+      select: { id: true },
+    });
+    if (!linkedOperationItem) {
+      throw new BadRequestException('Nhà cung cấp phiếu chi không thuộc dịch vụ điều hành của booking');
+    }
+  }
   if (!payment.operationVoucherId) return;
 
   const voucher = await tx.operationVoucher.findFirst({ where: { id: payment.operationVoucherId, deletedAt: null }, select: { supplierId: true, orderId: true, tourId: true } });

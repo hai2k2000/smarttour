@@ -18,7 +18,7 @@ function assert(condition, label) {
   if (!condition) throw new Error(label);
 }
 
-assert(source.includes("import { authHeaders, authJsonHeaders } from '../../authFetch';"), 'Orders UI should import auth fetch helpers');
+assert(source.includes("import { authFetch, authHeaders, authJsonHeaders } from '../../authFetch';"), 'Orders UI should import auth fetch helpers');
 
 assert(source.includes("import { PermissionNotice, usePermissions } from '../../usePermissions';"), 'Orders UI should read permissions for sensitive action rendering.');
 assert(source.includes('const { can, permissionsReady } = usePermissions();'), 'Orders UI should use permission helper and wait for readiness.');

@@ -57,6 +57,11 @@ export class FinanceQueryDto {
   @IsString()
   tourId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
   @ApiPropertyOptional({ enum: FINANCE_PAYMENT_METHODS })
   @IsOptional()
   @IsIn(readonlyValues(FINANCE_PAYMENT_METHODS))

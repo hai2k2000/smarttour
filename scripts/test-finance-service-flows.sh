@@ -190,6 +190,17 @@ async function main() {
       department: 'FIN-DEP',
     },
   });
+  await prisma.orderOperationItem.create({
+    data: {
+      orderId: order.id,
+      supplierId: supplier.id,
+      serviceType: 'HOTEL',
+      quantity: 1,
+      netPrice: 700,
+      amount: 700,
+      status: 'CONFIRMED',
+    },
+  });
   const otherOrder = await prisma.order.create({
     data: {
       type: 'SINGLE_SERVICE',
@@ -499,6 +510,17 @@ async function main() {
     totalAmount: 100,
     paymentAmount: 100,
   }), 'payment should reject mismatched supplier/voucher links');
+  assert(await prisma.orderOperationItem.count({ where: { orderId: order.id, supplierId: otherSupplier.id, status: { not: 'CANCELLED' } } }) === 0, 'unlinked supplier fixture must not belong to the order');
+  await rejects(() => finance.createPayment({
+    voucherCode: run + '-UNLINKED-ORDER-SUPPLIER',
+    voucherName: 'Unlinked order supplier',
+    voucherType: 'SUPPLIER_PAYMENT',
+    supplierId: otherSupplier.id,
+    orderId: order.id,
+    tourId: tour.id,
+    totalAmount: 10,
+    paymentAmount: 10,
+  }), 'direct order payment should reject a supplier outside order operation items');
   await rejects(() => finance.createInvoice({
     invoiceCode: run + '-BAD-INV-LINK',
     customerId: customer.id,
@@ -702,6 +724,13 @@ async function main() {
   const outPaymentList = await finance.listPayments({ search: run, take: '1000' }, outOfScopeUser);
   assert(branchPaymentList.rows.some((row) => row.id === payment.id), 'payment list should include branch scoped rows');
   assert(!outPaymentList.rows.some((row) => row.id === payment.id), 'payment list should exclude out-of-scope rows');
+  const orderReceipts = await finance.listReceipts({ orderId: order.id, take: '1000' }, branchUser);
+  assert(orderReceipts.rows.length > 0 && orderReceipts.rows.every((row) => row.orders.some((line) => line.orderId === order.id)), 'receipt orderId filter must return only allocated receipts');
+  const orderPayments = await finance.listPayments({ orderId: order.id, take: '1000' }, branchUser);
+  assert(orderPayments.rows.length > 0 && orderPayments.rows.every((row) => row.orderId === order.id), 'payment orderId filter must return only linked payments');
+  const hiddenReceipts = await finance.listReceipts({ orderId: order.id, take: '1000' }, outOfScopeUser);
+  const hiddenPayments = await finance.listPayments({ orderId: order.id, take: '1000' }, outOfScopeUser);
+  assert(hiddenReceipts.rows.length === 0 && hiddenPayments.rows.length === 0, 'order finance filters must preserve branch data scope');
   const branchPaymentExport = await finance.exportPayments({ search: run }, branchUser);
   const outPaymentExport = await finance.exportPayments({ search: run }, outOfScopeUser);
   assert(branchPaymentExport.includes(payment.voucherCode), 'payment export should include branch scoped rows');

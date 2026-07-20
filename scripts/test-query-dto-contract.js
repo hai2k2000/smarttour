@@ -47,6 +47,7 @@ for (const token of [
   'status?: string',
   'from?: string',
   'to?: string',
+  'orderId?: string',
   'take?: string',
   'entryType?: string',
 ]) requireText(financeQueryDto, token, `finance query DTO missing ${token}`);
