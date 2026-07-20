@@ -127,6 +127,58 @@ async function main() {
     },
   });
 
+  const documentOrder = await service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-DOCUMENT',
+    tourCode: run + '-HOTEL-DOCUMENT-TOUR',
+    name: 'Hotel Booking Document Flow',
+    customerId: customer.id,
+    startDate: '2026-10-10',
+    endDate: '2026-10-12',
+    roomClass: 'Deluxe',
+    servicePackage: 'Breakfast',
+    createdBy: 'Order Service Sales',
+    operatorOwner: 'Order Service Operator',
+    surveyDescription: 'Document survey',
+    salesItems: [{
+      serviceType: 'HOTEL',
+      supplierId: supplier.id,
+      serviceId: hotelService.id,
+      description: 'Deluxe Room',
+      quantity: 2,
+      serviceCount: 2,
+      unitPrice: 1000000,
+      vat: 0,
+    }],
+    operationItems: [{
+      serviceType: 'HOTEL',
+      supplierId: supplier.id,
+      serviceId: hotelService.id,
+      bookingCode: `${run}-SUP-BOOK`,
+      serviceDate: '2026-10-10',
+      quantity: 2,
+      netPrice: 700000,
+      vat: 0,
+      status: 'WAITING',
+    }],
+    members: [{ fullName: 'Document Guest', birthday: '1990-01-02', identityNumber: 'DOC-IDENTITY', nationality: 'VN' }],
+    terms: [{ language: 'VN', terms: 'Document VN term' }],
+    surveyQuestions: [{ question: 'Document survey question?' }],
+  });
+  const documentModel = await service.document('hotel-bookings', documentOrder.id);
+  assert(documentModel.version === 1 && documentModel.title === 'PHIẾU BOOKING PHÒNG KHÁCH SẠN', 'hotel document should expose its version and exact title');
+  assert(documentModel.order.id === documentOrder.id && documentModel.order.systemCode === run + '-HOTEL-DOCUMENT' && documentModel.order.tourCode === run + '-HOTEL-DOCUMENT-TOUR', 'hotel document should preserve persisted Order identity');
+  assert(documentModel.customer.id === customer.id && documentModel.customer.name === customer.fullName && documentModel.customer.phone === customer.phone && documentModel.customer.email === customer.email, 'hotel document should use the persisted customer snapshot');
+  assert(documentModel.order.roomClass === 'Deluxe' && documentModel.order.servicePackage === 'Breakfast', 'hotel document should preserve hotel room and package values');
+  assert(documentModel.salesItems[0].description === 'Deluxe Room' && documentModel.salesItems[0].supplier.name === supplier.name && documentModel.salesItems[0].service.serviceName === hotelService.serviceName, 'hotel document should expose minimal sales supplier and service labels');
+  assert(Object.keys(documentModel.salesItems[0].supplier).sort().join(',') === 'id,name,supplierCode' && Object.keys(documentModel.salesItems[0].service).sort().join(',') === 'id,serviceName,sku', 'hotel document should not expand Supplier or service projections');
+  assert(documentModel.operationItems[0].bookingCode === `${run}-SUP-BOOK` && documentModel.operationItems[0].supplier.supplierCode === supplier.supplierCode && documentModel.operationItems[0].service.sku === hotelService.sku, 'hotel document should preserve persisted operation booking and labels');
+  assert(documentModel.members[0].identityNumber === 'DOC-IDENTITY' && documentModel.members[0].birthday === '1990-01-02T00:00:00.000Z', 'hotel document should preserve and normalize member values');
+  assert(documentModel.terms[0].language === 'VN' && documentModel.terms[0].terms === 'Document VN term', 'hotel document should include persisted VN terms');
+  assert(documentModel.survey.description === 'Document survey' && documentModel.survey.questions[0].question === 'Document survey question?', 'hotel document should include persisted survey content');
+  assert(documentModel.totals.totalRevenue === 4000000 && documentModel.totals.totalCost === 1400000, 'hotel document should expose recalculated revenue and cost totals');
+  await rejects(() => service.document('single-services', documentOrder.id), 'hotel document should reject non-Hotel type paths');
+  await service.remove('hotel-bookings', documentOrder.id);
+
   await rejects(() => service.create('hotel-bookings', {
     systemCode: run + '-HOTEL-MISMATCH',
     name: 'Hotel mismatch',

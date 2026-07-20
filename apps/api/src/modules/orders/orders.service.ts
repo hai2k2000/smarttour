@@ -9,6 +9,7 @@ import { calculateOrderTotals } from './order-calculator';
 import { OrderChildrenSyncService } from './order-children-sync';
 import { OrderCustomerSnapshotService } from './order-customer-snapshot';
 import { mergeOrderDateInput, mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldResyncHotelAllotments, toOrderCopyDto, toOrderData, validateOrderDates } from './order-data-mapper';
+import { getHotelBookingOrderDocument } from './order-document';
 import { listHotelServiceOptions } from './order-hotel-service-options';
 import { OrderLifecycleService } from './order-lifecycle';
 import { assertHotelOrderSupplierServiceLinks } from './order-supplier-service-links';
@@ -109,6 +110,11 @@ export class OrdersService {
 
   hotelServiceOptions() {
     return listHotelServiceOptions(this.prisma);
+  }
+
+  document(typePath: string, id: string, user?: RequestUser) {
+    const type = this.resolveType(typePath);
+    return getHotelBookingOrderDocument(this.prisma, type, id, user);
   }
 
   async detail(typePath: string, id: string, user?: RequestUser) {

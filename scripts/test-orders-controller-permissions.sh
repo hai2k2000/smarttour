@@ -10,15 +10,17 @@ const file = 'apps/api/src/modules/orders/orders.controller.ts';
 const source = fs.readFileSync(file, 'utf8').split(/\r?\n/);
 
 const expected = {
-  list: ['GET', 'order.view'],
-  detail: ['GET', 'order.view'],
-  create: ['POST', 'order.manage'],
-  update: ['PUT', 'order.manage'],
-  remove: ['DELETE', 'order.manage'],
-  updateStatus: ['PATCH', 'order.status.update'],
-  copy: ['POST', 'order.manage'],
-  settle: ['POST', 'order.settle'],
-  unlock: ['POST', 'order.unlock'],
+  hotelServiceOptions: ['GET', ['order.view']],
+  list: ['GET', ['order.view']],
+  document: ['GET', ['order.view', 'order.export']],
+  detail: ['GET', ['order.view']],
+  create: ['POST', ['order.manage']],
+  update: ['PUT', ['order.manage']],
+  remove: ['DELETE', ['order.manage']],
+  updateStatus: ['PATCH', ['order.status.update']],
+  copy: ['POST', ['order.manage']],
+  settle: ['POST', ['order.settle']],
+  unlock: ['POST', ['order.unlock']],
 };
 
 const routes = {};
@@ -43,15 +45,15 @@ for (const line of source) {
 }
 
 const failures = [];
-for (const [method, [http, permission]] of Object.entries(expected)) {
+for (const [method, [http, permissions]] of Object.entries(expected)) {
   const route = routes[method];
   if (!route) {
     failures.push(`missing orders endpoint method: ${method}`);
     continue;
   }
   if (route.http !== http) failures.push(`${method} expected ${http}, got ${route.http}`);
-  if (route.permissions.length !== 1 || route.permissions[0] !== permission) {
-    failures.push(`${method} expected ${permission}, got ${route.permissions.join(',') || '<none>'}`);
+  if (JSON.stringify(route.permissions) !== JSON.stringify(permissions)) {
+    failures.push(`${method} expected ${permissions.join(',')}, got ${route.permissions.join(',') || '<none>'}`);
   }
 }
 for (const method of Object.keys(routes)) {

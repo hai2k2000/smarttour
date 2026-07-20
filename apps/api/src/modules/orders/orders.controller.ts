@@ -22,6 +22,12 @@ export class OrdersController {
     return this.ordersService.list(type, query, request.user);
   }
 
+  @Get(':type/:id/document')
+  @RequirePermissions('order.view', 'order.export')
+  document(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
+    return this.ordersService.document(type, id, request.user);
+  }
+
   @Get(':type/:id')
   @RequirePermissions('order.view')
   detail(@Param('type') type: string, @Param('id') id: string, @Req() request: { user?: RequestUser }) {
