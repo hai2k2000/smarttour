@@ -136,6 +136,10 @@ async function main() {
     endDate: '2026-10-12',
     roomClass: 'Deluxe',
     servicePackage: 'Breakfast',
+    customerType: 'CORPORATE',
+    customerAddress: 'Document customer address',
+    agencyName: 'Document Agency',
+    collaborator: 'Document Collaborator',
     createdBy: 'Order Service Sales',
     operatorOwner: 'Order Service Operator',
     surveyDescription: 'Document survey',
@@ -165,9 +169,12 @@ async function main() {
     surveyQuestions: [{ question: 'Document survey question?' }],
   });
   const documentModel = await service.document('hotel-bookings', documentOrder.id);
-  assert(documentModel.version === 1 && documentModel.title === 'PHIẾU BOOKING PHÒNG KHÁCH SẠN', 'hotel document should expose its version and exact title');
+  assert(documentModel.version === 1 && documentModel.documentTitle === 'PHIẾU BOOKING PHÒNG KHÁCH SẠN', 'hotel document should expose its version and exact documentTitle');
+  assert(!Object.prototype.hasOwnProperty.call(documentModel, 'title') && !Object.prototype.hasOwnProperty.call(documentModel, 'totals'), 'hotel document should not retain legacy root model keys');
   assert(documentModel.order.id === documentOrder.id && documentModel.order.systemCode === run + '-HOTEL-DOCUMENT' && documentModel.order.tourCode === run + '-HOTEL-DOCUMENT-TOUR', 'hotel document should preserve persisted Order identity');
-  assert(documentModel.customer.id === customer.id && documentModel.customer.name === customer.fullName && documentModel.customer.phone === customer.phone && documentModel.customer.email === customer.email, 'hotel document should use the persisted customer snapshot');
+  assert(documentModel.customer.customerName === customer.fullName && documentModel.customer.customerType === 'CORPORATE' && documentModel.customer.customerPhone === customer.phone && documentModel.customer.customerEmail === customer.email && documentModel.customer.customerAddress === 'Document customer address', 'hotel document should use the persisted customer snapshot field names');
+  assert(documentModel.customer.agencyName === 'Document Agency' && documentModel.customer.collaborator === 'Document Collaborator', 'hotel document should place agency and collaborator in the customer snapshot');
+  assert(Object.keys(documentModel.customer).sort().join(',') === 'agencyName,collaborator,customerAddress,customerEmail,customerName,customerPhone,customerType', 'hotel document customer snapshot should expose only the required keys');
   assert(documentModel.order.roomClass === 'Deluxe' && documentModel.order.servicePackage === 'Breakfast', 'hotel document should preserve hotel room and package values');
   assert(documentModel.salesItems[0].description === 'Deluxe Room' && documentModel.salesItems[0].supplier.name === supplier.name && documentModel.salesItems[0].service.serviceName === hotelService.serviceName, 'hotel document should expose minimal sales supplier and service labels');
   assert(Object.keys(documentModel.salesItems[0].supplier).sort().join(',') === 'id,name,supplierCode' && Object.keys(documentModel.salesItems[0].service).sort().join(',') === 'id,serviceName,sku', 'hotel document should not expand Supplier or service projections');
@@ -175,7 +182,10 @@ async function main() {
   assert(documentModel.members[0].identityNumber === 'DOC-IDENTITY' && documentModel.members[0].birthday === '1990-01-02T00:00:00.000Z', 'hotel document should preserve and normalize member values');
   assert(documentModel.terms[0].language === 'VN' && documentModel.terms[0].terms === 'Document VN term', 'hotel document should include persisted VN terms');
   assert(documentModel.survey.description === 'Document survey' && documentModel.survey.questions[0].question === 'Document survey question?', 'hotel document should include persisted survey content');
-  assert(documentModel.totals.totalRevenue === 4000000 && documentModel.totals.totalCost === 1400000, 'hotel document should expose recalculated revenue and cost totals');
+  assert(documentModel.summary.totalRevenue === 4000000 && documentModel.summary.totalCost === 1400000 && !Object.prototype.hasOwnProperty.call(documentModel.summary, 'commissionStatus'), 'hotel document should expose recalculated totals under the exact summary model');
+  assert(documentModel.signatures.map((row) => row.role).join('|') === 'Khách hàng|Nhân viên phụ trách|Điều hành', 'hotel document signatures should expose the required roles');
+  assert(documentModel.signatures[0].name === customer.fullName && documentModel.signatures[1].name === 'Order Service Sales' && documentModel.signatures[2].name === 'Order Service Operator', 'hotel document signatures should expose the matching snapshot owners');
+  assert(documentModel.signatures.every((row) => Object.keys(row).sort().join(',') === 'name,role'), 'hotel document signatures should expose only role and name');
   await rejects(() => service.document('single-services', documentOrder.id), 'hotel document should reject non-Hotel type paths');
   await service.remove('hotel-bookings', documentOrder.id);
 

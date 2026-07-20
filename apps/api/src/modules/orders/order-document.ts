@@ -42,7 +42,6 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       createdDate: true,
       branch: true,
       department: true,
-      customerId: true,
       customerName: true,
       customerType: true,
       customerPhone: true,
@@ -67,7 +66,6 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       remainingCost: true,
       profit: true,
       commission: true,
-      commissionStatus: true,
       note: true,
       surveyDescription: true,
       salesItems: {
@@ -135,7 +133,7 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
   return {
     version: 1,
     generatedAt: new Date().toISOString(),
-    title: 'PHIẾU BOOKING PHÒNG KHÁCH SẠN',
+    documentTitle: 'PHIẾU BOOKING PHÒNG KHÁCH SẠN',
     order: {
       id: order.id,
       type: order.type,
@@ -158,8 +156,6 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       createdDate: iso(order.createdDate),
       branch: order.branch,
       department: order.department,
-      agencyName: order.agencyName,
-      collaborator: order.collaborator,
       operatorOwner: order.operatorOwner,
       adultQty: order.adultQty,
       childQty: order.childQty,
@@ -172,14 +168,15 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       note: order.note,
     },
     customer: {
-      id: order.customerId,
-      name: order.customerName,
-      type: order.customerType,
-      phone: order.customerPhone,
-      email: order.customerEmail,
-      address: order.customerAddress,
+      customerName: order.customerName,
+      customerType: order.customerType,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail,
+      customerAddress: order.customerAddress,
+      agencyName: order.agencyName,
+      collaborator: order.collaborator,
     },
-    totals: {
+    summary: {
       totalRevenue: number(order.totalRevenue),
       paidAmount: number(order.paidAmount),
       remainingRevenue: number(order.remainingRevenue),
@@ -188,7 +185,6 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       remainingCost: number(order.remainingCost),
       profit: number(order.profit),
       commission: number(order.commission),
-      commissionStatus: order.commissionStatus,
     },
     salesItems: order.salesItems.map((row) => ({
       id: row.id,
@@ -236,9 +232,9 @@ export async function getHotelBookingOrderDocument(prisma: PrismaService, type: 
       questions: order.surveyQuestions,
     },
     signatures: [
-      { label: 'Khách hàng', name: order.customerName },
-      { label: 'Nhân viên phụ trách', name: order.createdBy },
-      { label: 'Điều hành', name: order.operatorOwner },
+      { role: 'Khách hàng', name: order.customerName },
+      { role: 'Nhân viên phụ trách', name: order.createdBy },
+      { role: 'Điều hành', name: order.operatorOwner },
     ],
   };
 }

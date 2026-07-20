@@ -32,12 +32,27 @@ includes(helper, 'branchDepartmentScopeWhere', 'Order document lookup must prese
 includes(helper, 'deletedAt: null', 'Order document lookup must exclude soft-deleted Orders.');
 includes(helper, 'supplier: { select:', 'Order document rows must use a minimal nested supplier select.');
 includes(helper, 'service: { select:', 'Order document rows must use a minimal nested service select.');
-includes(helper, "title: 'PHIẾU BOOKING PHÒNG KHÁCH SẠN'", 'Order document must expose the exact Hotel Booking title.');
+includes(helper, "documentTitle: 'PHIẾU BOOKING PHÒNG KHÁCH SẠN'", 'Order document must expose the exact Hotel Booking documentTitle.');
 includes(helper, 'generatedAt: new Date().toISOString()', 'Order document must expose an ISO generation timestamp.');
+includes(helper, 'summary: {', 'Order document must expose its financial values under summary.');
 includes(helper, 'totalRevenue: number(order.totalRevenue)', 'Order document totals must normalize totalRevenue.');
 includes(helper, 'serviceDate: iso(row.serviceDate)', 'Order document operation rows must normalize serviceDate.');
 includes(helper, 'birthday: iso(row.birthday)', 'Order document members must normalize birthday.');
 includes(helper, 'signatures: [', 'Order document must provide signature placeholders.');
+includes(helper, 'customerName: order.customerName', 'Order document customer snapshot must preserve customerName.');
+includes(helper, 'customerType: order.customerType', 'Order document customer snapshot must preserve customerType.');
+includes(helper, 'customerPhone: order.customerPhone', 'Order document customer snapshot must preserve customerPhone.');
+includes(helper, 'customerEmail: order.customerEmail', 'Order document customer snapshot must preserve customerEmail.');
+includes(helper, 'customerAddress: order.customerAddress', 'Order document customer snapshot must preserve customerAddress.');
+includes(helper, 'agencyName: order.agencyName', 'Order document customer snapshot must preserve agencyName.');
+includes(helper, 'collaborator: order.collaborator', 'Order document customer snapshot must preserve collaborator.');
+includes(helper, "{ role: 'Khách hàng', name: order.customerName }", 'Customer signature must use the role/name contract.');
+includes(helper, "{ role: 'Nhân viên phụ trách', name: order.createdBy }", 'Owner signature must use the role/name contract.');
+includes(helper, "{ role: 'Điều hành', name: order.operatorOwner }", 'Operator signature must use the role/name contract.');
+
+for (const value of ["title: 'PHIẾU BOOKING PHÒNG KHÁCH SẠN'", 'totals: {', "{ label: '", 'customerId', 'commissionStatus']) {
+  if (helper.includes(value)) failures.push(`Order document helper must not retain out-of-contract model value: ${value}.`);
+}
 
 for (const field of ['taxCode', 'bankAccountName', 'bankAccountNumber', 'debtNote', 'pricePolicy', 'contacts', 'files']) {
   if (helper.includes(field)) failures.push(`Order document helper must not expose Supplier sensitive field: ${field}.`);
