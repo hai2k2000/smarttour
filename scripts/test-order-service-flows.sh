@@ -71,6 +71,7 @@ async function main() {
       supplierCode: run + '-SUP',
       name: 'Order Service Hotel',
       status: 'ACTIVE',
+      hotelProfile: { create: { classHotel: '4 sao', hotelProject: 'Order Service Hotel' } },
     },
   });
   const hotelService = await prisma.supplierService.create({
@@ -96,6 +97,57 @@ async function main() {
       status: 'ACTIVE',
     },
   });
+  const otherHotelSupplier = await prisma.supplier.create({
+    data: {
+      categoryId: category.id,
+      supplierCode: run + '-OTHER-HOTEL',
+      name: 'Other Order Service Hotel',
+      status: 'ACTIVE',
+      hotelProfile: { create: { classHotel: '3 sao', hotelProject: 'Other Hotel' } },
+    },
+  });
+  const inactiveHotelService = await prisma.supplierService.create({
+    data: {
+      supplierId: supplier.id,
+      sku: run + '-INACTIVE-ROOM',
+      serviceName: 'Inactive Room',
+      netPrice: 400000,
+      sellingPrice: 700000,
+      status: 'INACTIVE',
+    },
+  });
+  const historicalHotelService = await prisma.supplierService.create({
+    data: {
+      supplierId: supplier.id,
+      sku: run + '-HISTORICAL-ROOM',
+      serviceName: 'Historical Room',
+      netPrice: 300000,
+      sellingPrice: 600000,
+      status: 'ACTIVE',
+    },
+  });
+
+  await rejects(() => service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-MISMATCH',
+    name: 'Hotel mismatch',
+    operationItems: [{ serviceType: 'HOTEL', supplierId: otherHotelSupplier.id, serviceId: hotelService.id, quantity: 1, netPrice: 1 }],
+  }), 'hotel order should reject a service owned by another supplier');
+  await rejects(() => service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-INACTIVE',
+    name: 'Hotel inactive service',
+    operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: inactiveHotelService.id, quantity: 1, netPrice: 1 }],
+  }), 'hotel order should reject a new inactive service');
+  const historicalOrder = await service.create('hotel-bookings', {
+    systemCode: run + '-HOTEL-HISTORICAL',
+    name: 'Historical room booking',
+    operationItems: [{ serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 }],
+  });
+  await prisma.supplierService.update({ where: { id: historicalHotelService.id }, data: { status: 'INACTIVE' } });
+  const historicalUpdated = await service.update('hotel-bookings', historicalOrder.id, {
+    note: 'Keep historical room link',
+    operationItems: [{ id: historicalOrder.operationItems[0].id, serviceType: 'HOTEL', supplierId: supplier.id, serviceId: historicalHotelService.id, quantity: 1, netPrice: 1 }],
+  });
+  assert(historicalUpdated.operationItems[0].serviceId === historicalHotelService.id, 'unchanged historical service link should remain editable');
 
   const created = await service.create('single-services', {
     systemCode: run + '-ORD',

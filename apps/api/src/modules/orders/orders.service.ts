@@ -11,6 +11,7 @@ import { OrderCustomerSnapshotService } from './order-customer-snapshot';
 import { mergeOrderDateInput, mergeOrderTotalsInput, orderStatusForAllotment, ScopedOrderDto, shouldResyncHotelAllotments, toOrderCopyDto, toOrderData, validateOrderDates } from './order-data-mapper';
 import { listHotelServiceOptions } from './order-hotel-service-options';
 import { OrderLifecycleService } from './order-lifecycle';
+import { assertHotelOrderSupplierServiceLinks } from './order-supplier-service-links';
 
 const ORDER_TYPES: Record<string, OrderType> = {
   fit: 'FIT_TOUR',
@@ -151,6 +152,7 @@ export class OrdersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto, user)) as ScopedOrderDto;
+        await assertHotelOrderSupplierServiceLinks(tx, type, orderDto);
         const totals = calculateOrderTotals(orderDto);
         const order = await tx.order.create({
           data: {
@@ -178,6 +180,7 @@ export class OrdersService {
         this.lifecycle.assertEditable(current);
         validateOrderDates(mergeOrderDateInput(current, scopedDto));
         const orderDto = (await this.customerSnapshot.withSnapshot(tx, scopedDto, user)) as ScopedOrderDto;
+        await assertHotelOrderSupplierServiceLinks(tx, current.type, orderDto, current);
         const hotelNeedsAllotmentResync = current.type === 'HOTEL_BOOKING' && shouldResyncHotelAllotments(orderDto);
         if (hotelNeedsAllotmentResync) await this.allotments.releaseAutoLocks(tx, id, 'UPDATE_RELEASE');
 

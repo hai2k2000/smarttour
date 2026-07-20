@@ -5,6 +5,9 @@ const service = fs.readFileSync('apps/api/src/modules/orders/orders.service.ts',
 const options = fs.existsSync('apps/api/src/modules/orders/order-hotel-service-options.ts')
   ? fs.readFileSync('apps/api/src/modules/orders/order-hotel-service-options.ts', 'utf8')
   : '';
+const links = fs.existsSync('apps/api/src/modules/orders/order-supplier-service-links.ts')
+  ? fs.readFileSync('apps/api/src/modules/orders/order-supplier-service-links.ts', 'utf8')
+  : '';
 const failures = [];
 
 function requireText(source, token, label) {
@@ -22,6 +25,13 @@ requireText(options, 'allotments:', 'options must include allotment summaries');
 for (const forbidden of ['taxCode', 'bankAccountName', 'bankAccountNumber', 'debtNote', 'contacts', 'files']) {
   if (options.includes(forbidden)) failures.push(`hotel options must not expose ${forbidden}`);
 }
+requireText(links, 'assertHotelOrderSupplierServiceLinks', 'Hotel Booking writes must have a focused link validator');
+requireText(links, "type === 'HOTEL_BOOKING'", 'link validation must be Hotel Booking specific');
+requireText(links, 'service.supplierId !== supplierId', 'service ownership mismatch must be rejected');
+requireText(links, "service.status !== 'ACTIVE'", 'new inactive services must be rejected');
+requireText(links, 'existingLinks.has(linkKey(supplierId, serviceId))', 'unchanged historical pairs must remain compatible');
+requireText(service, 'await assertHotelOrderSupplierServiceLinks(tx, type, orderDto);', 'create must validate hotel service links');
+requireText(service, 'await assertHotelOrderSupplierServiceLinks(tx, current.type, orderDto, current);', 'update must validate against persisted links');
 if (failures.length) {
   console.error('FAIL_ORDERS_HOTEL_SERVICE_SELECTORS_BACKEND_CONTRACT');
   failures.forEach((failure) => console.error(failure));
