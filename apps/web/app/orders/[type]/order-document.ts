@@ -1,3 +1,5 @@
+import { viStatus } from '../../i18n';
+
 type SupplierLabel = { id: string; supplierCode: string | null; name: string } | null;
 type ServiceLabel = { id: string; sku: string | null; serviceName: string } | null;
 
@@ -129,18 +131,7 @@ function quantity(value: unknown) {
 }
 
 function status(value?: string | null) {
-  const labels: Record<string, string> = {
-    DRAFT: 'Nháp',
-    UPCOMING: 'Sắp tới',
-    IN_PROGRESS: 'Đang thực hiện',
-    COMPLETED: 'Hoàn thành',
-    CANCELLED: 'Đã hủy',
-    SETTLED: 'Đã quyết toán',
-    WAITING: 'Chờ xử lý',
-    CONFIRMED: 'Đã xác nhận',
-  };
-  if (!value) return '-';
-  return labels[value] ?? value;
+  return viStatus(value);
 }
 
 function multiline(value?: string | null) {
