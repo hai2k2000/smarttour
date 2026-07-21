@@ -210,12 +210,34 @@ requireText(
 );
 if (renderer.includes("value || '-'")) failures.push('row rendering must not replace numeric zero with a dash');
 
-if (actions) {
-  requireText(actions, '/${orderId}/document', 'actions must fetch the protected persisted document model');
-}
-if (client.includes('OrderDocumentActions')) {
-  requireText(client, 'orderId={editingId}', 'OrdersClient must pass the persisted Order id');
-}
+requireText(actions, "const canViewOrders = can('order.view') || can('order.manage');", 'actions must treat order.manage as view-equivalent');
+requireText(actions, "const canExportDocuments = canViewOrders && can('order.export');", 'actions must require both order view and export permissions');
+requireText(actions, "type !== 'hotel-bookings'", 'actions must be restricted to Hotel Booking orders');
+requireText(actions, 'if (!canExportDocuments || !orderId) return null;', 'actions must fail closed without export permission or a persisted Order id');
+requireText(actions, '/${orderId}/document', 'actions must fetch the protected persisted document model');
+requireText(actions, "cache: 'no-store'", 'actions must bypass caches when loading persisted document data');
+requireText(actions, 'authFetch(', 'actions must use the authenticated browser fetch helper');
+requireText(actions, "const popup = window.open('', '_blank');", 'print must open its popup synchronously');
+requireText(actions, 'Cho ph\u00e9p c\u1eeda s\u1ed5 b\u1eadt l\u00ean', 'print must explain how to allow a blocked popup');
+requireText(actions, 'downloadOrderWord(model)', 'Word action must delegate to the shared renderer');
+requireText(actions, 'writeOrderPrintWindow(popup, model)', 'print action must delegate to the shared renderer');
+const printHandler = actions.slice(actions.indexOf('async function handlePrint'));
+requireOrderedText(
+  printHandler,
+  ["const popup = window.open('', '_blank');", "setBusy('print');", 'await fetchModel()'],
+  'print must synchronously reserve the popup before awaiting fresh persisted data',
+);
+
+requireText(client, "import OrderDocumentActions from './OrderDocumentActions';", 'OrdersClient must import document actions');
+requireText(client, '<OrderDocumentActions', 'OrdersClient must render document actions');
+requireText(client, 'orderId={editingId}', 'OrdersClient must pass the persisted Order id');
+requireText(client, 'onMessage={setMessage}', 'OrdersClient must expose document action feedback in the shared message area');
+requireText(client, 'disabled={isSubmitting}', 'OrdersClient must disable document actions while saving');
+requireOrderedText(
+  client,
+  ['<OrderDocumentActions', "action('copy')", "action('settle')"],
+  'OrdersClient must render persisted document actions before copy and settlement actions',
+);
 
 function assertBehavior(condition, message) {
   if (!condition) throw new Error(message);
