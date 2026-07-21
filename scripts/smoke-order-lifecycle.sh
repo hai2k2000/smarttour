@@ -7,7 +7,12 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to the current admin passwo
 RUN_ID="SMOKE-ORDER-$(date +%s)"
 
 cleanup() {
-  docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour >/dev/null <<SQL || true
+  local primary_status=$?
+  local cleanup_status=0
+
+  trap - EXIT
+  set +e
+  docker exec -i smarttour-postgres-1 psql -U smarttour -d smarttour -v ON_ERROR_STOP=1 >/dev/null <<SQL
 DELETE FROM "OrderLog" WHERE "orderId" IN (SELECT id FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%');
 DELETE FROM "OrderGuide" WHERE "orderId" IN (SELECT id FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%');
 DELETE FROM "OrderSalesItem" WHERE "orderId" IN (SELECT id FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%');
@@ -20,7 +25,26 @@ DELETE FROM "OrderTerm" WHERE "orderId" IN (SELECT id FROM "Order" WHERE "system
 DELETE FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%';
 DELETE FROM "CustomerTimeline" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE code LIKE '${RUN_ID}%');
 DELETE FROM "Customer" WHERE code LIKE '${RUN_ID}%';
+DO \$smoke_cleanup\$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "Order" WHERE "systemCode" LIKE '${RUN_ID}%') THEN
+    RAISE EXCEPTION 'Order cleanup residuals remain';
+  END IF;
+  IF EXISTS (SELECT 1 FROM "Customer" WHERE code LIKE '${RUN_ID}%') THEN
+    RAISE EXCEPTION 'Customer cleanup residuals remain';
+  END IF;
+END
+\$smoke_cleanup\$;
 SQL
+  cleanup_status=$?
+
+  if (( cleanup_status != 0 )); then
+    printf 'FAIL_SMOKE_ORDER_CLEANUP cleanup_status=%s\n' "$cleanup_status" >&2
+    if (( primary_status == 0 )); then
+      exit "$cleanup_status"
+    fi
+  fi
+  exit "$primary_status"
 }
 trap cleanup EXIT
 
@@ -98,9 +122,10 @@ async function request(token, method, path, body, ok = [200, 201]) {
     || hotelDocument.members[0].fullName !== 'Hotel Document Guest'
     || hotelDocument.members[0].identityNumber !== run + '-ID'
   ) throw new Error('Hotel document members are incorrect');
-  if (Number(hotelDocument.summary?.totalRevenue) !== 1800000) throw new Error('Hotel document total revenue is incorrect');
+  if (typeof hotelDocument.summary?.totalRevenue !== 'number' || hotelDocument.summary?.totalRevenue !== 1800000) throw new Error('Hotel document total revenue is incorrect');
   await request(token, 'GET', '/orders/single-services/' + hotelBooking.id + '/document', undefined, [400]);
   await request(token, 'DELETE', '/orders/hotel-bookings/' + hotelBooking.id);
+  await request(token, 'GET', '/orders/hotel-bookings/' + hotelBooking.id + '/document', undefined, [404]);
 
   const order = await request(token, 'POST', '/orders/single-services', {
     systemCode: run + '-ORD',
