@@ -1,5 +1,14 @@
 # Progress
 
+- Completed Orders Hotel Booking documents slice:
+  - Added exact-permission, data-scoped `GET /orders/:type/:id/document` support for persisted Hotel Bookings, with focused projections, normalized JSON values, non-hotel `400`, and missing/deleted/different-type/out-of-scope `404` behavior.
+  - Added escaped operational HTML shared by Word-compatible `.doc` downloads and browser A4 Print/Save-as-PDF, including safe filenames, canonical status labels, optional-section omission, and guaranteed Blob/popup cleanup.
+  - Added persisted-order document actions with fresh authenticated no-store reads, exact `order.view` plus `order.export` checks, popup/error handling, synchronous click locking, and accessible feedback; existing Order Center CSV/XLSX export remains unchanged.
+  - Added backend/client source and executable VM contracts, API-to-web type compatibility, DB-backed scope/error/nullability coverage, CI wiring, and credential-dependent lifecycle smoke coverage with strict cleanup and post-delete checks.
+  - Verification passed on the feature branch and merged `main`: GitHub Actions/document/selector/Finance/auth/write-lock/hotel allotment/Supplier hotel contracts, API/web lint and production builds, Docker API no-cache build, isolated `TEST_ORDER_SERVICE_FLOWS_OK`, final review, and cumulative diff checks.
+  - Deployed code commit `b706f48` through `scripts/deploy-production.sh`; no migration was pending, API/web containers were recreated, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, internal API health, and `main...origin/main` synchronization passed.
+  - Authenticated lifecycle smoke remains pending because `ADMIN_PASSWORD` was absent from the shell and production `.env`; the script stopped before creating fixtures and credentials were not changed. Real Microsoft Word and browser print-layout validation remains a non-blocking operational follow-up.
+
 - Completed Orders Hotel Booking supplier/room selector slice:
   - Added the Orders-owned `GET /orders/hotel-service-options` endpoint with `order.view`, static route ordering, active hotel/service/allotment data, and a minimal non-sensitive response.
   - Added transactional Hotel Booking supplier/service validation for required supplier links, ownership, active hotel/service state on new or changed rows, and exact persisted row compatibility for historical inactive links.

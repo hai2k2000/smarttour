@@ -6,7 +6,7 @@ Tour Management core redesign is now the active implementation area after the fi
 
 ## Immediate Next Tasks
 
-1. Continue Orders module after hotel supplier/room selectors: export/Word/PDF, approval UI, and member import/export.
+1. Continue Orders module after Hotel Booking documents: approval UI, member import/export, and document support for the remaining Order types.
 2. Continue Quotes module: quote detail/print/PDF, import/export, convert-to-booking payloads, approval comments UI, and customer lookup.
 3. Continue Supplier module: upload files, import/export, debt/payment links, transaction-aware soft delete, and specialized child tables where needed.
 4. Add real file upload storage for common tour and supplier attachments.
@@ -16,9 +16,18 @@ Tour Management core redesign is now the active implementation area after the fi
 ## Notes
 
 The repository lives on the VPS under `/opt/smarttour` and tracks `git@github.com:hai2k2000/smarttour.git`.
-Docker build remains the verified deploy path for API/web on the VPS because host-level workspace builds still have broken `node_modules/.bin` CLI resolution. Booking service and tour-type APIs have current isolated coverage and production smoke coverage.
+Docker build remains the authoritative deploy path for API/web on the VPS. Latest host-level API/web lint and production builds also passed. Booking service and tour-type APIs have current isolated coverage and production smoke coverage.
 
 ## Latest Session Notes
+
+- Orders Hotel Booking documents slice:
+  - Added protected `GET /orders/:type/:id/document` for `hotel-bookings`, requiring exact `order.view` plus `order.export`, preserving branch/department scope, returning `400` for unsupported Order types and disclosure-safe `404` responses for missing, deleted, different-type, or out-of-scope rows.
+  - Added a focused persisted document projection with ISO/number normalization, customer/member/term/survey/signature data, minimal Supplier/service labels, and no Supplier tax, bank, debt, price-policy, contact, or file fields.
+  - Added a shared escaped A4 HTML renderer, Word-compatible UTF-8 `.doc` download, browser Print/Save-as-PDF flow, deterministic resource cleanup, exact API-to-web type coverage, and executable malicious-input/DOM failure tests.
+  - Added Hotel Booking-only document actions for persisted Orders with exact export permissions, fresh no-store API reads, popup blocking/error handling, click-race locking, and accessible live feedback; existing list export and non-hotel Order behavior remain unchanged.
+  - CI now runs the backend/client document contracts. Focused contracts, API/web lint and production builds, Docker API no-cache builds, DB-backed Order service flow, full-range review, and merged-main verification passed.
+  - Production deployed code commit `b706f48` through `BRANCH=main bash scripts/deploy-production.sh`; SmartLink guard, Prisma deploy with no pending migration, API/web rebuild and recreation, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, and internal API health passed.
+  - Authenticated `smoke-order-lifecycle.sh` could not run because `ADMIN_PASSWORD` was absent from both the shell and production `.env`; the script exited before fixture creation and production credentials were not changed. Remaining non-blocking validation is opening a representative `.doc` in Microsoft Word and checking browser A4 Print/Save-as-PDF layout.
 
 - Orders Hotel Booking supplier/room selector slice:
   - Added Orders-owned `GET /orders/hotel-service-options` under `order.view`, returning a minimal active hotel supplier, room service, and allotment projection without Supplier financial/contact/file fields.
