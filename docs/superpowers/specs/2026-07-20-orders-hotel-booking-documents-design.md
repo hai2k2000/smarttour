@@ -95,7 +95,7 @@ Empty optional sections are omitted rather than rendered as blank tables.
 Add a small `OrderDocumentActions` component instead of expanding document logic inside `OrdersClient`.
 
 - Render actions only for `hotel-bookings` and a persisted `editingId`.
-- Hide actions unless the user has `order.view` or `order.manage` and `order.export`.
+- Require both exact permissions, `order.view` and `order.export`; `order.manage` alone does not substitute for `order.view`.
 - Fetch the document model at click time through `authFetch`.
 - Keep separate busy states for Word and print actions.
 - Report API, popup-blocking, and download errors through the existing Orders inline message path.

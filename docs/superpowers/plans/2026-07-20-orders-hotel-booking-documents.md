@@ -682,6 +682,8 @@ git commit -m "feat: render hotel booking documents"
 
 ### Task 3: Permission-Aware Document Actions
 
+Both exact permissions, `order.view` and `order.export`, are required for document actions. `order.manage` alone does not substitute for `order.view` because the API requires both permissions.
+
 **Files:**
 - Create: `apps/web/app/orders/[type]/OrderDocumentActions.tsx`
 - Modify: `apps/web/app/orders/[type]/OrdersClient.tsx`
@@ -693,8 +695,7 @@ git commit -m "feat: render hotel booking documents"
 Add these assertions to `scripts/test-orders-hotel-booking-documents-client-contract.js`:
 
 ```js
-requireText(actions, "const canViewOrders = can('order.view') || can('order.manage');", 'document actions must derive Order view access');
-requireText(actions, "const canExportDocuments = canViewOrders && can('order.export');", 'document actions must require order.export');
+requireText(actions, "const canExportDocuments = can('order.view') && can('order.export');", 'document actions must require exact view and export permissions');
 requireText(actions, "type !== 'hotel-bookings'", 'document actions must be Hotel Booking only');
 requireText(actions, 'if (!canExportDocuments || !orderId)', 'document actions must fail closed without permission or persisted id');
 requireText(actions, 'window.open', 'print must open a browser print window');
@@ -722,7 +723,7 @@ Create `apps/web/app/orders/[type]/OrderDocumentActions.tsx`:
 'use client';
 
 import { Download, Printer } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { authFetch, authHeaders } from '../../authFetch';
 import { usePermissions } from '../../usePermissions';
 import type { OrderRouteType } from '../order-config';
@@ -743,8 +744,8 @@ async function responseMessage(response: Response) {
 export default function OrderDocumentActions({ type, orderId, disabled, onMessage }: { type: OrderRouteType; orderId: string | null; disabled: boolean; onMessage: (message: string) => void }) {
   const { can, permissionsReady } = usePermissions();
   const [busy, setBusy] = useState<'word' | 'print' | null>(null);
-  const canViewOrders = can('order.view') || can('order.manage');
-  const canExportDocuments = canViewOrders && can('order.export');
+  const inFlightRef = useRef(false);
+  const canExportDocuments = can('order.view') && can('order.export');
   if (!permissionsReady || type !== 'hotel-bookings') return null;
   if (!canExportDocuments || !orderId) return null;
 
@@ -815,7 +816,7 @@ Do not render document actions in the Order list or for an unsaved create form.
 In `scripts/test-orders-ui-auth-contract.sh`, read `OrderDocumentActions.tsx` into `documents` and require:
 
 ```js
-assert(documents.includes("const canExportDocuments = canViewOrders && can('order.export');"), 'Order document actions should require order.export.');
+assert(documents.includes("const canExportDocuments = can('order.view') && can('order.export');"), 'Order document actions should require exact view and export permissions.');
 assert(documents.includes('if (!canExportDocuments || !orderId) return null;'), 'Order document actions should fail closed without export permission or persisted id.');
 assert(documents.includes("type !== 'hotel-bookings'"), 'Order document actions should remain Hotel Booking specific.');
 ```

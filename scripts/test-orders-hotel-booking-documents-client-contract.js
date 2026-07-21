@@ -6,9 +6,13 @@ const ts = require('typescript');
 const rendererPath = 'apps/web/app/orders/[type]/order-document.ts';
 const actionsPath = 'apps/web/app/orders/[type]/OrderDocumentActions.tsx';
 const clientPath = 'apps/web/app/orders/[type]/OrdersClient.tsx';
+const designPath = 'docs/superpowers/specs/2026-07-20-orders-hotel-booking-documents-design.md';
+const planPath = 'docs/superpowers/plans/2026-07-20-orders-hotel-booking-documents.md';
 const renderer = fs.existsSync(rendererPath) ? fs.readFileSync(rendererPath, 'utf8') : '';
 const actions = fs.existsSync(actionsPath) ? fs.readFileSync(actionsPath, 'utf8') : '';
 const client = fs.readFileSync(clientPath, 'utf8');
+const design = fs.readFileSync(designPath, 'utf8');
+const plan = fs.readFileSync(planPath, 'utf8');
 const failures = [];
 
 function requireText(source, token, label) {
@@ -210,21 +214,22 @@ requireText(
 );
 if (renderer.includes("value || '-'")) failures.push('row rendering must not replace numeric zero with a dash');
 
-requireText(actions, "const canViewOrders = can('order.view') || can('order.manage');", 'actions must treat order.manage as view-equivalent');
-requireText(actions, "const canExportDocuments = canViewOrders && can('order.export');", 'actions must require both order view and export permissions');
+requireText(actions, "import { useRef, useState } from 'react';", 'actions must use a synchronous ref lock alongside render state');
+requireText(actions, "const canExportDocuments = can('order.view') && can('order.export');", 'actions must require exact order view and export permissions');
+if (actions.includes("canViewOrders && can('order.export')")) failures.push('actions must not treat order.manage as document view permission');
 requireText(actions, "type !== 'hotel-bookings'", 'actions must be restricted to Hotel Booking orders');
 requireText(actions, 'if (!canExportDocuments || !orderId) return null;', 'actions must fail closed without export permission or a persisted Order id');
 requireText(actions, '/${orderId}/document', 'actions must fetch the protected persisted document model');
 requireText(actions, "cache: 'no-store'", 'actions must bypass caches when loading persisted document data');
 requireText(actions, 'authFetch(', 'actions must use the authenticated browser fetch helper');
-requireText(actions, "const popup = window.open('', '_blank');", 'print must open its popup synchronously');
+requireText(actions, "window.open('', '_blank')", 'print must open its popup synchronously');
 requireText(actions, 'Cho ph\u00e9p c\u1eeda s\u1ed5 b\u1eadt l\u00ean', 'print must explain how to allow a blocked popup');
 requireText(actions, 'downloadOrderWord(model)', 'Word action must delegate to the shared renderer');
 requireText(actions, 'writeOrderPrintWindow(popup, model)', 'print action must delegate to the shared renderer');
 const printHandler = actions.slice(actions.indexOf('async function handlePrint'));
 requireOrderedText(
   printHandler,
-  ["const popup = window.open('', '_blank');", "setBusy('print');", 'await fetchModel()'],
+  ["window.open('', '_blank')", 'await fetchModel()'],
   'print must synchronously reserve the popup before awaiting fresh persisted data',
 );
 
@@ -233,11 +238,24 @@ requireText(client, '<OrderDocumentActions', 'OrdersClient must render document 
 requireText(client, 'orderId={editingId}', 'OrdersClient must pass the persisted Order id');
 requireText(client, 'onMessage={setMessage}', 'OrdersClient must expose document action feedback in the shared message area');
 requireText(client, 'disabled={isSubmitting}', 'OrdersClient must disable document actions while saving');
+requireText(client, 'role="status" aria-live="polite" aria-atomic="true"', 'OrdersClient must expose inline messages as an atomic polite status');
 requireOrderedText(
   client,
   ['<OrderDocumentActions', "action('copy')", "action('settle')"],
   'OrdersClient must render persisted document actions before copy and settlement actions',
 );
+requireText(
+  design,
+  'Require both exact permissions, `order.view` and `order.export`; `order.manage` alone does not substitute for `order.view`.',
+  'design must document the exact document permission pair',
+);
+requireText(
+  plan,
+  'Both exact permissions, `order.view` and `order.export`, are required for document actions. `order.manage` alone does not substitute for `order.view`',
+  'implementation plan must document that order.manage is not a view substitute',
+);
+if (design.includes('`order.view` or `order.manage` and `order.export`')) failures.push('design must not retain view-equivalent document permissions');
+if (plan.includes("canViewOrders && can('order.export')")) failures.push('implementation plan must not retain view-equivalent document permissions');
 
 function assertBehavior(condition, message) {
   if (!condition) throw new Error(message);
@@ -261,6 +279,380 @@ function behavior(label, action) {
     failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
+
+const asyncTests = [];
+function asyncBehavior(label, action) {
+  asyncTests.push({ label, action });
+}
+
+let actionsJavascript = '';
+behavior('actions TypeScript must transpile for executable contract tests', () => {
+  const transpiled = ts.transpileModule(actions, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+    fileName: actionsPath,
+    reportDiagnostics: true,
+  });
+  const diagnostics = (transpiled.diagnostics || []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+  assertBehavior(!diagnostics.length, ts.formatDiagnostics(diagnostics, {
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => process.cwd(),
+    getNewLine: () => '\n',
+  }));
+  actionsJavascript = transpiled.outputText;
+});
+
+function actionResponse({ ok = true, model = { order: { id: 'persisted-order' } }, message = null, status = 200, statusText = 'OK' } = {}) {
+  return {
+    ok,
+    status,
+    statusText,
+    async json() {
+      return ok ? model : { message };
+    },
+  };
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function popupEnvironment(events, failure = null) {
+  let opener = 'source-window';
+  const popup = {
+    closed: false,
+    loadingHtml: '',
+    get opener() {
+      return opener;
+    },
+    set opener(value) {
+      events.push('popup.opener');
+      if (failure === 'opener') throw new Error('opener failed');
+      opener = value;
+    },
+    document: {
+      open() {
+        events.push('document.open');
+        if (failure === 'document.open') throw new Error('document open failed');
+      },
+      write(html) {
+        events.push('document.write');
+        popup.loadingHtml = html;
+        if (failure === 'document.write') throw new Error('document write failed');
+      },
+      close() {
+        events.push('document.close');
+        if (failure === 'document.close') throw new Error('document close failed');
+      },
+    },
+    close() {
+      events.push('popup.close');
+      popup.closed = true;
+    },
+  };
+  return popup;
+}
+
+function createActionHarness(options = {}) {
+  const hooks = [];
+  let hookCursor = 0;
+  const permissions = new Set(options.permissions || ['order.view', 'order.export']);
+  const messages = [];
+  const events = [];
+  const fetchCalls = [];
+  const wordCalls = [];
+  const printCalls = [];
+  const openCalls = [];
+  const authHeadersValue = { Authorization: 'Bearer contract-token' };
+  const defaultPopup = popupEnvironment(events);
+
+  function useState(initialValue) {
+    const index = hookCursor++;
+    if (!(index in hooks)) hooks[index] = typeof initialValue === 'function' ? initialValue() : initialValue;
+    const setValue = (nextValue) => {
+      hooks[index] = typeof nextValue === 'function' ? nextValue(hooks[index]) : nextValue;
+    };
+    return [hooks[index], setValue];
+  }
+
+  function useRef(initialValue) {
+    const index = hookCursor++;
+    if (!(index in hooks)) hooks[index] = { current: initialValue };
+    return hooks[index];
+  }
+
+  function jsx(type, props, key) {
+    return { type, key: key ?? null, props: props || {} };
+  }
+
+  const popupFactory = options.popupFactory || (() => ('popup' in options ? options.popup : defaultPopup));
+  const browserWindow = {
+    location: { hostname: 'web.example.test' },
+    open(...args) {
+      events.push('window.open');
+      openCalls.push(args);
+      if (options.openError) throw options.openError;
+      return popupFactory();
+    },
+  };
+  const module = { exports: {} };
+  const context = {
+    module,
+    exports: module.exports,
+    process: { env: { NEXT_PUBLIC_API_URL: options.apiBase || 'https://api.example.test' } },
+    window: browserWindow,
+    console,
+    require(specifier) {
+      if (specifier === 'react') return { useState, useRef };
+      if (specifier === 'react/jsx-runtime') return { Fragment: Symbol.for('contract.fragment'), jsx, jsxs: jsx };
+      if (specifier === 'lucide-react') return { Download() {}, Printer() {} };
+      if (specifier === '../../usePermissions') {
+        return {
+          usePermissions() {
+            return {
+              can(permission) { return permissions.has(permission); },
+              permissionsReady: options.permissionsReady !== false,
+            };
+          },
+        };
+      }
+      if (specifier === '../../authFetch') {
+        return {
+          authHeaders() { return authHeadersValue; },
+          authFetch(url, init) {
+            events.push('authFetch');
+            fetchCalls.push({ url, init });
+            if (options.fetch) return options.fetch(url, init);
+            return Promise.resolve(actionResponse({ model: options.model }));
+          },
+        };
+      }
+      if (specifier === './order-document') {
+        return {
+          downloadOrderWord(model) {
+            events.push('downloadOrderWord');
+            wordCalls.push(model);
+            if (options.wordError) throw options.wordError;
+          },
+          writeOrderPrintWindow(popup, model) {
+            events.push('writeOrderPrintWindow');
+            printCalls.push({ popup, model });
+            if (options.printError) throw options.printError;
+          },
+        };
+      }
+      throw new Error(`Unexpected actions import: ${specifier}`);
+    },
+  };
+  vm.runInNewContext(actionsJavascript, context, { filename: actionsPath });
+  const Component = module.exports.default;
+  const props = {
+    type: options.type || 'hotel-bookings',
+    orderId: options.orderId === undefined ? 'persisted-123' : options.orderId,
+    disabled: Boolean(options.disabled),
+    onMessage(message) { messages.push(message); },
+  };
+
+  return {
+    authHeadersValue,
+    events,
+    fetchCalls,
+    messages,
+    openCalls,
+    popup: defaultPopup,
+    printCalls,
+    wordCalls,
+    render() {
+      hookCursor = 0;
+      return Component(props);
+    },
+  };
+}
+
+function findElements(node, type, matches = []) {
+  if (Array.isArray(node)) {
+    for (const child of node) findElements(child, type, matches);
+    return matches;
+  }
+  if (!node || typeof node !== 'object') return matches;
+  if (node.type === type) matches.push(node);
+  findElements(node.props?.children, type, matches);
+  return matches;
+}
+
+function elementText(node) {
+  if (Array.isArray(node)) return node.map(elementText).join('');
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (!node || typeof node !== 'object') return '';
+  return elementText(node.props?.children);
+}
+
+function actionButtons(harness) {
+  return findElements(harness.render(), 'button');
+}
+
+behavior('actions render only for Hotel Booking with exact view and export permissions', () => {
+  const cases = [
+    { label: 'permissions not ready', options: { permissionsReady: false }, visible: false },
+    { label: 'non-hotel type', options: { type: 'single-services' }, visible: false },
+    { label: 'missing persisted id', options: { orderId: null }, visible: false },
+    { label: 'view without export', options: { permissions: ['order.view'] }, visible: false },
+    { label: 'export without view', options: { permissions: ['order.export'] }, visible: false },
+    { label: 'manage and export without view', options: { permissions: ['order.manage', 'order.export'] }, visible: false },
+    { label: 'view and export', options: { permissions: ['order.view', 'order.export'] }, visible: true },
+  ];
+  for (const testCase of cases) {
+    const output = createActionHarness(testCase.options).render();
+    if (testCase.visible) {
+      assertBehavior(findElements(output, 'button').length === 2, `${testCase.label} did not render two actions`);
+    } else {
+      assertBehavior(output === null, `${testCase.label} rendered document actions`);
+    }
+  }
+});
+
+asyncBehavior('action buttons expose stable semantics and honor parent disabled state', async () => {
+  const harness = createActionHarness({ disabled: true });
+  const buttons = actionButtons(harness);
+  assertBehavior(buttons.length === 2, 'document actions did not render two buttons');
+  assertBehavior(buttons.every((button) => button.props.type === 'button'), 'document action button must use type=button');
+  assertBehavior(buttons.every((button) => button.props.className === 'secondaryButton'), 'document action button must use secondaryButton styling');
+  assertBehavior(elementText(buttons[0]).includes('Tải Word'), 'Word action label is incorrect');
+  assertBehavior(elementText(buttons[1]).includes('In / PDF'), 'print action label is incorrect');
+  assertBehavior(buttons.every((button) => button.props.disabled === true), 'parent disabled state did not disable both actions');
+  await buttons[0].props.onClick();
+  await buttons[1].props.onClick();
+  assertBehavior(harness.fetchCalls.length === 0 && harness.openCalls.length === 0, 'disabled action handlers performed work');
+});
+
+asyncBehavior('Word action fetches the persisted protected model and downloads it', async () => {
+  const model = { version: 1, order: { id: 'persisted-123' } };
+  const harness = createActionHarness({ model });
+  await actionButtons(harness)[0].props.onClick();
+  assertBehavior(harness.fetchCalls.length === 1, 'Word action did not fetch exactly once');
+  assertBehavior(harness.fetchCalls[0].url === 'https://api.example.test/api/orders/hotel-bookings/persisted-123/document', `Word action URL was ${harness.fetchCalls[0].url}`);
+  assertBehavior(harness.fetchCalls[0].init.cache === 'no-store', 'Word action did not bypass cache');
+  assertBehavior(harness.fetchCalls[0].init.headers === harness.authHeadersValue, 'Word action did not send auth headers');
+  assertBehavior(harness.wordCalls.length === 1 && harness.wordCalls[0] === model, 'Word renderer did not receive the fetched model');
+  assertBehavior(harness.messages.at(-1) === 'Đã tải chứng từ Word-compatible (.doc).', 'Word success message is incorrect');
+});
+
+asyncBehavior('Word API failures surface the protected response message and reset state', async () => {
+  const harness = createActionHarness({
+    fetch: () => Promise.resolve(actionResponse({ ok: false, status: 403, statusText: 'Forbidden', message: ['Thiếu quyền xem', 'Thiếu quyền xuất'] })),
+  });
+  await actionButtons(harness)[0].props.onClick();
+  assertBehavior(harness.wordCalls.length === 0, 'Word renderer ran after an API failure');
+  assertBehavior(harness.messages.at(-1).includes('Thiếu quyền xem, Thiếu quyền xuất'), `Word API error message was ${harness.messages.at(-1)}`);
+  assertBehavior(actionButtons(harness).every((button) => button.props.disabled === false), 'Word API failure left actions busy');
+});
+
+asyncBehavior('blocked print popup reports guidance without fetching', async () => {
+  const harness = createActionHarness({ popup: null });
+  await actionButtons(harness)[1].props.onClick();
+  assertBehavior(harness.openCalls.length === 1, 'print did not attempt to open a popup');
+  assertBehavior(harness.fetchCalls.length === 0, 'blocked popup still fetched document data');
+  assertBehavior(harness.messages.at(-1).includes('Cho phép cửa sổ bật lên'), 'blocked popup guidance is missing');
+  assertBehavior(actionButtons(harness).every((button) => button.props.disabled === false), 'blocked popup left actions busy');
+});
+
+asyncBehavior('print reserves and isolates the popup before awaiting persisted data', async () => {
+  const pending = deferred();
+  const model = { version: 1, order: { id: 'persisted-123' } };
+  const harness = createActionHarness({ fetch: () => pending.promise });
+  const promise = actionButtons(harness)[1].props.onClick();
+  assertBehavior(
+    harness.events.slice(0, 6).join(',') === 'window.open,popup.opener,document.open,document.write,document.close,authFetch',
+    `print pre-await sequence was ${harness.events.join(',')}`,
+  );
+  assertBehavior(harness.events.indexOf('window.open') < harness.events.indexOf('authFetch'), 'print popup opened after the fetch');
+  assertBehavior(harness.openCalls[0][0] === '' && harness.openCalls[0][1] === '_blank', 'print popup target is incorrect');
+  assertBehavior(harness.popup.opener === null, 'print popup retained its opener before the fetch completed');
+  assertBehavior(harness.popup.loadingHtml.includes('Đang tải dữ liệu đã lưu'), 'print popup did not show the loading placeholder');
+  const buttonsWhileBusy = actionButtons(harness);
+  assertBehavior(buttonsWhileBusy.every((button) => button.props.disabled === true), 'print busy state did not disable both actions');
+  assertBehavior(buttonsWhileBusy[1].props['aria-busy'] === true, 'print action did not expose aria-busy');
+  pending.resolve(actionResponse({ model }));
+  await promise;
+  assertBehavior(harness.printCalls.length === 1 && harness.printCalls[0].model === model, 'print renderer did not receive the fetched model');
+  assertBehavior(harness.printCalls[0].popup.opener === null, 'print popup retained its opener');
+  assertBehavior(harness.printCalls[0].popup.loadingHtml.includes('Đang tải dữ liệu đã lưu'), 'print popup did not show the loading placeholder');
+  assertBehavior(harness.messages.at(-1) === 'Đã mở bản In / PDF từ dữ liệu đã lưu.', 'print success message is incorrect');
+  assertBehavior(harness.popup === harness.printCalls[0].popup, 'print renderer received an unexpected popup');
+});
+
+asyncBehavior('print handles window.open errors without fetching or leaking busy state', async () => {
+  const harness = createActionHarness({ openError: new Error('popup setup failed') });
+  let rejected = null;
+  try {
+    await actionButtons(harness)[1].props.onClick();
+  } catch (error) {
+    rejected = error;
+  }
+  assertBehavior(!rejected, `window.open error escaped the handler: ${rejected?.message}`);
+  assertBehavior(harness.fetchCalls.length === 0, 'window.open error still fetched document data');
+  assertBehavior(harness.messages.at(-1).includes('Không mở được bản In / PDF'), `window.open error was not localized: ${harness.messages.at(-1)}`);
+  assertBehavior(actionButtons(harness).every((button) => button.props.disabled === false), 'window.open error left actions busy');
+});
+
+for (const failure of ['document.write', 'fetch', 'render']) {
+  asyncBehavior(`print ${failure} failure closes the acquired popup and resets state`, async () => {
+    const events = [];
+    const popup = popupEnvironment(events, failure === 'document.write' ? 'document.write' : null);
+    const harness = createActionHarness({
+      popup,
+      fetch: failure === 'fetch' ? () => Promise.reject(new Error('fetch failed')) : undefined,
+      printError: failure === 'render' ? new Error('render failed') : undefined,
+    });
+    await actionButtons(harness)[1].props.onClick();
+    assertBehavior(popup.closed, `print ${failure} failure did not close the popup`);
+    assertBehavior(harness.messages.at(-1).includes('Không mở được bản In / PDF'), `print ${failure} failure was not localized`);
+    assertBehavior(actionButtons(harness).every((button) => button.props.disabled === false), `print ${failure} failure left actions busy`);
+  });
+}
+
+asyncBehavior('same-render Word double click performs only one fetch and download', async () => {
+  const pending = deferred();
+  const model = { version: 1, order: { id: 'persisted-123' } };
+  const harness = createActionHarness({ fetch: () => pending.promise });
+  const handler = actionButtons(harness)[0].props.onClick;
+  const first = handler();
+  const second = handler();
+  const fetchCountBeforeResolve = harness.fetchCalls.length;
+  const busyButtons = actionButtons(harness);
+  pending.resolve(actionResponse({ model }));
+  await Promise.all([first, second]);
+  assertBehavior(fetchCountBeforeResolve === 1, `same-render Word double click fetched ${fetchCountBeforeResolve} times`);
+  assertBehavior(harness.wordCalls.length === 1, `same-render Word double click downloaded ${harness.wordCalls.length} times`);
+  assertBehavior(busyButtons.every((button) => button.props.disabled === true), 'Word busy state did not disable both actions');
+  assertBehavior(busyButtons[0].props['aria-busy'] === true, 'Word action did not expose aria-busy');
+  assertBehavior(actionButtons(harness).every((button) => button.props.disabled === false), 'Word completion left actions busy');
+});
+
+asyncBehavior('shared in-flight lock prevents print while Word is pending', async () => {
+  const pending = deferred();
+  const harness = createActionHarness({ fetch: () => pending.promise });
+  const buttons = actionButtons(harness);
+  const wordPromise = buttons[0].props.onClick();
+  const printPromise = buttons[1].props.onClick();
+  const fetchCountBeforeResolve = harness.fetchCalls.length;
+  const openCountBeforeResolve = harness.openCalls.length;
+  pending.resolve(actionResponse());
+  await Promise.all([wordPromise, printPromise]);
+  assertBehavior(fetchCountBeforeResolve === 1, `cross-action race fetched ${fetchCountBeforeResolve} times`);
+  assertBehavior(openCountBeforeResolve === 0, `cross-action race opened ${openCountBeforeResolve} popups`);
+  assertBehavior(harness.wordCalls.length === 1 && harness.printCalls.length === 0, 'cross-action race ran more than the active Word action');
+});
 
 let rendererJavascript = '';
 behavior('renderer TypeScript must transpile for executable contract tests', () => {
@@ -689,9 +1081,23 @@ behavior('Task 1 API return type must be assignable to OrderDocumentModel', () =
   }));
 });
 
-if (failures.length) {
+(async () => {
+  for (const test of asyncTests) {
+    try {
+      await test.action();
+    } catch (error) {
+      failures.push(`${test.label}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (failures.length) {
+    console.error('FAIL_ORDERS_HOTEL_BOOKING_DOCUMENTS_CLIENT_CONTRACT');
+    failures.forEach((failure) => console.error(failure));
+    process.exitCode = 1;
+    return;
+  }
+  console.log('TEST_ORDERS_HOTEL_BOOKING_DOCUMENTS_CLIENT_CONTRACT_OK');
+})().catch((error) => {
   console.error('FAIL_ORDERS_HOTEL_BOOKING_DOCUMENTS_CLIENT_CONTRACT');
-  failures.forEach((failure) => console.error(failure));
-  process.exit(1);
-}
-console.log('TEST_ORDERS_HOTEL_BOOKING_DOCUMENTS_CLIENT_CONTRACT_OK');
+  console.error(error instanceof Error ? error.stack : String(error));
+  process.exitCode = 1;
+});

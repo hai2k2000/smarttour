@@ -1,7 +1,7 @@
 'use client';
 
 import { Download, Printer } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { authFetch, authHeaders } from '../../authFetch';
 import { usePermissions } from '../../usePermissions';
 import type { OrderRouteType } from '../order-config';
@@ -41,8 +41,8 @@ function errorMessage(error: unknown, fallback: string) {
 export default function OrderDocumentActions({ type, orderId, disabled, onMessage }: OrderDocumentActionsProps) {
   const { can, permissionsReady } = usePermissions();
   const [busy, setBusy] = useState<'word' | 'print' | null>(null);
-  const canViewOrders = can('order.view') || can('order.manage');
-  const canExportDocuments = canViewOrders && can('order.export');
+  const inFlightRef = useRef(false);
+  const canExportDocuments = can('order.view') && can('order.export');
 
   if (!permissionsReady || type !== 'hotel-bookings') return null;
   if (!canExportDocuments || !orderId) return null;
@@ -56,8 +56,20 @@ export default function OrderDocumentActions({ type, orderId, disabled, onMessag
     return response.json() as Promise<OrderDocumentModel>;
   }
 
+  function beginAction(nextBusy: 'word' | 'print') {
+    if (disabled || inFlightRef.current) return false;
+    inFlightRef.current = true;
+    setBusy(nextBusy);
+    return true;
+  }
+
+  function finishAction() {
+    inFlightRef.current = false;
+    setBusy(null);
+  }
+
   async function handleWord() {
-    setBusy('word');
+    if (!beginAction('word')) return;
     try {
       const model = await fetchModel();
       downloadOrderWord(model);
@@ -65,19 +77,19 @@ export default function OrderDocumentActions({ type, orderId, disabled, onMessag
     } catch (error) {
       onMessage(errorMessage(error, 'Không tải được chứng từ Word.'));
     } finally {
-      setBusy(null);
+      finishAction();
     }
   }
 
   async function handlePrint() {
-    const popup = window.open('', '_blank');
-    if (!popup) {
-      onMessage('Không mở được cửa sổ In / PDF. Cho phép cửa sổ bật lên cho trang này rồi thử lại.');
-      return;
-    }
-
-    setBusy('print');
+    if (!beginAction('print')) return;
+    let popup: Window | null = null;
     try {
+      popup = window.open('', '_blank');
+      if (!popup) {
+        onMessage('Không mở được cửa sổ In / PDF. Cho phép cửa sổ bật lên cho trang này rồi thử lại.');
+        return;
+      }
       popup.opener = null;
       popup.document.open();
       popup.document.write('<!doctype html><html lang="vi"><head><title>Đang chuẩn bị chứng từ</title></head><body><p>Đang tải dữ liệu đã lưu...</p></body></html>');
@@ -86,24 +98,27 @@ export default function OrderDocumentActions({ type, orderId, disabled, onMessag
       writeOrderPrintWindow(popup, model);
       onMessage('Đã mở bản In / PDF từ dữ liệu đã lưu.');
     } catch (error) {
-      try {
-        popup.close();
-      } catch {
-        // The browser may deny access after the popup navigates or closes itself.
+      if (popup) {
+        try {
+          popup.close();
+        } catch {
+          // The browser may deny access after the popup navigates or closes itself.
+        }
       }
-      onMessage(errorMessage(error, 'Không mở được bản In / PDF.'));
+      const detail = error instanceof Error && error.message.trim() ? `: ${error.message}` : '.';
+      onMessage(`Không mở được bản In / PDF${detail}`);
     } finally {
-      setBusy(null);
+      finishAction();
     }
   }
 
   const actionsDisabled = disabled || busy !== null;
   return (
     <>
-      <button type="button" className="secondaryButton" disabled={actionsDisabled} onClick={handleWord}>
+      <button type="button" className="secondaryButton" disabled={actionsDisabled} aria-busy={busy === 'word'} onClick={handleWord}>
         <Download size={17} /> {busy === 'word' ? 'Đang tải Word...' : 'Tải Word'}
       </button>
-      <button type="button" className="secondaryButton" disabled={actionsDisabled} onClick={handlePrint}>
+      <button type="button" className="secondaryButton" disabled={actionsDisabled} aria-busy={busy === 'print'} onClick={handlePrint}>
         <Printer size={17} /> {busy === 'print' ? 'Đang mở In / PDF...' : 'In / PDF'}
       </button>
     </>

@@ -591,7 +591,7 @@ export default function OrdersClient({ type, config, initialOrders, initialHotel
               </button>
             ))}
           </div>
-          <div className="fitActions"><strong>{config.title}</strong><span>{message || stepDescriptions[activeStep] || 'Hệ thống tính lại thu, chi và lợi nhuận trước khi lưu.'}</span></div>
+          <div className="fitActions"><strong>{config.title}</strong><span role="status" aria-live="polite" aria-atomic="true">{message || stepDescriptions[activeStep] || 'Hệ thống tính lại thu, chi và lợi nhuận trước khi lưu.'}</span></div>
         </section>
         <section className="orderWorkArea">
           <div className="orderMain">

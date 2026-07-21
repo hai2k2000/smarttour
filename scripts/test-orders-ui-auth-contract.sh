@@ -23,9 +23,11 @@ function assert(condition, label) {
 assert(source.includes("import { authFetch, authHeaders, authJsonHeaders } from '../../authFetch';"), 'Orders UI should import auth fetch helpers');
 
 assert(source.includes("import { PermissionNotice, usePermissions } from '../../usePermissions';"), 'Orders UI should read permissions for sensitive action rendering.');
-assert(actions.includes("const canExportDocuments = canViewOrders && can('order.export');"), 'Order document actions should require both view-equivalent and export permissions.');
+assert(actions.includes("const canExportDocuments = can('order.view') && can('order.export');"), 'Order document actions should require exact view and export permissions.');
+assert(!actions.includes("canViewOrders && can('order.export')"), 'Order document actions should not treat order.manage as document view permission.');
 assert(actions.includes('if (!canExportDocuments || !orderId) return null;'), 'Order document actions should fail closed without permission or a persisted Order id.');
 assert(actions.includes("type !== 'hotel-bookings'"), 'Order document actions should be restricted to Hotel Booking orders.');
+assert(source.includes('role="status" aria-live="polite" aria-atomic="true"'), 'Orders inline messages should be announced as an atomic polite status.');
 assert(source.includes('const { can, permissionsReady } = usePermissions();'), 'Orders UI should use permission helper and wait for readiness.');
 assert(source.includes("const canChangeStatus = can('order.status.update');"), 'Orders UI status changes should require order.status.update.');
 assert(source.includes("can('order.settle')"), 'Orders UI settlement action should require order.settle.');
