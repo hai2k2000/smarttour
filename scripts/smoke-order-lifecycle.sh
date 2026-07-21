@@ -76,6 +76,27 @@ async function request(token, method, path, body, ok = [200, 201]) {
     department: 'SMOKE-DEP',
   });
 
+  const hotelBooking = await request(token, 'POST', '/orders/hotel-bookings', {
+    systemCode: run + '-HOTEL-DOC',
+    tourCode: run + '-HOTEL-CODE',
+    name: 'Hotel Document Smoke',
+    customerId: customer.id,
+    startDate: '2026-09-05',
+    endDate: '2026-09-07',
+    roomClass: 'Deluxe',
+    salesItems: [{ serviceType: 'HOTEL', description: 'Deluxe Room', quantity: 1, serviceCount: 2, unitPrice: 900000, vat: 0 }],
+    operationItems: [{ serviceType: 'HOTEL', bookingCode: run + '-SUP', quantity: 1, netPrice: 600000, vat: 0, status: 'WAITING' }],
+    members: [{ fullName: 'Hotel Document Guest', identityNumber: run + '-ID' }],
+    terms: [{ language: 'VI', terms: 'Dieu khoan khach san smoke' }],
+  });
+  const hotelDocument = await request(token, 'GET', '/orders/hotel-bookings/' + hotelBooking.id + '/document');
+  if (hotelDocument.order?.systemCode !== run + '-HOTEL-DOC') throw new Error('Hotel document system code is incorrect');
+  if (hotelDocument.documentTitle !== 'PHI\u1ebeU BOOKING PH\u00d2NG KH\u00c1CH S\u1ea0N') throw new Error('Hotel document title is incorrect');
+  if (!Array.isArray(hotelDocument.members) || hotelDocument.members.length !== 1) throw new Error('Hotel document members are incorrect');
+  if (Number(hotelDocument.summary?.totalRevenue) !== 1800000) throw new Error('Hotel document total revenue is incorrect');
+  await request(token, 'GET', '/orders/single-services/' + hotelBooking.id + '/document', undefined, [400]);
+  await request(token, 'DELETE', '/orders/hotel-bookings/' + hotelBooking.id);
+
   const order = await request(token, 'POST', '/orders/single-services', {
     systemCode: run + '-ORD',
     name: 'Order Lifecycle Smoke',

@@ -70,6 +70,8 @@ jobs:
           node scripts/test-orders-finance-client-contract.js
           node scripts/test-orders-hotel-service-selectors-backend-contract.js
           node scripts/test-orders-hotel-service-selectors-client-contract.js
+          node scripts/test-orders-hotel-booking-documents-backend-contract.js
+          node scripts/test-orders-hotel-booking-documents-client-contract.js
           node scripts/test-action-endpoint-status-contract.js
           node scripts/test-error-response-contract.js
           node scripts/test-logging-correlation-contract.js
