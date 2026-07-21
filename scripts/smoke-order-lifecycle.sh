@@ -92,7 +92,12 @@ async function request(token, method, path, body, ok = [200, 201]) {
   const hotelDocument = await request(token, 'GET', '/orders/hotel-bookings/' + hotelBooking.id + '/document');
   if (hotelDocument.order?.systemCode !== run + '-HOTEL-DOC') throw new Error('Hotel document system code is incorrect');
   if (hotelDocument.documentTitle !== 'PHI\u1ebeU BOOKING PH\u00d2NG KH\u00c1CH S\u1ea0N') throw new Error('Hotel document title is incorrect');
-  if (!Array.isArray(hotelDocument.members) || hotelDocument.members.length !== 1) throw new Error('Hotel document members are incorrect');
+  if (
+    !Array.isArray(hotelDocument.members)
+    || hotelDocument.members.length !== 1
+    || hotelDocument.members[0].fullName !== 'Hotel Document Guest'
+    || hotelDocument.members[0].identityNumber !== run + '-ID'
+  ) throw new Error('Hotel document members are incorrect');
   if (Number(hotelDocument.summary?.totalRevenue) !== 1800000) throw new Error('Hotel document total revenue is incorrect');
   await request(token, 'GET', '/orders/single-services/' + hotelBooking.id + '/document', undefined, [400]);
   await request(token, 'DELETE', '/orders/hotel-bookings/' + hotelBooking.id);
