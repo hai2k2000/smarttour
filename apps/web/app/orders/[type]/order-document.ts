@@ -286,23 +286,31 @@ function fileBase(model: OrderDocumentModel) {
 export function downloadOrderWord(model: OrderDocumentModel) {
   const blob = new Blob(['\uFEFF', orderDocumentHtml(model)], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  let link: HTMLAnchorElement | null = null;
   try {
+    link = document.createElement('a');
     link.href = url;
     link.download = `${fileBase(model)}.doc`;
     document.body.appendChild(link);
     link.click();
   } finally {
-    link.remove();
-    URL.revokeObjectURL(url);
+    try {
+      link?.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
   return { extension: 'doc' as const };
 }
 
 export function writeOrderPrintWindow(popup: Window, model: OrderDocumentModel) {
+  const html = orderDocumentHtml(model);
   popup.document.open();
-  popup.document.write(orderDocumentHtml(model));
-  popup.document.close();
+  try {
+    popup.document.write(html);
+  } finally {
+    popup.document.close();
+  }
   popup.focus();
   popup.setTimeout(() => popup.print(), 150);
 }
