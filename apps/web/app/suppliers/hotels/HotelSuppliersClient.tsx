@@ -18,9 +18,6 @@ import {
   supplierLifecycleAction,
   supplierLifecycleBlockedText,
   supplierApi,
-  syncSupplierAllotments,
-  syncSupplierContacts,
-  syncSupplierServices,
   type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
@@ -632,9 +629,6 @@ export default function HotelSuppliersClient({
   const [inventoryFilters, setInventoryFilters] = useState(defaultInventoryFilters);
   const [inventoryRows, setInventoryRows] = useState<AllotmentInventoryLine[]>([]);
   const [isInventoryLoading, setIsInventoryLoading] = useState(false);
-  const [originalContactRows, setOriginalContactRows] = useState<HotelForm['contacts']>([]);
-  const [originalServiceRows, setOriginalServiceRows] = useState<HotelForm['services']>([]);
-  const [originalAllotmentRows, setOriginalAllotmentRows] = useState<HotelForm['allotments']>([]);
   const {
     register,
     control,
@@ -806,27 +800,18 @@ export default function HotelSuppliersClient({
     setNotice(null);
     const collectionDirtyFields = dirtyFields as DirtyCollections;
     const childPayload = hotelChildPayload(values, collectionDirtyFields);
-    const payload = hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections, canViewSupplierFinancialFields);
+    const rootPayload = hotelSupplierPayload(values, editingId ? 'update' : 'create', collectionDirtyFields, canViewSupplierFinancialFields);
+    const payload = editingId ? { root: rootPayload, ...childPayload } : rootPayload;
     let saved: HotelSupplier;
     try {
       saved = await supplierApi<HotelSupplier>(
-        `/api/suppliers/hotels${editingId ? `/${editingId}` : ''}`,
+        `/api/suppliers/hotels${editingId ? `/${editingId}/batch` : ''}`,
         { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) },
         editingId ? 'Cập nhật nhà cung cấp khách sạn' : 'Tạo nhà cung cấp khách sạn',
       );
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không lưu được nhà cung cấp khách sạn.') });
       return;
-    }
-    if (editingId) {
-      try {
-        if (childPayload.contacts) await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts);
-        if (childPayload.services) await syncSupplierServices(editingId, originalServiceRows, childPayload.services);
-        if (childPayload.allotments) await syncSupplierAllotments(editingId, originalAllotmentRows, childPayload.allotments);
-      } catch (error) {
-        setNotice({ type: 'error', text: errorText(error, 'Không đồng bộ được dòng con nhà cung cấp khách sạn.') });
-        return;
-      }
     }
     if (pendingFiles.length) {
       try {
@@ -852,9 +837,6 @@ export default function HotelSuppliersClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
-    setOriginalContactRows([]);
-    setOriginalServiceRows([]);
-    setOriginalAllotmentRows([]);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     try {
       const detail = await supplierApi<HotelSupplier>(`/api/suppliers/hotels/${hotel.id}`, {}, 'Tải thông tin nhà cung cấp khách sạn');
@@ -862,9 +844,6 @@ export default function HotelSuppliersClient({
       setEditingId(detail.id);
       setFiles(detail.files || []);
       setPendingFiles([]);
-      setOriginalContactRows(formValues.contacts.filter((item) => item.id));
-      setOriginalServiceRows(formValues.services.filter((item) => item.id));
-      setOriginalAllotmentRows(formValues.allotments.filter((item) => item.id));
       reset(formValues, { keepDirty: false, keepTouched: false });
       setFormOpen(true);
     } catch (error) {
@@ -1057,9 +1036,6 @@ export default function HotelSuppliersClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
-    setOriginalContactRows([]);
-    setOriginalServiceRows([]);
-    setOriginalAllotmentRows([]);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     if (clearNotice) setNotice(null);
   }
@@ -1068,9 +1044,6 @@ export default function HotelSuppliersClient({
     setEditingId(null);
     setFiles([]);
     setPendingFiles([]);
-    setOriginalContactRows([]);
-    setOriginalServiceRows([]);
-    setOriginalAllotmentRows([]);
     setNotice(null);
     reset(freshDefaultValues(), { keepDirty: false, keepTouched: false });
     setFormOpen(true);

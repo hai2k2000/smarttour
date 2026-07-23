@@ -45,62 +45,6 @@ export async function uploadSupplierFiles(supplierId: string, files: File[]) {
   return uploaded;
 }
 
-export type SupplierChildRow = { id?: string | null };
-
-export function rowIdSet<T extends SupplierChildRow>(rows: T[]) {
-  return new Set(rows.map((row) => row.id).filter((id): id is string => Boolean(id)));
-}
-
-async function syncSupplierChildRows<T extends SupplierChildRow>(
-  originalRows: T[],
-  nextRows: T[],
-  pathForRow: (row: SupplierChildRow) => string,
-  label: string,
-) {
-  const nextIds = rowIdSet(nextRows);
-  for (const row of originalRows) {
-    if (row.id && !nextIds.has(row.id)) {
-      await supplierApi(pathForRow(row), { method: 'DELETE' }, `${label}: xóa dòng`);
-    }
-  }
-  for (const row of nextRows.filter((item) => item.id)) {
-    const { id, ...body } = row;
-    await supplierApi(pathForRow(row), { method: 'PUT', body: JSON.stringify(body) }, `${label}: cập nhật dòng`);
-  }
-  for (const row of nextRows.filter((item) => !item.id)) {
-    const { id, ...body } = row;
-    void id;
-    await supplierApi(pathForRow(row), { method: 'POST', body: JSON.stringify(body) }, `${label}: thêm dòng`);
-  }
-}
-
-export function syncSupplierContacts(supplierId: string, originalRows: SupplierChildRow[], nextRows: SupplierChildRow[]) {
-  return syncSupplierChildRows(
-    originalRows,
-    nextRows,
-    (row) => row.id ? `/api/suppliers/${supplierId}/contacts/${row.id}` : `/api/suppliers/${supplierId}/contacts`,
-    'Đồng bộ liên hệ nhà cung cấp',
-  );
-}
-
-export function syncSupplierServices(supplierId: string, originalRows: SupplierChildRow[], nextRows: SupplierChildRow[]) {
-  return syncSupplierChildRows(
-    originalRows,
-    nextRows,
-    (row) => row.id ? `/api/suppliers/${supplierId}/services/${row.id}` : `/api/suppliers/${supplierId}/services`,
-    'Đồng bộ dịch vụ nhà cung cấp',
-  );
-}
-
-export function syncSupplierAllotments(supplierId: string, originalRows: SupplierChildRow[], nextRows: SupplierChildRow[]) {
-  return syncSupplierChildRows(
-    originalRows,
-    nextRows,
-    (row) => row.id ? `/api/suppliers/${supplierId}/allotments/${row.id}` : `/api/suppliers/${supplierId}/allotments`,
-    'Đồng bộ quỹ phòng nhà cung cấp',
-  );
-}
-
 export function SupplierNoticeBanner({ notice }: { notice: SupplierNotice | null }) {
   if (!notice) return null;
   const Icon = notice.type === 'success' ? CheckCircle2 : notice.type === 'error' ? AlertTriangle : Info;

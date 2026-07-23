@@ -249,6 +249,7 @@ function makeState() {
       listQueries: [],
       createPayloads: [],
       updatePayloads: [],
+      hotelBatchUpdates: [],
       contactCreates: [],
       contactUpdates: [],
       contactDeletes: [],
@@ -344,6 +345,34 @@ async function installApiMock(page, state) {
       const hotel = fromPayload(payload, `hotel-created-${state.calls.createPayloads.length}`);
       state.hotels.push(hotel);
       return responseJson(route, clone(hotel), 201);
+    }
+
+    const hotelBatchMatch = apiPath.match(/^\/api\/suppliers\/hotels\/([^/]+)\/batch$/);
+    if (hotelBatchMatch && method === 'PUT') {
+      const body = JSON.parse(request.postData() || '{}');
+      const supplierId = hotelBatchMatch[1];
+      state.calls.hotelBatchUpdates.push({ supplierId, body });
+      const hotel = state.hotels.find((item) => item.id === supplierId);
+      if (!hotel) return messageResponse(route, 'Không tìm thấy nhà cung cấp khách sạn', 404);
+      const root = body.root || {};
+      for (const key of ['supplierCode', 'name', 'taxCode', 'phone', 'email', 'country', 'province', 'address', 'website', 'notes', 'status']) {
+        if (Object.prototype.hasOwnProperty.call(root, key)) hotel[key] = root[key] || null;
+      }
+      hotel.hotelProfile = hotel.hotelProfile || {};
+      for (const key of ['builtYear', 'rating', 'classHotel', 'hotelProject', 'bankAccountName', 'bankAccountNumber', 'bankName', 'market', 'link']) {
+        if (Object.prototype.hasOwnProperty.call(root, key)) hotel.hotelProfile[key] = root[key] ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'contacts')) {
+        hotel.contacts = body.contacts.map((item, index) => ({ id: item.id || `batch-contact-${index + 1}`, ...item }));
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'services')) {
+        hotel.supplierServices = body.services.map((item, index) => ({ id: item.id || `batch-service-${index + 1}`, ...item }));
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'allotments')) {
+        hotel.allotments = body.allotments.map((item, index) => normalizeHotel({ allotments: [{ id: item.id || `batch-allotment-${index + 1}`, ...item }] }).allotments[0]);
+      }
+      normalizeHotel(hotel);
+      return responseJson(route, clone(hotel));
     }
 
     if (hotelDetailMatch && method === 'PUT') {
@@ -799,7 +828,10 @@ async function loadMockedList(page) {
       await dialog.getByRole('button', { name: 'Lưu thay đổi' }).click();
       await visibleText(page, 'Đã cập nhật nhà cung cấp khách sạn và tải lên 1 file');
       assert(state.calls.uploads.length === 1, 'edit submit must upload pending file');
-      const updatePayload = state.calls.updatePayloads.at(-1);
+      assert(state.calls.hotelBatchUpdates.length === 1, 'hotel edit should send one atomic batch request');
+      assert(state.calls.updatePayloads.length === 0, 'hotel edit should not call the legacy parent update route');
+      const updatePayload = state.calls.hotelBatchUpdates.at(-1).body;
+      assert(updatePayload.root?.name === 'Khách sạn Hồ Gươm', 'hotel batch edit must wrap root fields');
       assert(!Object.prototype.hasOwnProperty.call(updatePayload, 'contacts'), 'untouched contacts must not be sent on edit');
       assert(!Object.prototype.hasOwnProperty.call(updatePayload, 'services'), 'untouched services must not be sent on edit');
       assert(!Object.prototype.hasOwnProperty.call(updatePayload, 'allotments'), 'untouched allotments must not be sent on edit');
@@ -813,8 +845,7 @@ async function loadMockedList(page) {
       assert(state.calls.deletes.some((item) => item.fileId === 'uploaded-file-1'), 'file delete must call supplier file endpoint');
       await editAgain.getByRole('button', { name: 'Đóng' }).click();
 
-      const contactUpdatesBefore = state.calls.contactUpdates.length;
-      const serviceUpdatesBefore = state.calls.serviceUpdates.length;
+      const hotelBatchUpdatesBefore = state.calls.hotelBatchUpdates.length;
       await oldRow.getByRole('button', { name: 'Sửa khách sạn' }).click();
       const childDialog = await selectDialog(page, 'Cập nhật nhà cung cấp khách sạn');
       const contactRow = dynamicSection(childDialog, 'Người liên hệ').locator('tbody tr').first();
@@ -823,16 +854,15 @@ async function loadMockedList(page) {
       await serviceRow.locator('input').nth(1).fill('Phòng tiêu chuẩn cập nhật');
       await childDialog.getByRole('button', { name: 'Lưu thay đổi' }).click();
       await visibleText(page, 'Đã cập nhật nhà cung cấp khách sạn');
-      const childParentPayload = state.calls.updatePayloads.at(-1);
-      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'contacts'), 'dirty contacts must not be sent through parent hotel edit');
-      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'services'), 'dirty services must not be sent through parent hotel edit');
-      assert(!Object.prototype.hasOwnProperty.call(childParentPayload, 'allotments'), 'hotel edit must not replace allotments while syncing other child rows');
-      assert(state.calls.contactUpdates.length === contactUpdatesBefore + 1, 'dirty contact edit must call contact child endpoint');
-      assert(state.calls.contactUpdates.at(-1).contactId === 'contact-1' && state.calls.contactUpdates.at(-1).payload.fullName === 'Nguyễn Lan cập nhật', 'contact child endpoint must receive the existing contact id and payload');
-      assert(state.calls.serviceUpdates.length === serviceUpdatesBefore + 1, 'dirty service edit must call service child endpoint');
-      assert(state.calls.serviceUpdates.at(-1).serviceId === 'service-1' && state.calls.serviceUpdates.at(-1).payload.serviceName === 'Phòng tiêu chuẩn cập nhật', 'service child endpoint must receive the existing service id and payload');
-      assert(state.calls.contactCreates.length === 0 && state.calls.contactDeletes.length === 0, 'editing an existing contact must not create/delete contact rows');
-      assert(state.calls.serviceCreates.length === 0 && state.calls.serviceDeletes.length === 0, 'editing an existing service must not create/delete service rows');
+      assert(state.calls.hotelBatchUpdates.length === hotelBatchUpdatesBefore + 1, 'dirty hotel edit should send exactly one atomic batch request');
+      const childBatchPayload = state.calls.hotelBatchUpdates.at(-1).body;
+      assert(childBatchPayload.root?.name === 'Khách sạn Hồ Gươm', 'dirty hotel batch must include root fields');
+      assert(childBatchPayload.contacts?.[0]?.id === 'contact-1' && childBatchPayload.contacts[0].fullName === 'Nguyễn Lan cập nhật', 'hotel batch must preserve the edited contact id');
+      assert(childBatchPayload.services?.[0]?.id === 'service-1' && childBatchPayload.services[0].serviceName === 'Phòng tiêu chuẩn cập nhật', 'hotel batch must preserve the edited service id');
+      assert(!Object.prototype.hasOwnProperty.call(childBatchPayload, 'allotments'), 'hotel batch must omit untouched allotments');
+      assert(state.calls.contactCreates.length === 0 && state.calls.contactUpdates.length === 0 && state.calls.contactDeletes.length === 0, 'hotel edit should not call contact CRUD during form save');
+      assert(state.calls.serviceCreates.length === 0 && state.calls.serviceUpdates.length === 0 && state.calls.serviceDeletes.length === 0, 'hotel edit should not call service CRUD during form save');
+      assert(state.calls.allotmentCreates.length === 0 && state.calls.allotmentUpdates.length === 0 && state.calls.allotmentDeletes.length === 0, 'hotel edit should not call allotment CRUD during form save');
 
       await page.locator('.supplierFilterPanel').getByRole('button', { name: 'Xóa bộ lọc' }).click();
       await visibleText(page, 'Khách sạn Không Có Hồ Sơ');
