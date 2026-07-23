@@ -1,5 +1,12 @@
 # Progress
 
+- Completed Supplier atomic batch save slice:
+  - Added ID-aware transactional batch endpoints for generic typed and hotel suppliers, with parent locking, duplicate/ownership validation, omitted-versus-empty snapshot semantics, stable child IDs, generic service soft delete, and hotel allocation/final-service guards.
+  - Migrated generic and hotel edit forms from parent-plus-child request sequences to one atomic batch request while retaining nested create payloads, separate file uploads, dedicated child CRUD compatibility, and separate operational allotment actions.
+  - Removed shared form-save orchestration helpers and original child snapshot state; added real cross-supplier and duplicate-ID smoke cases, complete state-preservation checks, empty/omitted snapshot tests, and exactly-one-request Playwright coverage for both generic and hotel edits.
+  - Review remediation uses exact Prisma Decimal string comparison, validates allotment service activity/ownership through the existing child guard, and reserves enough typed Supplier table width for all lifecycle/edit/delete actions.
+  - Verification passed: Supplier atomic/child/controller/common/typed/hotel/client/sensitive contracts, authenticated Supplier smoke on the isolated API container, hotel/generic Playwright UI flow, API/web TypeScript lint, API/web Docker production builds, Git diff checks, and final MCP `codex-review` v2.10.6 with no actionable findings.
+
 - Completed customer merge scope and commission sync concurrency codex-review follow-up:
   - Customer merge now refuses scoped merges when any Order, Booking, Quotation, TourQuote, TourCustomer, FitTour, FinanceReceipt, FinanceInvoice, FinanceCashflowEntry, or CustomerLedgerEntry linked to the source falls outside the actor's data scope, preventing a terminal source with stranded business links.
   - Commission order sync now handles concurrent unique `orderId` creation races through the existing locked update path while preserving approved, paid, rejected, and revoked entries; non-`orderId` `P2002` errors are rethrown.

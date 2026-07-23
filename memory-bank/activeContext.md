@@ -20,6 +20,13 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- Supplier atomic batch save slice:
+  - Added `PUT /suppliers/:type/:id/batch` and `PUT /suppliers/hotels/:id/batch` so root fields and supplied contact/service/allotment snapshots save inside one parent-locked Prisma transaction while omitted collections remain unchanged and empty collections clear the final snapshot.
+  - Batch rows preserve existing child IDs, reject duplicate or cross-supplier IDs, keep generic service soft-delete behavior, and enforce hotel service/allotment active-allocation and final same-supplier service guards. New id-less hotel services intentionally cannot be referenced by allotments in the same request.
+  - Generic and hotel edit forms now send exactly one batch request with dirty child collections; create, file upload/delete, dedicated child CRUD APIs, and operational allotment override/lock/confirm/release flows remain compatible and separate.
+  - MCP `codex-review` v2.10.6 remediation replaced lossy Prisma Decimal comparison with exact string comparison, strengthened real foreign/duplicate/empty/rollback smoke coverage, added generic request-cardinality browser coverage, and fixed the typed Supplier action column so status no longer covers the edit action.
+  - Supplier contracts, strengthened authenticated smoke, hotel/generic Playwright flow, API/web TypeScript lint, API and web Docker production builds, Git diff checks, and final focused MCP reviews passed with no actionable findings.
+
 - Customer merge scope and commission sync concurrency codex-review follow-up:
   - MCP `codex-review` v2.10.6 identified that a scoped customer merge could mark the source `MERGED` while leaving out-of-scope business relations attached, and that concurrent commission syncs could race on the unique `CommissionEntry.orderId` create.
   - Customer merge now compares total and authorized counts for every scope-filtered relation inside the existing locked transaction and rejects the whole merge before mutation when any related row is outside the actor's data scope.
