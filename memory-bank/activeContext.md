@@ -26,6 +26,7 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
   - Generic and hotel edit forms now send exactly one batch request with dirty child collections; create, file upload/delete, dedicated child CRUD APIs, and operational allotment override/lock/confirm/release flows remain compatible and separate.
   - MCP `codex-review` v2.10.6 remediation replaced lossy Prisma Decimal comparison with exact string comparison, strengthened real foreign/duplicate/empty/rollback smoke coverage, added generic request-cardinality browser coverage, and fixed the typed Supplier action column so status no longer covers the edit action.
   - Supplier contracts, strengthened authenticated smoke, hotel/generic Playwright flow, API/web TypeScript lint, API and web Docker production builds, Git diff checks, and final focused MCP reviews passed with no actionable findings.
+  - Production deployed code commit `8c56e4e8` through `BRANCH=main bash scripts/deploy-production.sh`; SmartLink audit, 47-migration no-op deploy, API/web rebuild and recreation, post-deploy Supplier smoke, hotel/generic Playwright flow, internal API health, `HEALTHCHECK_OK`, and `main...origin/main` synchronization passed.
 
 - Customer merge scope and commission sync concurrency codex-review follow-up:
   - MCP `codex-review` v2.10.6 identified that a scoped customer merge could mark the source `MERGED` while leaving out-of-scope business relations attached, and that concurrent commission syncs could race on the unique `CommissionEntry.orderId` create.

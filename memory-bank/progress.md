@@ -6,6 +6,7 @@
   - Removed shared form-save orchestration helpers and original child snapshot state; added real cross-supplier and duplicate-ID smoke cases, complete state-preservation checks, empty/omitted snapshot tests, and exactly-one-request Playwright coverage for both generic and hotel edits.
   - Review remediation uses exact Prisma Decimal string comparison, validates allotment service activity/ownership through the existing child guard, and reserves enough typed Supplier table width for all lifecycle/edit/delete actions.
   - Verification passed: Supplier atomic/child/controller/common/typed/hotel/client/sensitive contracts, authenticated Supplier smoke on the isolated API container, hotel/generic Playwright UI flow, API/web TypeScript lint, API/web Docker production builds, Git diff checks, and final MCP `codex-review` v2.10.6 with no actionable findings.
+  - Deployed code commit `8c56e4e8` through `scripts/deploy-production.sh`; SmartLink guard, Prisma deploy with no pending migration, API/web container rebuild/recreation, production Supplier smoke, hotel/generic Playwright, internal API health, full ops health, and Git synchronization passed.
 
 - Completed customer merge scope and commission sync concurrency codex-review follow-up:
   - Customer merge now refuses scoped merges when any Order, Booking, Quotation, TourQuote, TourCustomer, FitTour, FinanceReceipt, FinanceInvoice, FinanceCashflowEntry, or CustomerLedgerEntry linked to the source falls outside the actor's data scope, preventing a terminal source with stranded business links.
