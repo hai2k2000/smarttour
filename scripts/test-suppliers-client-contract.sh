@@ -62,6 +62,10 @@ assert "mode === 'create' ? { allotments:" in hotel, 'hotel edits must not repla
 assert 'function shouldSendCollection(' in hotel and "dirtyFields[name] !== undefined" in hotel, 'hotel edits must only send dirty child collection snapshots'
 assert 'function supplierRootPayload(' in generic, 'generic supplier edits must split root payload from child rows'
 assert 'function supplierChildPayload(' in generic, 'generic supplier edits must build child-row payloads separately'
+assert '/batch`' in generic, 'generic supplier edit must use the atomic batch endpoint'
+assert 'root: rootPayload' in generic, 'generic supplier edit batch must wrap root fields'
+assert "collectionDirtyFields.contacts !== undefined ? { contacts: childPayload.contacts }" in generic, 'generic batch must send contacts only when dirty'
+assert "collectionDirtyFields.services !== undefined ? { services: childPayload.services }" in generic, 'generic batch must send services only when dirty'
 assert 'changeSupplierLifecycleStatus(' in generic, 'generic typed supplier list must expose quick lifecycle status action'
 assert '/api/suppliers/${type}/${supplier.id}/status' in generic, 'generic typed lifecycle action must use the typed status endpoint'
 assert "method: 'PATCH'" in generic and "body: JSON.stringify({ status: action.nextStatus })" in generic
@@ -75,8 +79,8 @@ assert 'supplierLifecycleAction(row.original.name, row.original.status' in hotel
 generic_root_slice = generic[generic.index('function supplierRootPayload('):generic.index('function supplierChildPayload(')]
 assert 'contacts:' not in generic_root_slice, 'generic parent update payload must not include contacts'
 assert 'services:' not in generic_root_slice, 'generic parent update payload must not include services'
-assert 'await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts' in generic
-assert 'await syncSupplierServices(editingId, originalServiceRows, childPayload.services' in generic
+assert 'await syncSupplierContacts(' not in generic, 'generic edit must not call contact CRUD after the parent save'
+assert 'await syncSupplierServices(' not in generic, 'generic edit must not call service CRUD after the parent save'
 assert 'await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts' in hotel
 assert 'await syncSupplierServices(editingId, originalServiceRows, childPayload.services' in hotel
 assert 'await syncSupplierAllotments(editingId, originalAllotmentRows, childPayload.allotments' in hotel

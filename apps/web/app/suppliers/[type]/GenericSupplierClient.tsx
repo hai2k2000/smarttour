@@ -17,8 +17,6 @@ import {
   supplierLifecycleAction,
   supplierLifecycleBlockedText,
   supplierApi,
-  syncSupplierContacts,
-  syncSupplierServices,
   type SupplierLifecycleStatus,
   uploadSupplierFiles,
 } from '../SupplierClientUi';
@@ -511,8 +509,6 @@ export default function GenericSupplierClient({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [busyAction, setBusyAction] = useState('');
-  const [originalContactRows, setOriginalContactRows] = useState<Contact[]>([]);
-  const [originalServiceRows, setOriginalServiceRows] = useState<Service[]>([]);
   const {
     register,
     control,
@@ -620,27 +616,23 @@ export default function GenericSupplierClient({
     const rootPayload = supplierRootPayload(values, canViewSupplierFinancialFields);
     const childPayload = supplierChildPayload(values);
     const collectionDirtyFields = dirtyFields as DirtyCollections;
-    const payload = editingId ? rootPayload : { ...rootPayload, ...childPayload };
+    const payload = editingId
+      ? {
+          root: rootPayload,
+          ...(collectionDirtyFields.contacts !== undefined ? { contacts: childPayload.contacts } : {}),
+          ...(collectionDirtyFields.services !== undefined ? { services: childPayload.services } : {}),
+        }
+      : { ...rootPayload, ...childPayload };
     let saved: Supplier;
     try {
       saved = await supplierApi<Supplier>(
-        `/api/suppliers/${type}${editingId ? `/${editingId}` : ''}`,
+        `/api/suppliers/${type}${editingId ? `/${editingId}/batch` : ''}`,
         { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) },
         editingId ? 'Cập nhật nhà cung cấp' : 'Tạo nhà cung cấp',
       );
     } catch (error) {
       setNotice({ type: 'error', text: errorText(error, 'Không lưu được nhà cung cấp.') });
       return;
-    }
-
-    if (editingId) {
-      try {
-        if (collectionDirtyFields.contacts !== undefined) await syncSupplierContacts(editingId, originalContactRows, childPayload.contacts);
-        if (collectionDirtyFields.services !== undefined) await syncSupplierServices(editingId, originalServiceRows, childPayload.services);
-      } catch (error) {
-        setNotice({ type: 'error', text: errorText(error, 'Không đồng bộ được dòng con nhà cung cấp.') });
-        return;
-      }
     }
 
     if (pendingFiles.length) {
@@ -669,8 +661,6 @@ export default function GenericSupplierClient({
       setEditingId(detail.id);
       setFiles(detail.files || []);
       setPendingFiles([]);
-      setOriginalContactRows(formValues.contacts.filter((item) => item.id));
-      setOriginalServiceRows(formValues.services.filter((item) => item.id));
       reset(formValues);
       setFormOpen(true);
     } catch (error) {
@@ -735,8 +725,6 @@ export default function GenericSupplierClient({
     setFormOpen(false);
     setFiles([]);
     setPendingFiles([]);
-    setOriginalContactRows([]);
-    setOriginalServiceRows([]);
     reset(defaultValues);
     if (clearNotice) setNotice(null);
   }
@@ -745,8 +733,6 @@ export default function GenericSupplierClient({
     setEditingId(null);
     setFiles([]);
     setPendingFiles([]);
-    setOriginalContactRows([]);
-    setOriginalServiceRows([]);
     setNotice(null);
     reset(defaultValues);
     setFormOpen(true);
