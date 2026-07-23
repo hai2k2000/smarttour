@@ -14,6 +14,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { UpdateGenericSupplierBatchDto } from './dto/supplier-batch.dto';
 import { supplierImportInterceptorOptions, type SupplierImportFile } from './supplier-import';
 import { SupplierImportSizeExceptionFilter } from './supplier-import-size-exception.filter';
 import { isTypedSupplierRoute } from './supplier-types';
@@ -277,6 +278,12 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   createTyped(@Param('type') type: string, @Body() dto: CreateGenericSupplierDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.createTypedSupplier(type, dto, request.user);
+  }
+
+  @Put(':type/:id/batch')
+  @RequirePermissions('supplier.manage')
+  updateTypedBatch(@Param('type') type: string, @Param('id') id: string, @Body() dto: UpdateGenericSupplierBatchDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateTypedSupplierBatch(type, id, dto, request.user);
   }
 
   @Put(':type/:id')

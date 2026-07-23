@@ -505,6 +505,47 @@ function typedMatrixPayload(type, suffix) {
     assert(replaced.supplierServices?.length === 1, `typed ${type} service replacement should use provided array snapshot`);
     assert(Number(replaced.supplierServices[0].sellingPrice) === 340000.75, `typed ${type} replacement sellingPrice should parse string values`);
     assertMetadataMatches(replaced.supplierServices[0].metadata || {}, typedMetadataSamples[type], `typed ${type} replacement`);
+
+    const batchContact = replaced.contacts[0];
+    const batchService = replaced.supplierServices[0];
+    const batchUpdated = await request(manageToken, 'PUT', `/suppliers/${type}/${created.id}/batch`, {
+      root: { name: `${created.name} Atomic` },
+      contacts: [{
+        id: batchContact.id,
+        fullName: `${batchContact.fullName} Atomic`,
+        position: batchContact.position || undefined,
+        birthday: batchContact.birthday?.slice(0, 10),
+        phone: batchContact.phone || undefined,
+        email: batchContact.email || undefined,
+      }],
+      services: [{
+        id: batchService.id,
+        sku: batchService.sku || undefined,
+        serviceName: `${batchService.serviceName} Atomic`,
+        quantity: batchService.quantity,
+        accountingPrice: Number(batchService.accountingPrice),
+        netPrice: Number(batchService.netPrice),
+        sellingPrice: Number(batchService.sellingPrice),
+        startDate: batchService.startDate?.slice(0, 10),
+        endDate: batchService.endDate?.slice(0, 10),
+        dayType: batchService.dayType,
+        description: batchService.description || undefined,
+        note: batchService.note || undefined,
+        metadata: batchService.metadata || undefined,
+      }],
+    });
+    assert(batchUpdated.name.endsWith('Atomic'), `typed ${type} batch should update root`);
+    assert(batchUpdated.contacts[0].id === batchContact.id, `typed ${type} batch should preserve contact id`);
+    assert(batchUpdated.supplierServices[0].id === batchService.id, `typed ${type} batch should preserve service id`);
+
+    const batchRollbackBefore = await request(manageToken, 'GET', `/suppliers/${type}/${created.id}`);
+    await request(manageToken, 'PUT', `/suppliers/${type}/${created.id}/batch`, {
+      root: { name: `${created.name} Must Roll Back` },
+      contacts: [{ id: '00000000-0000-4000-8000-000000000099', fullName: 'Foreign Contact' }],
+    }, [404]);
+    const batchRollbackAfter = await request(manageToken, 'GET', `/suppliers/${type}/${created.id}`);
+    assert(batchRollbackAfter.name === batchRollbackBefore.name, `typed ${type} failed batch must roll back root`);
+    assert(batchRollbackAfter.contacts[0].id === batchRollbackBefore.contacts[0].id, `typed ${type} failed batch must preserve contacts`);
   }
 
   const duplicateTypedCodeError = await request(manageToken, 'POST', '/suppliers/flights', {

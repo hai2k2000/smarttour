@@ -12,6 +12,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { DEFAULT_SUPPLIERS_TAKE, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { SupplierBatchAllotmentDto, SupplierBatchContactDto, SupplierBatchGenericServiceDto, SupplierBatchHotelServiceDto, UpdateGenericSupplierBatchDto, UpdateHotelSupplierBatchDto } from './dto/supplier-batch.dto';
 import { SUPPLIER_ALLOTMENT_STATUSES, type SupplierAllotmentStatus } from './supplier-allotment-status';
 import { SUPPLIER_EXPORT_HEADERS, toSupplierExportCsvRows } from './supplier-export';
 import { normalizeSupplierImportRows, supplierImportRows, type SupplierImportError, type SupplierImportFile, type SupplierImportRecord } from './supplier-import';
@@ -1073,6 +1074,39 @@ export class SuppliersService {
     }
   }
 
+  async updateTypedSupplierBatch(type: string, id: string, dto: UpdateGenericSupplierBatchDto, user?: RequestUser) {
+    const typedRoute = this.getTypedRoute(type);
+    await this.ensureTypedSupplier(typedRoute, id);
+    this.validateSupplierPayload(dto.root, true, false);
+    this.assertCanWriteSupplierFinancialFields(dto.root, user);
+    this.validateSpecializedSupplierIdentity(dto.root, true);
+    this.validateTypedSupplierPayload(typedRoute, dto.root);
+    if (dto.contacts !== undefined) this.normalizeSupplierContacts(dto.contacts);
+    if (dto.services !== undefined) this.normalizeGenericServices(dto.services, typedRoute);
+    if (dto.root.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.root.supplierCode, id);
+
+    try {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+        const locked = await this.lockSupplierForStatusWrite(tx, id);
+        if (this.typedRouteForSupplierCategory(locked.categoryName) !== typedRoute) {
+          throw new NotFoundException(SUPPLIER_ERRORS.typedSupplierNotFound);
+        }
+        this.requestedSupplierStatusChange(locked.status, dto.root.status);
+        if (dto.contacts !== undefined) await this.assertSupplierContactsSnapshot(tx, id, dto.contacts);
+        if (dto.services !== undefined) await this.assertSupplierServicesSnapshot(tx, id, dto.services, typedRoute);
+        await tx.supplier.update({ where: { id }, data: this.toSupplierData(dto.root) as Prisma.SupplierUncheckedUpdateInput });
+        if (dto.contacts !== undefined) await this.syncSupplierContactsSnapshot(tx, id, dto.contacts);
+        if (dto.services !== undefined) await this.syncSupplierServicesSnapshot(tx, id, dto.services, typedRoute);
+        return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.genericInclude() });
+      }), user);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
+      }
+      throw error;
+    }
+  }
+
   async updateTypedSupplierStatus(type: string, id: string, status: SupplierStatus, user?: RequestUser) {
     const typedRoute = this.getTypedRoute(type);
     await this.ensureTypedSupplier(typedRoute, id);
@@ -2020,6 +2054,87 @@ export class SuppliersService {
     if (unsupportedFields.length) {
       throw new BadRequestException('Dịch vụ khách sạn không hỗ trợ số lượng hoặc metadata');
     }
+  }
+
+  private batchRowIds<T extends { id?: string }>(rows: T[], label: string) {
+    const ids = rows.flatMap((row) => row.id ? [row.id] : []);
+    if (new Set(ids).size !== ids.length) throw new BadRequestException(`${label} có ID bị trùng`);
+    return ids;
+  }
+
+  private assertBatchIdsBelong(ids: string[], currentIds: Set<string>, message: string) {
+    if (ids.some((id) => !currentIds.has(id))) throw new NotFoundException(message);
+  }
+
+  private async assertSupplierContactsSnapshot(tx: Prisma.TransactionClient, supplierId: string, rows: SupplierBatchContactDto[]) {
+    const ids = this.batchRowIds(rows, 'Danh sách liên hệ');
+    const current = await tx.supplierContact.findMany({ where: { supplierId }, select: { id: true } });
+    this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy người liên hệ nhà cung cấp');
+  }
+
+  private async assertSupplierServicesSnapshot(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    rows: SupplierBatchGenericServiceDto[],
+    typedRoute: TypedSupplierRoute,
+  ) {
+    const ids = this.batchRowIds(rows, 'Danh sách dịch vụ');
+    const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null }, select: { id: true } });
+    this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy dịch vụ nhà cung cấp');
+    this.normalizeGenericServices(rows.map(({ id, ...row }) => row), typedRoute);
+  }
+
+  private async syncSupplierContactsSnapshot(tx: Prisma.TransactionClient, supplierId: string, rows: SupplierBatchContactDto[]) {
+    const current = await tx.supplierContact.findMany({ where: { supplierId }, select: { id: true } });
+    const ids = this.batchRowIds(rows, 'Danh sách liên hệ');
+    const normalized = this.normalizeSupplierContacts(rows.map(({ id, ...row }) => row));
+    const deletedIds = current.filter((row) => !ids.includes(row.id)).map((row) => row.id);
+    for (const [index, row] of rows.entries()) {
+      if (row.id) await tx.supplierContact.update({ where: { id: row.id }, data: normalized[index] });
+      else await tx.supplierContact.create({ data: { supplierId, ...normalized[index] } });
+    }
+    if (deletedIds.length) await tx.supplierContact.deleteMany({ where: { supplierId, id: { in: deletedIds } } });
+  }
+
+  private async syncSupplierServicesSnapshot(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    rows: SupplierBatchGenericServiceDto[],
+    typedRoute: TypedSupplierRoute,
+  ) {
+    const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null } });
+    const ids = this.batchRowIds(rows, 'Danh sách dịch vụ');
+    const normalized = this.normalizeGenericServices(rows.map(({ id, ...row }) => row), typedRoute);
+    const deletedIds = current.filter((row) => !ids.includes(row.id)).map((row) => row.id);
+    for (const [index, row] of rows.entries()) {
+      if (row.id) {
+        const currentRow = current.find((item) => item.id === row.id)!;
+        if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
+          await tx.supplierService.update({ where: { id: row.id }, data: normalized[index] });
+        }
+      } else {
+        await tx.supplierService.create({ data: { supplierId, ...normalized[index] } });
+      }
+    }
+    if (deletedIds.length) {
+      await tx.supplierService.updateMany({
+        where: { supplierId, deletedAt: null, id: { in: deletedIds } },
+        data: { deletedAt: new Date(), status: 'INACTIVE' },
+      });
+    }
+  }
+
+  private supplierBatchRowChanged(current: object, next: object) {
+    return Object.entries(next).some(([key, value]) => (
+      this.supplierBatchComparable((current as Record<string, unknown>)[key]) !== this.supplierBatchComparable(value)
+    ));
+  }
+
+  private supplierBatchComparable(value: unknown): string {
+    if (value instanceof Date) return value.toISOString();
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   private async replaceGenericChildren(
