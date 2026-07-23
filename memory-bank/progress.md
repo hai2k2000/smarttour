@@ -1,5 +1,11 @@
 # Progress
 
+- Completed customer merge scope and commission sync concurrency codex-review follow-up:
+  - Customer merge now refuses scoped merges when any Order, Booking, Quotation, TourQuote, TourCustomer, FitTour, FinanceReceipt, FinanceInvoice, FinanceCashflowEntry, or CustomerLedgerEntry linked to the source falls outside the actor's data scope, preventing a terminal source with stranded business links.
+  - Commission order sync now handles concurrent unique `orderId` creation races through the existing locked update path while preserving approved, paid, rejected, and revoked entries; non-`orderId` `P2002` errors are rethrown.
+  - Added RED/GREEN regressions to `scripts/test-customers-service.sh` and `scripts/test-commission-reports-security.sh` for partial-merge rollback, deterministic concurrent sync, single-row persistence, and unrelated unique-conflict visibility.
+  - Verification passed: customer merged-terminal contract, customer service/API flows, commission reports security flow, API TypeScript lint, Nest build, Git diff checks, and final MCP `codex-review` v2.10.6 with no actionable findings.
+
 - Completed Orders Hotel Booking document codex-review remediation:
   - Reviewed the full Hotel Booking documents range with MCP `codex-review` v2.10.6, verified its findings against the executable renderer, and reproduced Word layout and print lifecycle regressions before changing production code.
   - Replaced Grid/Flex document layout with Word-compatible tables while preserving escaping, data projection, permissions, and the shared browser-print renderer.

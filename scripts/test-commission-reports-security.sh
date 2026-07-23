@@ -27,6 +27,7 @@ docker compose run --rm \
   -e DATABASE_URL="postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DB}?schema=public" \
   --entrypoint sh api -lc "cd /workspace && /app/node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate >/dev/null && cd /app && node" <<'NODE'
 const { ParseEnumPipe } = require('@nestjs/common');
+const { Prisma } = require('@prisma/client');
 const { plainToInstance } = require('class-transformer');
 const { validateSync } = require('class-validator');
 const { PrismaService } = require('./apps/api/dist/database/prisma.service');
@@ -278,6 +279,77 @@ for (const helper of ['summaryFromDb', 'groupingFromDb']) {
       && protectedSyncedEntry.paymentStatus === 'PARTIAL',
     'sync should not overwrite approved or partially paid commission entries',
   );
+
+  const concurrentSyncOrder = await prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-SYNC-CONCURRENT`,
+      name: 'Concurrent commission sync order',
+      branch: 'BR-A',
+      department: 'DEP-A',
+      totalRevenue: 1000,
+      profit: 300,
+      commission: 175,
+    },
+  });
+  const originalFindUnique = prisma.commissionEntry.findUnique.bind(prisma.commissionEntry);
+  let concurrentMissingLookups = 0;
+  let releaseMissingLookups;
+  const missingLookupBarrier = new Promise((resolve) => {
+    releaseMissingLookups = resolve;
+  });
+  prisma.commissionEntry.findUnique = async (args) => {
+    const row = await originalFindUnique(args);
+    if (args?.where?.orderId === concurrentSyncOrder.id && !row) {
+      concurrentMissingLookups += 1;
+      if (concurrentMissingLookups === 2) releaseMissingLookups();
+      await Promise.race([
+        missingLookupBarrier,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent sync barrier timed out')), 5000)),
+      ]);
+    }
+    return row;
+  };
+  let concurrentSync;
+  try {
+    concurrentSync = await Promise.allSettled([
+      service.syncFromOrders(user),
+      service.syncFromOrders(user),
+    ]);
+  } finally {
+    prisma.commissionEntry.findUnique = originalFindUnique;
+  }
+  assert(concurrentSync.every((result) => result.status === 'fulfilled'), 'concurrent commission syncs should not fail on a unique-entry race');
+  assert(await prisma.commissionEntry.count({ where: { orderId: concurrentSyncOrder.id } }) === 1, 'concurrent commission syncs should create one entry');
+
+  const unrelatedConflictOrder = await prisma.order.create({
+    data: {
+      type: 'FIT_TOUR',
+      systemCode: `${run}-SYNC-UNRELATED-CONFLICT`,
+      name: 'Unrelated commission unique conflict order',
+      branch: 'BR-A',
+      department: 'DEP-A',
+      totalRevenue: 1000,
+      profit: 300,
+      commission: 175,
+    },
+  });
+  const originalCreate = prisma.commissionEntry.create.bind(prisma.commissionEntry);
+  prisma.commissionEntry.create = async (args) => {
+    if (args?.data?.orderId === unrelatedConflictOrder.id) {
+      throw new Prisma.PrismaClientKnownRequestError('Unrelated unique constraint', {
+        code: 'P2002',
+        clientVersion: Prisma.prismaVersion.client,
+        meta: { target: ['unrelatedUnique'] },
+      });
+    }
+    return originalCreate(args);
+  };
+  try {
+    await rejects(() => service.syncFromOrders(user), 'commission sync should rethrow P2002 outside the orderId constraint');
+  } finally {
+    prisma.commissionEntry.create = originalCreate;
+  }
 
   await rejects(() => service.approve({ id: outOfScope.id, actor: 'client-spoof' }, user), 'approve should reject report outside data scope');
   const approvedPending = await service.approve({ id: pending.id, actor: 'client-spoof' }, user);

@@ -219,20 +219,37 @@ export class CommissionReportsService {
       const rule = this.pickRule(rules, order.type, Number(order.totalRevenue));
       const existing = await this.prisma.commissionEntry.findUnique({ where: { orderId: order.id }, select: { id: true } });
       if (existing) {
-        const didUpdate = await this.prisma.$transaction(async (tx) => {
-          const row = await this.scopedEntryForSync(tx, order.id, user);
-          if (!row || row.status !== CommissionStatus.PENDING || row.paymentStatus !== CommissionPaymentStatus.UNPAID) return false;
-          await tx.commissionEntry.update({ where: { id: row.id }, data: this.syncData(order, rule, Number(row.paidAmount)) });
-          return true;
-        });
+        const didUpdate = await this.syncExistingEntry(order, rule, user);
         if (didUpdate) updated += 1;
       } else {
         const data = this.syncData(order, rule, 0);
-        await this.prisma.commissionEntry.create({ data: { ...data, orderId: order.id, logs: { create: { action: 'SYNC', note: 'Created from order' } } } });
-        created += 1;
+        try {
+          await this.prisma.commissionEntry.create({ data: { ...data, orderId: order.id, logs: { create: { action: 'SYNC', note: 'Created from order' } } } });
+          created += 1;
+        } catch (error) {
+          if (!this.isOrderIdUniqueConflict(error)) throw error;
+          const didUpdate = await this.syncExistingEntry(order, rule, user);
+          if (didUpdate) updated += 1;
+        }
       }
     }
     return { created, updated, scanned: orders.length };
+  }
+
+  private async syncExistingEntry(order: Order, rule: CommissionRule | undefined, user?: RequestUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.scopedEntryForSync(tx, order.id, user);
+      if (!row || row.status !== CommissionStatus.PENDING || row.paymentStatus !== CommissionPaymentStatus.UNPAID) return false;
+      await tx.commissionEntry.update({ where: { id: row.id }, data: this.syncData(order, rule, Number(row.paidAmount)) });
+      return true;
+    });
+  }
+
+  private isOrderIdUniqueConflict(error: unknown) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+    const target = error.meta?.target;
+    const fields = Array.isArray(target) ? target : typeof target === 'string' ? [target] : [];
+    return fields.some((field) => String(field).includes('orderId'));
   }
 
   private async changeStatus(dto: CommissionReportActionInput, status: CommissionStatus, action: string, user?: RequestUser) {

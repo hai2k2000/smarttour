@@ -373,6 +373,7 @@ export class CustomersService {
       }
       const source = lockedCustomers.get(sourceId);
       if (!source) throw new NotFoundException('Customer not found');
+      await this.assertMergeRelationsInScope(tx, sourceId, user);
       await tx.customerContact.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerCareTask.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
       await tx.customerComment.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
@@ -396,6 +397,36 @@ export class CustomersService {
       await tx.customerLedgerEntry.updateMany({ where: branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({ customerId: sourceId }, user), data: { customerId: targetId } });
     });
     return this.detail(targetId, user);
+  }
+
+  private async assertMergeRelationsInScope(tx: Prisma.TransactionClient, sourceId: string, user?: RequestUser) {
+    if (!user || hasUnrestrictedDataScope(user)) return;
+    const counts = await Promise.all([
+      tx.order.count({ where: { customerId: sourceId } }),
+      tx.order.count({ where: branchDepartmentScopeWhere<Prisma.OrderWhereInput>({ customerId: sourceId }, user) }),
+      tx.booking.count({ where: { customerId: sourceId } }),
+      tx.booking.count({ where: bookingScopeWhere({ customerId: sourceId }, user) }),
+      tx.quotation.count({ where: { customerId: sourceId } }),
+      tx.quotation.count({ where: branchDepartmentScopeWhere<Prisma.QuotationWhereInput>({ customerId: sourceId }, user) }),
+      tx.tourQuote.count({ where: { customerId: sourceId } }),
+      tx.tourQuote.count({ where: this.tourQuoteScopeWhere({ customerId: sourceId }, user) }),
+      tx.tourCustomer.count({ where: { crmCustomerId: sourceId } }),
+      tx.tourCustomer.count({ where: this.tourCustomerScopeWhere({ crmCustomerId: sourceId }, user) }),
+      tx.fitTour.count({ where: { customerId: sourceId } }),
+      tx.fitTour.count({ where: this.fitTourScopeWhere({ customerId: sourceId }, user) }),
+      tx.financeReceipt.count({ where: { customerId: sourceId } }),
+      tx.financeReceipt.count({ where: branchDepartmentScopeWhere<Prisma.FinanceReceiptWhereInput>({ customerId: sourceId }, user) }),
+      tx.financeInvoice.count({ where: { customerId: sourceId } }),
+      tx.financeInvoice.count({ where: this.financeInvoiceScopeWhere({ customerId: sourceId }, user) }),
+      tx.financeCashflowEntry.count({ where: { customerId: sourceId } }),
+      tx.financeCashflowEntry.count({ where: branchDepartmentScopeWhere<Prisma.FinanceCashflowEntryWhereInput>({ customerId: sourceId }, user) }),
+      tx.customerLedgerEntry.count({ where: { customerId: sourceId } }),
+      tx.customerLedgerEntry.count({ where: branchDepartmentScopeWhere<Prisma.CustomerLedgerEntryWhereInput>({ customerId: sourceId }, user) }),
+    ]);
+    const hasOutOfScopeRelations = counts.some((count, index) => index % 2 === 0 && count !== counts[index + 1]);
+    if (hasOutOfScopeRelations) {
+      throw new BadRequestException('Không thể gộp khách hàng vì còn dữ liệu liên quan ngoài phạm vi quản lý');
+    }
   }
 
   async transferOwner(id: string, dto: AnyRecord, user?: RequestUser) {

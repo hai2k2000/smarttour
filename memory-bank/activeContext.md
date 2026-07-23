@@ -20,6 +20,13 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- Customer merge scope and commission sync concurrency codex-review follow-up:
+  - MCP `codex-review` v2.10.6 identified that a scoped customer merge could mark the source `MERGED` while leaving out-of-scope business relations attached, and that concurrent commission syncs could race on the unique `CommissionEntry.orderId` create.
+  - Customer merge now compares total and authorized counts for every scope-filtered relation inside the existing locked transaction and rejects the whole merge before mutation when any related row is outside the actor's data scope.
+  - Commission sync now recovers only from an `orderId`-targeted Prisma `P2002`, then locks/re-reads the existing entry and updates only `PENDING`/`UNPAID` rows; unrelated unique violations remain visible.
+  - RED/GREEN coverage verifies rejected partial merges preserve source state/links, deterministic concurrent sync creates exactly one entry without either caller failing, and unrelated `P2002` errors are rethrown.
+  - Customer merged-terminal/service/API tests, commission security tests, API lint/build, Git diff checks, and final focused MCP review passed with no actionable findings.
+
 - Orders Hotel Booking document codex-review remediation:
   - MCP `codex-review` v2.10.6 found that the Word-compatible HTML still depended on CSS Grid/Flexbox and that browser printing used a fixed 150 ms race; follow-up review also found unbounded load/font waits and a synchronous load mock that did not prove deferral.
   - Replaced booking/customer metadata, summary, and signatures with escaped table-based markup for desktop Word compatibility. Print now waits for popup load and `document.fonts.ready`, schedules a bounded 2-second fallback, and uses an exactly-once guard for late competing callbacks.

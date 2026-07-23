@@ -311,6 +311,15 @@ async function main() {
   assert(await prisma.order.count({ where: { customerId: customer.id, systemCode: run + '-ORD-SRC' } }) === 1, 'merge should move source orders');
   await rejects(() => service.merge(customer.id, { sourceId: outOfScope.id }, branchUser), 'merge should reject source outside scope');
 
+  const partialSource = await service.create({ code: run + '-PARTIAL-SRC', fullName: 'Partial Merge Source', phone: '091' + String(Date.now()).slice(-7) }, branchUser);
+  const outOfScopeLinkedOrder = await prisma.order.create({
+    data: { type: 'FIT_TOUR', systemCode: run + '-ORD-PARTIAL-OUT', name: 'Partial Source Out Of Scope', branch: 'BR-B', department: 'DEP-B', customerId: partialSource.id },
+  });
+  await rejects(() => service.merge(customer.id, { sourceId: partialSource.id }, branchUser), 'merge should reject source with out-of-scope related records');
+  const partialSourceAfterRejectedMerge = await prisma.customer.findUniqueOrThrow({ where: { id: partialSource.id } });
+  assert(partialSourceAfterRejectedMerge.status !== 'MERGED', 'rejected partial merge must not mark source as MERGED');
+  assert((await prisma.order.findUniqueOrThrow({ where: { id: outOfScopeLinkedOrder.id } })).customerId === partialSource.id, 'rejected partial merge must preserve out-of-scope relation');
+
   await rejectsMessage(() => service.update(source.id, { fullName: 'Merged Source Edited' }, branchUser), 'đã được gộp', 'update should reject writes on merged customers');
   await rejectsMessage(() => service.transferOwner(source.id, { owner: 'merged-owner' }, branchUser), 'đã được gộp', 'transferOwner should reject writes on merged customers');
   await rejectsMessage(() => service.addComment(source.id, { content: 'merged comment' }, branchUser), 'đã được gộp', 'addComment should reject writes on merged customers');
