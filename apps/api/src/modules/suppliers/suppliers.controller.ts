@@ -14,7 +14,7 @@ import { CreateHotelSupplierDto, LockAllotmentDto, OverrideAllotmentDto, Release
 import { SupplierImportDto } from './dto/supplier-import.dto';
 import { AllotmentInventoryQueryDto, HotelSupplierListQueryDto, SupplierCategoryListQueryDto, SupplierListQueryDto, TypedSupplierListQueryDto } from './dto/supplier-query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { UpdateGenericSupplierBatchDto } from './dto/supplier-batch.dto';
+import { UpdateGenericSupplierBatchDto, UpdateHotelSupplierBatchDto } from './dto/supplier-batch.dto';
 import { supplierImportInterceptorOptions, type SupplierImportFile } from './supplier-import';
 import { SupplierImportSizeExceptionFilter } from './supplier-import-size-exception.filter';
 import { isTypedSupplierRoute } from './supplier-types';
@@ -99,6 +99,12 @@ export class SuppliersController {
   @RequirePermissions('supplier.manage')
   createHotel(@Body() dto: CreateHotelSupplierDto, @Req() request: { user?: RequestUser }) {
     return this.suppliersService.createHotelSupplier(dto, request.user);
+  }
+
+  @Put('hotels/:id/batch')
+  @RequirePermissions('supplier.manage')
+  updateHotelBatch(@Param('id') id: string, @Body() dto: UpdateHotelSupplierBatchDto, @Req() request: { user?: RequestUser }) {
+    return this.suppliersService.updateHotelSupplierBatch(id, dto, request.user);
   }
 
   @Put('hotels/:id')

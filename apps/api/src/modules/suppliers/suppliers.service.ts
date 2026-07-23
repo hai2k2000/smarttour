@@ -1093,10 +1093,10 @@ export class SuppliersService {
         }
         this.requestedSupplierStatusChange(locked.status, dto.root.status);
         if (dto.contacts !== undefined) await this.assertSupplierContactsSnapshot(tx, id, dto.contacts);
-        if (dto.services !== undefined) await this.assertSupplierServicesSnapshot(tx, id, dto.services, typedRoute);
+        if (dto.services !== undefined) await this.assertSupplierServicesSnapshot(tx, id, dto.services, typedRoute, null);
         await tx.supplier.update({ where: { id }, data: this.toSupplierData(dto.root) as Prisma.SupplierUncheckedUpdateInput });
         if (dto.contacts !== undefined) await this.syncSupplierContactsSnapshot(tx, id, dto.contacts);
-        if (dto.services !== undefined) await this.syncSupplierServicesSnapshot(tx, id, dto.services, typedRoute);
+        if (dto.services !== undefined) await this.syncSupplierServicesSnapshot(tx, id, dto.services, typedRoute, null);
         return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.genericInclude() });
       }), user);
     } catch (error) {
@@ -1235,6 +1235,56 @@ export class SuppliersService {
         });
 
         await this.replaceHotelChildren(tx, id, dto);
+        return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.hotelInclude() });
+      }), user);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(SUPPLIER_ERRORS.codeExists);
+      }
+      throw error;
+    }
+  }
+
+  async updateHotelSupplierBatch(id: string, dto: UpdateHotelSupplierBatchDto, user?: RequestUser) {
+    await this.getHotelSupplier(id, user);
+    this.validateSupplierPayload(dto.root, true, false);
+    this.assertCanWriteSupplierFinancialFields(dto.root, user);
+    this.validateSpecializedSupplierIdentity(dto.root, true);
+    this.validateHotelProfilePayload(dto.root, true);
+    if (dto.root.supplierCode !== undefined) await this.ensureSupplierCodeAvailable(dto.root.supplierCode, id);
+    if (dto.contacts !== undefined) this.normalizeSupplierContacts(dto.contacts);
+    if (dto.services !== undefined) this.normalizeHotelServices(dto.services);
+    if (dto.allotments !== undefined) this.normalizeHotelAllotments(dto.allotments);
+    const hotelProfileData = this.toHotelProfileData(dto.root);
+
+    try {
+      return maskSupplierFinancialFields(await this.prisma.$transaction(async (tx) => {
+        const locked = await this.lockSupplierForStatusWrite(tx, id);
+        if (!locked.hotelProfileId) throw new NotFoundException(SUPPLIER_ERRORS.hotelSupplierNotFound);
+        const statusChange = this.requestedSupplierStatusChange(locked.status, dto.root.status);
+        if (statusChange === SupplierStatus.INACTIVE) await this.ensureHotelSupplierCanDeactivate(tx, id);
+
+        if (dto.contacts !== undefined) await this.assertSupplierContactsSnapshot(tx, id, dto.contacts);
+        if (dto.services !== undefined) await this.assertSupplierServicesSnapshot(tx, id, dto.services, null, locked.hotelProfileId);
+        const finalServiceIds = dto.services === undefined
+          ? new Set((await tx.supplierService.findMany({
+            where: { supplierId: id, deletedAt: null },
+            select: { id: true },
+          })).map((row) => row.id))
+          : new Set(dto.services.flatMap((row) => row.id ? [row.id] : []));
+        if (dto.allotments !== undefined) await this.assertSupplierAllotmentsSnapshot(tx, id, dto.allotments, finalServiceIds);
+
+        await tx.supplier.update({
+          where: { id },
+          data: {
+            ...this.toSupplierData(dto.root),
+            ...(Object.keys(hotelProfileData).length ? { hotelProfile: { update: hotelProfileData } } : {}),
+          } as Prisma.SupplierUncheckedUpdateInput,
+        });
+        if (dto.contacts !== undefined) await this.syncSupplierContactsSnapshot(tx, id, dto.contacts);
+        if (dto.services !== undefined) await this.syncSupplierServicesSnapshot(tx, id, dto.services, null, locked.hotelProfileId);
+        if (dto.allotments !== undefined) await this.syncSupplierAllotmentsSnapshot(tx, id, dto.allotments, finalServiceIds);
+        if (dto.services !== undefined) await this.softDeleteMissingHotelServices(tx, id, dto.services);
         return tx.supplier.findUniqueOrThrow({ where: { id }, include: this.hotelInclude() });
       }), user);
     } catch (error) {
@@ -2075,13 +2125,30 @@ export class SuppliersService {
   private async assertSupplierServicesSnapshot(
     tx: Prisma.TransactionClient,
     supplierId: string,
-    rows: SupplierBatchGenericServiceDto[],
-    typedRoute: TypedSupplierRoute,
+    rows: SupplierBatchGenericServiceDto[] | SupplierBatchHotelServiceDto[],
+    typedRoute: TypedSupplierRoute | null,
+    hotelProfileId: string | null,
   ) {
     const ids = this.batchRowIds(rows, 'Danh sách dịch vụ');
-    const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null }, select: { id: true } });
+    const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null } });
     this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy dịch vụ nhà cung cấp');
-    this.normalizeGenericServices(rows.map(({ id, ...row }) => row), typedRoute);
+    if (hotelProfileId) {
+      const hotelRows = rows as SupplierBatchHotelServiceDto[];
+      const normalized = this.normalizeHotelServices(hotelRows.map(({ id, ...row }) => row));
+      for (const [index, row] of hotelRows.entries()) {
+        if (!row.id) continue;
+        const currentRow = current.find((item) => item.id === row.id)!;
+        if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
+          await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, row.id);
+        }
+      }
+      for (const deleted of current.filter((row) => !ids.includes(row.id))) {
+        await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, deleted.id);
+      }
+      return;
+    }
+    if (!typedRoute) throw new BadRequestException(SUPPLIER_ERRORS.unsupportedType);
+    this.normalizeGenericServices((rows as SupplierBatchGenericServiceDto[]).map(({ id, ...row }) => row), typedRoute);
   }
 
   private async syncSupplierContactsSnapshot(tx: Prisma.TransactionClient, supplierId: string, rows: SupplierBatchContactDto[]) {
@@ -2099,14 +2166,33 @@ export class SuppliersService {
   private async syncSupplierServicesSnapshot(
     tx: Prisma.TransactionClient,
     supplierId: string,
-    rows: SupplierBatchGenericServiceDto[],
-    typedRoute: TypedSupplierRoute,
+    rows: SupplierBatchGenericServiceDto[] | SupplierBatchHotelServiceDto[],
+    typedRoute: TypedSupplierRoute | null,
+    hotelProfileId: string | null,
   ) {
     const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null } });
     const ids = this.batchRowIds(rows, 'Danh sách dịch vụ');
-    const normalized = this.normalizeGenericServices(rows.map(({ id, ...row }) => row), typedRoute);
+    this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy dịch vụ nhà cung cấp');
+    if (hotelProfileId) {
+      const hotelRows = rows as SupplierBatchHotelServiceDto[];
+      const normalized = this.normalizeHotelServices(hotelRows.map(({ id, ...row }) => row));
+      for (const [index, row] of hotelRows.entries()) {
+        if (row.id) {
+          const currentRow = current.find((item) => item.id === row.id)!;
+          if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
+            await tx.supplierService.update({ where: { id: row.id }, data: normalized[index] });
+          }
+        } else {
+          await tx.supplierService.create({ data: { supplierId, ...normalized[index] } });
+        }
+      }
+      return;
+    }
+    if (!typedRoute) throw new BadRequestException(SUPPLIER_ERRORS.unsupportedType);
+    const genericRows = rows as SupplierBatchGenericServiceDto[];
+    const normalized = this.normalizeGenericServices(genericRows.map(({ id, ...row }) => row), typedRoute);
     const deletedIds = current.filter((row) => !ids.includes(row.id)).map((row) => row.id);
-    for (const [index, row] of rows.entries()) {
+    for (const [index, row] of genericRows.entries()) {
       if (row.id) {
         const currentRow = current.find((item) => item.id === row.id)!;
         if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
@@ -2124,6 +2210,79 @@ export class SuppliersService {
     }
   }
 
+  private async assertSupplierAllotmentsSnapshot(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    rows: SupplierBatchAllotmentDto[],
+    finalServiceIds: Set<string>,
+  ) {
+    const current = await tx.supplierAllotment.findMany({ where: { supplierId } });
+    const ids = this.batchRowIds(rows, 'Danh sách quỹ phòng');
+    this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy quỹ phòng');
+    const normalized = this.normalizeHotelAllotments(rows.map(({ id, ...row }) => row));
+    for (const allotment of normalized) {
+      if (allotment.serviceId && !finalServiceIds.has(allotment.serviceId)) {
+        throw new ConflictException('Quỹ phòng phải tham chiếu dịch vụ còn hoạt động của cùng nhà cung cấp');
+      }
+    }
+    for (const [index, row] of rows.entries()) {
+      if (!row.id) continue;
+      const currentRow = current.find((item) => item.id === row.id)!;
+      if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
+        await this.ensureAllotmentHasNoActiveAllocations(tx, row.id);
+      }
+    }
+    for (const deleted of current.filter((row) => !ids.includes(row.id))) {
+      await this.ensureAllotmentHasNoActiveAllocations(tx, deleted.id);
+    }
+  }
+
+  private async syncSupplierAllotmentsSnapshot(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    rows: SupplierBatchAllotmentDto[],
+    finalServiceIds: Set<string>,
+  ) {
+    const current = await tx.supplierAllotment.findMany({ where: { supplierId } });
+    const ids = this.batchRowIds(rows, 'Danh sách quỹ phòng');
+    this.assertBatchIdsBelong(ids, new Set(current.map((row) => row.id)), 'Không tìm thấy quỹ phòng');
+    const normalized = this.normalizeHotelAllotments(rows.map(({ id, ...row }) => row));
+    for (const allotment of normalized) {
+      if (allotment.serviceId && !finalServiceIds.has(allotment.serviceId)) {
+        throw new ConflictException('Quỹ phòng phải tham chiếu dịch vụ còn hoạt động của cùng nhà cung cấp');
+      }
+    }
+    for (const [index, row] of rows.entries()) {
+      if (row.id) {
+        const currentRow = current.find((item) => item.id === row.id)!;
+        if (this.supplierBatchRowChanged(currentRow, normalized[index])) {
+          await this.ensureAllotmentHasNoActiveAllocations(tx, row.id);
+          await tx.supplierAllotment.update({ where: { id: row.id }, data: normalized[index] });
+        }
+      } else {
+        await tx.supplierAllotment.create({ data: { supplierId, ...normalized[index] } });
+      }
+    }
+    for (const deleted of current.filter((row) => !ids.includes(row.id))) {
+      await this.ensureAllotmentHasNoActiveAllocations(tx, deleted.id);
+      await tx.supplierAllotment.delete({ where: { id: deleted.id } });
+    }
+  }
+
+  private async softDeleteMissingHotelServices(
+    tx: Prisma.TransactionClient,
+    supplierId: string,
+    rows: SupplierBatchHotelServiceDto[],
+  ) {
+    const ids = this.batchRowIds(rows, 'Danh sách dịch vụ');
+    const current = await tx.supplierService.findMany({ where: { supplierId, deletedAt: null }, select: { id: true } });
+    for (const deleted of current.filter((row) => !ids.includes(row.id))) {
+      await this.ensureServiceHasNoActiveHotelAllocations(tx, supplierId, deleted.id);
+      await tx.supplierAllotment.updateMany({ where: { supplierId, serviceId: deleted.id }, data: { serviceId: null } });
+      await tx.supplierService.update({ where: { id: deleted.id }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+    }
+  }
+
   private supplierBatchRowChanged(current: object, next: object) {
     return Object.entries(next).some(([key, value]) => (
       this.supplierBatchComparable((current as Record<string, unknown>)[key]) !== this.supplierBatchComparable(value)
@@ -2133,6 +2292,9 @@ export class SuppliersService {
   private supplierBatchComparable(value: unknown): string {
     if (value instanceof Date) return value.toISOString();
     if (value === null || value === undefined) return '';
+    if (typeof value === 'object' && 'toNumber' in value && typeof (value as { toNumber: () => number }).toNumber === 'function') {
+      return String((value as { toNumber: () => number }).toNumber());
+    }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }

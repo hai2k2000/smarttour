@@ -1274,6 +1274,68 @@ function typedMatrixPayload(type, suffix) {
       && hotelFileAfterPartialUpdate?.fileUrl === hotelUploadedFile.fileUrl,
     'hotel partial update must preserve uploaded file metadata when files are omitted',
   );
+
+  const batchHotelContact = partiallyUpdatedHotel.contacts[0];
+  const batchHotelService = partiallyUpdatedHotel.supplierServices[0];
+  const batchHotelAllotment = partiallyUpdatedHotel.allotments[0];
+  const batchUpdatedHotel = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}/batch`, {
+    root: { notes: `${run} atomic hotel note` },
+    contacts: [{
+      id: batchHotelContact.id,
+      fullName: `${batchHotelContact.fullName} Atomic`,
+      position: batchHotelContact.position || undefined,
+      birthday: batchHotelContact.birthday?.slice(0, 10),
+      phone: batchHotelContact.phone || undefined,
+      email: batchHotelContact.email || undefined,
+    }],
+    services: [{
+      id: batchHotelService.id,
+      sku: batchHotelService.sku || undefined,
+      serviceName: `${batchHotelService.serviceName} Atomic`,
+      startDate: batchHotelService.startDate?.slice(0, 10),
+      endDate: batchHotelService.endDate?.slice(0, 10),
+      dayType: batchHotelService.dayType,
+      accountingPrice: Number(batchHotelService.accountingPrice),
+      netPrice: Number(batchHotelService.netPrice),
+      sellingPrice: Number(batchHotelService.sellingPrice),
+      description: batchHotelService.description || undefined,
+      note: batchHotelService.note || undefined,
+    }],
+    allotments: [{
+      id: batchHotelAllotment.id,
+      serviceId: batchHotelService.id,
+      sku: batchHotelAllotment.sku || undefined,
+      serviceName: batchHotelAllotment.serviceName,
+      startDate: batchHotelAllotment.startDate?.slice(0, 10),
+      endDate: batchHotelAllotment.endDate?.slice(0, 10),
+      dayType: batchHotelAllotment.dayType,
+      allotmentQty: batchHotelAllotment.allotmentQty,
+      bookedQty: batchHotelAllotment.bookedQty,
+      lockedQty: batchHotelAllotment.lockedQty,
+      quantityLock: batchHotelAllotment.quantityLock,
+      cutoffDays: batchHotelAllotment.cutoffDays,
+      netCostPerDay: Number(batchHotelAllotment.netCostPerDay),
+      sellingPricePerDay: Number(batchHotelAllotment.sellingPricePerDay),
+      status: batchHotelAllotment.status,
+      description: batchHotelAllotment.description || undefined,
+      note: batchHotelAllotment.note || undefined,
+    }],
+  });
+  assert(batchUpdatedHotel.notes === `${run} atomic hotel note`, 'hotel batch should update root');
+  assert(batchUpdatedHotel.contacts[0].id === batchHotelContact.id, 'hotel batch should preserve contact id');
+  assert(batchUpdatedHotel.supplierServices[0].id === batchHotelService.id, 'hotel batch should preserve service id');
+  assert(batchUpdatedHotel.allotments[0].id === batchHotelAllotment.id, 'hotel batch should preserve allotment id');
+  assert(batchUpdatedHotel.allotments[0].serviceId === batchHotelService.id, 'hotel batch should preserve final service relation');
+
+  const hotelBatchRollbackBefore = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}/batch`, {
+    root: { notes: `${run} must roll back` },
+    allotments: [{ id: '00000000-0000-4000-8000-000000000098', serviceName: 'Missing', allotmentQty: 1 }],
+  }, [404]);
+  const hotelBatchRollbackAfter = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  assert(hotelBatchRollbackAfter.notes === hotelBatchRollbackBefore.notes, 'hotel failed batch must roll back root');
+  assert(hotelBatchRollbackAfter.allotments[0].id === hotelBatchRollbackBefore.allotments[0].id, 'hotel failed batch must preserve allotments');
+
   const clearedOptionalHotelFields = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
     market: '   ',
     link: '',

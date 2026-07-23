@@ -28,11 +28,11 @@ for alias in ["'Restaurant'", "'Flight'", "'Other Cost'", "'Passport Visa'", "'S
     assert alias in types_source, f'legacy English category alias must remain supported: {alias}'
 
 assert controller.count("@RequirePermissions('supplier.view')") >= 2, 'category and supplier controllers must require supplier.view'
-assert controller.count("@RequirePermissions('supplier.manage')") == 30, 'every supplier mutation endpoint must explicitly require supplier.manage'
+assert controller.count("@RequirePermissions('supplier.manage')") == 32, 'every supplier mutation endpoint must explicitly require supplier.manage'
 manage_methods = {
-    'create', 'update', 'remove', 'createHotel', 'updateHotel', 'overrideAllotment',
+    'create', 'update', 'remove', 'createHotel', 'updateHotelBatch', 'updateHotel', 'overrideAllotment',
     'lockAllotment', 'confirmAllotment', 'releaseAllotment', 'createTyped',
-    'updateTyped', 'updateTypedStatus', 'removeTyped', 'addSupplierFile',
+    'updateTypedBatch', 'updateTyped', 'updateTypedStatus', 'removeTyped', 'addSupplierFile',
     'deleteSupplierFile', 'updateStatus',
     'previewImport', 'importSuppliers',
     'createSupplierContact', 'updateSupplierContact', 'deleteSupplierContact',
@@ -61,8 +61,10 @@ delete_typed_body = delete_typed_match.group(0)
 assert 'await this.ensureTypedSupplier(typedRoute, id)' in delete_typed_body and 'return maskSupplierFinancialFields(await this.deleteSupplierRecord(id), user)' in delete_typed_body, 'typed delete must validate the supplier category and mask the soft-delete response'
 for delegation in [
     'createHotelSupplier(dto, request.user)',
+    'updateHotelSupplierBatch(id, dto, request.user)',
     'updateHotelSupplier(id, dto, request.user)',
     'createTypedSupplier(type, dto, request.user)',
+    'updateTypedSupplierBatch(type, id, dto, request.user)',
     'updateTypedSupplier(type, id, dto, request.user)',
     'updateTypedSupplierStatus(type, id, dto.status, request.user)',
     'deleteTypedSupplier(type, id, request.user)',
