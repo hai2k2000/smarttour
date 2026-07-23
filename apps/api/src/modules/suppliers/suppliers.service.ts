@@ -2224,6 +2224,7 @@ export class SuppliersService {
       if (allotment.serviceId && !finalServiceIds.has(allotment.serviceId)) {
         throw new ConflictException('Quỹ phòng phải tham chiếu dịch vụ còn hoạt động của cùng nhà cung cấp');
       }
+      await this.ensureAllotmentServiceBelongsToSupplier(tx, supplierId, allotment.serviceId);
     }
     for (const [index, row] of rows.entries()) {
       if (!row.id) continue;
@@ -2292,9 +2293,7 @@ export class SuppliersService {
   private supplierBatchComparable(value: unknown): string {
     if (value instanceof Date) return value.toISOString();
     if (value === null || value === undefined) return '';
-    if (typeof value === 'object' && 'toNumber' in value && typeof (value as { toNumber: () => number }).toNumber === 'function') {
-      return String((value as { toNumber: () => number }).toNumber());
-    }
+    if (Prisma.Decimal.isDecimal(value)) return value.toString();
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }

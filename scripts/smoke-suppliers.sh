@@ -199,6 +199,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertSupplierStateUnchanged(before, after, message) {
+  assert(JSON.stringify(after) === JSON.stringify(before), message);
+}
+
 function messageOf(data) {
   const message = data?.message;
   return Array.isArray(message) ? message.join(', ') : String(message || data?.error || data || '');
@@ -544,9 +548,42 @@ function typedMatrixPayload(type, suffix) {
       contacts: [{ id: '00000000-0000-4000-8000-000000000099', fullName: 'Foreign Contact' }],
     }, [404]);
     const batchRollbackAfter = await request(manageToken, 'GET', `/suppliers/${type}/${created.id}`);
-    assert(batchRollbackAfter.name === batchRollbackBefore.name, `typed ${type} failed batch must roll back root`);
-    assert(batchRollbackAfter.contacts[0].id === batchRollbackBefore.contacts[0].id, `typed ${type} failed batch must preserve contacts`);
+    assertSupplierStateUnchanged(batchRollbackBefore, batchRollbackAfter, `typed ${type} failed batch must preserve the complete supplier state`);
   }
+
+  const foreignTarget = typedMatrixSuppliers[0];
+  const foreignSource = typedMatrixSuppliers[1];
+  const foreignTargetBefore = await request(manageToken, 'GET', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}`);
+  const foreignSourceDetail = await request(manageToken, 'GET', `/suppliers/${foreignSource.type}/${foreignSource.supplier.id}`);
+  const foreignContactError = await request(manageToken, 'PUT', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}/batch`, {
+    root: { notes: `${run} real foreign contact must roll back` },
+    contacts: [{ id: foreignSourceDetail.contacts[0].id, fullName: 'Real Foreign Contact' }],
+  }, [404]);
+  assert(messageOf(foreignContactError).includes('Không tìm thấy người liên hệ nhà cung cấp'), 'typed batch must reject a real contact id owned by another supplier');
+  const foreignTargetAfter = await request(manageToken, 'GET', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}`);
+  assertSupplierStateUnchanged(foreignTargetBefore, foreignTargetAfter, 'typed real foreign-id failure must preserve the complete supplier state');
+
+  const duplicateContactError = await request(manageToken, 'PUT', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}/batch`, {
+    root: { notes: `${run} duplicate contact must roll back` },
+    contacts: [
+      { id: foreignTargetBefore.contacts[0].id, fullName: 'Duplicate Contact A' },
+      { id: foreignTargetBefore.contacts[0].id, fullName: 'Duplicate Contact B' },
+    ],
+  }, [400]);
+  assert(messageOf(duplicateContactError).includes('Danh sách liên hệ có ID bị trùng'), 'typed batch must reject duplicate child ids');
+  const duplicateTargetAfter = await request(manageToken, 'GET', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}`);
+  assertSupplierStateUnchanged(foreignTargetBefore, duplicateTargetAfter, 'typed duplicate-id failure must preserve the complete supplier state');
+
+  const clearedTypedBatch = await request(manageToken, 'PUT', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}/batch`, {
+    root: { notes: `${run} explicit empty child snapshot` },
+    contacts: [],
+    services: [],
+  });
+  assert(clearedTypedBatch.contacts.length === 0 && clearedTypedBatch.supplierServices.length === 0, 'typed batch empty snapshots must remove all active child rows');
+  const rootOnlyAfterClear = await request(manageToken, 'PUT', `/suppliers/${foreignTarget.type}/${foreignTarget.supplier.id}/batch`, {
+    root: { notes: `${run} omitted children stay empty` },
+  });
+  assert(rootOnlyAfterClear.contacts.length === 0 && rootOnlyAfterClear.supplierServices.length === 0, 'typed batch omitted child collections must remain unchanged');
 
   const duplicateTypedCodeError = await request(manageToken, 'POST', '/suppliers/flights', {
     supplierCode: typedMatrixSuppliers.find((item) => item.type === 'flights').supplier.supplierCode,
@@ -1333,8 +1370,53 @@ function typedMatrixPayload(type, suffix) {
     allotments: [{ id: '00000000-0000-4000-8000-000000000098', serviceName: 'Missing', allotmentQty: 1 }],
   }, [404]);
   const hotelBatchRollbackAfter = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
-  assert(hotelBatchRollbackAfter.notes === hotelBatchRollbackBefore.notes, 'hotel failed batch must roll back root');
-  assert(hotelBatchRollbackAfter.allotments[0].id === hotelBatchRollbackBefore.allotments[0].id, 'hotel failed batch must preserve allotments');
+  assertSupplierStateUnchanged(hotelBatchRollbackBefore, hotelBatchRollbackAfter, 'hotel failed batch must preserve the complete supplier state');
+
+  const rollbackAllotment = hotelBatchRollbackBefore.allotments[0];
+  const rollbackAllotmentPayload = (overrides = {}) => ({
+    id: rollbackAllotment.id,
+    serviceId: rollbackAllotment.serviceId || undefined,
+    sku: rollbackAllotment.sku || undefined,
+    serviceName: rollbackAllotment.serviceName,
+    startDate: rollbackAllotment.startDate?.slice(0, 10),
+    endDate: rollbackAllotment.endDate?.slice(0, 10),
+    dayType: rollbackAllotment.dayType,
+    allotmentQty: rollbackAllotment.allotmentQty,
+    bookedQty: rollbackAllotment.bookedQty,
+    lockedQty: rollbackAllotment.lockedQty,
+    quantityLock: rollbackAllotment.quantityLock,
+    cutoffDays: rollbackAllotment.cutoffDays,
+    netCostPerDay: Number(rollbackAllotment.netCostPerDay),
+    sellingPricePerDay: Number(rollbackAllotment.sellingPricePerDay),
+    status: rollbackAllotment.status,
+    description: rollbackAllotment.description || undefined,
+    note: rollbackAllotment.note || undefined,
+    ...overrides,
+  });
+  const foreignHotelServiceError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}/batch`, {
+    root: { notes: `${run} foreign service relation must roll back` },
+    allotments: [rollbackAllotmentPayload({ serviceId: flightServiceReplaced.supplierServices[0].id })],
+  }, [409]);
+  assert(messageOf(foreignHotelServiceError).includes('dịch vụ còn hoạt động của cùng nhà cung cấp'), 'hotel batch must reject an allotment linked to another supplier service');
+  const foreignHotelServiceAfter = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  assertSupplierStateUnchanged(hotelBatchRollbackBefore, foreignHotelServiceAfter, 'hotel foreign service failure must preserve the complete supplier state');
+
+  const duplicateHotelAllotmentError = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}/batch`, {
+    root: { notes: `${run} duplicate allotment must roll back` },
+    allotments: [
+      rollbackAllotmentPayload(),
+      rollbackAllotmentPayload({
+        sku: `${run}-DUPLICATE-ID-ALT`,
+        serviceName: `${run} Duplicate ID Alternate Room`,
+        startDate: '2100-01-01',
+        endDate: '2100-01-31',
+        dayType: 'PEAK',
+      }),
+    ],
+  }, [400]);
+  assert(messageOf(duplicateHotelAllotmentError).includes('Danh sách quỹ phòng có ID bị trùng'), 'hotel batch must reject duplicate allotment ids');
+  const duplicateHotelAllotmentAfter = await request(manageToken, 'GET', `/suppliers/hotels/${ownedDataHotel.id}`);
+  assertSupplierStateUnchanged(hotelBatchRollbackBefore, duplicateHotelAllotmentAfter, 'hotel duplicate-id failure must preserve the complete supplier state');
 
   const clearedOptionalHotelFields = await request(manageToken, 'PUT', `/suppliers/hotels/${ownedDataHotel.id}`, {
     market: '   ',

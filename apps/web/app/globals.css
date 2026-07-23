@@ -2362,6 +2362,26 @@ label { min-width: 0; }
   min-width: 30px;
 }
 
+.compactListTableWrap > table.typedSupplierListTable {
+  --list-table-min-width: 1240px;
+}
+
+.compactListTableWrap > table.typedSupplierListTable th:nth-child(9),
+.compactListTableWrap > table.typedSupplierListTable td:nth-child(9) {
+  width: 120px;
+}
+
+.compactListTableWrap > table.typedSupplierListTable th:nth-child(10),
+.compactListTableWrap > table.typedSupplierListTable td:nth-child(10) {
+  width: 150px;
+}
+
+.compactListTableWrap > table.typedSupplierListTable .rowActions {
+  max-width: none;
+  overflow: visible;
+  flex-wrap: nowrap;
+}
+
 .compactListTableWrap .tableEmptyState {
   height: calc(var(--list-row-height) * var(--list-visible-rows));
   white-space: normal;

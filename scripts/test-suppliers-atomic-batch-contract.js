@@ -35,14 +35,27 @@ const typedRoute = controller.indexOf("@Put(':type/:id/batch')");
 assert(hotelRoute !== -1 && typedRoute !== -1, 'missing supplier batch routes');
 assert(hotelRoute < controller.indexOf("@Put('hotels/:id')"), 'hotel batch route must precede hotel parent update');
 assert(typedRoute < controller.indexOf("@Put(':type/:id')"), 'typed batch route must precede typed parent update');
-assert(controller.slice(hotelRoute, hotelRoute + 500).includes("@RequirePermissions('supplier.manage')"), 'hotel batch must require supplier.manage');
-assert(controller.slice(typedRoute, typedRoute + 500).includes("@RequirePermissions('supplier.manage')"), 'typed batch must require supplier.manage');
+const hotelRouteBlock = controller.slice(hotelRoute, controller.indexOf("@Put('hotels/:id')", hotelRoute + 1));
+const typedRouteBlock = controller.slice(typedRoute, controller.indexOf("@Put(':type/:id')", typedRoute + 1));
+assert(hotelRouteBlock.includes("@RequirePermissions('supplier.manage')"), 'hotel batch must require supplier.manage');
+assert(typedRouteBlock.includes("@RequirePermissions('supplier.manage')"), 'typed batch must require supplier.manage');
 
 assert(service.includes('async updateTypedSupplierBatch('), 'missing typed batch service');
 assert(service.includes('async updateHotelSupplierBatch('), 'missing hotel batch service');
 assert(service.includes('syncSupplierContactsSnapshot('), 'missing contact snapshot sync');
 assert(service.includes('syncSupplierServicesSnapshot('), 'missing service snapshot sync');
 assert(service.includes('syncSupplierAllotmentsSnapshot('), 'missing allotment snapshot sync');
+const allotmentAssertionStart = service.indexOf('async assertSupplierAllotmentsSnapshot(');
+const allotmentAssertionEnd = service.indexOf('private async syncSupplierAllotmentsSnapshot(', allotmentAssertionStart);
+assert(allotmentAssertionStart !== -1 && allotmentAssertionEnd !== -1, 'missing scoped allotment snapshot validation');
+assert(service.slice(allotmentAssertionStart, allotmentAssertionEnd).includes('ensureAllotmentServiceBelongsToSupplier'), 'allotment batch must reject inactive or foreign service references');
+const comparableStart = service.indexOf('private supplierBatchComparable(');
+const comparableEnd = service.indexOf('private async replaceGenericChildren(', comparableStart);
+const comparableBlock = service.slice(comparableStart, comparableEnd);
+assert(comparableBlock.includes('if (Prisma.Decimal.isDecimal(value)) return value.toString();'), 'batch change detection must stringify Prisma Decimal exactly');
+for (const lossyConversion of ['.toNumber()', 'Number(', 'parseFloat(', 'parseInt(']) {
+  assert(!comparableBlock.includes(lossyConversion), `batch Decimal comparison must not use ${lossyConversion}`);
+}
 
 assert(generic.includes('/batch`'), 'generic edit must use batch endpoint');
 assert(hotel.includes('/batch`'), 'hotel edit must use batch endpoint');

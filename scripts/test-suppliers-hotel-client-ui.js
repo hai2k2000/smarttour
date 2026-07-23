@@ -160,6 +160,48 @@ function hotelWithoutProfile() {
   };
 }
 
+function baseGenericSupplier() {
+  return {
+    id: 'generic-1',
+    supplierCode: 'REST-BATCH-1',
+    name: 'Nhà hàng Batch Test',
+    taxCode: null,
+    phone: '0903333333',
+    email: 'restaurant-batch@smarttour.local',
+    country: 'Việt Nam',
+    province: 'Hà Nội',
+    address: '1 Tràng Tiền',
+    website: null,
+    link: null,
+    rating: 4,
+    market: 'Nội địa',
+    notes: 'Generic batch UI test',
+    status: 'ACTIVE',
+    category: { name: 'Nhà hàng' },
+    contacts: [{
+      id: 'generic-contact-1',
+      fullName: 'Liên hệ nhà hàng',
+      position: 'Sales',
+      birthday: null,
+      phone: '0903444444',
+      email: 'contact-restaurant@smarttour.local',
+    }],
+    supplierServices: [{
+      id: 'generic-service-1',
+      sku: 'MENU-1',
+      serviceName: 'Thực đơn tiêu chuẩn',
+      quantity: 1,
+      accountingPrice: 90000,
+      netPrice: 100000,
+      sellingPrice: 120000,
+      description: 'Thực đơn test',
+      note: '',
+      metadata: {},
+    }],
+    files: [],
+  };
+}
+
 function fromPayload(payload, id) {
   return normalizeHotel({
     id,
@@ -244,6 +286,7 @@ function haystack(hotel) {
 function makeState() {
   const state = {
     hotels: [normalizeHotel(baseHotel()), normalizeHotel(hotelWithoutProfile())],
+    genericSuppliers: [baseGenericSupplier()],
     bookings: [{ id: 'booking-1', code: 'BKG-CLIENT-001', customerName: 'Đoàn test UI', startDate: '2026-07-01' }],
     calls: {
       listQueries: [],
@@ -265,6 +308,11 @@ function makeState() {
       locks: [],
       confirms: [],
       releases: [],
+    },
+    genericCalls: {
+      batchUpdates: [],
+      legacyUpdates: [],
+      childMutations: [],
     },
     failNextList: false,
   };
@@ -323,6 +371,43 @@ async function installApiMock(page, state) {
 
     if (apiPath === '/api/auth/me') {
       return responseJson(route, { id: 'hotel-ui-user', name: 'Hotel UI Tester', permissions: ['supplier.view', 'supplier.manage'] });
+    }
+
+    if (method === 'GET' && apiPath === '/api/suppliers/restaurants') {
+      return responseJson(route, clone(state.genericSuppliers));
+    }
+
+    const genericDetailMatch = apiPath.match(/^\/api\/suppliers\/restaurants\/([^/]+)$/);
+    if (genericDetailMatch && method === 'GET') {
+      const supplier = state.genericSuppliers.find((item) => item.id === genericDetailMatch[1]);
+      return supplier ? responseJson(route, clone(supplier)) : messageResponse(route, 'Không tìm thấy nhà cung cấp', 404);
+    }
+
+    const genericBatchMatch = apiPath.match(/^\/api\/suppliers\/restaurants\/([^/]+)\/batch$/);
+    if (genericBatchMatch && method === 'PUT') {
+      const body = JSON.parse(request.postData() || '{}');
+      const supplier = state.genericSuppliers.find((item) => item.id === genericBatchMatch[1]);
+      if (!supplier) return messageResponse(route, 'Không tìm thấy nhà cung cấp', 404);
+      state.genericCalls.batchUpdates.push({ supplierId: supplier.id, body });
+      Object.assign(supplier, body.root || {});
+      if (Object.prototype.hasOwnProperty.call(body, 'contacts')) {
+        supplier.contacts = body.contacts.map((item, index) => ({ id: item.id || `generic-contact-created-${index + 1}`, ...item }));
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'services')) {
+        supplier.supplierServices = body.services.map((item, index) => ({ id: item.id || `generic-service-created-${index + 1}`, ...item }));
+      }
+      return responseJson(route, clone(supplier));
+    }
+
+    if (genericDetailMatch && method === 'PUT') {
+      state.genericCalls.legacyUpdates.push(JSON.parse(request.postData() || '{}'));
+      return messageResponse(route, 'Generic edit must use batch', 500);
+    }
+
+    const genericChildMatch = apiPath.match(/^\/api\/suppliers\/generic-1\/(contacts|services)(?:\/[^/]+)?$/);
+    if (genericChildMatch && ['POST', 'PUT', 'DELETE'].includes(method)) {
+      state.genericCalls.childMutations.push({ method, apiPath, body: request.postData() || '' });
+      return messageResponse(route, 'Generic edit must not call child CRUD', 500);
     }
 
     if (method === 'GET' && apiPath === '/api/suppliers/hotels') {
@@ -919,6 +1004,30 @@ async function loadMockedList(page) {
       await visibleText(page, 'Không tải được danh sách nhà cung cấp khách sạn.');
       await visibleText(page, 'HTTP 500 - Lỗi mock danh sách khách sạn');
       assert(await page.locator('table.hotelListTable tbody tr', { hasText: 'Khách sạn Hồ Gươm' }).count() === 0, 'list API errors must not leave stale hotel rows visible');
+    });
+
+    await run('generic edit uses one batch request', async () => {
+      await page.goto(`${siteUrl.origin}/suppliers/restaurants`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      if (page.url().includes('/login')) throw new Error('Generic suppliers page redirected to login');
+      await visibleText(page, 'Danh sách nhà hàng');
+      await page.getByRole('button', { name: 'Tải lại', exact: true }).click();
+      await visibleText(page, 'Nhà hàng Batch Test');
+      const row = page.locator('table.hotelListTable tbody tr', { hasText: 'Nhà hàng Batch Test' }).first();
+      await row.getByRole('button', { name: 'Sửa nhà cung cấp' }).click();
+      const dialog = await selectDialog(page, 'Cập nhật nhà cung cấp');
+      await dialog.getByLabel('Tên nhà cung cấp').fill('Nhà hàng Batch Test Updated');
+      await dynamicSection(dialog, 'Người liên hệ').locator('tbody tr').first().locator('input').nth(0).fill('Liên hệ nhà hàng cập nhật');
+      await dynamicSection(dialog, 'Thực đơn và dịch vụ').locator('tbody tr').first().locator('input').nth(1).fill('Thực đơn tiêu chuẩn cập nhật');
+      const batchUpdatesBefore = state.genericCalls.batchUpdates.length;
+      await dialog.getByRole('button', { name: 'Lưu thay đổi' }).click();
+      await visibleText(page, 'Đã cập nhật nhà hàng');
+      assert(state.genericCalls.batchUpdates.length === batchUpdatesBefore + 1, 'generic edit should send exactly one batch request');
+      assert(state.genericCalls.legacyUpdates.length === 0, 'generic edit should not call the legacy parent update route');
+      assert(state.genericCalls.childMutations.length === 0, 'generic edit should not call contact or service CRUD during form save');
+      const batch = state.genericCalls.batchUpdates.at(-1).body;
+      assert(batch.root?.name === 'Nhà hàng Batch Test Updated', 'generic batch must wrap root fields');
+      assert(batch.contacts?.[0]?.id === 'generic-contact-1' && batch.contacts[0].fullName === 'Liên hệ nhà hàng cập nhật', 'generic batch must preserve the contact id');
+      assert(batch.services?.[0]?.id === 'generic-service-1' && batch.services[0].serviceName === 'Thực đơn tiêu chuẩn cập nhật', 'generic batch must preserve the service id');
     });
 
     if (issues.length) {

@@ -27,6 +27,7 @@ for source in [hotel, generic]:
 assert "id: 'supplier'" in generic, 'generic supplier list must expose supplier name as the first column'
 assert "id: 'supplierCode'" not in generic, 'generic supplier list must not keep a separate supplier-code-first column'
 assert 'supplierPrimaryCell' in generic, 'generic supplier name column must keep supplier code only as secondary traceability text'
+assert 'typedSupplierListTable' in generic and '.compactListTableWrap > table.typedSupplierListTable' in styles, 'generic supplier actions must have a dedicated non-overlapping table width'
 assert hotel.index("id: 'hotel'") < hotel.index("id: 'project'"), 'hotel supplier list must keep hotel name as the first column'
 
 for field in ['search', 'status', 'province', 'market']:
