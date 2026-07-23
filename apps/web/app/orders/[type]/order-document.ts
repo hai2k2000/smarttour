@@ -163,7 +163,7 @@ function numericCell(value: string) {
 
 function row(label: string, value: unknown) {
   const display = value === null || value === undefined || value === '' ? '-' : value;
-  return `<div class="infoRow"><span>${escapeOrderDocumentHtml(label)}</span><strong>${escapeOrderDocumentHtml(display)}</strong></div>`;
+  return `<tr class="infoRow"><td class="infoLabel">${escapeOrderDocumentHtml(label)}</td><td class="infoValue"><strong>${escapeOrderDocumentHtml(display)}</strong></td></tr>`;
 }
 
 function table(headers: string[], rows: string[][]) {
@@ -181,11 +181,14 @@ const DOCUMENT_CSS = `
   p { margin: 4px 0; }
   .brand { color: #0f766e; font-weight: 800; letter-spacing: .18em; text-align: center; }
   .documentCode { margin-bottom: 11px; color: #64748b; text-align: center; }
-  .blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .meta, .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 15px; }
-  .infoRow { display: flex; justify-content: space-between; gap: 10px; min-width: 0; border-bottom: 1px dotted #cbd5e1; padding: 2px 0; }
-  .infoRow span { color: #64748b; }
-  .infoRow strong { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+  .documentBlocks { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 0; }
+  .documentBlocks > tbody > tr > td { width: 50%; border: 0; padding: 0 6px; vertical-align: top; }
+  .documentBlocks > tbody > tr > td:first-child { padding-left: 0; }
+  .documentBlocks > tbody > tr > td:last-child { padding-right: 0; }
+  .infoTable { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 0; font-size: 11px; }
+  .infoRow td { border: 0; border-bottom: 1px dotted #cbd5e1; padding: 2px 0; vertical-align: top; }
+  .infoLabel { width: 42%; color: #64748b; padding-right: 10px !important; }
+  .infoValue { width: 58%; text-align: right; overflow-wrap: anywhere; }
   table { width: 100%; border-collapse: collapse; table-layout: auto; margin-top: 5px; font-size: 10px; }
   th, td { border: 1px solid #cbd5e1; padding: 4px 5px; vertical-align: top; overflow-wrap: anywhere; }
   th { background: #e7f5f2; color: #115e59; font-weight: 700; text-align: left; }
@@ -193,7 +196,8 @@ const DOCUMENT_CSS = `
   .number { display: block; text-align: right; white-space: nowrap; }
   .note { margin-top: 7px; padding: 7px 9px; border: 1px solid #e2e8f0; background: #f8fafc; }
   .terms article, .surveyItem { break-inside: avoid; page-break-inside: avoid; margin: 5px 0; padding: 6px 8px; border: 1px solid #e2e8f0; }
-  .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 24px; text-align: center; }
+  .signaturesTable { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 24px; text-align: center; }
+  .signaturesTable td { width: 33.33%; border: 0; padding: 0 11px; vertical-align: top; }
   .signatureSpace { height: 58px; }
   .muted { color: #64748b; }
   .generated { margin-top: 18px; font-size: 9px; text-align: right; }
@@ -257,19 +261,19 @@ export function orderDocumentHtml(model: OrderDocumentModel) {
     <div class="brand">SMARTTOUR</div>
     <h1>${escapeOrderDocumentHtml(model.documentTitle)}</h1>
     <p class="documentCode">Mã chứng từ: ${cell(model.order.systemCode)}</p>
-    <div class="blocks">
-      <section><h2>Thông tin booking</h2><div class="meta">${row('Mã hệ thống', model.order.systemCode)}${row('Mã tour', model.order.tourCode)}${row('Mã giữ chỗ', model.order.holdCode)}${row('Tên booking', model.order.name)}${row('Tuyến', model.order.route)}${row('Thị trường', model.order.marketGroup)}${row('Trạng thái', status(model.order.status))}${row('Thanh toán', status(model.order.paymentStatus))}${row('Chi phí', status(model.order.costStatus))}${row('Ngày booking', date(model.order.bookingDate))}${row('Ngày thanh toán', date(model.order.paymentDate))}${row('Check-in', date(model.order.startDate))}${row('Check-out', date(model.order.endDate))}${row('Hạn tiếp nhận', date(model.order.receiveDeadline))}${row('Hạn đóng', date(model.order.closeDeadline))}</div></section>
-      <section><h2>Khách hàng &amp; dịch vụ</h2><div class="meta">${row('Khách hàng', model.customer.customerName)}${row('Loại khách', model.customer.customerType)}${row('Điện thoại', model.customer.customerPhone)}${row('Email', model.customer.customerEmail)}${row('Địa chỉ', model.customer.customerAddress)}${row('Đại lý', model.customer.agencyName)}${row('Cộng tác viên', model.customer.collaborator)}${row('Hạng phòng', model.order.roomClass)}${row('Gói dịch vụ', model.order.servicePackage)}${row('Người lớn', quantity(model.order.adultQty))}${row('Trẻ em', quantity(model.order.childQty))}${row('Em bé', quantity(model.order.infantQty))}${row('Tổng số lượng', quantity(model.order.quantity))}${row('Tiền tệ', model.order.currency)}${row('Tỷ giá', quantity(model.order.exchangeRate))}</div></section>
-    </div>
-    <section class="meta">${row('Người tạo', model.order.createdBy)}${row('Ngày tạo', date(model.order.createdDate))}${row('Điều hành', model.order.operatorOwner)}${row('Chi nhánh', model.order.branch)}${row('Phòng ban', model.order.department)}</section>
+    <table class="documentBlocks"><tbody><tr>
+      <td><section><h2>Thông tin booking</h2><table class="infoTable"><tbody>${row('Mã hệ thống', model.order.systemCode)}${row('Mã tour', model.order.tourCode)}${row('Mã giữ chỗ', model.order.holdCode)}${row('Tên booking', model.order.name)}${row('Tuyến', model.order.route)}${row('Thị trường', model.order.marketGroup)}${row('Trạng thái', status(model.order.status))}${row('Thanh toán', status(model.order.paymentStatus))}${row('Chi phí', status(model.order.costStatus))}${row('Ngày booking', date(model.order.bookingDate))}${row('Ngày thanh toán', date(model.order.paymentDate))}${row('Check-in', date(model.order.startDate))}${row('Check-out', date(model.order.endDate))}${row('Hạn tiếp nhận', date(model.order.receiveDeadline))}${row('Hạn đóng', date(model.order.closeDeadline))}</tbody></table></section></td>
+      <td><section><h2>Khách hàng &amp; dịch vụ</h2><table class="infoTable"><tbody>${row('Khách hàng', model.customer.customerName)}${row('Loại khách', model.customer.customerType)}${row('Điện thoại', model.customer.customerPhone)}${row('Email', model.customer.customerEmail)}${row('Địa chỉ', model.customer.customerAddress)}${row('Đại lý', model.customer.agencyName)}${row('Cộng tác viên', model.customer.collaborator)}${row('Hạng phòng', model.order.roomClass)}${row('Gói dịch vụ', model.order.servicePackage)}${row('Người lớn', quantity(model.order.adultQty))}${row('Trẻ em', quantity(model.order.childQty))}${row('Em bé', quantity(model.order.infantQty))}${row('Tổng số lượng', quantity(model.order.quantity))}${row('Tiền tệ', model.order.currency)}${row('Tỷ giá', quantity(model.order.exchangeRate))}</tbody></table></section></td>
+    </tr></tbody></table>
+    <section><table class="infoTable"><tbody>${row('Người tạo', model.order.createdBy)}${row('Ngày tạo', date(model.order.createdDate))}${row('Điều hành', model.order.operatorOwner)}${row('Chi nhánh', model.order.branch)}${row('Phòng ban', model.order.department)}</tbody></table></section>
     ${bookingNote}
     <h2>Phòng bán / phần thu</h2>${table(['Khách sạn', 'Dịch vụ / mô tả', 'SL', 'Số lượt', 'Đơn giá', 'VAT %', 'Thành tiền', 'Ghi chú'], salesRows)}
     <h2>Phòng đặt / phần chi</h2>${table(['Khách sạn', 'Dịch vụ', 'Mã NCC', 'Ngày dùng', 'SL', 'Giá NET', 'VAT %', 'Thành tiền', 'Trạng thái', 'Ghi chú'], operationRows)}
-    <h2>Tổng hợp tài chính</h2><section class="summary">${row('Tổng thu', money(model.summary.totalRevenue))}${row('Đã thu', money(model.summary.paidAmount))}${row('Còn thu', money(model.summary.remainingRevenue))}${row('Tổng chi', money(model.summary.totalCost))}${row('Đã chi', money(model.summary.paidCost))}${row('Còn chi', money(model.summary.remainingCost))}${row('Lợi nhuận', money(model.summary.profit))}${row('Hoa hồng', money(model.summary.commission))}</section>
+    <h2>Tổng hợp tài chính</h2><section><table class="infoTable"><tbody>${row('Tổng thu', money(model.summary.totalRevenue))}${row('Đã thu', money(model.summary.paidAmount))}${row('Còn thu', money(model.summary.remainingRevenue))}${row('Tổng chi', money(model.summary.totalCost))}${row('Đã chi', money(model.summary.paidCost))}${row('Còn chi', money(model.summary.remainingCost))}${row('Lợi nhuận', money(model.summary.profit))}${row('Hoa hồng', money(model.summary.commission))}</tbody></table></section>
     ${memberSection}
     ${terms ? `<section class="terms"><h2>Điều khoản</h2>${terms}</section>` : ''}
     ${survey ? `<section><h2>Đánh giá dịch vụ</h2>${survey}</section>` : ''}
-    <section class="signatures">${model.signatures.map((signature) => `<div><strong>${cell(signature.role)}</strong><div class="signatureSpace"></div><span>${cell(signature.name)}</span></div>`).join('')}</section>
+    <table class="signaturesTable"><tbody><tr>${model.signatures.map((signature) => `<td><strong>${cell(signature.role)}</strong><div class="signatureSpace"></div><span>${cell(signature.name)}</span></td>`).join('')}</tr></tbody></table>
     <p class="muted generated">Tạo lúc ${escapeOrderDocumentHtml(generatedAt)}</p>
   </body></html>`;
 }
@@ -303,6 +307,8 @@ export function downloadOrderWord(model: OrderDocumentModel) {
   return { extension: 'doc' as const };
 }
 
+const PRINT_FALLBACK_DELAY_MS = 2_000;
+
 export function writeOrderPrintWindow(popup: Window, model: OrderDocumentModel) {
   const html = orderDocumentHtml(model);
   popup.document.open();
@@ -311,6 +317,25 @@ export function writeOrderPrintWindow(popup: Window, model: OrderDocumentModel) 
   } finally {
     popup.document.close();
   }
-  popup.focus();
-  popup.setTimeout(() => popup.print(), 150);
+  let printed = false;
+  const print = () => {
+    if (printed) return;
+    printed = true;
+    popup.focus();
+    popup.print();
+  };
+  popup.setTimeout(print, PRINT_FALLBACK_DELAY_MS);
+  const printWhenFontsReady = () => {
+    const fontsReady = popup.document.fonts?.ready;
+    if (fontsReady && typeof fontsReady.then === 'function') {
+      void fontsReady.then(print, print);
+      return;
+    }
+    print();
+  };
+  if (popup.document.readyState === 'loading' && typeof popup.addEventListener === 'function') {
+    popup.addEventListener('load', printWhenFontsReady, { once: true });
+  } else if (popup.document.readyState === 'interactive' || popup.document.readyState === 'complete') {
+    printWhenFontsReady();
+  }
 }

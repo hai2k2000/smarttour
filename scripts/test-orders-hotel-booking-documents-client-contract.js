@@ -887,6 +887,16 @@ behavior('renderer must omit empty optional member, term, and survey sections', 
   assertBehavior(!html.includes('Đánh giá dịch vụ'), 'empty survey section was rendered');
 });
 
+behavior('Word document layout must use table primitives instead of CSS Grid or Flexbox', () => {
+  const runtime = loadRenderer();
+  const html = runtime.orderDocumentHtml(completeModel());
+  assertBehavior(!html.includes('display: grid'), 'Word document still depends on CSS Grid');
+  assertBehavior(!html.includes('display: flex'), 'Word document still depends on CSS Flexbox');
+  assertBehavior(html.includes('<table class="documentBlocks">'), 'booking/customer columns must use a Word-compatible table');
+  assertBehavior(html.includes('class="infoTable"'), 'metadata and summary rows must use Word-compatible tables');
+  assertBehavior(html.includes('<table class="signaturesTable">'), 'signature columns must use a Word-compatible table');
+});
+
 function wordEnvironment(failure) {
   const calls = [];
   const state = { blob: null };
@@ -977,11 +987,14 @@ function printModel(events) {
   return model;
 }
 
-behavior('print success must render before opening and complete the isolated print sequence', () => {
+behavior('print success must wait for the popup load event before printing', () => {
   const runtime = loadRenderer();
   const calls = [];
+  let loadCallback;
+  let fallbackCallback;
   const popup = {
     document: {
+      readyState: 'loading',
       open() { calls.push('open'); },
       write(html) {
         calls.push('write');
@@ -989,18 +1002,89 @@ behavior('print success must render before opening and complete the isolated pri
       },
       close() { calls.push('close'); },
     },
+    addEventListener(event, callback, options) {
+      calls.push(`addEventListener:${event}:${options?.once ? 'once' : 'persistent'}`);
+      loadCallback = callback;
+    },
     focus() { calls.push('focus'); },
     setTimeout(callback, delay) {
       calls.push(`setTimeout:${delay}`);
-      callback();
+      fallbackCallback = callback;
     },
     print() { calls.push('print'); },
   };
   runtime.writeOrderPrintWindow(popup, printModel(calls));
   assertBehavior(
-    calls.join(',') === 'render,open,write,close,focus,setTimeout:150,print',
+    calls.join(',') === 'render,open,write,close,setTimeout:2000,addEventListener:load:once',
     `print success sequence was ${calls.join(',')}`,
   );
+  assertBehavior(typeof loadCallback === 'function', 'print did not register the popup load callback');
+  assertBehavior(typeof fallbackCallback === 'function', 'print did not register the bounded fallback');
+  assertBehavior(!calls.includes('print'), 'print ran before the popup load event');
+  loadCallback();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'popup load did not print exactly once');
+  fallbackCallback();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'fallback printed again after popup load');
+});
+
+behavior('print fallback must complete when the popup load event never fires', () => {
+  const runtime = loadRenderer();
+  const calls = [];
+  let loadCallback;
+  let fallbackCallback;
+  const popup = {
+    document: {
+      readyState: 'loading',
+      open() { calls.push('open'); },
+      write() { calls.push('write'); },
+      close() { calls.push('close'); },
+    },
+    addEventListener(_event, callback) { loadCallback = callback; },
+    focus() { calls.push('focus'); },
+    setTimeout(callback, delay) {
+      calls.push(`setTimeout:${delay}`);
+      fallbackCallback = callback;
+    },
+    print() { calls.push('print'); },
+  };
+  runtime.writeOrderPrintWindow(popup, printModel(calls));
+  assertBehavior(!calls.includes('print'), 'print ran before the bounded fallback');
+  fallbackCallback();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'bounded fallback did not print exactly once');
+  loadCallback();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'late popup load printed after the fallback');
+});
+
+asyncBehavior('print must wait for document fonts before printing', async () => {
+  const runtime = loadRenderer();
+  const calls = [];
+  let resolveFonts;
+  let fallbackCallback;
+  const fontsReady = new Promise((resolve) => {
+    resolveFonts = resolve;
+  });
+  const popup = {
+    document: {
+      readyState: 'complete',
+      fonts: { ready: fontsReady },
+      open() { calls.push('open'); },
+      write() { calls.push('write'); },
+      close() { calls.push('close'); },
+    },
+    focus() { calls.push('focus'); },
+    setTimeout(callback, delay) {
+      calls.push(`setTimeout:${delay}`);
+      fallbackCallback = callback;
+    },
+    print() { calls.push('print'); },
+  };
+  runtime.writeOrderPrintWindow(popup, printModel(calls));
+  assertBehavior(!calls.includes('print'), 'print ran before document fonts were ready');
+  resolveFonts();
+  await Promise.resolve();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'document fonts did not print exactly once');
+  fallbackCallback();
+  assertBehavior(calls.filter((call) => call === 'print').length === 1, 'fallback printed again after document fonts');
 });
 
 behavior('print write failure must close without focusing or scheduling print', () => {
