@@ -20,6 +20,13 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- Orders Hotel Booking document codex-review remediation:
+  - MCP `codex-review` v2.10.6 found that the Word-compatible HTML still depended on CSS Grid/Flexbox and that browser printing used a fixed 150 ms race; follow-up review also found unbounded load/font waits and a synchronous load mock that did not prove deferral.
+  - Replaced booking/customer metadata, summary, and signatures with escaped table-based markup for desktop Word compatibility. Print now waits for popup load and `document.fonts.ready`, schedules a bounded 2-second fallback, and uses an exactly-once guard for late competing callbacks.
+  - Added executable VM regressions for table primitives, real deferred load handling, missing-load fallback, font readiness, and late readiness/fallback races.
+  - Focused client/backend contracts, web lint and production build, merged-main verification, Git diff checks, and final focused MCP review passed with no actionable findings.
+  - Production deployed commit `e5cb57e` through `BRANCH=main bash scripts/deploy-production.sh`; SmartLink guard, Prisma deploy with no pending migration, API/web Docker rebuild and recreation, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, internal API health, and `main...origin/main` synchronization passed. Representative Microsoft Word and browser print-layout checks remain non-blocking manual validation.
+
 - Orders Hotel Booking documents slice:
   - Added protected `GET /orders/:type/:id/document` for `hotel-bookings`, requiring exact `order.view` plus `order.export`, preserving branch/department scope, returning `400` for unsupported Order types and disclosure-safe `404` responses for missing, deleted, different-type, or out-of-scope rows.
   - Added a focused persisted document projection with ISO/number normalization, customer/member/term/survey/signature data, minimal Supplier/service labels, and no Supplier tax, bank, debt, price-policy, contact, or file fields.

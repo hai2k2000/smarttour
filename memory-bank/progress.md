@@ -1,5 +1,13 @@
 # Progress
 
+- Completed Orders Hotel Booking document codex-review remediation:
+  - Reviewed the full Hotel Booking documents range with MCP `codex-review` v2.10.6, verified its findings against the executable renderer, and reproduced Word layout and print lifecycle regressions before changing production code.
+  - Replaced Grid/Flex document layout with Word-compatible tables while preserving escaping, data projection, permissions, and the shared browser-print renderer.
+  - Replaced the fixed 150 ms print race with popup load and font readiness handling plus a bounded 2-second fallback and exactly-once guard.
+  - Extended the client VM contract for table layout, deferred load, missing-load fallback, font readiness, and late competing callbacks; the backend document contract remains green.
+  - Verification passed on the fix worktree and merged `main`: document client/backend contracts, web TypeScript lint, Next production build, Git diff checks, and final focused MCP review with no actionable findings.
+  - Deployed `e5cb57e` through `scripts/deploy-production.sh`; no migration was pending, API/web images and containers were rebuilt, `HEALTHCHECK_OK`, `DEPLOY_PRODUCTION_OK`, `{"ok":true,"service":"smarttour-api"}`, and `main...origin/main` synchronization passed.
+
 - Completed Orders Hotel Booking documents slice:
   - Added exact-permission, data-scoped `GET /orders/:type/:id/document` support for persisted Hotel Bookings, with focused projections, normalized JSON values, non-hotel `400`, and missing/deleted/different-type/out-of-scope `404` behavior.
   - Added escaped operational HTML shared by Word-compatible `.doc` downloads and browser A4 Print/Save-as-PDF, including safe filenames, canonical status labels, optional-section omission, and guaranteed Blob/popup cleanup.
