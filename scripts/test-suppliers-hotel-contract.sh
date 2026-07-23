@@ -241,7 +241,7 @@ for stale_text in [
     assert stale_text not in (frontend + supplier_ui), f'hotel supplier UI still contains non-localized text: {stale_text}'
 assert 'function HotelListLoadingRows()' in frontend and 'tableSkeletonLine' in frontend, 'hotel list loading state must use skeleton rows'
 assert 'function shouldSendCollection(' in frontend and "dirtyFields[name] !== undefined" in frontend, 'hotel edit should only send dirty child collection snapshots'
-assert "hotelSupplierPayload(values, editingId ? 'update' : 'create', dirtyFields as DirtyCollections, canViewSupplierFinancialFields)" in frontend, 'hotel frontend must centralize create/update payload shaping'
+assert "const childPayload = hotelChildPayload(values, collectionDirtyFields)" in frontend and "const rootPayload = hotelSupplierPayload(values, editingId ? 'update' : 'create', collectionDirtyFields, canViewSupplierFinancialFields)" in frontend, 'hotel frontend must centralize root and dirty child batch payload shaping'
 assert 'const { contacts, services, allotments, taxCode, bankAccountName, bankAccountNumber, bankName, ...baseValues } = values' in frontend and '...baseValues' in frontend, 'hotel edit payload must remove child arrays and gated financial fields from the base payload before applying dirty collection rules'
 assert '...values,\n    builtYear:' not in frontend, 'hotel edit payload must not spread all form values because that would send untouched child arrays'
 assert "mode === 'create' ? { allotments:" in frontend, 'hotel edit payload must omit allotments because allotments are managed separately'
