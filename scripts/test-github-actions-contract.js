@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 function read(file) {
-  return fs.readFileSync(file, 'utf8');
+  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 }
 
 function includes(source, text, message) {

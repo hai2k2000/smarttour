@@ -1,6 +1,10 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 256
     environment:
       POSTGRES_USER: smarttour
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -12,11 +16,19 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 128
     ports:
       - "127.0.0.1:6380:6379"
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.75"
+    pids_limit: 256
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
@@ -29,6 +41,10 @@ services:
 
   n8n:
     image: n8nio/n8n:latest
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: "0.75"
+    pids_limit: 256
     ports:
       - "127.0.0.1:5678:5678"
     volumes:
@@ -40,6 +56,10 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: "1.5"
+    pids_limit: 256
     env_file: .env
     environment:
       DATABASE_URL: postgresql://smarttour:${POSTGRES_PASSWORD}@postgres:5432/smarttour?schema=public
@@ -64,6 +84,10 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required for web build/runtime}
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 256
     env_file: .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required for web build/runtime}
@@ -75,6 +99,10 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 128
     ports:
       - "0.0.0.0:80:80"
       - "0.0.0.0:443:443"
