@@ -1,5 +1,11 @@
 # Progress
 
+- Completed VPS container resource hardening:
+  - Added `restart: unless-stopped`, service-specific memory/CPU limits and PID ceilings for PostgreSQL, Redis, MinIO, n8n, API, web and Nginx.
+  - Added a RED/GREEN Compose resource contract, npm command and CI wiring; fixed the existing GitHub Actions source contract to normalize CRLF before exact newline assertions.
+  - Production candidate validation passed against the real Compose environment without displaying secrets.
+  - Deployed commit `9012005` without rebuilding images; all containers, application health, data services, localhost-only internal ports, external HTTPS, firewall boundary and exact runtime limits passed verification.
+
 - Completed Supplier atomic batch save slice:
   - Added ID-aware transactional batch endpoints for generic typed and hotel suppliers, with parent locking, duplicate/ownership validation, omitted-versus-empty snapshot semantics, stable child IDs, generic service soft delete, and hotel allocation/final-service guards.
   - Migrated generic and hotel edit forms from parent-plus-child request sequences to one atomic batch request while retaining nested create payloads, separate file uploads, dedicated child CRUD compatibility, and separate operational allotment actions.

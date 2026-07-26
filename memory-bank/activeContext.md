@@ -20,6 +20,12 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- VPS container resource hardening:
+  - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
+  - Added `scripts/test-docker-compose-resource-limits-contract.js`, exposed `npm run test:docker-compose-resources`, and wired the contract into SmartTour CI. The GitHub Actions contract now normalizes CRLF so its deploy-order assertions run consistently on Windows and Linux checkouts.
+  - RED failed because PostgreSQL had no restart policy; the second RED failed because the new contract was not wired into `package.json`/CI. GREEN passed for both contracts and the candidate Compose file passed production `docker compose config --quiet` without printing secrets.
+  - Deployed commit `9012005` with `docker compose up -d --no-build`; all services were recreated with existing images and persistent volumes. `HEALTHCHECK_OK`, external HTTPS `307`, all exact runtime limits, active UFW/DOCKER-USER/Fail2ban/auditd, 4 GiB swap and `main...origin/main` synchronization passed.
+
 - Supplier atomic batch save slice:
   - Added `PUT /suppliers/:type/:id/batch` and `PUT /suppliers/hotels/:id/batch` so root fields and supplied contact/service/allotment snapshots save inside one parent-locked Prisma transaction while omitted collections remain unchanged and empty collections clear the final snapshot.
   - Batch rows preserve existing child IDs, reject duplicate or cross-supplier IDs, keep generic service soft-delete behavior, and enforce hotel service/allotment active-allocation and final same-supplier service guards. New id-less hotel services intentionally cannot be referenced by allotments in the same request.
