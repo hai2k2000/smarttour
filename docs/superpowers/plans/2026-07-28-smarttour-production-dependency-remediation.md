@@ -14,7 +14,7 @@
 
 - Modify `apps/api/package.json`: raise the direct Swagger floor to the patched release.
 - Modify `apps/web/package.json`: raise the direct Next.js floor to the patched release.
-- Modify `package.json`: remove the vulnerable Swagger/js-yaml override and pin patched PostCSS and Sharp resolutions while retaining the existing Multer override.
+- Modify `package.json`: replace the vulnerable Swagger/js-yaml override with parent-scoped Swagger and Next overrides while retaining the existing Multer override.
 - Modify `package-lock.json`: regenerate with npm so all workspace and transitive nodes match the manifests.
 - Modify `memory-bank/activeContext.md`: replace the design-only candidate note with verified remediation status.
 - Modify `memory-bank/progress.md`: record completed candidate verification and the remaining merge sequence.
@@ -97,21 +97,26 @@ In `apps/web/package.json`, replace the Next.js dependency with:
 
 Keep React, React DOM, and every other web dependency unchanged.
 
-- [ ] **Step 3: Replace the vulnerable root overrides**
+- [ ] **Step 3: Replace the vulnerable root overrides with parent-scoped overrides**
 
 In `package.json`, make the complete `overrides` object exactly:
 
 ```json
 "overrides": {
-  "postcss": "8.5.24",
-  "sharp": "0.35.3",
   "@nestjs/platform-express": {
     "multer": "2.2.0"
+  },
+  "@nestjs/swagger": {
+    "js-yaml": "5.2.2"
+  },
+  "next": {
+    "postcss": "8.5.24",
+    "sharp": "0.35.3"
   }
 }
 ```
 
-This removes the vulnerable nested `@nestjs/swagger -> js-yaml@4.2.0` override. Do not add a body-parser override initially because Express `5.2.1` declares `body-parser` as `^2.2.1`, which can resolve the patched `2.3.0` release.
+The Swagger-scoped override moves js-yaml beyond the newly vulnerable `5.2.1` pin. The Next-scoped overrides are required because Next.js `16.2.12` still declares PostCSS `8.4.31` and optional Sharp `^0.34.5`. Do not add a body-parser override because Express `5.2.1` declares `body-parser` as `^2.2.1`, which resolves the patched `2.3.0` release.
 
 - [ ] **Step 4: Regenerate the lockfile through npm**
 
@@ -131,7 +136,7 @@ Run:
 npm ls @nestjs/swagger js-yaml body-parser next postcss sharp
 ```
 
-Expected: exit code `0`; the production graph resolves `@nestjs/swagger@11.4.6`, `js-yaml@5.2.1`, `body-parser@2.3.0`, `next@16.2.12`, `postcss@8.5.24`, and `sharp@0.35.3`, with PostCSS and Sharp marked as valid overrides rather than invalid/extraneous packages.
+Expected: exit code `0`; the production graph resolves `@nestjs/swagger@11.4.6`, `js-yaml@5.2.2`, `body-parser@2.3.0`, `next@16.2.12`, `postcss@8.5.24`, and `sharp@0.35.3`, with all parent-scoped overrides valid and no invalid/extraneous production resolution.
 
 - [ ] **Step 6: Run the GREEN production audit**
 
@@ -355,7 +360,7 @@ Replace the existing design-only dependency entry at the top of `memory-bank/pro
 
 ```markdown
 - Completed SmartTour production dependency remediation candidate:
-  - Resolved the six existing production audit nodes with Swagger `11.4.6`, js-yaml `5.2.1`, body-parser `2.3.0`, Next.js `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`.
+  - Resolved the six existing production audit nodes with Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next.js `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`.
   - Verification passed for clean install, exact npm tree, zero production audit findings, API/web typecheck and builds, Linux Docker builds, Sharp runtime loading, adjacent CI/Docker contracts and diff checks.
   - The dependency pull request remains isolated from container privilege hardening; merge, hardening rebase/CI and production rollout remain pending.
 ```
@@ -436,7 +441,7 @@ Run:
 git merge --no-edit origin/main
 ```
 
-Expected: the privilege-hardening Compose policy, contract script, npm command, CI contract invocation, spec/plan, and Memory Bank candidate remain present alongside the patched dependency graph. If conflicts occur, retain both security changes: keep `test:docker-compose-privileges`, keep its CI invocation, keep PostCSS/Sharp/Multer overrides, and do not restore the vulnerable js-yaml override.
+Expected: the privilege-hardening Compose policy, contract script, npm command, CI contract invocation, spec/plan, and Memory Bank candidate remain present alongside the patched dependency graph. If conflicts occur, retain both security changes: keep `test:docker-compose-privileges`, keep its CI invocation, keep the Swagger/Next/Multer parent-scoped overrides, and do not restore the vulnerable js-yaml pin.
 
 - [ ] **Step 4: Revalidate the combined branch**
 
