@@ -20,6 +20,11 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- SmartTour container privilege hardening candidate:
+  - Added `no-new-privileges` to all seven Compose services and `cap_drop: [ALL]` to `api`, `web`, and `n8n`; images, ports, networks, secrets, and volumes remain unchanged.
+  - Added `scripts/test-docker-compose-privilege-hardening-contract.js`, exposed `npm run test:docker-compose-privileges`, and wired the contract into SmartTour CI. The contract validates the canonical Docker Compose JSON model without resolving environment files or interpolation.
+  - Focused RED/GREEN, quoted-key/additional-service regressions, adjacent Compose/GitHub Actions contracts, and candidate Compose validation passed. Production staged rollout and runtime evidence remain pending.
+
 - VPS container resource hardening:
   - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
   - Added `scripts/test-docker-compose-resource-limits-contract.js`, exposed `npm run test:docker-compose-resources`, and wired the contract into SmartTour CI. The GitHub Actions contract now normalizes CRLF so its deploy-order assertions run consistently on Windows and Linux checkouts.
