@@ -1,60 +1,37 @@
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 
-const compose = fs.readFileSync('docker-compose.yml', 'utf8');
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const ciWorkflow = fs.readFileSync('.github/workflows/smarttour-ci.yml', 'utf8');
 
 const services = ['postgres', 'redis', 'minio', 'n8n', 'api', 'web', 'nginx'];
 const capFreeServices = ['n8n', 'api', 'web'];
 
-function composeServiceNames() {
-  const header = compose.match(/^services:\r?\n/m);
-  if (!header) throw new Error('docker-compose.yml must define services');
-  const remainder = compose.slice(header.index + header[0].length);
-  const nextTopLevelKey = remainder.search(/^[a-zA-Z0-9_-]+:\r?$/m);
-  const serviceSection = nextTopLevelKey === -1 ? remainder : remainder.slice(0, nextTopLevelKey);
-  return [...serviceSection.matchAll(/^  ([a-zA-Z0-9_-]+):\r?$/gm)].map((match) => match[1]);
-}
-
-function serviceBlock(service) {
-  const pattern = new RegExp(
-    `^  ${service}:\\r?\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:\\r?$|^volumes:\\r?$)`,
-    'm',
-  );
-  const match = compose.match(pattern);
-  if (!match) throw new Error(`docker-compose.yml must define ${service}`);
-  return match[1];
-}
-
-function listValues(block, field) {
-  const pattern = new RegExp(
-    `^    ${field}:\\r?\\n((?:^      - .+\\r?\\n?)*)`,
-    'm',
-  );
-  const match = block.match(pattern);
-  if (!match) return [];
-  return [...match[1].matchAll(/^      - (.+)\r?$/gm)].map((item) => item[1]);
-}
-
-function hasField(block, field) {
-  return new RegExp(`^    ${field}[ \\t]*:`, 'm').test(block);
-}
-
-const fieldDetectorAssertions = [
-  ['    cap_add: [SYS_ADMIN]', 'cap_add'],
-  ['    cap_add : [SYS_ADMIN]', 'cap_add'],
-  ['    cap_add:\n      - SYS_ADMIN', 'cap_add'],
-  ['    cap_drop : [ALL]', 'cap_drop'],
-  ['    extends : base', 'extends'],
-  ['    << : *defaults', '<<'],
-];
-for (const [sample, field] of fieldDetectorAssertions) {
-  if (!hasField(sample, field)) {
-    throw new Error(`field detector must recognize ${field} syntax`);
+function resolveCompose() {
+  try {
+    const canonicalJson = execFileSync(
+      'docker',
+      ['compose', 'config', '--format', 'json', '--no-env-resolution', '--no-interpolate'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    return JSON.parse(canonicalJson);
+  } catch (error) {
+    const commandMessage =
+      error instanceof Error ? error.message.split(/\r?\n/, 1)[0] : 'unknown command failure';
+    throw new Error(`canonical Compose config could not be resolved: ${commandMessage}`);
   }
 }
 
-const actualServices = composeServiceNames();
+const resolvedCompose = resolveCompose();
+if (
+  !resolvedCompose.services ||
+  typeof resolvedCompose.services !== 'object' ||
+  Array.isArray(resolvedCompose.services)
+) {
+  throw new Error('canonical Compose config must define services');
+}
+
+const actualServices = Object.keys(resolvedCompose.services);
 const missingServices = services.filter((service) => !actualServices.includes(service));
 const extraServices = actualServices.filter((service) => !services.includes(service));
 if (
@@ -69,25 +46,22 @@ if (
 }
 
 for (const service of services) {
-  const block = serviceBlock(service);
-  const securityOpt = listValues(block, 'security_opt');
-  const capDrop = listValues(block, 'cap_drop');
-  const capAdd = listValues(block, 'cap_add');
+  const serviceConfig = resolvedCompose.services[service];
+  const securityOpt = serviceConfig.security_opt ?? [];
+  const capDrop = serviceConfig.cap_drop ?? [];
+  const capAdd = serviceConfig.cap_add ?? [];
 
-  if (!securityOpt.includes('no-new-privileges:true')) {
+  if (!Array.isArray(securityOpt) || !securityOpt.includes('no-new-privileges:true')) {
     throw new Error(`${service} must set security_opt no-new-privileges:true`);
   }
-  if (hasField(block, 'cap_add') || capAdd.length > 0) {
+  if (!Array.isArray(capAdd) || capAdd.length > 0) {
     throw new Error(`${service} must not set cap_add`);
   }
-  if (hasField(block, 'extends') || hasField(block, '<<')) {
-    throw new Error(`${service} must not inherit service configuration via extends or <<`);
-  }
   if (capFreeServices.includes(service)) {
-    if (capDrop.length !== 1 || capDrop[0] !== 'ALL') {
+    if (!Array.isArray(capDrop) || capDrop.length !== 1 || capDrop[0] !== 'ALL') {
       throw new Error(`${service} must set cap_drop exactly to ALL`);
     }
-  } else if (hasField(block, 'cap_drop') || capDrop.length > 0) {
+  } else if (!Array.isArray(capDrop) || capDrop.length > 0) {
     throw new Error(`${service} must not set cap_drop`);
   }
 }
