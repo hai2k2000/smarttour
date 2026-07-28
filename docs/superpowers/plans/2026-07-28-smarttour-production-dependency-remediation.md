@@ -133,10 +133,10 @@ Expected: exit code `0`; only `package-lock.json` changes beyond the three edite
 Run:
 
 ```powershell
-npm ls @nestjs/swagger js-yaml body-parser next postcss sharp
+npx --yes npm@10.9.3 ls @nestjs/swagger js-yaml body-parser next postcss sharp
 ```
 
-Expected: exit code `0`; the production graph resolves `@nestjs/swagger@11.4.6`, `js-yaml@5.2.2`, `body-parser@2.3.0`, `next@16.2.12`, `postcss@8.5.24`, and `sharp@0.35.3`, with all parent-scoped overrides valid and no invalid/extraneous production resolution.
+Expected: exit code `0`; npm `10.9.3` reports the production graph as `@nestjs/swagger@11.4.6`, `js-yaml@5.2.2`, `body-parser@2.3.0`, `next@16.2.12`, `postcss@8.5.24`, and `sharp@0.35.3`, with all parent-scoped overrides valid and no invalid/extraneous production resolution. Do not use npm 11's `npm ls` result as the exact-tree gate because it currently flags these intentional override resolutions as semver-invalid.
 
 - [ ] **Step 6: Run the GREEN production audit**
 

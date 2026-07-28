@@ -86,7 +86,7 @@ No runtime configuration or data flow changes. The only runtime-sensitive item i
 The pull request is eligible for review only when npm `10.9.3` generates the lockfile and all gates pass from a clean install:
 
 1. Local npm `11.8.0` `npm ci` succeeds without lockfile drift, proving the generated lockfile remains consumable by the developer toolchain.
-2. `npm ls @nestjs/swagger js-yaml body-parser next postcss sharp` shows the intended patched versions with no invalid or extraneous production resolution.
+2. `npx --yes npm@10.9.3 ls @nestjs/swagger js-yaml body-parser next postcss sharp` shows the intended patched versions with valid parent-scoped overrides. npm 11's `npm ls` currently reports these intentional override resolutions as semver-invalid even after a successful install, so npm 10.9.3 is the exact-tree inspection tool while npm 11 remains an install compatibility gate.
 3. `npm audit --omit=dev` reports zero vulnerabilities.
 4. API TypeScript validation and production build pass.
 5. Web TypeScript validation and production build pass.
