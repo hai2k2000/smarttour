@@ -24,7 +24,7 @@ SmartTour CI fails at `npm audit --omit=dev` on both `main` and the container pr
 
 Automated `npm audit fix` is not suitable because its observed dry run does not fully remediate Sharp and proposes an unsuitable PostCSS resolution. The dependency graph must be changed explicitly and verified as one controlled security change.
 
-During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-ghv5`, which affects js-yaml `5.0.0` through `5.2.1`. Swagger `11.4.6` pins `js-yaml@5.2.1`, so the originally approved target is no longer safe. The same attempt proved that flat root PostCSS/Sharp overrides were not represented in a fresh npm 11.8.0 lock graph for Next.js. The user approved replacing them with explicit parent-scoped overrides and targeting `js-yaml@5.2.2`.
+During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-ghv5`, which affects js-yaml `5.0.0` through `5.2.1`. Swagger `11.4.6` pins `js-yaml@5.2.1`, so the originally approved target is no longer safe. The same attempt proved that npm `11.8.0` does not materialize the required parent-scoped Swagger and Next overrides in a fresh lock graph. An isolated npm `10.9.3` regeneration produced the exact approved graph and a zero-finding production audit, so the user approved pinning only lockfile generation to npm `10.9.3` while retaining local npm 11, CI, and Linux Docker validation as compatibility gates.
 
 ## Goals
 
@@ -54,7 +54,7 @@ The intended manifest and lock outcomes are:
 - Under `@nestjs/swagger`, pin `js-yaml` to `5.2.2` because Swagger `11.4.6` still declares the newly vulnerable exact `5.2.1` release.
 - Under `next`, pin `postcss` to `8.5.24` and `sharp` to `0.35.3` because Next.js `16.2.12` still declares vulnerable PostCSS `8.4.31` and optional Sharp `^0.34.5` resolutions.
 - Resolve `body-parser@2.3.0` through its upstream semver range; add an exact root override only if lock regeneration does not select `2.3.0`.
-- Regenerate `package-lock.json` with npm; do not hand-edit lockfile dependency nodes.
+- Regenerate `package-lock.json` with `npx --yes npm@10.9.3`; do not hand-edit lockfile dependency nodes or change the project's runtime package manager.
 
 The complete intended root override structure is:
 
@@ -83,9 +83,9 @@ No runtime configuration or data flow changes. The only runtime-sensitive item i
 
 ## Verification Gates
 
-The pull request is eligible for review only when all gates pass from a clean install:
+The pull request is eligible for review only when npm `10.9.3` generates the lockfile and all gates pass from a clean install:
 
-1. `npm ci` succeeds without lockfile drift.
+1. Local npm `11.8.0` `npm ci` succeeds without lockfile drift, proving the generated lockfile remains consumable by the developer toolchain.
 2. `npm ls @nestjs/swagger js-yaml body-parser next postcss sharp` shows the intended patched versions with no invalid or extraneous production resolution.
 3. `npm audit --omit=dev` reports zero vulnerabilities.
 4. API TypeScript validation and production build pass.
@@ -99,8 +99,8 @@ Production-credential-dependent smoke tests are not weakened or bypassed. If the
 
 ## Failure Handling
 
-- If npm resolves a vulnerable or invalid graph, adjust only the minimum direct range or override and regenerate the lockfile.
-- If parent-scoped overrides do not produce `js-yaml@5.2.2`, `postcss@8.5.24`, and `sharp@0.35.3` in a fresh lock graph, stop without committing and reassess the npm resolver strategy.
+- If npm `10.9.3` resolves a vulnerable or invalid graph, adjust only the minimum direct range or override and regenerate the lockfile with the same pinned npm version.
+- If the pinned lock generator does not produce `js-yaml@5.2.2`, `postcss@8.5.24`, and `sharp@0.35.3` in a fresh lock graph, stop without committing and reassess the npm resolver strategy.
 - If `sharp@0.35.3` fails Linux Docker installation, image loading, or web smoke validation, stop the pull request. Do not merge or deploy while Sharp remains vulnerable or incompatible.
 - If Next.js, Swagger, API, or web behavior regresses, stop and investigate the dependency delta; do not add application workarounds unless separately designed and approved.
 - If `npm audit` still reports any production vulnerability, the remediation is incomplete and the pull request remains blocked.
@@ -128,6 +128,7 @@ No database rollback, volume deletion, backup deletion, secret rotation, or data
 
 - The six current production audit findings are absent.
 - The exact patched package graph is visible in `package-lock.json` and `npm ls`.
+- The lockfile is generated with npm `10.9.3` and installs cleanly with local npm `11.8.0`, CI, and the Linux Docker build path.
 - API/web typecheck, production builds, Linux Docker builds, relevant smoke checks, and GitHub Actions pass.
 - The pull request remains isolated from container privilege hardening and contains no VPS change.
 - The privilege-hardening pull request can be refreshed on the remediated `main` and obtain a meaningful green CI result.

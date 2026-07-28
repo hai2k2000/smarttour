@@ -23,7 +23,7 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 - Production dependency remediation design:
   - Confirmed the existing `npm audit --omit=dev` failure on current `main`: six production findings across Swagger/js-yaml, body-parser, Next.js, PostCSS and Sharp.
   - Approved a separate dependency-only pull request before container privilege hardening, targeting Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next.js `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`.
-  - A new js-yaml advisory invalidated the original `5.2.1` target, and npm 11.8.0 did not materialize flat PostCSS/Sharp overrides in a fresh lock graph. The revised design uses explicit Swagger- and Next-scoped overrides; no dependency commit or VPS change has occurred.
+  - A new js-yaml advisory invalidated the original `5.2.1` target. npm `11.8.0` did not materialize the required parent-scoped overrides, while an isolated npm `10.9.3` regeneration produced the exact safe graph and zero production audit findings. The approved design now pins only lockfile generation to npm `10.9.3` and requires npm 11, CI, and Linux Docker compatibility checks; no dependency commit or VPS change has occurred.
   - The design requires a clean npm graph, zero production audit findings, API/web typecheck and build, authoritative Linux Docker builds, relevant smoke checks and green CI. No VPS, database, Compose, secret or production-data change is included.
 
 - VPS container resource hardening:

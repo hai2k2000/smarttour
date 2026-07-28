@@ -4,9 +4,9 @@
 
 **Goal:** Replace the six vulnerable production dependency resolutions with patched versions, restore a green production audit, and unblock the existing container privilege-hardening pull request without changing SmartTour application behavior or production state.
 
-**Architecture:** Keep the remediation in one dependency-only branch from `origin/main`. Update the two direct workspace dependencies, replace vulnerable root overrides, regenerate the root npm lockfile, and use the existing CI/Docker paths as the behavioral gate. Do not add application code, database changes, CI exceptions, or VPS changes.
+**Architecture:** Keep the remediation in one dependency-only branch from `origin/main`. Update the two direct workspace dependencies, replace vulnerable root overrides, regenerate the root npm lockfile with npm `10.9.3`, and use local npm 11 plus the existing CI/Docker paths as compatibility and behavioral gates. Do not add application code, database changes, CI exceptions, or VPS changes.
 
-**Tech Stack:** npm workspaces and lockfile v3, Node.js 22, NestJS 11, Next.js 16, Docker/Alpine, GitHub Actions.
+**Tech Stack:** npm workspaces and lockfile v3, npm `10.9.3` for lock generation, local npm `11.8.0` for compatibility validation, Node.js 22, NestJS 11, Next.js 16, Docker/Alpine, GitHub Actions.
 
 ---
 
@@ -15,7 +15,7 @@
 - Modify `apps/api/package.json`: raise the direct Swagger floor to the patched release.
 - Modify `apps/web/package.json`: raise the direct Next.js floor to the patched release.
 - Modify `package.json`: replace the vulnerable Swagger/js-yaml override with parent-scoped Swagger and Next overrides while retaining the existing Multer override.
-- Modify `package-lock.json`: regenerate with npm so all workspace and transitive nodes match the manifests.
+- Modify `package-lock.json`: regenerate with `npx --yes npm@10.9.3` so all workspace and transitive nodes match the manifests.
 - Modify `memory-bank/activeContext.md`: replace the design-only candidate note with verified remediation status.
 - Modify `memory-bank/progress.md`: record completed candidate verification and the remaining merge sequence.
 - Do not modify `.github/workflows/smarttour-ci.yml`: it already runs `npm ci`, the production audit, source contracts, API/web typecheck, and Linux Docker builds.
@@ -118,15 +118,15 @@ In `package.json`, make the complete `overrides` object exactly:
 
 The Swagger-scoped override moves js-yaml beyond the newly vulnerable `5.2.1` pin. The Next-scoped overrides are required because Next.js `16.2.12` still declares PostCSS `8.4.31` and optional Sharp `^0.34.5`. Do not add a body-parser override because Express `5.2.1` declares `body-parser` as `^2.2.1`, which resolves the patched `2.3.0` release.
 
-- [ ] **Step 4: Regenerate the lockfile through npm**
+- [ ] **Step 4: Regenerate the lockfile with the pinned npm resolver**
 
 Run:
 
 ```powershell
-npm install --package-lock-only --ignore-scripts --no-audit
+npx --yes npm@10.9.3 install --package-lock-only --ignore-scripts --no-audit
 ```
 
-Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. Do not hand-edit lockfile dependency nodes.
+Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. npm `10.9.3` must materialize the parent-scoped Swagger and Next overrides exactly. Do not hand-edit lockfile dependency nodes and do not change the globally installed npm version.
 
 - [ ] **Step 5: Verify the patched dependency tree**
 
@@ -184,7 +184,7 @@ Run:
 npm ci
 ```
 
-Expected: exit code `0`, no lockfile drift, and no invalid override or native-package installation error.
+Expected: exit code `0` under local npm `11.8.0`, no lockfile drift, and no invalid override or native-package installation error. This proves npm 11 can consume the npm 10-generated lockfile even though it cannot generate the required graph from scratch.
 
 - [ ] **Step 2: Generate the Prisma client exactly as CI does**
 
