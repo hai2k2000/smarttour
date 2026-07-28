@@ -36,8 +36,22 @@ function listValues(block, field) {
   return [...match[1].matchAll(/^      - (.+)\r?$/gm)].map((item) => item[1]);
 }
 
-function hasListField(block, field) {
-  return new RegExp(`^    ${field}:`, 'm').test(block);
+function hasField(block, field) {
+  return new RegExp(`^    ${field}[ \\t]*:`, 'm').test(block);
+}
+
+const fieldDetectorAssertions = [
+  ['    cap_add: [SYS_ADMIN]', 'cap_add'],
+  ['    cap_add : [SYS_ADMIN]', 'cap_add'],
+  ['    cap_add:\n      - SYS_ADMIN', 'cap_add'],
+  ['    cap_drop : [ALL]', 'cap_drop'],
+  ['    extends : base', 'extends'],
+  ['    << : *defaults', '<<'],
+];
+for (const [sample, field] of fieldDetectorAssertions) {
+  if (!hasField(sample, field)) {
+    throw new Error(`field detector must recognize ${field} syntax`);
+  }
 }
 
 const actualServices = composeServiceNames();
@@ -63,14 +77,17 @@ for (const service of services) {
   if (!securityOpt.includes('no-new-privileges:true')) {
     throw new Error(`${service} must set security_opt no-new-privileges:true`);
   }
-  if (hasListField(block, 'cap_add') || capAdd.length > 0) {
+  if (hasField(block, 'cap_add') || capAdd.length > 0) {
     throw new Error(`${service} must not set cap_add`);
+  }
+  if (hasField(block, 'extends') || hasField(block, '<<')) {
+    throw new Error(`${service} must not inherit service configuration via extends or <<`);
   }
   if (capFreeServices.includes(service)) {
     if (capDrop.length !== 1 || capDrop[0] !== 'ALL') {
       throw new Error(`${service} must set cap_drop exactly to ALL`);
     }
-  } else if (hasListField(block, 'cap_drop') || capDrop.length > 0) {
+  } else if (hasField(block, 'cap_drop') || capDrop.length > 0) {
     throw new Error(`${service} must not set cap_drop`);
   }
 }
