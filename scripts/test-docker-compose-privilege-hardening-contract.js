@@ -7,6 +7,15 @@ const ciWorkflow = fs.readFileSync('.github/workflows/smarttour-ci.yml', 'utf8')
 const services = ['postgres', 'redis', 'minio', 'n8n', 'api', 'web', 'nginx'];
 const capFreeServices = ['n8n', 'api', 'web'];
 
+function composeServiceNames() {
+  const header = compose.match(/^services:\r?\n/m);
+  if (!header) throw new Error('docker-compose.yml must define services');
+  const remainder = compose.slice(header.index + header[0].length);
+  const nextTopLevelKey = remainder.search(/^[a-zA-Z0-9_-]+:\r?$/m);
+  const serviceSection = nextTopLevelKey === -1 ? remainder : remainder.slice(0, nextTopLevelKey);
+  return [...serviceSection.matchAll(/^  ([a-zA-Z0-9_-]+):\r?$/gm)].map((match) => match[1]);
+}
+
 function serviceBlock(service) {
   const pattern = new RegExp(
     `^  ${service}:\\r?\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:\\r?$|^volumes:\\r?$)`,
@@ -29,6 +38,20 @@ function listValues(block, field) {
 
 function hasListField(block, field) {
   return new RegExp(`^    ${field}:`, 'm').test(block);
+}
+
+const actualServices = composeServiceNames();
+const missingServices = services.filter((service) => !actualServices.includes(service));
+const extraServices = actualServices.filter((service) => !services.includes(service));
+if (
+  actualServices.length !== services.length ||
+  missingServices.length > 0 ||
+  extraServices.length > 0
+) {
+  throw new Error(
+    `docker-compose.yml services must exactly match the reviewed set ` +
+      `(missing: ${missingServices.join(', ') || 'none'}; extra: ${extraServices.join(', ') || 'none'})`,
+  );
 }
 
 for (const service of services) {
