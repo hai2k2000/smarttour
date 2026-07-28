@@ -2,7 +2,8 @@
 
 - Prepared SmartTour production dependency remediation design:
   - Reproduced the current one-low/five-high production audit baseline and recorded the six affected dependency nodes and patched targets.
-  - Selected explicit direct upgrades plus narrowly scoped PostCSS/Sharp overrides instead of automated `npm audit fix` or audit suppression.
+  - Selected explicit direct upgrades plus parent-scoped Swagger/js-yaml and Next/PostCSS/Sharp overrides instead of automated `npm audit fix` or audit suppression.
+  - Revised the js-yaml target from `5.2.1` to `5.2.2` after a new advisory and stopped the first Task 2 attempt before commit when flat overrides did not produce a safe fresh lock graph.
   - Isolated the work on `ops/production-dependency-remediation-20260728` from latest `origin/main`; implementation, verification, pull request and production rollout remain pending.
 
 - Completed VPS container resource hardening:

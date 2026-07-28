@@ -7,6 +7,7 @@
 - Base: latest `origin/main`
 - Delivery: separate pull request before the container privilege-hardening pull request
 - Production state: unchanged by this work
+- Revision: 2026-07-28 advisory refresh approved parent-scoped overrides and raised the js-yaml target to `5.2.2`
 
 ## Problem
 
@@ -15,13 +16,15 @@ SmartTour CI fails at `npm audit --omit=dev` on both `main` and the container pr
 | Package | Current lock | Severity | Remediation target |
 | --- | --- | --- | --- |
 | `@nestjs/swagger` | `11.4.4` | high through `js-yaml` | `11.4.6` |
-| `js-yaml` | `4.2.0` through an override | high | `5.2.1` through patched Swagger |
+| `js-yaml` | `4.2.0` through an override | high | `5.2.2` through a Swagger-scoped override |
 | `body-parser` | `2.2.2` | low | `2.3.0` |
 | `next` | `16.2.6` | high | `16.2.12` |
 | `postcss` | `8.5.15` | high | `8.5.24` |
 | `sharp` | `0.34.5` | high | `0.35.3` |
 
 Automated `npm audit fix` is not suitable because its observed dry run does not fully remediate Sharp and proposes an unsuitable PostCSS resolution. The dependency graph must be changed explicitly and verified as one controlled security change.
+
+During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-ghv5`, which affects js-yaml `5.0.0` through `5.2.1`. Swagger `11.4.6` pins `js-yaml@5.2.1`, so the originally approved target is no longer safe. The same attempt proved that flat root PostCSS/Sharp overrides were not represented in a fresh npm 11.8.0 lock graph for Next.js. The user approved replacing them with explicit parent-scoped overrides and targeting `js-yaml@5.2.2`.
 
 ## Goals
 
@@ -42,22 +45,39 @@ Automated `npm audit fix` is not suitable because its observed dry run does not 
 
 ## Chosen Approach
 
-Create `ops/production-dependency-remediation-20260728` from the latest `origin/main`. Update the direct package ranges to patched versions, remove the obsolete vulnerable Swagger `js-yaml` override, and use explicit root overrides for vulnerable transitive packages only where the normal resolver cannot guarantee the patched version.
+Create `ops/production-dependency-remediation-20260728` from the latest `origin/main`. Update the direct package ranges to patched versions and use explicit parent-scoped overrides for the vulnerable transitive packages whose current parent releases still declare unsafe versions.
 
 The intended manifest and lock outcomes are:
 
 - `apps/api/package.json`: require `@nestjs/swagger` at `^11.4.6`.
 - `apps/web/package.json`: require `next` at `^16.2.12`.
-- Root overrides: pin `postcss` to `8.5.24` and `sharp` to `0.35.3` because they are transitive/optional Next.js dependencies with security-fixed versions outside the currently locked graph.
-- Remove the nested `@nestjs/swagger -> js-yaml@4.2.0` override so patched Swagger resolves `js-yaml@5.2.1`.
+- Under `@nestjs/swagger`, pin `js-yaml` to `5.2.2` because Swagger `11.4.6` still declares the newly vulnerable exact `5.2.1` release.
+- Under `next`, pin `postcss` to `8.5.24` and `sharp` to `0.35.3` because Next.js `16.2.12` still declares vulnerable PostCSS `8.4.31` and optional Sharp `^0.34.5` resolutions.
 - Resolve `body-parser@2.3.0` through its upstream semver range; add an exact root override only if lock regeneration does not select `2.3.0`.
 - Regenerate `package-lock.json` with npm; do not hand-edit lockfile dependency nodes.
+
+The complete intended root override structure is:
+
+```json
+"overrides": {
+  "@nestjs/platform-express": {
+    "multer": "2.2.0"
+  },
+  "@nestjs/swagger": {
+    "js-yaml": "5.2.2"
+  },
+  "next": {
+    "postcss": "8.5.24",
+    "sharp": "0.35.3"
+  }
+}
+```
 
 The user explicitly accepts `sharp@0.35.3` even though it is outside Next.js's previously observed optional `^0.34.5` range, provided the Linux Docker build and smoke checks pass.
 
 ## Dependency Flow
 
-The root npm workspace owns the lockfile and security overrides. The API workspace consumes patched Swagger and its YAML parser. The web workspace consumes patched Next.js, while the root overrides force patched PostCSS and Sharp throughout the workspace graph. CI installs the resulting lockfile with `npm ci`, audits only production dependencies, and builds both applications.
+The root npm workspace owns the lockfile and security overrides. The API workspace consumes patched Swagger, whose parent-scoped override forces the safe YAML parser. The web workspace consumes patched Next.js, whose parent-scoped overrides force patched PostCSS and Sharp. CI installs the resulting lockfile with `npm ci`, audits only production dependencies, and builds both applications.
 
 No runtime configuration or data flow changes. The only runtime-sensitive item is Sharp's native Linux binary, which must be validated inside the existing web Docker image rather than inferred from a Windows host installation.
 
@@ -80,6 +100,7 @@ Production-credential-dependent smoke tests are not weakened or bypassed. If the
 ## Failure Handling
 
 - If npm resolves a vulnerable or invalid graph, adjust only the minimum direct range or override and regenerate the lockfile.
+- If parent-scoped overrides do not produce `js-yaml@5.2.2`, `postcss@8.5.24`, and `sharp@0.35.3` in a fresh lock graph, stop without committing and reassess the npm resolver strategy.
 - If `sharp@0.35.3` fails Linux Docker installation, image loading, or web smoke validation, stop the pull request. Do not merge or deploy while Sharp remains vulnerable or incompatible.
 - If Next.js, Swagger, API, or web behavior regresses, stop and investigate the dependency delta; do not add application workarounds unless separately designed and approved.
 - If `npm audit` still reports any production vulnerability, the remediation is incomplete and the pull request remains blocked.
