@@ -1,9 +1,8 @@
 # Progress
 
-- Implemented SmartTour container privilege hardening candidate:
+- SmartTour container privilege hardening implementation candidate:
   - All seven Compose services declare `no-new-privileges`; `api`, `web`, and `n8n` drop all Linux capabilities.
-  - Canonical Compose source contract, npm command, CI wiring, Compose validation, and adjacent regression checks are in place.
-  - Production recreation, runtime `NoNewPrivs`/`CapEff` verification, and the private security inventory update remain pending.
+  - Focused RED/GREEN, quoted-key/additional-service regressions, adjacent Compose/GitHub Actions contracts, and candidate Compose validation passed; production recreation, runtime `NoNewPrivs`/`CapEff` verification, and private security inventory update remain pending.
 
 - Completed VPS container resource hardening:
   - Added `restart: unless-stopped`, service-specific memory/CPU limits and PID ceilings for PostgreSQL, Redis, MinIO, n8n, API, web and Nginx.
