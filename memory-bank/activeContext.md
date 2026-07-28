@@ -20,6 +20,11 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- Production dependency remediation design:
+  - Confirmed the existing `npm audit --omit=dev` failure on current `main`: six production findings across Swagger/js-yaml, body-parser, Next.js, PostCSS and Sharp.
+  - Approved a separate dependency-only pull request before container privilege hardening, targeting Swagger `11.4.6`, js-yaml `5.2.1`, body-parser `2.3.0`, Next.js `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`.
+  - The design requires a clean npm graph, zero production audit findings, API/web typecheck and build, authoritative Linux Docker builds, relevant smoke checks and green CI. No VPS, database, Compose, secret or production-data change is included.
+
 - VPS container resource hardening:
   - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
   - Added `scripts/test-docker-compose-resource-limits-contract.js`, exposed `npm run test:docker-compose-resources`, and wired the contract into SmartTour CI. The GitHub Actions contract now normalizes CRLF so its deploy-order assertions run consistently on Windows and Linux checkouts.

@@ -1,5 +1,10 @@
 # Progress
 
+- Prepared SmartTour production dependency remediation design:
+  - Reproduced the current one-low/five-high production audit baseline and recorded the six affected dependency nodes and patched targets.
+  - Selected explicit direct upgrades plus narrowly scoped PostCSS/Sharp overrides instead of automated `npm audit fix` or audit suppression.
+  - Isolated the work on `ops/production-dependency-remediation-20260728` from latest `origin/main`; implementation, verification, pull request and production rollout remain pending.
+
 - Completed VPS container resource hardening:
   - Added `restart: unless-stopped`, service-specific memory/CPU limits and PID ceilings for PostgreSQL, Redis, MinIO, n8n, API, web and Nginx.
   - Added a RED/GREEN Compose resource contract, npm command and CI wiring; fixed the existing GitHub Actions source contract to normalize CRLF before exact newline assertions.
