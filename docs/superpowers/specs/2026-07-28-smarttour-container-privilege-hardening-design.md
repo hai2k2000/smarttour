@@ -1,7 +1,7 @@
 # SmartTour Container Privilege Hardening Design
 
-**Date:** 2026-07-28  
-**Status:** Design approved; pending written-spec review  
+**Date:** 2026-07-28
+**Status:** Design approved; pending written-spec review
 **Scope:** First production rollout of SmartTour container privilege controls
 
 ## Context
