@@ -15,7 +15,7 @@
 - Modify `apps/api/package.json`: raise the direct Swagger floor to the patched release.
 - Modify `apps/web/package.json`: raise the direct Next.js floor to the patched release.
 - Modify `package.json`: replace the vulnerable Swagger/js-yaml override with parent-scoped Swagger and Next overrides while retaining the existing Multer override.
-- Modify `package-lock.json`: generate a fresh npm `10.9.3` snapshot so all workspace and transitive nodes match the manifests, accepting npm-generated indirect updates within existing ranges while keeping all unapproved direct manifest ranges unchanged.
+- Modify `package-lock.json`: generate a fresh npm `10.9.3` snapshot through a full scripts-disabled install so all production and development workspace nodes match the manifests, accepting npm-generated indirect updates within existing ranges while keeping all unapproved direct manifest ranges unchanged.
 - Modify `memory-bank/activeContext.md`: replace the design-only candidate note with verified remediation status.
 - Modify `memory-bank/progress.md`: record completed candidate verification and the remaining merge sequence.
 - Do not modify `.github/workflows/smarttour-ci.yml`: it already runs `npm ci`, the production audit, source contracts, API/web typecheck, and Linux Docker builds.
@@ -125,10 +125,10 @@ The Swagger-scoped override moves js-yaml beyond the newly vulnerable `5.2.1` pi
 Run:
 
 ```powershell
-npx --yes npm@10.9.3 install --package-lock-only --ignore-scripts --no-audit
+npx --yes npm@10.9.3 install --ignore-scripts --no-audit --include=dev
 ```
 
-Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. npm `10.9.3` must materialize the parent-scoped Swagger and Next overrides exactly. A fresh lock may update additional transitive, development, and optional resolutions allowed by existing ranges; do not add another direct dependency change, hand-edit lockfile nodes, or change the globally installed npm version.
+Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. npm `10.9.3` must materialize the parent-scoped Swagger and Next overrides plus the complete workspace development graph. Do not use `--package-lock-only`: that path was proven to omit required Nest CLI transitive entries such as `commander` while still allowing `npm ci` to exit successfully. A fresh lock may update additional transitive, development, and optional resolutions allowed by existing ranges; do not add another direct dependency change, hand-edit lockfile nodes, or change the globally installed npm version.
 
 - [ ] **Step 5: Verify the patched dependency tree**
 
@@ -139,6 +139,12 @@ npx --yes npm@10.9.3 ls @nestjs/swagger js-yaml body-parser next postcss sharp
 ```
 
 Expected: exit code `0`; npm `10.9.3` reports the production graph as `@nestjs/swagger@11.4.6`, `js-yaml@5.2.2`, `body-parser@2.3.0`, `next@16.2.12`, `postcss@8.5.24`, and `sharp@0.35.3`, with all parent-scoped overrides valid and no invalid/extraneous production resolution. Do not use npm 11's `npm ls` result as the exact-tree gate because it currently flags these intentional override resolutions as semver-invalid.
+
+- [ ] **Step 5a: Verify the workspace CLI lock is complete**
+
+Confirm the resolved `@nestjs/cli` package has lock entries for every direct dependency declared in its package metadata, including `commander`, `@angular-devkit/schematics-cli`, `cli-table3`, `fork-ts-checker-webpack-plugin`, `glob`, `node-emoji`, `tsconfig-paths`, `tsconfig-paths-webpack-plugin`, `webpack`, and `webpack-node-externals`.
+
+Expected: no declared Nest CLI dependency is missing from the lock. A missing entry blocks the candidate even if `npm ci` exits `0`.
 
 - [ ] **Step 6: Run the GREEN production audit**
 

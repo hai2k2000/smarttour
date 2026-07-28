@@ -3,7 +3,7 @@
 - Prepared SmartTour production dependency remediation design:
   - Reproduced the current one-low/five-high production audit baseline and recorded the six affected dependency nodes and patched targets.
   - Selected explicit direct upgrades plus parent-scoped Swagger/js-yaml and Next/PostCSS/Sharp overrides instead of automated `npm audit fix` or audit suppression.
-  - Revised the js-yaml target from `5.2.1` to `5.2.2` after a new advisory. npm `11.8.0` did not produce the required override graph; npm `10.9.3` fresh-lock generation did. Base-lock and targeted-update experiments remained vulnerable, so the user approved the broader npm-generated indirect lock refresh with no extra direct range changes and mandatory npm 11, application, CI, and Docker regression gates.
+  - Revised the js-yaml target from `5.2.1` to `5.2.2` after a new advisory. npm `11.8.0` did not produce the required override graph; npm `10.9.3` fresh-lock generation did. Base-lock and targeted-update experiments remained vulnerable, so the user approved the broader npm-generated indirect lock refresh with no extra direct range changes. Replaced the incomplete `--package-lock-only` result after Task 3 proved it omitted Nest CLI dependencies; the full scripts-disabled npm 10 install now records the complete CLI graph and passes isolated API build, with the remaining npm 11/application/Docker/CI gates pending.
   - Isolated the work on `ops/production-dependency-remediation-20260728` from latest `origin/main`; implementation, verification, pull request and production rollout remain pending.
 
 - Completed VPS container resource hardening:

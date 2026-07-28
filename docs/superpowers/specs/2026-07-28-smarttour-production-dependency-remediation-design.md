@@ -24,7 +24,7 @@ SmartTour CI fails at `npm audit --omit=dev` on both `main` and the container pr
 
 Automated `npm audit fix` is not suitable because its observed dry run does not fully remediate Sharp and proposes an unsuitable PostCSS resolution. The dependency graph must be changed explicitly and verified as one controlled security change.
 
-During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-ghv5`, which affects js-yaml `5.0.0` through `5.2.1`. Swagger `11.4.6` pins `js-yaml@5.2.1`, so the originally approved target is no longer safe. The same attempt proved that npm `11.8.0` does not materialize the required parent-scoped Swagger and Next overrides in a fresh lock graph. An isolated npm `10.9.3` regeneration produced the exact approved graph and a zero-finding production audit, so the user approved pinning only lockfile generation to npm `10.9.3` while retaining local npm 11, CI, and Linux Docker validation as compatibility gates.
+During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-ghv5`, which affects js-yaml `5.0.0` through `5.2.1`. Swagger `11.4.6` pins `js-yaml@5.2.1`, so the originally approved target is no longer safe. The same attempt proved that npm `11.8.0` does not materialize the required parent-scoped Swagger and Next overrides in a fresh lock graph. An isolated npm `10.9.3` regeneration produced the exact approved graph and a zero-finding production audit, so the user approved pinning lock generation to npm `10.9.3` while retaining local npm 11, CI, and Linux Docker validation as compatibility gates. Follow-up Task 3 validation proved that npm 10's `--package-lock-only` path omitted required Nest CLI transitive package entries even though `npm ci` exited successfully; the approved generator therefore uses a full `--ignore-scripts --include=dev` install so the lock captures the complete workspace development graph.
 
 ## Goals
 
@@ -57,7 +57,7 @@ The intended manifest and lock outcomes are:
 - Under `@nestjs/swagger`, pin `js-yaml` to `5.2.2` because Swagger `11.4.6` still declares the newly vulnerable exact `5.2.1` release.
 - Under `next`, pin `postcss` to `8.5.24` and `sharp` to `0.35.3` because Next.js `16.2.12` still declares vulnerable PostCSS `8.4.31` and optional Sharp `^0.34.5` resolutions.
 - Resolve `body-parser@2.3.0` through its upstream semver range; add an exact root override only if lock regeneration does not select `2.3.0`.
-- Regenerate `package-lock.json` with `npx --yes npm@10.9.3`; do not hand-edit lockfile dependency nodes or change the project's runtime package manager.
+- Regenerate `package-lock.json` with `npx --yes npm@10.9.3 install --ignore-scripts --no-audit --include=dev`; do not use `--package-lock-only`, hand-edit lockfile dependency nodes, or change the project's runtime package manager.
 
 The complete intended root override structure is:
 
@@ -86,18 +86,19 @@ No runtime configuration or data flow changes. The only runtime-sensitive item i
 
 ## Verification Gates
 
-The pull request is eligible for review only when npm `10.9.3` generates the lockfile and all gates pass from a clean install:
+The pull request is eligible for review only when a full npm `10.9.3` install generates the lockfile and all gates pass from a clean install:
 
 1. Local npm `11.8.0` `npm ci` succeeds without lockfile drift, proving the generated lockfile remains consumable by the developer toolchain.
 2. `npx --yes npm@10.9.3 ls @nestjs/swagger js-yaml body-parser next postcss sharp` shows the intended patched versions with valid parent-scoped overrides. npm 11's `npm ls` currently reports these intentional override resolutions as semver-invalid even after a successful install, so npm 10.9.3 is the exact-tree inspection tool while npm 11 remains an install compatibility gate.
-3. `npm audit --omit=dev` reports zero vulnerabilities.
-4. API TypeScript validation and production build pass.
-5. Web TypeScript validation and production build pass.
-6. Existing API and web Docker images build successfully on Linux; the web build proves Sharp can install and load for the target platform.
-7. Existing relevant smoke/contract checks pass, including public health and web route startup checks available without production credentials.
-8. `git diff --check` passes and the diff contains only dependency manifests, lockfile, this spec/plan, and concise Memory Bank updates.
-9. GitHub Actions completes successfully on the pull request.
-10. Lock-delta review confirms every direct manifest change is approved, all broader version movement is confined to npm-generated transitive/development/optional resolutions, and no application, CI, Docker, Prisma, environment, or deployment file is included.
+3. The lock and installed tree contain every direct dependency declared by the resolved `@nestjs/cli`, and the API production build can load the Nest CLI after Prisma generation.
+4. `npm audit --omit=dev` reports zero vulnerabilities.
+5. API TypeScript validation and production build pass.
+6. Web TypeScript validation and production build pass.
+7. Existing API and web Docker images build successfully on Linux; the web build proves Sharp can install and load for the target platform.
+8. Existing relevant smoke/contract checks pass, including public health and web route startup checks available without production credentials.
+9. `git diff --check` passes and the diff contains only dependency manifests, lockfile, this spec/plan, and concise Memory Bank updates.
+10. GitHub Actions completes successfully on the pull request.
+11. Lock-delta review confirms every direct manifest change is approved, all broader version movement is confined to npm-generated transitive/development/optional resolutions, and no application, CI, Docker, Prisma, environment, or deployment file is included.
 
 Production-credential-dependent smoke tests are not weakened or bypassed. If they cannot run locally, CI and the later staged production rollout retain those gates.
 
