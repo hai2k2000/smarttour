@@ -4,7 +4,7 @@
 
 **Goal:** Replace the six vulnerable production dependency resolutions with patched versions, restore a green production audit, and unblock the existing container privilege-hardening pull request without changing SmartTour application behavior or production state.
 
-**Architecture:** Keep the remediation in one dependency-only branch from `origin/main`. Update the two direct workspace dependencies, replace vulnerable root overrides, regenerate the root npm lockfile with npm `10.9.3`, and use local npm 11 plus the existing CI/Docker paths as compatibility and behavioral gates. Do not add application code, database changes, CI exceptions, or VPS changes.
+**Architecture:** Keep the remediation in one dependency-only branch from `origin/main`. Update the two direct workspace dependencies, replace vulnerable root overrides, generate a fresh root npm lockfile with npm `10.9.3`, and use local npm 11 plus the existing CI/Docker paths as compatibility and behavioral gates. The user explicitly accepts the broader npm-generated transitive/development/optional lock refresh because attempts to preserve or target-update the base lock retained vulnerable nodes. Do not add any other direct dependency range, application code, database change, CI exception, or VPS change.
 
 **Tech Stack:** npm workspaces and lockfile v3, npm `10.9.3` for lock generation, local npm `11.8.0` for compatibility validation, Node.js 22, NestJS 11, Next.js 16, Docker/Alpine, GitHub Actions.
 
@@ -15,7 +15,7 @@
 - Modify `apps/api/package.json`: raise the direct Swagger floor to the patched release.
 - Modify `apps/web/package.json`: raise the direct Next.js floor to the patched release.
 - Modify `package.json`: replace the vulnerable Swagger/js-yaml override with parent-scoped Swagger and Next overrides while retaining the existing Multer override.
-- Modify `package-lock.json`: regenerate with `npx --yes npm@10.9.3` so all workspace and transitive nodes match the manifests.
+- Modify `package-lock.json`: generate a fresh npm `10.9.3` snapshot so all workspace and transitive nodes match the manifests, accepting npm-generated indirect updates within existing ranges while keeping all unapproved direct manifest ranges unchanged.
 - Modify `memory-bank/activeContext.md`: replace the design-only candidate note with verified remediation status.
 - Modify `memory-bank/progress.md`: record completed candidate verification and the remaining merge sequence.
 - Do not modify `.github/workflows/smarttour-ci.yml`: it already runs `npm ci`, the production audit, source contracts, API/web typecheck, and Linux Docker builds.
@@ -69,6 +69,8 @@ sharp 0.34.5
 ```
 
 ### Task 2: Update manifests and regenerate the lockfile
+
+The user explicitly approved a fresh npm `10.9.3` lock refresh after quality review found broad indirect churn and controlled experiments proved that base-lock regeneration and targeted npm updates retained vulnerable nodes. Treat the expanded lock delta as accepted scope only when every additional change is indirect and Tasks 3-4 plus GitHub CI pass.
 
 **Files:**
 - Modify: `apps/api/package.json`
@@ -126,7 +128,7 @@ Run:
 npx --yes npm@10.9.3 install --package-lock-only --ignore-scripts --no-audit
 ```
 
-Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. npm `10.9.3` must materialize the parent-scoped Swagger and Next overrides exactly. Do not hand-edit lockfile dependency nodes and do not change the globally installed npm version.
+Expected: exit code `0`; only `package-lock.json` changes beyond the three edited manifests. npm `10.9.3` must materialize the parent-scoped Swagger and Next overrides exactly. A fresh lock may update additional transitive, development, and optional resolutions allowed by existing ranges; do not add another direct dependency change, hand-edit lockfile nodes, or change the globally installed npm version.
 
 - [ ] **Step 5: Verify the patched dependency tree**
 
@@ -157,7 +159,7 @@ git diff -- apps/api/package.json apps/web/package.json package.json package-loc
 git diff --check
 ```
 
-Expected: only the six intended package resolutions and their npm-generated lockfile consequences appear; no application, CI, Docker, Prisma, environment, or deployment file changes.
+Expected: the three manifest files contain only the approved Swagger, Next.js, and override edits. The fresh lock includes the six required patched production resolutions and may include the explicitly approved npm-generated indirect refresh. Record the lock entry/version delta for review; no application, CI, Docker, Prisma, environment, or deployment file changes may appear.
 
 - [ ] **Step 8: Commit the dependency graph**
 

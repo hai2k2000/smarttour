@@ -7,7 +7,7 @@
 - Base: latest `origin/main`
 - Delivery: separate pull request before the container privilege-hardening pull request
 - Production state: unchanged by this work
-- Revision: 2026-07-28 advisory refresh approved parent-scoped overrides and raised the js-yaml target to `5.2.2`
+- Revision: 2026-07-28 advisory refresh approved parent-scoped overrides, raised the js-yaml target to `5.2.2`, and explicitly approved the npm `10.9.3` fresh-lock refresh after targeted lock preservation could not produce a safe graph
 
 ## Problem
 
@@ -40,12 +40,15 @@ During the first Task 2 attempt, the live audit database added `GHSA-pm4m-ph32-g
 - No database schema, migration, seed, or production-data changes.
 - No Docker Compose privilege, resource, port, volume, network, or secret changes.
 - No VPS deployment as part of this pull request.
-- No broad dependency modernization beyond packages required to close the current production audit findings.
+- No direct dependency modernization beyond the approved Swagger and Next.js range changes.
+- The npm `10.9.3` fresh-lock refresh may update transitive, development, and optional resolutions already permitted by existing manifest ranges. The user explicitly approved that broader npm-generated lock delta after base-lock and targeted-update attempts either retained vulnerable nodes or still caused material partial churn.
 - No audit suppression, allowlist, or CI bypass.
 
 ## Chosen Approach
 
 Create `ops/production-dependency-remediation-20260728` from the latest `origin/main`. Update the direct package ranges to patched versions and use explicit parent-scoped overrides for the vulnerable transitive packages whose current parent releases still declare unsafe versions.
+
+Generate the lockfile from the current manifests with npm `10.9.3` rather than preserving the old vulnerable lock graph. This refresh is expected to update additional transitive, development, and optional resolutions within existing semver ranges. Those indirect updates are accepted only as one npm-generated lock snapshot and must pass the complete local, Linux Docker, smoke, and GitHub CI regression gates; no additional direct manifest ranges may change.
 
 The intended manifest and lock outcomes are:
 
@@ -94,6 +97,7 @@ The pull request is eligible for review only when npm `10.9.3` generates the loc
 7. Existing relevant smoke/contract checks pass, including public health and web route startup checks available without production credentials.
 8. `git diff --check` passes and the diff contains only dependency manifests, lockfile, this spec/plan, and concise Memory Bank updates.
 9. GitHub Actions completes successfully on the pull request.
+10. Lock-delta review confirms every direct manifest change is approved, all broader version movement is confined to npm-generated transitive/development/optional resolutions, and no application, CI, Docker, Prisma, environment, or deployment file is included.
 
 Production-credential-dependent smoke tests are not weakened or bypassed. If they cannot run locally, CI and the later staged production rollout retain those gates.
 
@@ -103,6 +107,7 @@ Production-credential-dependent smoke tests are not weakened or bypassed. If the
 - If the pinned lock generator does not produce `js-yaml@5.2.2`, `postcss@8.5.24`, and `sharp@0.35.3` in a fresh lock graph, stop without committing and reassess the npm resolver strategy.
 - If `sharp@0.35.3` fails Linux Docker installation, image loading, or web smoke validation, stop the pull request. Do not merge or deploy while Sharp remains vulnerable or incompatible.
 - If Next.js, Swagger, API, or web behavior regresses, stop and investigate the dependency delta; do not add application workarounds unless separately designed and approved.
+- If any regression gate fails because of a broader fresh-lock resolution, keep the pull request blocked and either constrain that specific dependency through a separately reviewed manifest change or abandon the candidate; do not suppress the failure.
 - If `npm audit` still reports any production vulnerability, the remediation is incomplete and the pull request remains blocked.
 - Never bypass the audit step or weaken CI to make the pull request green.
 
@@ -129,6 +134,7 @@ No database rollback, volume deletion, backup deletion, secret rotation, or data
 - The six current production audit findings are absent.
 - The exact patched package graph is visible in `package-lock.json` and `npm ls`.
 - The lockfile is generated with npm `10.9.3` and installs cleanly with local npm `11.8.0`, CI, and the Linux Docker build path.
+- The explicitly approved fresh-lock delta changes no unapproved direct dependency range; additional changes are npm-generated transitive, development, or optional resolutions and pass the full regression suite.
 - API/web typecheck, production builds, Linux Docker builds, relevant smoke checks, and GitHub Actions pass.
 - The pull request remains isolated from container privilege hardening and contains no VPS change.
 - The privilege-hardening pull request can be refreshed on the remediated `main` and obtain a meaningful green CI result.
