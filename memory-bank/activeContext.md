@@ -25,6 +25,12 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
   - Added `scripts/test-docker-compose-privilege-hardening-contract.js`, exposed `npm run test:docker-compose-privileges`, and wired the contract into SmartTour CI. The contract validates the canonical Docker Compose JSON model without resolving environment files or interpolation.
   - Focused RED/GREEN, quoted-key/additional-service regressions, adjacent Compose/GitHub Actions contracts, and candidate Compose validation passed. Production staged rollout, runtime evidence, and the private security inventory update remain pending.
 
+- Production dependency remediation candidate:
+  - Patched exact graph: Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`; the broader npm 10-generated indirect refresh is explicitly approved. Application code, Prisma, Compose, secrets and the VPS are unchanged.
+  - npm 11 clean install/no drift, complete Nest CLI graph, zero production audit findings, API/web lint and builds, contracts, Linux API/web images, Sharp `0.35.3` in dependencies and the final web runner, `/login` smoke, diff and status checks passed.
+  - Follow-up risk/recommendation: the final API image currently copies dev-inclusive `node_modules`, and the full install reports four high dev-toolchain findings, while the required production-only audit is zero. A separate container-hardening follow-up should prune production dependencies and scan the final API image before any later rollout; this is not an approved formal blocker or gate.
+  - PR merge, privilege-hardening refresh and any later production rollout remain pending.
+
 - VPS container resource hardening:
   - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
   - Added `scripts/test-docker-compose-resource-limits-contract.js`, exposed `npm run test:docker-compose-resources`, and wired the contract into SmartTour CI. The GitHub Actions contract now normalizes CRLF so its deploy-order assertions run consistently on Windows and Linux checkouts.
