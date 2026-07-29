@@ -25,24 +25,32 @@ function canonicalCompose() {
 
 validatePrivilegePolicy(canonicalCompose());
 
+const explicitFalse = canonicalCompose();
 for (const service of services) {
-  const composeModel = canonicalCompose();
-  composeModel.services[service].privileged = true;
+  explicitFalse.services[service].privileged = false;
+}
+validatePrivilegePolicy(explicitFalse);
 
-  let rejection;
-  try {
-    validatePrivilegePolicy(composeModel);
-  } catch (error) {
-    rejection = error;
-  }
+for (const service of services) {
+  for (const value of [true, 'true', 'false', null, 0]) {
+    const composeModel = canonicalCompose();
+    composeModel.services[service].privileged = value;
 
-  if (!(rejection instanceof Error)) {
-    throw new Error(`${service} privileged:true must be rejected`);
-  }
-  if (!rejection.message.includes(`${service} must not set privileged:true`)) {
-    throw new Error(
-      `${service} rejection must identify privileged:true: ${rejection.message}`,
-    );
+    let rejection;
+    try {
+      validatePrivilegePolicy(composeModel);
+    } catch (error) {
+      rejection = error;
+    }
+
+    if (!(rejection instanceof Error)) {
+      throw new Error(`${service} privileged=${JSON.stringify(value)} must be rejected`);
+    }
+    if (!rejection.message.includes(service) || !rejection.message.includes('privileged')) {
+      throw new Error(
+        `${service} rejection must identify the privileged field: ${rejection.message}`,
+      );
+    }
   }
 }
 

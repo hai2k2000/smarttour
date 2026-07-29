@@ -51,8 +51,11 @@ function validatePrivilegePolicy(resolvedCompose) {
     const capDrop = serviceConfig.cap_drop ?? [];
     const capAdd = serviceConfig.cap_add ?? [];
 
-    if (serviceConfig.privileged === true) {
-      throw new Error(`${service} must not set privileged:true`);
+    if (serviceConfig.privileged !== undefined && serviceConfig.privileged !== false) {
+      throw new Error(
+        `${service} must omit privileged or set privileged:false ` +
+          `(received ${JSON.stringify(serviceConfig.privileged)})`,
+      );
     }
     if (!Array.isArray(securityOpt) || !securityOpt.includes('no-new-privileges:true')) {
       throw new Error(`${service} must set security_opt no-new-privileges:true`);
