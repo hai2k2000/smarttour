@@ -176,10 +176,10 @@ else
     failures=$((failures + 1))
   fi
 
-  if run_audit_file_read grep -Eq '^permitrootlogin (without-password|prohibit-password)$' <<< "$sshd_effective"; then
-    echo "OK_SSH root login restricted to public key"
+  if run_audit_file_read grep -Eq '^permitrootlogin (no|without-password|prohibit-password)$' <<< "$sshd_effective"; then
+    echo "OK_SSH root login disabled or restricted to public key"
   else
-    echo "FAIL_SSH root login is not restricted to public key"
+    echo "FAIL_SSH root login is enabled without public-key restriction"
     failures=$((failures + 1))
   fi
 fi
