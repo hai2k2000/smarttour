@@ -82,7 +82,8 @@
     "test:deploy-preview-timeout": "node scripts/test-deploy-preview-timeout-contract.js",
     "test:docker-cache-maintenance": "node scripts/test-docker-cache-maintenance-contract.js",
     "test:docker-compose-resources": "node scripts/test-docker-compose-resource-limits-contract.js",
-    "test:docker-compose-privileges": "node scripts/test-docker-compose-privilege-hardening-contract.js"
+    "test:docker-compose-privileges": "node scripts/test-docker-compose-privilege-hardening-contract.js",
+    "test:docker-compose-privilege-regressions": "node scripts/test-docker-compose-privilege-hardening-regressions.js"
   },
   "devDependencies": {
     "playwright": "^1.60.0",
