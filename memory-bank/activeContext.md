@@ -20,11 +20,11 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
-- Production dependency remediation design:
-  - Confirmed the existing `npm audit --omit=dev` failure on current `main`: six production findings across Swagger/js-yaml, body-parser, Next.js, PostCSS and Sharp.
-  - Approved a separate dependency-only pull request before container privilege hardening, targeting Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next.js `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`.
-  - A new js-yaml advisory invalidated the original `5.2.1` target. npm `11.8.0` did not materialize the required parent-scoped overrides, while npm `10.9.3` fresh-lock generation produced the exact safe graph and zero production audit findings. Base-lock and targeted-update experiments retained vulnerable nodes, so the user explicitly approved the broader npm-generated transitive/development/optional refresh while keeping every unapproved direct manifest range unchanged. Task 3 then caught an incomplete Nest CLI graph from npm 10's `--package-lock-only` path; a full scripts-disabled npm 10 install restored all declared CLI dependencies and passed Prisma generation plus the API build in isolation. npm 11, remaining application, CI, and Linux Docker compatibility checks remain required; no VPS change has occurred.
-  - The design requires a clean npm graph, zero production audit findings, API/web typecheck and build, authoritative Linux Docker builds, relevant smoke checks and green CI. No VPS, database, Compose, secret or production-data change is included.
+- Production dependency remediation candidate:
+  - Patched exact graph: Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`; the broader npm 10-generated indirect refresh is explicitly approved. Application code, Prisma, Compose, secrets and the VPS are unchanged.
+  - npm 11 clean install/no drift, complete Nest CLI graph, zero production audit findings, API/web lint and builds, contracts, Linux API/web images, Sharp `0.35.3` in dependencies and the final web runner, `/login` smoke, diff and status checks passed.
+  - Known production-rollout blocker: the final API image still physically ships dev-inclusive `node_modules` and four high dev-toolchain findings. Container hardening must prune production dependencies and scan the final API image before VPS rollout.
+  - PR merge, privilege-hardening refresh and production rollout remain pending.
 
 - VPS container resource hardening:
   - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
