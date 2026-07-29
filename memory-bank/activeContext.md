@@ -20,11 +20,16 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
-- Production dependency remediation candidate:
+- SmartTour container privilege hardening candidate:
+  - Added `no-new-privileges` to all seven Compose services and `cap_drop: [ALL]` to `api`, `web`, and `n8n`; images, ports, networks, secrets, and volumes remain unchanged.
+  - Added `scripts/test-docker-compose-privilege-hardening-contract.js`, exposed `npm run test:docker-compose-privileges`, and wired the contract into SmartTour CI. The contract validates the canonical Docker Compose JSON model without resolving environment files or interpolation, rejects `privileged: true` for every service, and has a seven-service regression probe wired into CI.
+  - Focused RED/GREEN, quoted-key/additional-service regressions, adjacent Compose/GitHub Actions contracts, and candidate Compose validation passed. Production staged rollout, runtime evidence, and the private security inventory update remain pending.
+
+- Production dependency remediation merged into `main` as `30342414b87f4b1e82d4a2ea65795a6e89a9e826`:
   - Patched exact graph: Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`; the broader npm 10-generated indirect refresh is explicitly approved. Application code, Prisma, Compose, secrets and the VPS are unchanged.
   - npm 11 clean install/no drift, complete Nest CLI graph, zero production audit findings, API/web lint and builds, contracts, Linux API/web images, Sharp `0.35.3` in dependencies and the final web runner, `/login` smoke, diff and status checks passed.
   - Follow-up risk/recommendation: the final API image currently copies dev-inclusive `node_modules`, and the full install reports four high dev-toolchain findings, while the required production-only audit is zero. A separate container-hardening follow-up should prune production dependencies and scan the final API image before any later rollout; this is not an approved formal blocker or gate.
-  - PR merge, privilege-hardening refresh and any later production rollout remain pending.
+  - Dependency PR #2 is merged, and the privilege-hardening branch was refreshed at merge commit `2cc9509fdefeebbe8449f11b00cf01bfc0033d90` before the quality follow-up. Only PR #1 review/merge and production rollout remain pending.
 
 - VPS container resource hardening:
   - Added `restart: unless-stopped` plus explicit memory, CPU and PID limits for all seven SmartTour Compose services based on live `docker stats` measurements from the 7.8 GiB production VPS.
