@@ -2,9 +2,9 @@
 
 - Completed SmartTour production dependency remediation candidate:
   - Patched the exact production graph to Swagger `11.4.6`, js-yaml `5.2.2`, body-parser `2.3.0`, Next `16.2.12`, PostCSS `8.5.24` and Sharp `0.35.3`; the broader npm 10-generated indirect refresh is explicitly approved. Application code, Prisma, Compose, secrets and the VPS are unchanged.
-  - npm 11 clean install/no drift, complete Nest CLI graph, zero production audit findings, API/web lint and builds, contracts, Linux API image `52da226f...`, web-deps image `53796750...`, web image `44deea74...`, Sharp `0.35.3` in dependencies and the final web runner, `/login` smoke, diff and status checks passed.
-  - Known production-rollout blocker: the final API image still physically ships dev-inclusive `node_modules` and four high dev-toolchain findings. Container hardening must prune production dependencies and scan the final API image before VPS rollout.
-  - PR merge, privilege-hardening refresh and production rollout remain pending.
+  - npm 11 clean install/no drift, complete Nest CLI graph, zero production audit findings, API/web lint and builds, contracts, Linux API/web images, Sharp `0.35.3` in dependencies and the final web runner, `/login` smoke, diff and status checks passed.
+  - Follow-up risk/recommendation: the final API image currently copies dev-inclusive `node_modules`, and the full install reports four high dev-toolchain findings, while the required production-only audit is zero. A separate container-hardening follow-up should prune production dependencies and scan the final API image before any later rollout; this is not an approved formal blocker or gate.
+  - PR merge, privilege-hardening refresh and any later production rollout remain pending.
 
 - Completed VPS container resource hardening:
   - Added `restart: unless-stopped`, service-specific memory/CPU limits and PID ceilings for PostgreSQL, Redis, MinIO, n8n, API, web and Nginx.
