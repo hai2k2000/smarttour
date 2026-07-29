@@ -129,6 +129,18 @@ assertRegex(
 );
 
 assertIncludes(
+  'scripts/security-audit.sh',
+  securityAudit,
+  "^permitrootlogin (no|without-password|prohibit-password)$",
+);
+
+assertIncludes(
+  'scripts/security-audit.sh',
+  securityAudit,
+  'OK_SSH root login disabled or restricted to public key',
+);
+
+assertIncludes(
   'apps/api/src/main.ts',
   apiMain,
   "app.disable('x-powered-by')",
