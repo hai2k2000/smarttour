@@ -20,6 +20,12 @@ Docker build remains the authoritative deploy path for API/web on the VPS. Lates
 
 ## Latest Session Notes
 
+- Luutru public endpoint candidate:
+  - The existing SmartTour Nginx edge joins only the external `luutru_frontend` network and proxies `luutru.aitour.io.vn` through runtime Docker DNS without opening a new host port or coupling SmartTour startup to Luutru availability.
+  - A separate ECDSA Let's Encrypt lineage isolates Luutru TLS from the `aitour.io.vn` certificate; public OpenAPI/docs are blocked and login/API routes retain dedicated rate limits.
+  - The rollout switches Luutru API/worker to production mode, creates no user, uploads no real document, and preserves the outstanding alerting, recovery-custody, and backup-capacity gates.
+  - Rollback restores the previous SmartTour edge files and Luutru environment while preserving all volumes, database schema, certificates, and logs.
+
 - SmartTour container privilege hardening candidate:
   - Added `no-new-privileges` to all seven Compose services and `cap_drop: [ALL]` to `api`, `web`, and `n8n`; images, ports, networks, secrets, and volumes remain unchanged.
   - Added `scripts/test-docker-compose-privilege-hardening-contract.js`, exposed `npm run test:docker-compose-privileges`, and wired the contract into SmartTour CI. The contract validates the canonical Docker Compose JSON model without resolving environment files or interpolation, rejects `privileged: true` for every service, and has a seven-service regression probe wired into CI.
