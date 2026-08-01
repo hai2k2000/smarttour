@@ -31,6 +31,15 @@ function main() {
     'SmartTour Nginx networks must match the reviewed public-edge set',
   );
 
+  const apiAliases = compose.services?.api?.networks?.default?.aliases ?? [];
+  const webAliases = compose.services?.web?.networks?.default?.aliases ?? [];
+  if (!apiAliases.includes('smarttour-api')) {
+    throw new Error('SmartTour API must expose the unique smarttour-api alias');
+  }
+  if (!webAliases.includes('smarttour-web')) {
+    throw new Error('SmartTour web must expose the unique smarttour-web alias');
+  }
+
   for (const [service, config] of Object.entries(compose.services ?? {})) {
     if (service === 'nginx') continue;
     const networks = Object.keys(config.networks ?? {});
@@ -58,6 +67,9 @@ function main() {
     'proxy_set_header X-Forwarded-Proto https;',
     'zone=luutru_login:10m rate=10r/m',
     'zone=luutru_api:10m rate=120r/m',
+    'proxy_pass http://smarttour-api:4000/api/auth/login;',
+    'proxy_pass http://smarttour-api:4000/api/;',
+    'proxy_pass http://smarttour-web:3000;',
   ];
   for (const fragment of requiredFragments) {
     if (!nginxConfig.includes(fragment)) {
@@ -70,6 +82,16 @@ function main() {
   }
   if (!/location = \/api\/docs\s*{\s*return 404;\s*}/m.test(nginxConfig)) {
     throw new Error('Public API docs location must return 404');
+  }
+
+  const ambiguousSmartTourUpstreams = [
+    'proxy_pass http://api:4000',
+    'proxy_pass http://web:3000',
+  ];
+  for (const fragment of ambiguousSmartTourUpstreams) {
+    if (nginxConfig.includes(fragment)) {
+      throw new Error('Nginx config retains ambiguous SmartTour upstream: ' + fragment);
+    }
   }
 
   const hostnameMatches = nginxConfig.match(/server_name luutru\.aitour\.io\.vn;/g) ?? [];

@@ -91,6 +91,10 @@ services:
       - postgres
       - redis
       - minio
+    networks:
+      default:
+        aliases:
+          - smarttour-api
 
   web:
     build:
@@ -114,6 +118,10 @@ services:
       - "127.0.0.1:3000:3000"
     depends_on:
       - api
+    networks:
+      default:
+        aliases:
+          - smarttour-web
 
   nginx:
     image: nginx:1.27-alpine
