@@ -21,7 +21,7 @@
 
 Create a Node contract that resolves canonical Compose JSON and requires the Nginx service networks to be exactly `default` plus `luutru_frontend`. Require the external network name `luutru_frontend`.
 
-Require these exact Nginx fragments: `server_name luutru.aitour.io.vn;`, both `/etc/letsencrypt/live/luutru.aitour.io.vn/` certificate paths, `location = /api/v1/auth/login`, `location = /api/openapi.json`, `proxy_pass http://gateway:8080`, `zone=luutru_login:10m rate=10r/m`, and `zone=luutru_api:10m rate=120r/m`.
+Require these exact Nginx fragments: `server_name luutru.aitour.io.vn;`, both `/etc/letsencrypt/live/luutru.aitour.io.vn/` certificate paths, `location = /api/v1/auth/login`, `location = /api/openapi.json`, runtime Docker DNS resolution and variable-based proxying, `zone=luutru_login:10m rate=10r/m`, and `zone=luutru_api:10m rate=120r/m`.
 
 Require package script `test:luutru-public-endpoint` to execute the contract and require SmartTour CI to execute the same Node file directly.
 
@@ -45,7 +45,7 @@ Add `networks: [default, luutru_frontend]` to the Nginx service. Add a top-level
 
 - [ ] **Step 2: Add the Luutru vhosts**
 
-Add rate zones `luutru_login` at 10 requests/minute and `luutru_api` at 120 requests/minute. Add an HTTP redirect vhost and an HTTPS vhost using the separate certificate lineage.
+Add rate zones `luutru_login` at 10 requests/minute and `luutru_api` at 120 requests/minute. Use runtime Docker DNS so SmartTour startup remains independent of Luutru availability. Add an HTTP redirect vhost and an HTTPS vhost using the separate certificate lineage.
 
 The HTTPS vhost must return 404 for `/api/openapi.json` and `/api/docs`, rate-limit `/api/v1/auth/login`, rate-limit general `/api/`, proxy all API and frontend requests to `http://gateway:8080` without path rewriting, and set Host, X-Real-IP, X-Forwarded-For and X-Forwarded-Proto headers.
 

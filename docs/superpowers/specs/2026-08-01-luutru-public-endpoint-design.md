@@ -21,7 +21,7 @@ the rollout except for the short, controlled ACME standalone challenge window.
 
 Use the existing SmartTour Nginx container as the only public edge. Attach that
 container to the external `luutru_frontend` Docker network and proxy the new
-hostname to the stable `gateway:8080` network alias. Issue a separate ECDSA
+hostname to the stable `gateway:8080` network alias. Docker DNS is resolved at request time so SmartTour Nginx can still start while Luutru is unavailable. Issue a separate ECDSA
 Let's Encrypt certificate named `luutru.aitour.io.vn` so renewal and rollback do
 not replace the SmartTour certificate lineage.
 
@@ -53,6 +53,7 @@ network rollout.
 
 - A source contract must fail before the Compose network and Nginx vhost exist.
 - `docker compose config --quiet` and `nginx -t` must pass before reload.
+- A candidate edge must serve SmartTour before the Luutru network is attached, then serve Luutru after attachment.
 - External DNS, TLS hostname verification, HTTP redirect, frontend response,
   API health and unauthenticated session behavior must pass.
 - SmartTour HTTPS, Luutru data-service IDs, volumes, public listeners, firewall,

@@ -137,6 +137,14 @@ services:
     depends_on:
       - web
       - api
+    networks:
+      - default
+      - luutru_frontend
+
+networks:
+  luutru_frontend:
+    external: true
+    name: luutru_frontend
 
 volumes:
   smarttour_postgres:

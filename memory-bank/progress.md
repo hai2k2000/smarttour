@@ -1,5 +1,11 @@
 # Progress
 
+- Luutru public endpoint implementation candidate:
+  - Added a source contract for the exact SmartTour Nginx network boundary, Luutru hostname, certificate lineage, rate limits, gateway proxy, package command, and CI wiring.
+  - SmartTour Nginx joins the external `luutru_frontend` network while retaining the default network; only the Luutru gateway becomes reachable, while runtime Docker DNS keeps SmartTour startup independent when Luutru is absent.
+  - The new HTTP/HTTPS vhosts redirect to TLS, block public OpenAPI/docs, preserve forwarding headers, and route frontend/API traffic without path rewriting.
+  - Production activation remains gated on branch verification, CI, a separate ECDSA certificate, Luutru production mode, external HTTPS checks, unchanged data IDs/volumes/listeners, and checksum-valid rollback evidence.
+
 - SmartTour container privilege hardening implementation candidate:
   - All seven Compose services declare `no-new-privileges`; `api`, `web`, and `n8n` drop all Linux capabilities. The privilege contract also rejects `privileged: true` for every service and runs a seven-service regression probe in CI.
   - Focused RED/GREEN, quoted-key/additional-service regressions, adjacent Compose/GitHub Actions contracts, and candidate Compose validation passed; production recreation, runtime `NoNewPrivs`/`CapEff` verification, and private security inventory update remain pending.
